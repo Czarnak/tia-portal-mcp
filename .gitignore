@@ -65,6 +65,7 @@ nunit-*.xml
 .idea/
 
 .claude/settings.local.json
+.codex/config.toml
 priv/
 graphify-out/cache/
 graphify-out/manifest.json

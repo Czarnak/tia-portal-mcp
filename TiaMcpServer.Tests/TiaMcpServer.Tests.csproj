@@ -23,7 +23,10 @@
   <ItemGroup>
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <Compile Include="..\TiaMcpServer\Worker\OpennessWorkerClient.cs" Link="Host\OpennessWorkerClient.cs" />
+    <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs" Link="Host\WriteSafetyService.cs" />
+    <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs" Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\SearchEquipmentCatalogTool.cs" Link="Host\SearchEquipmentCatalogTool.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\UpdateBlockLogicTool.cs" Link="Host\UpdateBlockLogicTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\AddNetworkDeviceTool.cs" Link="Host\AddNetworkDeviceTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ConfigureNetworkDeviceTool.cs" Link="Host\ConfigureNetworkDeviceTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\CompileCheckTool.cs" Link="Host\CompileCheckTool.cs" />

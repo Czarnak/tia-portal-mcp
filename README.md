@@ -4,23 +4,29 @@ MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents
 
 The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads and guarded tag mutations, hardware/network discovery, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
-The server currently exposes 25 tools:
+The server currently exposes 42 tools:
 
 - `browse_project_tree` - recursively enumerates TIA devices, PLC software, Software Units, program blocks, PLC tags, and PLC data types, returning a JSON project tree with callable `Path` details.
 - `get_block_content` - exports a PLC block to its SIMATIC SD document representation.
-- `update_block_logic` - imports SIMATIC SD document content to update or create a PLC block. Requires `confirm=true`.
+- `preview_update_block_logic` / `update_block_logic` - preview and then import SIMATIC SD document content to update or create a PLC block. Writes require `confirm=true` and `safetyToken`.
 - `list_tag_tables` - retrieves PLC tag tables, tags, and user constants.
-- `create_tag_table` / `delete_tag_table` - create or delete PLC tag tables. Requires `confirm=true`.
-- `create_tag` / `update_tag` / `delete_tag` - create, modify, or delete PLC tags. Requires `confirm=true`.
-- `create_user_constant` / `update_user_constant` / `delete_user_constant` - create, modify, or delete user constants. Requires `confirm=true`.
+- `preview_create_tag_table` / `preview_delete_tag_table` / `create_tag_table` / `delete_tag_table` - preview and then create or delete PLC tag tables. Writes require `confirm=true` and `safetyToken`.
+- `preview_create_tag` / `preview_update_tag` / `preview_delete_tag` / `create_tag` / `update_tag` / `delete_tag` - preview and then create, modify, or delete PLC tags. Writes require `confirm=true` and `safetyToken`.
+- `preview_create_user_constant` / `preview_update_user_constant` / `preview_delete_user_constant` / `create_user_constant` / `update_user_constant` / `delete_user_constant` - preview and then create, modify, or delete user constants. Writes require `confirm=true` and `safetyToken`.
 - `read_hardware_config` - exports device hardware, rack/module items, network interfaces, node addressing, subnets, and IO systems as JSON.
 - `read_cross_references` - exports PLC cross-reference diagnostics, including source objects, referenced objects, usage locations, access types, and reference types.
 - `search_equipment_catalog` - search the local TIA Portal hardware catalog, including installed GSD/HSP packages.
-- `add_network_device` - insert an exact catalog `typeIdentifier` into the project with explicit confirmation.
-- `configure_network_device` - configure IP address, subnet mask, PROFINET device name, subnet, and IO-system settings when supported by Openness.
+- `preview_add_network_device` / `add_network_device` - preview and then insert an exact catalog `typeIdentifier` into the project.
+- `preview_configure_network_device` / `configure_network_device` - preview and then configure IP address, subnet mask, PROFINET device name, subnet, and IO-system settings when supported by Openness.
 - `compile_check` - run compile/check operations and return diagnostics.
 - `get_project_status` - read active project metadata.
-- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - project lifecycle operations. Write operations require `confirm=true`.
+- `preview_open_project` / `preview_create_project` / `preview_save_project` / `preview_save_project_as` / `preview_archive_project` / `preview_close_project` plus matching write tools - project lifecycle operations. Writes require `confirm=true` and `safetyToken`.
+
+## Write safety
+
+Every MCP write operation uses a preview-then-apply workflow. Call the matching `preview_*` tool first, review its summary, `currentStateHash`, `requestedInputHash`, and any diff, then pass the returned `safetyToken` to the write tool with `confirm=true`.
+
+Safety tokens are short-lived, single-use, and bound to the exact tool name, normalized project path, target, requested input, and current project state. The server rejects missing, expired, reused, mismatched, or stale-state tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
 ## Architecture
 
@@ -171,12 +177,12 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\Ti
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify the 25 tools appear.
+- Click `List Tools` and verify the 42 tools appear.
 - Start with read-only tools: `browse_project_tree`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, and `compile_check`.
 - Use `search_equipment_catalog` before hardware insertion so you can copy an exact `typeIdentifier`.
 - Use `get_block_content` on a block path returned by `browse_project_tree`.
 - Use `get_project_status` before lifecycle changes.
-- Avoid write tools unless the project is disposable or backed up; `update_block_logic`, tag mutations, project lifecycle writes, `add_network_device`, and `configure_network_device` require `confirm=true`.
+- Avoid write tools unless the project is disposable or backed up. Every write requires a matching `preview_*` call, then `confirm=true` and the returned `safetyToken`.
 
 Recommended smoke-test inputs:
 
@@ -219,18 +225,29 @@ For catalog/device provisioning, start with a read-only catalog search:
 }
 ```
 
-Then use an exact returned `typeIdentifier` with a disposable project:
+Then preview the exact returned `typeIdentifier` with a disposable project:
+
+```json
+{
+  "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
+  "deviceName": "PLC_1",
+  "deviceItemName": "PLC_1"
+}
+```
+
+After reviewing the preview, apply with the returned token:
 
 ```json
 {
   "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
   "deviceName": "PLC_1",
   "deviceItemName": "PLC_1",
-  "confirm": true
+  "confirm": true,
+  "safetyToken": "<token from preview_add_network_device>"
 }
 ```
 
-Network configuration also requires confirmation:
+Network configuration uses the same preview-then-apply flow:
 
 ```json
 {
@@ -239,11 +256,12 @@ Network configuration also requires confirmation:
   "subnetMask": "255.255.255.0",
   "pnDeviceName": "plc-1",
   "subnetName": "PN/IE_1",
-  "confirm": true
+  "confirm": true,
+  "safetyToken": "<token from preview_configure_network_device>"
 }
 ```
 
-Tag writes are atomic and require confirmation:
+Tag writes are atomic and use the same preview-then-apply flow:
 
 ```json
 {
@@ -252,16 +270,18 @@ Tag writes are atomic and require confirmation:
   "name": "StartButton",
   "dataType": "Bool",
   "logicalAddress": "%I0.0",
-  "confirm": true
+  "confirm": true,
+  "safetyToken": "<token from preview_create_tag>"
 }
 ```
 
-Project lifecycle writes also require confirmation:
+Project lifecycle writes also use the same preview-then-apply flow:
 
 ```json
 {
   "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
-  "confirm": true
+  "confirm": true,
+  "safetyToken": "<token from preview_open_project>"
 }
 ```
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer
@@ -14,6 +15,7 @@ namespace TiaMcpServer
             var builder = Host.CreateApplicationBuilder(args);
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(ResolveStartupProjectPath(args)));
+            builder.Services.AddSingleton(WriteSafetyService.Shared);
             builder.Services.AddSingleton<OpennessWorkerClient>();
             builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly();
             await builder.Build().RunAsync();
