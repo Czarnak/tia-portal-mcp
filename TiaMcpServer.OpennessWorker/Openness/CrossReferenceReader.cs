@@ -1,7 +1,5 @@
 using Siemens.Engineering;
 using Siemens.Engineering.CrossReference;
-using Siemens.Engineering.HW;
-using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using TiaMcpServer.Contracts;
 
@@ -17,7 +15,7 @@ public static class CrossReferenceReader
             Filter = filterName
         };
 
-        foreach (var plc in FindPlcSoftware(project, plcName))
+        foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
         {
             report.Plcs.Add(ReadPlc(plc.DeviceName, plc.Software, filter));
         }
@@ -164,51 +162,6 @@ public static class CrossReferenceReader
         };
     }
 
-    private static IEnumerable<DiscoveredPlcSoftware> FindPlcSoftware(Project project, string? plcName)
-    {
-        foreach (Device device in project.Devices)
-        {
-            if (plcName is not null &&
-                !string.Equals(device.Name, plcName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            foreach (PlcSoftware plcSoftware in FindPlcSoftwareInDeviceItems(device.DeviceItems))
-            {
-                yield return new DiscoveredPlcSoftware(device.Name, plcSoftware);
-            }
-        }
-    }
-
-    private static IEnumerable<PlcSoftware> FindPlcSoftwareInDeviceItems(DeviceItemComposition items)
-    {
-        foreach (DeviceItem item in items)
-        {
-            PlcSoftware? plcSoftware = null;
-
-            try
-            {
-                var container = item.GetService<SoftwareContainer>();
-                plcSoftware = container?.Software as PlcSoftware;
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine($"Skipping a device item while locating PLC software: {ex.Message}");
-            }
-
-            if (plcSoftware is not null)
-            {
-                yield return plcSoftware;
-            }
-
-            foreach (var child in FindPlcSoftwareInDeviceItems(item.DeviceItems))
-            {
-                yield return child;
-            }
-        }
-    }
-
     private static CrossReferenceFilter ToOpennessFilter(string filterName)
     {
         return filterName switch
@@ -240,18 +193,5 @@ public static class CrossReferenceReader
     private static string SafeString(object? value)
     {
         return value?.ToString() ?? string.Empty;
-    }
-
-    private sealed class DiscoveredPlcSoftware
-    {
-        public DiscoveredPlcSoftware(string deviceName, PlcSoftware software)
-        {
-            DeviceName = deviceName;
-            Software = software;
-        }
-
-        public string DeviceName { get; }
-
-        public PlcSoftware Software { get; }
     }
 }

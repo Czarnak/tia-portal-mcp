@@ -5,10 +5,6 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Siemens.Engineering;
 using Siemens.Engineering.Compiler;
-using Siemens.Engineering.HW;
-using Siemens.Engineering.HW.Features;
-using Siemens.Engineering.SW;
-using Siemens.Engineering.SW.Blocks;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
@@ -70,7 +66,7 @@ public static class CompileChecker
 
     private static string? FindFirstDeviceName(Project project)
     {
-        return FindAllPlcSoftware(project, null).FirstOrDefault()?.DeviceName;
+        return PlcSoftwareLocator.FindAll(project, null).FirstOrDefault()?.DeviceName;
     }
 
     private static CompileCheckReport CompilePlcSoftware(Project project, string? plcName)
@@ -81,7 +77,7 @@ public static class CompileChecker
             OverallState = "Success"
         };
 
-        foreach (var plc in FindAllPlcSoftware(project, plcName))
+        foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
         {
             try
             {
@@ -114,51 +110,6 @@ public static class CompileChecker
         }
 
         return report;
-    }
-
-    private static IEnumerable<DiscoveredPlcSoftware> FindAllPlcSoftware(Project project, string? plcName)
-    {
-        foreach (Device device in project.Devices)
-        {
-            if (plcName is not null &&
-                !string.Equals(device.Name, plcName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            foreach (PlcSoftware plcSoftware in FindPlcSoftwareInDeviceItems(device.DeviceItems))
-            {
-                yield return new DiscoveredPlcSoftware(device.Name, plcSoftware);
-            }
-        }
-    }
-
-    private static IEnumerable<PlcSoftware> FindPlcSoftwareInDeviceItems(DeviceItemComposition items)
-    {
-        foreach (DeviceItem item in items)
-        {
-            PlcSoftware? plcSoftware = null;
-
-            try
-            {
-                var container = item.GetService<SoftwareContainer>();
-                plcSoftware = container?.Software as PlcSoftware;
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine($"Skipping a device item while locating PLC software: {ex.Message}");
-            }
-
-            if (plcSoftware is not null)
-            {
-                yield return plcSoftware;
-            }
-
-            foreach (var child in FindPlcSoftwareInDeviceItems(item.DeviceItems))
-            {
-                yield return child;
-            }
-        }
     }
 
     private static PlcCompileInfo BuildPlcCompileInfo(string plcName, CompilerResult result)
@@ -279,18 +230,5 @@ public static class CompileChecker
         }
 
         return "Success";
-    }
-
-    private sealed class DiscoveredPlcSoftware
-    {
-        public DiscoveredPlcSoftware(string deviceName, PlcSoftware software)
-        {
-            DeviceName = deviceName;
-            Software = software;
-        }
-
-        public string DeviceName { get; }
-
-        public PlcSoftware Software { get; }
     }
 }

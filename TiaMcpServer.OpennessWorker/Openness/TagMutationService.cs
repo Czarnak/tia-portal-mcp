@@ -78,6 +78,12 @@ public static class TagMutationService
     {
         RequireName(name, "Name");
 
+        if (isSafety.HasValue)
+        {
+            // Reject before any mutation is applied so the operation does not partially succeed.
+            throw new InvalidOperationException("Updating IsSafety is not supported by the available TIA Openness API.");
+        }
+
         var table = ResolveTable(project, plcName, tableName, folderPath);
         var tag = table.Tags.Find(name) ??
             throw new InvalidOperationException($"Tag '{name}' was not found in tag table '{tableName}'.");
@@ -117,11 +123,6 @@ public static class TagMutationService
         if (externalWritable.HasValue)
         {
             tag.ExternalWritable = externalWritable.Value;
-        }
-
-        if (isSafety.HasValue)
-        {
-            throw new InvalidOperationException("Updating IsSafety is not supported by the available TIA Openness API.");
         }
 
         return Result("update_tag", project, plcName, table.Name, NormalizeFolderPath(folderPath), tag.Name, null);

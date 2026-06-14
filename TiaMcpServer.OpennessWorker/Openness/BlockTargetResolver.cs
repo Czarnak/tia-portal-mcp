@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Siemens.Engineering;
-using Siemens.Engineering.HW;
-using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Units;
@@ -14,7 +12,7 @@ internal static class BlockTargetResolver
 {
     public static ResolvedBlockTarget ResolveForExport(Project project, BlockAddress address)
     {
-        PlcSoftware plcSoftware = FindPlcSoftware(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
 
         if (address.IsDeterministic)
         {
@@ -42,7 +40,7 @@ internal static class BlockTargetResolver
 
     public static ResolvedBlockTarget ResolveForImport(Project project, BlockAddress address)
     {
-        PlcSoftware plcSoftware = FindPlcSoftware(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
 
         if (address.IsDeterministic)
         {
@@ -70,54 +68,6 @@ internal static class BlockTargetResolver
             : plcSoftware.BlockGroup;
 
         return FindBlockGroup(rootGroup, address.FolderPath);
-    }
-
-    private static PlcSoftware FindPlcSoftware(Project project, string? plcName)
-    {
-        foreach (Device device in project.Devices)
-        {
-            if (plcName is not null && !string.Equals(device.Name, plcName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            foreach (PlcSoftware plcSoftware in FindPlcSoftwareInDeviceItems(device.DeviceItems))
-            {
-                return plcSoftware;
-            }
-        }
-
-        return plcName is null
-            ? throw new InvalidOperationException("No PLC software found in project.")
-            : throw new InvalidOperationException($"PLC '{plcName}' not found in project.");
-    }
-
-    private static IEnumerable<PlcSoftware> FindPlcSoftwareInDeviceItems(DeviceItemComposition items)
-    {
-        foreach (DeviceItem item in items)
-        {
-            PlcSoftware? plcSoftware = null;
-
-            try
-            {
-                var container = item.GetService<SoftwareContainer>();
-                plcSoftware = container?.Software as PlcSoftware;
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine($"Skipping a device item while locating PLC software: {ex.Message}");
-            }
-
-            if (plcSoftware is not null)
-            {
-                yield return plcSoftware;
-            }
-
-            foreach (var child in FindPlcSoftwareInDeviceItems(item.DeviceItems))
-            {
-                yield return child;
-            }
-        }
     }
 
     private static PlcUnit FindSoftwareUnit(PlcSoftware plcSoftware, string unitName)

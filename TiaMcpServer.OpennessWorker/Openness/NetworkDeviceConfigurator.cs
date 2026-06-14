@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Reflection;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
@@ -296,65 +295,11 @@ public static class NetworkDeviceConfigurator
 
     private static object? ReadProperty(object? instance, string propertyName)
     {
-        if (instance is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return instance.GetType()
-                .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
-                ?.GetValue(instance);
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is EngineeringException engineeringException)
-        {
-            Console.Error.WriteLine($"Skipping property '{propertyName}': {engineeringException.Message}");
-            return null;
-        }
+        return OpennessReflection.ReadProperty(instance, propertyName);
     }
 
     private static IEnumerable<object> ReadEnumerableProperty(object instance, string propertyName)
     {
-        var value = ReadProperty(instance, propertyName);
-        if (value is not IEnumerable enumerable)
-        {
-            yield break;
-        }
-
-        IEnumerator enumerator;
-        try
-        {
-            enumerator = enumerable.GetEnumerator();
-        }
-        catch (EngineeringException ex)
-        {
-            Console.Error.WriteLine($"Skipping enumerable property '{propertyName}': {ex.Message}");
-            yield break;
-        }
-
-        while (true)
-        {
-            object? current;
-            try
-            {
-                if (!enumerator.MoveNext())
-                {
-                    yield break;
-                }
-
-                current = enumerator.Current;
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine($"Skipping an entry from '{propertyName}': {ex.Message}");
-                yield break;
-            }
-
-            if (current is not null)
-            {
-                yield return current;
-            }
-        }
+        return OpennessReflection.ReadEnumerableProperty(instance, propertyName);
     }
 }

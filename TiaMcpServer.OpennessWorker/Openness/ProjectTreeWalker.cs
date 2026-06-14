@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
-using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Tags;
@@ -22,7 +21,7 @@ public class ProjectTreeWalker
         {
             var children = new List<ProjectTreeNode>();
 
-            foreach (var plcSoftware in FindPlcSoftwareInDevice(device))
+            foreach (var plcSoftware in PlcSoftwareLocator.FindInDevice(device))
             {
                 children.Add(WalkPlcSoftware(device.Name, plcSoftware));
             }
@@ -40,39 +39,6 @@ public class ProjectTreeWalker
         }
 
         return rootNodes;
-    }
-
-    private static IEnumerable<PlcSoftware> FindPlcSoftwareInDevice(Device device)
-    {
-        return FindPlcSoftwareInDeviceItems(device.DeviceItems);
-    }
-
-    private static IEnumerable<PlcSoftware> FindPlcSoftwareInDeviceItems(DeviceItemComposition items)
-    {
-        foreach (DeviceItem item in items)
-        {
-            PlcSoftware? plcSoftware = null;
-
-            try
-            {
-                var container = item.GetService<SoftwareContainer>();
-                plcSoftware = container?.Software as PlcSoftware;
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine($"Skipping a device item while locating PLC software: {ex.Message}");
-            }
-
-            if (plcSoftware is not null)
-            {
-                yield return plcSoftware;
-            }
-
-            foreach (var child in FindPlcSoftwareInDeviceItems(item.DeviceItems))
-            {
-                yield return child;
-            }
-        }
     }
 
     private static ProjectTreeNode WalkPlcSoftware(string deviceName, PlcSoftware plcSoftware)

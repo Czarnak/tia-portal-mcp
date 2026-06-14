@@ -7,7 +7,23 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class PlcSoftwareLocator
 {
+    /// <summary>Returns the first PLC software in the project (optionally filtered by device name), or throws if none.</summary>
     public static PlcSoftware Find(Project project, string? plcName)
+    {
+        foreach (var discovered in FindAll(project, plcName))
+        {
+            return discovered.Software;
+        }
+
+        var detail = plcName is not null
+            ? $" named '{plcName}'"
+            : string.Empty;
+
+        throw new InvalidOperationException($"No PLC software{detail} was found in the project.");
+    }
+
+    /// <summary>Enumerates every PLC software in the project (optionally filtered by device name), paired with its owning device name.</summary>
+    public static IEnumerable<DiscoveredPlcSoftware> FindAll(Project project, string? plcName)
     {
         foreach (Device device in project.Devices)
         {
@@ -16,17 +32,17 @@ public static class PlcSoftwareLocator
                 continue;
             }
 
-            foreach (var plcSoftware in FindInDeviceItems(device.DeviceItems))
+            foreach (var plcSoftware in FindInDevice(device))
             {
-                return plcSoftware;
+                yield return new DiscoveredPlcSoftware(device.Name, plcSoftware);
             }
         }
+    }
 
-        var detail = plcName is not null
-            ? $" named '{plcName}'"
-            : string.Empty;
-
-        throw new InvalidOperationException($"No PLC software{detail} was found in the project.");
+    /// <summary>Enumerates every PLC software hosted by a single device.</summary>
+    public static IEnumerable<PlcSoftware> FindInDevice(Device device)
+    {
+        return FindInDeviceItems(device.DeviceItems);
     }
 
     private static IEnumerable<PlcSoftware> FindInDeviceItems(DeviceItemComposition items)
@@ -55,5 +71,18 @@ public static class PlcSoftwareLocator
                 yield return child;
             }
         }
+    }
+
+    public sealed class DiscoveredPlcSoftware
+    {
+        public DiscoveredPlcSoftware(string deviceName, PlcSoftware software)
+        {
+            DeviceName = deviceName;
+            Software = software;
+        }
+
+        public string DeviceName { get; }
+
+        public PlcSoftware Software { get; }
     }
 }

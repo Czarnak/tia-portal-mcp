@@ -47,8 +47,8 @@ internal static class Program
 
             return request.Method switch
             {
-                "browse_project_tree" => BrowseProjectTree(request.ProjectPath),
-                "read_hardware_config" => ReadHardwareConfig(request.ProjectPath),
+                "browse_project_tree" => BrowseProjectTree(request),
+                "read_hardware_config" => ReadHardwareConfig(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
                 "configure_network_device" => ConfigureNetworkDevice(request),
@@ -86,91 +86,14 @@ internal static class Program
         }
     }
 
-    private static WorkerResponse BrowseProjectTree(string? projectPath)
+    private static WorkerResponse BrowseProjectTree(WorkerRequest request)
     {
-        try
-        {
-            using var session = new WorkerTiaPortalSession();
-            var walker = new ProjectTreeWalker();
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(projectPath))
-            {
-                session.OpenProject(projectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var tree = walker.Walk(session.Project);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(tree, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => Success(new ProjectTreeWalker().Walk(project)));
     }
 
-    private static WorkerResponse ReadHardwareConfig(string? projectPath)
+    private static WorkerResponse ReadHardwareConfig(WorkerRequest request)
     {
-        try
-        {
-            using var session = new WorkerTiaPortalSession();
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(projectPath))
-            {
-                session.OpenProject(projectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var config = HardwareConfigReader.Read(session.Project);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(config, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => Success(HardwareConfigReader.Read(project)));
     }
 
     private static WorkerResponse SearchEquipmentCatalog(WorkerRequest request)
@@ -180,10 +103,8 @@ internal static class Program
             return Failure("Query is required.");
         }
 
-        try
+        return WithSession(request, session =>
         {
-            using var session = new WorkerTiaPortalSession();
-
             session.EnsureConnected();
 
             if (!string.IsNullOrEmpty(request.ProjectPath))
@@ -196,29 +117,8 @@ internal static class Program
                 return Failure("No TIA Portal session is connected. Please start TIA Portal and try again.");
             }
 
-            var entries = EquipmentCatalogSearcher.Search(session.TiaPortal, request.Query!);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(entries, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+            return Success(EquipmentCatalogSearcher.Search(session.TiaPortal, request.Query!));
+        });
     }
 
     private static WorkerResponse AddNetworkDevice(WorkerRequest request)
@@ -238,50 +138,11 @@ internal static class Program
             return Failure("Operation not confirmed. Set confirm=true to proceed with adding a network device.");
         }
 
-        try
-        {
-            using var session = new WorkerTiaPortalSession(allowTiaConfirmations: true);
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var result = NetworkDeviceCreator.Create(
-                session.Project,
-                request.TypeIdentifier!,
-                request.DeviceName!,
-                string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!);
-
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(result, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => Success(NetworkDeviceCreator.Create(
+            project,
+            request.TypeIdentifier!,
+            request.DeviceName!,
+            string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!)));
     }
 
     private static WorkerResponse ConfigureNetworkDevice(WorkerRequest request)
@@ -296,53 +157,14 @@ internal static class Program
             return Failure("Operation not confirmed. Set confirm=true to proceed with configuring a network device.");
         }
 
-        try
-        {
-            using var session = new WorkerTiaPortalSession(allowTiaConfirmations: true);
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var result = NetworkDeviceConfigurator.Configure(
-                session.Project,
-                request.DeviceName!,
-                request.IpAddress,
-                request.SubnetMask,
-                request.PnDeviceName,
-                request.SubnetName,
-                request.IoSystemName);
-
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(result, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => Success(NetworkDeviceConfigurator.Configure(
+            project,
+            request.DeviceName!,
+            request.IpAddress,
+            request.SubnetMask,
+            request.PnDeviceName,
+            request.SubnetName,
+            request.IoSystemName)));
     }
 
     private static WorkerResponse ReadCrossReferences(WorkerRequest request)
@@ -355,87 +177,17 @@ internal static class Program
             return Failure(filterError ?? "Invalid cross-reference filter.");
         }
 
-        try
-        {
-            using var session = new WorkerTiaPortalSession();
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var report = CrossReferenceReader.Read(session.Project, request.PlcName, filter);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(report, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => Success(CrossReferenceReader.Read(project, request.PlcName, filter)));
     }
 
     private static WorkerResponse GetBlockContent(WorkerRequest request)
     {
         if (string.IsNullOrEmpty(request.BlockPath))
+        {
             return Failure("BlockPath is required.");
-
-        try
-        {
-            using var session = new WorkerTiaPortalSession();
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            string yaml = BlockExporter.Export(session.Project, request.BlockPath!);
-            return new WorkerResponse { Success = true, Payload = yaml };
         }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+
+        return WithProject(request, project => RawPayload(BlockExporter.Export(project, request.BlockPath!)));
     }
 
     private static WorkerResponse UpdateBlockLogic(WorkerRequest request)
@@ -450,127 +202,17 @@ internal static class Program
             return Failure("YamlContent is required.");
         }
 
-        try
-        {
-            using var session = new WorkerTiaPortalSession(request.AllowTiaConfirmations);
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            string result = BlockImporter.Import(session.Project, request.BlockPath!, request.YamlContent!);
-            return new WorkerResponse { Success = true, Payload = result };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => RawPayload(BlockImporter.Import(project, request.BlockPath!, request.YamlContent!)));
     }
 
     private static WorkerResponse ListTagTables(WorkerRequest request)
     {
-        try
-        {
-            using var session = new WorkerTiaPortalSession();
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var tables = TagTableReader.ReadAll(session.Project, request.PlcName);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(tables, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => Success(TagTableReader.ReadAll(project, request.PlcName)));
     }
 
     private static WorkerResponse CompileCheck(WorkerRequest request)
     {
-        try
-        {
-            using var session = new WorkerTiaPortalSession();
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var report = CompileChecker.Compile(session.Project, request.PlcName, request.BlockPath);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(report, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
+        return WithProject(request, project => Success(CompileChecker.Compile(project, request.PlcName, request.BlockPath)));
     }
 
     private static WorkerResponse CreateTagTable(WorkerRequest request)
@@ -664,54 +306,6 @@ internal static class Program
                 request.Name!));
     }
 
-    private static WorkerResponse TagMutation(WorkerRequest request, Func<Project, TagMutationResultInfo> mutate)
-    {
-        if (!request.Confirm)
-        {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with the tag operation.");
-        }
-
-        try
-        {
-            using var session = new WorkerTiaPortalSession(request.AllowTiaConfirmations);
-
-            session.EnsureConnected();
-
-            if (!string.IsNullOrEmpty(request.ProjectPath))
-            {
-                session.OpenProject(request.ProjectPath!);
-            }
-
-            if (session.Project is null)
-            {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
-            }
-
-            var result = mutate(session.Project);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(result, JsonOptions)
-            };
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(ex.Message);
-        }
-    }
-
     private static WorkerResponse GetProjectStatus(WorkerRequest request)
     {
         return ProjectLifecycle(request, session =>
@@ -795,6 +389,16 @@ internal static class Program
             requiresConfirm: true);
     }
 
+    private static WorkerResponse TagMutation(WorkerRequest request, Func<Project, TagMutationResultInfo> mutate)
+    {
+        if (!request.Confirm)
+        {
+            return Failure("Operation not confirmed. Set confirm=true to proceed with the tag operation.");
+        }
+
+        return WithProject(request, project => Success(mutate(project)));
+    }
+
     private static WorkerResponse ProjectLifecycle(
         WorkerRequest request,
         Func<WorkerTiaPortalSession, ProjectLifecycleResultInfo> operation,
@@ -805,15 +409,46 @@ internal static class Program
             return Failure("Operation not confirmed. Set confirm=true to proceed with the project operation.");
         }
 
-        try
+        return WithSession(request, session => Success(operation(session)));
+    }
+
+    /// <summary>Opens an Openness session, ensures a project is available, then runs <paramref name="body"/>.</summary>
+    private static WorkerResponse WithProject(WorkerRequest request, Func<Project, WorkerResponse> body)
+    {
+        return WithSession(request, session =>
+        {
+            session.EnsureConnected();
+
+            if (!string.IsNullOrEmpty(request.ProjectPath))
+            {
+                session.OpenProject(request.ProjectPath!);
+            }
+
+            if (session.Project is null)
+            {
+                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
+            }
+
+            return body(session.Project);
+        });
+    }
+
+    /// <summary>Opens (and disposes) an Openness session and runs <paramref name="body"/> inside the shared error handler.</summary>
+    private static WorkerResponse WithSession(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
+    {
+        return Execute(() =>
         {
             using var session = new WorkerTiaPortalSession(request.AllowTiaConfirmations);
-            var result = operation(session);
-            return new WorkerResponse
-            {
-                Success = true,
-                Payload = JsonSerializer.Serialize(result, JsonOptions)
-            };
+            return body(session);
+        });
+    }
+
+    /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure.</summary>
+    private static WorkerResponse Execute(Func<WorkerResponse> body)
+    {
+        try
+        {
+            return body();
         }
         catch (EngineeringException ex)
         {
@@ -831,6 +466,24 @@ internal static class Program
         {
             return Failure(ex.Message);
         }
+    }
+
+    private static WorkerResponse Success<T>(T payload)
+    {
+        return new WorkerResponse
+        {
+            Success = true,
+            Payload = JsonSerializer.Serialize(payload, JsonOptions)
+        };
+    }
+
+    private static WorkerResponse RawPayload(string payload)
+    {
+        return new WorkerResponse
+        {
+            Success = true,
+            Payload = payload
+        };
     }
 
     private static WorkerResponse Failure(string error)

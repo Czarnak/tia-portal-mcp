@@ -22,121 +22,46 @@ public class OpennessWorkerClient
         _projectSessionBinding = projectSessionBinding;
     }
 
-    public async Task<string> BrowseProjectTreeAsync(string? projectPath)
+    public Task<string> BrowseProjectTreeAsync(string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
-            {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "browse_project_tree",
-                    ProjectPath = effectiveProjectPath
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "[]"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+        return SendBoundProjectRequestAsync("browse_project_tree", projectPath, _ => { }, "[]");
     }
 
-    public async Task<string> ReadHardwareConfigAsync(string? projectPath)
+    public Task<string> ReadHardwareConfigAsync(string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
-            {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "read_hardware_config",
-                    ProjectPath = effectiveProjectPath
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "{}"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+        return SendBoundProjectRequestAsync("read_hardware_config", projectPath, _ => { }, "{}");
     }
 
-    public async Task<string> SearchEquipmentCatalogAsync(string query, string? projectPath)
+    public Task<string> SearchEquipmentCatalogAsync(string query, string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
-            {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "search_equipment_catalog",
-                    Query = query,
-                    ProjectPath = effectiveProjectPath
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "[]"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+        return SendBoundProjectRequestAsync(
+            "search_equipment_catalog",
+            projectPath,
+            request => request.Query = query,
+            "[]");
     }
 
-    public async Task<string> AddNetworkDeviceAsync(
+    public Task<string> AddNetworkDeviceAsync(
         string typeIdentifier,
         string deviceName,
         string deviceItemName,
         string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
+        return SendBoundProjectRequestAsync(
+            "add_network_device",
+            projectPath,
+            request =>
             {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "add_network_device",
-                    TypeIdentifier = typeIdentifier,
-                    DeviceName = deviceName,
-                    DeviceItemName = deviceItemName,
-                    ProjectPath = effectiveProjectPath,
-                    Confirm = true,
-                    AllowTiaConfirmations = true
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "{}"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+                request.TypeIdentifier = typeIdentifier;
+                request.DeviceName = deviceName;
+                request.DeviceItemName = deviceItemName;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
     }
 
-    public async Task<string> ConfigureNetworkDeviceAsync(
+    public Task<string> ConfigureNetworkDeviceAsync(
         string deviceName,
         string? ipAddress,
         string? subnetMask,
@@ -145,180 +70,85 @@ public class OpennessWorkerClient
         string? ioSystemName,
         string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
+        return SendBoundProjectRequestAsync(
+            "configure_network_device",
+            projectPath,
+            request =>
             {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "configure_network_device",
-                    DeviceName = deviceName,
-                    IpAddress = ipAddress,
-                    SubnetMask = subnetMask,
-                    PnDeviceName = pnDeviceName,
-                    SubnetName = subnetName,
-                    IoSystemName = ioSystemName,
-                    ProjectPath = effectiveProjectPath,
-                    Confirm = true,
-                    AllowTiaConfirmations = true
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "{}"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+                request.DeviceName = deviceName;
+                request.IpAddress = ipAddress;
+                request.SubnetMask = subnetMask;
+                request.PnDeviceName = pnDeviceName;
+                request.SubnetName = subnetName;
+                request.IoSystemName = ioSystemName;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
     }
 
-    public async Task<string> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter)
+    public Task<string> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter)
     {
-        try
+        // Validate the filter before TryResolve so an invalid filter does not bind the session.
+        if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
         {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
-            {
-                return $"Error: {bindingError}";
-            }
-
-            if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
-            {
-                return $"Error: {filterError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "read_cross_references",
-                    ProjectPath = effectiveProjectPath,
-                    PlcName = plcName,
-                    CrossReferenceFilter = normalizedFilter
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "{}"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
+            return Task.FromResult($"Error: {filterError}");
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+
+        return SendBoundProjectRequestAsync(
+            "read_cross_references",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.CrossReferenceFilter = normalizedFilter;
+            },
+            "{}");
     }
 
-    public async Task<string> GetBlockContentAsync(string blockPath, string? projectPath)
+    public Task<string> GetBlockContentAsync(string blockPath, string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
-            {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "get_block_content",
-                    BlockPath = blockPath,
-                    ProjectPath = effectiveProjectPath
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? string.Empty
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+        return SendBoundProjectRequestAsync(
+            "get_block_content",
+            projectPath,
+            request => request.BlockPath = blockPath,
+            string.Empty);
     }
 
-    public async Task<string> UpdateBlockLogicAsync(string blockPath, string yamlContent, string? projectPath)
+    public Task<string> UpdateBlockLogicAsync(string blockPath, string yamlContent, string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
+        return SendBoundProjectRequestAsync(
+            "update_block_logic",
+            projectPath,
+            request =>
             {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "update_block_logic",
-                    BlockPath = blockPath,
-                    YamlContent = yamlContent,
-                    ProjectPath = effectiveProjectPath,
-                    AllowTiaConfirmations = true
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? string.Empty
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+                request.BlockPath = blockPath;
+                request.YamlContent = yamlContent;
+                request.AllowTiaConfirmations = true;
+            },
+            string.Empty);
     }
 
-    public async Task<string> ListTagTablesAsync(string? plcName, string? projectPath)
+    public Task<string> ListTagTablesAsync(string? plcName, string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
-            {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "list_tag_tables",
-                    PlcName = plcName,
-                    ProjectPath = effectiveProjectPath
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "[]"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+        return SendBoundProjectRequestAsync(
+            "list_tag_tables",
+            projectPath,
+            request => request.PlcName = plcName,
+            "[]");
     }
 
-    public async Task<string> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
+    public Task<string> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
-        try
-        {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
+        return SendBoundProjectRequestAsync(
+            "compile_check",
+            projectPath,
+            request =>
             {
-                return $"Error: {bindingError}";
-            }
-
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "compile_check",
-                    BlockPath = blockPath,
-                    PlcName = plcName,
-                    ProjectPath = effectiveProjectPath
-                }).ConfigureAwait(false);
-
-            return response.Success
-                ? response.Payload ?? "{}"
-                : $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
-        {
-            return $"Error: {ex.Message}";
-        }
+                request.BlockPath = blockPath;
+                request.PlcName = plcName;
+            },
+            "{}");
     }
 
     public Task<string> CreateTagTableAsync(
