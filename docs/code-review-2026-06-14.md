@@ -148,3 +148,38 @@ Result: net **−841 lines** (11 files), build clean (**0 warnings**, down from 
 - **#5 `add_network_device` / `configure_network_device`**: the worker now derives the confirmation-allow flag from `request.AllowTiaConfirmations` (via `WithSession`) instead of a hardcoded `true`. The client always sends `true` for these, so behavior is unchanged — and this incidentally resolves the 🟡 "AllowTiaConfirmations ignored" inconsistency.
 
 Verification was compile + the existing 97-test suite (which links `OpennessWorkerClient` and the tool files). The worker's net48 paths are exercised only at runtime against TIA Portal; the refactor is behavior-preserving by construction. No commit was made.
+
+---
+
+## Follow-up suggestions (new work, not regressions from this pass)
+
+### A. Clearer up-front diagnostic when the worker can't locate TIA Openness
+**Files:** `TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs`,
+`TiaMcpServer/Worker/OpennessWorkerClient.cs`
+
+The net8 host shells out to the bundled **net48** worker, which resolves `Siemens.Engineering.*` from the
+user's local TIA Portal V21 install (env var `TiaPortalV21Dir` → registry → standard path). This is the
+correct design and is unaffected by deleting the host's dead `AssemblyResolve` handler (#2). However, the
+two runtime prerequisites — **.NET Framework 4.8** (to run the worker) and **TIA Portal V21 installed** —
+are only discovered implicitly:
+
+- If Openness assemblies are missing, `AssemblyResolver` throws `FileNotFoundException` *lazily*, on first
+  touch of a Siemens type. The host then reports it generically as
+  *"TIA Openness worker exited without a response. {stderr}"* (`OpennessWorkerClient.SendAsync`), burying the
+  actionable detail.
+- If the .NET Framework 4.8 runtime itself is absent, the worker `.exe` fails to start and the user gets an
+  opaque process-start error.
+
+**Suggested enhancement:** make the failure explicit and actionable, e.g.:
+- Add a `validate_environment` worker method (or a startup self-check) that calls
+  `GetOpennessInstallPath()` and returns a structured, friendly message ("TIA Portal V21 Openness not found;
+  install TIA Portal V21 or set `TiaPortalV21Dir` to the folder containing `Siemens.Engineering.*.dll`. Checked: …")
+  instead of a raw exception buried in stderr.
+- In `OpennessWorkerClient`, when the worker exits without a response, detect the
+  `FileNotFoundException` / missing-Openness signature in stderr and surface the resolver's "Checked locations"
+  hint directly to the MCP caller.
+- Optionally, detect a missing .NET Framework 4.8 runtime before/while spawning the worker and return a
+  one-line install pointer rather than a generic process-start failure.
+
+This is purely additive (better operator experience on first run); it does not change any existing
+success path. Estimated scope: small, isolated to the resolver + worker-client error mapping.

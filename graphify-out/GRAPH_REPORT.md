@@ -1,16 +1,16 @@
-# Graph Report - tia-portal-mcp  (2026-05-10)
+# Graph Report - tia-portal-mcp  (2026-06-14)
 
 ## Corpus Check
-- 80 files · ~22,529 words
+- 84 files · ~25,985 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 614 nodes · 875 edges · 83 communities (6 shown, 77 thin omitted)
+- 681 nodes · 1001 edges · 86 communities (6 shown, 80 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 2 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a0c470e8`
+- Built from commit: `dcceb46f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -98,66 +98,79 @@
 - [[_COMMUNITY_Community 80|Community 80]]
 - [[_COMMUNITY_Community 81|Community 81]]
 - [[_COMMUNITY_Community 82|Community 82]]
+- [[_COMMUNITY_Community 83|Community 83]]
+- [[_COMMUNITY_Community 84|Community 84]]
+- [[_COMMUNITY_Community 85|Community 85]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `OpennessWorkerClient` - 36 edges
-2. `Program` - 32 edges
+1. `Program` - 37 edges
+2. `OpennessWorkerClient` - 36 edges
 3. `HardwareConfigReader` - 20 edges
 4. `CompileChecker` - 16 edges
 5. `ProjectLifecycleService` - 16 edges
 6. `TagMutationService` - 15 edges
-7. `CrossReferenceReader` - 14 edges
-8. `NetworkDeviceConfigurator` - 14 edges
-9. `EquipmentCatalogSearcher` - 13 edges
-10. `Local MCP Sandbox Testing` - 13 edges
+7. `ProjectLifecycleTools` - 14 edges
+8. `CrossReferenceReader` - 14 edges
+9. `NetworkDeviceConfigurator` - 14 edges
+10. `EquipmentCatalogSearcher` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `OpennessWorkerClient` --references--> `JsonSerializerOptions`  [EXTRACTED]
   TiaMcpServer/Worker/OpennessWorkerClient.cs → TiaMcpServer.OpennessWorker/Program.cs
+- `WriteSafetyService` --references--> `JsonSerializerOptions`  [EXTRACTED]
+  TiaMcpServer/Safety/WriteSafetyService.cs → TiaMcpServer.OpennessWorker/Program.cs
+- `WriteSafetyTooling` --references--> `JsonSerializerOptions`  [EXTRACTED]
+  TiaMcpServer/Safety/WriteSafetyTooling.cs → TiaMcpServer.OpennessWorker/Program.cs
+- `WriteSafetyService` --references--> `TimeSpan`  [EXTRACTED]
+  TiaMcpServer/Safety/WriteSafetyService.cs → TiaMcpServer/Worker/OpennessWorkerClient.cs
 - `ArchiveModeNames` --references--> `string`  [EXTRACTED]
   TiaMcpServer.Contracts/ArchiveModeNames.cs → TiaMcpServer.Contracts/ProjectSessionBinding.cs
 
-## Communities (83 total, 77 thin omitted)
+## Communities (86 total, 80 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.04
 Nodes (45): Architecture, Block Paths, Build From Source, code:text (C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21), code:powershell (dotnet run --project TiaMcpServer), code:powershell ('{ "method": "browse_project_tree", "projectPath": null }' |), code:json ({"success":true,"payload":"[...]"}), code:json ({"success":false,"error":"No running TIA Portal V21 instance) (+37 more)
 
-### Community 1 - "Community 1"
-Cohesion: 0.11
-Nodes (4): JsonSerializerOptions, ProjectSessionBinding, TimeSpan, OpennessWorkerClient
+### Community 4 - "Community 4"
+Cohesion: 0.13
+Nodes (10): ConcurrentDictionary, Func, JsonSerializerOptions, Invalid(), Valid(), WriteSafetyService, Invalid(), Valid() (+2 more)
 
-### Community 10 - "Community 10"
-Cohesion: 0.15
+### Community 5 - "Community 5"
+Cohesion: 0.1
 Nodes (4): TagOperationsTool, TagTableOperationsTool, TiaMcpServer.Tools, UserConstantOperationsTool
 
-### Community 12 - "Community 12"
+### Community 14 - "Community 14"
 Cohesion: 0.22
 Nodes (4): bool, IDisposable, TiaPortalSession, TiaPortal
 
-### Community 17 - "Community 17"
+### Community 18 - "Community 18"
 Cohesion: 0.27
 Nodes (3): string, ArchiveModeNames, ProjectSessionBinding
 
-### Community 28 - "Community 28"
+### Community 32 - "Community 32"
 Cohesion: 0.29
 Nodes (7): Model Context Protocol, Siemens TIA Openness User Group, Phase 1: Implementation, Phase 2: Universal Block Support, Phase 3: Hardware and Network Discovery, Phase 4: Advanced Diagnostics, tia-portal-mcp
 
 ## Knowledge Gaps
-- **56 isolated node(s):** `TiaMcpServer.Tools`, `TiaMcpServer.Tools`, `TimeSpan`, `ProjectSessionBinding`, `ProjectLifecycleResultInfo` (+51 more)
+- **58 isolated node(s):** `ConcurrentDictionary`, `Func`, `TiaMcpServer.Tools`, `TiaMcpServer.Tools`, `ProjectSessionBinding` (+53 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **77 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **80 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Program` connect `Community 2` to `Community 1`?**
-  _High betweenness centrality (0.010) - this node is a cross-community bridge._
-- **Why does `JsonSerializerOptions` connect `Community 1` to `Community 2`?**
-  _High betweenness centrality (0.009) - this node is a cross-community bridge._
-- **What connects `TiaMcpServer.Tools`, `TiaMcpServer.Tools`, `TimeSpan` to the rest of the system?**
-  _56 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `JsonSerializerOptions` connect `Community 4` to `Community 1`, `Community 2`?**
+  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **Why does `OpennessWorkerClient` connect `Community 2` to `Community 4`?**
+  _High betweenness centrality (0.015) - this node is a cross-community bridge._
+- **Why does `Program` connect `Community 1` to `Community 4`?**
+  _High betweenness centrality (0.013) - this node is a cross-community bridge._
+- **What connects `ConcurrentDictionary`, `Func`, `TiaMcpServer.Tools` to the rest of the system?**
+  _58 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.04 - nodes in this community are weakly interconnected._
-- **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.11 - nodes in this community are weakly interconnected._
+- **Should `Community 2` be split into smaller, more focused modules?**
+  _Cohesion score 0.13 - nodes in this community are weakly interconnected._
+- **Should `Community 4` be split into smaller, more focused modules?**
+  _Cohesion score 0.13 - nodes in this community are weakly interconnected._
