@@ -6265,9 +6265,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_safety_writesafetyservice_cs",
-      "target": "safety_writesafetyservice_writesafetyservice",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice"
     },
     {
       "relation": "contains",
@@ -6275,9 +6275,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L221",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_safety_writesafetyservice_cs",
-      "target": "safety_writesafetyservice_valid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_valid"
     },
     {
       "relation": "contains",
@@ -6285,9 +6285,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L226",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_safety_writesafetyservice_cs",
-      "target": "safety_writesafetyservice_invalid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_invalid"
     },
     {
       "relation": "references",
@@ -6296,9 +6296,9 @@
       "source_location": "L10",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "jsonserializeroptions",
-      "confidence_score": 1.0
+      "target": "jsonserializeroptions"
     },
     {
       "relation": "references",
@@ -6307,9 +6307,9 @@
       "source_location": "L18",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "concurrentdictionary",
-      "confidence_score": 1.0
+      "target": "concurrentdictionary"
     },
     {
       "relation": "references",
@@ -6318,9 +6318,9 @@
       "source_location": "L19",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "func",
-      "confidence_score": 1.0
+      "target": "func"
     },
     {
       "relation": "references",
@@ -6329,9 +6329,9 @@
       "source_location": "L20",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "timespan",
-      "confidence_score": 1.0
+      "target": "timespan"
     },
     {
       "relation": "method",
@@ -6339,9 +6339,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "safety_writesafetyservice_writesafetyservice_createpreview",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_createpreview"
     },
     {
       "relation": "method",
@@ -6349,9 +6349,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L77",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "safety_writesafetyservice_writesafetyservice_validateandconsume",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_validateandconsume"
     },
     {
       "relation": "method",
@@ -6359,9 +6359,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "safety_writesafetyservice_writesafetyservice_appendaudit",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_appendaudit"
     },
     {
       "relation": "method",
@@ -6369,9 +6369,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L170",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath"
     },
     {
       "relation": "method",
@@ -6379,9 +6379,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L187",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "safety_writesafetyservice_writesafetyservice_hashtext",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_hashtext"
     },
     {
       "relation": "method",
@@ -6389,9 +6389,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L193",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "safety_writesafetyservice_writesafetyservice_tostablejson",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_tostablejson"
     },
     {
       "relation": "method",
@@ -6399,9 +6399,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L198",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice",
-      "target": "safety_writesafetyservice_writesafetyservice_createtoken",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_createtoken"
     },
     {
       "relation": "references",
@@ -6410,9 +6410,9 @@
       "source_location": "L8",
       "weight": 1.0,
       "context": "field",
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling",
-      "target": "jsonserializeroptions",
-      "confidence_score": 1.0
+      "target": "jsonserializeroptions"
     },
     {
       "relation": "references",
@@ -6454,9 +6454,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_createpreview",
-      "target": "safety_writesafetyservice_writesafetyservice_createtoken",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_createtoken"
     },
     {
       "relation": "calls",
@@ -6465,9 +6465,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L48",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_createpreview",
-      "target": "safety_writesafetyservice_writesafetyservice_tostablejson",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_tostablejson"
     },
     {
       "relation": "calls",
@@ -6476,9 +6476,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_createpreview",
-      "target": "safety_writesafetyservice_writesafetyservice_hashtext",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_hashtext"
     },
     {
       "relation": "calls",
@@ -6487,9 +6487,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L56",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_createpreview",
-      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath"
     },
     {
       "relation": "calls",
@@ -6498,9 +6498,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L87",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_validateandconsume",
-      "target": "safety_writesafetyservice_invalid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_invalid"
     },
     {
       "relation": "calls",
@@ -6509,9 +6509,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L105",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_validateandconsume",
-      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath"
     },
     {
       "relation": "calls",
@@ -6520,9 +6520,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_validateandconsume",
-      "target": "safety_writesafetyservice_writesafetyservice_tostablejson",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_tostablejson"
     },
     {
       "relation": "calls",
@@ -6531,9 +6531,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L115",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_validateandconsume",
-      "target": "safety_writesafetyservice_writesafetyservice_hashtext",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_hashtext"
     },
     {
       "relation": "calls",
@@ -6542,9 +6542,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L127",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_validateandconsume",
-      "target": "safety_writesafetyservice_valid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_valid"
     },
     {
       "relation": "calls",
@@ -6553,9 +6553,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L153",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_appendaudit",
-      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_normalizeprojectpath"
     },
     {
       "relation": "calls",
@@ -6564,9 +6564,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L155",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_appendaudit",
-      "target": "safety_writesafetyservice_writesafetyservice_hashtext",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_hashtext"
     },
     {
       "relation": "calls",
@@ -6575,9 +6575,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyService.cs",
       "source_location": "L155",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetyservice_writesafetyservice_appendaudit",
-      "target": "safety_writesafetyservice_writesafetyservice_tostablejson",
-      "confidence_score": 1.0
+      "target": "safety_writesafetyservice_writesafetyservice_tostablejson"
     },
     {
       "relation": "contains",
@@ -6585,9 +6585,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_safety_writesafetytooling_cs",
-      "target": "safety_writesafetytooling_writesafetytooling",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_writesafetytooling"
     },
     {
       "relation": "contains",
@@ -6595,9 +6595,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L178",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_safety_writesafetytooling_cs",
-      "target": "safety_writesafetytooling_valid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_valid"
     },
     {
       "relation": "contains",
@@ -6605,9 +6605,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L183",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_safety_writesafetytooling_cs",
-      "target": "safety_writesafetytooling_invalid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_invalid"
     },
     {
       "relation": "method",
@@ -6615,9 +6615,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling",
-      "target": "safety_writesafetytooling_writesafetytooling_validateforapplyasync",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_writesafetytooling_validateforapplyasync"
     },
     {
       "relation": "method",
@@ -6625,9 +6625,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L49",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling",
-      "target": "safety_writesafetytooling_writesafetytooling_createpreview",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_writesafetytooling_createpreview"
     },
     {
       "relation": "method",
@@ -6635,9 +6635,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L73",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling",
-      "target": "safety_writesafetytooling_writesafetytooling_buildapplyresult",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_writesafetytooling_buildapplyresult"
     },
     {
       "relation": "method",
@@ -6645,9 +6645,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L96",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling",
-      "target": "safety_writesafetytooling_writesafetytooling_createlinediff",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_writesafetytooling_createlinediff"
     },
     {
       "relation": "method",
@@ -6655,9 +6655,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L128",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling",
-      "target": "safety_writesafetytooling_writesafetytooling_describepathstate",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_writesafetytooling_describepathstate"
     },
     {
       "relation": "method",
@@ -6665,9 +6665,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L162",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling",
-      "target": "safety_writesafetytooling_writesafetytooling_describeprojectcreationstate",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_writesafetytooling_describeprojectcreationstate"
     },
     {
       "relation": "calls",
@@ -6676,9 +6676,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L25",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling_validateforapplyasync",
-      "target": "safety_writesafetytooling_invalid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_invalid"
     },
     {
       "relation": "calls",
@@ -6687,9 +6687,9 @@
       "source_file": "TiaMcpServer/Safety/WriteSafetyTooling.cs",
       "source_location": "L45",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "safety_writesafetytooling_writesafetytooling_validateforapplyasync",
-      "target": "safety_writesafetytooling_valid",
-      "confidence_score": 1.0
+      "target": "safety_writesafetytooling_valid"
     },
     {
       "relation": "contains",
@@ -6727,9 +6727,9 @@
       "source_file": "TiaMcpServer/Tools/AddNetworkDeviceTool.cs",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_addnetworkdevicetool_addnetworkdevicetool",
-      "target": "tools_addnetworkdevicetool_addnetworkdevicetool_previewaddnetworkdevice",
-      "confidence_score": 1.0
+      "target": "tools_addnetworkdevicetool_addnetworkdevicetool_previewaddnetworkdevice"
     },
     {
       "relation": "method",
@@ -6887,9 +6887,9 @@
       "source_file": "TiaMcpServer/Tools/ConfigureNetworkDeviceTool.cs",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_configurenetworkdevicetool_configurenetworkdevicetool",
-      "target": "tools_configurenetworkdevicetool_configurenetworkdevicetool_previewconfigurenetworkdevice",
-      "confidence_score": 1.0
+      "target": "tools_configurenetworkdevicetool_configurenetworkdevicetool_previewconfigurenetworkdevice"
     },
     {
       "relation": "method",
@@ -7047,9 +7047,9 @@
       "source_file": "TiaMcpServer/Tools/ProjectLifecycleTools.cs",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_projectlifecycletools_projectlifecycletools",
-      "target": "tools_projectlifecycletools_projectlifecycletools_previewopenproject",
-      "confidence_score": 1.0
+      "target": "tools_projectlifecycletools_projectlifecycletools_previewopenproject"
     },
     {
       "relation": "method",
@@ -7067,9 +7067,9 @@
       "source_file": "TiaMcpServer/Tools/ProjectLifecycleTools.cs",
       "source_location": "L75",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_projectlifecycletools_projectlifecycletools",
-      "target": "tools_projectlifecycletools_projectlifecycletools_previewcreateproject",
-      "confidence_score": 1.0
+      "target": "tools_projectlifecycletools_projectlifecycletools_previewcreateproject"
     },
     {
       "relation": "method",
@@ -7087,9 +7087,9 @@
       "source_file": "TiaMcpServer/Tools/ProjectLifecycleTools.cs",
       "source_location": "L135",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_projectlifecycletools_projectlifecycletools",
-      "target": "tools_projectlifecycletools_projectlifecycletools_previewsaveproject",
-      "confidence_score": 1.0
+      "target": "tools_projectlifecycletools_projectlifecycletools_previewsaveproject"
     },
     {
       "relation": "method",
@@ -7107,9 +7107,9 @@
       "source_file": "TiaMcpServer/Tools/ProjectLifecycleTools.cs",
       "source_location": "L190",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_projectlifecycletools_projectlifecycletools",
-      "target": "tools_projectlifecycletools_projectlifecycletools_previewsaveprojectas",
-      "confidence_score": 1.0
+      "target": "tools_projectlifecycletools_projectlifecycletools_previewsaveprojectas"
     },
     {
       "relation": "method",
@@ -7127,9 +7127,9 @@
       "source_file": "TiaMcpServer/Tools/ProjectLifecycleTools.cs",
       "source_location": "L252",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_projectlifecycletools_projectlifecycletools",
-      "target": "tools_projectlifecycletools_projectlifecycletools_previewarchiveproject",
-      "confidence_score": 1.0
+      "target": "tools_projectlifecycletools_projectlifecycletools_previewarchiveproject"
     },
     {
       "relation": "method",
@@ -7147,9 +7147,9 @@
       "source_file": "TiaMcpServer/Tools/ProjectLifecycleTools.cs",
       "source_location": "L320",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_projectlifecycletools_projectlifecycletools",
-      "target": "tools_projectlifecycletools_projectlifecycletools_previewcloseproject",
-      "confidence_score": 1.0
+      "target": "tools_projectlifecycletools_projectlifecycletools_previewcloseproject"
     },
     {
       "relation": "method",
@@ -7357,9 +7357,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_tagtableoperationstool",
-      "target": "tools_tagoperationstools_tagtableoperationstool_previewcreatetagtable",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_tagtableoperationstool_previewcreatetagtable"
     },
     {
       "relation": "method",
@@ -7377,9 +7377,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L76",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_tagtableoperationstool",
-      "target": "tools_tagoperationstools_tagtableoperationstool_previewdeletetagtable",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_tagtableoperationstool_previewdeletetagtable"
     },
     {
       "relation": "method",
@@ -7397,9 +7397,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L145",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_tagoperationstool",
-      "target": "tools_tagoperationstools_tagoperationstool_previewcreatetag",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_tagoperationstool_previewcreatetag"
     },
     {
       "relation": "method",
@@ -7417,9 +7417,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L219",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_tagoperationstool",
-      "target": "tools_tagoperationstools_tagoperationstool_previewupdatetag",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_tagoperationstool_previewupdatetag"
     },
     {
       "relation": "method",
@@ -7437,9 +7437,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L308",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_tagoperationstool",
-      "target": "tools_tagoperationstools_tagoperationstool_previewdeletetag",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_tagoperationstool_previewdeletetag"
     },
     {
       "relation": "method",
@@ -7457,9 +7457,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L380",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_userconstantoperationstool",
-      "target": "tools_tagoperationstools_userconstantoperationstool_previewcreateuserconstant",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_userconstantoperationstool_previewcreateuserconstant"
     },
     {
       "relation": "method",
@@ -7477,9 +7477,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L454",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_userconstantoperationstool",
-      "target": "tools_tagoperationstools_userconstantoperationstool_previewupdateuserconstant",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_userconstantoperationstool_previewupdateuserconstant"
     },
     {
       "relation": "method",
@@ -7497,9 +7497,9 @@
       "source_file": "TiaMcpServer/Tools/TagOperationsTools.cs",
       "source_location": "L528",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_tagoperationstools_userconstantoperationstool",
-      "target": "tools_tagoperationstools_userconstantoperationstool_previewdeleteuserconstant",
-      "confidence_score": 1.0
+      "target": "tools_tagoperationstools_userconstantoperationstool_previewdeleteuserconstant"
     },
     {
       "relation": "method",
@@ -7547,9 +7547,9 @@
       "source_file": "TiaMcpServer/Tools/UpdateBlockLogicTool.cs",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tools_updateblocklogictool_updateblocklogictool",
-      "target": "tools_updateblocklogictool_updateblocklogictool_previewupdateblocklogic",
-      "confidence_score": 1.0
+      "target": "tools_updateblocklogictool_updateblocklogictool_previewupdateblocklogic"
     },
     {
       "relation": "method",
@@ -7919,9 +7919,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_browseprojecttreeasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -7941,9 +7941,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_readhardwareconfigasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -7963,9 +7963,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_searchequipmentcatalogasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -7985,9 +7985,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_addnetworkdeviceasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -8007,9 +8007,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L73",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_configurenetworkdeviceasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -8029,9 +8029,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L98",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_readcrossreferencesasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -8051,9 +8051,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L111",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_getblockcontentasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -8073,9 +8073,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L120",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_updateblocklogicasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -8095,9 +8095,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L134",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_listtagtablesasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -8117,9 +8117,9 @@
       "source_file": "TiaMcpServer/Worker/OpennessWorkerClient.cs",
       "source_location": "L143",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "worker_opennessworkerclient_opennessworkerclient_compilecheckasync",
-      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync",
-      "confidence_score": 1.0
+      "target": "worker_opennessworkerclient_opennessworkerclient_sendboundprojectrequestasync"
     },
     {
       "relation": "calls",
@@ -9538,9 +9538,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L416",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "method",
@@ -9548,9 +9548,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L437",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program",
-      "target": "tiamcpserver_opennessworker_program_program_withsession",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withsession"
     },
     {
       "relation": "method",
@@ -9558,9 +9558,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L447",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program",
-      "target": "tiamcpserver_opennessworker_program_program_execute",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_execute"
     },
     {
       "relation": "method",
@@ -9568,9 +9568,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L471",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "method",
@@ -9578,9 +9578,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L480",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program",
-      "target": "tiamcpserver_opennessworker_program_program_rawpayload",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_rawpayload"
     },
     {
       "relation": "method",
@@ -9896,9 +9896,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L91",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_browseprojecttree",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -9907,9 +9907,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L91",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_browseprojecttree",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -9940,9 +9940,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L96",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_readhardwareconfig",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -9951,9 +9951,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L96",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_readhardwareconfig",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -9995,9 +9995,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L106",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_searchequipmentcatalog",
-      "target": "tiamcpserver_opennessworker_program_program_withsession",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withsession"
     },
     {
       "relation": "calls",
@@ -10017,9 +10017,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L120",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_searchequipmentcatalog",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10039,9 +10039,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L141",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_addnetworkdevice",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10050,9 +10050,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L141",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_addnetworkdevice",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10083,9 +10083,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_configurenetworkdevice",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10094,9 +10094,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L160",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_configurenetworkdevice",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10127,9 +10127,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L180",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_readcrossreferences",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10138,9 +10138,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L180",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_readcrossreferences",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10171,9 +10171,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L190",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_getblockcontent",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10182,9 +10182,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L190",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_getblockcontent",
-      "target": "tiamcpserver_opennessworker_program_program_rawpayload",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_rawpayload"
     },
     {
       "relation": "calls",
@@ -10215,9 +10215,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L205",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_updateblocklogic",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10226,9 +10226,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L205",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_updateblocklogic",
-      "target": "tiamcpserver_opennessworker_program_program_rawpayload",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_rawpayload"
     },
     {
       "relation": "calls",
@@ -10248,9 +10248,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L210",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_listtagtables",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10259,9 +10259,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L210",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_listtagtables",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10292,9 +10292,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L215",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_compilecheck",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10303,9 +10303,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L215",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_compilecheck",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10457,9 +10457,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L424",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_withproject",
-      "target": "tiamcpserver_opennessworker_program_program_openproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_openproject"
     },
     {
       "relation": "calls",
@@ -10545,9 +10545,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L399",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_tagmutation",
-      "target": "tiamcpserver_opennessworker_program_program_withproject",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withproject"
     },
     {
       "relation": "calls",
@@ -10556,9 +10556,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L399",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_tagmutation",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10578,9 +10578,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L412",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_projectlifecycle",
-      "target": "tiamcpserver_opennessworker_program_program_withsession",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withsession"
     },
     {
       "relation": "calls",
@@ -10589,9 +10589,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L412",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_projectlifecycle",
-      "target": "tiamcpserver_opennessworker_program_program_success",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_success"
     },
     {
       "relation": "calls",
@@ -10600,9 +10600,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L418",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_withproject",
-      "target": "tiamcpserver_opennessworker_program_program_withsession",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_withsession"
     },
     {
       "relation": "calls",
@@ -10611,9 +10611,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L429",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_withproject",
-      "target": "tiamcpserver_opennessworker_program_program_failure",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_failure"
     },
     {
       "relation": "calls",
@@ -10622,9 +10622,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L439",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_withsession",
-      "target": "tiamcpserver_opennessworker_program_program_execute",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_execute"
     },
     {
       "relation": "calls",
@@ -10633,9 +10633,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Program.cs",
       "source_location": "L455",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_program_program_execute",
-      "target": "tiamcpserver_opennessworker_program_program_failure",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_opennessworker_program_program_failure"
     },
     {
       "relation": "contains",
@@ -12954,9 +12954,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_openness_opennessreflection_cs",
-      "target": "openness_opennessreflection_opennessreflection",
-      "confidence_score": 1.0
+      "target": "openness_opennessreflection_opennessreflection"
     },
     {
       "relation": "method",
@@ -12964,9 +12964,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_opennessreflection_opennessreflection",
-      "target": "openness_opennessreflection_opennessreflection_readproperty",
-      "confidence_score": 1.0
+      "target": "openness_opennessreflection_opennessreflection_readproperty"
     },
     {
       "relation": "method",
@@ -12974,9 +12974,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L43",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_opennessreflection_opennessreflection",
-      "target": "openness_opennessreflection_opennessreflection_readenumerableproperty",
-      "confidence_score": 1.0
+      "target": "openness_opennessreflection_opennessreflection_readenumerableproperty"
     },
     {
       "relation": "method",
@@ -12984,9 +12984,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L48",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_opennessreflection_opennessreflection",
-      "target": "openness_opennessreflection_opennessreflection_enumerate",
-      "confidence_score": 1.0
+      "target": "openness_opennessreflection_opennessreflection_enumerate"
     },
     {
       "relation": "calls",
@@ -12995,9 +12995,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_opennessreflection_opennessreflection_readenumerableproperty",
-      "target": "openness_opennessreflection_opennessreflection_readproperty",
-      "confidence_score": 1.0
+      "target": "openness_opennessreflection_opennessreflection_readproperty"
     },
     {
       "relation": "calls",
@@ -13006,9 +13006,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_opennessreflection_opennessreflection_readenumerableproperty",
-      "target": "openness_opennessreflection_opennessreflection_enumerate",
-      "confidence_score": 1.0
+      "target": "openness_opennessreflection_opennessreflection_enumerate"
     },
     {
       "relation": "contains",
@@ -13026,9 +13026,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L76",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_opennessworker_openness_plcsoftwarelocator_cs",
-      "target": "openness_plcsoftwarelocator_discoveredplcsoftware",
-      "confidence_score": 1.0
+      "target": "openness_plcsoftwarelocator_discoveredplcsoftware"
     },
     {
       "relation": "method",
@@ -13046,9 +13046,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L26",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_plcsoftwarelocator_plcsoftwarelocator",
-      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findall",
-      "confidence_score": 1.0
+      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findall"
     },
     {
       "relation": "method",
@@ -13056,9 +13056,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L43",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_plcsoftwarelocator_plcsoftwarelocator",
-      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findindevice",
-      "confidence_score": 1.0
+      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findindevice"
     },
     {
       "relation": "method",
@@ -13077,9 +13077,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_plcsoftwarelocator_plcsoftwarelocator_find",
-      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findall",
-      "confidence_score": 1.0
+      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findall"
     },
     {
       "relation": "calls",
@@ -13099,9 +13099,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L35",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_plcsoftwarelocator_plcsoftwarelocator_findall",
-      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findindevice",
-      "confidence_score": 1.0
+      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findindevice"
     },
     {
       "relation": "calls",
@@ -13110,9 +13110,9 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L45",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "openness_plcsoftwarelocator_plcsoftwarelocator_findindevice",
-      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findindeviceitems",
-      "confidence_score": 1.0
+      "target": "openness_plcsoftwarelocator_plcsoftwarelocator_findindeviceitems"
     },
     {
       "relation": "contains",
@@ -15796,9 +15796,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_cs",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests"
     },
     {
       "relation": "method",
@@ -15806,9 +15806,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_previewbindstokentotoolinputandcurrentstate",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_previewbindstokentotoolinputandcurrentstate"
     },
     {
       "relation": "method",
@@ -15816,9 +15816,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokencannotbereused",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokencannotbereused"
     },
     {
       "relation": "method",
@@ -15826,9 +15826,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L70",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenrejectschangedinputandchangedcurrentstate",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenrejectschangedinputandchangedcurrentstate"
     },
     {
       "relation": "method",
@@ -15836,9 +15836,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L111",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenexpiresafterconfiguredlifetime",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenexpiresafterconfiguredlifetime"
     },
     {
       "relation": "method",
@@ -15846,9 +15846,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L137",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken"
     },
     {
       "relation": "calls",
@@ -15857,9 +15857,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L42",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokencannotbereused",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken"
     },
     {
       "relation": "calls",
@@ -15868,9 +15868,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L75",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenrejectschangedinputandchangedcurrentstate",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken"
     },
     {
       "relation": "calls",
@@ -15879,9 +15879,9 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L116",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenexpiresafterconfiguredlifetime",
-      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken"
     },
     {
       "relation": "contains",
@@ -15889,9 +15889,9 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writetoolsafetytokentests_cs",
-      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests"
     },
     {
       "relation": "method",
@@ -15899,9 +15899,9 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests",
-      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_previewtoolshavemcpmetadata",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_previewtoolshavemcpmetadata"
     },
     {
       "relation": "method",
@@ -15909,9 +15909,9 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L38",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests",
-      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedblockupdaterejectsmissingsafetytoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedblockupdaterejectsmissingsafetytoken"
     },
     {
       "relation": "method",
@@ -15919,9 +15919,9 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L51",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests",
-      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmeddeviceaddrejectsmissingsafetytoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmeddeviceaddrejectsmissingsafetytoken"
     },
     {
       "relation": "method",
@@ -15929,9 +15929,9 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests",
-      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedtagupdaterejectsmissingsafetytoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedtagupdaterejectsmissingsafetytoken"
     },
     {
       "relation": "method",
@@ -15939,9 +15939,9 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L77",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests",
-      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedprojectcloserejectsmissingsafetytoken",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedprojectcloserejectsmissingsafetytoken"
     },
     {
       "relation": "calls",
@@ -16535,5 +16535,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "dcceb46f8633e4776fd44cdd0919aadb8455e7b9"
+  "built_at_commit": "94e93582877bf587f7cc3e6abc63ee44074d8994"
 }

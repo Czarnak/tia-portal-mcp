@@ -18,6 +18,7 @@ Severity legend: 🔴 correctness · 🟠 duplication/simplification · 🟡 min
 ## 🔴 Bugs / correctness
 
 ### 1. `UpdateTag` applies partial mutations, then throws
+
 **File:** `TiaMcpServer.OpennessWorker/Openness/TagMutationService.cs:65-128`
 
 The `isSafety` guard is the *last* statement (lines 122-125), executed only after `newName`,
@@ -34,6 +35,7 @@ supplied — it always throws.
 fails before any mutation. (Longer term: either implement the flag or drop the parameter and the doc claim.)
 
 ### 2. Dead `AssemblyResolve` handler in the MCP host
+
 **File:** `TiaMcpServer/Program.cs:12-42`
 
 The net8.0 host has **no reference to `Siemens.Engineering`** (its csproj references only
@@ -46,6 +48,7 @@ with a comment referencing a nonexistent ".NET 8 DLL".
 **Fix:** delete the static constructor and the handler.
 
 ### 3. Project re-opened on every call even when already open *(lower confidence — needs SDK verification)*
+
 **File:** `TiaMcpServer.OpennessWorker/Openness/TiaPortalSession.cs:49-64` and the worker handlers.
 
 `Connect()` already sets `Project = _tiaPortal.Projects.FirstOrDefault()`; each handler that receives a
@@ -59,7 +62,9 @@ V21 `Projects.Open` behavior against a running TIA Portal before changing.
 ## 🟠 Duplication / simplification
 
 ### 4. Five byte-identical copies of `FindPlcSoftwareInDeviceItems`
+
 The recursive PLC-software finder is copy-pasted across:
+
 - `Openness/PlcSoftwareLocator.cs:32`
 - `Openness/CompileChecker.cs:136`
 - `Openness/BlockTargetResolver.cs:95`
@@ -73,6 +78,7 @@ The device-loop wrapper (`FindPlcSoftware` / `FindAllPlcSoftware`) is duplicated
 `(deviceName, software)` plus the existing first-match `Find`. Every caller collapses to one line.
 
 ### 5. ~12 copies of the same five-`catch` block in the worker
+
 **File:** `TiaMcpServer.OpennessWorker/Program.cs`
 
 Every handler ends with the identical
@@ -86,6 +92,7 @@ repeats in ~10 handlers.
 (`TagMutation`, `ProjectLifecycle`); generalize it.
 
 ### 6. ~10 redundant methods in `OpennessWorkerClient`
+
 **File:** `TiaMcpServer/Worker/OpennessWorkerClient.cs:25-322`
 
 `BrowseProjectTreeAsync`, `ReadHardwareConfigAsync`, `SearchEquipmentCatalogAsync`,
@@ -98,6 +105,7 @@ re-implement the exact `TryResolve → SendAsync → success ? payload : error` 
 (`"[]"` / `"{}"` / `""`).
 
 ### 7. Three near-identical reflection helpers
+
 `ReadProperty` / `ReadEnumerableProperty` / `Enumerate` (guarded reflection over Openness objects) are
 duplicated in `HardwareConfigReader.cs:314`, `NetworkDeviceConfigurator.cs:297`, and
 `EquipmentCatalogSearcher.cs:223`.
@@ -123,6 +131,7 @@ duplicated in `HardwareConfigReader.cs:314`, `NetworkDeviceConfigurator.cs:297`,
 ---
 
 ## What's solid
+
 Per-item `try/catch` around SDK enumeration (one bad block doesn't sink a whole read), consistent
 confirm-gating on writes, a well-structured and unit-tested `BlockAddress.Parse`, honest
 `// UNVERIFIED SDK CALL` markers, and the correct net48/net8 process isolation.
@@ -144,6 +153,7 @@ Result: net **−841 lines** (11 files), build clean (**0 warnings**, down from 
 | 7 | Shared `OpennessReflection` extracted for `HardwareConfigReader` + `NetworkDeviceConfigurator`. **`EquipmentCatalogSearcher` left as-is** — its broader per-member exception handling over unverified catalog APIs is intentional and would regress to coarser recovery if narrowed. |
 
 ### Two intentional micro-behavior notes (both behavior-equivalent for the real caller)
+
 - **#6 `ReadCrossReferencesAsync`**: the filter is now validated *before* `TryResolve`, so an invalid filter no longer binds the session. Previously it bound first, then rejected.
 - **#5 `add_network_device` / `configure_network_device`**: the worker now derives the confirmation-allow flag from `request.AllowTiaConfirmations` (via `WithSession`) instead of a hardcoded `true`. The client always sends `true` for these, so behavior is unchanged — and this incidentally resolves the 🟡 "AllowTiaConfirmations ignored" inconsistency.
 
@@ -154,6 +164,7 @@ Verification was compile + the existing 97-test suite (which links `OpennessWork
 ## Follow-up suggestions (new work, not regressions from this pass)
 
 ### A. Clearer up-front diagnostic when the worker can't locate TIA Openness
+
 **Files:** `TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs`,
 `TiaMcpServer/Worker/OpennessWorkerClient.cs`
 
@@ -171,6 +182,7 @@ are only discovered implicitly:
   opaque process-start error.
 
 **Suggested enhancement:** make the failure explicit and actionable, e.g.:
+
 - Add a `validate_environment` worker method (or a startup self-check) that calls
   `GetOpennessInstallPath()` and returns a structured, friendly message ("TIA Portal V21 Openness not found;
   install TIA Portal V21 or set `TiaPortalV21Dir` to the folder containing `Siemens.Engineering.*.dll`. Checked: …")

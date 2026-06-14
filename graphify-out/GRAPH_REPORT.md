@@ -1,20 +1,24 @@
 # Graph Report - tia-portal-mcp  (2026-06-14)
 
 ## Corpus Check
+
 - 84 files · ~25,985 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
+
 - 681 nodes · 1001 edges · 86 communities (6 shown, 80 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 2 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `dcceb46f`
+
+- Built from commit: `94e93582`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
+
 - [[_COMMUNITY_Community 0|Community 0]]
 - [[_COMMUNITY_Community 1|Community 1]]
 - [[_COMMUNITY_Community 2|Community 2]]
@@ -103,6 +107,7 @@
 - [[_COMMUNITY_Community 85|Community 85]]
 
 ## God Nodes (most connected - your core abstractions)
+
 1. `Program` - 37 edges
 2. `OpennessWorkerClient` - 36 edges
 3. `HardwareConfigReader` - 20 edges
@@ -115,6 +120,7 @@
 10. `EquipmentCatalogSearcher` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
+
 - `OpennessWorkerClient` --references--> `JsonSerializerOptions`  [EXTRACTED]
   TiaMcpServer/Worker/OpennessWorkerClient.cs → TiaMcpServer.OpennessWorker/Program.cs
 - `WriteSafetyService` --references--> `JsonSerializerOptions`  [EXTRACTED]
@@ -129,35 +135,43 @@
 ## Communities (86 total, 80 thin omitted)
 
 ### Community 0 - "Community 0"
+
 Cohesion: 0.04
 Nodes (45): Architecture, Block Paths, Build From Source, code:text (C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21), code:powershell (dotnet run --project TiaMcpServer), code:powershell ('{ "method": "browse_project_tree", "projectPath": null }' |), code:json ({"success":true,"payload":"[...]"}), code:json ({"success":false,"error":"No running TIA Portal V21 instance) (+37 more)
 
 ### Community 4 - "Community 4"
+
 Cohesion: 0.13
 Nodes (10): ConcurrentDictionary, Func, JsonSerializerOptions, Invalid(), Valid(), WriteSafetyService, Invalid(), Valid() (+2 more)
 
 ### Community 5 - "Community 5"
+
 Cohesion: 0.1
 Nodes (4): TagOperationsTool, TagTableOperationsTool, TiaMcpServer.Tools, UserConstantOperationsTool
 
 ### Community 14 - "Community 14"
+
 Cohesion: 0.22
 Nodes (4): bool, IDisposable, TiaPortalSession, TiaPortal
 
 ### Community 18 - "Community 18"
+
 Cohesion: 0.27
 Nodes (3): string, ArchiveModeNames, ProjectSessionBinding
 
 ### Community 32 - "Community 32"
+
 Cohesion: 0.29
 Nodes (7): Model Context Protocol, Siemens TIA Openness User Group, Phase 1: Implementation, Phase 2: Universal Block Support, Phase 3: Hardware and Network Discovery, Phase 4: Advanced Diagnostics, tia-portal-mcp
 
 ## Knowledge Gaps
+
 - **58 isolated node(s):** `ConcurrentDictionary`, `Func`, `TiaMcpServer.Tools`, `TiaMcpServer.Tools`, `ProjectSessionBinding` (+53 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **80 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
+
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `JsonSerializerOptions` connect `Community 4` to `Community 1`, `Community 2`?**
