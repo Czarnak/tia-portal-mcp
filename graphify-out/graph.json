@@ -9,7 +9,7 @@
       "source_file": "TiaMcpServer/Program.cs",
       "source_location": "L1",
       "id": "tiamcpserver_program_cs",
-      "community": 29,
+      "community": 30,
       "norm_label": "program.cs"
     },
     {
@@ -18,7 +18,7 @@
       "source_file": "TiaMcpServer/Program.cs",
       "source_location": "L9",
       "id": "tiamcpserver_program_tiamcpserver",
-      "community": 29,
+      "community": 30,
       "norm_label": "tiamcpserver"
     },
     {
@@ -27,7 +27,7 @@
       "source_file": "TiaMcpServer/Program.cs",
       "source_location": "L11",
       "id": "tiamcpserver_program_program",
-      "community": 29,
+      "community": 30,
       "norm_label": "program"
     },
     {
@@ -36,7 +36,7 @@
       "source_file": "TiaMcpServer/Program.cs",
       "source_location": "L13",
       "id": "tiamcpserver_program_program_main",
-      "community": 29,
+      "community": 30,
       "norm_label": ".main()"
     },
     {
@@ -45,7 +45,7 @@
       "source_file": "TiaMcpServer/Program.cs",
       "source_location": "L24",
       "id": "tiamcpserver_program_program_resolvestartupprojectpath",
-      "community": 29,
+      "community": 30,
       "norm_label": ".resolvestartupprojectpath()"
     },
     {
@@ -54,7 +54,7 @@
       "source_file": "TiaMcpServer/Batch/BatchExecutionEngine.cs",
       "source_location": "L1",
       "id": "tiamcpserver_batch_batchexecutionengine_cs",
-      "community": 50,
+      "community": 51,
       "norm_label": "batchexecutionengine.cs"
     },
     {
@@ -63,7 +63,7 @@
       "source_file": "TiaMcpServer/Batch/BatchExecutionEngine.cs",
       "source_location": "L8",
       "id": "batch_batchexecutionengine_batchexecutionengine",
-      "community": 50,
+      "community": 51,
       "norm_label": "batchexecutionengine"
     },
     {
@@ -72,7 +72,7 @@
       "source_file": "TiaMcpServer/Batch/BatchExecutionEngine.cs",
       "source_location": "L10",
       "id": "batch_batchexecutionengine_batchexecutionengine_isfailure",
-      "community": 50,
+      "community": 51,
       "norm_label": ".isfailure()"
     },
     {
@@ -81,7 +81,7 @@
       "source_file": "TiaMcpServer/Batch/BatchExecutionEngine.cs",
       "source_location": "L14",
       "id": "batch_batchexecutionengine_batchexecutionengine_executereadsasync",
-      "community": 50,
+      "community": 51,
       "norm_label": ".executereadsasync()"
     },
     {
@@ -90,7 +90,7 @@
       "source_file": "TiaMcpServer/Batch/BatchExecutionEngine.cs",
       "source_location": "L30",
       "id": "batch_batchexecutionengine_batchexecutionengine_applywritesasync",
-      "community": 50,
+      "community": 51,
       "norm_label": ".applywritesasync()"
     },
     {
@@ -243,16 +243,16 @@
       "source_file": "TiaMcpServer/Batch/BatchOperationRequest.cs",
       "source_location": "L1",
       "id": "tiamcpserver_batch_batchoperationrequest_cs",
-      "community": 89,
+      "community": 90,
       "norm_label": "batchoperationrequest.cs"
     },
     {
       "label": "BatchOperationRequest",
       "file_type": "code",
       "source_file": "TiaMcpServer/Batch/BatchOperationRequest.cs",
-      "source_location": "L8",
+      "source_location": "L10",
       "id": "batch_batchoperationrequest_batchoperationrequest",
-      "community": 89,
+      "community": 90,
       "norm_label": "batchoperationrequest"
     },
     {
@@ -439,7 +439,7 @@
       "label": ".PreviewWriteBatch()",
       "file_type": "code",
       "source_file": "TiaMcpServer/Batch/BatchTools.cs",
-      "source_location": "L38",
+      "source_location": "L39",
       "id": "batch_batchtools_batchtools_previewwritebatch",
       "community": 4,
       "norm_label": ".previewwritebatch()"
@@ -448,7 +448,7 @@
       "label": ".ApplyWriteBatch()",
       "file_type": "code",
       "source_file": "TiaMcpServer/Batch/BatchTools.cs",
-      "source_location": "L70",
+      "source_location": "L72",
       "id": "batch_batchtools_batchtools_applywritebatch",
       "community": 4,
       "norm_label": ".applywritebatch()"
@@ -457,7 +457,7 @@
       "label": ".ReadCombinedCurrentStateAsync()",
       "file_type": "code",
       "source_file": "TiaMcpServer/Batch/BatchTools.cs",
-      "source_location": "L128",
+      "source_location": "L131",
       "id": "batch_batchtools_batchtools_readcombinedcurrentstateasync",
       "community": 4,
       "norm_label": ".readcombinedcurrentstateasync()"
@@ -468,7 +468,7 @@
       "source_file": "TiaMcpServer/Batch/BatchWorkerInvoker.cs",
       "source_location": "L1",
       "id": "tiamcpserver_batch_batchworkerinvoker_cs",
-      "community": 51,
+      "community": 52,
       "norm_label": "batchworkerinvoker.cs"
     },
     {
@@ -477,7 +477,7 @@
       "source_file": "TiaMcpServer/Batch/BatchWorkerInvoker.cs",
       "source_location": "L10",
       "id": "batch_batchworkerinvoker_batchworkerinvoker",
-      "community": 51,
+      "community": 52,
       "norm_label": "batchworkerinvoker"
     },
     {
@@ -486,7 +486,7 @@
       "source_file": "TiaMcpServer/Batch/BatchWorkerInvoker.cs",
       "source_location": "L13",
       "id": "batch_batchworkerinvoker_batchworkerinvoker_readcurrentstateasync",
-      "community": 51,
+      "community": 52,
       "norm_label": ".readcurrentstateasync()"
     },
     {
@@ -495,7 +495,7 @@
       "source_file": "TiaMcpServer/Batch/BatchWorkerInvoker.cs",
       "source_location": "L26",
       "id": "batch_batchworkerinvoker_batchworkerinvoker_invokeasync",
-      "community": 51,
+      "community": 52,
       "norm_label": ".invokeasync()"
     },
     {
@@ -504,7 +504,7 @@
       "source_file": "TiaMcpServer/Batch/BatchWorkerInvoker.cs",
       "source_location": "L54",
       "id": "batch_batchworkerinvoker_batchworkerinvoker_resolvedeviceitemname",
-      "community": 51,
+      "community": 52,
       "norm_label": ".resolvedeviceitemname()"
     },
     {
@@ -1188,7 +1188,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/AddDeviceResultInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_adddeviceresultinfo_cs",
-      "community": 66,
+      "community": 67,
       "norm_label": "adddeviceresultinfo.cs"
     },
     {
@@ -1197,7 +1197,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/AddDeviceResultInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_adddeviceresultinfo_adddeviceresultinfo",
-      "community": 66,
+      "community": 67,
       "norm_label": "adddeviceresultinfo"
     },
     {
@@ -1305,7 +1305,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CatalogEntryInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_catalogentryinfo_cs",
-      "community": 67,
+      "community": 68,
       "norm_label": "catalogentryinfo.cs"
     },
     {
@@ -1314,7 +1314,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CatalogEntryInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_catalogentryinfo_catalogentryinfo",
-      "community": 67,
+      "community": 68,
       "norm_label": "catalogentryinfo"
     },
     {
@@ -1323,7 +1323,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CatalogTypeIdentifier.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_catalogtypeidentifier_cs",
-      "community": 52,
+      "community": 53,
       "norm_label": "catalogtypeidentifier.cs"
     },
     {
@@ -1332,7 +1332,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CatalogTypeIdentifier.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_catalogtypeidentifier_catalogtypeidentifier",
-      "community": 52,
+      "community": 53,
       "norm_label": "catalogtypeidentifier"
     },
     {
@@ -1341,7 +1341,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CatalogTypeIdentifier.cs",
       "source_location": "L12",
       "id": "tiamcpserver_contracts_catalogtypeidentifier_catalogtypeidentifier_iscreatable",
-      "community": 52,
+      "community": 53,
       "norm_label": ".iscreatable()"
     },
     {
@@ -1350,7 +1350,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CatalogTypeIdentifier.cs",
       "source_location": "L36",
       "id": "tiamcpserver_contracts_catalogtypeidentifier_catalogtypeidentifier_buildvalidationmessage",
-      "community": 52,
+      "community": 53,
       "norm_label": ".buildvalidationmessage()"
     },
     {
@@ -1359,7 +1359,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CompileCheckReport.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_compilecheckreport_cs",
-      "community": 68,
+      "community": 69,
       "norm_label": "compilecheckreport.cs"
     },
     {
@@ -1368,7 +1368,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CompileCheckReport.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_compilecheckreport_compilecheckreport",
-      "community": 68,
+      "community": 69,
       "norm_label": "compilecheckreport"
     },
     {
@@ -1377,7 +1377,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CompileMessageInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_compilemessageinfo_cs",
-      "community": 69,
+      "community": 70,
       "norm_label": "compilemessageinfo.cs"
     },
     {
@@ -1386,7 +1386,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CompileMessageInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_compilemessageinfo_compilemessageinfo",
-      "community": 69,
+      "community": 70,
       "norm_label": "compilemessageinfo"
     },
     {
@@ -1395,7 +1395,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/ConfigureNetworkDeviceResultInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_configurenetworkdeviceresultinfo_cs",
-      "community": 70,
+      "community": 71,
       "norm_label": "configurenetworkdeviceresultinfo.cs"
     },
     {
@@ -1404,7 +1404,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/ConfigureNetworkDeviceResultInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_configurenetworkdeviceresultinfo_configurenetworkdeviceresultinfo",
-      "community": 70,
+      "community": 71,
       "norm_label": "configurenetworkdeviceresultinfo"
     },
     {
@@ -1413,7 +1413,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceFilterNames.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_crossreferencefilternames_cs",
-      "community": 64,
+      "community": 65,
       "norm_label": "crossreferencefilternames.cs"
     },
     {
@@ -1422,7 +1422,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceFilterNames.cs",
       "source_location": "L6",
       "id": "tiamcpserver_contracts_crossreferencefilternames_crossreferencefilternames",
-      "community": 64,
+      "community": 65,
       "norm_label": "crossreferencefilternames"
     },
     {
@@ -1431,7 +1431,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceFilterNames.cs",
       "source_location": "L23",
       "id": "tiamcpserver_contracts_crossreferencefilternames_crossreferencefilternames_trynormalize",
-      "community": 64,
+      "community": 65,
       "norm_label": ".trynormalize()"
     },
     {
@@ -1440,7 +1440,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceLocationInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_crossreferencelocationinfo_cs",
-      "community": 71,
+      "community": 72,
       "norm_label": "crossreferencelocationinfo.cs"
     },
     {
@@ -1449,7 +1449,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceLocationInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_crossreferencelocationinfo_crossreferencelocationinfo",
-      "community": 71,
+      "community": 72,
       "norm_label": "crossreferencelocationinfo"
     },
     {
@@ -1458,7 +1458,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceReport.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_crossreferencereport_cs",
-      "community": 72,
+      "community": 73,
       "norm_label": "crossreferencereport.cs"
     },
     {
@@ -1467,7 +1467,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceReport.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_crossreferencereport_crossreferencereport",
-      "community": 72,
+      "community": 73,
       "norm_label": "crossreferencereport"
     },
     {
@@ -1476,7 +1476,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceSourceInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_crossreferencesourceinfo_cs",
-      "community": 73,
+      "community": 74,
       "norm_label": "crossreferencesourceinfo.cs"
     },
     {
@@ -1485,7 +1485,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceSourceInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_crossreferencesourceinfo_crossreferencesourceinfo",
-      "community": 73,
+      "community": 74,
       "norm_label": "crossreferencesourceinfo"
     },
     {
@@ -1494,7 +1494,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceTargetInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_crossreferencetargetinfo_cs",
-      "community": 74,
+      "community": 75,
       "norm_label": "crossreferencetargetinfo.cs"
     },
     {
@@ -1503,7 +1503,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/CrossReferenceTargetInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_crossreferencetargetinfo_crossreferencetargetinfo",
-      "community": 74,
+      "community": 75,
       "norm_label": "crossreferencetargetinfo"
     },
     {
@@ -1512,7 +1512,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/DeviceInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_deviceinfo_cs",
-      "community": 75,
+      "community": 76,
       "norm_label": "deviceinfo.cs"
     },
     {
@@ -1521,7 +1521,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/DeviceInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_deviceinfo_deviceinfo",
-      "community": 75,
+      "community": 76,
       "norm_label": "deviceinfo"
     },
     {
@@ -1530,7 +1530,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/DeviceItemInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_deviceiteminfo_cs",
-      "community": 76,
+      "community": 77,
       "norm_label": "deviceiteminfo.cs"
     },
     {
@@ -1539,7 +1539,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/DeviceItemInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_deviceiteminfo_deviceiteminfo",
-      "community": 76,
+      "community": 77,
       "norm_label": "deviceiteminfo"
     },
     {
@@ -1548,7 +1548,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/HardwareConfigInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_hardwareconfiginfo_cs",
-      "community": 77,
+      "community": 78,
       "norm_label": "hardwareconfiginfo.cs"
     },
     {
@@ -1557,7 +1557,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/HardwareConfigInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_hardwareconfiginfo_hardwareconfiginfo",
-      "community": 77,
+      "community": 78,
       "norm_label": "hardwareconfiginfo"
     },
     {
@@ -1566,7 +1566,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/IoSystemInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_iosysteminfo_cs",
-      "community": 78,
+      "community": 79,
       "norm_label": "iosysteminfo.cs"
     },
     {
@@ -1575,7 +1575,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/IoSystemInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_iosysteminfo_iosysteminfo",
-      "community": 78,
+      "community": 79,
       "norm_label": "iosysteminfo"
     },
     {
@@ -1584,7 +1584,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/NetworkInterfaceInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_networkinterfaceinfo_cs",
-      "community": 79,
+      "community": 80,
       "norm_label": "networkinterfaceinfo.cs"
     },
     {
@@ -1593,7 +1593,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/NetworkInterfaceInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_networkinterfaceinfo_networkinterfaceinfo",
-      "community": 79,
+      "community": 80,
       "norm_label": "networkinterfaceinfo"
     },
     {
@@ -1602,7 +1602,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/NodeInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_nodeinfo_cs",
-      "community": 80,
+      "community": 81,
       "norm_label": "nodeinfo.cs"
     },
     {
@@ -1611,7 +1611,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/NodeInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_nodeinfo_nodeinfo",
-      "community": 80,
+      "community": 81,
       "norm_label": "nodeinfo"
     },
     {
@@ -1620,7 +1620,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/PlcCompileInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_plccompileinfo_cs",
-      "community": 81,
+      "community": 82,
       "norm_label": "plccompileinfo.cs"
     },
     {
@@ -1629,7 +1629,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/PlcCompileInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_plccompileinfo_plccompileinfo",
-      "community": 81,
+      "community": 82,
       "norm_label": "plccompileinfo"
     },
     {
@@ -1638,7 +1638,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/PlcCrossReferenceInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_plccrossreferenceinfo_cs",
-      "community": 82,
+      "community": 83,
       "norm_label": "plccrossreferenceinfo.cs"
     },
     {
@@ -1647,7 +1647,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/PlcCrossReferenceInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_plccrossreferenceinfo_plccrossreferenceinfo",
-      "community": 82,
+      "community": 83,
       "norm_label": "plccrossreferenceinfo"
     },
     {
@@ -1656,7 +1656,7 @@
       "source_file": "TiaMcpServer.Contracts/ProjectLifecycleResultInfo.cs",
       "source_location": "L1",
       "id": "tiamcpserver_contracts_projectlifecycleresultinfo_cs",
-      "community": 90,
+      "community": 91,
       "norm_label": "projectlifecycleresultinfo.cs"
     },
     {
@@ -1665,7 +1665,7 @@
       "source_file": "TiaMcpServer.Contracts/ProjectLifecycleResultInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_projectlifecycleresultinfo_projectlifecycleresultinfo",
-      "community": 90,
+      "community": 91,
       "norm_label": "projectlifecycleresultinfo"
     },
     {
@@ -1728,7 +1728,7 @@
       "source_file": "TiaMcpServer.Contracts/ProjectStatusInfo.cs",
       "source_location": "L1",
       "id": "tiamcpserver_contracts_projectstatusinfo_cs",
-      "community": 91,
+      "community": 92,
       "norm_label": "projectstatusinfo.cs"
     },
     {
@@ -1737,7 +1737,7 @@
       "source_file": "TiaMcpServer.Contracts/ProjectStatusInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_projectstatusinfo_projectstatusinfo",
-      "community": 91,
+      "community": 92,
       "norm_label": "projectstatusinfo"
     },
     {
@@ -1746,7 +1746,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/ProjectTreeNode.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_projecttreenode_cs",
-      "community": 83,
+      "community": 84,
       "norm_label": "projecttreenode.cs"
     },
     {
@@ -1755,7 +1755,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/ProjectTreeNode.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_projecttreenode_projecttreenode",
-      "community": 83,
+      "community": 84,
       "norm_label": "projecttreenode"
     },
     {
@@ -1764,7 +1764,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/SubnetInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_subnetinfo_cs",
-      "community": 84,
+      "community": 85,
       "norm_label": "subnetinfo.cs"
     },
     {
@@ -1773,7 +1773,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/SubnetInfo.cs",
       "source_location": "L5",
       "id": "tiamcpserver_contracts_subnetinfo_subnetinfo",
-      "community": 84,
+      "community": 85,
       "norm_label": "subnetinfo"
     },
     {
@@ -1782,7 +1782,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/TagInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_taginfo_cs",
-      "community": 85,
+      "community": 86,
       "norm_label": "taginfo.cs"
     },
     {
@@ -1791,7 +1791,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/TagInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_taginfo_taginfo",
-      "community": 85,
+      "community": 86,
       "norm_label": "taginfo"
     },
     {
@@ -1800,7 +1800,7 @@
       "source_file": "TiaMcpServer.Contracts/TagMutationResultInfo.cs",
       "source_location": "L1",
       "id": "tiamcpserver_contracts_tagmutationresultinfo_cs",
-      "community": 92,
+      "community": 93,
       "norm_label": "tagmutationresultinfo.cs"
     },
     {
@@ -1809,7 +1809,7 @@
       "source_file": "TiaMcpServer.Contracts/TagMutationResultInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_tagmutationresultinfo_tagmutationresultinfo",
-      "community": 92,
+      "community": 93,
       "norm_label": "tagmutationresultinfo"
     },
     {
@@ -1818,7 +1818,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/TagTableInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_tagtableinfo_cs",
-      "community": 86,
+      "community": 87,
       "norm_label": "tagtableinfo.cs"
     },
     {
@@ -1827,7 +1827,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/TagTableInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_tagtableinfo_tagtableinfo",
-      "community": 86,
+      "community": 87,
       "norm_label": "tagtableinfo"
     },
     {
@@ -1836,7 +1836,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/UserConstantInfo.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_userconstantinfo_cs",
-      "community": 87,
+      "community": 88,
       "norm_label": "userconstantinfo.cs"
     },
     {
@@ -1845,7 +1845,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/UserConstantInfo.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_userconstantinfo_userconstantinfo",
-      "community": 87,
+      "community": 88,
       "norm_label": "userconstantinfo"
     },
     {
@@ -1854,7 +1854,7 @@
       "source_file": "TiaMcpServer.Contracts/WorkerRequest.cs",
       "source_location": "L1",
       "id": "tiamcpserver_contracts_workerrequest_cs",
-      "community": 93,
+      "community": 94,
       "norm_label": "workerrequest.cs"
     },
     {
@@ -1863,7 +1863,7 @@
       "source_file": "TiaMcpServer.Contracts/WorkerRequest.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_workerrequest_workerrequest",
-      "community": 93,
+      "community": 94,
       "norm_label": "workerrequest"
     },
     {
@@ -1872,7 +1872,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/WorkerResponse.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_contracts_workerresponse_cs",
-      "community": 88,
+      "community": 89,
       "norm_label": "workerresponse.cs"
     },
     {
@@ -1881,7 +1881,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Contracts/WorkerResponse.cs",
       "source_location": "L3",
       "id": "tiamcpserver_contracts_workerresponse_workerresponse",
-      "community": 88,
+      "community": 89,
       "norm_label": "workerresponse"
     },
     {
@@ -2223,7 +2223,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_opennessworker_openness_assemblyresolver_cs",
-      "community": 30,
+      "community": 31,
       "norm_label": "assemblyresolver.cs"
     },
     {
@@ -2232,7 +2232,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs",
       "source_location": "L10",
       "id": "openness_assemblyresolver_assemblyresolver",
-      "community": 30,
+      "community": 31,
       "norm_label": "assemblyresolver"
     },
     {
@@ -2241,7 +2241,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs",
       "source_location": "L24",
       "id": "openness_assemblyresolver_assemblyresolver_register",
-      "community": 30,
+      "community": 31,
       "norm_label": ".register()"
     },
     {
@@ -2250,7 +2250,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs",
       "source_location": "L30",
       "id": "openness_assemblyresolver_assemblyresolver_onassemblyresolve",
-      "community": 30,
+      "community": 31,
       "norm_label": ".onassemblyresolve()"
     },
     {
@@ -2259,7 +2259,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs",
       "source_location": "L58",
       "id": "openness_assemblyresolver_assemblyresolver_getopennessinstallpath",
-      "community": 30,
+      "community": 31,
       "norm_label": ".getopennessinstallpath()"
     },
     {
@@ -2268,7 +2268,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs",
       "source_location": "L115",
       "id": "openness_assemblyresolver_assemblyresolver_containsrequiredassemblies",
-      "community": 30,
+      "community": 31,
       "norm_label": ".containsrequiredassemblies()"
     },
     {
@@ -2277,7 +2277,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockExporter.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_opennessworker_openness_blockexporter_cs",
-      "community": 65,
+      "community": 66,
       "norm_label": "blockexporter.cs"
     },
     {
@@ -2286,7 +2286,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockExporter.cs",
       "source_location": "L9",
       "id": "openness_blockexporter_blockexporter",
-      "community": 65,
+      "community": 66,
       "norm_label": "blockexporter"
     },
     {
@@ -2295,7 +2295,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockExporter.cs",
       "source_location": "L11",
       "id": "openness_blockexporter_blockexporter_export",
-      "community": 65,
+      "community": 66,
       "norm_label": ".export()"
     },
     {
@@ -2304,7 +2304,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_opennessworker_openness_blockimporter_cs",
-      "community": 31,
+      "community": 32,
       "norm_label": "blockimporter.cs"
     },
     {
@@ -2313,7 +2313,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs",
       "source_location": "L8",
       "id": "openness_blockimporter_blockimporter",
-      "community": 31,
+      "community": 32,
       "norm_label": "blockimporter"
     },
     {
@@ -2322,7 +2322,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs",
       "source_location": "L12",
       "id": "openness_blockimporter_blockimporter_import",
-      "community": 31,
+      "community": 32,
       "norm_label": ".import()"
     },
     {
@@ -2331,7 +2331,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs",
       "source_location": "L49",
       "id": "openness_blockimporter_blockimporter_writecontenttotempdir",
-      "community": 31,
+      "community": 32,
       "norm_label": ".writecontenttotempdir()"
     },
     {
@@ -2340,7 +2340,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs",
       "source_location": "L79",
       "id": "openness_blockimporter_blockimporter_extractfilename",
-      "community": 31,
+      "community": 32,
       "norm_label": ".extractfilename()"
     },
     {
@@ -2349,7 +2349,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs",
       "source_location": "L91",
       "id": "openness_blockimporter_blockimporter_flushsection",
-      "community": 31,
+      "community": 32,
       "norm_label": ".flushsection()"
     },
     {
@@ -3150,7 +3150,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L1",
       "id": "tiamcpserver_opennessworker_openness_opennessreflection_cs",
-      "community": 53,
+      "community": 54,
       "norm_label": "opennessreflection.cs"
     },
     {
@@ -3159,7 +3159,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L16",
       "id": "openness_opennessreflection_opennessreflection",
-      "community": 53,
+      "community": 54,
       "norm_label": "opennessreflection"
     },
     {
@@ -3168,7 +3168,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L18",
       "id": "openness_opennessreflection_opennessreflection_readproperty",
-      "community": 53,
+      "community": 54,
       "norm_label": ".readproperty()"
     },
     {
@@ -3177,7 +3177,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L38",
       "id": "openness_opennessreflection_opennessreflection_readenumerableproperty",
-      "community": 53,
+      "community": 54,
       "norm_label": ".readenumerableproperty()"
     },
     {
@@ -3186,7 +3186,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/OpennessReflection.cs",
       "source_location": "L48",
       "id": "openness_opennessreflection_opennessreflection_enumerate",
-      "community": 53,
+      "community": 54,
       "norm_label": ".enumerate()"
     },
     {
@@ -3195,7 +3195,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L1",
       "id": "tiamcpserver_opennessworker_openness_plcsoftwarelocator_cs",
-      "community": 32,
+      "community": 33,
       "norm_label": "plcsoftwarelocator.cs"
     },
     {
@@ -3204,7 +3204,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L8",
       "id": "openness_plcsoftwarelocator_plcsoftwarelocator",
-      "community": 32,
+      "community": 33,
       "norm_label": "plcsoftwarelocator"
     },
     {
@@ -3213,7 +3213,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L11",
       "id": "openness_plcsoftwarelocator_plcsoftwarelocator_find",
-      "community": 32,
+      "community": 33,
       "norm_label": ".find()"
     },
     {
@@ -3222,7 +3222,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L26",
       "id": "openness_plcsoftwarelocator_plcsoftwarelocator_findall",
-      "community": 32,
+      "community": 33,
       "norm_label": ".findall()"
     },
     {
@@ -3231,7 +3231,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L43",
       "id": "openness_plcsoftwarelocator_plcsoftwarelocator_findindevice",
-      "community": 32,
+      "community": 33,
       "norm_label": ".findindevice()"
     },
     {
@@ -3240,7 +3240,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L48",
       "id": "openness_plcsoftwarelocator_plcsoftwarelocator_findindeviceitems",
-      "community": 32,
+      "community": 33,
       "norm_label": ".findindeviceitems()"
     },
     {
@@ -3249,7 +3249,7 @@
       "source_file": "TiaMcpServer.OpennessWorker/Openness/PlcSoftwareLocator.cs",
       "source_location": "L76",
       "id": "openness_plcsoftwarelocator_discoveredplcsoftware",
-      "community": 32,
+      "community": 33,
       "norm_label": "discoveredplcsoftware"
     },
     {
@@ -3816,7 +3816,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddDeviceResultInfoTests.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_adddeviceresultinfotests_cs",
-      "community": 41,
+      "community": 42,
       "norm_label": "adddeviceresultinfotests.cs"
     },
     {
@@ -3825,7 +3825,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddDeviceResultInfoTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_adddeviceresultinfotests_adddeviceresultinfotests",
-      "community": 41,
+      "community": 42,
       "norm_label": "adddeviceresultinfotests"
     },
     {
@@ -3834,7 +3834,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddDeviceResultInfoTests.cs",
       "source_location": "L17",
       "id": "tiamcpserver_tests_adddeviceresultinfotests_adddeviceresultinfotests_serializesemptyresult",
-      "community": 41,
+      "community": 42,
       "norm_label": ".serializesemptyresult()"
     },
     {
@@ -3843,7 +3843,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddDeviceResultInfoTests.cs",
       "source_location": "L31",
       "id": "tiamcpserver_tests_adddeviceresultinfotests_adddeviceresultinfotests_roundtripsresultwithwarnings",
-      "community": 41,
+      "community": 42,
       "norm_label": ".roundtripsresultwithwarnings()"
     },
     {
@@ -3852,7 +3852,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddDeviceResultInfoTests.cs",
       "source_location": "L50",
       "id": "tiamcpserver_tests_adddeviceresultinfotests_adddeviceresultinfotests_roundtrip",
-      "community": 41,
+      "community": 42,
       "norm_label": ".roundtrip()"
     },
     {
@@ -3861,7 +3861,7 @@
       "source_file": "TiaMcpServer.Tests/ArchiveModeNamesTests.cs",
       "source_location": "L1",
       "id": "tiamcpserver_tests_archivemodenamestests_cs",
-      "community": 54,
+      "community": 55,
       "norm_label": "archivemodenamestests.cs"
     },
     {
@@ -3870,7 +3870,7 @@
       "source_file": "TiaMcpServer.Tests/ArchiveModeNamesTests.cs",
       "source_location": "L6",
       "id": "tiamcpserver_tests_archivemodenamestests_archivemodenamestests",
-      "community": 54,
+      "community": 55,
       "norm_label": "archivemodenamestests"
     },
     {
@@ -3879,7 +3879,7 @@
       "source_file": "TiaMcpServer.Tests/ArchiveModeNamesTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_archivemodenamestests_archivemodenamestests_emptyarchivemodedefaultstocompressed",
-      "community": 54,
+      "community": 55,
       "norm_label": ".emptyarchivemodedefaultstocompressed()"
     },
     {
@@ -3888,7 +3888,7 @@
       "source_file": "TiaMcpServer.Tests/ArchiveModeNamesTests.cs",
       "source_location": "L17",
       "id": "tiamcpserver_tests_archivemodenamestests_archivemodenamestests_archivemodenormalizesignoringcase",
-      "community": 54,
+      "community": 55,
       "norm_label": ".archivemodenormalizesignoringcase()"
     },
     {
@@ -3897,7 +3897,7 @@
       "source_file": "TiaMcpServer.Tests/ArchiveModeNamesTests.cs",
       "source_location": "L26",
       "id": "tiamcpserver_tests_archivemodenamestests_archivemodenamestests_invalidarchivemodereturnserror",
-      "community": 54,
+      "community": 55,
       "norm_label": ".invalidarchivemodereturnserror()"
     },
     {
@@ -3906,7 +3906,7 @@
       "source_file": "TiaMcpServer.Tests/BatchExecutionEngineTests.cs",
       "source_location": "L1",
       "id": "tiamcpserver_tests_batchexecutionenginetests_cs",
-      "community": 33,
+      "community": 34,
       "norm_label": "batchexecutionenginetests.cs"
     },
     {
@@ -3915,7 +3915,7 @@
       "source_file": "TiaMcpServer.Tests/BatchExecutionEngineTests.cs",
       "source_location": "L9",
       "id": "tiamcpserver_tests_batchexecutionenginetests_batchexecutionenginetests",
-      "community": 33,
+      "community": 34,
       "norm_label": "batchexecutionenginetests"
     },
     {
@@ -3924,7 +3924,7 @@
       "source_file": "TiaMcpServer.Tests/BatchExecutionEngineTests.cs",
       "source_location": "L11",
       "id": "tiamcpserver_tests_batchexecutionenginetests_batchexecutionenginetests_op",
-      "community": 33,
+      "community": 34,
       "norm_label": ".op()"
     },
     {
@@ -3933,7 +3933,7 @@
       "source_file": "TiaMcpServer.Tests/BatchExecutionEngineTests.cs",
       "source_location": "L14",
       "id": "tiamcpserver_tests_batchexecutionenginetests_batchexecutionenginetests_executereadsasync_allsucceed_preservesorderandresults",
-      "community": 33,
+      "community": 34,
       "norm_label": ".executereadsasync_allsucceed_preservesorderandresults()"
     },
     {
@@ -3942,7 +3942,7 @@
       "source_file": "TiaMcpServer.Tests/BatchExecutionEngineTests.cs",
       "source_location": "L28",
       "id": "tiamcpserver_tests_batchexecutionenginetests_batchexecutionenginetests_executereadsasync_peritemfailuredoesnotstopothers",
-      "community": 33,
+      "community": 34,
       "norm_label": ".executereadsasync_peritemfailuredoesnotstopothers()"
     },
     {
@@ -3951,7 +3951,7 @@
       "source_file": "TiaMcpServer.Tests/BatchExecutionEngineTests.cs",
       "source_location": "L48",
       "id": "tiamcpserver_tests_batchexecutionenginetests_batchexecutionenginetests_applywritesasync_allsucceed_marksallsucceeded",
-      "community": 33,
+      "community": 34,
       "norm_label": ".applywritesasync_allsucceed_marksallsucceeded()"
     },
     {
@@ -3960,7 +3960,7 @@
       "source_file": "TiaMcpServer.Tests/BatchExecutionEngineTests.cs",
       "source_location": "L60",
       "id": "tiamcpserver_tests_batchexecutionenginetests_batchexecutionenginetests_applywritesasync_stopsonfirstfailureandskipsrest",
-      "community": 33,
+      "community": 34,
       "norm_label": ".applywritesasync_stopsonfirstfailureandskipsrest()"
     },
     {
@@ -4167,7 +4167,7 @@
       "source_file": "TiaMcpServer.Tests/BatchResultFormatterTests.cs",
       "source_location": "L1",
       "id": "tiamcpserver_tests_batchresultformattertests_cs",
-      "community": 34,
+      "community": 35,
       "norm_label": "batchresultformattertests.cs"
     },
     {
@@ -4176,7 +4176,7 @@
       "source_file": "TiaMcpServer.Tests/BatchResultFormatterTests.cs",
       "source_location": "L7",
       "id": "tiamcpserver_tests_batchresultformattertests_batchresultformattertests",
-      "community": 34,
+      "community": 35,
       "norm_label": "batchresultformattertests"
     },
     {
@@ -4185,7 +4185,7 @@
       "source_file": "TiaMcpServer.Tests/BatchResultFormatterTests.cs",
       "source_location": "L9",
       "id": "tiamcpserver_tests_batchresultformattertests_batchresultformattertests_parse",
-      "community": 34,
+      "community": 35,
       "norm_label": ".parse()"
     },
     {
@@ -4194,7 +4194,7 @@
       "source_file": "TiaMcpServer.Tests/BatchResultFormatterTests.cs",
       "source_location": "L11",
       "id": "tiamcpserver_tests_batchresultformattertests_batchresultformattertests_error_producesunsuccessfulenvelopewithmessage",
-      "community": 34,
+      "community": 35,
       "norm_label": ".error_producesunsuccessfulenvelopewithmessage()"
     },
     {
@@ -4203,7 +4203,7 @@
       "source_file": "TiaMcpServer.Tests/BatchResultFormatterTests.cs",
       "source_location": "L21",
       "id": "tiamcpserver_tests_batchresultformattertests_batchresultformattertests_readbatch_allsucceeded_issuccesswithcounts",
-      "community": 34,
+      "community": 35,
       "norm_label": ".readbatch_allsucceeded_issuccesswithcounts()"
     },
     {
@@ -4212,7 +4212,7 @@
       "source_file": "TiaMcpServer.Tests/BatchResultFormatterTests.cs",
       "source_location": "L38",
       "id": "tiamcpserver_tests_batchresultformattertests_batchresultformattertests_readbatch_anyfailure_isnotsuccess",
-      "community": 34,
+      "community": 35,
       "norm_label": ".readbatch_anyfailure_isnotsuccess()"
     },
     {
@@ -4221,7 +4221,7 @@
       "source_file": "TiaMcpServer.Tests/BatchResultFormatterTests.cs",
       "source_location": "L53",
       "id": "tiamcpserver_tests_batchresultformattertests_batchresultformattertests_applybatch_countssucceededfailedandskipped",
-      "community": 34,
+      "community": 35,
       "norm_label": ".applybatch_countssucceededfailedandskipped()"
     },
     {
@@ -4441,6 +4441,78 @@
       "norm_label": ".unknowntokenisrejected()"
     },
     {
+      "label": "BatchToolMetadataTests.cs",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L1",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_cs",
+      "community": 28,
+      "norm_label": "batchtoolmetadatatests.cs"
+    },
+    {
+      "label": "BatchToolMetadataTests",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L9",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "community": 28,
+      "norm_label": "batchtoolmetadatatests"
+    },
+    {
+      "label": ".MethodDescription()",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L11",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_methoddescription",
+      "community": 28,
+      "norm_label": ".methoddescription()"
+    },
+    {
+      "label": ".ExecuteReadBatchDescription_ListsEveryReadOperation()",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L20",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_executereadbatchdescription_listseveryreadoperation",
+      "community": 28,
+      "norm_label": ".executereadbatchdescription_listseveryreadoperation()"
+    },
+    {
+      "label": ".PreviewWriteBatchDescription_ListsEveryWriteOperation()",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L30",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_previewwritebatchdescription_listseverywriteoperation",
+      "community": 28,
+      "norm_label": ".previewwritebatchdescription_listseverywriteoperation()"
+    },
+    {
+      "label": ".ApplyWriteBatchDescription_ListsEveryWriteOperation()",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L40",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_applywritebatchdescription_listseverywriteoperation",
+      "community": 28,
+      "norm_label": ".applywritebatchdescription_listseverywriteoperation()"
+    },
+    {
+      "label": ".OperationPropertyDescription_ListsEveryBatchableOperation()",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L50",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_operationpropertydescription_listseverybatchableoperation",
+      "community": 28,
+      "norm_label": ".operationpropertydescription_listseverybatchableoperation()"
+    },
+    {
+      "label": ".KeyRequestFieldsHaveDescriptions()",
+      "file_type": "code",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L66",
+      "id": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_keyrequestfieldshavedescriptions",
+      "community": 28,
+      "norm_label": ".keyrequestfieldshavedescriptions()"
+    },
+    {
       "label": "BatchToolsTests.cs",
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/BatchToolsTests.cs",
@@ -4617,7 +4689,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogEntryInfoTests.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_catalogentryinfotests_cs",
-      "community": 35,
+      "community": 36,
       "norm_label": "catalogentryinfotests.cs"
     },
     {
@@ -4626,7 +4698,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogEntryInfoTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_catalogentryinfotests_catalogentryinfotests",
-      "community": 35,
+      "community": 36,
       "norm_label": "catalogentryinfotests"
     },
     {
@@ -4635,7 +4707,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogEntryInfoTests.cs",
       "source_location": "L17",
       "id": "tiamcpserver_tests_catalogentryinfotests_catalogentryinfotests_serializesdefaultcatalogentry",
-      "community": 35,
+      "community": 36,
       "norm_label": ".serializesdefaultcatalogentry()"
     },
     {
@@ -4644,7 +4716,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogEntryInfoTests.cs",
       "source_location": "L33",
       "id": "tiamcpserver_tests_catalogentryinfotests_catalogentryinfotests_roundtripsfullcatalogentry",
-      "community": 35,
+      "community": 36,
       "norm_label": ".roundtripsfullcatalogentry()"
     },
     {
@@ -4653,7 +4725,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogEntryInfoTests.cs",
       "source_location": "L58",
       "id": "tiamcpserver_tests_catalogentryinfotests_catalogentryinfotests_nullablefieldsomittedwhennull",
-      "community": 35,
+      "community": 36,
       "norm_label": ".nullablefieldsomittedwhennull()"
     },
     {
@@ -4662,7 +4734,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogEntryInfoTests.cs",
       "source_location": "L88",
       "id": "tiamcpserver_tests_catalogentryinfotests_catalogentryinfotests_roundtrip",
-      "community": 35,
+      "community": 36,
       "norm_label": ".roundtrip()"
     },
     {
@@ -4671,7 +4743,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogTypeIdentifierTests.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_catalogtypeidentifiertests_cs",
-      "community": 42,
+      "community": 43,
       "norm_label": "catalogtypeidentifiertests.cs"
     },
     {
@@ -4680,7 +4752,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogTypeIdentifierTests.cs",
       "source_location": "L6",
       "id": "tiamcpserver_tests_catalogtypeidentifiertests_catalogtypeidentifiertests",
-      "community": 42,
+      "community": 43,
       "norm_label": "catalogtypeidentifiertests"
     },
     {
@@ -4689,7 +4761,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogTypeIdentifierTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_catalogtypeidentifiertests_catalogtypeidentifiertests_creatableidentifiersusesupportedprefixes",
-      "community": 42,
+      "community": 43,
       "norm_label": ".creatableidentifiersusesupportedprefixes()"
     },
     {
@@ -4698,7 +4770,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogTypeIdentifierTests.cs",
       "source_location": "L17",
       "id": "tiamcpserver_tests_catalogtypeidentifiertests_catalogtypeidentifiertests_noncreatableidentifiersarerejected",
-      "community": 42,
+      "community": 43,
       "norm_label": ".noncreatableidentifiersarerejected()"
     },
     {
@@ -4707,7 +4779,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CatalogTypeIdentifierTests.cs",
       "source_location": "L27",
       "id": "tiamcpserver_tests_catalogtypeidentifiertests_catalogtypeidentifiertests_validationmessagepointsuserbacktocatalogtypeidentifierfield",
-      "community": 42,
+      "community": 43,
       "norm_label": ".validationmessagepointsuserbacktocatalogtypeidentifierfield()"
     },
     {
@@ -4716,7 +4788,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckInfoTests.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_compilecheckinfotests_cs",
-      "community": 36,
+      "community": 37,
       "norm_label": "compilecheckinfotests.cs"
     },
     {
@@ -4725,7 +4797,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckInfoTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_compilecheckinfotests_compilecheckinfotests",
-      "community": 36,
+      "community": 37,
       "norm_label": "compilecheckinfotests"
     },
     {
@@ -4734,7 +4806,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckInfoTests.cs",
       "source_location": "L17",
       "id": "tiamcpserver_tests_compilecheckinfotests_compilecheckinfotests_emptyreportserializeswithdefaultvalues",
-      "community": 36,
+      "community": 37,
       "norm_label": ".emptyreportserializeswithdefaultvalues()"
     },
     {
@@ -4743,7 +4815,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckInfoTests.cs",
       "source_location": "L33",
       "id": "tiamcpserver_tests_compilecheckinfotests_compilecheckinfotests_fullreportroundtripsplcinfoandmessages",
-      "community": 36,
+      "community": 37,
       "norm_label": ".fullreportroundtripsplcinfoandmessages()"
     },
     {
@@ -4752,7 +4824,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckInfoTests.cs",
       "source_location": "L92",
       "id": "tiamcpserver_tests_compilecheckinfotests_compilecheckinfotests_blockscopereporthascorrectscopeandblockpath",
-      "community": 36,
+      "community": 37,
       "norm_label": ".blockscopereporthascorrectscopeandblockpath()"
     },
     {
@@ -4761,7 +4833,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckInfoTests.cs",
       "source_location": "L109",
       "id": "tiamcpserver_tests_compilecheckinfotests_compilecheckinfotests_roundtrip",
-      "community": 36,
+      "community": 37,
       "norm_label": ".roundtrip()"
     },
     {
@@ -4770,7 +4842,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceResultInfoTests.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_configurenetworkdeviceresultinfotests_cs",
-      "community": 43,
+      "community": 44,
       "norm_label": "configurenetworkdeviceresultinfotests.cs"
     },
     {
@@ -4779,7 +4851,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceResultInfoTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_configurenetworkdeviceresultinfotests_configurenetworkdeviceresultinfotests",
-      "community": 43,
+      "community": 44,
       "norm_label": "configurenetworkdeviceresultinfotests"
     },
     {
@@ -4788,7 +4860,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceResultInfoTests.cs",
       "source_location": "L17",
       "id": "tiamcpserver_tests_configurenetworkdeviceresultinfotests_configurenetworkdeviceresultinfotests_serializesemptyresult",
-      "community": 43,
+      "community": 44,
       "norm_label": ".serializesemptyresult()"
     },
     {
@@ -4797,7 +4869,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceResultInfoTests.cs",
       "source_location": "L33",
       "id": "tiamcpserver_tests_configurenetworkdeviceresultinfotests_configurenetworkdeviceresultinfotests_roundtripsresultwithsettingsandmessages",
-      "community": 43,
+      "community": 44,
       "norm_label": ".roundtripsresultwithsettingsandmessages()"
     },
     {
@@ -4806,7 +4878,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceResultInfoTests.cs",
       "source_location": "L60",
       "id": "tiamcpserver_tests_configurenetworkdeviceresultinfotests_configurenetworkdeviceresultinfotests_roundtrip",
-      "community": 43,
+      "community": 44,
       "norm_label": ".roundtrip()"
     },
     {
@@ -4905,7 +4977,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L1",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_hardwareconfiginfotests_cs",
-      "community": 28,
+      "community": 29,
       "norm_label": "hardwareconfiginfotests.cs"
     },
     {
@@ -4914,7 +4986,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_hardwareconfiginfotests_hardwareconfiginfotests",
-      "community": 28,
+      "community": 29,
       "norm_label": "hardwareconfiginfotests"
     },
     {
@@ -4923,7 +4995,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L17",
       "id": "tiamcpserver_tests_hardwareconfiginfotests_hardwareconfiginfotests_serializesemptyconfig",
-      "community": 28,
+      "community": 29,
       "norm_label": ".serializesemptyconfig()"
     },
     {
@@ -4932,7 +5004,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L30",
       "id": "tiamcpserver_tests_hardwareconfiginfotests_hardwareconfiginfotests_roundtripsfulldevicetree",
-      "community": 28,
+      "community": 29,
       "norm_label": ".roundtripsfulldevicetree()"
     },
     {
@@ -4941,7 +5013,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L109",
       "id": "tiamcpserver_tests_hardwareconfiginfotests_hardwareconfiginfotests_roundtripssubnetwithiosystem",
-      "community": 28,
+      "community": 29,
       "norm_label": ".roundtripssubnetwithiosystem()"
     },
     {
@@ -4950,7 +5022,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L146",
       "id": "tiamcpserver_tests_hardwareconfiginfotests_hardwareconfiginfotests_nullablefieldsserializeasnull",
-      "community": 28,
+      "community": 29,
       "norm_label": ".nullablefieldsserializeasnull()"
     },
     {
@@ -4959,7 +5031,7 @@
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L167",
       "id": "tiamcpserver_tests_hardwareconfiginfotests_hardwareconfiginfotests_roundtrip",
-      "community": 28,
+      "community": 29,
       "norm_label": ".roundtrip()"
     },
     {
@@ -4968,7 +5040,7 @@
       "source_file": "TiaMcpServer.Tests/ProjectLifecycleToolTests.cs",
       "source_location": "L1",
       "id": "tiamcpserver_tests_projectlifecycletooltests_cs",
-      "community": 44,
+      "community": 45,
       "norm_label": "projectlifecycletooltests.cs"
     },
     {
@@ -4977,7 +5049,7 @@
       "source_file": "TiaMcpServer.Tests/ProjectLifecycleToolTests.cs",
       "source_location": "L10",
       "id": "tiamcpserver_tests_projectlifecycletooltests_projectlifecycletooltests",
-      "community": 44,
+      "community": 45,
       "norm_label": "projectlifecycletooltests"
     },
     {
@@ -4986,7 +5058,7 @@
       "source_file": "TiaMcpServer.Tests/ProjectLifecycleToolTests.cs",
       "source_location": "L12",
       "id": "tiamcpserver_tests_projectlifecycletooltests_projectlifecycletooltests_projectlifecycletoolshavemcpmetadata",
-      "community": 44,
+      "community": 45,
       "norm_label": ".projectlifecycletoolshavemcpmetadata()"
     },
     {
@@ -4995,7 +5067,7 @@
       "source_file": "TiaMcpServer.Tests/ProjectLifecycleToolTests.cs",
       "source_location": "L40",
       "id": "tiamcpserver_tests_projectlifecycletooltests_projectlifecycletooltests_opennessworkerclientexposesprojectlifecyclemethods",
-      "community": 44,
+      "community": 45,
       "norm_label": ".opennessworkerclientexposesprojectlifecyclemethods()"
     },
     {
@@ -5004,7 +5076,7 @@
       "source_file": "TiaMcpServer.Tests/ProjectLifecycleToolTests.cs",
       "source_location": "L56",
       "id": "tiamcpserver_tests_projectlifecycletooltests_projectlifecycletooltests_openprojectrejectsunconfirmedrequests",
-      "community": 44,
+      "community": 45,
       "norm_label": ".openprojectrejectsunconfirmedrequests()"
     },
     {
@@ -5013,7 +5085,7 @@
       "source_file": "TiaMcpServer.Tests/ProjectLifecycleToolTests.cs",
       "source_location": "L67",
       "id": "tiamcpserver_tests_projectlifecycletooltests_projectlifecycletooltests_saveprojectasrejectsunconfirmedrequests",
-      "community": 44,
+      "community": 45,
       "norm_label": ".saveprojectasrejectsunconfirmedrequests()"
     },
     {
@@ -5121,7 +5193,7 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L1",
       "id": "tiamcpserver_tests_writesafetyservicetests_cs",
-      "community": 37,
+      "community": 38,
       "norm_label": "writesafetyservicetests.cs"
     },
     {
@@ -5130,7 +5202,7 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L7",
       "id": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests",
-      "community": 37,
+      "community": 38,
       "norm_label": "writesafetyservicetests"
     },
     {
@@ -5139,7 +5211,7 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L9",
       "id": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_previewbindstokentotoolinputandcurrentstate",
-      "community": 37,
+      "community": 38,
       "norm_label": ".previewbindstokentotoolinputandcurrentstate()"
     },
     {
@@ -5148,7 +5220,7 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L37",
       "id": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokencannotbereused",
-      "community": 37,
+      "community": 38,
       "norm_label": ".tokencannotbereused()"
     },
     {
@@ -5157,7 +5229,7 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L70",
       "id": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenrejectschangedinputandchangedcurrentstate",
-      "community": 37,
+      "community": 38,
       "norm_label": ".tokenrejectschangedinputandchangedcurrentstate()"
     },
     {
@@ -5166,7 +5238,7 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L111",
       "id": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_tokenexpiresafterconfiguredlifetime",
-      "community": 37,
+      "community": 38,
       "norm_label": ".tokenexpiresafterconfiguredlifetime()"
     },
     {
@@ -5175,7 +5247,7 @@
       "source_file": "TiaMcpServer.Tests/WriteSafetyServiceTests.cs",
       "source_location": "L137",
       "id": "tiamcpserver_tests_writesafetyservicetests_writesafetyservicetests_readtoken",
-      "community": 37,
+      "community": 38,
       "norm_label": ".readtoken()"
     },
     {
@@ -5184,7 +5256,7 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L1",
       "id": "tiamcpserver_tests_writetoolsafetytokentests_cs",
-      "community": 38,
+      "community": 39,
       "norm_label": "writetoolsafetytokentests.cs"
     },
     {
@@ -5193,7 +5265,7 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L8",
       "id": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests",
-      "community": 38,
+      "community": 39,
       "norm_label": "writetoolsafetytokentests"
     },
     {
@@ -5202,7 +5274,7 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L10",
       "id": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_previewtoolshavemcpmetadata",
-      "community": 38,
+      "community": 39,
       "norm_label": ".previewtoolshavemcpmetadata()"
     },
     {
@@ -5211,7 +5283,7 @@
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L27",
       "id": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedprojectcloserejectsmissingsafetytoken",
-      "community": 38,
+      "community": 39,
       "norm_label": ".confirmedprojectcloserejectsmissingsafetytoken()"
     },
     {
@@ -5219,7 +5291,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/AddNetworkDeviceTool.cs",
       "source_location": "L1",
-      "community": 45,
+      "community": 46,
       "norm_label": "addnetworkdevicetool.cs",
       "id": "tiamcpserver_tools_addnetworkdevicetool_cs"
     },
@@ -5228,7 +5300,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/AddNetworkDeviceTool.cs",
       "source_location": "L6",
-      "community": 45,
+      "community": 46,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_addnetworkdevicetool_tiamcpserver_tools"
     },
@@ -5237,7 +5309,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/AddNetworkDeviceTool.cs",
       "source_location": "L8",
-      "community": 45,
+      "community": 46,
       "norm_label": "addnetworkdevicetool",
       "id": "tools_addnetworkdevicetool_addnetworkdevicetool"
     },
@@ -5246,7 +5318,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/AddNetworkDeviceTool.cs",
       "source_location": "L11",
-      "community": 45,
+      "community": 46,
       "norm_label": ".previewaddnetworkdevice()",
       "id": "tools_addnetworkdevicetool_addnetworkdevicetool_previewaddnetworkdevice"
     },
@@ -5255,7 +5327,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/AddNetworkDeviceTool.cs",
       "source_location": "L36",
-      "community": 45,
+      "community": 46,
       "norm_label": ".addnetworkdevice()",
       "id": "tools_addnetworkdevicetool_addnetworkdevicetool_addnetworkdevice"
     },
@@ -5264,7 +5336,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/BrowseProjectTreeTool.cs",
       "source_location": "L1",
-      "community": 55,
+      "community": 56,
       "norm_label": "browseprojecttreetool.cs",
       "id": "tiamcpserver_tools_browseprojecttreetool_cs"
     },
@@ -5273,7 +5345,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/BrowseProjectTreeTool.cs",
       "source_location": "L5",
-      "community": 55,
+      "community": 56,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_browseprojecttreetool_tiamcpserver_tools"
     },
@@ -5282,7 +5354,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/BrowseProjectTreeTool.cs",
       "source_location": "L7",
-      "community": 55,
+      "community": 56,
       "norm_label": "browseprojecttreetool",
       "id": "tools_browseprojecttreetool_browseprojecttreetool"
     },
@@ -5291,7 +5363,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/BrowseProjectTreeTool.cs",
       "source_location": "L10",
-      "community": 55,
+      "community": 56,
       "norm_label": ".browseprojecttree()",
       "id": "tools_browseprojecttreetool_browseprojecttreetool_browseprojecttree"
     },
@@ -5300,7 +5372,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/CompileCheckTool.cs",
       "source_location": "L1",
-      "community": 56,
+      "community": 57,
       "norm_label": "compilechecktool.cs",
       "id": "tiamcpserver_tools_compilechecktool_cs"
     },
@@ -5309,7 +5381,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/CompileCheckTool.cs",
       "source_location": "L5",
-      "community": 56,
+      "community": 57,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_compilechecktool_tiamcpserver_tools"
     },
@@ -5318,7 +5390,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/CompileCheckTool.cs",
       "source_location": "L7",
-      "community": 56,
+      "community": 57,
       "norm_label": "compilechecktool",
       "id": "tools_compilechecktool_compilechecktool"
     },
@@ -5327,7 +5399,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/CompileCheckTool.cs",
       "source_location": "L10",
-      "community": 56,
+      "community": 57,
       "norm_label": ".compilecheck()",
       "id": "tools_compilechecktool_compilechecktool_compilecheck"
     },
@@ -5336,7 +5408,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ConfigureNetworkDeviceTool.cs",
       "source_location": "L1",
-      "community": 46,
+      "community": 47,
       "norm_label": "configurenetworkdevicetool.cs",
       "id": "tiamcpserver_tools_configurenetworkdevicetool_cs"
     },
@@ -5345,7 +5417,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ConfigureNetworkDeviceTool.cs",
       "source_location": "L6",
-      "community": 46,
+      "community": 47,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_configurenetworkdevicetool_tiamcpserver_tools"
     },
@@ -5354,7 +5426,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ConfigureNetworkDeviceTool.cs",
       "source_location": "L8",
-      "community": 46,
+      "community": 47,
       "norm_label": "configurenetworkdevicetool",
       "id": "tools_configurenetworkdevicetool_configurenetworkdevicetool"
     },
@@ -5363,7 +5435,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ConfigureNetworkDeviceTool.cs",
       "source_location": "L11",
-      "community": 46,
+      "community": 47,
       "norm_label": ".previewconfigurenetworkdevice()",
       "id": "tools_configurenetworkdevicetool_configurenetworkdevicetool_previewconfigurenetworkdevice"
     },
@@ -5372,7 +5444,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ConfigureNetworkDeviceTool.cs",
       "source_location": "L36",
-      "community": 46,
+      "community": 47,
       "norm_label": ".configurenetworkdevice()",
       "id": "tools_configurenetworkdevicetool_configurenetworkdevicetool_configurenetworkdevice"
     },
@@ -5381,7 +5453,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/GetBlockContentTool.cs",
       "source_location": "L1",
-      "community": 57,
+      "community": 58,
       "norm_label": "getblockcontenttool.cs",
       "id": "tiamcpserver_tools_getblockcontenttool_cs"
     },
@@ -5390,7 +5462,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/GetBlockContentTool.cs",
       "source_location": "L5",
-      "community": 57,
+      "community": 58,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_getblockcontenttool_tiamcpserver_tools"
     },
@@ -5399,7 +5471,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/GetBlockContentTool.cs",
       "source_location": "L7",
-      "community": 57,
+      "community": 58,
       "norm_label": "getblockcontenttool",
       "id": "tools_getblockcontenttool_getblockcontenttool"
     },
@@ -5408,7 +5480,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/GetBlockContentTool.cs",
       "source_location": "L10",
-      "community": 57,
+      "community": 58,
       "norm_label": ".getblockcontent()",
       "id": "tools_getblockcontenttool_getblockcontenttool_getblockcontent"
     },
@@ -5417,7 +5489,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ListTagTablesTool.cs",
       "source_location": "L1",
-      "community": 58,
+      "community": 59,
       "norm_label": "listtagtablestool.cs",
       "id": "tiamcpserver_tools_listtagtablestool_cs"
     },
@@ -5426,7 +5498,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ListTagTablesTool.cs",
       "source_location": "L5",
-      "community": 58,
+      "community": 59,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_listtagtablestool_tiamcpserver_tools"
     },
@@ -5435,7 +5507,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ListTagTablesTool.cs",
       "source_location": "L7",
-      "community": 58,
+      "community": 59,
       "norm_label": "listtagtablestool",
       "id": "tools_listtagtablestool_listtagtablestool"
     },
@@ -5444,7 +5516,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ListTagTablesTool.cs",
       "source_location": "L10",
-      "community": 58,
+      "community": 59,
       "norm_label": ".listtagtables()",
       "id": "tools_listtagtablestool_listtagtablestool_listtagtables"
     },
@@ -5453,7 +5525,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadCrossReferencesTool.cs",
       "source_location": "L1",
-      "community": 59,
+      "community": 60,
       "norm_label": "readcrossreferencestool.cs",
       "id": "tiamcpserver_tools_readcrossreferencestool_cs"
     },
@@ -5462,7 +5534,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadCrossReferencesTool.cs",
       "source_location": "L5",
-      "community": 59,
+      "community": 60,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_readcrossreferencestool_tiamcpserver_tools"
     },
@@ -5471,7 +5543,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadCrossReferencesTool.cs",
       "source_location": "L7",
-      "community": 59,
+      "community": 60,
       "norm_label": "readcrossreferencestool",
       "id": "tools_readcrossreferencestool_readcrossreferencestool"
     },
@@ -5480,7 +5552,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadCrossReferencesTool.cs",
       "source_location": "L10",
-      "community": 59,
+      "community": 60,
       "norm_label": ".readcrossreferences()",
       "id": "tools_readcrossreferencestool_readcrossreferencestool_readcrossreferences"
     },
@@ -5489,7 +5561,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadHardwareConfigTool.cs",
       "source_location": "L1",
-      "community": 60,
+      "community": 61,
       "norm_label": "readhardwareconfigtool.cs",
       "id": "tiamcpserver_tools_readhardwareconfigtool_cs"
     },
@@ -5498,7 +5570,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadHardwareConfigTool.cs",
       "source_location": "L5",
-      "community": 60,
+      "community": 61,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_readhardwareconfigtool_tiamcpserver_tools"
     },
@@ -5507,7 +5579,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadHardwareConfigTool.cs",
       "source_location": "L7",
-      "community": 60,
+      "community": 61,
       "norm_label": "readhardwareconfigtool",
       "id": "tools_readhardwareconfigtool_readhardwareconfigtool"
     },
@@ -5516,7 +5588,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/ReadHardwareConfigTool.cs",
       "source_location": "L10",
-      "community": 60,
+      "community": 61,
       "norm_label": ".readhardwareconfig()",
       "id": "tools_readhardwareconfigtool_readhardwareconfigtool_readhardwareconfig"
     },
@@ -5525,7 +5597,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/SearchEquipmentCatalogTool.cs",
       "source_location": "L1",
-      "community": 61,
+      "community": 62,
       "norm_label": "searchequipmentcatalogtool.cs",
       "id": "tiamcpserver_tools_searchequipmentcatalogtool_cs"
     },
@@ -5534,7 +5606,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/SearchEquipmentCatalogTool.cs",
       "source_location": "L5",
-      "community": 61,
+      "community": 62,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_searchequipmentcatalogtool_tiamcpserver_tools"
     },
@@ -5543,7 +5615,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/SearchEquipmentCatalogTool.cs",
       "source_location": "L7",
-      "community": 61,
+      "community": 62,
       "norm_label": "searchequipmentcatalogtool",
       "id": "tools_searchequipmentcatalogtool_searchequipmentcatalogtool"
     },
@@ -5552,7 +5624,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/SearchEquipmentCatalogTool.cs",
       "source_location": "L10",
-      "community": 61,
+      "community": 62,
       "norm_label": ".searchequipmentcatalog()",
       "id": "tools_searchequipmentcatalogtool_searchequipmentcatalogtool_searchequipmentcatalog"
     },
@@ -5750,7 +5822,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/UpdateBlockLogicTool.cs",
       "source_location": "L1",
-      "community": 47,
+      "community": 48,
       "norm_label": "updateblocklogictool.cs",
       "id": "tiamcpserver_tools_updateblocklogictool_cs"
     },
@@ -5759,7 +5831,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/UpdateBlockLogicTool.cs",
       "source_location": "L6",
-      "community": 47,
+      "community": 48,
       "norm_label": "tiamcpserver.tools",
       "id": "tools_updateblocklogictool_tiamcpserver_tools"
     },
@@ -5768,7 +5840,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/UpdateBlockLogicTool.cs",
       "source_location": "L8",
-      "community": 47,
+      "community": 48,
       "norm_label": "updateblocklogictool",
       "id": "tools_updateblocklogictool_updateblocklogictool"
     },
@@ -5777,7 +5849,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/UpdateBlockLogicTool.cs",
       "source_location": "L11",
-      "community": 47,
+      "community": 48,
       "norm_label": ".previewupdateblocklogic()",
       "id": "tools_updateblocklogictool_updateblocklogictool_previewupdateblocklogic"
     },
@@ -5786,7 +5858,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer/Tools/UpdateBlockLogicTool.cs",
       "source_location": "L33",
-      "community": 47,
+      "community": 48,
       "norm_label": ".updateblocklogic()",
       "id": "tools_updateblocklogictool_updateblocklogictool_updateblocklogic"
     },
@@ -5795,7 +5867,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddNetworkDeviceToolTests.cs",
       "source_location": "L1",
-      "community": 48,
+      "community": 49,
       "norm_label": "addnetworkdevicetooltests.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_addnetworkdevicetooltests_cs"
     },
@@ -5804,7 +5876,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddNetworkDeviceToolTests.cs",
       "source_location": "L10",
-      "community": 48,
+      "community": 49,
       "norm_label": "addnetworkdevicetooltests",
       "id": "tiamcpserver_tests_addnetworkdevicetooltests_addnetworkdevicetooltests"
     },
@@ -5813,7 +5885,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddNetworkDeviceToolTests.cs",
       "source_location": "L12",
-      "community": 48,
+      "community": 49,
       "norm_label": ".addnetworkdevicetoolhasmcpmetadata()",
       "id": "tiamcpserver_tests_addnetworkdevicetooltests_addnetworkdevicetooltests_addnetworkdevicetoolhasmcpmetadata"
     },
@@ -5822,7 +5894,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddNetworkDeviceToolTests.cs",
       "source_location": "L34",
-      "community": 48,
+      "community": 49,
       "norm_label": ".addnetworkdevicerejectsunconfirmedrequests()",
       "id": "tiamcpserver_tests_addnetworkdevicetooltests_addnetworkdevicetooltests_addnetworkdevicerejectsunconfirmedrequests"
     },
@@ -5831,7 +5903,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/AddNetworkDeviceToolTests.cs",
       "source_location": "L46",
-      "community": 48,
+      "community": 49,
       "norm_label": ".opennessworkerclientexposesaddnetworkdeviceasync()",
       "id": "tiamcpserver_tests_addnetworkdevicetooltests_addnetworkdevicetooltests_opennessworkerclientexposesaddnetworkdeviceasync"
     },
@@ -5840,7 +5912,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckToolTests.cs",
       "source_location": "L1",
-      "community": 62,
+      "community": 63,
       "norm_label": "compilechecktooltests.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_compilechecktooltests_cs"
     },
@@ -5849,7 +5921,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckToolTests.cs",
       "source_location": "L10",
-      "community": 62,
+      "community": 63,
       "norm_label": "compilechecktooltests",
       "id": "tiamcpserver_tests_compilechecktooltests_compilechecktooltests"
     },
@@ -5858,7 +5930,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckToolTests.cs",
       "source_location": "L12",
-      "community": 62,
+      "community": 63,
       "norm_label": ".compilechecktoolhasmcpmetadata()",
       "id": "tiamcpserver_tests_compilechecktooltests_compilechecktooltests_compilechecktoolhasmcpmetadata"
     },
@@ -5867,7 +5939,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/CompileCheckToolTests.cs",
       "source_location": "L35",
-      "community": 62,
+      "community": 63,
       "norm_label": ".opennessworkerclientexposescompilecheckasync()",
       "id": "tiamcpserver_tests_compilechecktooltests_compilechecktooltests_opennessworkerclientexposescompilecheckasync"
     },
@@ -5876,7 +5948,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceToolTests.cs",
       "source_location": "L1",
-      "community": 49,
+      "community": 50,
       "norm_label": "configurenetworkdevicetooltests.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_configurenetworkdevicetooltests_cs"
     },
@@ -5885,7 +5957,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceToolTests.cs",
       "source_location": "L10",
-      "community": 49,
+      "community": 50,
       "norm_label": "configurenetworkdevicetooltests",
       "id": "tiamcpserver_tests_configurenetworkdevicetooltests_configurenetworkdevicetooltests"
     },
@@ -5894,7 +5966,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceToolTests.cs",
       "source_location": "L12",
-      "community": 49,
+      "community": 50,
       "norm_label": ".configurenetworkdevicetoolhasmcpmetadata()",
       "id": "tiamcpserver_tests_configurenetworkdevicetooltests_configurenetworkdevicetooltests_configurenetworkdevicetoolhasmcpmetadata"
     },
@@ -5903,7 +5975,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceToolTests.cs",
       "source_location": "L34",
-      "community": 49,
+      "community": 50,
       "norm_label": ".configurenetworkdevicerejectsunconfirmedrequests()",
       "id": "tiamcpserver_tests_configurenetworkdevicetooltests_configurenetworkdevicetooltests_configurenetworkdevicerejectsunconfirmedrequests"
     },
@@ -5912,7 +5984,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/ConfigureNetworkDeviceToolTests.cs",
       "source_location": "L46",
-      "community": 49,
+      "community": 50,
       "norm_label": ".opennessworkerclientexposesconfigurenetworkdeviceasync()",
       "id": "tiamcpserver_tests_configurenetworkdevicetooltests_configurenetworkdevicetooltests_opennessworkerclientexposesconfigurenetworkdeviceasync"
     },
@@ -5921,7 +5993,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/SearchEquipmentCatalogToolTests.cs",
       "source_location": "L1",
-      "community": 63,
+      "community": 64,
       "norm_label": "searchequipmentcatalogtooltests.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tests_searchequipmentcatalogtooltests_cs"
     },
@@ -5930,7 +6002,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/SearchEquipmentCatalogToolTests.cs",
       "source_location": "L10",
-      "community": 63,
+      "community": 64,
       "norm_label": "searchequipmentcatalogtooltests",
       "id": "tiamcpserver_tests_searchequipmentcatalogtooltests_searchequipmentcatalogtooltests"
     },
@@ -5939,7 +6011,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/SearchEquipmentCatalogToolTests.cs",
       "source_location": "L12",
-      "community": 63,
+      "community": 64,
       "norm_label": ".searchequipmentcatalogtoolhasmcpmetadata()",
       "id": "tiamcpserver_tests_searchequipmentcatalogtooltests_searchequipmentcatalogtooltests_searchequipmentcatalogtoolhasmcpmetadata"
     },
@@ -5948,7 +6020,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer.Tests/SearchEquipmentCatalogToolTests.cs",
       "source_location": "L33",
-      "community": 63,
+      "community": 64,
       "norm_label": ".opennessworkerclientexposessearchequipmentcatalogasync()",
       "id": "tiamcpserver_tests_searchequipmentcatalogtooltests_searchequipmentcatalogtooltests_opennessworkerclientexposessearchequipmentcatalogasync"
     },
@@ -5957,7 +6029,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/TagOperationsToolTests.cs",
       "source_location": "L1",
-      "community": 39,
+      "community": 40,
       "norm_label": "tagoperationstooltests.cs",
       "id": "tiamcpserver_tests_tagoperationstooltests_cs"
     },
@@ -5966,7 +6038,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/TagOperationsToolTests.cs",
       "source_location": "L10",
-      "community": 39,
+      "community": 40,
       "norm_label": "tagoperationstooltests",
       "id": "tiamcpserver_tests_tagoperationstooltests_tagoperationstooltests"
     },
@@ -5975,7 +6047,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/TagOperationsToolTests.cs",
       "source_location": "L12",
-      "community": 39,
+      "community": 40,
       "norm_label": ".tagoperationtoolshavemcpmetadata()",
       "id": "tiamcpserver_tests_tagoperationstooltests_tagoperationstooltests_tagoperationtoolshavemcpmetadata"
     },
@@ -5984,7 +6056,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/TagOperationsToolTests.cs",
       "source_location": "L34",
-      "community": 39,
+      "community": 40,
       "norm_label": ".opennessworkerclientexposestagoperationmethods()",
       "id": "tiamcpserver_tests_tagoperationstooltests_tagoperationstooltests_opennessworkerclientexposestagoperationmethods"
     },
@@ -5993,7 +6065,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/TagOperationsToolTests.cs",
       "source_location": "L51",
-      "community": 39,
+      "community": 40,
       "norm_label": ".createtagtablerejectsunconfirmedrequests()",
       "id": "tiamcpserver_tests_tagoperationstooltests_tagoperationstooltests_createtagtablerejectsunconfirmedrequests"
     },
@@ -6002,7 +6074,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/TagOperationsToolTests.cs",
       "source_location": "L62",
-      "community": 39,
+      "community": 40,
       "norm_label": ".updatetagrejectsunconfirmedrequests()",
       "id": "tiamcpserver_tests_tagoperationstooltests_tagoperationstooltests_updatetagrejectsunconfirmedrequests"
     },
@@ -6011,7 +6083,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/TagOperationsToolTests.cs",
       "source_location": "L74",
-      "community": 39,
+      "community": 40,
       "norm_label": ".deleteuserconstantrejectsunconfirmedrequests()",
       "id": "tiamcpserver_tests_tagoperationstooltests_tagoperationstooltests_deleteuserconstantrejectsunconfirmedrequests"
     },
@@ -6020,7 +6092,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L38",
-      "community": 38,
+      "community": 39,
       "norm_label": ".confirmedblockupdaterejectsmissingsafetytoken()",
       "id": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedblockupdaterejectsmissingsafetytoken"
     },
@@ -6029,7 +6101,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L51",
-      "community": 38,
+      "community": 39,
       "norm_label": ".confirmeddeviceaddrejectsmissingsafetytoken()",
       "id": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmeddeviceaddrejectsmissingsafetytoken"
     },
@@ -6038,7 +6110,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/WriteToolSafetyTokenTests.cs",
       "source_location": "L64",
-      "community": 38,
+      "community": 39,
       "norm_label": ".confirmedtagupdaterejectsmissingsafetytoken()",
       "id": "tiamcpserver_tests_writetoolsafetytokentests_writetoolsafetytokentests_confirmedtagupdaterejectsmissingsafetytoken"
     },
@@ -6047,7 +6119,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/BrowseProjectTreeTool.cs",
       "source_location": "L1",
-      "community": 55,
+      "community": 56,
       "norm_label": "browseprojecttreetool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_browseprojecttreetool_cs"
     },
@@ -6056,7 +6128,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/CompileCheckTool.cs",
       "source_location": "L1",
-      "community": 56,
+      "community": 57,
       "norm_label": "compilechecktool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_compilechecktool_cs"
     },
@@ -6065,7 +6137,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/GetBlockContentTool.cs",
       "source_location": "L1",
-      "community": 57,
+      "community": 58,
       "norm_label": "getblockcontenttool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_getblockcontenttool_cs"
     },
@@ -6074,7 +6146,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/ListTagTablesTool.cs",
       "source_location": "L1",
-      "community": 58,
+      "community": 59,
       "norm_label": "listtagtablestool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_listtagtablestool_cs"
     },
@@ -6083,7 +6155,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/ReadCrossReferencesTool.cs",
       "source_location": "L1",
-      "community": 59,
+      "community": 60,
       "norm_label": "readcrossreferencestool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_readcrossreferencestool_cs"
     },
@@ -6092,7 +6164,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/ReadHardwareConfigTool.cs",
       "source_location": "L1",
-      "community": 60,
+      "community": 61,
       "norm_label": "readhardwareconfigtool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_readhardwareconfigtool_cs"
     },
@@ -6101,7 +6173,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/SearchEquipmentCatalogTool.cs",
       "source_location": "L1",
-      "community": 61,
+      "community": 62,
       "norm_label": "searchequipmentcatalogtool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_searchequipmentcatalogtool_cs"
     },
@@ -6110,7 +6182,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Program.cs",
       "source_location": "L1",
-      "community": 29,
+      "community": 30,
       "norm_label": "program.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_program_cs"
     },
@@ -6119,7 +6191,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Program.cs",
       "source_location": "L17",
-      "community": 29,
+      "community": 30,
       "norm_label": ".currentdomain_assemblyresolve()",
       "id": "tiamcpserver_program_program_currentdomain_assemblyresolve"
     },
@@ -6128,7 +6200,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/AddNetworkDeviceTool.cs",
       "source_location": "L1",
-      "community": 45,
+      "community": 46,
       "norm_label": "addnetworkdevicetool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_addnetworkdevicetool_cs"
     },
@@ -6137,7 +6209,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/ConfigureNetworkDeviceTool.cs",
       "source_location": "L1",
-      "community": 46,
+      "community": 47,
       "norm_label": "configurenetworkdevicetool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_configurenetworkdevicetool_cs"
     },
@@ -6146,7 +6218,7 @@
       "file_type": "code",
       "source_file": "C:/Users/LCZ/Desktop/RnD/tia-portal-mcp/TiaMcpServer/Tools/UpdateBlockLogicTool.cs",
       "source_location": "L1",
-      "community": 47,
+      "community": 48,
       "norm_label": "updateblocklogictool.cs",
       "id": "c_users_lcz_desktop_rnd_tia_portal_mcp_tiamcpserver_tools_updateblocklogictool_cs"
     },
@@ -6713,7 +6785,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/AddDeviceResultInfo.cs",
       "source_location": "L1",
-      "community": 66,
+      "community": 67,
       "norm_label": "adddeviceresultinfo.cs",
       "id": "tiamcpserver_contracts_adddeviceresultinfo_cs"
     },
@@ -6731,7 +6803,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CatalogEntryInfo.cs",
       "source_location": "L1",
-      "community": 67,
+      "community": 68,
       "norm_label": "catalogentryinfo.cs",
       "id": "tiamcpserver_contracts_catalogentryinfo_cs"
     },
@@ -6740,7 +6812,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CatalogTypeIdentifier.cs",
       "source_location": "L1",
-      "community": 52,
+      "community": 53,
       "norm_label": "catalogtypeidentifier.cs",
       "id": "tiamcpserver_contracts_catalogtypeidentifier_cs"
     },
@@ -6749,7 +6821,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CompileCheckReport.cs",
       "source_location": "L1",
-      "community": 68,
+      "community": 69,
       "norm_label": "compilecheckreport.cs",
       "id": "tiamcpserver_contracts_compilecheckreport_cs"
     },
@@ -6758,7 +6830,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CompileMessageInfo.cs",
       "source_location": "L1",
-      "community": 69,
+      "community": 70,
       "norm_label": "compilemessageinfo.cs",
       "id": "tiamcpserver_contracts_compilemessageinfo_cs"
     },
@@ -6767,7 +6839,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/ConfigureNetworkDeviceResultInfo.cs",
       "source_location": "L1",
-      "community": 70,
+      "community": 71,
       "norm_label": "configurenetworkdeviceresultinfo.cs",
       "id": "tiamcpserver_contracts_configurenetworkdeviceresultinfo_cs"
     },
@@ -6776,7 +6848,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CrossReferenceFilterNames.cs",
       "source_location": "L1",
-      "community": 64,
+      "community": 65,
       "norm_label": "crossreferencefilternames.cs",
       "id": "tiamcpserver_contracts_crossreferencefilternames_cs"
     },
@@ -6785,7 +6857,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CrossReferenceLocationInfo.cs",
       "source_location": "L1",
-      "community": 71,
+      "community": 72,
       "norm_label": "crossreferencelocationinfo.cs",
       "id": "tiamcpserver_contracts_crossreferencelocationinfo_cs"
     },
@@ -6794,7 +6866,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CrossReferenceReport.cs",
       "source_location": "L1",
-      "community": 72,
+      "community": 73,
       "norm_label": "crossreferencereport.cs",
       "id": "tiamcpserver_contracts_crossreferencereport_cs"
     },
@@ -6803,7 +6875,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CrossReferenceSourceInfo.cs",
       "source_location": "L1",
-      "community": 73,
+      "community": 74,
       "norm_label": "crossreferencesourceinfo.cs",
       "id": "tiamcpserver_contracts_crossreferencesourceinfo_cs"
     },
@@ -6812,7 +6884,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/CrossReferenceTargetInfo.cs",
       "source_location": "L1",
-      "community": 74,
+      "community": 75,
       "norm_label": "crossreferencetargetinfo.cs",
       "id": "tiamcpserver_contracts_crossreferencetargetinfo_cs"
     },
@@ -6821,7 +6893,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/DeviceInfo.cs",
       "source_location": "L1",
-      "community": 75,
+      "community": 76,
       "norm_label": "deviceinfo.cs",
       "id": "tiamcpserver_contracts_deviceinfo_cs"
     },
@@ -6830,7 +6902,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/DeviceItemInfo.cs",
       "source_location": "L1",
-      "community": 76,
+      "community": 77,
       "norm_label": "deviceiteminfo.cs",
       "id": "tiamcpserver_contracts_deviceiteminfo_cs"
     },
@@ -6839,7 +6911,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/HardwareConfigInfo.cs",
       "source_location": "L1",
-      "community": 77,
+      "community": 78,
       "norm_label": "hardwareconfiginfo.cs",
       "id": "tiamcpserver_contracts_hardwareconfiginfo_cs"
     },
@@ -6848,7 +6920,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/IoSystemInfo.cs",
       "source_location": "L1",
-      "community": 78,
+      "community": 79,
       "norm_label": "iosysteminfo.cs",
       "id": "tiamcpserver_contracts_iosysteminfo_cs"
     },
@@ -6857,7 +6929,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/NetworkInterfaceInfo.cs",
       "source_location": "L1",
-      "community": 79,
+      "community": 80,
       "norm_label": "networkinterfaceinfo.cs",
       "id": "tiamcpserver_contracts_networkinterfaceinfo_cs"
     },
@@ -6866,7 +6938,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/NodeInfo.cs",
       "source_location": "L1",
-      "community": 80,
+      "community": 81,
       "norm_label": "nodeinfo.cs",
       "id": "tiamcpserver_contracts_nodeinfo_cs"
     },
@@ -6875,7 +6947,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/PlcCompileInfo.cs",
       "source_location": "L1",
-      "community": 81,
+      "community": 82,
       "norm_label": "plccompileinfo.cs",
       "id": "tiamcpserver_contracts_plccompileinfo_cs"
     },
@@ -6884,7 +6956,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/PlcCrossReferenceInfo.cs",
       "source_location": "L1",
-      "community": 82,
+      "community": 83,
       "norm_label": "plccrossreferenceinfo.cs",
       "id": "tiamcpserver_contracts_plccrossreferenceinfo_cs"
     },
@@ -6893,7 +6965,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/ProjectTreeNode.cs",
       "source_location": "L1",
-      "community": 83,
+      "community": 84,
       "norm_label": "projecttreenode.cs",
       "id": "tiamcpserver_contracts_projecttreenode_cs"
     },
@@ -6902,7 +6974,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/SubnetInfo.cs",
       "source_location": "L1",
-      "community": 84,
+      "community": 85,
       "norm_label": "subnetinfo.cs",
       "id": "tiamcpserver_contracts_subnetinfo_cs"
     },
@@ -6911,7 +6983,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/TagInfo.cs",
       "source_location": "L1",
-      "community": 85,
+      "community": 86,
       "norm_label": "taginfo.cs",
       "id": "tiamcpserver_contracts_taginfo_cs"
     },
@@ -6920,7 +6992,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/TagTableInfo.cs",
       "source_location": "L1",
-      "community": 86,
+      "community": 87,
       "norm_label": "tagtableinfo.cs",
       "id": "tiamcpserver_contracts_tagtableinfo_cs"
     },
@@ -6929,7 +7001,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/UserConstantInfo.cs",
       "source_location": "L1",
-      "community": 87,
+      "community": 88,
       "norm_label": "userconstantinfo.cs",
       "id": "tiamcpserver_contracts_userconstantinfo_cs"
     },
@@ -6938,7 +7010,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Contracts/WorkerResponse.cs",
       "source_location": "L1",
-      "community": 88,
+      "community": 89,
       "norm_label": "workerresponse.cs",
       "id": "tiamcpserver_contracts_workerresponse_cs"
     },
@@ -6947,7 +7019,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.OpennessWorker/Openness/AssemblyResolver.cs",
       "source_location": "L1",
-      "community": 30,
+      "community": 31,
       "norm_label": "assemblyresolver.cs",
       "id": "tiamcpserver_opennessworker_openness_assemblyresolver_cs"
     },
@@ -6956,7 +7028,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.OpennessWorker/Openness/BlockExporter.cs",
       "source_location": "L1",
-      "community": 65,
+      "community": 66,
       "norm_label": "blockexporter.cs",
       "id": "tiamcpserver_opennessworker_openness_blockexporter_cs"
     },
@@ -6965,7 +7037,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs",
       "source_location": "L1",
-      "community": 31,
+      "community": 32,
       "norm_label": "blockimporter.cs",
       "id": "tiamcpserver_opennessworker_openness_blockimporter_cs"
     },
@@ -7010,7 +7082,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/AddDeviceResultInfoTests.cs",
       "source_location": "L1",
-      "community": 41,
+      "community": 42,
       "norm_label": "adddeviceresultinfotests.cs",
       "id": "tiamcpserver_tests_adddeviceresultinfotests_cs"
     },
@@ -7019,7 +7091,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/AddNetworkDeviceToolTests.cs",
       "source_location": "L1",
-      "community": 48,
+      "community": 49,
       "norm_label": "addnetworkdevicetooltests.cs",
       "id": "tiamcpserver_tests_addnetworkdevicetooltests_cs"
     },
@@ -7037,7 +7109,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/CatalogEntryInfoTests.cs",
       "source_location": "L1",
-      "community": 35,
+      "community": 36,
       "norm_label": "catalogentryinfotests.cs",
       "id": "tiamcpserver_tests_catalogentryinfotests_cs"
     },
@@ -7046,7 +7118,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/CatalogTypeIdentifierTests.cs",
       "source_location": "L1",
-      "community": 42,
+      "community": 43,
       "norm_label": "catalogtypeidentifiertests.cs",
       "id": "tiamcpserver_tests_catalogtypeidentifiertests_cs"
     },
@@ -7055,7 +7127,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/CompileCheckInfoTests.cs",
       "source_location": "L1",
-      "community": 36,
+      "community": 37,
       "norm_label": "compilecheckinfotests.cs",
       "id": "tiamcpserver_tests_compilecheckinfotests_cs"
     },
@@ -7064,7 +7136,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/CompileCheckToolTests.cs",
       "source_location": "L1",
-      "community": 62,
+      "community": 63,
       "norm_label": "compilechecktooltests.cs",
       "id": "tiamcpserver_tests_compilechecktooltests_cs"
     },
@@ -7073,7 +7145,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/ConfigureNetworkDeviceResultInfoTests.cs",
       "source_location": "L1",
-      "community": 43,
+      "community": 44,
       "norm_label": "configurenetworkdeviceresultinfotests.cs",
       "id": "tiamcpserver_tests_configurenetworkdeviceresultinfotests_cs"
     },
@@ -7082,7 +7154,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/ConfigureNetworkDeviceToolTests.cs",
       "source_location": "L1",
-      "community": 49,
+      "community": 50,
       "norm_label": "configurenetworkdevicetooltests.cs",
       "id": "tiamcpserver_tests_configurenetworkdevicetooltests_cs"
     },
@@ -7100,7 +7172,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/HardwareConfigInfoTests.cs",
       "source_location": "L1",
-      "community": 28,
+      "community": 29,
       "norm_label": "hardwareconfiginfotests.cs",
       "id": "tiamcpserver_tests_hardwareconfiginfotests_cs"
     },
@@ -7109,7 +7181,7 @@
       "file_type": "code",
       "source_file": "TiaMcpServer.Tests/SearchEquipmentCatalogToolTests.cs",
       "source_location": "L1",
-      "community": 63,
+      "community": 64,
       "norm_label": "searchequipmentcatalogtooltests.cs",
       "id": "tiamcpserver_tests_searchequipmentcatalogtooltests_cs"
     },
@@ -7122,7 +7194,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 41,
       "norm_label": "tia-portal-mcp",
       "id": "readme_tia_portal_mcp"
     },
@@ -7135,7 +7207,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 41,
       "norm_label": "model context protocol",
       "id": "readme_mcp"
     },
@@ -7148,7 +7220,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 94,
+      "community": 95,
       "norm_label": "multi-process architecture rationale",
       "id": "readme_arch_rationale"
     },
@@ -7161,7 +7233,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 94,
+      "community": 95,
       "norm_label": ".net remoting incompatibility in .net 8",
       "id": "readme_remoting_limitation"
     },
@@ -7174,7 +7246,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 41,
       "norm_label": "phase 1: implementation",
       "id": "readme_phase1"
     },
@@ -7187,7 +7259,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 41,
       "norm_label": "phase 2: universal block support",
       "id": "readme_phase2"
     },
@@ -7200,7 +7272,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 41,
       "norm_label": "phase 3: hardware and network discovery",
       "id": "readme_phase3"
     },
@@ -7213,7 +7285,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 41,
       "norm_label": "phase 4: advanced diagnostics",
       "id": "readme_phase4"
     },
@@ -7226,7 +7298,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 41,
       "norm_label": "siemens tia openness user group",
       "id": "readme_openness_group"
     },
@@ -7239,7 +7311,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 95,
+      "community": 96,
       "norm_label": ".net 8",
       "id": "readme_dotnet8"
     },
@@ -7252,7 +7324,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 96,
+      "community": 97,
       "norm_label": ".net framework 4.8",
       "id": "readme_dotnet48"
     }
@@ -7585,9 +7657,9 @@
       "source_file": "TiaMcpServer/Batch/BatchOperationCatalog.cs",
       "source_location": "L173",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "batch_batchoperationcatalog_batchoperationcatalog",
-      "target": "batch_batchoperationcatalog_batchoperationcatalog_namesbycategory",
-      "confidence_score": 1.0
+      "target": "batch_batchoperationcatalog_batchoperationcatalog_namesbycategory"
     },
     {
       "relation": "method",
@@ -16077,9 +16149,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L166",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_validatewritebatch_rejectsmixedprojectpaths",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_validatewritebatch_rejectsmixedprojectpaths"
     },
     {
       "relation": "method",
@@ -16087,9 +16159,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L181",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_validatewritebatch_allowssameprojectpathoneveryitem",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_validatewritebatch_allowssameprojectpathoneveryitem"
     },
     {
       "relation": "method",
@@ -16097,9 +16169,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L195",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_allwriteoperations_acceptafullypopulatedrequest",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_allwriteoperations_acceptafullypopulatedrequest"
     },
     {
       "relation": "method",
@@ -16107,9 +16179,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L205",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_allreadoperations_acceptafullypopulatedrequest",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_allreadoperations_acceptafullypopulatedrequest"
     },
     {
       "relation": "method",
@@ -16117,9 +16189,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L215",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_fullypopulated",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_fullypopulated"
     },
     {
       "relation": "calls",
@@ -16260,9 +16332,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L171",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_validatewritebatch_rejectsmixedprojectpaths",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_op",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_op"
     },
     {
       "relation": "calls",
@@ -16271,9 +16343,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L186",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_validatewritebatch_allowssameprojectpathoneveryitem",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_op",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_op"
     },
     {
       "relation": "calls",
@@ -16282,9 +16354,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L200",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_allwriteoperations_acceptafullypopulatedrequest",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_fullypopulated",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_fullypopulated"
     },
     {
       "relation": "calls",
@@ -16293,9 +16365,9 @@
       "source_file": "TiaMcpServer.Tests/BatchOperationCatalogTests.cs",
       "source_location": "L210",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_allreadoperations_acceptafullypopulatedrequest",
-      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_fullypopulated",
-      "confidence_score": 1.0
+      "target": "tiamcpserver_tests_batchoperationcatalogtests_batchoperationcatalogtests_fullypopulated"
     },
     {
       "relation": "contains",
@@ -16972,6 +17044,109 @@
       "confidence_score": 1.0,
       "source": "tiamcpserver_tests_batchsafetytokentests_batchsafetytokentests_unknowntokenisrejected",
       "target": "tiamcpserver_tests_batchsafetytokentests_batchsafetytokentests_twoitembatch"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_cs",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_methoddescription",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_executereadbatchdescription_listseveryreadoperation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L30",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_previewwritebatchdescription_listseverywriteoperation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_applywritebatchdescription_listseverywriteoperation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_operationpropertydescription_listseverybatchableoperation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_keyrequestfieldshavedescriptions",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L23",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_executereadbatchdescription_listseveryreadoperation",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_methoddescription",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_previewwritebatchdescription_listseverywriteoperation",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_methoddescription",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "TiaMcpServer.Tests/BatchToolMetadataTests.cs",
+      "source_location": "L43",
+      "weight": 1.0,
+      "source": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_applywritebatchdescription_listseverywriteoperation",
+      "target": "tiamcpserver_tests_batchtoolmetadatatests_batchtoolmetadatatests_methoddescription",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -19614,5 +19789,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "abd07c92593b34f43e68833df85751db92308ce0"
+  "built_at_commit": "a0697dba8b19646cd6bef53231cb718324bd99ac"
 }
