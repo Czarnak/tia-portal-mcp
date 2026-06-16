@@ -9,7 +9,7 @@ namespace TiaMcpServer.Tools
     public static class UpdateBlockLogicTool
     {
         [McpServerTool(Name = "preview_update_block_logic")]
-        [Description("Preview a PLC block update and return a short-lived safetyToken. Pass the token to update_block_logic after reviewing the diff.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview a PLC block update and return a short-lived safetyToken. Pass the token to update_block_logic after reviewing the diff.")]
         public static async Task<string> PreviewUpdateBlockLogic(
             OpennessWorkerClient workerClient,
             [Description("Block path: 'BlockName' for first PLC, or 'PLC_1/BlockName' to target a specific PLC.")] string blockPath,
@@ -31,7 +31,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "update_block_logic")]
-        [Description("Import YAML-formatted SIMATIC SD source to update or create a PLC block. Requires confirm=true and a safetyToken from preview_update_block_logic.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Import YAML-formatted SIMATIC SD source to update or create a PLC block. Requires confirm=true and a safetyToken from preview_update_block_logic.")]
         public static async Task<string> UpdateBlockLogic(
             OpennessWorkerClient workerClient,
             [Description("Block path: 'BlockName' for first PLC, or 'PLC_1/BlockName' to target a specific PLC.")] string blockPath,

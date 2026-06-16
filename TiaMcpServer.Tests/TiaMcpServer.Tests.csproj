@@ -32,5 +32,13 @@
     <Compile Include="..\TiaMcpServer\Tools\CompileCheckTool.cs" Link="Host\CompileCheckTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\TagOperationsTools.cs" Link="Host\TagOperationsTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectLifecycleTools.cs" Link="Host\ProjectLifecycleTools.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchOperationRequest.cs" Link="Host\Batch\BatchOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchOperationCatalog.cs" Link="Host\Batch\BatchOperationCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchSafetySnapshot.cs" Link="Host\Batch\BatchSafetySnapshot.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchOperationResult.cs" Link="Host\Batch\BatchOperationResult.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchExecutionEngine.cs" Link="Host\Batch\BatchExecutionEngine.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchResultFormatter.cs" Link="Host\Batch\BatchResultFormatter.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs" Link="Host\Batch\BatchWorkerInvoker.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchTools.cs" Link="Host\Batch\BatchTools.cs" />
   </ItemGroup>
 </Project>

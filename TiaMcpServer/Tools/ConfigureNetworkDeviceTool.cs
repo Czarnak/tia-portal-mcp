@@ -9,7 +9,7 @@ namespace TiaMcpServer.Tools
     public static class ConfigureNetworkDeviceTool
     {
         [McpServerTool(Name = "preview_configure_network_device")]
-        [Description("Preview network identity/interface changes for a device and return a short-lived safetyToken. Pass the token to configure_network_device after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview network identity/interface changes for a device and return a short-lived safetyToken. Pass the token to configure_network_device after reviewing the preview.")]
         public static async Task<string> PreviewConfigureNetworkDevice(
             OpennessWorkerClient workerClient,
             [Description("Device name to configure.")] string deviceName,
@@ -34,7 +34,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "configure_network_device")]
-        [Description("Configure network identity and interface properties for a device in the TIA Portal project. Requires confirm=true and a safetyToken from preview_configure_network_device.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Configure network identity and interface properties for a device in the TIA Portal project. Requires confirm=true and a safetyToken from preview_configure_network_device.")]
         public static async Task<string> ConfigureNetworkDevice(
             OpennessWorkerClient workerClient,
             [Description("Device name to configure.")] string deviceName,

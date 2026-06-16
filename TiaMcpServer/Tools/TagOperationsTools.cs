@@ -9,7 +9,7 @@ namespace TiaMcpServer.Tools
     public static class TagTableOperationsTool
     {
         [McpServerTool(Name = "preview_create_tag_table")]
-        [Description("Preview creating a PLC tag table and return a short-lived safetyToken. Pass the token to create_tag_table after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview creating a PLC tag table and return a short-lived safetyToken. Pass the token to create_tag_table after reviewing the preview.")]
         public static async Task<string> PreviewCreateTagTable(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table to create.")] string tableName,
@@ -30,7 +30,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "create_tag_table")]
-        [Description("Create a PLC tag table. Requires confirm=true and a safetyToken from preview_create_tag_table.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Create a PLC tag table. Requires confirm=true and a safetyToken from preview_create_tag_table.")]
         public static async Task<string> CreateTagTable(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table to create.")] string tableName,
@@ -74,7 +74,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_delete_tag_table")]
-        [Description("Preview deleting a PLC tag table and return a short-lived safetyToken. Pass the token to delete_tag_table after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview deleting a PLC tag table and return a short-lived safetyToken. Pass the token to delete_tag_table after reviewing the preview.")]
         public static async Task<string> PreviewDeleteTagTable(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table to delete.")] string tableName,
@@ -95,7 +95,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "delete_tag_table")]
-        [Description("Delete a PLC tag table. The default tag table cannot be deleted. Requires confirm=true and a safetyToken from preview_delete_tag_table.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Delete a PLC tag table. The default tag table cannot be deleted. Requires confirm=true and a safetyToken from preview_delete_tag_table.")]
         public static async Task<string> DeleteTagTable(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table to delete.")] string tableName,
@@ -143,7 +143,7 @@ namespace TiaMcpServer.Tools
     public static class TagOperationsTool
     {
         [McpServerTool(Name = "preview_create_tag")]
-        [Description("Preview creating a PLC tag and return a short-lived safetyToken. Pass the token to create_tag after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview creating a PLC tag and return a short-lived safetyToken. Pass the token to create_tag after reviewing the preview.")]
         public static async Task<string> PreviewCreateTag(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the tag.")] string tableName,
@@ -167,7 +167,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "create_tag")]
-        [Description("Create a PLC tag in an existing tag table. Requires confirm=true and a safetyToken from preview_create_tag.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Create a PLC tag in an existing tag table. Requires confirm=true and a safetyToken from preview_create_tag.")]
         public static async Task<string> CreateTag(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the tag.")] string tableName,
@@ -217,7 +217,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_update_tag")]
-        [Description("Preview updating a PLC tag and return a short-lived safetyToken. Pass the token to update_tag after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview updating a PLC tag and return a short-lived safetyToken. Pass the token to update_tag after reviewing the preview.")]
         public static async Task<string> PreviewUpdateTag(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the tag.")] string tableName,
@@ -246,7 +246,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "update_tag")]
-        [Description("Update a PLC tag name, data type, logical address, external access flags, or safety flag. Requires confirm=true and a safetyToken from preview_update_tag.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Update a PLC tag name, data type, logical address, external access flags, or safety flag. Requires confirm=true and a safetyToken from preview_update_tag.")]
         public static async Task<string> UpdateTag(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the tag.")] string tableName,
@@ -306,7 +306,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_delete_tag")]
-        [Description("Preview deleting a PLC tag and return a short-lived safetyToken. Pass the token to delete_tag after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview deleting a PLC tag and return a short-lived safetyToken. Pass the token to delete_tag after reviewing the preview.")]
         public static async Task<string> PreviewDeleteTag(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the tag.")] string tableName,
@@ -328,7 +328,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "delete_tag")]
-        [Description("Delete a PLC tag from an existing tag table. Requires confirm=true and a safetyToken from preview_delete_tag.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Delete a PLC tag from an existing tag table. Requires confirm=true and a safetyToken from preview_delete_tag.")]
         public static async Task<string> DeleteTag(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the tag.")] string tableName,
@@ -378,7 +378,7 @@ namespace TiaMcpServer.Tools
     public static class UserConstantOperationsTool
     {
         [McpServerTool(Name = "preview_create_user_constant")]
-        [Description("Preview creating a PLC user constant and return a short-lived safetyToken. Pass the token to create_user_constant after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview creating a PLC user constant and return a short-lived safetyToken. Pass the token to create_user_constant after reviewing the preview.")]
         public static async Task<string> PreviewCreateUserConstant(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the user constant.")] string tableName,
@@ -402,7 +402,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "create_user_constant")]
-        [Description("Create a PLC user constant in an existing tag table. Requires confirm=true and a safetyToken from preview_create_user_constant.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Create a PLC user constant in an existing tag table. Requires confirm=true and a safetyToken from preview_create_user_constant.")]
         public static async Task<string> CreateUserConstant(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the user constant.")] string tableName,
@@ -452,7 +452,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_update_user_constant")]
-        [Description("Preview updating a PLC user constant and return a short-lived safetyToken. Pass the token to update_user_constant after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview updating a PLC user constant and return a short-lived safetyToken. Pass the token to update_user_constant after reviewing the preview.")]
         public static async Task<string> PreviewUpdateUserConstant(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the user constant.")] string tableName,
@@ -476,7 +476,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "update_user_constant")]
-        [Description("Update a PLC user constant data type or value. Requires confirm=true and a safetyToken from preview_update_user_constant.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Update a PLC user constant data type or value. Requires confirm=true and a safetyToken from preview_update_user_constant.")]
         public static async Task<string> UpdateUserConstant(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the user constant.")] string tableName,
@@ -526,7 +526,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_delete_user_constant")]
-        [Description("Preview deleting a PLC user constant and return a short-lived safetyToken. Pass the token to delete_user_constant after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview deleting a PLC user constant and return a short-lived safetyToken. Pass the token to delete_user_constant after reviewing the preview.")]
         public static async Task<string> PreviewDeleteUserConstant(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the user constant.")] string tableName,
@@ -548,7 +548,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "delete_user_constant")]
-        [Description("Delete a PLC user constant from an existing tag table. Requires confirm=true and a safetyToken from preview_delete_user_constant.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Delete a PLC user constant from an existing tag table. Requires confirm=true and a safetyToken from preview_delete_user_constant.")]
         public static async Task<string> DeleteUserConstant(
             OpennessWorkerClient workerClient,
             [Description("Name of the tag table containing the user constant.")] string tableName,

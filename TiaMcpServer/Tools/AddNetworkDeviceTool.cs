@@ -9,7 +9,7 @@ namespace TiaMcpServer.Tools
     public static class AddNetworkDeviceTool
     {
         [McpServerTool(Name = "preview_add_network_device")]
-        [Description("Preview adding a device from the hardware catalog and return a short-lived safetyToken. Pass the token to add_network_device after reviewing the preview.")]
+        [Description("DEPRECATED (prefer preview_write_batch): Preview adding a device from the hardware catalog and return a short-lived safetyToken. Pass the token to add_network_device after reviewing the preview.")]
         public static async Task<string> PreviewAddNetworkDevice(
             OpennessWorkerClient workerClient,
             [Description("Exact catalog type identifier from search_equipment_catalog.")] string typeIdentifier,
@@ -34,7 +34,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "add_network_device")]
-        [Description("Insert a device from the TIA Portal hardware catalog into the project. Requires confirm=true and a safetyToken from preview_add_network_device.")]
+        [Description("DEPRECATED (prefer apply_write_batch): Insert a device from the TIA Portal hardware catalog into the project. Requires confirm=true and a safetyToken from preview_add_network_device.")]
         public static async Task<string> AddNetworkDevice(
             OpennessWorkerClient workerClient,
             [Description("Exact catalog type identifier from search_equipment_catalog.")] string typeIdentifier,

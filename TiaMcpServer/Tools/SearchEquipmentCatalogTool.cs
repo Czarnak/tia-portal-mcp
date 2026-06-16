@@ -8,7 +8,7 @@ namespace TiaMcpServer.Tools
     public static class SearchEquipmentCatalogTool
     {
         [McpServerTool(Name = "search_equipment_catalog")]
-        [Description("Search the installed TIA Portal V21 hardware catalog for devices, modules, and components. Returns matching catalog entries with type identifiers that can be used with add_network_device. Includes locally installed GSD/HSP packages.")]
+        [Description("DEPRECATED (prefer execute_read_batch): Search the installed TIA Portal V21 hardware catalog for devices, modules, and components. Returns matching catalog entries with type identifiers that can be used with add_network_device. Includes locally installed GSD/HSP packages.")]
         public static async Task<string> SearchEquipmentCatalog(
             OpennessWorkerClient workerClient,
             [Description("Required search text matched against type name, article number, or description.")] string query,

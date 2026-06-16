@@ -1,0 +1,146 @@
+using System.ComponentModel;
+using ModelContextProtocol.Server;
+using TiaMcpServer.Safety;
+using TiaMcpServer.Worker;
+
+namespace TiaMcpServer.Batch;
+
+/// <summary>
+/// Batch MCP tools. A single read or write is just a one-item batch. Reads run independently;
+/// writes are previewed once to obtain a batch-level safety token, then applied sequentially
+/// with stop-on-first-failure (no transaction or rollback).
+/// </summary>
+[McpServerToolType]
+public static class BatchTools
+{
+    private const string PreviewToolName = "preview_write_batch";
+    private const string ApplyToolName = "apply_write_batch";
+
+    [McpServerTool(Name = "execute_read_batch")]
+    [Description("Run up to 50 read operations in one call. Each item has an operationId and an operation (e.g. get_block_content, list_tag_tables) plus that operation's parameters. Read operations run independently; a failing item does not stop the others.")]
+    public static async Task<string> ExecuteReadBatch(
+        OpennessWorkerClient workerClient,
+        [Description("Ordered list of read operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)
+    {
+        var validation = BatchOperationCatalog.ValidateReadBatch(operations);
+        if (!validation.IsValid)
+        {
+            return BatchResultFormatter.Error("execute_read_batch", validation.Error);
+        }
+
+        var results = await BatchExecutionEngine.ExecuteReadsAsync(
+            operations,
+            op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
+
+        return BatchResultFormatter.ReadBatch(results);
+    }
+
+    [McpServerTool(Name = "preview_write_batch")]
+    [Description("Preview up to 50 write operations and return one batch-level safetyToken bound to the exact ordered operation list and the combined current state. Pass the token to apply_write_batch after reviewing the preview.")]
+    public static async Task<string> PreviewWriteBatch(
+        OpennessWorkerClient workerClient,
+        [Description("Ordered list of write operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)
+    {
+        var validation = BatchOperationCatalog.ValidateWriteBatch(operations);
+        if (!validation.IsValid)
+        {
+            return BatchResultFormatter.Error(PreviewToolName, validation.Error);
+        }
+
+        var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
+        if (snapshot.Error is not null)
+        {
+            return BatchResultFormatter.Error(PreviewToolName, snapshot.Error);
+        }
+
+        var targets = BatchSafetySnapshot.BuildTargets(operations);
+        var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
+        var summary = $"Apply {operations.Length} write operation(s) sequentially; stops on first failure (no rollback). "
+            + "The current-state snapshot is read per item and is not an atomic point-in-time view.";
+
+        return WriteSafetyService.Shared.CreatePreview(
+            ApplyToolName,
+            projectPath,
+            targets,
+            summary,
+            operations,
+            snapshot.CombinedState);
+    }
+
+    [McpServerTool(Name = "apply_write_batch")]
+    [Description("Apply a previewed batch of write operations sequentially, stopping on the first failure (later items are skipped; no rollback). Requires confirm=true and a safetyToken from preview_write_batch.")]
+    public static async Task<string> ApplyWriteBatch(
+        OpennessWorkerClient workerClient,
+        [Description("Ordered list of write operations. Must match the list passed to preview_write_batch.")] BatchOperationRequest[] operations,
+        [Description("Set to true to confirm the write operations. Required safety flag; operation is rejected when false.")] bool confirm = false,
+        [Description("Safety token returned by preview_write_batch for this exact batch.")] string? safetyToken = null)
+    {
+        if (!confirm)
+        {
+            return BatchResultFormatter.Error(
+                ApplyToolName,
+                "Operation not confirmed. Set confirm=true to proceed with applying the write batch.");
+        }
+
+        var validation = BatchOperationCatalog.ValidateWriteBatch(operations);
+        if (!validation.IsValid)
+        {
+            return BatchResultFormatter.Error(ApplyToolName, validation.Error);
+        }
+
+        if (string.IsNullOrWhiteSpace(safetyToken))
+        {
+            return BatchResultFormatter.Error(
+                ApplyToolName,
+                $"Safety token required. Call {PreviewToolName} first, review the preview, then pass its safetyToken with confirm=true.");
+        }
+
+        var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
+        if (snapshot.Error is not null)
+        {
+            return BatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
+        }
+
+        var targets = BatchSafetySnapshot.BuildTargets(operations);
+        var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
+
+        var tokenValidation = WriteSafetyService.Shared.ValidateAndConsume(
+            safetyToken,
+            ApplyToolName,
+            projectPath,
+            targets,
+            operations,
+            snapshot.CombinedState);
+        if (!tokenValidation.IsValid)
+        {
+            return BatchResultFormatter.Error(ApplyToolName, tokenValidation.Error);
+        }
+
+        var results = await BatchExecutionEngine.ApplyWritesAsync(
+            operations,
+            op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
+
+        var resultJson = BatchResultFormatter.ApplyBatch(results);
+        WriteSafetyService.Shared.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);
+        return resultJson;
+    }
+
+    private static async Task<(string CombinedState, string? Error)> ReadCombinedCurrentStateAsync(
+        OpennessWorkerClient workerClient,
+        BatchOperationRequest[] operations)
+    {
+        var states = new List<BatchCurrentState>(operations.Length);
+        foreach (var op in operations)
+        {
+            var state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
+            if (state.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+            {
+                return (string.Empty, $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). {state}");
+            }
+
+            states.Add(new BatchCurrentState(op.OperationId, op.Operation, state));
+        }
+
+        return (BatchSafetySnapshot.CombineCurrentState(states), null);
+    }
+}
