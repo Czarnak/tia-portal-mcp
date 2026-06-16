@@ -4,32 +4,25 @@ MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents
 
 The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads and guarded tag mutations, hardware/network discovery, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
-The server currently exposes 45 tools.
+## Tools
 
-### Batch operations (preferred)
+The server currently exposes 16 tools.
+
+### Batch operations
 
 - `execute_read_batch` - run up to 50 read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others.
 - `preview_write_batch` / `apply_write_batch` - preview up to 50 write operations and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Batches cover data writes (block, tag table, tag, user constant, network device); project-lifecycle operations stay single-tool only.
 
-A single operation is just a one-item batch. The single tools below still work but are deprecated where a batch path exists; prefer the batch tools.
+The batch tools are the only path for data operations. Each `operation` name (e.g. `get_block_content`, `list_tag_tables`, `create_tag`, `update_block_logic`, `add_network_device`) carries that operation's parameters as one item; a single operation is just a one-item batch.
 
-### Single tools
+Available read operations (for `execute_read_batch`): `browse_project_tree`, `get_block_content`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, `search_equipment_catalog`, `compile_check`.
 
-- `browse_project_tree` - recursively enumerates TIA devices, PLC software, Software Units, program blocks, PLC tags, and PLC data types, returning a JSON project tree with callable `Path` details.
-- `get_block_content` - exports a PLC block to its SIMATIC SD document representation.
-- `preview_update_block_logic` / `update_block_logic` - preview and then import SIMATIC SD document content to update or create a PLC block. Writes require `confirm=true` and `safetyToken`.
-- `list_tag_tables` - retrieves PLC tag tables, tags, and user constants.
-- `preview_create_tag_table` / `preview_delete_tag_table` / `create_tag_table` / `delete_tag_table` - preview and then create or delete PLC tag tables. Writes require `confirm=true` and `safetyToken`.
-- `preview_create_tag` / `preview_update_tag` / `preview_delete_tag` / `create_tag` / `update_tag` / `delete_tag` - preview and then create, modify, or delete PLC tags. Writes require `confirm=true` and `safetyToken`.
-- `preview_create_user_constant` / `preview_update_user_constant` / `preview_delete_user_constant` / `create_user_constant` / `update_user_constant` / `delete_user_constant` - preview and then create, modify, or delete user constants. Writes require `confirm=true` and `safetyToken`.
-- `read_hardware_config` - exports device hardware, rack/module items, network interfaces, node addressing, subnets, and IO systems as JSON.
-- `read_cross_references` - exports PLC cross-reference diagnostics, including source objects, referenced objects, usage locations, access types, and reference types.
-- `search_equipment_catalog` - search the local TIA Portal hardware catalog, including installed GSD/HSP packages.
-- `preview_add_network_device` / `add_network_device` - preview and then insert an exact catalog `typeIdentifier` into the project.
-- `preview_configure_network_device` / `configure_network_device` - preview and then configure IP address, subnet mask, PROFINET device name, subnet, and IO-system settings when supported by Openness.
-- `compile_check` - run compile/check operations and return diagnostics.
+Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`.
+
+### Project tools
+
 - `get_project_status` - read active project metadata.
-- `preview_open_project` / `preview_create_project` / `preview_save_project` / `preview_save_project_as` / `preview_archive_project` / `preview_close_project` plus matching write tools - project lifecycle operations. Writes require `confirm=true` and `safetyToken`.
+- `preview_open_project` / `preview_create_project` / `preview_save_project` / `preview_save_project_as` / `preview_archive_project` / `preview_close_project` plus matching write tools - project lifecycle operations. These stay single-tool only (not batchable). Writes require `confirm=true` and `safetyToken`.
 
 ## Write safety
 
@@ -188,105 +181,108 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\Ti
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify the 45 tools appear.
-- Start with read-only tools: `browse_project_tree`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, and `compile_check`.
-- Use `search_equipment_catalog` before hardware insertion so you can copy an exact `typeIdentifier`.
-- Use `get_block_content` on a block path returned by `browse_project_tree`.
+- Click `List Tools` and verify the 16 tools appear.
+- Start with reads: call `execute_read_batch` with an `operations` array (each item has an `operationId`, an `operation` name such as `browse_project_tree` / `list_tag_tables` / `read_hardware_config` / `read_cross_references` / `compile_check`, and that operation's parameters).
+- Use a `search_equipment_catalog` read item before hardware insertion so you can copy an exact `typeIdentifier`.
+- Use a `get_block_content` read item on a block path returned by `browse_project_tree`.
 - Use `get_project_status` before lifecycle changes.
-- Avoid write tools unless the project is disposable or backed up. Every write requires a matching `preview_*` call, then `confirm=true` and the returned `safetyToken`.
+- Avoid writes unless the project is disposable or backed up. Writes go through `preview_write_batch`, then `apply_write_batch` with `confirm=true` and the returned batch `safetyToken`.
 
-Recommended smoke-test inputs:
-
-```json
-{}
-```
-
-for `browse_project_tree`, `read_hardware_config`, and `compile_check`, or:
+Recommended read smoke-test for `execute_read_batch` (independent items; a failing item does not stop the others):
 
 ```json
 {
-  "filter": "UnusedObjects"
+  "operations": [
+    { "operationId": "tree", "operation": "browse_project_tree" },
+    { "operationId": "hw", "operation": "read_hardware_config" },
+    { "operationId": "compile", "operation": "compile_check" },
+    { "operationId": "xref", "operation": "read_cross_references", "filter": "ObjectsWithReferences", "plcName": "PLC_1" },
+    { "operationId": "catalog", "operation": "search_equipment_catalog", "query": "1516" }
+  ]
 }
 ```
 
-for `read_cross_references`. Large projects can return large JSON from cross-reference diagnostics; use `plcName` and `filter` to narrow the response:
+Large projects can return large JSON from cross-reference diagnostics; narrow each read item with `plcName` and `filter`. To test explicit project binding, set `projectPath` on each operation item (all write items in a batch must target the same project path):
 
 ```json
 {
-  "plcName": "PLC_1",
-  "filter": "ObjectsWithReferences"
+  "operations": [
+    { "operationId": "tree", "operation": "browse_project_tree", "projectPath": "C:\\Projects\\Sandbox\\Line.ap21" }
+  ]
 }
 ```
 
-Use:
+For writes, preview first with `preview_write_batch` to obtain one batch-level `safetyToken`, for example a device add plus its network configuration in order:
 
 ```json
 {
-  "projectPath": "C:\\Projects\\Sandbox\\Line.ap21"
+  "operations": [
+    {
+      "operationId": "add",
+      "operation": "add_network_device",
+      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
+      "deviceName": "PLC_1",
+      "deviceItemName": "PLC_1"
+    },
+    {
+      "operationId": "configure",
+      "operation": "configure_network_device",
+      "deviceName": "PLC_1",
+      "ipAddress": "192.168.0.10",
+      "subnetMask": "255.255.255.0",
+      "pnDeviceName": "plc-1",
+      "subnetName": "PN/IE_1"
+    }
+  ]
 }
 ```
 
-when testing explicit project binding.
-
-For catalog/device provisioning, start with a read-only catalog search:
+Then apply with `apply_write_batch`, passing the same `operations` array unchanged plus the returned token (apply runs sequentially and stops on the first failure):
 
 ```json
 {
-  "query": "1516"
-}
-```
-
-Then preview the exact returned `typeIdentifier` with a disposable project:
-
-```json
-{
-  "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
-  "deviceName": "PLC_1",
-  "deviceItemName": "PLC_1"
-}
-```
-
-After reviewing the preview, apply with the returned token:
-
-```json
-{
-  "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
-  "deviceName": "PLC_1",
-  "deviceItemName": "PLC_1",
+  "operations": [
+    {
+      "operationId": "add",
+      "operation": "add_network_device",
+      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
+      "deviceName": "PLC_1",
+      "deviceItemName": "PLC_1"
+    },
+    {
+      "operationId": "configure",
+      "operation": "configure_network_device",
+      "deviceName": "PLC_1",
+      "ipAddress": "192.168.0.10",
+      "subnetMask": "255.255.255.0",
+      "pnDeviceName": "plc-1",
+      "subnetName": "PN/IE_1"
+    }
+  ],
   "confirm": true,
-  "safetyToken": "<token from preview_add_network_device>"
+  "safetyToken": "<token from preview_write_batch>"
 }
 ```
 
-Network configuration uses the same preview-then-apply flow:
+A tag write is the same flow with a one-item batch, e.g. `preview_write_batch` then `apply_write_batch` over:
 
 ```json
 {
-  "deviceName": "PLC_1",
-  "ipAddress": "192.168.0.10",
-  "subnetMask": "255.255.255.0",
-  "pnDeviceName": "plc-1",
-  "subnetName": "PN/IE_1",
-  "confirm": true,
-  "safetyToken": "<token from preview_configure_network_device>"
+  "operations": [
+    {
+      "operationId": "tag",
+      "operation": "create_tag",
+      "plcName": "PLC_1",
+      "tableName": "StandardTags",
+      "name": "StartButton",
+      "dataType": "Bool",
+      "logicalAddress": "%I0.0"
+    }
+  ]
 }
 ```
 
-Tag writes are atomic and use the same preview-then-apply flow:
-
-```json
-{
-  "plcName": "PLC_1",
-  "tableName": "StandardTags",
-  "name": "StartButton",
-  "dataType": "Bool",
-  "logicalAddress": "%I0.0",
-  "confirm": true,
-  "safetyToken": "<token from preview_create_tag>"
-}
-```
-
-Project lifecycle writes also use the same preview-then-apply flow:
+Project lifecycle writes remain single-tool and use their own preview-then-apply flow:
 
 ```json
 {
