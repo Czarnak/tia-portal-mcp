@@ -43,14 +43,15 @@ public class ProjectTreeWalker
 
     private static ProjectTreeNode WalkPlcSoftware(string deviceName, PlcSoftware plcSoftware)
     {
+        var softwareName = plcSoftware.Name;
         var children = new List<ProjectTreeNode>
         {
-            WalkBlockGroup(plcSoftware.BlockGroup, CombinePath(deviceName, "Blocks"), softwareUnitName: null),
-            WalkTagTableGroup(plcSoftware.TagTableGroup, CombinePath(deviceName, "TagTables")),
-            WalkTypeGroup(plcSoftware.TypeGroup, CombinePath(deviceName, "Types"))
+            WalkBlockGroup(plcSoftware.BlockGroup, CombinePath(softwareName, "Blocks"), softwareUnitName: null),
+            WalkTagTableGroup(plcSoftware.TagTableGroup, CombinePath(softwareName, "TagTables")),
+            WalkTypeGroup(plcSoftware.TypeGroup, CombinePath(softwareName, "Types"))
         };
 
-        children.AddRange(WalkSoftwareUnits(deviceName, plcSoftware));
+        children.AddRange(WalkSoftwareUnits(softwareName, plcSoftware));
 
         return new ProjectTreeNode
         {
@@ -64,7 +65,7 @@ public class ProjectTreeWalker
         };
     }
 
-    private static IEnumerable<ProjectTreeNode> WalkSoftwareUnits(string deviceName, PlcSoftware plcSoftware)
+    private static IEnumerable<ProjectTreeNode> WalkSoftwareUnits(string softwareName, PlcSoftware plcSoftware)
     {
         PlcUnitProvider? unitProvider = null;
 
@@ -84,7 +85,7 @@ public class ProjectTreeWalker
 
         foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
         {
-            var unitPath = CombinePath(deviceName, "Units", unit.Name);
+            var unitPath = CombinePath(softwareName, "Units", unit.Name);
 
             yield return new ProjectTreeNode
             {
