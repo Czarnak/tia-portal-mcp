@@ -27,13 +27,15 @@ public static class PlcSoftwareLocator
     {
         foreach (Device device in project.Devices)
         {
-            if (plcName is not null && !string.Equals(device.Name, plcName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             foreach (var plcSoftware in FindInDevice(device))
             {
+                if (plcName is not null &&
+                    !string.Equals(plcSoftware.Name, plcName, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(device.Name, plcName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 yield return new DiscoveredPlcSoftware(device.Name, plcSoftware);
             }
         }
