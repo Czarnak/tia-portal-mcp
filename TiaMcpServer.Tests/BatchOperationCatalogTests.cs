@@ -218,6 +218,7 @@ public class BatchOperationCatalogTests
         Operation = operation,
         BlockPath = "PLC_1/Main",
         YamlContent = "name: Main",
+        BlockType = "FB",
         Query = "CPU",
         TableName = "Inputs",
         Name = "Item",

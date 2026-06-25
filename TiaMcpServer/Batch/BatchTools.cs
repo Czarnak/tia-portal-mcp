@@ -38,7 +38,7 @@ public static class BatchTools
 
     [McpServerTool(Name = "preview_write_batch")]
     [Description("Preview up to 50 write operations and return one batch-level safetyToken bound to the exact ordered operation list and the combined current state. Pass the token to apply_write_batch after reviewing the preview. All items must target the same project. "
-        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName).")]
+        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc.")]
     public static async Task<string> PreviewWriteBatch(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of write operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)
@@ -71,7 +71,7 @@ public static class BatchTools
 
     [McpServerTool(Name = "apply_write_batch")]
     [Description("Apply a previewed batch of write operations sequentially, stopping on the first failure (later items are skipped; no rollback). Requires confirm=true and a safetyToken from preview_write_batch; pass the identical operations list. "
-        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName).")]
+        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc.")]
     public static async Task<string> ApplyWriteBatch(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of write operations. Must match the list passed to preview_write_batch.")] BatchOperationRequest[] operations,
