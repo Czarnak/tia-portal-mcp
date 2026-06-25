@@ -167,6 +167,7 @@ public static class BatchOperationCatalog
         "value" => !string.IsNullOrWhiteSpace(op.Value),
         "typeIdentifier" => !string.IsNullOrWhiteSpace(op.TypeIdentifier),
         "deviceName" => !string.IsNullOrWhiteSpace(op.DeviceName),
+        "blockType" => !string.IsNullOrWhiteSpace(op.BlockType),
         _ => false,
     };
 
@@ -199,6 +200,10 @@ public static class BatchOperationCatalog
             new BatchOperationSpec("delete_user_constant", BatchOperationCategory.Write, new[] { "tableName", "name" }),
             new BatchOperationSpec("add_network_device", BatchOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }),
             new BatchOperationSpec("configure_network_device", BatchOperationCategory.Write, new[] { "deviceName" }),
+            new BatchOperationSpec("create_block", BatchOperationCategory.Write, new[] { "blockPath", "blockType" }),
+            new BatchOperationSpec("delete_block", BatchOperationCategory.Write, new[] { "blockPath" }),
+            new BatchOperationSpec("create_block_group", BatchOperationCategory.Write, new[] { "blockPath" }),
+            new BatchOperationSpec("delete_block_group", BatchOperationCategory.Write, new[] { "blockPath" }),
         };
 
         return specs.ToDictionary(spec => spec.Name, StringComparer.Ordinal);

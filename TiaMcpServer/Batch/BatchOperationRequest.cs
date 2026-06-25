@@ -13,7 +13,7 @@ public sealed class BatchOperationRequest
     public string OperationId { get; set; } = string.Empty;
 
     [Description("The operation to run for this item. Read operations: browse_project_tree, read_hardware_config, read_cross_references, search_equipment_catalog, get_block_content, list_tag_tables, compile_check, get_project_status. "
-        + "Write operations: update_block_logic, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, add_network_device, configure_network_device. "
+        + "Write operations: update_block_logic, create_block, delete_block, create_block_group, delete_block_group, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, add_network_device, configure_network_device. "
         + "Use reads only in execute_read_batch and writes only in preview_write_batch/apply_write_batch.")]
     public string Operation { get; set; } = string.Empty;
 
@@ -91,4 +91,13 @@ public sealed class BatchOperationRequest
 
     [Description("Optional IO-system name for configure_network_device.")]
     public string? IoSystemName { get; set; }
+
+    [Description("Block type for create_block. Valid values: FB, FC, OB, GlobalDB.")]
+    public string? BlockType { get; set; }
+
+    [Description("Programming language for create_block (FB/FC/OB only). Valid values: LAD, FBD, STL, SCL, GRAPH. Defaults to LAD.")]
+    public string? Language { get; set; }
+
+    [Description("OB event class for create_block when blockType=OB. Valid values: ProgramCycle, Startup, TimeDelay, CyclicInterrupt, HardwareInterrupt, Diagnostic, TimeOfDay. Defaults to ProgramCycle.")]
+    public string? OBEventClass { get; set; }
 }

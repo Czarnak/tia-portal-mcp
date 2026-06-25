@@ -83,4 +83,10 @@ public class WorkerRequest
     public bool SaveBeforeArchive { get; set; } = true;
 
     public bool SaveBeforeClose { get; set; } = true;
+
+    public string? BlockType { get; set; }
+
+    public string? Language { get; set; }
+
+    public string? OBEventClass { get; set; }
 }

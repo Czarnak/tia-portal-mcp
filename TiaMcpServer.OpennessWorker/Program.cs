@@ -70,6 +70,10 @@ internal static class Program
                 "update_user_constant" => UpdateUserConstant(request),
                 "delete_user_constant" => DeleteUserConstant(request),
                 "get_project_status"  => GetProjectStatus(request),
+                "create_block"        => CreateBlock(request),
+                "delete_block"        => DeleteBlock(request),
+                "create_block_group"  => CreateBlockGroup(request),
+                "delete_block_group"  => DeleteBlockGroup(request),
                 "open_project"        => OpenProject(request),
                 "create_project"      => CreateProject(request),
                 "save_project"        => SaveProject(request),
@@ -308,6 +312,80 @@ internal static class Program
                 request.TableName!,
                 request.FolderPath,
                 request.Name!));
+    }
+
+    private static WorkerResponse CreateBlock(WorkerRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.BlockPath))
+        {
+            return Failure("BlockPath is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BlockType))
+        {
+            return Failure("BlockType is required. Valid values: FB, FC, OB, GlobalDB.");
+        }
+
+        if (!request.Confirm)
+        {
+            return Failure("Operation not confirmed. Set confirm=true to proceed with creating a block.");
+        }
+
+        return WithProject(request, project => Success(
+            BlockMutationService.CreateBlock(
+                project,
+                request.BlockPath!,
+                request.BlockType!,
+                request.Language,
+                request.OBEventClass)));
+    }
+
+    private static WorkerResponse DeleteBlock(WorkerRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.BlockPath))
+        {
+            return Failure("BlockPath is required.");
+        }
+
+        if (!request.Confirm)
+        {
+            return Failure("Operation not confirmed. Set confirm=true to proceed with deleting a block.");
+        }
+
+        return WithProject(request, project => Success(
+            BlockMutationService.DeleteBlock(project, request.BlockPath!)));
+    }
+
+    private static WorkerResponse CreateBlockGroup(WorkerRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.BlockPath))
+        {
+            return Failure("BlockPath is required.");
+        }
+
+        if (!request.Confirm)
+        {
+            return Failure("Operation not confirmed. Set confirm=true to proceed with creating a block group.");
+        }
+
+        return WithProject(request, project => Success(
+            BlockMutationService.CreateBlockGroup(project, request.BlockPath!)));
+    }
+
+    private static WorkerResponse DeleteBlockGroup(WorkerRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.BlockPath))
+        {
+            return Failure("BlockPath is required.");
+        }
+
+        if (!request.Confirm)
+        {
+            return Failure("Operation not confirmed. Set confirm=true to proceed with deleting a block group.");
+        }
+
+        return WithProject(request, project => Success(
+            BlockMutationService.DeleteBlockGroup(project, request.BlockPath!)));
     }
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)
