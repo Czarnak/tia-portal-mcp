@@ -413,6 +413,34 @@ public class OpennessWorkerClient
             "{}");
     }
 
+    public Task<string> StartPlcAsync(string? plcName, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "start_plc",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    public Task<string> StopPlcAsync(string? plcName, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "stop_plc",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
     public Task<string> GetProjectStatusAsync(string? projectPath)
     {
         return SendBoundProjectRequestAsync(

@@ -204,6 +204,8 @@ public static class BatchOperationCatalog
             new BatchOperationSpec("delete_block", BatchOperationCategory.Write, new[] { "blockPath" }),
             new BatchOperationSpec("create_block_group", BatchOperationCategory.Write, new[] { "blockPath" }),
             new BatchOperationSpec("delete_block_group", BatchOperationCategory.Write, new[] { "blockPath" }),
+            new BatchOperationSpec("start_plc", BatchOperationCategory.Write, None),
+            new BatchOperationSpec("stop_plc", BatchOperationCategory.Write, None),
         };
 
         return specs.ToDictionary(spec => spec.Name, StringComparer.Ordinal);

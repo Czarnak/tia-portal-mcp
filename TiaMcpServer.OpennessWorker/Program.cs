@@ -74,6 +74,8 @@ internal static class Program
                 "delete_block"        => DeleteBlock(request),
                 "create_block_group"  => CreateBlockGroup(request),
                 "delete_block_group"  => DeleteBlockGroup(request),
+                "start_plc"           => StartPlc(request),
+                "stop_plc"            => StopPlc(request),
                 "open_project"        => OpenProject(request),
                 "create_project"      => CreateProject(request),
                 "save_project"        => SaveProject(request),
@@ -386,6 +388,28 @@ internal static class Program
 
         return WithProject(request, project => Success(
             BlockMutationService.DeleteBlockGroup(project, request.BlockPath!)));
+    }
+
+    private static WorkerResponse StartPlc(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            return Failure("Operation not confirmed. Set confirm=true to proceed with starting the PLC.");
+        }
+
+        return WithProject(request, project => Success(
+            PlcOnlineService.Start(project, request.PlcName)));
+    }
+
+    private static WorkerResponse StopPlc(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            return Failure("Operation not confirmed. Set confirm=true to proceed with stopping the PLC.");
+        }
+
+        return WithProject(request, project => Success(
+            PlcOnlineService.Stop(project, request.PlcName)));
     }
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)

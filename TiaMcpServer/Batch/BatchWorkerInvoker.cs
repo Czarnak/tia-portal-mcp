@@ -23,6 +23,8 @@ public static class BatchWorkerInvoker
             => client.BrowseProjectTreeAsync(op.ProjectPath),
         "delete_block"
             => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
+        "start_plc" or "stop_plc"
+            => client.GetProjectStatusAsync(op.ProjectPath),
         _ => Task.FromResult($"Error: Unsupported batch write operation '{op.Operation}'."),
     };
 
@@ -55,6 +57,8 @@ public static class BatchWorkerInvoker
         "delete_block" => client.DeleteBlockAsync(op.BlockPath!, op.ProjectPath),
         "create_block_group" => client.CreateBlockGroupAsync(op.BlockPath!, op.ProjectPath),
         "delete_block_group" => client.DeleteBlockGroupAsync(op.BlockPath!, op.ProjectPath),
+        "start_plc" => client.StartPlcAsync(op.PlcName, op.ProjectPath),
+        "stop_plc" => client.StopPlcAsync(op.PlcName, op.ProjectPath),
 
         _ => Task.FromResult($"Error: Unsupported batch operation '{op.Operation}'."),
     };
