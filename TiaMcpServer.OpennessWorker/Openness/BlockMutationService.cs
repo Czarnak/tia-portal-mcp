@@ -25,12 +25,7 @@ public static class BlockMutationService
         var normalizedType = blockType.ToUpperInvariant();
         var normalizedLang = (language ?? "LAD").ToUpperInvariant();
 
-        if (normalizedType == "FB")
-        {
-            var lang = ParseLanguage(normalizedLang);
-            group.Blocks.CreateFB(blockName, false, 0, lang);
-        }
-        else if (normalizedType is "FC" or "OB" or "GLOBALDB" or "DB")
+        if (normalizedType is "FB" or "FC" or "OB" or "GLOBALDB" or "DB")
         {
             ImportBlockFromXml(group, blockName, normalizedType, normalizedLang, obEventClass);
         }
@@ -217,6 +212,8 @@ public static class BlockMutationService
 
         return blockType switch
         {
+            "FB" => GenerateFbXml(blockName, language, engineeringVersion),
+
             "FC" => $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <Document>
   <Engineering version=""{engineeringVersion}"" />
@@ -290,6 +287,50 @@ public static class BlockMutationService
         };
     }
 
+    private static string GenerateFbXml(string blockName, string language, string engineeringVersion)
+    {
+        var langXml = ToProgrammingLanguageXml(language);
+        // SCL and STL require at least one compile unit; LAD/FBD/GRAPH do not.
+        var compileUnits = language is "SCL" or "STL"
+            ? $@"
+      <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
+        <AttributeList>
+          <NetworkSource>
+            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"" />
+          </NetworkSource>
+          <ProgrammingLanguage>{langXml}</ProgrammingLanguage>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID=""4"" CompositionName=""Comment"" />
+          <MultilingualText ID=""5"" CompositionName=""Title"" />
+        </ObjectList>
+      </SW.Blocks.CompileUnit>"
+            : string.Empty;
+
+        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+<Document>
+  <Engineering version=""{engineeringVersion}"" />
+  <SW.Blocks.FB ID=""0"">
+    <AttributeList>
+      <AutoNumber>true</AutoNumber>
+      <HeaderAuthor></HeaderAuthor>
+      <HeaderFamily></HeaderFamily>
+      <HeaderName></HeaderName>
+      <HeaderVersion>0.1</HeaderVersion>
+      <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Input"" /><Section Name=""Output"" /><Section Name=""InOut"" /><Section Name=""Static"" /><Section Name=""Temp"" /><Section Name=""Constant"" /></Sections></Interface>
+      <Name>{blockName}</Name>
+      <Namespace></Namespace>
+      <ProgrammingLanguage>{langXml}</ProgrammingLanguage>
+      <SetENOAutomatically>false</SetENOAutomatically>
+    </AttributeList>
+    <ObjectList>
+      <MultilingualText ID=""1"" CompositionName=""Comment"" />{compileUnits}
+      <MultilingualText ID=""2"" CompositionName=""Title"" />
+    </ObjectList>
+  </SW.Blocks.FB>
+</Document>";
+    }
+
     private static string ToProgrammingLanguageXml(string language)
     {
         return language switch
@@ -304,17 +345,5 @@ public static class BlockMutationService
         };
     }
 
-    private static ProgrammingLanguage ParseLanguage(string language)
-    {
-        return language switch
-        {
-            "LAD" => ProgrammingLanguage.LAD,
-            "FBD" => ProgrammingLanguage.FBD,
-            "STL" => ProgrammingLanguage.STL,
-            "SCL" => ProgrammingLanguage.SCL,
-            "GRAPH" => ProgrammingLanguage.GRAPH,
-            _ => throw new InvalidOperationException(
-                $"Unknown programming language '{language}'. Valid values: LAD, FBD, STL, SCL, GRAPH.")
-        };
-    }
+
 }
