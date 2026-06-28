@@ -68,6 +68,14 @@ public static class BlockImporter
         }
     }
 
+    private static bool IsXmlContent(string content)
+    {
+        // Trim leading whitespace and a possible UTF-8 BOM before inspecting the first token.
+        string trimmed = content.TrimStart('﻿', ' ', '\t', '\r', '\n');
+        return trimmed.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("<Document", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void WriteContentToTempDir(string tempDir, string blockName, string yamlContent)
     {
         if (!yamlContent.Contains(FileSeparatorPrefix))
