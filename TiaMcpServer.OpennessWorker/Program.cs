@@ -16,6 +16,10 @@ internal static class Program
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    // TIA Portal 권한 요청 다이얼로그는 Attach() 호출마다 뜬다.
+    // 세션을 프로세스 수명 동안 재사용해 Attach()를 최초 1회만 호출한다.
+    private static readonly WorkerTiaPortalSession _sharedSession = new(allowTiaConfirmations: true);
+
     static Program()
     {
         AssemblyResolver.Register();
@@ -433,14 +437,10 @@ internal static class Program
         });
     }
 
-    /// <summary>Opens (and disposes) an Openness session and runs <paramref name="body"/> inside the shared error handler.</summary>
+    /// <summary>Runs <paramref name="body"/> with the shared long-lived session.</summary>
     private static WorkerResponse WithSession(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
     {
-        return Execute(() =>
-        {
-            using var session = new WorkerTiaPortalSession(request.AllowTiaConfirmations);
-            return body(session);
-        });
+        return Execute(() => body(_sharedSession));
     }
 
     /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure.</summary>

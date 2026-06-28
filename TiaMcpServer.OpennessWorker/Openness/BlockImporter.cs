@@ -18,9 +18,31 @@ public static class BlockImporter
         var address = BlockAddress.Parse(blockPath);
         var target = BlockTargetResolver.ResolveForImport(project, address);
 
-        string tempDir = Path.Combine(Path.GetTempPath(), "tia-mcp-import-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        string projectDir = project.Path.Directory?.FullName ?? Path.GetTempPath();
+        bool isSeparator = yamlContent.Contains(FileSeparatorPrefix);
+        bool isXml = IsXmlContent(yamlContent);
 
+        // A single Simatic ML XML document must be imported via Import(FileInfo, ImportOptions).
+        // ImportFromDocuments is only for documents packages whose main file is .s7dcl; a lone
+        // .xml never matches there, which surfaces as a misleading "file does not exist" error.
+        if (isXml && !isSeparator)
+        {
+            string xmlPath = Path.Combine(projectDir, target.DocumentName + ".xml");
+            File.WriteAllText(xmlPath, yamlContent);
+            try
+            {
+                var blocks = target.Group.Blocks.Import(new FileInfo(xmlPath), ImportOptions.Override);
+                return $"Import succeeded: {blocks.Count} block(s) imported.";
+            }
+            finally
+            {
+                if (File.Exists(xmlPath)) File.Delete(xmlPath);
+            }
+        }
+
+        // Documents package (.s7dcl main file plus optional resource files).
+        string tempDir = Path.Combine(projectDir, "tia-mcp-import-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
         try
         {
             WriteContentToTempDir(tempDir, target.DocumentName, yamlContent);
