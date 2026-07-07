@@ -349,6 +349,98 @@ public class OpennessWorkerClient
             "{}");
     }
 
+    public Task<string> CreateBlockAsync(
+        string blockPath,
+        string blockType,
+        string? language,
+        string? obEventClass,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "create_block",
+            projectPath,
+            request =>
+            {
+                request.BlockPath = blockPath;
+                request.BlockType = blockType;
+                request.Language = language;
+                request.OBEventClass = obEventClass;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    public Task<string> DeleteBlockAsync(string blockPath, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "delete_block",
+            projectPath,
+            request =>
+            {
+                request.BlockPath = blockPath;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    public Task<string> CreateBlockGroupAsync(string blockPath, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "create_block_group",
+            projectPath,
+            request =>
+            {
+                request.BlockPath = blockPath;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    public Task<string> DeleteBlockGroupAsync(string blockPath, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "delete_block_group",
+            projectPath,
+            request =>
+            {
+                request.BlockPath = blockPath;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    public Task<string> StartPlcAsync(string? plcName, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "start_plc",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    public Task<string> StopPlcAsync(string? plcName, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "stop_plc",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
     public Task<string> GetProjectStatusAsync(string? projectPath)
     {
         return SendBoundProjectRequestAsync(

@@ -45,7 +45,13 @@ public static class BlockImporter
         Directory.CreateDirectory(tempDir);
         try
         {
-            WriteContentToTempDir(tempDir, target.DocumentName, yamlContent);
+            // ImportFromDocuments looks for documentName.s7dcl; write with that extension
+            // when content has no explicit --- FILE: --- separators.
+            var primaryFileName = target.DocumentName.EndsWith(".s7dcl", StringComparison.OrdinalIgnoreCase)
+                ? target.DocumentName
+                : target.DocumentName + ".s7dcl";
+
+            WriteContentToTempDir(tempDir, primaryFileName, yamlContent);
 
             var result = target.Group.Blocks.ImportFromDocuments(
                 new DirectoryInfo(tempDir),
