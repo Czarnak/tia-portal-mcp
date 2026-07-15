@@ -15,9 +15,9 @@ The server currently exposes 16 tools.
 
 The batch tools are the only path for data operations. Each `operation` name (e.g. `get_block_content`, `list_tag_tables`, `create_tag`, `update_block_logic`, `add_network_device`) carries that operation's parameters as one item; a single operation is just a one-item batch.
 
-Available read operations (for `execute_read_batch`): `browse_project_tree`, `get_block_content`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, `search_equipment_catalog`, `compile_check`.
+Available read operations (for `execute_read_batch`): `browse_project_tree`, `get_block_content`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, `search_equipment_catalog`, `compile_check`, `get_project_status`.
 
-Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`.
+Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc` / `stop_plc`.
 
 ### Project tools
 
@@ -103,7 +103,7 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Start a new MCP session for a different customer project.
+Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Call `open_project` with `forceRebind=true` to rebind the session, or start a new MCP session for a different customer project.
 
 The package includes the `openness-worker` folder and required non-Siemens dependencies. It intentionally excludes `Siemens.Engineering*.dll`; those are loaded from the local TIA Portal installation at runtime.
 
@@ -324,7 +324,7 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Start a new MCP session for a different customer project.
+Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Call `open_project` with `forceRebind=true` to rebind the session, or start a new MCP session for a different customer project.
 
 ## Block Paths
 
