@@ -73,40 +73,45 @@ public static class BatchOperationCatalog
                 $"Batch exceeds the maximum of {MaxBatchSize} operations (received {operations.Count}).");
         }
 
+        var errors = new List<string>();
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var op in operations)
         {
             if (op is null)
             {
-                return BatchValidationResult.Invalid("Batch contains a null operation.");
+                errors.Add("Batch contains a null operation.");
+                continue;
             }
 
             if (string.IsNullOrWhiteSpace(op.OperationId))
             {
-                return BatchValidationResult.Invalid("Each operation requires a unique operationId.");
+                errors.Add("Each operation requires a unique operationId.");
+                continue;
             }
 
             if (!seenIds.Add(op.OperationId))
             {
-                return BatchValidationResult.Invalid($"Duplicate operationId '{op.OperationId}'.");
+                errors.Add($"Duplicate operationId '{op.OperationId}'.");
+                continue;
             }
 
             if (string.IsNullOrWhiteSpace(op.Operation))
             {
-                return BatchValidationResult.Invalid(
-                    $"Operation name is required for operationId '{op.OperationId}'.");
+                errors.Add($"Operation name is required for operationId '{op.OperationId}'.");
+                continue;
             }
 
             var categoryResult = ResolveSpec(op, expected, out var spec);
             if (!categoryResult.IsValid)
             {
-                return categoryResult;
+                errors.Add(categoryResult.Error);
+                continue;
             }
 
             var missing = spec!.RequiredFields.Where(field => !IsFieldPresent(op, field)).ToArray();
             if (missing.Length > 0)
             {
-                return BatchValidationResult.Invalid(
+                errors.Add(
                     $"Operation '{op.Operation}' (operationId '{op.OperationId}') is missing required field(s): {string.Join(", ", missing)}.");
             }
         }
@@ -114,18 +119,19 @@ public static class BatchOperationCatalog
         if (expected == BatchOperationCategory.Write)
         {
             var distinctPaths = operations
-                .Where(op => !string.IsNullOrWhiteSpace(op!.ProjectPath))
+                .Where(op => op is not null && !string.IsNullOrWhiteSpace(op.ProjectPath))
                 .Select(op => WriteSafetyService.NormalizeProjectPath(op!.ProjectPath))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if (distinctPaths.Count > 1)
             {
-                return BatchValidationResult.Invalid(
-                    "All write operations in a batch must target the same project path.");
+                errors.Add("All write operations in a batch must target the same project path.");
             }
         }
 
-        return BatchValidationResult.Valid();
+        return errors.Count > 0
+            ? BatchValidationResult.Invalid(string.Join("\n", errors))
+            : BatchValidationResult.Valid();
     }
 
     private static BatchValidationResult ResolveSpec(

@@ -234,6 +234,24 @@ public class BatchOperationCatalogTests
         Assert.Contains("create_tag", result.Error);
     }
 
+    [Fact]
+    public void ValidateWriteBatch_ReportsAllInvalidItemsAtOnce()
+    {
+        var operations = new[]
+        {
+            Op("a", "creat_tag"),
+            Op("b", "create_tag", r => r.TableName = "Inputs"),
+            Op("c", "get_block_content", r => r.BlockPath = "Main"),
+        };
+
+        var result = BatchOperationCatalog.ValidateWriteBatch(operations);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("creat_tag", result.Error);
+        Assert.Contains("dataType", result.Error);
+        Assert.Contains("get_block_content", result.Error);
+    }
+
     private static BatchOperationRequest FullyPopulated(string id, string operation) => new()
     {
         OperationId = id,
