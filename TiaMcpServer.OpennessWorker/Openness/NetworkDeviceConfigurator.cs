@@ -52,7 +52,7 @@ public static class NetworkDeviceConfigurator
                 if (subnetRequested)
                 {
                     result.SkippedSettings["IoSystemName"] = "Requested subnet was not connected, so IO system lookup was skipped.";
-                    return result;
+                    return FinalizeResult(result, deviceName);
                 }
 
                 connectedSubnet = ReadProperty(node, "ConnectedSubnet");
@@ -73,9 +73,26 @@ public static class NetworkDeviceConfigurator
             result.Messages.Add("No network settings were provided.");
         }
 
-        return result;
+        return FinalizeResult(result, deviceName);
     }
 
+    /// <summary>
+    /// A result where every requested setting was skipped is a failed operation, not a success
+    /// with fine print — throw so Program.Execute reports WorkerResponse.Success=false.
+    /// </summary>
+    private static ConfigureNetworkDeviceResultInfo FinalizeResult(
+        ConfigureNetworkDeviceResultInfo result,
+        string deviceName)
+    {
+        if (result.AppliedSettings.Count == 0 && result.SkippedSettings.Count > 0)
+        {
+            var reasons = string.Join(" ", result.SkippedSettings.Select(kv => $"{kv.Key}: {kv.Value}"));
+            throw new InvalidOperationException(
+                $"No requested settings could be applied to device '{deviceName}'. {reasons}");
+        }
+
+        return result;
+    }
     private static Device? FindDevice(Project project, string deviceName)
     {
         foreach (Device device in project.Devices)
