@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the TIA Portal MCP server's errors self-recoverable for small-model agents, kill two false-success write paths, and serialize worker access — Phase 0 + items 1.2 and 2.2 of `priv/IMPROVEMENT_PLAN.md`.
+**Goal:** Make the TIA Portal MCP server's errors self-recoverable for small-model agents, kill two false-success write paths, and serialize worker access — Phase 0 + items 1.2 and 2.2 of `docs/IMPROVEMENT_PLAN.md`.
 
 **Architecture:** Two-process design stays untouched: `TiaMcpServer` (net8 MCP stdio host) spawns `TiaMcpServer.OpennessWorker` (net48, loads Siemens Openness DLLs) per request, newline-delimited JSON over stdin/stdout. All changes are message/validation/description fixes in the host, two exception-flow fixes in the worker, and one semaphore in the host's worker client.
 
@@ -44,10 +44,12 @@ Test files: `BatchOperationCatalogTests.cs` (1, 2), `WriteSafetyServiceTests.cs`
 ### Task 1: Unknown-operation errors list the valid operation names
 
 **Files:**
+
 - Modify: `TiaMcpServer/Batch/BatchOperationCatalog.cs` (method `ResolveSpec`)
 - Test: `TiaMcpServer.Tests/BatchOperationCatalogTests.cs`
 
 **Interfaces:**
+
 - Consumes: `BatchOperationCatalog.ReadOperationNames` / `WriteOperationNames` (existing public `IReadOnlyList<string>` properties on the same class).
 - Produces: no signature changes; only the `Invalid(...)` message text for unknown operations changes.
 
@@ -120,10 +122,12 @@ git commit -m "feat: list valid operation names in unknown-operation batch error
 ### Task 2: Aggregate all batch validation errors into one response
 
 **Files:**
+
 - Modify: `TiaMcpServer/Batch/BatchOperationCatalog.cs` (method `Validate`)
 - Test: `TiaMcpServer.Tests/BatchOperationCatalogTests.cs`
 
 **Interfaces:**
+
 - Consumes: Task 1's `ResolveSpec` message (unchanged here).
 - Produces: `BatchValidationResult.Error` may now contain multiple `\n`-separated errors. `IsValid` semantics unchanged. No caller changes needed (`BatchTools` passes `validation.Error` through verbatim).
 
@@ -252,10 +256,12 @@ git commit -m "feat: aggregate all batch validation errors into one response"
 ### Task 3: Safety-token rejections carry recovery guidance and the 10-minute TTL
 
 **Files:**
+
 - Modify: `TiaMcpServer/Safety/WriteSafetyService.cs`, `TiaMcpServer/Safety/WriteSafetyTooling.cs`, `TiaMcpServer/Batch/BatchTools.cs`, `TiaMcpServer/Tools/ProjectLifecycleTools.cs`, `README.md`
 - Test: `TiaMcpServer.Tests/WriteSafetyServiceTests.cs`, `TiaMcpServer.Tests/BatchToolMetadataTests.cs`
 
 **Interfaces:**
+
 - Produces: `WriteSafetyService.DefaultTokenLifetime` — new `public static readonly TimeSpan`, value `TimeSpan.FromMinutes(10)`.
 - Produces: `ValidateAndConsume(...)` gains a trailing optional parameter `string? previewToolName = null`. Existing 6-arg call sites compile unchanged; the two call sites below are updated to pass it.
 
@@ -518,10 +524,12 @@ git commit -m "feat: add recovery guidance and 10-minute TTL to safety-token rej
 ### Task 4: Fix schema-facing field descriptions on BatchOperationRequest
 
 **Files:**
+
 - Modify: `TiaMcpServer/Batch/BatchOperationRequest.cs`
 - Test: `TiaMcpServer.Tests/BatchToolMetadataTests.cs`
 
 **Interfaces:**
+
 - Produces: `[Description]` text changes only; no property or type changes. These descriptions surface in the MCP JSON schema via `WithToolsFromAssembly()`, so they ARE the agent-facing contract.
 
 Background (verified against `BatchWorkerInvoker.cs`): `NewName` is forwarded only by `update_tag` — `update_user_constant` calls `client.UpdateUserConstantAsync(...)` without it, so the current "renaming a tag or user constant" description is false. `Filter` is only consumed by `read_cross_references`. `PlcName` is forwarded by `list_tag_tables`, `read_cross_references`, `compile_check`, `start_plc`, `stop_plc`, and all tag/tag-table/user-constant operations. `BlockPath` is required by `get_block_content`, `update_block_logic`, `create_block`, `delete_block`, `create_block_group`, `delete_block_group` and optionally scopes `compile_check`.
@@ -649,10 +657,12 @@ git commit -m "fix: correct batch field descriptions for blockPath, plcName, fil
 ### Task 5: forceRebind escape hatch in binding errors + README operation-list sync
 
 **Files:**
+
 - Modify: `TiaMcpServer.Contracts/ProjectSessionBinding.cs`, `README.md`
 - Test: `TiaMcpServer.Tests/ProjectSessionBindingTests.cs`
 
 **Interfaces:**
+
 - Produces: `TryResolve` rejection message now mentions `forceRebind` (matching the message `Bind` already emits). No signature changes.
 
 - [ ] **Step 1: Write the failing test**
@@ -750,10 +760,12 @@ git commit -m "fix: point already-bound errors at forceRebind and sync README op
 ### Task 6: Audit-write failures log to stderr instead of vanishing
 
 **Files:**
+
 - Modify: `TiaMcpServer/Safety/WriteSafetyService.cs`
 - Test: `TiaMcpServer.Tests/WriteSafetyServiceTests.cs`
 
 **Interfaces:**
+
 - Produces: the 3-arg constructor becomes `WriteSafetyService(Func<DateTimeOffset> getUtcNow, TimeSpan tokenLifetime, string? auditDirectory = null)` — existing 2-arg calls compile unchanged. `AppendAudit` behavior on failure: still never throws, now writes one line to stderr. (stderr is safe in an MCP stdio server: only stdout carries protocol frames, and `Program.cs` already routes host logging to stderr.)
 
 - [ ] **Step 1: Write the failing tests**
@@ -899,9 +911,11 @@ git commit -m "fix: log audit-write failures to stderr instead of swallowing the
 ### Task 7: add_network_device fails when TIA Portal rejects device creation
 
 **Files:**
+
 - Modify: `TiaMcpServer.OpennessWorker/Openness/NetworkDeviceCreator.cs`
 
 **Interfaces:**
+
 - Consumes: worker `Program.Execute()` catches `EngineeringException` and returns `WorkerResponse.Success=false` with `"TIA Portal operation failed: {message}"` — that is the delivery mechanism for this fix.
 - Produces: `Create(...)` now throws `EngineeringException` upward when `CreateWithItem` fails, instead of returning a "successful" `AddDeviceResultInfo` with a buried warning. The `Warnings` list remains for genuinely optional post-creation reads.
 
@@ -972,9 +986,11 @@ git commit -m "fix: fail add_network_device when TIA Portal rejects device creat
 ### Task 8: configure_network_device fails when no requested setting was applied
 
 **Files:**
+
 - Modify: `TiaMcpServer.OpennessWorker/Openness/NetworkDeviceConfigurator.cs`
 
 **Interfaces:**
+
 - Consumes: same `Program.Execute()` mapping as Task 7 (`InvalidOperationException` → `WorkerResponse.Success=false`).
 - Produces: `Configure(...)` throws `InvalidOperationException` when the caller requested settings but ALL of them were skipped. Partial success (some applied, some skipped) still returns the result with `SkippedSettings` populated.
 
@@ -1072,9 +1088,11 @@ git commit -m "fix: fail configure_network_device when no requested setting was 
 ### Task 9: Serialize worker access with a semaphore
 
 **Files:**
+
 - Modify: `TiaMcpServer/Worker/OpennessWorkerClient.cs` (method `SendAsync`)
 
 **Interfaces:**
+
 - Produces: no signature changes. `SendAsync` (private static) now admits one worker process at a time. Concurrent MCP tool calls queue instead of racing two Openness attachments against the same TIA Portal instance.
 
 No behavioral unit test: `OpennessWorkerClient.cs` is linked into the test project, but exercising `SendAsync` spawns a real worker process — and in this repo checkout `LocateWorkerExecutable` walks parent directories and would find the real net48 worker, attaching to a live TIA Portal. A fake-worker test harness is planned Phase 1/2 work; until then verification is build + suite + review.
@@ -1174,10 +1192,10 @@ Expected: graph rebuilt from current commit (project CLAUDE.md requirement).
 
 - [ ] **Step 4: Update the improvement-plan checklist**
 
-In `priv/IMPROVEMENT_PLAN.md`, mark items 0.1–0.6, 1.2, and 2.2 as done (append `— DONE 2026-07-15` to each row's Why column or strike the rows). Commit:
+In `docs/IMPROVEMENT_PLAN.md`, mark items 0.1–0.6, 1.2, and 2.2 as done (append `— DONE 2026-07-15` to each row's Why column or strike the rows). Commit:
 
 ```powershell
-git add priv/IMPROVEMENT_PLAN.md graphify-out
+git add docs/IMPROVEMENT_PLAN.md graphify-out
 git commit -m "chore: mark phase 0 + false-success + concurrency items done"
 ```
 
