@@ -134,6 +134,39 @@ public class WriteSafetyServiceTests
         Assert.Contains("expired", result.Error);
     }
 
+    [Fact]
+    public void RejectionIncludesRecoveryGuidanceWithPreviewToolName()
+    {
+        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow);
+
+        var result = safety.ValidateAndConsume(
+            "unknown-token",
+            toolName: "apply_write_batch",
+            projectPath: null,
+            target: new { },
+            requestedInput: new { },
+            currentState: "state",
+            previewToolName: "preview_write_batch");
+
+        Assert.False(result.IsValid);
+        Assert.Contains("single-use", result.Error);
+        Assert.Contains("10 minutes", result.Error);
+        Assert.Contains("preview_write_batch", result.Error);
+    }
+
+    [Fact]
+    public void RecoveryGuidanceUsesConfiguredLifetime()
+    {
+        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2));
+
+        var result = safety.ValidateAndConsume(
+            "unknown-token", "apply_write_batch", null, new { }, new { }, "state");
+
+        Assert.False(result.IsValid);
+        Assert.Contains("2 minutes", result.Error);
+        Assert.Contains("the matching preview tool", result.Error);
+    }
+
     private static string ReadToken(string previewJson)
     {
         using var preview = JsonDocument.Parse(previewJson);

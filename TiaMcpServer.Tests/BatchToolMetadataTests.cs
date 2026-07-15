@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests;
@@ -61,6 +62,13 @@ public class BatchToolMetadataTests
         {
             Assert.Contains(operation, description!.Description);
         }
+    }
+
+    [Fact]
+    public void PreviewWriteBatchDescription_StatesTheActualTokenLifetime()
+    {
+        var expected = $"{WriteSafetyService.DefaultTokenLifetime.TotalMinutes:N0} minutes";
+        Assert.Contains(expected, MethodDescription("PreviewWriteBatch"));
     }
 
     [Theory]

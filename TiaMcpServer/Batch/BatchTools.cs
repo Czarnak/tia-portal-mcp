@@ -37,7 +37,7 @@ public static class BatchTools
     }
 
     [McpServerTool(Name = "preview_write_batch")]
-    [Description("Preview up to 50 write operations and return one batch-level safetyToken bound to the exact ordered operation list and the combined current state. Pass the token to apply_write_batch after reviewing the preview. All items must target the same project. "
+    [Description("Preview up to 50 write operations and return one batch-level safetyToken bound to the exact ordered operation list and the combined current state. The token is single-use and expires after 10 minutes. Pass the token to apply_write_batch after reviewing the preview. All items must target the same project. "
         + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc.")]
     public static async Task<string> PreviewWriteBatch(
         OpennessWorkerClient workerClient,
@@ -113,7 +113,8 @@ public static class BatchTools
             projectPath,
             targets,
             operations,
-            snapshot.CombinedState);
+            snapshot.CombinedState,
+            PreviewToolName);
         if (!tokenValidation.IsValid)
         {
             return BatchResultFormatter.Error(ApplyToolName, tokenValidation.Error);

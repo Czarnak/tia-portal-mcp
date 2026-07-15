@@ -39,7 +39,8 @@ public static class WriteSafetyTooling
             projectPath,
             target,
             requestedInput,
-            currentState);
+            currentState,
+            previewToolName);
 
         return validation.IsValid
             ? WriteSafetyApplyContext.Valid(currentState)

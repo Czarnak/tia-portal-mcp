@@ -19,13 +19,15 @@ public sealed class WriteSafetyService
     private readonly Func<DateTimeOffset> _getUtcNow;
     private readonly TimeSpan _tokenLifetime;
 
+    public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
+
     public WriteSafetyService()
-        : this(() => DateTimeOffset.UtcNow, TimeSpan.FromMinutes(10))
+        : this(() => DateTimeOffset.UtcNow, DefaultTokenLifetime)
     {
     }
 
     public WriteSafetyService(Func<DateTimeOffset> getUtcNow)
-        : this(getUtcNow, TimeSpan.FromMinutes(10))
+        : this(getUtcNow, DefaultTokenLifetime)
     {
     }
 
@@ -80,51 +82,60 @@ public sealed class WriteSafetyService
         string? projectPath,
         object target,
         object requestedInput,
-        string currentState)
+        string currentState,
+        string? previewToolName = null)
     {
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
-            return WriteSafetyValidationResult.Invalid("Safety token required.");
+            return Rejected("Safety token required.", previewToolName);
         }
 
         if (!_tokens.TryRemove(safetyToken, out var entry))
         {
-            return WriteSafetyValidationResult.Invalid("Safety token expired, consumed, or unknown.");
+            return Rejected("Safety token expired, consumed, or unknown.", previewToolName);
         }
 
         if (_getUtcNow() > entry.ExpiresAtUtc)
         {
-            return WriteSafetyValidationResult.Invalid("Safety token expired.");
+            return Rejected("Safety token expired.", previewToolName);
         }
 
         if (!string.Equals(entry.ToolName, toolName, StringComparison.Ordinal))
         {
-            return WriteSafetyValidationResult.Invalid("Safety token was issued for a different tool.");
+            return Rejected("Safety token was issued for a different tool.", previewToolName);
         }
 
         if (!string.Equals(entry.ProjectPath, NormalizeProjectPath(projectPath), StringComparison.OrdinalIgnoreCase))
         {
-            return WriteSafetyValidationResult.Invalid("Safety token was issued for a different project path.");
+            return Rejected("Safety token was issued for a different project path.", previewToolName);
         }
 
         if (!string.Equals(entry.TargetJson, ToStableJson(target), StringComparison.Ordinal))
         {
-            return WriteSafetyValidationResult.Invalid("Safety token was issued for a different target.");
+            return Rejected("Safety token was issued for a different target.", previewToolName);
         }
 
         var requestedInputHash = HashText(ToStableJson(requestedInput));
         if (!string.Equals(entry.RequestedInputHash, requestedInputHash, StringComparison.Ordinal))
         {
-            return WriteSafetyValidationResult.Invalid("Safety token input does not match this write request.");
+            return Rejected("Safety token input does not match this write request.", previewToolName);
         }
 
         var currentStateHash = HashText(currentState);
         if (!string.Equals(entry.CurrentStateHash, currentStateHash, StringComparison.Ordinal))
         {
-            return WriteSafetyValidationResult.Invalid("Safety token current state no longer matches the project.");
+            return Rejected("Safety token current state no longer matches the project.", previewToolName);
         }
 
         return WriteSafetyValidationResult.Valid(requestedInputHash, currentStateHash);
+    }
+
+    private WriteSafetyValidationResult Rejected(string reason, string? previewToolName)
+    {
+        var previewTool = string.IsNullOrWhiteSpace(previewToolName) ? "the matching preview tool" : previewToolName;
+        return WriteSafetyValidationResult.Invalid(
+            $"{reason} Safety tokens are single-use and expire after {_tokenLifetime.TotalMinutes:N0} minutes. "
+            + $"Call {previewTool} again to get a fresh token, review the new preview, then retry with confirm=true and the new safetyToken.");
     }
 
     public void AppendAudit(

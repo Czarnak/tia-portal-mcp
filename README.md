@@ -28,7 +28,7 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 
 Every MCP write operation uses a preview-then-apply workflow. Call the matching `preview_*` tool first, review its summary, `currentStateHash`, `requestedInputHash`, and any diff, then pass the returned `safetyToken` to the write tool with `confirm=true`.
 
-Safety tokens are short-lived, single-use, and bound to the exact tool name, normalized project path, target, requested input, and current project state. The server rejects missing, expired, reused, mismatched, or stale-state tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
+Safety tokens are single-use, expire 10 minutes after preview, and are bound to the exact tool name, normalized project path, target, requested input, and current project state. The server rejects missing, expired, reused, mismatched, or stale-state tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
 `preview_write_batch` issues one token for the whole batch, bound to the exact ordered operation list and the combined current state. Reordering items, changing any item's input, retargeting the project path, or a change in project state all invalidate the token. `apply_write_batch` re-reads the combined current state once before consuming the token, then applies items sequentially and stops on the first failure.
 
