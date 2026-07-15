@@ -19,6 +19,8 @@ public sealed class WriteSafetyService
     private readonly Func<DateTimeOffset> _getUtcNow;
     private readonly TimeSpan _tokenLifetime;
 
+    private readonly string? _auditDirectoryOverride;
+
     public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
 
     public WriteSafetyService()
@@ -31,10 +33,11 @@ public sealed class WriteSafetyService
     {
     }
 
-    public WriteSafetyService(Func<DateTimeOffset> getUtcNow, TimeSpan tokenLifetime)
+    public WriteSafetyService(Func<DateTimeOffset> getUtcNow, TimeSpan tokenLifetime, string? auditDirectory = null)
     {
         _getUtcNow = getUtcNow;
         _tokenLifetime = tokenLifetime;
+        _auditDirectoryOverride = auditDirectory;
     }
 
     public string CreatePreview(
@@ -148,7 +151,7 @@ public sealed class WriteSafetyService
     {
         try
         {
-            var directory = Path.Combine(
+            var directory = _auditDirectoryOverride ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "TiaMcpServer",
                 "audit");
@@ -172,9 +175,11 @@ public sealed class WriteSafetyService
 
             File.AppendAllText(auditPath, record + Environment.NewLine, Encoding.UTF8);
         }
-        catch
+        catch (Exception ex)
         {
-            // Audit failures must not hide the write result from the MCP caller.
+            // Audit failures must not hide the write result from the MCP caller,
+            // but a broken audit trail must be visible to the operator.
+            Console.Error.WriteLine($"TiaMcpServer: failed to write audit record for '{toolName}': {ex.Message}");
         }
     }
 
