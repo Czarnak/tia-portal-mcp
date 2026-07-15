@@ -141,8 +141,11 @@ public static class BatchOperationCatalog
                     $"Operation '{op.Operation}' is a project-lifecycle operation and is not available in batch operations; use its single tool.");
             }
 
+            var validNames = expected == BatchOperationCategory.Read ? ReadOperationNames : WriteOperationNames;
+            var categoryLabel = expected == BatchOperationCategory.Read ? "read" : "write";
             return BatchValidationResult.Invalid(
-                $"Unknown operation '{op.Operation}' for operationId '{op.OperationId}'.");
+                $"Unknown operation '{op.Operation}' for operationId '{op.OperationId}'. "
+                + $"Valid {categoryLabel} operations: {string.Join(", ", validNames)}.");
         }
 
         if (spec.Category != expected)
