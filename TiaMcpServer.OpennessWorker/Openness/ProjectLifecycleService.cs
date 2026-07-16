@@ -106,7 +106,7 @@ public static class ProjectLifecycleService
             }
 
             project.Close();
-            session.Project = null;
+            session.MarkProjectClosed();
             session.OpenProject(copiedProjectPath!);
             return Result("save_project_as", session.Project);
         }
@@ -157,7 +157,7 @@ public static class ProjectLifecycleService
         }
 
         project.Close();
-        session.Project = null;
+        session.MarkProjectClosed();
 
         return new ProjectLifecycleResultInfo
         {

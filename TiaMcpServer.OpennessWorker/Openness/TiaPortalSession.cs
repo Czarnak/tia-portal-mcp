@@ -10,6 +10,7 @@ public class TiaPortalSession : IDisposable
     private readonly bool _allowTiaConfirmations;
     private TiaPortal? _tiaPortal;
     private bool _disposed;
+    private bool _projectOpenedByWorker;
 
     public TiaPortalSession(bool allowTiaConfirmations = false)
     {
@@ -60,7 +61,67 @@ public class TiaPortalSession : IDisposable
             throw new FileNotFoundException("TIA Portal project file was not found.", projectPath);
         }
 
-        Project = _tiaPortal!.Projects.Open(new FileInfo(projectPath));
+        var requestedPath = Path.GetFullPath(projectPath);
+        var currentPath = TryReadCurrentProjectPath();
+        if (currentPath is not null &&
+            string.Equals(currentPath, requestedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            // Persistent session: the requested project is already open — reuse it.
+            return;
+        }
+
+        if (Project is not null)
+        {
+            if (_projectOpenedByWorker)
+            {
+                Console.Error.WriteLine($"Closing project '{currentPath ?? "(unknown)"}' before opening '{requestedPath}'.");
+                try
+                {
+                    Project.Close();
+                }
+                catch (EngineeringException ex)
+                {
+                    Console.Error.WriteLine($"Could not close the previous project: {ex.Message}");
+                }
+            }
+            else
+            {
+                // The user opened this project in the TIA Portal UI; it is not ours to close.
+                Console.Error.WriteLine($"Leaving user-opened project '{currentPath ?? "(unknown)"}' open; opening '{requestedPath}' alongside it.");
+            }
+
+            Project = null;
+            _projectOpenedByWorker = false;
+        }
+
+        Project = _tiaPortal!.Projects.Open(new FileInfo(requestedPath));
+        _projectOpenedByWorker = true;
+    }
+
+    private string? TryReadCurrentProjectPath()
+    {
+        if (Project is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Project.Path?.FullName;
+        }
+        catch (EngineeringException)
+        {
+            // Stale handle: the project was closed in the TIA Portal UI since we opened it.
+            Project = null;
+            _projectOpenedByWorker = false;
+            return null;
+        }
+    }
+
+    internal void MarkProjectClosed()
+    {
+        Project = null;
+        _projectOpenedByWorker = false;
     }
 
     public void EnsureConnected()
