@@ -42,6 +42,8 @@ public class TiaPortalSession : IDisposable
         _tiaPortal.Notification += OnNotification;
         _tiaPortal.Confirmation += OnConfirmation;
         _tiaPortal.Disposed += OnDisposed;
+        // Projects present when we attach belong to the TIA Portal UI, never this worker.
+        _projectOpenedByWorker = false;
         Project = _tiaPortal.Projects.FirstOrDefault();
 
         Console.Error.WriteLine("Connected to running TIA Portal instance.");
@@ -151,6 +153,7 @@ public class TiaPortalSession : IDisposable
         Console.Error.WriteLine("Attached TIA Portal instance was disposed.");
         _tiaPortal = null;
         Project = null;
+        _projectOpenedByWorker = false;
     }
 
     private void Dispose(bool disposing)
@@ -170,6 +173,7 @@ public class TiaPortalSession : IDisposable
         }
 
         Project = null;
+        _projectOpenedByWorker = false;
         _tiaPortal?.Dispose();
         _tiaPortal = null;
     }

@@ -97,7 +97,14 @@ public sealed class PersistentWorkerTransport : IDisposable
                 throw;
             }
 
-            return response ?? throw new InvalidOperationException("TIA Openness worker returned an empty response.");
+            if (response is null)
+            {
+                // A JSON null is just as invalid as malformed protocol data; do not reuse it.
+                KillProcess();
+                throw new InvalidOperationException("TIA Openness worker returned an empty response.");
+            }
+
+            return response;
         }
         finally
         {

@@ -179,6 +179,21 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task NullResponse_FailsAndRestartsForTheNext()
+    {
+        using var client = CreateClient();
+
+        var nullResponse = await client.GetProjectStatusAsync("null-response");
+        var recovered = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(nullResponse.Success);
+        Assert.Contains("empty response", nullResponse.Error);
+        // The protocol-invalid process must be replaced, not reused.
+        Assert.True(recovered.Success);
+        Assert.Equal("{\"seq\":1}", recovered.Payload);
+    }
+
+    [Fact]
     public async Task NonExecutableWorkerPath_ProducesActionableWin32Message()
     {
         var bogus = Path.Combine(Path.GetTempPath(), $"tia-fake-{Guid.NewGuid():N}.txt");

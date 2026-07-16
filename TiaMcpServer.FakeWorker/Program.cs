@@ -47,6 +47,10 @@ while ((line = Console.In.ReadLine()) is not null)
             Console.Out.WriteLine("this is not json");
             Console.Out.Flush();
             break;
+        case "null-response":
+            Console.Out.WriteLine("null");
+            Console.Out.Flush();
+            break;
         case "silent-exit":
             Console.Error.WriteLine("worker crashed during attach");
             Console.Error.Flush();
