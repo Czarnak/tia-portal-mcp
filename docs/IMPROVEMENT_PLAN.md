@@ -49,17 +49,17 @@ well-designed. The three biggest problems, in order of impact:
 
 | # | Change | Where | Why |
 |---|--------|-------|-----|
-| 2.1 | **Persistent worker process**: keep the worker alive across requests (request loop already exists in worker `Program.cs:34` — the client kills it by closing stdin at `OpennessWorkerClient.cs:635`). Single `Attach()`, managed project open/close, health check + restart-on-crash, `SemaphoreSlim` serialization of requests | `OpennessWorkerClient.cs` | Fixes all 3 CRITICALs at once (re-attach per call, leaked project handles, concurrent mutation races); cuts preview→apply wall-clock far below the 10-min token TTL; makes 50-item batches practical (today: up to 3N spawns per write batch) |
+| 2.1 | **Persistent worker process**: keep the worker alive across requests (request loop already exists in worker `Program.cs:34` — the client kills it by closing stdin at `OpennessWorkerClient.cs:635`). Single `Attach()`, managed project open/close, health check + restart-on-crash, `SemaphoreSlim` serialization of requests | `OpennessWorkerClient.cs` | Fixes all 3 CRITICALs at once (re-attach per call, leaked project handles, concurrent mutation races); cuts preview→apply wall-clock far below the 10-min token TTL; makes 50-item batches practical (today: up to 3N spawns per write batch) — DONE 2026-07-16 |
 | 2.2 | Interim (if 2.1 is deferred): add `SemaphoreSlim(1,1)` around `SendAsync` now | `OpennessWorkerClient.cs:614` | One-line mitigation for the concurrency CRITICAL — DONE 2026-07-15 |
-| 2.3 | **Bound read payloads**: `depth`/`startPath` on `browse_project_tree`, `maxResults` on `search_equipment_catalog` + `read_cross_references`, plus a server-side byte budget with an explicit "truncated — narrow with plcName/filter/startPath" trailer | worker readers + batch schema | Only finding that can hard-kill a small model's session (README's own smoke test batches tree+hw+xref+catalog into one call) |
-| 2.4 | Collapse lifecycle preview/apply pairs: calling a write tool WITHOUT a token returns the preview + token instead of an error → 16 tools become 10 | `Tools/ProjectLifecycleTools.cs` | Removes the "which preview matches this apply" lookup; kills the asymmetric-naming trap (`preview_write_batch`/`apply_write_batch` vs `preview_open_project`/`open_project`) |
-| 2.5 | Evict expired tokens (sweep on `CreatePreview` is enough — no timer needed); validate token BEFORE the expensive N-spawn state re-read in apply | `WriteSafetyService.cs:16-36`, `BatchTools.cs:94-110` | Unbounded memory growth; dead tokens currently cost a full read pass |
+| 2.3 | **Bound read payloads**: `depth`/`startPath` on `browse_project_tree`, `maxResults` on `search_equipment_catalog` + `read_cross_references`, plus a server-side byte budget with an explicit "truncated — narrow with plcName/filter/startPath" trailer | worker readers + batch schema | Only finding that can hard-kill a small model's session (README's own smoke test batches tree+hw+xref+catalog into one call) — DONE 2026-07-16 |
+| 2.4 | Collapse lifecycle preview/apply pairs: calling a write tool WITHOUT a token returns the preview + token instead of an error → 16 tools become 10 | `Tools/ProjectLifecycleTools.cs` | Removes the "which preview matches this apply" lookup; kills the asymmetric-naming trap (`preview_write_batch`/`apply_write_batch` vs `preview_open_project`/`open_project`) — DONE 2026-07-16 |
+| 2.5 | Evict expired tokens (sweep on `CreatePreview` is enough — no timer needed); validate token BEFORE the expensive N-spawn state re-read in apply | `WriteSafetyService.cs:16-36`, `BatchTools.cs:94-110` | Unbounded memory growth; dead tokens currently cost a full read pass — DONE 2026-07-16 |
 
 ## Phase 3 — Simplification (behavior-preserving refactors)
 
 | # | Change | Where | Est. reduction |
 |---|--------|-------|----------------|
-| 3.1 | Extract per-op descriptor + one generic executor for the six lifecycle preview/apply pairs (today the `target`/`requestedInput` objects are hand-built TWICE per op and must stay byte-identical or the token hash breaks) | `ProjectLifecycleTools.cs` (374 lines) | ~200 lines; removes a latent drift bomb (partially subsumed by 2.4) |
+| 3.1 | Extract per-op descriptor + one generic executor for the six lifecycle preview/apply pairs. Phase 2.4 removed the duplicated `target`/`requestedInput` construction, so the drift bomb is resolved; remaining value is only per-op descriptor extraction and should be reassessed before starting. | `ProjectLifecycleTools.cs` (374 lines) | Reassess before starting; lower value after 2.4 |
 | 3.2 | Consolidate the 3 near-identical project-path binding checks into `ProjectSessionBinding` | `OpennessWorkerClient.cs:562-582` vs `ProjectSessionBinding.cs:16-68` | drift risk |
 | 3.3 | Collapse the double dispatch: `BatchWorkerInvoker` maps operation strings onto 20+ near-identical `OpennessWorkerClient` wrappers that only set `WorkerRequest` fields — build `WorkerRequest` directly from the batch item | `OpennessWorkerClient.cs:25-359`, `BatchWorkerInvoker.cs` | ~250 lines |
 | 3.4 | Merge `EquipmentCatalogSearcher`'s private reflection helpers (~90 lines) into `OpennessReflection` | worker Openness/ | ~90 lines |
@@ -75,12 +75,9 @@ well-designed. The three biggest problems, in order of impact:
 
 ## Testing gaps to close alongside
 
-- Zero integration coverage of `OpennessWorkerClient` ↔ worker IPC. Add a **fake worker executable**
-  test harness (echoes scripted JSON) to cover: timeout path, stderr propagation, malformed JSON,
-  Win32Exception launch failure, persistent-worker restart logic (once 2.1 lands). Stderr propagation,
-  malformed JSON, and Win32Exception launch failure are now covered by
-  `OpennessWorkerClientIntegrationTests` — DONE 2026-07-16. The timeout path and persistent-worker
-  restart logic remain open, deferred to a future phase 2.1 item.
+- The fake-worker executable test harness now covers the timeout path and persistent-worker restart logic
+  through `OpennessWorkerClientIntegrationTests` — DONE 2026-07-16. Stderr propagation, malformed JSON,
+  and Win32Exception launch failure are also covered.
 - Batch validation aggregation (0.2) and unknown-property rejection (1.6) are pure-logic → plain xunit.
 - The 146 existing tests are contract/formatting tests; none exercise a worker process.
 

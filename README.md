@@ -6,11 +6,11 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server currently exposes 16 tools.
+The server currently exposes 10 tools.
 
 ### Batch operations
 
-- `execute_read_batch` - run up to 50 read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others.
+- `execute_read_batch` - run up to 50 read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others. Bound large reads with `depth`/`startPath` (`browse_project_tree`) and `maxResults` (`search_equipment_catalog` defaults to 50, and `read_cross_references`); oversized batch responses are truncated or omitted server-side with explicit markers.
 - `preview_write_batch` / `apply_write_batch` - preview up to 50 write operations and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Batches cover data writes (block, tag table, tag, user constant, network device); project-lifecycle operations stay single-tool only.
 
 The batch tools are the only path for data operations. Each `operation` name (e.g. `get_block_content`, `list_tag_tables`, `create_tag`, `update_block_logic`, `add_network_device`) carries that operation's parameters as one item; a single operation is just a one-item batch.
@@ -24,11 +24,11 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 ### Project tools
 
 - `get_project_status` - read active project metadata.
-- `preview_open_project` / `preview_create_project` / `preview_save_project` / `preview_save_project_as` / `preview_archive_project` / `preview_close_project` plus matching write tools - project lifecycle operations. These stay single-tool only (not batchable). Writes require `confirm=true` and `safetyToken`.
+- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - project lifecycle writes. These stay single-tool only (not batchable) and are self-previewing: call the tool WITHOUT `safetyToken` to get a preview plus a single-use token, then call it again with `confirm=true` and the token to apply.
 
 ## Write safety
 
-Every MCP write operation uses a preview-then-apply workflow. Call the matching `preview_*` tool first, review its summary, `currentStateHash`, `requestedInputHash`, and any diff, then pass the returned `safetyToken` to the write tool with `confirm=true`.
+Every MCP write operation uses a preview-then-apply workflow. Batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Project lifecycle writes are self-previewing: call the write tool WITHOUT `safetyToken` to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), review it, then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`.
 
 Safety tokens are single-use, expire 10 minutes after preview, and are bound to the exact tool name, normalized project path, target, requested input, and current project state. The server rejects missing, expired, reused, mismatched, or stale-state tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
@@ -43,7 +43,7 @@ This project therefore uses two processes:
 - `TiaMcpServer` - the .NET 8 MCP stdio server and .NET global tool host.
 - `TiaMcpServer.OpennessWorker` - a .NET Framework 4.8 worker process that loads `Siemens.Engineering.*` and talks to TIA Portal.
 
-The MCP host starts the worker on demand and exchanges newline-delimited JSON over stdin/stdout. Siemens DLLs are never copied into this repository or the NuGet package; the worker resolves them from the local TIA Portal V21 installation.
+The MCP host keeps one persistent .NET Framework 4.8 worker process attached to TIA Portal and exchanges newline-delimited JSON over stdin/stdout. Requests are serialized, and the worker restarts automatically after a crash or timeout. Siemens DLLs are never copied into this repository or the NuGet package; the worker resolves them from the local TIA Portal V21 installation.
 
 ## Requirements
 
@@ -183,7 +183,7 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\Ti
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify the 16 tools appear.
+- Click `List Tools` and verify the 10 tools appear.
 - Start with reads: call `execute_read_batch` with an `operations` array (each item has an `operationId`, an `operation` name such as `browse_project_tree` / `list_tag_tables` / `read_hardware_config` / `read_cross_references` / `compile_check`, and that operation's parameters).
 - Use a `search_equipment_catalog` read item before hardware insertion so you can copy an exact `typeIdentifier`.
 - Use a `get_block_content` read item on a block path returned by `browse_project_tree`.
@@ -284,13 +284,21 @@ A tag write is the same flow with a one-item batch, e.g. `preview_write_batch` t
 }
 ```
 
-Project lifecycle writes remain single-tool and use their own preview-then-apply flow:
+Project lifecycle writes remain single-tool and self-previewing. First call `open_project` with only the project path to receive the preview and token:
+
+```json
+{
+  "projectPath": "C:\\Projects\\Sandbox\\Line.ap21"
+}
+```
+
+Then call `open_project` again with the same arguments plus `confirm=true` and the returned token:
 
 ```json
 {
   "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
   "confirm": true,
-  "safetyToken": "<token from preview_open_project>"
+  "safetyToken": "<token from the preview call>"
 }
 ```
 
