@@ -32,4 +32,16 @@ public class BatchOperationRequestJsonTests
         Assert.NotNull(request);
         Assert.Equal("192.168.0.10", request!.IpAddress);
     }
+
+    [Fact]
+    public void Deserializes_BoundingFields()
+    {
+        var json = """{"operationId":"a","operation":"browse_project_tree","depth":3,"startPath":"PLC_1/Blocks","maxResults":25}""";
+
+        var request = JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions)!;
+
+        Assert.Equal(3, request.Depth);
+        Assert.Equal("PLC_1/Blocks", request.StartPath);
+        Assert.Equal(25, request.MaxResults);
+    }
 }

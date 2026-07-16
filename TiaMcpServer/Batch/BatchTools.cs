@@ -18,7 +18,8 @@ public static class BatchTools
 
     [McpServerTool(Name = "execute_read_batch")]
     [Description("Run up to 50 read operations in one call. Each item is { operationId (unique), operation, ...that operation's parameters }; projectPath is optional on every item. Reads run independently, so a failing item does not stop the others. "
-        + "Valid operations (parentheses list required fields): browse_project_tree, read_hardware_config, read_cross_references, search_equipment_catalog (query), get_block_content (blockPath), list_tag_tables, compile_check, get_project_status.")]
+        + "Valid operations (parentheses list required fields): browse_project_tree, read_hardware_config, read_cross_references, search_equipment_catalog (query), get_block_content (blockPath), list_tag_tables, compile_check, get_project_status. "
+        + "Large projects: bound payloads with depth/startPath (browse_project_tree) and maxResults (search_equipment_catalog, read_cross_references); oversized responses are truncated server-side with an explicit marker.")]
     public static async Task<string> ExecuteReadBatch(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of read operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)

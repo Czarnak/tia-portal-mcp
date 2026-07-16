@@ -144,7 +144,11 @@ internal static class Program
 
     private static WorkerResponse BrowseProjectTree(WorkerRequest request)
     {
-        return WithProject(request, project => Success(new ProjectTreeWalker().Walk(project)));
+        return WithProject(request, project =>
+        {
+            var tree = new ProjectTreeWalker().Walk(project);
+            return Success(ProjectTreeFilter.Apply(tree, request.StartPath, request.Depth));
+        });
     }
 
     private static WorkerResponse ReadHardwareConfig(WorkerRequest request)
@@ -173,7 +177,7 @@ internal static class Program
                 return Failure("No TIA Portal session is connected. Please start TIA Portal and try again.");
             }
 
-            return Success(EquipmentCatalogSearcher.Search(session.TiaPortal, request.Query!));
+            return Success(EquipmentCatalogSearcher.Search(session.TiaPortal, request.Query!, request.MaxResults));
         });
     }
 
@@ -233,7 +237,8 @@ internal static class Program
             return Failure(filterError ?? "Invalid cross-reference filter.");
         }
 
-        return WithProject(request, project => Success(CrossReferenceReader.Read(project, request.PlcName, filter)));
+        return WithProject(request, project => Success(
+            CrossReferenceReader.Read(project, request.PlcName, filter, request.MaxResults)));
     }
 
     private static WorkerResponse GetBlockContent(WorkerRequest request)

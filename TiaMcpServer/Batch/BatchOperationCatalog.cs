@@ -114,6 +114,11 @@ public static class BatchOperationCatalog
                 errors.Add(
                     $"Operation '{op.Operation}' (operationId '{op.OperationId}') is missing required field(s): {string.Join(", ", missing)}.");
             }
+
+            foreach (var boundsError in ValidateBounds(op))
+            {
+                errors.Add($"Operation '{op.Operation}' (operationId '{op.OperationId}'): {boundsError}");
+            }
         }
 
         if (expected == BatchOperationCategory.Write)
@@ -179,6 +184,39 @@ public static class BatchOperationCatalog
         "blockType" => !string.IsNullOrWhiteSpace(op.BlockType),
         _ => false,
     };
+
+    private static IEnumerable<string> ValidateBounds(BatchOperationRequest op)
+    {
+        var isTree = string.Equals(op.Operation, "browse_project_tree", StringComparison.Ordinal);
+        var takesMaxResults =
+            string.Equals(op.Operation, "search_equipment_catalog", StringComparison.Ordinal) ||
+            string.Equals(op.Operation, "read_cross_references", StringComparison.Ordinal);
+
+        if (op.Depth is not null && !isTree)
+        {
+            yield return "'depth' is only valid for browse_project_tree.";
+        }
+
+        if (op.StartPath is not null && !isTree)
+        {
+            yield return "'startPath' is only valid for browse_project_tree.";
+        }
+
+        if (op.MaxResults is not null && !takesMaxResults)
+        {
+            yield return "'maxResults' is only valid for search_equipment_catalog and read_cross_references.";
+        }
+
+        if (op.Depth is < 1)
+        {
+            yield return "'depth' must be 1 or greater.";
+        }
+
+        if (op.MaxResults is < 1)
+        {
+            yield return "'maxResults' must be 1 or greater.";
+        }
+    }
 
     private static IReadOnlyList<string> NamesByCategory(BatchOperationCategory category)
         => Specs.Values.Where(s => s.Category == category).Select(s => s.Name).ToArray();

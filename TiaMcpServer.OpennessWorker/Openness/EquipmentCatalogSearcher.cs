@@ -9,6 +9,9 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class EquipmentCatalogSearcher
 {
+    /// <summary>Hard default so an unbounded catalog search can never flood the response.</summary>
+    public const int DefaultMaxResults = 50;
+
     private static readonly string[] FolderCollectionNames =
     {
         "Children",
@@ -24,8 +27,9 @@ public static class EquipmentCatalogSearcher
         "CatalogEntries"
     };
 
-    public static List<CatalogEntryInfo> Search(TiaPortal tiaPortal, string query)
+    public static List<CatalogEntryInfo> Search(TiaPortal tiaPortal, string query, int? maxResults = null)
     {
+        var limit = maxResults ?? DefaultMaxResults;
         var results = new List<CatalogEntryInfo>();
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -35,19 +39,32 @@ public static class EquipmentCatalogSearcher
         query = query.Trim();
         var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        AddMatchesFromHardwareCatalogFind(tiaPortal, query, results, seenEntries);
+        AddMatchesFromHardwareCatalogFind(tiaPortal, query, results, seenEntries, limit);
 
         var visited = new HashSet<int>();
         foreach (var catalog in FindCatalogRoots(tiaPortal))
         {
+            if (results.Count >= limit)
+            {
+                break;
+            }
+
             try
             {
-                Traverse(catalog, string.Empty, query, results, seenEntries, visited);
+                Traverse(catalog, string.Empty, query, results, seenEntries, visited, limit);
             }
             catch (Exception ex) when (ex is EngineeringException or TargetInvocationException)
             {
                 Console.Error.WriteLine($"Skipping hardware catalog root while searching equipment catalog: {ex.Message}");
             }
+        }
+
+        if (results.Count >= limit)
+        {
+            // Rides back as a response warning via the per-request stderr capture.
+            Console.Error.WriteLine(
+                $"search_equipment_catalog: returned the first {limit} matches; more may exist. "
+                + "Refine the query or raise maxResults.");
         }
 
         return results;
@@ -57,13 +74,19 @@ public static class EquipmentCatalogSearcher
         TiaPortal tiaPortal,
         string query,
         List<CatalogEntryInfo> results,
-        HashSet<string> seenEntries)
+        HashSet<string> seenEntries,
+        int limit)
     {
         try
         {
             // Verified by the V21 device creation reference: HardwareCatalog.Find returns CatalogEntry objects.
             foreach (CatalogEntry entry in tiaPortal.HardwareCatalog.Find(query))
             {
+                if (results.Count >= limit)
+                {
+                    return;
+                }
+
                 AddMatch(entry, entry.CatalogPath, query, results, seenEntries);
             }
         }
@@ -106,8 +129,14 @@ public static class EquipmentCatalogSearcher
         string query,
         List<CatalogEntryInfo> results,
         HashSet<string> seenEntries,
-        HashSet<int> visited)
+        HashSet<int> visited,
+        int limit)
     {
+        if (results.Count >= limit)
+        {
+            return;
+        }
+
         if (!visited.Add(RuntimeHelpers.GetHashCode(node)))
         {
             return;
@@ -135,7 +164,7 @@ public static class EquipmentCatalogSearcher
             var collection = OpennessReflection.ReadProperty(node, propertyName, $"catalog node {propertyName}");
             foreach (var child in OpennessReflection.Enumerate(collection, $"catalog node {propertyName}"))
             {
-                Traverse(child, childPath, query, results, seenEntries, visited);
+                Traverse(child, childPath, query, results, seenEntries, visited, limit);
             }
         }
     }

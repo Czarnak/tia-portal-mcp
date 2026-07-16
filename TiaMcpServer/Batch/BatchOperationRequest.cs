@@ -34,6 +34,15 @@ public sealed class BatchOperationRequest
     [Description("Hardware catalog search query. Required by search_equipment_catalog.")]
     public string? Query { get; set; }
 
+    [Description("Optional maximum tree depth for browse_project_tree; 1 returns only top-level nodes and marks pruned nodes with a ChildrenOmitted count. Combine with startPath to narrow large projects.")]
+    public int? Depth { get; set; }
+
+    [Description("Optional subtree root for browse_project_tree, matching a node's Path detail exactly (case-insensitive), e.g. PLC_1/Blocks. Errors if no node matches.")]
+    public string? StartPath { get; set; }
+
+    [Description("Optional result cap. Valid for search_equipment_catalog (default 50 when omitted) and read_cross_references (unlimited when omitted; a truncation message is added when the cap is hit).")]
+    public int? MaxResults { get; set; }
+
     [Description("Optional cross-reference filter for read_cross_references. Allowed values: AllObjects, ObjectsWithReferences, ObjectsWithoutReferences, UnusedObjects.")]
     public string? Filter { get; set; }
 

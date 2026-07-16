@@ -28,9 +28,17 @@ public class OpennessWorkerClient : IDisposable
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
     }
 
-    public Task<WorkerCallResult> BrowseProjectTreeAsync(string? projectPath)
+    public Task<WorkerCallResult> BrowseProjectTreeAsync(string? projectPath, int? depth = null, string? startPath = null)
     {
-        return SendBoundProjectRequestAsync("browse_project_tree", projectPath, _ => { }, "[]");
+        return SendBoundProjectRequestAsync(
+            "browse_project_tree",
+            projectPath,
+            request =>
+            {
+                request.Depth = depth;
+                request.StartPath = startPath;
+            },
+            "[]");
     }
 
     public Task<WorkerCallResult> ReadHardwareConfigAsync(string? projectPath)
@@ -38,12 +46,16 @@ public class OpennessWorkerClient : IDisposable
         return SendBoundProjectRequestAsync("read_hardware_config", projectPath, _ => { }, "{}");
     }
 
-    public Task<WorkerCallResult> SearchEquipmentCatalogAsync(string query, string? projectPath)
+    public Task<WorkerCallResult> SearchEquipmentCatalogAsync(string query, string? projectPath, int? maxResults = null)
     {
         return SendBoundProjectRequestAsync(
             "search_equipment_catalog",
             projectPath,
-            request => request.Query = query,
+            request =>
+            {
+                request.Query = query;
+                request.MaxResults = maxResults;
+            },
             "[]");
     }
 
@@ -93,7 +105,7 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter)
+    public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter, int? maxResults = null)
     {
         // Validate the filter before TryResolve so an invalid filter does not bind the session.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
@@ -108,6 +120,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.PlcName = plcName;
                 request.CrossReferenceFilter = normalizedFilter;
+                request.MaxResults = maxResults;
             },
             "{}");
     }

@@ -252,6 +252,69 @@ public class BatchOperationCatalogTests
         Assert.Contains("get_block_content", result.Error);
     }
 
+    [Fact]
+    public void Validate_RejectsDepthAndStartPathOnNonTreeOperations()
+    {
+        var operations = new[]
+        {
+            new BatchOperationRequest { OperationId = "a", Operation = "list_tag_tables", Depth = 2 },
+            new BatchOperationRequest { OperationId = "b", Operation = "get_project_status", StartPath = "PLC_1" },
+        };
+
+        var result = BatchOperationCatalog.ValidateReadBatch(operations);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'depth' is only valid for browse_project_tree", result.Error);
+        Assert.Contains("'startPath' is only valid for browse_project_tree", result.Error);
+        Assert.Contains("operationId 'a'", result.Error);
+        Assert.Contains("operationId 'b'", result.Error);
+    }
+
+    [Fact]
+    public void Validate_RejectsMaxResultsOnUnsupportedOperations()
+    {
+        var operations = new[]
+        {
+            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", MaxResults = 10 },
+        };
+
+        var result = BatchOperationCatalog.ValidateReadBatch(operations);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'maxResults' is only valid for search_equipment_catalog and read_cross_references", result.Error);
+    }
+
+    [Fact]
+    public void Validate_RejectsOutOfRangeBounds()
+    {
+        var operations = new[]
+        {
+            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", Depth = 0 },
+            new BatchOperationRequest { OperationId = "b", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 0 },
+        };
+
+        var result = BatchOperationCatalog.ValidateReadBatch(operations);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'depth' must be 1 or greater", result.Error);
+        Assert.Contains("'maxResults' must be 1 or greater", result.Error);
+    }
+
+    [Fact]
+    public void Validate_AcceptsBoundsOnTheirOperations()
+    {
+        var operations = new[]
+        {
+            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", Depth = 2, StartPath = "PLC_1/Blocks" },
+            new BatchOperationRequest { OperationId = "b", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 10 },
+            new BatchOperationRequest { OperationId = "c", Operation = "read_cross_references", MaxResults = 100 },
+        };
+
+        var result = BatchOperationCatalog.ValidateReadBatch(operations);
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
     private static BatchOperationRequest FullyPopulated(string id, string operation) => new()
     {
         OperationId = id,

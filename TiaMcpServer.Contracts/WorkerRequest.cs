@@ -18,6 +18,12 @@ public class WorkerRequest
 
     public string? Query { get; set; }
 
+    public int? Depth { get; set; }
+
+    public string? StartPath { get; set; }
+
+    public int? MaxResults { get; set; }
+
     public string? TypeIdentifier { get; set; }
 
     public string? DeviceName { get; set; }

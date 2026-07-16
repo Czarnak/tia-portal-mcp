@@ -32,10 +32,10 @@ public static class BatchWorkerInvoker
     public static Task<WorkerCallResult> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
     {
         // Reads
-        "browse_project_tree" => client.BrowseProjectTreeAsync(op.ProjectPath),
+        "browse_project_tree" => client.BrowseProjectTreeAsync(op.ProjectPath, op.Depth, op.StartPath),
         "read_hardware_config" => client.ReadHardwareConfigAsync(op.ProjectPath),
-        "search_equipment_catalog" => client.SearchEquipmentCatalogAsync(op.Query!, op.ProjectPath),
-        "read_cross_references" => client.ReadCrossReferencesAsync(op.ProjectPath, op.PlcName, op.Filter),
+        "search_equipment_catalog" => client.SearchEquipmentCatalogAsync(op.Query!, op.ProjectPath, op.MaxResults),
+        "read_cross_references" => client.ReadCrossReferencesAsync(op.ProjectPath, op.PlcName, op.Filter, op.MaxResults),
         "get_block_content" => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
         "list_tag_tables" => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
         "compile_check" => client.CompileCheckAsync(op.BlockPath, op.PlcName, op.ProjectPath),

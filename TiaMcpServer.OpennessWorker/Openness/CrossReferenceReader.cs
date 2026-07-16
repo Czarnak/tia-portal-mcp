@@ -7,7 +7,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class CrossReferenceReader
 {
-    public static CrossReferenceReport Read(Project project, string? plcName, string filterName)
+    public static CrossReferenceReport Read(Project project, string? plcName, string filterName, int? maxResults = null)
     {
         var filter = ToOpennessFilter(filterName);
         var report = new CrossReferenceReport
@@ -15,9 +15,16 @@ public static class CrossReferenceReader
             Filter = filterName
         };
 
+        var remaining = maxResults;
         foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
         {
-            report.Plcs.Add(ReadPlc(plc.DeviceName, plc.Software, filter));
+            var plcInfo = ReadPlc(plc.DeviceName, plc.Software, filter, remaining);
+            report.Plcs.Add(plcInfo);
+
+            if (remaining is not null)
+            {
+                remaining = Math.Max(0, remaining.Value - plcInfo.Sources.Count);
+            }
         }
 
         if (report.Plcs.Count == 0)
@@ -36,7 +43,8 @@ public static class CrossReferenceReader
     private static PlcCrossReferenceInfo ReadPlc(
         string deviceName,
         PlcSoftware plcSoftware,
-        CrossReferenceFilter filter)
+        CrossReferenceFilter filter,
+        int? maxSources)
     {
         var result = new PlcCrossReferenceInfo
         {
@@ -73,6 +81,14 @@ public static class CrossReferenceReader
 
         foreach (SourceObject source in crossReferenceResult.Sources)
         {
+            if (maxSources is not null && result.Sources.Count >= maxSources.Value)
+            {
+                result.Messages.Add(
+                    $"Truncated: maxResults limit reached while reading sources for PLC '{deviceName}'. "
+                    + "Narrow with plcName or filter, or raise maxResults.");
+                break;
+            }
+
             try
             {
                 result.Sources.Add(ReadSource(source, result.Messages));
