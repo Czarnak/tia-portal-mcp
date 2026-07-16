@@ -33,10 +33,56 @@ internal static class Program
         string? line;
         while ((line = Console.In.ReadLine()) is not null)
         {
-            var response = HandleLine(line);
+            var response = HandleLineWithCapturedStderr(line);
             Console.Out.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
             Console.Out.Flush();
         }
+    }
+
+    /// <summary>
+    /// Redirects Console.Error to a per-request buffer so degradation lines ("Skipping X…")
+    /// become structured response warnings instead of racy stderr in the persistent worker.
+    /// Async TIA events that fire BETWEEN requests still hit the real stderr stream.
+    /// </summary>
+    private static WorkerResponse HandleLineWithCapturedStderr(string line)
+    {
+        var originalError = Console.Error;
+        var buffer = new System.IO.StringWriter();
+        // TIA events can write from other threads while a request runs; synchronize the buffer.
+        Console.SetError(System.IO.TextWriter.Synchronized(buffer));
+
+        WorkerResponse response;
+        try
+        {
+            response = HandleLine(line);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        var captured = SplitWarningLines(buffer.ToString());
+        if (captured.Count > 0)
+        {
+            response.Warnings = captured;
+        }
+
+        return response;
+    }
+
+    private static List<string> SplitWarningLines(string captured)
+    {
+        var lines = new List<string>();
+        foreach (var raw in captured.Replace("\r\n", "\n").Split('\n'))
+        {
+            var trimmed = raw.Trim();
+            if (trimmed.Length > 0)
+            {
+                lines.Add(trimmed);
+            }
+        }
+
+        return lines;
     }
 
     private static WorkerResponse HandleLine(string line)
