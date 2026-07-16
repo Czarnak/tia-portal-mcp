@@ -4,11 +4,11 @@ namespace TiaMcpServer.Contracts;
 
 public class DeviceItemInfo
 {
-    public string Name { get; set; } = string.Empty;
+    public string? Name { get; set; }
 
-    public string TypeIdentifier { get; set; } = string.Empty;
+    public string? TypeIdentifier { get; set; }
 
-    public int PositionNumber { get; set; } = 0;
+    public int? PositionNumber { get; set; }
 
     public string? Address { get; set; }
 
