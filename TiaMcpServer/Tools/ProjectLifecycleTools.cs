@@ -31,7 +31,7 @@ namespace TiaMcpServer.Tools
                 target,
                 $"Open and bind TIA Portal project '{projectPath}'.",
                 requestedInput,
-                WriteSafetyTooling.DescribePathState(projectPath)));
+                WorkerCallResult.Ok(WriteSafetyTooling.DescribePathState(projectPath))));
         }
 
         [McpServerTool(Name = "open_project")]
@@ -57,18 +57,18 @@ namespace TiaMcpServer.Tools
                 projectPath,
                 target,
                 requestedInput,
-                () => Task.FromResult(WriteSafetyTooling.DescribePathState(projectPath))).ConfigureAwait(false);
+                () => Task.FromResult(WorkerCallResult.Ok(WriteSafetyTooling.DescribePathState(projectPath)))).ConfigureAwait(false);
             if (!safety.IsValid)
             {
                 return safety.Error!;
             }
 
-            var result = (await workerClient.OpenProjectAsync(projectPath, forceRebind).ConfigureAwait(false)).ToText();
-            var status = result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+            var result = await workerClient.OpenProjectAsync(projectPath, forceRebind).ConfigureAwait(false);
+            var status = result.Success
+                ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText()
+                : null;
 
-            WriteSafetyService.Shared.AppendAudit("open_project", projectPath, target, requestedInput, safety.CurrentState, result);
+            WriteSafetyService.Shared.AppendAudit("open_project", projectPath, target, requestedInput, safety.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("open_project", result, "get_project_status", status);
         }
 
@@ -88,7 +88,7 @@ namespace TiaMcpServer.Tools
                 target,
                 $"Create TIA Portal project '{projectName}' in '{projectDirectory}'.",
                 requestedInput,
-                WriteSafetyTooling.DescribeProjectCreationState(projectDirectory, projectName)));
+                WorkerCallResult.Ok(WriteSafetyTooling.DescribeProjectCreationState(projectDirectory, projectName))));
         }
 
         [McpServerTool(Name = "create_project")]
@@ -116,19 +116,19 @@ namespace TiaMcpServer.Tools
                 null,
                 target,
                 requestedInput,
-                () => Task.FromResult(WriteSafetyTooling.DescribeProjectCreationState(projectDirectory, projectName))).ConfigureAwait(false);
+                () => Task.FromResult(WorkerCallResult.Ok(WriteSafetyTooling.DescribeProjectCreationState(projectDirectory, projectName)))).ConfigureAwait(false);
             if (!safety.IsValid)
             {
                 return safety.Error!;
             }
 
-            var result = (await workerClient.CreateProjectAsync(projectDirectory, projectName, author, comment)
-                .ConfigureAwait(false)).ToText();
-            var status = result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : (await workerClient.GetProjectStatusAsync(null).ConfigureAwait(false)).ToText();
+            var result = await workerClient.CreateProjectAsync(projectDirectory, projectName, author, comment)
+                .ConfigureAwait(false);
+            var status = result.Success
+                ? (await workerClient.GetProjectStatusAsync(null).ConfigureAwait(false)).ToText()
+                : null;
 
-            WriteSafetyService.Shared.AppendAudit("create_project", null, target, requestedInput, safety.CurrentState, result);
+            WriteSafetyService.Shared.AppendAudit("create_project", null, target, requestedInput, safety.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("create_project", result, "get_project_status", status);
         }
 
@@ -138,7 +138,7 @@ namespace TiaMcpServer.Tools
             OpennessWorkerClient workerClient,
             [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
         {
-            var currentState = (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+            var currentState = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
             var target = new { projectPath };
             var requestedInput = new { projectPath };
             return WriteSafetyTooling.CreatePreview(
@@ -172,18 +172,18 @@ namespace TiaMcpServer.Tools
                 projectPath,
                 target,
                 requestedInput,
-                async () => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
+                () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
             if (!safety.IsValid)
             {
                 return safety.Error!;
             }
 
-            var result = (await workerClient.SaveProjectAsync(projectPath).ConfigureAwait(false)).ToText();
-            var status = result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+            var result = await workerClient.SaveProjectAsync(projectPath).ConfigureAwait(false);
+            var status = result.Success
+                ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText()
+                : null;
 
-            WriteSafetyService.Shared.AppendAudit("save_project", projectPath, target, requestedInput, safety.CurrentState, result);
+            WriteSafetyService.Shared.AppendAudit("save_project", projectPath, target, requestedInput, safety.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("save_project", result, "get_project_status", status);
         }
 
@@ -196,7 +196,7 @@ namespace TiaMcpServer.Tools
             [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null,
             [Description("Set true to bind this MCP session to the copied project path after save-as.")] bool rebind = true)
         {
-            var currentState = (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+            var currentState = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
             var target = new { projectPath, targetDirectory, targetName };
             var requestedInput = new { projectPath, targetDirectory, targetName, rebind };
             return WriteSafetyTooling.CreatePreview(
@@ -233,19 +233,19 @@ namespace TiaMcpServer.Tools
                 projectPath,
                 target,
                 requestedInput,
-                async () => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
+                () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
             if (!safety.IsValid)
             {
                 return safety.Error!;
             }
 
-            var result = (await workerClient.SaveProjectAsAsync(projectPath, targetDirectory, targetName, rebind)
-                .ConfigureAwait(false)).ToText();
-            var status = result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : (await workerClient.GetProjectStatusAsync(rebind ? null : projectPath).ConfigureAwait(false)).ToText();
+            var result = await workerClient.SaveProjectAsAsync(projectPath, targetDirectory, targetName, rebind)
+                .ConfigureAwait(false);
+            var status = result.Success
+                ? (await workerClient.GetProjectStatusAsync(rebind ? null : projectPath).ConfigureAwait(false)).ToText()
+                : null;
 
-            WriteSafetyService.Shared.AppendAudit("save_project_as", projectPath, target, requestedInput, safety.CurrentState, result);
+            WriteSafetyService.Shared.AppendAudit("save_project_as", projectPath, target, requestedInput, safety.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("save_project_as", result, "get_project_status", status);
         }
 
@@ -259,7 +259,7 @@ namespace TiaMcpServer.Tools
             [Description("Save the project before archiving.")] bool saveBeforeArchive = true,
             [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
         {
-            var currentState = (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+            var currentState = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
             var target = new { projectPath, archiveDirectory, archiveName };
             var requestedInput = new { projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive };
             return WriteSafetyTooling.CreatePreview(
@@ -297,23 +297,23 @@ namespace TiaMcpServer.Tools
                 projectPath,
                 target,
                 requestedInput,
-                async () => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
+                () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
             if (!safety.IsValid)
             {
                 return safety.Error!;
             }
 
-            var result = (await workerClient.ArchiveProjectAsync(
+            var result = await workerClient.ArchiveProjectAsync(
                 projectPath,
                 archiveDirectory,
                 archiveName,
                 mode,
-                saveBeforeArchive).ConfigureAwait(false)).ToText();
-            var status = result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+                saveBeforeArchive).ConfigureAwait(false);
+            var status = result.Success
+                ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText()
+                : null;
 
-            WriteSafetyService.Shared.AppendAudit("archive_project", projectPath, target, requestedInput, safety.CurrentState, result);
+            WriteSafetyService.Shared.AppendAudit("archive_project", projectPath, target, requestedInput, safety.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("archive_project", result, "get_project_status", status);
         }
 
@@ -324,7 +324,7 @@ namespace TiaMcpServer.Tools
             [Description("Optional path to a .ap21 project file. If omitted, closes the currently bound/open project.")] string? projectPath = null,
             [Description("Save the project before closing it.")] bool saveBeforeClose = true)
         {
-            var currentState = (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+            var currentState = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
             var target = new { projectPath };
             var requestedInput = new { projectPath, saveBeforeClose };
             return WriteSafetyTooling.CreatePreview(
@@ -359,15 +359,15 @@ namespace TiaMcpServer.Tools
                 projectPath,
                 target,
                 requestedInput,
-                async () => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
+                () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
             if (!safety.IsValid)
             {
                 return safety.Error!;
             }
 
-            var result = (await workerClient.CloseProjectAsync(projectPath, saveBeforeClose).ConfigureAwait(false)).ToText();
+            var result = await workerClient.CloseProjectAsync(projectPath, saveBeforeClose).ConfigureAwait(false);
 
-            WriteSafetyService.Shared.AppendAudit("close_project", projectPath, target, requestedInput, safety.CurrentState, result);
+            WriteSafetyService.Shared.AppendAudit("close_project", projectPath, target, requestedInput, safety.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("close_project", result, "get_project_status", null);
         }
     }

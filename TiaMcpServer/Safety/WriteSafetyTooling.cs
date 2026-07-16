@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Safety;
 
@@ -18,7 +19,7 @@ public static class WriteSafetyTooling
         string? projectPath,
         object target,
         object requestedInput,
-        Func<Task<string>> readCurrentState)
+        Func<Task<WorkerCallResult>> readCurrentState)
     {
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
@@ -27,10 +28,10 @@ public static class WriteSafetyTooling
         }
 
         var currentState = await readCurrentState().ConfigureAwait(false);
-        if (currentState.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+        if (!currentState.Success)
         {
             return WriteSafetyApplyContext.Invalid(
-                $"Could not read current state before write. {currentState}");
+                $"Could not read current state before write. Error: {currentState.Error}");
         }
 
         var validation = WriteSafetyService.Shared.ValidateAndConsume(
@@ -39,11 +40,11 @@ public static class WriteSafetyTooling
             projectPath,
             target,
             requestedInput,
-            currentState,
+            currentState.Payload,
             previewToolName);
 
         return validation.IsValid
-            ? WriteSafetyApplyContext.Valid(currentState)
+            ? WriteSafetyApplyContext.Valid(currentState.Payload)
             : WriteSafetyApplyContext.Invalid(validation.Error);
     }
 
@@ -53,12 +54,12 @@ public static class WriteSafetyTooling
         object target,
         string summary,
         object requestedInput,
-        string currentState,
+        WorkerCallResult currentState,
         string? diff = null)
     {
-        if (currentState.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+        if (!currentState.Success)
         {
-            return $"Could not read current state before preview. {currentState}";
+            return $"Could not read current state before preview. Error: {currentState.Error}";
         }
 
         return WriteSafetyService.Shared.CreatePreview(
@@ -67,13 +68,13 @@ public static class WriteSafetyTooling
             target,
             summary,
             requestedInput,
-            currentState,
+            currentState.Payload,
             diff);
     }
 
     public static string BuildApplyResult(
         string toolName,
-        string operationResult,
+        WorkerCallResult operationResult,
         string? verificationName = null,
         string? verificationResult = null)
     {
@@ -81,8 +82,9 @@ public static class WriteSafetyTooling
             new
             {
                 toolName,
-                success = !operationResult.StartsWith("Error:", StringComparison.OrdinalIgnoreCase),
-                operationResult,
+                success = operationResult.Success,
+                operationResult = operationResult.ToText(),
+                warnings = operationResult.Warnings.Count > 0 ? operationResult.Warnings : null,
                 verification = verificationName is null
                     ? null
                     : new
