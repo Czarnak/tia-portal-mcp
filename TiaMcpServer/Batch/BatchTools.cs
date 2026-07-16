@@ -34,7 +34,7 @@ public static class BatchTools
             operations,
             op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
 
-        return BatchResultFormatter.ReadBatch(results);
+        return BatchResultFormatter.ReadBatch(BatchPayloadBudget.Apply(results));
     }
 
     [McpServerTool(Name = "preview_write_batch")]

@@ -86,4 +86,21 @@ public class BatchResultFormatterTests
         Assert.Equal(1, warnings.GetArrayLength());
         Assert.Equal("Skipping device 'X'.", warnings[0].GetString());
     }
+
+    [Fact]
+    public void ReadBatch_CountsOmittedItemsAndClearsSuccess()
+    {
+        var results = new[]
+        {
+            new BatchOperationResult("a", "browse_project_tree", BatchOperationStatus.Succeeded, "{}"),
+            new BatchOperationResult("b", "read_hardware_config", BatchOperationStatus.Omitted, "[OMITTED]")
+        };
+
+        var json = BatchResultFormatter.ReadBatch(results);
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(1, doc.RootElement.GetProperty("omitted").GetInt32());
+        Assert.Equal(1, doc.RootElement.GetProperty("succeeded").GetInt32());
+    }
 }

@@ -17,14 +17,16 @@ public static class BatchResultFormatter
     public static string ReadBatch(IReadOnlyList<BatchOperationResult> results)
     {
         var failed = Count(results, BatchOperationStatus.Failed);
+        var omitted = Count(results, BatchOperationStatus.Omitted);
         return JsonSerializer.Serialize(
             new
             {
                 tool = "execute_read_batch",
-                success = failed == 0,
+                success = failed == 0 && omitted == 0,
                 operationCount = results.Count,
                 succeeded = Count(results, BatchOperationStatus.Succeeded),
                 failed,
+                omitted,
                 operations = Project(results)
             },
             JsonOptions);

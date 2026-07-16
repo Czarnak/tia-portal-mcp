@@ -7,6 +7,8 @@ public static class BatchOperationStatus
     public const string Succeeded = "succeeded";
     public const string Failed = "failed";
     public const string Skipped = "skipped";
+    /// <summary>Read succeeded but its payload was dropped by the batch byte budget.</summary>
+    public const string Omitted = "omitted";
 }
 
 /// <summary>Immutable result for a single batch item.</summary>

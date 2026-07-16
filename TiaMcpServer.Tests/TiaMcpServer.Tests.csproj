@@ -34,6 +34,7 @@
     <Compile Include="..\TiaMcpServer\Batch\BatchOperationCatalog.cs" Link="Host\Batch\BatchOperationCatalog.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchSafetySnapshot.cs" Link="Host\Batch\BatchSafetySnapshot.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchOperationResult.cs" Link="Host\Batch\BatchOperationResult.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchPayloadBudget.cs" Link="Host\Batch\BatchPayloadBudget.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchExecutionEngine.cs" Link="Host\Batch\BatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchResultFormatter.cs" Link="Host\Batch\BatchResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs" Link="Host\Batch\BatchWorkerInvoker.cs" />
