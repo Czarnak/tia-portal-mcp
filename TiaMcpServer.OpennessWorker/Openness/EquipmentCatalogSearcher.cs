@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -45,11 +44,7 @@ public static class EquipmentCatalogSearcher
             {
                 Traverse(catalog, string.Empty, query, results, seenEntries, visited);
             }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine($"Skipping hardware catalog root while searching equipment catalog: {ex.Message}");
-            }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is EngineeringException or TargetInvocationException)
             {
                 Console.Error.WriteLine($"Skipping hardware catalog root while searching equipment catalog: {ex.Message}");
             }
@@ -83,20 +78,20 @@ public static class EquipmentCatalogSearcher
         // UNVERIFIED SDK CALL: TIA Portal V21 catalog root property name varies across SDK references.
         foreach (var propertyName in new[] { "HardwareCatalog", "GlobalHardwareCatalog" })
         {
-            var catalog = ReadProperty(tiaPortal, propertyName, $"TIA Portal {propertyName}");
+            var catalog = OpennessReflection.ReadProperty(tiaPortal, propertyName, $"TIA Portal {propertyName}");
             if (catalog is not null)
             {
                 yield return catalog;
             }
         }
 
-        var projects = ReadProperty(tiaPortal, "Projects", "TIA Portal projects"); // UNVERIFIED SDK CALL
-        foreach (var project in Enumerate(projects, "TIA Portal projects"))
+        var projects = OpennessReflection.ReadProperty(tiaPortal, "Projects", "TIA Portal projects"); // UNVERIFIED SDK CALL
+        foreach (var project in OpennessReflection.Enumerate(projects, "TIA Portal projects"))
         {
             // UNVERIFIED SDK CALL: project-specific hardware catalog availability is not confirmed in V21 stubs.
             foreach (var propertyName in new[] { "HardwareCatalog", "GlobalHardwareCatalog" })
             {
-                var catalog = ReadProperty(project, propertyName, $"project {propertyName}");
+                var catalog = OpennessReflection.ReadProperty(project, propertyName, $"project {propertyName}");
                 if (catalog is not null)
                 {
                     yield return catalog;
@@ -137,8 +132,8 @@ public static class EquipmentCatalogSearcher
         foreach (var propertyName in FolderCollectionNames.Concat(ItemCollectionNames))
         {
             // UNVERIFIED SDK CALL: catalog tree collection property names are reflection-discovered.
-            var collection = ReadProperty(node, propertyName, $"catalog node {propertyName}");
-            foreach (var child in Enumerate(collection, $"catalog node {propertyName}"))
+            var collection = OpennessReflection.ReadProperty(node, propertyName, $"catalog node {propertyName}");
+            foreach (var child in OpennessReflection.Enumerate(collection, $"catalog node {propertyName}"))
             {
                 Traverse(child, childPath, query, results, seenEntries, visited);
             }
@@ -217,104 +212,6 @@ public static class EquipmentCatalogSearcher
 
     private static string? ReadStringProperty(object instance, string propertyName, string description)
     {
-        return ReadProperty(instance, propertyName, description)?.ToString();
-    }
-
-    private static object? ReadProperty(object? instance, string propertyName, string description)
-    {
-        if (instance is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return instance.GetType()
-                .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
-                ?.GetValue(instance); // UNVERIFIED SDK CALL
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is EngineeringException engineeringException)
-        {
-            Console.Error.WriteLine($"Skipping {description}: {engineeringException.Message}");
-            return null;
-        }
-        catch (TargetInvocationException ex)
-        {
-            Console.Error.WriteLine($"Skipping {description}: {ex.InnerException?.Message ?? ex.Message}");
-            return null;
-        }
-        catch (EngineeringException ex)
-        {
-            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
-            return null;
-        }
-    }
-
-    private static IEnumerable<object> Enumerate(object? collection, string description)
-    {
-        if (collection is null)
-        {
-            yield break;
-        }
-
-        if (collection is string)
-        {
-            yield break;
-        }
-
-        if (collection is not IEnumerable enumerable)
-        {
-            yield break;
-        }
-
-        IEnumerator enumerator;
-        try
-        {
-            enumerator = enumerable.GetEnumerator(); // UNVERIFIED SDK CALL
-        }
-        catch (EngineeringException ex)
-        {
-            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
-            yield break;
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
-            yield break;
-        }
-
-        while (true)
-        {
-            object? current;
-            try
-            {
-                if (!enumerator.MoveNext()) // UNVERIFIED SDK CALL
-                {
-                    yield break;
-                }
-
-                current = enumerator.Current; // UNVERIFIED SDK CALL
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine($"Skipping an entry while reading {description}: {ex.Message}");
-                yield break;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Skipping an entry while reading {description}: {ex.Message}");
-                yield break;
-            }
-
-            if (current is not null)
-            {
-                yield return current;
-            }
-        }
+        return OpennessReflection.ReadProperty(instance, propertyName, description)?.ToString();
     }
 }
