@@ -166,4 +166,48 @@ public class BatchPayloadBudgetTests
         Assert.Contains("\"failed\":1", response);
         Assert.True(response.Length <= 620);
     }
+
+    [Fact]
+    public void LargeFailedItems_StayWithinTheFinalResponseBudget()
+    {
+        var results = new[]
+        {
+            new BatchOperationResult("a", "compile_check", BatchOperationStatus.Failed, $"Error: {new string('a', 600)}"),
+            new BatchOperationResult("b", "compile_check", BatchOperationStatus.Failed, $"Error: {new string('b', 600)}"),
+            new BatchOperationResult("c", "compile_check", BatchOperationStatus.Failed, $"Error: {new string('c', 600)}")
+        };
+
+        var budgeted = BatchPayloadBudget.Apply(results, maxItemChars: 600, maxBatchChars: 1_250);
+        var response = BatchResultFormatter.ReadBatch(budgeted);
+
+        Assert.Equal(3, budgeted.Count);
+        Assert.All(budgeted, result => Assert.Equal(BatchOperationStatus.Failed, result.Status));
+        Assert.Contains("FAILED DETAIL TRUNCATED", budgeted[0].Result);
+        Assert.Contains("FAILED DETAIL TRUNCATED", budgeted[1].Result);
+        Assert.Contains("\"failed\":3", response);
+        Assert.True(response.Length <= 1_250);
+    }
+
+    [Fact]
+    public void WarningHeavyFailedItems_StayWithinTheFinalResponseBudget()
+    {
+        var warnings = Enumerable.Range(0, 4)
+            .Select(index => $"warning-{index}: {new string('w', 300)}")
+            .ToArray();
+        var results = new[]
+        {
+            new BatchOperationResult("a", "compile_check", BatchOperationStatus.Failed, $"Error: {new string('a', 600)}", warnings),
+            new BatchOperationResult("b", "compile_check", BatchOperationStatus.Failed, $"Error: {new string('b', 600)}", warnings),
+            new BatchOperationResult("c", "compile_check", BatchOperationStatus.Failed, $"Error: {new string('c', 600)}", warnings)
+        };
+
+        var budgeted = BatchPayloadBudget.Apply(results, maxItemChars: 600, maxBatchChars: 3_000);
+        var response = BatchResultFormatter.ReadBatch(budgeted);
+
+        Assert.All(budgeted, result => Assert.Equal(BatchOperationStatus.Failed, result.Status));
+        Assert.Contains(budgeted[0].Warnings!, warning => warning.Contains("FAILED WARNINGS TRUNCATED"));
+        Assert.Contains(budgeted[1].Warnings!, warning => warning.Contains("FAILED WARNINGS TRUNCATED"));
+        Assert.Contains("\"failed\":3", response);
+        Assert.True(response.Length <= 3_000);
+    }
 }

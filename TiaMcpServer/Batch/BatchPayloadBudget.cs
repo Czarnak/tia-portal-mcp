@@ -35,6 +35,24 @@ public static class BatchPayloadBudget
             if (string.Equals(candidate.Status, BatchOperationStatus.Failed, StringComparison.Ordinal))
             {
                 PreserveFailureByOmittingPriorSuccessfulPayloads(budgeted, candidate, maxItemChars, maxBatchChars);
+                PreserveFailureByTruncatingPriorFailureDetails(budgeted, candidate, maxItemChars, maxBatchChars);
+                PreserveFailureByTruncatingPriorWarnings(budgeted, candidate, maxItemChars, maxBatchChars);
+                if (!FitsFinalReadResponse(budgeted, candidate, maxBatchChars))
+                {
+                    candidate = TruncateFailureDetail(candidate, maxItemChars);
+                }
+
+                if (!FitsFinalReadResponse(budgeted, candidate, maxBatchChars))
+                {
+                    candidate = TruncateFailureWarnings(candidate, maxItemChars);
+                }
+
+                if (!FitsFinalReadResponse(budgeted, candidate, maxBatchChars))
+                {
+                    throw new InvalidOperationException(
+                        "The batch budget is too small to represent every failed operation status.");
+                }
+
                 budgeted.Add(candidate);
                 continue;
             }
@@ -84,6 +102,59 @@ public static class BatchPayloadBudget
                 budgeted[index] = CompactOmission(omission, maxItemChars);
             }
         }
+    }
+
+    private static void PreserveFailureByTruncatingPriorFailureDetails(
+        List<BatchOperationResult> budgeted,
+        BatchOperationResult failed,
+        int maxItemChars,
+        int maxBatchChars)
+    {
+        for (var index = 0; index < budgeted.Count && !FitsFinalReadResponse(budgeted, failed, maxBatchChars); index++)
+        {
+            if (!string.Equals(budgeted[index].Status, BatchOperationStatus.Failed, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            budgeted[index] = TruncateFailureDetail(budgeted[index], maxItemChars);
+        }
+    }
+
+    private static BatchOperationResult TruncateFailureDetail(BatchOperationResult item, int maxItemChars)
+        => item with
+        {
+            Result = LimitMarker("[FAILED DETAIL TRUNCATED]", maxItemChars, string.Empty)
+        };
+
+    private static void PreserveFailureByTruncatingPriorWarnings(
+        List<BatchOperationResult> budgeted,
+        BatchOperationResult failed,
+        int maxItemChars,
+        int maxBatchChars)
+    {
+        for (var index = 0; index < budgeted.Count && !FitsFinalReadResponse(budgeted, failed, maxBatchChars); index++)
+        {
+            if (!string.Equals(budgeted[index].Status, BatchOperationStatus.Failed, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            budgeted[index] = TruncateFailureWarnings(budgeted[index], maxItemChars);
+        }
+    }
+
+    private static BatchOperationResult TruncateFailureWarnings(BatchOperationResult item, int maxItemChars)
+    {
+        if (item.Warnings is null || item.Warnings.Count == 0)
+        {
+            return item;
+        }
+
+        return item with
+        {
+            Warnings = new[] { LimitMarker("[FAILED WARNINGS TRUNCATED]", maxItemChars, string.Empty) }
+        };
     }
 
     private static BatchOperationResult Omit(BatchOperationResult item, int maxItemChars, int maxBatchChars)
