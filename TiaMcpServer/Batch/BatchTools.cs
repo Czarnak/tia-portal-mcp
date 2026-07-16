@@ -31,7 +31,7 @@ public static class BatchTools
 
         var results = await BatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            async op => (await BatchWorkerInvoker.InvokeAsync(workerClient, op).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
+            op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
 
         return BatchResultFormatter.ReadBatch(results);
     }
@@ -122,7 +122,7 @@ public static class BatchTools
 
         var results = await BatchExecutionEngine.ApplyWritesAsync(
             operations,
-            async op => (await BatchWorkerInvoker.InvokeAsync(workerClient, op).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
+            op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
 
         var resultJson = BatchResultFormatter.ApplyBatch(results);
         WriteSafetyService.Shared.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);

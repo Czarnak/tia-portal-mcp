@@ -58,7 +58,8 @@ public static class BatchResultFormatter
                 operationId = r.OperationId,
                 operation = r.Operation,
                 status = r.Status,
-                result = r.Result
+                result = r.Result,
+                warnings = r.Warnings
             })
             .ToArray();
 }

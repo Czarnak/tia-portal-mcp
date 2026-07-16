@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests;
@@ -18,7 +19,7 @@ public class BatchExecutionEngineTests
 
         var results = await BatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            op => Task.FromResult($"payload-{op.OperationId}"));
+            op => Task.FromResult(WorkerCallResult.Ok($"payload-{op.OperationId}")));
 
         Assert.Equal(new[] { "a", "b" }, results.Select(r => r.OperationId).ToArray());
         Assert.All(results, r => Assert.Equal(BatchOperationStatus.Succeeded, r.Status));
@@ -37,7 +38,7 @@ public class BatchExecutionEngineTests
 
         var results = await BatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            op => Task.FromResult(op.OperationId == "b" ? "Error: not found" : "ok"));
+            op => Task.FromResult(op.OperationId == "b" ? WorkerCallResult.Fail("not found") : WorkerCallResult.Ok("ok")));
 
         Assert.Equal(BatchOperationStatus.Succeeded, results[0].Status);
         Assert.Equal(BatchOperationStatus.Failed, results[1].Status);
@@ -52,7 +53,7 @@ public class BatchExecutionEngineTests
 
         var results = await BatchExecutionEngine.ApplyWritesAsync(
             operations,
-            op => Task.FromResult("done"));
+            op => Task.FromResult(WorkerCallResult.Ok("done")));
 
         Assert.All(results, r => Assert.Equal(BatchOperationStatus.Succeeded, r.Status));
     }
@@ -73,7 +74,7 @@ public class BatchExecutionEngineTests
             op =>
             {
                 invoked.Add(op.OperationId);
-                return Task.FromResult(op.OperationId == "b" ? "Error: boom" : "done");
+                return Task.FromResult(op.OperationId == "b" ? WorkerCallResult.Fail("boom") : WorkerCallResult.Ok("done"));
             });
 
         Assert.Equal(BatchOperationStatus.Succeeded, results[0].Status);
@@ -83,5 +84,30 @@ public class BatchExecutionEngineTests
 
         // The item after the failure must never be invoked.
         Assert.Equal(new[] { "a", "b" }, invoked.ToArray());
+    }
+
+    [Fact]
+    public async Task ExecuteReadsAsync_PayloadStartingWithErrorPrefix_IsNotAFailure()
+    {
+        var operations = new[] { Op("a", "get_block_content") };
+
+        var results = await BatchExecutionEngine.ExecuteReadsAsync(
+            operations,
+            op => Task.FromResult(WorkerCallResult.Ok("Error: literal SCL comment text")));
+
+        Assert.Equal(BatchOperationStatus.Succeeded, results[0].Status);
+    }
+
+    [Fact]
+    public async Task ExecuteReadsAsync_CopiesWarningsOntoResult()
+    {
+        var operations = new[] { Op("a", "browse_project_tree") };
+
+        var results = await BatchExecutionEngine.ExecuteReadsAsync(
+            operations,
+            op => Task.FromResult(WorkerCallResult.Ok("[]", new[] { "Skipping device 'X'." })));
+
+        Assert.NotNull(results[0].Warnings);
+        Assert.Single(results[0].Warnings!);
     }
 }
