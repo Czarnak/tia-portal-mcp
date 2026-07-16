@@ -42,7 +42,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await CreateClient().GetProjectStatusAsync("ok");
 
         Assert.True(result.Success);
-        Assert.Equal("{\"hello\":true}", result.Payload);
+        Assert.Equal("{\"seq\":1}", result.Payload);
         Assert.Null(result.Error);
         Assert.Empty(result.Warnings);
     }
@@ -53,8 +53,8 @@ public class OpennessWorkerClientIntegrationTests
         var result = await CreateClient().GetProjectStatusAsync("ok-with-stderr");
 
         Assert.True(result.Success);
-        Assert.Equal(2, result.Warnings.Count);
-        Assert.Contains(result.Warnings, w => w.Contains("Skipping device 'X'"));
+        Assert.Single(result.Warnings);
+        Assert.Contains(result.Warnings, w => w.Contains("orphan stderr line"));
     }
 
     [Fact]
