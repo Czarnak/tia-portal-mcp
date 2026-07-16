@@ -41,14 +41,16 @@ public sealed class WriteSafetyService
     }
 
     public string CreatePreview(
-        string toolName,
-        string? projectPath,
-        object target,
-        string summary,
-        object requestedInput,
-        string currentState,
-        string? diff = null)
+       string toolName,
+       string? projectPath,
+       object target,
+       string summary,
+       object requestedInput,
+       string currentState,
+       string? diff = null)
     {
+        EvictExpiredTokens();
+
         var token = CreateToken();
         var targetJson = ToStableJson(target);
         var requestedInputJson = ToStableJson(requestedInput);
@@ -131,6 +133,25 @@ public sealed class WriteSafetyService
         }
 
         return WriteSafetyValidationResult.Valid(requestedInputHash, currentStateHash);
+    }
+
+    /// <summary>Number of live (unconsumed, possibly expired) tokens. Test hook.</summary>
+    internal int ActiveTokenCount => _tokens.Count;
+
+    /// <summary>
+    /// Drops expired tokens so an abandoned preview cannot grow memory forever.
+    /// Swept on every CreatePreview — no timer needed; expiry is still re-checked on consume.
+    /// </summary>
+    private void EvictExpiredTokens()
+    {
+        var now = _getUtcNow();
+        foreach (var pair in _tokens)
+        {
+            if (now > pair.Value.ExpiresAtUtc)
+            {
+                _tokens.TryRemove(pair.Key, out _);
+            }
+        }
     }
 
     private WriteSafetyValidationResult Rejected(string reason, string? previewToolName)

@@ -213,6 +213,36 @@ public class WriteSafetyServiceTests
         Assert.Contains("failed to write audit record", capture.ToString());
     }
 
+    [Fact]
+    public void CreatePreview_EvictsExpiredTokens()
+    {
+        var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
+        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+
+        service.CreatePreview("apply_write_batch", null, new { a = 1 }, "s", new { b = 1 }, "state-1");
+        service.CreatePreview("apply_write_batch", null, new { a = 2 }, "s", new { b = 2 }, "state-2");
+        Assert.Equal(2, service.ActiveTokenCount);
+
+        now = now.AddMinutes(11);
+        service.CreatePreview("apply_write_batch", null, new { a = 3 }, "s", new { b = 3 }, "state-3");
+
+        // The two expired tokens were swept; only the fresh one remains.
+        Assert.Equal(1, service.ActiveTokenCount);
+    }
+
+    [Fact]
+    public void CreatePreview_KeepsUnexpiredTokens()
+    {
+        var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
+        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+
+        service.CreatePreview("apply_write_batch", null, new { a = 1 }, "s", new { b = 1 }, "state-1");
+        now = now.AddMinutes(5);
+        service.CreatePreview("apply_write_batch", null, new { a = 2 }, "s", new { b = 2 }, "state-2");
+
+        Assert.Equal(2, service.ActiveTokenCount);
+    }
+
     private static string ReadToken(string previewJson)
     {
         using var preview = JsonDocument.Parse(previewJson);
