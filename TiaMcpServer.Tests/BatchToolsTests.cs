@@ -115,4 +115,24 @@ public class BatchToolsTests
         Assert.Contains("Safety token required", result);
         Assert.Contains("preview_write_batch", result);
     }
+
+    [Fact]
+    public async Task ApplyWriteBatch_RejectsBadTokenBeforeReadingCurrentState()
+    {
+        var operations = new[]
+        {
+            new BatchOperationRequest { OperationId = "op-1", Operation = "start_plc" }
+        };
+
+        // workerClient is null: if the token envelope were checked AFTER the state read,
+        // this call would throw NullReferenceException instead of returning the token error.
+        var result = await BatchTools.ApplyWriteBatch(
+            workerClient: null!,
+            operations,
+            confirm: true,
+            safetyToken: "bogus-token");
+
+        Assert.Contains("Safety token", result);
+        Assert.Contains("preview_write_batch", result);
+    }
 }

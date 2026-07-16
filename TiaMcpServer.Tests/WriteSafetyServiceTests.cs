@@ -243,9 +243,48 @@ public class WriteSafetyServiceTests
         Assert.Equal(2, service.ActiveTokenCount);
     }
 
+    [Fact]
+    public void ValidateEnvelope_AcceptsMatchingTokenWithoutConsumingIt()
+    {
+        var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
+        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+        var previewJson = service.CreatePreview("apply_write_batch", "C:\\p.ap21", new { t = 1 }, "s", new { i = 1 }, "state");
+        var token = ReadToken(previewJson);
+
+        var first = service.ValidateEnvelope(token, "apply_write_batch", "C:\\p.ap21", new { t = 1 }, new { i = 1 });
+        var second = service.ValidateEnvelope(token, "apply_write_batch", "C:\\p.ap21", new { t = 1 }, new { i = 1 });
+
+        Assert.True(first.IsValid);
+        Assert.True(second.IsValid);
+        Assert.Equal(1, service.ActiveTokenCount);
+
+        // The full consume still works afterwards.
+        var consume = service.ValidateAndConsume(token, "apply_write_batch", "C:\\p.ap21", new { t = 1 }, new { i = 1 }, "state");
+        Assert.True(consume.IsValid);
+        Assert.Equal(0, service.ActiveTokenCount);
+    }
+
+    [Fact]
+    public void ValidateEnvelope_RejectsUnknownExpiredAndMismatchedTokens()
+    {
+        var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
+        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+        var previewJson = service.CreatePreview("apply_write_batch", "C:\\p.ap21", new { t = 1 }, "s", new { i = 1 }, "state");
+        var token = ReadToken(previewJson);
+
+        Assert.False(service.ValidateEnvelope("bogus", "apply_write_batch", "C:\\p.ap21", new { t = 1 }, new { i = 1 }).IsValid);
+        Assert.False(service.ValidateEnvelope(token, "other_tool", "C:\\p.ap21", new { t = 1 }, new { i = 1 }).IsValid);
+        Assert.False(service.ValidateEnvelope(token, "apply_write_batch", "C:\\other.ap21", new { t = 1 }, new { i = 1 }).IsValid);
+        Assert.False(service.ValidateEnvelope(token, "apply_write_batch", "C:\\p.ap21", new { t = 2 }, new { i = 1 }).IsValid);
+        Assert.False(service.ValidateEnvelope(token, "apply_write_batch", "C:\\p.ap21", new { t = 1 }, new { i = 2 }).IsValid);
+
+        now = now.AddMinutes(11);
+        Assert.False(service.ValidateEnvelope(token, "apply_write_batch", "C:\\p.ap21", new { t = 1 }, new { i = 1 }).IsValid);
+    }
+
     private static string ReadToken(string previewJson)
     {
-        using var preview = JsonDocument.Parse(previewJson);
-        return preview.RootElement.GetProperty("safetyToken").GetString()!;
+        using var doc = System.Text.Json.JsonDocument.Parse(previewJson);
+        return doc.RootElement.GetProperty("safetyToken").GetString()!;
     }
 }

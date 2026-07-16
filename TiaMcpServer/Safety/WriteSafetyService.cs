@@ -81,6 +81,60 @@ public sealed class WriteSafetyService
             JsonOptions);
     }
 
+    /// <summary>
+    /// Cheap pre-check of everything a token binds EXCEPT current project state: existence,
+    /// expiry, tool, project path, target, and requested input. Does not consume the token.
+    /// Callers still must run <see cref="ValidateAndConsume"/> (which re-checks everything
+    /// atomically) after reading current state; this exists so a dead token is rejected
+    /// before the expensive pre-apply state read.
+    /// </summary>
+    public WriteSafetyValidationResult ValidateEnvelope(
+        string? safetyToken,
+        string toolName,
+        string? projectPath,
+        object target,
+        object requestedInput,
+        string? previewToolName = null)
+    {
+        if (string.IsNullOrWhiteSpace(safetyToken))
+        {
+            return Rejected("Safety token required.", previewToolName);
+        }
+
+        if (!_tokens.TryGetValue(safetyToken, out var entry))
+        {
+            return Rejected("Safety token expired, consumed, or unknown.", previewToolName);
+        }
+
+        if (_getUtcNow() > entry.ExpiresAtUtc)
+        {
+            return Rejected("Safety token expired.", previewToolName);
+        }
+
+        if (!string.Equals(entry.ToolName, toolName, StringComparison.Ordinal))
+        {
+            return Rejected("Safety token was issued for a different tool.", previewToolName);
+        }
+
+        if (!string.Equals(entry.ProjectPath, NormalizeProjectPath(projectPath), StringComparison.OrdinalIgnoreCase))
+        {
+            return Rejected("Safety token was issued for a different project path.", previewToolName);
+        }
+
+        if (!string.Equals(entry.TargetJson, ToStableJson(target), StringComparison.Ordinal))
+        {
+            return Rejected("Safety token was issued for a different target.", previewToolName);
+        }
+
+        var requestedInputHash = HashText(ToStableJson(requestedInput));
+        if (!string.Equals(entry.RequestedInputHash, requestedInputHash, StringComparison.Ordinal))
+        {
+            return Rejected("Safety token input does not match this write request.", previewToolName);
+        }
+
+        return WriteSafetyValidationResult.Valid(requestedInputHash, entry.CurrentStateHash);
+    }
+
     public WriteSafetyValidationResult ValidateAndConsume(
         string? safetyToken,
         string toolName,

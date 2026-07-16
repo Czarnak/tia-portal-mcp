@@ -98,14 +98,27 @@ public static class BatchTools
                 $"Safety token required. Call {PreviewToolName} first, review the preview, then pass its safetyToken with confirm=true.");
         }
 
+        var targets = BatchSafetySnapshot.BuildTargets(operations);
+        var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
+
+        // Reject dead/mismatched tokens BEFORE the expensive per-item current-state read.
+        var envelope = WriteSafetyService.Shared.ValidateEnvelope(
+            safetyToken,
+            ApplyToolName,
+            projectPath,
+            targets,
+            operations,
+            PreviewToolName);
+        if (!envelope.IsValid)
+        {
+            return BatchResultFormatter.Error(ApplyToolName, envelope.Error);
+        }
+
         var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
         if (snapshot.Error is not null)
         {
             return BatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
         }
-
-        var targets = BatchSafetySnapshot.BuildTargets(operations);
-        var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
 
         var tokenValidation = WriteSafetyService.Shared.ValidateAndConsume(
             safetyToken,
