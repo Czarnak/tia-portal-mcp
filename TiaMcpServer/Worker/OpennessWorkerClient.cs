@@ -763,6 +763,8 @@ public class OpennessWorkerClient : IDisposable
     // A degraded read of a large project can emit hundreds of "Skipping X" lines; cap what
     // reaches the agent so warnings cannot flood a small model's context.
     private const int MaxWarningLines = 20;
+    private const int MaxWarningLineChars = 1_000;
+    private const string WarningTruncationTrailer = " [TRUNCATED]";
 
     private static IReadOnlyList<string> CapWarnings(IReadOnlyList<string>? warnings)
     {
@@ -772,7 +774,7 @@ public class OpennessWorkerClient : IDisposable
         }
 
         var lines = warnings
-            .Select(line => line.Trim())
+            .Select(line => CapWarningLine(line.Trim()))
             .Where(line => line.Length > 0)
             .ToList();
 
@@ -784,6 +786,17 @@ public class OpennessWorkerClient : IDisposable
         }
 
         return lines;
+    }
+
+    private static string CapWarningLine(string line)
+    {
+        if (line.Length <= MaxWarningLineChars)
+        {
+            return line;
+        }
+
+        return line.Substring(0, MaxWarningLineChars - WarningTruncationTrailer.Length)
+            + WarningTruncationTrailer;
     }
 
     private static string LocateWorkerExecutable()

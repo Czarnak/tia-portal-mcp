@@ -27,9 +27,8 @@ public class BatchPayloadBudgetTests
 
         var budgeted = BatchPayloadBudget.Apply(results, maxItemChars: 100, maxBatchChars: 10_000);
 
-        Assert.StartsWith(new string('x', 100), budgeted[0].Result);
+        Assert.True(budgeted[0].Result!.Length <= 100);
         Assert.Contains("TRUNCATED", budgeted[0].Result);
-        Assert.Contains("startPath", budgeted[0].Result);
         Assert.Equal(BatchOperationStatus.Succeeded, budgeted[0].Status);
     }
 
@@ -43,12 +42,10 @@ public class BatchPayloadBudgetTests
             Ok("c", "tiny")
         };
 
-        var budgeted = BatchPayloadBudget.Apply(results, maxItemChars: 100, maxBatchChars: 100);
+        var budgeted = BatchPayloadBudget.Apply(results, maxItemChars: 100, maxBatchChars: 1_000);
 
         Assert.Equal(BatchOperationStatus.Succeeded, budgeted[0].Status);
-        Assert.Equal(BatchOperationStatus.Omitted, budgeted[1].Status);
-        Assert.Contains("OMITTED", budgeted[1].Result);
-        Assert.Contains("execute_read_batch", budgeted[1].Result);
+        Assert.Equal(BatchOperationStatus.Succeeded, budgeted[1].Status);
         Assert.Equal(BatchOperationStatus.Succeeded, budgeted[2].Status);
         Assert.Equal("tiny", budgeted[2].Result);
     }
@@ -90,12 +87,12 @@ public class BatchPayloadBudgetTests
                 new string('y', 90), warnings)
         };
 
-        var budgeted = BatchPayloadBudget.Apply(results, maxItemChars: 10, maxBatchChars: 200);
+        var budgeted = BatchPayloadBudget.Apply(results, maxItemChars: 10, maxBatchChars: 1_000);
 
         Assert.Same(warnings, budgeted[0].Warnings);
         Assert.Same(warnings, budgeted[1].Warnings);
         Assert.Contains("TRUNCATED", budgeted[0].Result);
-        Assert.Equal(BatchOperationStatus.Omitted, budgeted[1].Status);
+        Assert.Equal(BatchOperationStatus.Succeeded, budgeted[1].Status);
     }
 
     [Fact]
@@ -103,5 +100,70 @@ public class BatchPayloadBudgetTests
     {
         Assert.Equal(60_000, BatchPayloadBudget.MaxItemChars);
         Assert.Equal(180_000, BatchPayloadBudget.MaxBatchChars);
+    }
+
+    [Fact]
+    public void TruncatedItem_IncludingTrailer_DoesNotExceedItemCap()
+    {
+        var budgeted = BatchPayloadBudget.Apply(
+            new[] { Ok("a", new string('x', 150)) },
+            maxItemChars: 100,
+            maxBatchChars: 2_000);
+
+        Assert.True(budgeted[0].Result!.Length <= 100);
+        Assert.Contains("TRUNCATED", budgeted[0].Result);
+    }
+
+    [Fact]
+    public void WarningHeavyBatch_DoesNotExceedTheFinalResponseBudget()
+    {
+        var warnings = Enumerable.Range(0, 4)
+            .Select(index => $"warning-{index}: {new string('w', 300)}")
+            .ToArray();
+
+        var budgeted = BatchPayloadBudget.Apply(
+            new[] { new BatchOperationResult("a", "browse_project_tree", BatchOperationStatus.Succeeded, "payload", warnings) },
+            maxItemChars: 500,
+            maxBatchChars: 850);
+
+        var response = BatchResultFormatter.ReadBatch(budgeted);
+
+        Assert.True(response.Length <= 850);
+        Assert.Empty(budgeted[0].Warnings!);
+    }
+
+    [Fact]
+    public void OmissionMarker_IsShortenedWhenTheFullMarkerWouldExceedTheFinalResponseBudget()
+    {
+        var budgeted = BatchPayloadBudget.Apply(
+            new[] { Ok("a", new string('x', 150)), Ok("b", new string('y', 150)) },
+            maxItemChars: 200,
+            maxBatchChars: 500);
+
+        var response = BatchResultFormatter.ReadBatch(budgeted);
+
+        Assert.Equal(BatchOperationStatus.Omitted, budgeted[1].Status);
+        Assert.Equal("[OMITTED]", budgeted[1].Result);
+        Assert.True(response.Length <= 500);
+    }
+
+    [Fact]
+    public void FailedItem_AfterBudgetExhaustion_PreservesItsDiagnosisAndFailedCount()
+    {
+        var budgeted = BatchPayloadBudget.Apply(
+            new[]
+            {
+                Ok("a", new string('x', 600)),
+                new BatchOperationResult("b", "compile_check", BatchOperationStatus.Failed, "Error: worker compilation failed")
+            },
+            maxItemChars: 600,
+            maxBatchChars: 620);
+
+        var response = BatchResultFormatter.ReadBatch(budgeted);
+
+        Assert.Equal(BatchOperationStatus.Failed, budgeted[1].Status);
+        Assert.Contains("worker compilation failed", budgeted[1].Result);
+        Assert.Contains("\"failed\":1", response);
+        Assert.True(response.Length <= 620);
     }
 }

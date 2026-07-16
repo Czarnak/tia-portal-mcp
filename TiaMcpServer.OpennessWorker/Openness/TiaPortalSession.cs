@@ -79,11 +79,21 @@ public class TiaPortalSession : IDisposable
                 Console.Error.WriteLine($"Closing project '{currentPath ?? "(unknown)"}' before opening '{requestedPath}'.");
                 try
                 {
-                    Project.Close();
+                    ProjectRebindCloseGuard.CloseBeforeRebind(
+                        Project.Close,
+                        () =>
+                        {
+                            Project = null;
+                            _projectOpenedByWorker = false;
+                            Project = _tiaPortal!.Projects.Open(new FileInfo(requestedPath));
+                            _projectOpenedByWorker = true;
+                        });
+                    return;
                 }
-                catch (EngineeringException ex)
+                catch (InvalidOperationException ex)
                 {
                     Console.Error.WriteLine($"Could not close the previous project: {ex.Message}");
+                    throw;
                 }
             }
             else
