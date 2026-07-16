@@ -50,7 +50,7 @@ public class ProjectLifecycleToolTests
         var method = typeof(OpennessWorkerClient).GetMethod(methodName);
 
         Assert.NotNull(method);
-        Assert.Equal(typeof(Task<string>), method.ReturnType);
+        Assert.Equal(typeof(Task<WorkerCallResult>), method.ReturnType);
     }
 
     [Fact]

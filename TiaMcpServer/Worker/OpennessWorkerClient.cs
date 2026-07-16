@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.Worker;
@@ -16,23 +18,30 @@ public class OpennessWorkerClient
     private static readonly TimeSpan WorkerTimeout = TimeSpan.FromMinutes(5);
 
     private readonly ProjectSessionBinding _projectSessionBinding;
+    private readonly ILogger<OpennessWorkerClient>? _logger;
+    private readonly string? _workerExecutablePathOverride;
 
-    public OpennessWorkerClient(ProjectSessionBinding projectSessionBinding)
+    public OpennessWorkerClient(
+        ProjectSessionBinding projectSessionBinding,
+        ILogger<OpennessWorkerClient>? logger = null,
+        string? workerExecutablePath = null)
     {
         _projectSessionBinding = projectSessionBinding;
+        _logger = logger;
+        _workerExecutablePathOverride = workerExecutablePath;
     }
 
-    public Task<string> BrowseProjectTreeAsync(string? projectPath)
+    public Task<WorkerCallResult> BrowseProjectTreeAsync(string? projectPath)
     {
         return SendBoundProjectRequestAsync("browse_project_tree", projectPath, _ => { }, "[]");
     }
 
-    public Task<string> ReadHardwareConfigAsync(string? projectPath)
+    public Task<WorkerCallResult> ReadHardwareConfigAsync(string? projectPath)
     {
         return SendBoundProjectRequestAsync("read_hardware_config", projectPath, _ => { }, "{}");
     }
 
-    public Task<string> SearchEquipmentCatalogAsync(string query, string? projectPath)
+    public Task<WorkerCallResult> SearchEquipmentCatalogAsync(string query, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "search_equipment_catalog",
@@ -41,7 +50,7 @@ public class OpennessWorkerClient
             "[]");
     }
 
-    public Task<string> AddNetworkDeviceAsync(
+    public Task<WorkerCallResult> AddNetworkDeviceAsync(
         string typeIdentifier,
         string deviceName,
         string deviceItemName,
@@ -61,7 +70,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> ConfigureNetworkDeviceAsync(
+    public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(
         string deviceName,
         string? ipAddress,
         string? subnetMask,
@@ -87,12 +96,12 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter)
+    public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter)
     {
         // Validate the filter before TryResolve so an invalid filter does not bind the session.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
         {
-            return Task.FromResult($"Error: {filterError}");
+            return Task.FromResult(WorkerCallResult.Fail(filterError!));
         }
 
         return SendBoundProjectRequestAsync(
@@ -106,7 +115,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> GetBlockContentAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> GetBlockContentAsync(string blockPath, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "get_block_content",
@@ -115,7 +124,7 @@ public class OpennessWorkerClient
             string.Empty);
     }
 
-    public Task<string> UpdateBlockLogicAsync(string blockPath, string yamlContent, string? projectPath)
+    public Task<WorkerCallResult> UpdateBlockLogicAsync(string blockPath, string yamlContent, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "update_block_logic",
@@ -129,7 +138,7 @@ public class OpennessWorkerClient
             string.Empty);
     }
 
-    public Task<string> ListTagTablesAsync(string? plcName, string? projectPath)
+    public Task<WorkerCallResult> ListTagTablesAsync(string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "list_tag_tables",
@@ -138,7 +147,7 @@ public class OpennessWorkerClient
             "[]");
     }
 
-    public Task<string> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
+    public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "compile_check",
@@ -151,7 +160,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> CreateTagTableAsync(
+    public Task<WorkerCallResult> CreateTagTableAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -171,7 +180,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> DeleteTagTableAsync(
+    public Task<WorkerCallResult> DeleteTagTableAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -191,7 +200,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> CreateTagAsync(
+    public Task<WorkerCallResult> CreateTagAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -217,7 +226,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> UpdateTagAsync(
+    public Task<WorkerCallResult> UpdateTagAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -253,7 +262,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> DeleteTagAsync(
+    public Task<WorkerCallResult> DeleteTagAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -275,7 +284,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> CreateUserConstantAsync(
+    public Task<WorkerCallResult> CreateUserConstantAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -301,7 +310,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> UpdateUserConstantAsync(
+    public Task<WorkerCallResult> UpdateUserConstantAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -327,7 +336,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> DeleteUserConstantAsync(
+    public Task<WorkerCallResult> DeleteUserConstantAsync(
         string? plcName,
         string tableName,
         string? folderPath,
@@ -349,7 +358,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> CreateBlockAsync(
+    public Task<WorkerCallResult> CreateBlockAsync(
         string blockPath,
         string blockType,
         string? language,
@@ -371,7 +380,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> DeleteBlockAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> DeleteBlockAsync(string blockPath, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "delete_block",
@@ -385,7 +394,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> CreateBlockGroupAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> CreateBlockGroupAsync(string blockPath, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "create_block_group",
@@ -399,7 +408,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> DeleteBlockGroupAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> DeleteBlockGroupAsync(string blockPath, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "delete_block_group",
@@ -413,7 +422,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> StartPlcAsync(string? plcName, string? projectPath)
+    public Task<WorkerCallResult> StartPlcAsync(string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "start_plc",
@@ -427,7 +436,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> StopPlcAsync(string? plcName, string? projectPath)
+    public Task<WorkerCallResult> StopPlcAsync(string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "stop_plc",
@@ -441,7 +450,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public Task<string> GetProjectStatusAsync(string? projectPath)
+    public Task<WorkerCallResult> GetProjectStatusAsync(string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "get_project_status",
@@ -450,83 +459,69 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public async Task<string> OpenProjectAsync(string projectPath, bool forceRebind)
+    public async Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
     {
         if (!CanBind(projectPath, forceRebind, out var bindingError))
         {
-            return $"Error: {bindingError}";
+            return WorkerCallResult.Fail(bindingError!);
         }
 
-        try
-        {
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "open_project",
-                    ProjectPath = projectPath,
-                    Confirm = true,
-                    ForceRebind = forceRebind,
-                    AllowTiaConfirmations = true
-                }).ConfigureAwait(false);
-
-            if (!response.Success)
+        var result = await InvokeWorkerAsync(
+            new WorkerRequest
             {
-                return FormatWorkerError(response);
-            }
+                Method = "open_project",
+                ProjectPath = projectPath,
+                Confirm = true,
+                ForceRebind = forceRebind,
+                AllowTiaConfirmations = true
+            }).ConfigureAwait(false);
 
-            if (!_projectSessionBinding.Bind(projectPath, forceRebind, out var bindError))
-            {
-                return $"Error: {bindError}";
-            }
-
-            return response.Payload ?? "{}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
+        if (!result.Success)
         {
-            return $"Error: {ex.Message}";
+            return result;
         }
+
+        if (!_projectSessionBinding.Bind(projectPath, forceRebind, out var bindError))
+        {
+            return WorkerCallResult.Fail(bindError!, result.Warnings);
+        }
+
+        return string.IsNullOrEmpty(result.Payload) ? result with { Payload = "{}" } : result;
     }
 
-    public async Task<string> CreateProjectAsync(
+    public async Task<WorkerCallResult> CreateProjectAsync(
         string projectDirectory,
         string projectName,
         string? author,
         string? comment)
     {
-        try
-        {
-            var response = await SendAsync(
-                new WorkerRequest
-                {
-                    Method = "create_project",
-                    ProjectDirectory = projectDirectory,
-                    ProjectName = projectName,
-                    Author = author,
-                    Comment = comment,
-                    Confirm = true,
-                    AllowTiaConfirmations = true
-                }).ConfigureAwait(false);
-
-            if (!response.Success)
+        var result = await InvokeWorkerAsync(
+            new WorkerRequest
             {
-                return FormatWorkerError(response);
-            }
+                Method = "create_project",
+                ProjectDirectory = projectDirectory,
+                ProjectName = projectName,
+                Author = author,
+                Comment = comment,
+                Confirm = true,
+                AllowTiaConfirmations = true
+            }).ConfigureAwait(false);
 
-            var projectPath = TryReadProjectPath(response.Payload);
-            if (!string.IsNullOrWhiteSpace(projectPath))
-            {
-                _projectSessionBinding.Bind(projectPath!, forceRebind: true, out _);
-            }
-
-            return response.Payload ?? "{}";
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
+        if (!result.Success)
         {
-            return $"Error: {ex.Message}";
+            return result;
         }
+
+        var projectPath = TryReadProjectPath(result.Payload);
+        if (!string.IsNullOrWhiteSpace(projectPath))
+        {
+            _projectSessionBinding.Bind(projectPath!, forceRebind: true, out _);
+        }
+
+        return string.IsNullOrEmpty(result.Payload) ? result with { Payload = "{}" } : result;
     }
 
-    public Task<string> SaveProjectAsync(string? projectPath)
+    public Task<WorkerCallResult> SaveProjectAsync(string? projectPath)
     {
         return SendBoundProjectRequestAsync(
             "save_project",
@@ -539,7 +534,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public async Task<string> SaveProjectAsAsync(
+    public async Task<WorkerCallResult> SaveProjectAsAsync(
         string? projectPath,
         string targetDirectory,
         string targetName,
@@ -558,9 +553,9 @@ public class OpennessWorkerClient
             },
             "{}").ConfigureAwait(false);
 
-        if (rebind && !result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+        if (rebind && result.Success)
         {
-            var copiedProjectPath = TryReadProjectPath(result);
+            var copiedProjectPath = TryReadProjectPath(result.Payload);
             if (!string.IsNullOrWhiteSpace(copiedProjectPath))
             {
                 _projectSessionBinding.Bind(copiedProjectPath!, forceRebind: true, out _);
@@ -570,7 +565,7 @@ public class OpennessWorkerClient
         return result;
     }
 
-    public Task<string> ArchiveProjectAsync(
+    public Task<WorkerCallResult> ArchiveProjectAsync(
         string? projectPath,
         string archiveDirectory,
         string archiveName,
@@ -579,7 +574,7 @@ public class OpennessWorkerClient
     {
         if (!ArchiveModeNames.TryNormalize(mode, out var normalizedMode, out var modeError))
         {
-            return Task.FromResult($"Error: {modeError}");
+            return Task.FromResult(WorkerCallResult.Fail(modeError!));
         }
 
         return SendBoundProjectRequestAsync(
@@ -597,7 +592,7 @@ public class OpennessWorkerClient
             "{}");
     }
 
-    public async Task<string> CloseProjectAsync(string? projectPath, bool saveBeforeClose)
+    public async Task<WorkerCallResult> CloseProjectAsync(string? projectPath, bool saveBeforeClose)
     {
         var result = await SendBoundProjectRequestAsync(
             "close_project",
@@ -610,8 +605,7 @@ public class OpennessWorkerClient
             },
             "{}").ConfigureAwait(false);
 
-        if (!result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase) &&
-            _projectSessionBinding.Clear(projectPath, out _) is false)
+        if (result.Success && _projectSessionBinding.Clear(projectPath, out _) is false)
         {
             _projectSessionBinding.Clear(null, out _);
         }
@@ -619,35 +613,56 @@ public class OpennessWorkerClient
         return result;
     }
 
-    private async Task<string> SendBoundProjectRequestAsync(
+    private async Task<WorkerCallResult> SendBoundProjectRequestAsync(
         string method,
         string? projectPath,
         Action<WorkerRequest> configure,
         string emptyPayload)
     {
+        if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
+        {
+            return WorkerCallResult.Fail(bindingError!);
+        }
+
+        var request = new WorkerRequest
+        {
+            Method = method,
+            ProjectPath = effectiveProjectPath
+        };
+        configure(request);
+
+        var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
+        return result.Success && string.IsNullOrEmpty(result.Payload)
+            ? result with { Payload = emptyPayload }
+            : result;
+    }
+
+    private async Task<WorkerCallResult> InvokeWorkerAsync(WorkerRequest request)
+    {
         try
         {
-            if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
+            var (response, stderrWarnings) = await SendAsync(request).ConfigureAwait(false);
+            foreach (var warning in stderrWarnings)
             {
-                return $"Error: {bindingError}";
+                _logger?.LogWarning("TIA Openness worker stderr: {Line}", warning);
             }
 
-            var request = new WorkerRequest
-            {
-                Method = method,
-                ProjectPath = effectiveProjectPath
-            };
-            configure(request);
-
-            var response = await SendAsync(request).ConfigureAwait(false);
-
             return response.Success
-                ? response.Payload ?? emptyPayload
-                : FormatWorkerError(response);
+                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, stderrWarnings)
+                : WorkerCallResult.Fail(
+                    response.Error ?? "The TIA Openness worker failed without an error message.",
+                    stderrWarnings);
+        }
+        catch (Win32Exception ex)
+        {
+            return WorkerCallResult.Fail(
+                $"Failed to launch the TIA Openness worker process ({ex.Message}). "
+                + "Verify that .NET Framework 4.8 is installed and that the 'openness-worker' folder "
+                + "beside the MCP server executable is complete; rebuild or reinstall if files are missing.");
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
         {
-            return $"Error: {ex.Message}";
+            return WorkerCallResult.Fail(ex.Message);
         }
     }
 
@@ -673,11 +688,6 @@ public class OpennessWorkerClient
         return false;
     }
 
-    private static string FormatWorkerError(WorkerResponse response)
-    {
-        return $"Error: {response.Error ?? "The TIA Openness worker failed without an error message."}";
-    }
-
     private static string? TryReadProjectPath(string? payload)
     {
         if (string.IsNullOrWhiteSpace(payload))
@@ -685,29 +695,36 @@ public class OpennessWorkerClient
             return null;
         }
 
-        using var document = JsonDocument.Parse(payload);
-        if (document.RootElement.TryGetProperty("projectPath", out var projectPath) &&
-            projectPath.ValueKind == JsonValueKind.String)
+        try
         {
-            return projectPath.GetString();
-        }
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.TryGetProperty("projectPath", out var projectPath) &&
+                projectPath.ValueKind == JsonValueKind.String)
+            {
+                return projectPath.GetString();
+            }
 
-        if (document.RootElement.TryGetProperty("project", out var project) &&
-            project.ValueKind == JsonValueKind.Object &&
-            project.TryGetProperty("path", out var statusPath) &&
-            statusPath.ValueKind == JsonValueKind.String)
+            if (document.RootElement.TryGetProperty("project", out var project) &&
+                project.ValueKind == JsonValueKind.Object &&
+                project.TryGetProperty("path", out var statusPath) &&
+                statusPath.ValueKind == JsonValueKind.String)
+            {
+                return statusPath.GetString();
+            }
+
+            return null;
+        }
+        catch (JsonException)
         {
-            return statusPath.GetString();
+            return null;
         }
-
-        return null;
     }
 
     // Siemens Openness is not safe for concurrent multi-process access to one TIA Portal
     // instance; serialize every worker invocation until the persistent-worker rework lands.
     private static readonly SemaphoreSlim WorkerGate = new(1, 1);
 
-    private static async Task<WorkerResponse> SendAsync(WorkerRequest request)
+    private async Task<(WorkerResponse Response, IReadOnlyList<string> StderrLines)> SendAsync(WorkerRequest request)
     {
         await WorkerGate.WaitAsync().ConfigureAwait(false);
         try
@@ -720,9 +737,9 @@ public class OpennessWorkerClient
         }
     }
 
-    private static async Task<WorkerResponse> SendUnguardedAsync(WorkerRequest request)
+    private async Task<(WorkerResponse Response, IReadOnlyList<string> StderrLines)> SendUnguardedAsync(WorkerRequest request)
     {
-        var workerPath = LocateWorkerExecutable();
+        var workerPath = _workerExecutablePathOverride ?? LocateWorkerExecutable();
         var startInfo = new ProcessStartInfo
         {
             FileName = workerPath,
@@ -757,6 +774,7 @@ public class OpennessWorkerClient
         var responseLine = await responseLineTask.ConfigureAwait(false);
         await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
         var stderr = await stderrTask.ConfigureAwait(false);
+        var stderrLines = SplitStderrLines(stderr);
 
         if (string.IsNullOrWhiteSpace(responseLine))
         {
@@ -765,7 +783,33 @@ public class OpennessWorkerClient
         }
 
         var response = JsonSerializer.Deserialize<WorkerResponse>(responseLine, JsonOptions);
-        return response ?? throw new InvalidOperationException("TIA Openness worker returned an empty response.");
+        return (response ?? throw new InvalidOperationException("TIA Openness worker returned an empty response."), stderrLines);
+    }
+
+    // A degraded read of a large project can emit hundreds of "Skipping X" lines; cap what
+    // reaches the agent so warnings cannot flood a small model's context.
+    private const int MaxStderrWarningLines = 20;
+
+    private static IReadOnlyList<string> SplitStderrLines(string stderr)
+    {
+        if (string.IsNullOrWhiteSpace(stderr))
+        {
+            return Array.Empty<string>();
+        }
+
+        var lines = stderr.Replace("\r\n", "\n").Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+
+        if (lines.Count > MaxStderrWarningLines)
+        {
+            var dropped = lines.Count - MaxStderrWarningLines;
+            lines = lines.Take(MaxStderrWarningLines).ToList();
+            lines.Add($"(+{dropped} more worker warnings truncated)");
+        }
+
+        return lines;
     }
 
     private static string LocateWorkerExecutable()

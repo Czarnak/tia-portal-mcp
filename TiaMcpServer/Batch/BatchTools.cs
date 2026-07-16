@@ -31,7 +31,7 @@ public static class BatchTools
 
         var results = await BatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
+            async op => (await BatchWorkerInvoker.InvokeAsync(workerClient, op).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
 
         return BatchResultFormatter.ReadBatch(results);
     }
@@ -122,7 +122,7 @@ public static class BatchTools
 
         var results = await BatchExecutionEngine.ApplyWritesAsync(
             operations,
-            op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
+            async op => (await BatchWorkerInvoker.InvokeAsync(workerClient, op).ConfigureAwait(false)).ToText()).ConfigureAwait(false);
 
         var resultJson = BatchResultFormatter.ApplyBatch(results);
         WriteSafetyService.Shared.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);
@@ -137,12 +137,12 @@ public static class BatchTools
         foreach (var op in operations)
         {
             var state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
-            if (state.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+            if (!state.Success)
             {
-                return (string.Empty, $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). {state}");
+                return (string.Empty, $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). Error: {state.Error}");
             }
 
-            states.Add(new BatchCurrentState(op.OperationId, op.Operation, state));
+            states.Add(new BatchCurrentState(op.OperationId, op.Operation, state.Payload));
         }
 
         return (BatchSafetySnapshot.CombineCurrentState(states), null);
