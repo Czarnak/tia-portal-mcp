@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.Batch;
 
@@ -7,6 +8,7 @@ namespace TiaMcpServer.Batch;
 /// scalar parameters of the existing single MCP tools; only the fields relevant to the
 /// chosen <see cref="Operation"/> are read.
 /// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class BatchOperationRequest
 {
     [Description("Client-supplied unique identifier for this item within the batch; the result is keyed by it.")]
