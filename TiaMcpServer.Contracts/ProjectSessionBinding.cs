@@ -39,7 +39,7 @@ public sealed class ProjectSessionBinding
         }
 
         var boundProjectPath = _boundProjectPath ?? string.Empty;
-        error = $"This MCP session is already bound to project '{boundProjectPath}' and cannot use '{requested}'. Start a new MCP session for a different TIA project.";
+        error = $"This MCP session is already bound to project '{boundProjectPath}' and cannot use '{requested}'. Call open_project with forceRebind=true to rebind this session, or start a new MCP session for a different TIA project.";
         return false;
     }
 

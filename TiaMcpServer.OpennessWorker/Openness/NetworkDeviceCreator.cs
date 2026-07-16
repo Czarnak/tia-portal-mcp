@@ -22,14 +22,11 @@ public static class NetworkDeviceCreator
         Device device;
         try
         {
+            // EngineeringException propagates on purpose: a failed CreateWithItem must surface as
+            // WorkerResponse.Success=false (via Program.Execute), never as a success with a warning.
             device = project.Devices.CreateWithItem(typeIdentifier, deviceName, deviceItemName);
         }
-        catch (EngineeringException ex)
-        {
-            result.Warnings.Add($"TIA Portal could not create device '{deviceName}': {ex.Message}");
-            return result;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not EngineeringException)
         {
             throw new InvalidOperationException(
                 $"Failed to create network device '{deviceName}' from type identifier '{typeIdentifier}': {ex.Message}",

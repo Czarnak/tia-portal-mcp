@@ -703,7 +703,24 @@ public class OpennessWorkerClient
         return null;
     }
 
+    // Siemens Openness is not safe for concurrent multi-process access to one TIA Portal
+    // instance; serialize every worker invocation until the persistent-worker rework lands.
+    private static readonly SemaphoreSlim WorkerGate = new(1, 1);
+
     private static async Task<WorkerResponse> SendAsync(WorkerRequest request)
+    {
+        await WorkerGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await SendUnguardedAsync(request).ConfigureAwait(false);
+        }
+        finally
+        {
+            WorkerGate.Release();
+        }
+    }
+
+    private static async Task<WorkerResponse> SendUnguardedAsync(WorkerRequest request)
     {
         var workerPath = LocateWorkerExecutable();
         var startInfo = new ProcessStartInfo

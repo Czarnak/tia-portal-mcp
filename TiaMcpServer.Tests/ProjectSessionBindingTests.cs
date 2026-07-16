@@ -106,4 +106,16 @@ public class ProjectSessionBindingTests
         Assert.Contains("already bound", error);
         Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
     }
+
+    [Fact]
+    public void TryResolve_RejectionMentionsForceRebindEscapeHatch()
+    {
+        var binding = new ProjectSessionBinding(@"C:\Projects\a.ap21");
+
+        var resolved = binding.TryResolve(@"C:\Projects\b.ap21", out _, out var error);
+
+        Assert.False(resolved);
+        Assert.Contains("forceRebind", error);
+        Assert.Contains("open_project", error);
+    }
 }

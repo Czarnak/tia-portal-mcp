@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests;
@@ -61,6 +63,61 @@ public class BatchToolMetadataTests
         {
             Assert.Contains(operation, description!.Description);
         }
+    }
+
+    [Fact]
+    public void PreviewWriteBatchDescription_StatesTheActualTokenLifetime()
+    {
+        var expected = $"{WriteSafetyService.DefaultTokenLifetime.TotalMinutes:N0} minutes";
+        Assert.Contains(expected, MethodDescription("PreviewWriteBatch"));
+    }
+
+    private static string PropertyDescription(string propertyName)
+    {
+        var property = typeof(BatchOperationRequest).GetProperty(propertyName);
+        Assert.NotNull(property);
+        var description = property!.GetCustomAttribute<DescriptionAttribute>();
+        Assert.NotNull(description);
+        return description!.Description;
+    }
+
+    [Fact]
+    public void FilterDescription_NamesItsOperationAndListsAllValues()
+    {
+        var description = PropertyDescription(nameof(BatchOperationRequest.Filter));
+        Assert.Contains("read_cross_references", description);
+        Assert.Contains("AllObjects", description);
+        Assert.Contains("ObjectsWithReferences", description);
+        Assert.Contains("ObjectsWithoutReferences", description);
+        Assert.Contains("UnusedObjects", description);
+    }
+
+    [Fact]
+    public void BlockPathDescription_CoversAllBlockOperationsAndCompileCheck()
+    {
+        var description = PropertyDescription(nameof(BatchOperationRequest.BlockPath));
+        Assert.Contains("create_block", description);
+        Assert.Contains("delete_block", description);
+        Assert.Contains("compile_check", description);
+    }
+
+    [Fact]
+    public void NewNameDescription_DoesNotClaimUserConstantRename()
+    {
+        var description = PropertyDescription(nameof(BatchOperationRequest.NewName));
+        Assert.Contains("update_tag", description);
+        Assert.DoesNotMatch(
+        new Regex(@"\buser constant\b", RegexOptions.IgnoreCase),
+        description
+    );
+    }
+
+    [Fact]
+    public void PlcNameDescription_NamesTheOperationsThatHonorIt()
+    {
+        var description = PropertyDescription(nameof(BatchOperationRequest.PlcName));
+        Assert.Contains("list_tag_tables", description);
+        Assert.Contains("compile_check", description);
     }
 
     [Theory]

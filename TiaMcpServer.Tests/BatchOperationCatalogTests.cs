@@ -212,6 +212,46 @@ public class BatchOperationCatalogTests
         }
     }
 
+    [Fact]
+    public void ValidateReadBatch_UnknownOperationErrorListsValidReadOperations()
+    {
+        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("a", "teleport_plc") });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Valid read operations", result.Error);
+        Assert.Contains("browse_project_tree", result.Error);
+        Assert.Contains("get_block_content", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWriteBatch_UnknownOperationErrorListsValidWriteOperations()
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[] { Op("a", "frobnicate") });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Valid write operations", result.Error);
+        Assert.Contains("update_block_logic", result.Error);
+        Assert.Contains("create_tag", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWriteBatch_ReportsAllInvalidItemsAtOnce()
+    {
+        var operations = new[]
+        {
+            Op("a", "creat_tag"),
+            Op("b", "create_tag", r => r.TableName = "Inputs"),
+            Op("c", "get_block_content", r => r.BlockPath = "Main"),
+        };
+
+        var result = BatchOperationCatalog.ValidateWriteBatch(operations);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("creat_tag", result.Error);
+        Assert.Contains("dataType", result.Error);
+        Assert.Contains("get_block_content", result.Error);
+    }
+
     private static BatchOperationRequest FullyPopulated(string id, string operation) => new()
     {
         OperationId = id,

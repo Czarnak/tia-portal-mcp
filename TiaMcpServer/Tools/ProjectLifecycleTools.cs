@@ -18,7 +18,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_open_project")]
-        [Description("Preview opening a TIA Portal project and return a short-lived safetyToken. Pass the token to open_project after reviewing the preview.")]
+        [Description("Preview opening a TIA Portal project and return a single-use safetyToken that expires after 10 minutes. Pass the token to open_project after reviewing the preview.")]
         public static Task<string> PreviewOpenProject(
             [Description("Path to the .ap21 project file to open.")] string projectPath,
             [Description("Set true to allow rebinding this MCP session from a previously bound project.")] bool forceRebind = false)
@@ -73,7 +73,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_create_project")]
-        [Description("Preview creating a new TIA Portal project and return a short-lived safetyToken. Pass the token to create_project after reviewing the preview.")]
+        [Description("Preview creating a new TIA Portal project and return a single-use safetyToken that expires after 10 minutes. Pass the token to create_project after reviewing the preview.")]
         public static Task<string> PreviewCreateProject(
             [Description("Directory where the project folder should be created.")] string projectDirectory,
             [Description("Name of the new TIA Portal project.")] string projectName,
@@ -133,7 +133,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_save_project")]
-        [Description("Preview saving the active TIA Portal project and return a short-lived safetyToken. Pass the token to save_project after reviewing the preview.")]
+        [Description("Preview saving the active TIA Portal project and return a single-use safetyToken that expires after 10 minutes. Pass the token to save_project after reviewing the preview.")]
         public static async Task<string> PreviewSaveProject(
             OpennessWorkerClient workerClient,
             [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
@@ -188,7 +188,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_save_project_as")]
-        [Description("Preview saving the active TIA Portal project to a copy and return a short-lived safetyToken. Pass the token to save_project_as after reviewing the preview.")]
+        [Description("Preview saving the active TIA Portal project to a copy and return a single-use safetyToken that expires after 10 minutes. Pass the token to save_project_as after reviewing the preview.")]
         public static async Task<string> PreviewSaveProjectAs(
             OpennessWorkerClient workerClient,
             [Description("Parent directory for the copied project.")] string targetDirectory,
@@ -250,7 +250,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_archive_project")]
-        [Description("Preview archiving the active TIA Portal project and return a short-lived safetyToken. Pass the token to archive_project after reviewing the preview.")]
+        [Description("Preview archiving the active TIA Portal project and return a single-use safetyToken that expires after 10 minutes. Pass the token to archive_project after reviewing the preview.")]
         public static async Task<string> PreviewArchiveProject(
             OpennessWorkerClient workerClient,
             [Description("Directory where the archive should be written.")] string archiveDirectory,
@@ -318,7 +318,7 @@ namespace TiaMcpServer.Tools
         }
 
         [McpServerTool(Name = "preview_close_project")]
-        [Description("Preview closing the active TIA Portal project and return a short-lived safetyToken. Pass the token to close_project after reviewing the preview.")]
+        [Description("Preview closing the active TIA Portal project and return a single-use safetyToken that expires after 10 minutes. Pass the token to close_project after reviewing the preview.")]
         public static async Task<string> PreviewCloseProject(
             OpennessWorkerClient workerClient,
             [Description("Optional path to a .ap21 project file. If omitted, closes the currently bound/open project.")] string? projectPath = null,

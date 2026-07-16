@@ -20,19 +20,19 @@ public sealed class BatchOperationRequest
     [Description("Optional absolute project path (.ap21). When omitted, the active project is used; all write items in one batch must share the same project path.")]
     public string? ProjectPath { get; set; }
 
-    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content and update_block_logic.")]
+    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, create_block, delete_block, create_block_group, delete_block_group. Optional for compile_check to compile only that block.")]
     public string? BlockPath { get; set; }
 
     [Description("SIMATIC SD document content for the block. Required by update_block_logic.")]
     public string? YamlContent { get; set; }
 
-    [Description("Optional PLC software name used to scope the operation.")]
+    [Description("Optional PLC software name to scope the operation. Honored by list_tag_tables, read_cross_references, compile_check, start_plc, stop_plc, and the tag, tag-table, and user-constant operations.")]
     public string? PlcName { get; set; }
 
     [Description("Hardware catalog search query. Required by search_equipment_catalog.")]
     public string? Query { get; set; }
 
-    [Description("Optional filter, e.g. a cross-reference filter such as ObjectsWithReferences or UnusedObjects.")]
+    [Description("Optional cross-reference filter for read_cross_references. Allowed values: AllObjects, ObjectsWithReferences, ObjectsWithoutReferences, UnusedObjects.")]
     public string? Filter { get; set; }
 
     [Description("PLC tag table name. Required by the tag, tag-table, and user-constant operations.")]
@@ -44,7 +44,7 @@ public sealed class BatchOperationRequest
     [Description("Tag or user-constant name. Required by create/update/delete tag and user-constant operations.")]
     public string? Name { get; set; }
 
-    [Description("Optional new name when renaming a tag or user constant.")]
+    [Description("Optional new name when renaming a tag; only update_tag applies it. Renaming user constants is not supported.")]
     public string? NewName { get; set; }
 
     [Description("Data type, e.g. Bool or Int. Required by create_tag and create_user_constant.")]

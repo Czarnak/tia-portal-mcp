@@ -134,6 +134,85 @@ public class WriteSafetyServiceTests
         Assert.Contains("expired", result.Error);
     }
 
+    [Fact]
+    public void RejectionIncludesRecoveryGuidanceWithPreviewToolName()
+    {
+        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow);
+
+        var result = safety.ValidateAndConsume(
+            "unknown-token",
+            toolName: "apply_write_batch",
+            projectPath: null,
+            target: new { },
+            requestedInput: new { },
+            currentState: "state",
+            previewToolName: "preview_write_batch");
+
+        Assert.False(result.IsValid);
+        Assert.Contains("single-use", result.Error);
+        Assert.Contains("10 minutes", result.Error);
+        Assert.Contains("preview_write_batch", result.Error);
+    }
+
+    [Fact]
+    public void RecoveryGuidanceUsesConfiguredLifetime()
+    {
+        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2));
+
+        var result = safety.ValidateAndConsume(
+            "unknown-token", "apply_write_batch", null, new { }, new { }, "state");
+
+        Assert.False(result.IsValid);
+        Assert.Contains("2 minutes", result.Error);
+        Assert.Contains("the matching preview tool", result.Error);
+    }
+
+    [Fact]
+    public void AppendAudit_WritesJsonlRecordToConfiguredDirectory()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "tia-mcp-audit-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var now = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
+            var safety = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10), dir);
+
+            safety.AppendAudit("apply_write_batch", null, new { }, new { }, "state", "result");
+
+            var auditPath = Path.Combine(dir, "2026-07-15.jsonl");
+            Assert.True(File.Exists(auditPath));
+            Assert.Contains("apply_write_batch", File.ReadAllText(auditPath));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AppendAudit_LogsFailureToStdErrInsteadOfThrowing()
+    {
+        var blockingFile = Path.GetTempFileName();
+        var originalError = Console.Error;
+        var capture = new StringWriter();
+        Console.SetError(capture);
+        try
+        {
+            var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow, TimeSpan.FromMinutes(10), blockingFile);
+
+            safety.AppendAudit("apply_write_batch", null, new { }, new { }, "state", "result");
+        }
+        finally
+        {
+            Console.SetError(originalError);
+            File.Delete(blockingFile);
+        }
+
+        Assert.Contains("failed to write audit record", capture.ToString());
+    }
+
     private static string ReadToken(string previewJson)
     {
         using var preview = JsonDocument.Parse(previewJson);
