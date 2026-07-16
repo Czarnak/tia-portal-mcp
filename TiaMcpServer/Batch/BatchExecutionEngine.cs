@@ -1,3 +1,5 @@
+using TiaMcpServer.Worker;
+
 namespace TiaMcpServer.Batch;
 
 /// <summary>
@@ -7,20 +9,16 @@ namespace TiaMcpServer.Batch;
 /// </summary>
 public static class BatchExecutionEngine
 {
-    private static bool IsFailure(string result)
-        => result.StartsWith("Error:", StringComparison.OrdinalIgnoreCase);
-
     /// <summary>Reads run independently; a failing item is recorded but never stops the others.</summary>
     public static async Task<IReadOnlyList<BatchOperationResult>> ExecuteReadsAsync(
         IReadOnlyList<BatchOperationRequest> operations,
-        Func<BatchOperationRequest, Task<string>> invoke)
+        Func<BatchOperationRequest, Task<WorkerCallResult>> invoke)
     {
         var results = new List<BatchOperationResult>(operations.Count);
         foreach (var op in operations)
         {
             var result = await invoke(op).ConfigureAwait(false);
-            var status = IsFailure(result) ? BatchOperationStatus.Failed : BatchOperationStatus.Succeeded;
-            results.Add(new BatchOperationResult(op.OperationId, op.Operation, status, result));
+            results.Add(ToOperationResult(op, result));
         }
 
         return results;
@@ -29,7 +27,7 @@ public static class BatchExecutionEngine
     /// <summary>Writes run sequentially and stop on the first failure; later items are skipped.</summary>
     public static async Task<IReadOnlyList<BatchOperationResult>> ApplyWritesAsync(
         IReadOnlyList<BatchOperationRequest> operations,
-        Func<BatchOperationRequest, Task<string>> invoke)
+        Func<BatchOperationRequest, Task<WorkerCallResult>> invoke)
     {
         var results = new List<BatchOperationResult>(operations.Count);
         var stopped = false;
@@ -42,17 +40,18 @@ public static class BatchExecutionEngine
             }
 
             var result = await invoke(op).ConfigureAwait(false);
-            if (IsFailure(result))
-            {
-                stopped = true;
-                results.Add(new BatchOperationResult(op.OperationId, op.Operation, BatchOperationStatus.Failed, result));
-            }
-            else
-            {
-                results.Add(new BatchOperationResult(op.OperationId, op.Operation, BatchOperationStatus.Succeeded, result));
-            }
+            stopped = !result.Success;
+            results.Add(ToOperationResult(op, result));
         }
 
         return results;
     }
+
+    private static BatchOperationResult ToOperationResult(BatchOperationRequest op, WorkerCallResult result)
+        => new(
+            op.OperationId,
+            op.Operation,
+            result.Success ? BatchOperationStatus.Succeeded : BatchOperationStatus.Failed,
+            result.ToText(),
+            result.Warnings.Count > 0 ? result.Warnings : null);
 }

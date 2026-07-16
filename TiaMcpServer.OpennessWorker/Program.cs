@@ -92,7 +92,7 @@ internal static class Program
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            return Failure(ex.Message);
+            return Failure($"{ex.GetType().Name}: {ex.Message}");
         }
     }
 

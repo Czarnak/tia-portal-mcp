@@ -164,6 +164,32 @@ public class HardwareConfigInfoTests
         Assert.Null(roundTripped.NetworkInterfaces);
     }
 
+    [Fact]
+    public void MessagesRoundTrip()
+    {
+        var config = new HardwareConfigInfo
+        {
+            Messages = { "Could not read device 'X' type identifier: access denied." }
+        };
+
+        var json = JsonSerializer.Serialize(config);
+        var roundTripped = JsonSerializer.Deserialize<HardwareConfigInfo>(json)!;
+
+        Assert.Equal(
+            "Could not read device 'X' type identifier: access denied.",
+            Assert.Single(roundTripped.Messages));
+    }
+
+    [Fact]
+    public void UnreadableValues_AreNullNotFallbackDefaults()
+    {
+        var item = new DeviceItemInfo();
+
+        Assert.Null(item.Name);
+        Assert.Null(item.TypeIdentifier);
+        Assert.Null(item.PositionNumber);
+    }
+
     private static HardwareConfigInfo RoundTrip(HardwareConfigInfo config)
     {
         var json = JsonSerializer.Serialize(config, JsonOptions);

@@ -14,4 +14,5 @@ public sealed record BatchOperationResult(
     string OperationId,
     string Operation,
     string Status,
-    string? Result);
+    string? Result,
+    IReadOnlyList<string>? Warnings = null);

@@ -33,6 +33,7 @@ public class BatchResultFormatterTests
         Assert.Equal(2, root.GetProperty("operationCount").GetInt32());
         Assert.Equal(2, root.GetProperty("succeeded").GetInt32());
         Assert.Equal(2, root.GetProperty("operations").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("operations")[0].GetProperty("warnings").ValueKind);
     }
 
     [Fact]
@@ -67,5 +68,22 @@ public class BatchResultFormatterTests
         Assert.Equal(1, root.GetProperty("failed").GetInt32());
         Assert.Equal(1, root.GetProperty("skipped").GetInt32());
         Assert.Equal("apply_write_batch", root.GetProperty("tool").GetString());
+    }
+
+    [Fact]
+    public void ReadBatch_IncludesWarningsWhenPresent()
+    {
+        var results = new[]
+        {
+            new BatchOperationResult("a", "browse_project_tree", BatchOperationStatus.Succeeded, "[]",
+                new[] { "Skipping device 'X'." }),
+        };
+
+        var root = Parse(BatchResultFormatter.ReadBatch(results));
+        var warnings = root.GetProperty("operations")[0].GetProperty("warnings");
+
+        Assert.Equal(JsonValueKind.Array, warnings.ValueKind);
+        Assert.Equal(1, warnings.GetArrayLength());
+        Assert.Equal("Skipping device 'X'.", warnings[0].GetString());
     }
 }

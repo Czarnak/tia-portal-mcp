@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <PackageReference Include="xunit" Version="2.9.0" />
@@ -22,7 +23,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
+    <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj" ReferenceOutputAssembly="false" />
     <Compile Include="..\TiaMcpServer\Worker\OpennessWorkerClient.cs" Link="Host\OpennessWorkerClient.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs" Link="Host\WriteSafetyService.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs" Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectLifecycleTools.cs" Link="Host\ProjectLifecycleTools.cs" />

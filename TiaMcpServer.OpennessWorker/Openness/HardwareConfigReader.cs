@@ -15,11 +15,11 @@ public static class HardwareConfigReader
         {
             try
             {
-                result.Devices.Add(ReadDevice(device));
+                result.Devices.Add(ReadDevice(device, result.Messages));
             }
             catch (EngineeringException ex)
             {
-                Console.Error.WriteLine($"Skipping device while reading hardware configuration: {ex.Message}");
+                result.Messages.Add($"Skipped a device while reading hardware configuration: {ex.Message}");
             }
         }
 
@@ -27,31 +27,32 @@ public static class HardwareConfigReader
         {
             try
             {
-                result.Subnets.Add(ReadSubnet(subnet));
+                result.Subnets.Add(ReadSubnet(subnet, result.Messages));
             }
             catch (EngineeringException ex)
             {
-                Console.Error.WriteLine($"Skipping subnet while reading hardware configuration: {ex.Message}");
+                result.Messages.Add($"Skipped a subnet while reading hardware configuration: {ex.Message}");
             }
         }
 
         return result;
     }
 
-    private static DeviceInfo ReadDevice(Device device)
+    private static DeviceInfo ReadDevice(Device device, List<string> messages)
     {
         var deviceInfo = new DeviceInfo
         {
-            Name = ReadString(() => device.Name, "device name"),
-            TypeIdentifier = ReadString(() => device.TypeIdentifier, $"device '{device.Name}' type identifier")
+            Name = ReadString(() => device.Name, "device name", messages)
         };
+        var deviceDescription = deviceInfo.Name ?? "(unnamed)";
+        deviceInfo.TypeIdentifier = ReadString(() => device.TypeIdentifier, $"device '{deviceDescription}' type identifier", messages);
 
-        deviceInfo.Items = ReadDeviceItems(device.DeviceItems, $"device '{deviceInfo.Name}'");
+        deviceInfo.Items = ReadDeviceItems(device.DeviceItems, $"device '{deviceDescription}'", messages);
 
         return deviceInfo;
     }
 
-    private static List<DeviceItemInfo> ReadDeviceItems(DeviceItemComposition items, string ownerDescription)
+    private static List<DeviceItemInfo> ReadDeviceItems(DeviceItemComposition items, string ownerDescription, List<string> messages)
     {
         var result = new List<DeviceItemInfo>();
 
@@ -59,35 +60,36 @@ public static class HardwareConfigReader
         {
             try
             {
-                result.Add(ReadDeviceItem(item));
+                result.Add(ReadDeviceItem(item, messages));
             }
             catch (EngineeringException ex)
             {
-                Console.Error.WriteLine($"Skipping a device item while reading {ownerDescription}: {ex.Message}");
+                messages.Add($"Skipped a device item while reading {ownerDescription}: {ex.Message}");
             }
         }
 
         return result;
     }
 
-    private static DeviceItemInfo ReadDeviceItem(DeviceItem item)
+    private static DeviceItemInfo ReadDeviceItem(DeviceItem item, List<string> messages)
     {
-        var itemName = ReadString(() => item.Name, "device item name");
+        var itemName = ReadString(() => item.Name, "device item name", messages);
+        var itemDescription = itemName ?? "(unnamed)";
         var itemInfo = new DeviceItemInfo
         {
             Name = itemName,
-            TypeIdentifier = ReadString(() => item.TypeIdentifier, $"device item '{itemName}' type identifier"),
-            PositionNumber = ReadInt(() => item.PositionNumber, $"device item '{itemName}' position number"),
-            Address = ReadAttribute((IEngineeringObject)item, "Address", $"device item '{itemName}' address")
+            TypeIdentifier = ReadString(() => item.TypeIdentifier, $"device item '{itemDescription}' type identifier", messages),
+            PositionNumber = ReadInt(() => item.PositionNumber, $"device item '{itemDescription}' position number", messages),
+            Address = ReadAttribute((IEngineeringObject)item, "Address", $"device item '{itemDescription}' address", messages)
         };
 
-        var networkInterfaces = ReadNetworkInterfaces(item, itemName);
+        var networkInterfaces = ReadNetworkInterfaces(item, itemDescription, messages);
         if (networkInterfaces.Count > 0)
         {
             itemInfo.NetworkInterfaces = networkInterfaces;
         }
 
-        var children = ReadDeviceItems(item.DeviceItems, $"device item '{itemName}'");
+        var children = ReadDeviceItems(item.DeviceItems, $"device item '{itemDescription}'", messages);
         if (children.Count > 0)
         {
             itemInfo.Items = children;
@@ -96,7 +98,7 @@ public static class HardwareConfigReader
         return itemInfo;
     }
 
-    private static List<NetworkInterfaceInfo> ReadNetworkInterfaces(DeviceItem item, string itemName)
+    private static List<NetworkInterfaceInfo> ReadNetworkInterfaces(DeviceItem item, string itemDescription, List<string> messages)
     {
         var result = new List<NetworkInterfaceInfo>();
 
@@ -105,20 +107,20 @@ public static class HardwareConfigReader
             var networkInterface = ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
             if (networkInterface is not null)
             {
-                result.Add(ReadNetworkInterface(networkInterface));
+                result.Add(ReadNetworkInterface(networkInterface, messages));
             }
         }
         catch (EngineeringException ex)
         {
-            Console.Error.WriteLine($"Skipping network interface while reading device item '{itemName}': {ex.Message}");
+            messages.Add($"Could not read network interface while reading device item '{itemDescription}': {ex.Message}");
         }
 
         return result;
     }
 
-    private static NetworkInterfaceInfo ReadNetworkInterface(NetworkInterface networkInterface)
+    private static NetworkInterfaceInfo ReadNetworkInterface(NetworkInterface networkInterface, List<string> messages)
     {
-        var interfaceName = ReadPropertyOrAttribute(networkInterface, "Name", "network interface name") ?? string.Empty;
+        var interfaceName = ReadPropertyOrAttribute(networkInterface, "Name", "network interface name", messages) ?? string.Empty;
         var interfaceInfo = new NetworkInterfaceInfo
         {
             Name = interfaceName
@@ -128,78 +130,80 @@ public static class HardwareConfigReader
         {
             try
             {
-                interfaceInfo.Nodes.Add(ReadNode(node, networkInterface));
+                interfaceInfo.Nodes.Add(ReadNode(node, networkInterface, messages));
             }
             catch (EngineeringException ex)
             {
-                Console.Error.WriteLine($"Skipping a node while reading network interface '{interfaceName}': {ex.Message}");
+                messages.Add($"Skipped a node while reading network interface '{interfaceName}': {ex.Message}");
             }
         }
 
         return interfaceInfo;
     }
 
-    private static NodeInfo ReadNode(Node node, NetworkInterface networkInterface)
+    private static NodeInfo ReadNode(Node node, NetworkInterface networkInterface, List<string> messages)
     {
-        var nodeName = ReadString(() => node.Name, "node name");
+        var nodeName = ReadString(() => node.Name, "node name", messages);
+        var nodeDescription = nodeName ?? "(unnamed)";
         return new NodeInfo
         {
-            Name = nodeName,
-            IpAddress = ReadAttribute((IEngineeringObject)node, "Address", $"node '{nodeName}' IP address"),
-            SubnetMask = ReadAttribute((IEngineeringObject)node, "SubnetMask", $"node '{nodeName}' subnet mask"),
-            PnDeviceName = ReadAttribute((IEngineeringObject)node, "PnDeviceName", $"node '{nodeName}' PROFINET device name"),
-            SubnetName = ReadConnectedSubnetName(node, nodeName),
-            IoSystemName = ReadIoSystemName(networkInterface, nodeName)
+            Name = nodeName ?? string.Empty,
+            IpAddress = ReadAttribute((IEngineeringObject)node, "Address", $"node '{nodeDescription}' IP address", messages),
+            SubnetMask = ReadAttribute((IEngineeringObject)node, "SubnetMask", $"node '{nodeDescription}' subnet mask", messages),
+            PnDeviceName = ReadAttribute((IEngineeringObject)node, "PnDeviceName", $"node '{nodeDescription}' PROFINET device name", messages),
+            SubnetName = ReadConnectedSubnetName(node, nodeDescription, messages),
+            IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, messages)
         };
     }
 
-    private static SubnetInfo ReadSubnet(Subnet subnet)
+    private static SubnetInfo ReadSubnet(Subnet subnet, List<string> messages)
     {
-        var subnetName = ReadString(() => subnet.Name, "subnet name");
+        var subnetName = ReadString(() => subnet.Name, "subnet name", messages);
+        var subnetDescription = subnetName ?? "(unnamed)";
         var subnetInfo = new SubnetInfo
         {
-            Name = subnetName,
-            TypeIdentifier = ReadAttribute((IEngineeringObject)subnet, "TypeIdentifier", $"subnet '{subnetName}' type identifier") ??
-                ReadPropertyOrAttribute(subnet, "NetType", $"subnet '{subnetName}' network type")
+            Name = subnetName ?? string.Empty,
+            TypeIdentifier = ReadAttribute((IEngineeringObject)subnet, "TypeIdentifier", $"subnet '{subnetDescription}' type identifier", messages) ??
+                ReadPropertyOrAttribute(subnet, "NetType", $"subnet '{subnetDescription}' network type", messages)
         };
 
-        foreach (var node in ReadEnumerableProperty(subnet, "Nodes", $"subnet '{subnetName}' nodes"))
+        foreach (var node in ReadEnumerableProperty(subnet, "Nodes", $"subnet '{subnetDescription}' nodes"))
         {
-            var connectedNodeName = ReadPropertyOrAttribute(node, "Name", $"subnet '{subnetName}' connected node");
+            var connectedNodeName = ReadPropertyOrAttribute(node, "Name", $"subnet '{subnetDescription}' connected node", messages);
             if (!string.IsNullOrWhiteSpace(connectedNodeName))
             {
                 subnetInfo.ConnectedNodeNames.Add(connectedNodeName!);
             }
         }
 
-        foreach (var ioSystem in ReadEnumerableProperty(subnet, "IoSystems", $"subnet '{subnetName}' IO systems"))
+        foreach (var ioSystem in ReadEnumerableProperty(subnet, "IoSystems", $"subnet '{subnetDescription}' IO systems"))
         {
             try
             {
-                subnetInfo.IoSystems.Add(ReadIoSystem(ioSystem));
+                subnetInfo.IoSystems.Add(ReadIoSystem(ioSystem, messages));
             }
             catch (EngineeringException ex)
             {
-                Console.Error.WriteLine($"Skipping an IO system while reading subnet '{subnetName}': {ex.Message}");
+                messages.Add($"Skipped an IO system while reading subnet '{subnetDescription}': {ex.Message}");
             }
         }
 
         return subnetInfo;
     }
 
-    private static IoSystemInfo ReadIoSystem(object ioSystem)
+    private static IoSystemInfo ReadIoSystem(object ioSystem, List<string> messages)
     {
-        var ioSystemName = ReadPropertyOrAttribute(ioSystem, "Name", "IO system name") ?? string.Empty;
+        var ioSystemName = ReadPropertyOrAttribute(ioSystem, "Name", "IO system name", messages) ?? string.Empty;
         var ioSystemInfo = new IoSystemInfo
         {
             Name = ioSystemName,
-            IoControllerName = FindParentDeviceName(ReadProperty(ioSystem, "IoController"))
+            IoControllerName = FindParentDeviceName(ReadProperty(ioSystem, "IoController"), messages)
         };
 
         foreach (var connectedDevice in ReadEnumerableProperty(ioSystem, "ConnectedIoDevices", $"IO system '{ioSystemName}' connected IO devices"))
         {
-            var connectedDeviceName = FindParentDeviceName(connectedDevice) ??
-                ReadPropertyOrAttribute(connectedDevice, "Name", $"IO system '{ioSystemName}' connected IO device");
+            var connectedDeviceName = FindParentDeviceName(connectedDevice, messages) ??
+                ReadPropertyOrAttribute(connectedDevice, "Name", $"IO system '{ioSystemName}' connected IO device", messages);
             if (!string.IsNullOrWhiteSpace(connectedDeviceName))
             {
                 ioSystemInfo.ConnectedDeviceNames.Add(connectedDeviceName!);
@@ -209,22 +213,22 @@ public static class HardwareConfigReader
         return ioSystemInfo;
     }
 
-    private static string? ReadConnectedSubnetName(Node node, string nodeName)
+    private static string? ReadConnectedSubnetName(Node node, string nodeDescription, List<string> messages)
     {
         var connectedSubnet = ReadProperty(node, "ConnectedSubnet");
         return connectedSubnet is null
             ? null
-            : ReadPropertyOrAttribute(connectedSubnet, "Name", $"node '{nodeName}' connected subnet");
+            : ReadPropertyOrAttribute(connectedSubnet, "Name", $"node '{nodeDescription}' connected subnet", messages);
     }
 
-    private static string? ReadIoSystemName(NetworkInterface networkInterface, string nodeName)
+    private static string? ReadIoSystemName(NetworkInterface networkInterface, string nodeDescription, List<string> messages)
     {
         foreach (var ownerProperty in new[] { "IoControllers", "IoConnectors" })
         {
-            foreach (var item in ReadEnumerableProperty(networkInterface, ownerProperty, $"node '{nodeName}' {ownerProperty}"))
+            foreach (var item in ReadEnumerableProperty(networkInterface, ownerProperty, $"node '{nodeDescription}' {ownerProperty}"))
             {
                 var ioSystem = ReadProperty(item, "IoSystem") ?? item;
-                var name = ReadPropertyOrAttribute(ioSystem, "Name", $"node '{nodeName}' IO system");
+                var name = ReadPropertyOrAttribute(ioSystem, "Name", $"node '{nodeDescription}' IO system", messages);
                 if (!string.IsNullOrWhiteSpace(name))
                 {
                     return name;
@@ -235,17 +239,17 @@ public static class HardwareConfigReader
         return null;
     }
 
-    private static string? FindParentDeviceName(object? candidate)
+    private static string? FindParentDeviceName(object? candidate, List<string> messages)
     {
         var current = candidate;
         while (current is not null)
         {
             if (current is Device device)
             {
-                return ReadString(() => device.Name, "device name");
+                return ReadString(() => device.Name, "device name", messages);
             }
 
-            var name = ReadPropertyOrAttribute(current, "DeviceName", "parent device name");
+            var name = ReadPropertyOrAttribute(current, "DeviceName", "parent device name", messages);
             if (!string.IsNullOrWhiteSpace(name))
             {
                 return name;
@@ -257,7 +261,7 @@ public static class HardwareConfigReader
         return null;
     }
 
-    private static string ReadString(Func<string> read, string description)
+    private static string? ReadString(Func<string> read, string description, List<string> messages)
     {
         try
         {
@@ -265,12 +269,12 @@ public static class HardwareConfigReader
         }
         catch (EngineeringException ex)
         {
-            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
-            return string.Empty;
+            messages.Add($"Could not read {description}: {ex.Message}");
+            return null;
         }
     }
 
-    private static int ReadInt(Func<int> read, string description)
+    private static int? ReadInt(Func<int> read, string description, List<string> messages)
     {
         try
         {
@@ -278,12 +282,12 @@ public static class HardwareConfigReader
         }
         catch (EngineeringException ex)
         {
-            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
-            return 0;
+            messages.Add($"Could not read {description}: {ex.Message}");
+            return null;
         }
     }
 
-    private static string? ReadAttribute(IEngineeringObject engineeringObject, string attributeName, string description)
+    private static string? ReadAttribute(IEngineeringObject engineeringObject, string attributeName, string description, List<string> messages)
     {
         try
         {
@@ -291,12 +295,12 @@ public static class HardwareConfigReader
         }
         catch (EngineeringException ex)
         {
-            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
+            messages.Add($"Could not read {description}: {ex.Message}");
             return null;
         }
     }
 
-    private static string? ReadPropertyOrAttribute(object instance, string name, string description)
+    private static string? ReadPropertyOrAttribute(object instance, string name, string description, List<string> messages)
     {
         var value = ReadProperty(instance, name);
         if (value is not null)
@@ -305,7 +309,7 @@ public static class HardwareConfigReader
         }
 
         return instance is IEngineeringObject engineeringObject
-            ? ReadAttribute(engineeringObject, name, description)
+            ? ReadAttribute(engineeringObject, name, description, messages)
             : null;
     }
 

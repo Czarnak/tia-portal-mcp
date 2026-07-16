@@ -10,8 +10,8 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// to stderr and degrade to null / an empty sequence so a single bad member does not abort a read.
 /// </summary>
 /// <remarks>
-/// Uses the narrow <see cref="EngineeringException"/> guard. Call sites that reflect over unverified
-/// SDK surfaces and need to swallow arbitrary exceptions per-member keep their own broader helpers.
+/// Uses the narrow <see cref="EngineeringException"/> guard. Reflection over unverified SDK surfaces
+/// uses the description-taking ReadProperty overload below.
 /// </remarks>
 internal static class OpennessReflection
 {
@@ -31,6 +31,36 @@ internal static class OpennessReflection
         catch (TargetInvocationException ex) when (ex.InnerException is EngineeringException engineeringException)
         {
             Console.Error.WriteLine($"Skipping property '{propertyName}': {engineeringException.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Broad-but-bounded variant for reflection over unverified SDK surfaces: additionally
+    /// swallows <see cref="TargetInvocationException"/> regardless of inner type. Anything
+    /// else (e.g. AmbiguousMatchException) is a bug and must propagate.
+    /// </summary>
+    public static object? ReadProperty(object? instance, string propertyName, string description)
+    {
+        if (instance is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return instance.GetType()
+                .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
+                ?.GetValue(instance);
+        }
+        catch (TargetInvocationException ex)
+        {
+            Console.Error.WriteLine($"Skipping {description}: {ex.InnerException?.Message ?? ex.Message}");
+            return null;
+        }
+        catch (EngineeringException ex)
+        {
+            Console.Error.WriteLine($"Skipping {description}: {ex.Message}");
             return null;
         }
     }

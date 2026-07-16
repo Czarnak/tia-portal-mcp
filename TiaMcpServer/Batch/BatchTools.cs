@@ -137,12 +137,12 @@ public static class BatchTools
         foreach (var op in operations)
         {
             var state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
-            if (state.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+            if (!state.Success)
             {
-                return (string.Empty, $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). {state}");
+                return (string.Empty, $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). Error: {state.Error}");
             }
 
-            states.Add(new BatchCurrentState(op.OperationId, op.Operation, state));
+            states.Add(new BatchCurrentState(op.OperationId, op.Operation, state.Payload));
         }
 
         return (BatchSafetySnapshot.CombineCurrentState(states), null);

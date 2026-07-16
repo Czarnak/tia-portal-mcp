@@ -10,7 +10,7 @@ namespace TiaMcpServer.Batch;
 public static class BatchWorkerInvoker
 {
     /// <summary>Reads the current state a write item's safety token binds to.</summary>
-    public static Task<string> ReadCurrentStateAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
+    public static Task<WorkerCallResult> ReadCurrentStateAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
     {
         "update_block_logic" => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
         "create_tag_table" or "delete_tag_table"
@@ -25,11 +25,11 @@ public static class BatchWorkerInvoker
             => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
         "start_plc" or "stop_plc"
             => client.GetProjectStatusAsync(op.ProjectPath),
-        _ => Task.FromResult($"Error: Unsupported batch write operation '{op.Operation}'."),
+        _ => Task.FromResult(WorkerCallResult.Fail($"Unsupported batch write operation '{op.Operation}'.")),
     };
 
     /// <summary>Executes a single read or write item against the worker.</summary>
-    public static Task<string> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
+    public static Task<WorkerCallResult> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
     {
         // Reads
         "browse_project_tree" => client.BrowseProjectTreeAsync(op.ProjectPath),
@@ -60,7 +60,7 @@ public static class BatchWorkerInvoker
         "start_plc" => client.StartPlcAsync(op.PlcName, op.ProjectPath),
         "stop_plc" => client.StopPlcAsync(op.PlcName, op.ProjectPath),
 
-        _ => Task.FromResult($"Error: Unsupported batch operation '{op.Operation}'."),
+        _ => Task.FromResult(WorkerCallResult.Fail($"Unsupported batch operation '{op.Operation}'.")),
     };
 
     private static string ResolveDeviceItemName(BatchOperationRequest op)
