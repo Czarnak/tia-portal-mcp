@@ -15,7 +15,7 @@ The server currently exposes 16 tools.
 
 The batch tools are the only path for data operations. Each `operation` name (e.g. `get_block_content`, `list_tag_tables`, `create_tag`, `update_block_logic`, `add_network_device`) carries that operation's parameters as one item; a single operation is just a one-item batch.
 
-Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker (e.g. members skipped while reading a protected device). A populated `warnings` array means the payload may be partial. `read_hardware_config` additionally reports unreadable members in a payload-level `messages` array, and omits values it could not read instead of returning `0`/empty-string placeholders.
+Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker (e.g. members skipped while reading a protected device). A populated `warnings` array means the payload may be partial. `read_hardware_config` additionally reports unreadable members in a payload-level `messages` array; device/module name and type-identifier fields omit values that could not be read instead of returning `0`/empty-string placeholders (a few secondary name fields still fall back to an empty string, with the failure noted in `messages`).
 
 Available read operations (for `execute_read_batch`): `browse_project_tree`, `get_block_content`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, `search_equipment_catalog`, `compile_check`, `get_project_status`.
 
