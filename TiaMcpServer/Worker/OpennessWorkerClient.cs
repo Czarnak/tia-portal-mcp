@@ -1,34 +1,31 @@
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.Worker;
 
-public class OpennessWorkerClient
+public class OpennessWorkerClient : IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
-
-    private static readonly TimeSpan WorkerTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromMinutes(5);
 
     private readonly ProjectSessionBinding _projectSessionBinding;
     private readonly ILogger<OpennessWorkerClient>? _logger;
     private readonly string? _workerExecutablePathOverride;
+    private readonly TimeSpan _requestTimeout;
+    private readonly object _transportLock = new();
+    private PersistentWorkerTransport? _transport;
 
     public OpennessWorkerClient(
         ProjectSessionBinding projectSessionBinding,
         ILogger<OpennessWorkerClient>? logger = null,
-        string? workerExecutablePath = null)
+        string? workerExecutablePath = null,
+        TimeSpan? requestTimeout = null)
     {
         _projectSessionBinding = projectSessionBinding;
         _logger = logger;
         _workerExecutablePathOverride = workerExecutablePath;
+        _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
     }
 
     public Task<WorkerCallResult> BrowseProjectTreeAsync(string? projectPath)
@@ -619,6 +616,7 @@ public class OpennessWorkerClient
         Action<WorkerRequest> configure,
         string emptyPayload)
     {
+        var sessionWasUnbound = _projectSessionBinding.BoundProjectPath is null;
         if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
         {
             return WorkerCallResult.Fail(bindingError!);
@@ -632,6 +630,13 @@ public class OpennessWorkerClient
         configure(request);
 
         var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
+        if (!result.Success && sessionWasUnbound && effectiveProjectPath is not null)
+        {
+            // The first implicit binding is provisional until its worker call succeeds.
+            // Do not let a failed attach/crash permanently reserve that project path.
+            _projectSessionBinding.Clear(effectiveProjectPath, out _);
+        }
+
         return result.Success && string.IsNullOrEmpty(result.Payload)
             ? result with { Payload = emptyPayload }
             : result;
@@ -641,17 +646,18 @@ public class OpennessWorkerClient
     {
         try
         {
-            var (response, stderrWarnings) = await SendAsync(request).ConfigureAwait(false);
-            foreach (var warning in stderrWarnings)
+            var response = await GetOrCreateTransport().SendAsync(request).ConfigureAwait(false);
+            var warnings = CapWarnings(response.Warnings);
+            foreach (var warning in warnings)
             {
-                _logger?.LogWarning("TIA Openness worker stderr: {Line}", warning);
+                _logger?.LogWarning("TIA Openness worker warning: {Line}", warning);
             }
 
             return response.Success
-                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, stderrWarnings)
+                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings)
                 : WorkerCallResult.Fail(
                     response.Error ?? "The TIA Openness worker failed without an error message.",
-                    stderrWarnings);
+                    warnings);
         }
         catch (Win32Exception ex)
         {
@@ -663,6 +669,27 @@ public class OpennessWorkerClient
         catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
         {
             return WorkerCallResult.Fail(ex.Message);
+        }
+    }
+
+    private PersistentWorkerTransport GetOrCreateTransport()
+    {
+        lock (_transportLock)
+        {
+            _transport ??= new PersistentWorkerTransport(
+                _workerExecutablePathOverride ?? LocateWorkerExecutable(),
+                _requestTimeout,
+                _logger);
+            return _transport;
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_transportLock)
+        {
+            _transport?.Dispose();
+            _transport = null;
         }
     }
 
@@ -720,92 +747,26 @@ public class OpennessWorkerClient
         }
     }
 
-    // Siemens Openness is not safe for concurrent multi-process access to one TIA Portal
-    // instance; serialize every worker invocation until the persistent-worker rework lands.
-    private static readonly SemaphoreSlim WorkerGate = new(1, 1);
-
-    private async Task<(WorkerResponse Response, IReadOnlyList<string> StderrLines)> SendAsync(WorkerRequest request)
-    {
-        await WorkerGate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            return await SendUnguardedAsync(request).ConfigureAwait(false);
-        }
-        finally
-        {
-            WorkerGate.Release();
-        }
-    }
-
-    private async Task<(WorkerResponse Response, IReadOnlyList<string> StderrLines)> SendUnguardedAsync(WorkerRequest request)
-    {
-        var workerPath = _workerExecutablePathOverride ?? LocateWorkerExecutable();
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = workerPath,
-            WorkingDirectory = Path.GetDirectoryName(workerPath) ?? AppContext.BaseDirectory,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
-
-        using var process = Process.Start(startInfo) ??
-            throw new InvalidOperationException("Failed to start the TIA Openness worker process.");
-
-        var stderrTask = process.StandardError.ReadToEndAsync();
-        await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request, JsonOptions)).ConfigureAwait(false);
-        process.StandardInput.Close();
-
-        using var timeout = new CancellationTokenSource(WorkerTimeout);
-        var responseLineTask = process.StandardOutput.ReadLineAsync();
-        var completed = await Task.WhenAny(responseLineTask, Task.Delay(Timeout.InfiniteTimeSpan, timeout.Token))
-            .ConfigureAwait(false);
-
-        if (completed != responseLineTask)
-        {
-            TryKill(process);
-            throw new TimeoutException($"TIA Openness worker did not respond within {WorkerTimeout.TotalMinutes:N0} minutes.");
-        }
-
-        var responseLine = await responseLineTask.ConfigureAwait(false);
-        await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-        var stderrLines = SplitStderrLines(stderr);
-
-        if (string.IsNullOrWhiteSpace(responseLine))
-        {
-            var detail = string.IsNullOrWhiteSpace(stderr) ? "No response was written." : stderr.Trim();
-            throw new InvalidOperationException($"TIA Openness worker exited without a response. {detail}");
-        }
-
-        var response = JsonSerializer.Deserialize<WorkerResponse>(responseLine, JsonOptions);
-        return (response ?? throw new InvalidOperationException("TIA Openness worker returned an empty response."), stderrLines);
-    }
-
     // A degraded read of a large project can emit hundreds of "Skipping X" lines; cap what
     // reaches the agent so warnings cannot flood a small model's context.
-    private const int MaxStderrWarningLines = 20;
+    private const int MaxWarningLines = 20;
 
-    private static IReadOnlyList<string> SplitStderrLines(string stderr)
+    private static IReadOnlyList<string> CapWarnings(IReadOnlyList<string>? warnings)
     {
-        if (string.IsNullOrWhiteSpace(stderr))
+        if (warnings is null || warnings.Count == 0)
         {
             return Array.Empty<string>();
         }
 
-        var lines = stderr.Replace("\r\n", "\n").Split('\n')
+        var lines = warnings
             .Select(line => line.Trim())
             .Where(line => line.Length > 0)
             .ToList();
 
-        if (lines.Count > MaxStderrWarningLines)
+        if (lines.Count > MaxWarningLines)
         {
-            var dropped = lines.Count - MaxStderrWarningLines;
-            lines = lines.Take(MaxStderrWarningLines).ToList();
+            var dropped = lines.Count - MaxWarningLines;
+            lines = lines.Take(MaxWarningLines).ToList();
             lines.Add($"(+{dropped} more worker warnings truncated)");
         }
 
@@ -847,17 +808,4 @@ public class OpennessWorkerClient
             packagedPath);
     }
 
-    private static void TryKill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill();
-            }
-        }
-        catch (InvalidOperationException)
-        {
-        }
-    }
 }

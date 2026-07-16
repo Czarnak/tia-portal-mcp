@@ -25,6 +25,7 @@
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj" ReferenceOutputAssembly="false" />
     <Compile Include="..\TiaMcpServer\Worker\OpennessWorkerClient.cs" Link="Host\OpennessWorkerClient.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs" Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs" Link="Host\WriteSafetyService.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs" Link="Host\WriteSafetyTooling.cs" />

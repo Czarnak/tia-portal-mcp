@@ -5,8 +5,9 @@ using Xunit;
 namespace TiaMcpServer.Tests;
 
 /// <summary>
-/// Spawns the real IPC pipeline against TiaMcpServer.FakeWorker. One class so xunit
-/// runs these sequentially; the client's static WorkerGate serializes sends anyway.
+/// Drives the real persistent IPC pipeline against TiaMcpServer.FakeWorker. Each test owns
+/// its client (and therefore its worker process); clients are disposed so no fake worker
+/// outlives its test. One class so xunit runs these sequentially.
 /// </summary>
 public class OpennessWorkerClientIntegrationTests
 {
@@ -33,13 +34,18 @@ public class OpennessWorkerClientIntegrationTests
         throw new FileNotFoundException("TiaMcpServer.FakeWorker.exe not found; build the solution first.");
     }
 
-    private static OpennessWorkerClient CreateClient(string? workerPath = null)
-        => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: workerPath ?? LocateFakeWorker());
+    private static OpennessWorkerClient CreateClient(string? workerPath = null, TimeSpan? requestTimeout = null)
+        => new(
+            new ProjectSessionBinding(null),
+            logger: null,
+            workerExecutablePath: workerPath ?? LocateFakeWorker(),
+            requestTimeout: requestTimeout);
 
     [Fact]
     public async Task Success_ReturnsStructuredPayload()
     {
-        var result = await CreateClient().GetProjectStatusAsync("ok");
+        using var client = CreateClient();
+        var result = await client.GetProjectStatusAsync("ok");
 
         Assert.True(result.Success);
         Assert.Equal("{\"seq\":1}", result.Payload);
@@ -48,20 +54,73 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task StderrLines_SurfaceAsWarnings()
+    public async Task PersistentWorker_ReusesOneProcessAcrossRequests()
     {
-        var result = await CreateClient().GetProjectStatusAsync("ok-with-stderr");
+        using var client = CreateClient();
+
+        var first = await client.GetProjectStatusAsync("ok");
+        var second = await client.GetProjectStatusAsync("ok");
+
+        Assert.Equal("{\"seq\":1}", first.Payload);
+        // seq=2 can only happen if the SAME fake worker process handled both requests.
+        Assert.Equal("{\"seq\":2}", second.Payload);
+    }
+
+    [Fact]
+    public async Task CrashedWorker_FailsTheRequestAndRestartsForTheNext()
+    {
+        using var client = CreateClient();
+
+        var crashed = await client.GetProjectStatusAsync("silent-exit");
+        var recovered = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(crashed.Success);
+        Assert.Contains("worker crashed during attach", crashed.Error);
+        Assert.True(recovered.Success);
+        // A fresh process restarts its request counter.
+        Assert.Equal("{\"seq\":1}", recovered.Payload);
+    }
+
+    [Fact]
+    public async Task HangingWorker_TimesOutAndRestartsForTheNext()
+    {
+        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
+
+        var timedOut = await client.GetProjectStatusAsync("hang");
+        var recovered = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(timedOut.Success);
+        Assert.Contains("did not respond", timedOut.Error);
+        Assert.True(recovered.Success);
+        Assert.Equal("{\"seq\":1}", recovered.Payload);
+    }
+
+    [Fact]
+    public async Task ResponseWarnings_SurfaceOnTheResult()
+    {
+        using var client = CreateClient();
+        var result = await client.GetProjectStatusAsync("ok-with-warnings");
 
         Assert.True(result.Success);
-        Assert.Single(result.Warnings);
-        Assert.Contains(result.Warnings, w => w.Contains("orphan stderr line"));
+        Assert.Equal(2, result.Warnings.Count);
+        Assert.Contains(result.Warnings, w => w.Contains("Skipping device 'X'"));
+    }
+
+    [Fact]
+    public async Task OrphanStderr_DoesNotBecomeWarnings()
+    {
+        using var client = CreateClient();
+        var result = await client.GetProjectStatusAsync("ok-with-stderr");
+
+        Assert.True(result.Success);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]
     public async Task PayloadStartingWithErrorPrefix_IsNotMisclassified()
     {
-        // Regression test for item 1.1: before WorkerCallResult this payload was treated as failure.
-        var result = await CreateClient().GetProjectStatusAsync("error-prefix-payload");
+        using var client = CreateClient();
+        var result = await client.GetProjectStatusAsync("error-prefix-payload");
 
         Assert.True(result.Success);
         Assert.StartsWith("Error:", result.Payload);
@@ -70,7 +129,8 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task WorkerReportedError_IsStructuredFailure()
     {
-        var result = await CreateClient().GetProjectStatusAsync("worker-error");
+        using var client = CreateClient();
+        var result = await client.GetProjectStatusAsync("worker-error");
 
         Assert.False(result.Success);
         Assert.Equal("boom", result.Error);
@@ -78,21 +138,44 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task MalformedResponse_IsFailureNotCrash()
+    public async Task FailedFirstWorkerResponse_DoesNotBindTheSession()
     {
-        var result = await CreateClient().GetProjectStatusAsync("malformed");
+        using var client = CreateClient();
 
-        Assert.False(result.Success);
-        Assert.NotNull(result.Error);
+        var failed = await client.GetProjectStatusAsync("worker-error");
+        var recovered = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(failed.Success);
+        Assert.True(recovered.Success);
+        Assert.Equal("{\"seq\":2}", recovered.Payload);
     }
 
     [Fact]
-    public async Task SilentExit_SurfacesStderrDetailInError()
+    public async Task SuccessfulFirstRequest_KeepsTheSessionBinding()
     {
-        var result = await CreateClient().GetProjectStatusAsync("silent-exit");
+        using var client = CreateClient();
 
-        Assert.False(result.Success);
-        Assert.Contains("worker crashed during attach", result.Error);
+        var succeeded = await client.GetProjectStatusAsync("ok");
+        var changedProject = await client.GetProjectStatusAsync("worker-error");
+
+        Assert.True(succeeded.Success);
+        Assert.False(changedProject.Success);
+        Assert.Contains("already bound to project 'ok'", changedProject.Error);
+    }
+
+    [Fact]
+    public async Task MalformedResponse_FailsAndRestartsForTheNext()
+    {
+        using var client = CreateClient();
+
+        var malformed = await client.GetProjectStatusAsync("malformed");
+        var recovered = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(malformed.Success);
+        Assert.NotNull(malformed.Error);
+        // The desynced process was killed; a fresh one serves the next request.
+        Assert.True(recovered.Success);
+        Assert.Equal("{\"seq\":1}", recovered.Payload);
     }
 
     [Fact]
@@ -102,7 +185,8 @@ public class OpennessWorkerClientIntegrationTests
         await File.WriteAllTextAsync(bogus, "not an executable");
         try
         {
-            var result = await CreateClient(workerPath: bogus).GetProjectStatusAsync("ok");
+            using var client = CreateClient(workerPath: bogus);
+            var result = await client.GetProjectStatusAsync("ok");
 
             Assert.False(result.Success);
             Assert.Contains(".NET Framework 4.8", result.Error);
