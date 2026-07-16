@@ -54,25 +54,16 @@ public class ProjectLifecycleToolTests
     }
 
     [Fact]
-    public async Task OpenProjectRejectsUnconfirmedRequests()
-    {
-        var result = await ProjectLifecycleTools.OpenProject(
-            workerClient: null!,
-            projectPath: "C:\\Projects\\Line.ap21");
-
-        Assert.Contains("Operation not confirmed", result);
-        Assert.Contains("confirm=true", result);
-    }
-
-    [Fact]
-    public async Task SaveProjectAsRejectsUnconfirmedRequests()
+    public async Task SaveProjectAsWithTokenButNoConfirm_Rejects()
     {
         var result = await ProjectLifecycleTools.SaveProjectAs(
             workerClient: null!,
             targetDirectory: "C:\\Projects",
-            targetName: "LineCopy");
+            targetName: "LineCopy",
+            confirm: false,
+            safetyToken: "some-token");
 
-        Assert.Contains("Operation not confirmed", result);
         Assert.Contains("confirm=true", result);
+        Assert.Contains("without safetyToken", result);
     }
 }

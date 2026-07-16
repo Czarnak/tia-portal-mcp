@@ -13,6 +13,8 @@ public sealed class WriteSafetyService
         WriteIndented = false
     };
 
+    public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
+
     public static WriteSafetyService Shared { get; } = new();
 
     private readonly ConcurrentDictionary<string, SafetyTokenEntry> _tokens = new(StringComparer.Ordinal);
@@ -20,8 +22,6 @@ public sealed class WriteSafetyService
     private readonly TimeSpan _tokenLifetime;
 
     private readonly string? _auditDirectoryOverride;
-
-    public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
 
     public WriteSafetyService()
         : this(() => DateTimeOffset.UtcNow, DefaultTokenLifetime)
@@ -47,7 +47,8 @@ public sealed class WriteSafetyService
        string summary,
        object requestedInput,
        string currentState,
-       string? diff = null)
+       string? diff = null,
+       string? instructions = null)
     {
         EvictExpiredTokens();
 
@@ -76,7 +77,8 @@ public sealed class WriteSafetyService
                 requestedInputHash,
                 expiresAtUtc,
                 safetyToken = token,
-                diff
+                diff,
+                instructions
             },
             JsonOptions);
     }

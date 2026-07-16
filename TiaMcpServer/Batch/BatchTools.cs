@@ -67,7 +67,9 @@ public static class BatchTools
             targets,
             summary,
             operations,
-            snapshot.CombinedState);
+            snapshot.CombinedState,
+            diff: null,
+            instructions: "Preview only — nothing was changed. To apply, call apply_write_batch with the identical operations list, confirm=true, and this safetyToken.");
     }
 
     [McpServerTool(Name = "apply_write_batch")]

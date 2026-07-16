@@ -55,7 +55,8 @@ public static class WriteSafetyTooling
         string summary,
         object requestedInput,
         WorkerCallResult currentState,
-        string? diff = null)
+        string? diff = null,
+        string? instructions = null)
     {
         if (!currentState.Success)
         {
@@ -69,7 +70,8 @@ public static class WriteSafetyTooling
             summary,
             requestedInput,
             currentState.Payload,
-            diff);
+            diff,
+            instructions);
     }
 
     public static string BuildApplyResult(
