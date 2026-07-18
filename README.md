@@ -107,6 +107,25 @@ tia-mcp
 
 Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Call `open_project` with `forceRebind=true` to rebind the session, or start a new MCP session for a different customer project.
 
+### Doctor command
+
+Run `tia-mcp doctor` to validate the runtime environment before using the MCP server. It checks the operating system, .NET runtimes, TIA Portal installation, Openness assemblies, user group membership, worker executable, host/worker version compatibility, running TIA Portal processes, and project binding.
+
+```powershell
+tia-mcp doctor
+tia-mcp doctor --json
+tia-mcp doctor --verbose
+tia-mcp doctor --project C:\Projects\Line.ap21
+```
+
+Options:
+
+- `--json` - emit a single JSON document to stdout.
+- `--verbose` - include diagnostic evidence for each check.
+- `--project` - informational project binding (does not start the MCP host).
+
+Exit codes: `0` (no blocking failures), `1` (one or more checks failed), `2` (invalid arguments).
+
 The package includes the `openness-worker` folder and required non-Siemens dependencies. It intentionally excludes `Siemens.Engineering*.dll`; those are loaded from the local TIA Portal installation at runtime.
 
 ## Build From Source

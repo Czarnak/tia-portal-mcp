@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -25,6 +26,11 @@
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj" ReferenceOutputAssembly="false" />
     <Compile Include="..\TiaMcpServer\Worker\OpennessWorkerClient.cs" Link="Host\OpennessWorkerClient.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\OpennessWorkerLocator.cs" Link="Host\OpennessWorkerLocator.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\TiaPortalInstallationLocator.cs" Link="Host\TiaPortalInstallationLocator.cs" />
+    <Compile Include="..\TiaMcpServer\Diagnostics\*.cs" Link="Host\Diagnostics\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Diagnostics\Checks\*.cs" Link="Host\Diagnostics\Checks\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Cli\*.cs" Link="Host\Cli\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs" Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs" Link="Host\WriteSafetyService.cs" />

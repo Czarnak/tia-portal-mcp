@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using TiaMcpServer.Cli;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
@@ -10,8 +11,13 @@ namespace TiaMcpServer
 {
     internal static class Program
     {
-        private static async Task Main(string[] args)
+        private static async Task<int> Main(string[] args)
         {
+            if (args.Length > 0 && string.Equals(args[0], "doctor", StringComparison.OrdinalIgnoreCase))
+            {
+                return await DoctorCommand.RunAsync(args[1..]);
+            }
+
             var builder = Host.CreateApplicationBuilder(args);
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(ResolveStartupProjectPath(args)));
@@ -21,6 +27,7 @@ namespace TiaMcpServer
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>()));
             builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly();
             await builder.Build().RunAsync();
+            return 0;
         }
 
         private static string? ResolveStartupProjectPath(string[] args)
