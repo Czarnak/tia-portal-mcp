@@ -83,6 +83,47 @@ public class DoctorCliParserTests
     }
 
     [Fact]
+    public void Parse_ProjectFlagFollowedByAnotherFlag_ReturnsInvalid()
+    {
+        var result = DoctorCliParser.Parse(new[] { "--project", "--json" });
+
+        Assert.False(result.Valid);
+        Assert.True(result.Json);
+        Assert.Contains("requires a value", result.ParseError);
+    }
+
+    [Fact]
+    public void Parse_ProjectEqualsWithoutValue_ReturnsInvalid()
+    {
+        var result = DoctorCliParser.Parse(new[] { "--project=" });
+
+        Assert.False(result.Valid);
+        Assert.Contains("requires a value", result.ParseError);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Parse_ProjectFlagWithBlankSeparateValue_ReturnsInvalid(string projectPath)
+    {
+        var result = DoctorCliParser.Parse(new[] { "--json", "--project", projectPath });
+
+        Assert.False(result.Valid);
+        Assert.True(result.Json);
+        Assert.Null(result.ProjectPath);
+        Assert.Contains("requires a value", result.ParseError);
+    }
+
+    [Fact]
+    public void Parse_HelpFlag_ReturnsValidHelpRequest()
+    {
+        var result = DoctorCliParser.Parse(new[] { "--help" });
+
+        Assert.True(result.Valid);
+        Assert.True(result.Help);
+    }
+
+    [Fact]
     public void Parse_CaseInsensitive_FlagsWork()
     {
         var result = DoctorCliParser.Parse(new[] { "--JSON", "--VERBOSE" });

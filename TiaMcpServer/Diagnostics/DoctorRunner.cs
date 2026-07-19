@@ -14,6 +14,7 @@ public sealed class DoctorRunner
     public DoctorReport Run()
     {
         var results = new List<DiagnosticCheckResult>(_checks.Count);
+        bool hasUnexpectedCheckFailure = false;
 
         foreach (var check in _checks)
         {
@@ -23,6 +24,7 @@ public sealed class DoctorRunner
             }
             catch (Exception ex)
             {
+                hasUnexpectedCheckFailure = true;
                 var evidence = new Dictionary<string, string?>
                 {
                     ["exceptionType"] = ex.GetType().FullName,
@@ -50,6 +52,9 @@ public sealed class DoctorRunner
             DateTimeOffset.UtcNow,
             _appInfo.HostVersion,
             summary,
-            results);
+            results)
+        {
+            HasUnexpectedCheckFailure = hasUnexpectedCheckFailure
+        };
     }
 }

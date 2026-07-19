@@ -1,10 +1,12 @@
 using Microsoft.Win32;
+using System.Runtime.Versioning;
 using TiaMcpServer.Diagnostics;
 
 namespace TiaMcpServer.Tests.Diagnostics;
 
 public sealed class FakeApplicationInfoService : IApplicationInfoService
 {
+    [SupportedOSPlatformGuard("windows")]
     public bool IsWindows { get; set; } = true;
     public string OsName { get; set; } = "Windows";
     public string OsVersion { get; set; } = "10.0.19045";
@@ -23,6 +25,7 @@ public sealed class FakeEnvironmentVariableService : IEnvironmentVariableService
     public string? Get(string name) => _vars.TryGetValue(name, out var v) ? v : null;
 }
 
+[SupportedOSPlatform("windows")]
 public sealed class FakeRegistryService : IRegistryService
 {
     private readonly Dictionary<(RegistryHive, RegistryView, string, string), string?> _stringValues = new();

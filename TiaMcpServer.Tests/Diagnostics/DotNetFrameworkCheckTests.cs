@@ -1,10 +1,12 @@
 using Microsoft.Win32;
+using System.Runtime.Versioning;
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Diagnostics.Checks;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
 
+[SupportedOSPlatform("windows")]
 public class DotNetFrameworkCheckTests
 {
     private const string NetFrameworkKey = @"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full";

@@ -8,12 +8,13 @@ namespace TiaMcpServer.Cli;
 public static class DoctorCommand
 {
     private const string UsageText = """
-        Usage: tia-mcp doctor [--json] [--verbose] [--project <path>]
+        Usage: tia-mcp doctor [--json] [--verbose] [--project <path>] [--help]
 
         Options:
           --json       Emit a single JSON document to stdout.
           --verbose    Include additional evidence.
           --project    Informational project binding (does not start the MCP host).
+          --help       Show command usage and exit.
 
         Exit codes:
           0  No blocking failures.
@@ -22,40 +23,62 @@ public static class DoctorCommand
         """;
 
     public static Task<int> RunAsync(string[] args)
+        => RunAsync(args, options => BuildRunner(options).Run(), Console.Out, Console.Error);
+
+    public static Task<int> RunAsync(
+        string[] args,
+        Func<DoctorCliOptions, DoctorReport> runDoctor,
+        TextWriter output,
+        TextWriter error)
     {
         var options = DoctorCliParser.Parse(args);
         if (!options.Valid)
         {
-            Console.Error.WriteLine($"error: {options.ParseError}");
-            Console.Error.WriteLine(UsageText);
+            if (options.Json)
+            {
+                output.WriteLine(JsonSerializer.Serialize(new { error = options.ParseError }));
+            }
+            else
+            {
+                error.WriteLine($"error: {options.ParseError}");
+                error.WriteLine(UsageText);
+            }
+
             return Task.FromResult(2);
+        }
+
+        if (options.Help)
+        {
+            output.WriteLine(options.Json
+                ? JsonSerializer.Serialize(new { usage = UsageText })
+                : UsageText);
+            return Task.FromResult(0);
         }
 
         try
         {
-            var runner = BuildRunner(options);
-            var report = runner.Run();
+            var report = runDoctor(options);
 
             if (options.Json)
             {
-                Console.Out.WriteLine(DoctorJsonRenderer.Render(report, options.Verbose));
+                output.WriteLine(DoctorJsonRenderer.Render(report, options.Verbose));
             }
             else
             {
-                DoctorTextRenderer.Render(report, options.Verbose, Console.Out);
+                DoctorTextRenderer.Render(report, options.Verbose, output);
             }
 
-            return Task.FromResult(report.Status == DiagnosticStatus.Failed ? 1 : 0);
+            return Task.FromResult(report.HasUnexpectedCheckFailure ? 2 : report.Status == DiagnosticStatus.Failed ? 1 : 0);
         }
         catch (Exception ex)
         {
             if (options.Json)
             {
-                Console.Error.WriteLine(JsonSerializer.Serialize(new { error = ex.Message }));
+                output.WriteLine(JsonSerializer.Serialize(new { error = ex.Message }));
             }
             else
             {
-                Console.Error.WriteLine($"Fatal: {ex.Message}");
+                error.WriteLine($"Fatal: {ex.Message}");
             }
 
             return Task.FromResult(2);

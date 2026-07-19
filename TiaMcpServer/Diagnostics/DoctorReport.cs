@@ -5,4 +5,7 @@ public sealed record DoctorReport(
     DateTimeOffset TimestampUtc,
     string HostVersion,
     DoctorSummary Summary,
-    IReadOnlyList<DiagnosticCheckResult> Checks);
+    IReadOnlyList<DiagnosticCheckResult> Checks)
+{
+    public bool HasUnexpectedCheckFailure { get; init; }
+}

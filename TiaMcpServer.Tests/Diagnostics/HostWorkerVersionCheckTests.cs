@@ -69,4 +69,40 @@ public class HostWorkerVersionCheckTests
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains("could not be determined", result.Message);
     }
+
+    [Fact]
+    public void MalformedHostVersion_ReturnsWarningWithEvidence()
+    {
+        var appInfo = new FakeApplicationInfoService { BaseDirectory = "/app", HostVersion = "not-a-version" };
+        var fileSystem = new FakeFileSystemService();
+        var workerPath = System.IO.Path.Combine("/app", "openness-worker", "TiaMcpServer.OpennessWorker.exe");
+        fileSystem.AddFile(workerPath);
+        fileSystem.SetFileVersion(workerPath, "1.0.0.0");
+
+        var result = new HostWorkerVersionCheck(appInfo, fileSystem).Run();
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+        Assert.Contains("host version", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("could not be parsed", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("not-a-version", result.Evidence!["hostVersion"]);
+        Assert.Contains("host", result.Evidence["versionParseError"], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MalformedWorkerVersion_ReturnsWarningWithEvidence()
+    {
+        var appInfo = new FakeApplicationInfoService { BaseDirectory = "/app", HostVersion = "1.0.0" };
+        var fileSystem = new FakeFileSystemService();
+        var workerPath = System.IO.Path.Combine("/app", "openness-worker", "TiaMcpServer.OpennessWorker.exe");
+        fileSystem.AddFile(workerPath);
+        fileSystem.SetFileVersion(workerPath, "not-a-version");
+
+        var result = new HostWorkerVersionCheck(appInfo, fileSystem).Run();
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+        Assert.Contains("worker version", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("could not be parsed", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("not-a-version", result.Evidence!["workerVersion"]);
+        Assert.Contains("worker", result.Evidence["versionParseError"], StringComparison.OrdinalIgnoreCase);
+    }
 }

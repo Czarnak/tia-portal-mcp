@@ -80,6 +80,7 @@ public class DoctorRunnerTests
         Assert.Equal(3, report.Checks.Count);
         Assert.Equal(DiagnosticStatus.Failed, report.Checks[1].Status);
         Assert.Contains("Unexpected error", report.Checks[1].Message);
+        Assert.True(report.HasUnexpectedCheckFailure);
     }
 
     [Fact]

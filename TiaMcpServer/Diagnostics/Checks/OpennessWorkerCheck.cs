@@ -4,6 +4,21 @@ namespace TiaMcpServer.Diagnostics.Checks;
 
 public sealed class OpennessWorkerCheck : IDiagnosticCheck
 {
+    internal static readonly string[] RequiredCompanionFiles =
+    {
+        "TiaMcpServer.OpennessWorker.exe.config",
+        "TiaMcpServer.Contracts.dll",
+        "Microsoft.Bcl.AsyncInterfaces.dll",
+        "System.Buffers.dll",
+        "System.IO.Pipelines.dll",
+        "System.Memory.dll",
+        "System.Numerics.Vectors.dll",
+        "System.Runtime.CompilerServices.Unsafe.dll",
+        "System.Text.Encodings.Web.dll",
+        "System.Text.Json.dll",
+        "System.Threading.Tasks.Extensions.dll"
+    };
+
     private readonly IApplicationInfoService _appInfo;
     private readonly IFileSystemService _fileSystem;
 
@@ -57,18 +72,26 @@ public sealed class OpennessWorkerCheck : IDiagnosticCheck
                 evidence);
         }
 
-        var runtimeConfigPath = Path.Combine(directory, "TiaMcpServer.OpennessWorker.runtimeconfig.json");
-        var runtimeConfigExists = _fileSystem.FileExists(runtimeConfigPath);
-        evidence["runtimeConfigPath"] = runtimeConfigPath;
-        evidence["runtimeConfigExists"] = runtimeConfigExists.ToString().ToLowerInvariant();
+        var missingCompanionFiles = new List<string>();
+        foreach (var companionFile in RequiredCompanionFiles)
+        {
+            var companionPath = Path.Combine(directory, companionFile);
+            var exists = _fileSystem.FileExists(companionPath);
+            evidence[$"companion.{companionFile}.path"] = companionPath;
+            evidence[$"companion.{companionFile}.exists"] = exists.ToString().ToLowerInvariant();
+            if (!exists)
+            {
+                missingCompanionFiles.Add(companionFile);
+            }
+        }
 
-        if (!runtimeConfigExists)
+        if (missingCompanionFiles.Count > 0)
         {
             return new DiagnosticCheckResult(
                 Id,
                 Name,
                 DiagnosticStatus.Failed,
-                $"Worker executable found at {path} but its runtime configuration file is missing.",
+                $"Worker executable found at {path} but required companion files are missing: {string.Join(", ", missingCompanionFiles)}.",
                 "Rebuild the solution or reinstall the tia-mcp global tool; the openness-worker folder is incomplete.",
                 evidence);
         }

@@ -49,21 +49,38 @@ public sealed class HostWorkerVersionCheck : IDiagnosticCheck
                 evidence);
         }
 
-        if (TryParseMajor(hostVersion, out var hostMajor) && TryParseMajor(workerVersion, out var workerMajor))
+        var hostParsed = TryParseMajor(hostVersion, out var hostMajor);
+        var workerParsed = TryParseMajor(workerVersion, out var workerMajor);
+        if (!hostParsed || !workerParsed)
         {
-            evidence["hostMajor"] = hostMajor.ToString();
-            evidence["workerMajor"] = workerMajor.ToString();
-
-            if (hostMajor != workerMajor)
+            var invalidVersions = string.Join(" and ", new[]
             {
-                return new DiagnosticCheckResult(
-                    Id,
-                    Name,
-                    DiagnosticStatus.Failed,
-                    $"Host version {hostVersion} and worker version {workerVersion} have different major versions.",
-                    "Rebuild the solution so the host and worker share the same version, or reinstall the tia-mcp global tool.",
-                    evidence);
-            }
+                hostParsed ? null : "host",
+                workerParsed ? null : "worker"
+            }.Where(value => value is not null));
+            evidence["versionParseError"] = $"Could not parse the {invalidVersions} major version.";
+
+            return new DiagnosticCheckResult(
+                Id,
+                Name,
+                DiagnosticStatus.Warning,
+                $"The {invalidVersions} version could not be parsed; host/worker compatibility could not be verified.",
+                null,
+                evidence);
+        }
+
+        evidence["hostMajor"] = hostMajor.ToString();
+        evidence["workerMajor"] = workerMajor.ToString();
+
+        if (hostMajor != workerMajor)
+        {
+            return new DiagnosticCheckResult(
+                Id,
+                Name,
+                DiagnosticStatus.Failed,
+                $"Host version {hostVersion} and worker version {workerVersion} have different major versions.",
+                "Rebuild the solution so the host and worker share the same version, or reinstall the tia-mcp global tool.",
+                evidence);
         }
 
         return new DiagnosticCheckResult(

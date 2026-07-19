@@ -1,4 +1,5 @@
 using System.Security.Principal;
+using System.Runtime.Versioning;
 
 namespace TiaMcpServer.Diagnostics;
 
@@ -78,6 +79,7 @@ public sealed class WindowsIdentityService : IWindowsIdentityService
         }
     }
 
+    [SupportedOSPlatform("windows")]
     private static string? TryResolveGroupSid(string groupName)
     {
         try

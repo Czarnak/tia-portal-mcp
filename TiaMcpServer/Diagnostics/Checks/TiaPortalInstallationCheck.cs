@@ -30,19 +30,25 @@ public sealed class TiaPortalInstallationCheck : IDiagnosticCheck
         {
             var candidate = result.Candidates[i];
             evidence[$"candidate[{i}].path"] = candidate.Path;
+            evidence[$"candidate[{i}].apiPath"] = candidate.Path;
+            evidence[$"candidate[{i}].installationPath"] = candidate.InstallationPath;
             evidence[$"candidate[{i}].source"] = candidate.Source;
+            evidence[$"candidate[{i}].installationPresent"] = candidate.InstallationPresent.ToString().ToLowerInvariant();
+            evidence[$"candidate[{i}].directoryPresent"] = candidate.DirectoryPresent.ToString().ToLowerInvariant();
+            evidence[$"candidate[{i}].apiDirectoryPresent"] = candidate.DirectoryPresent.ToString().ToLowerInvariant();
             evidence[$"candidate[{i}].assembliesPresent"] = candidate.AssembliesPresent.ToString().ToLowerInvariant();
         }
 
         if (result.Found)
         {
             evidence["selectedPath"] = result.SelectedPath;
+            evidence["selectedInstallationPath"] = result.SelectedInstallationPath;
             evidence["selectedSource"] = result.Source;
             return new DiagnosticCheckResult(
                 Id,
                 Name,
                 DiagnosticStatus.Passed,
-                $"TIA Portal V21 detected via {result.Source}.",
+                $"TIA Portal V21 detected at {result.SelectedInstallationPath} via {result.Source}.",
                 null,
                 evidence);
         }
@@ -51,8 +57,8 @@ public sealed class TiaPortalInstallationCheck : IDiagnosticCheck
             Id,
             Name,
             DiagnosticStatus.Failed,
-            "TIA Portal V21 Openness assemblies were not found in any inspected location.",
-            "Install TIA Portal V21 with the Openness option, or set the TiaPortalV21Dir environment variable to the folder containing Siemens.Engineering.*.dll (PublicAPI\\V21\\net48).",
+            "TIA Portal V21 installation was not found in any inspected location.",
+            "Install TIA Portal V21, set TiaPortalV21Dir to its PublicAPI\\V21\\net48 folder, or set TiaPortalLocation to the Portal V21 installation root.",
             evidence);
     }
 }

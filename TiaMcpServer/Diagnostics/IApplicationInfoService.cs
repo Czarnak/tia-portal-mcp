@@ -1,7 +1,10 @@
+using System.Runtime.Versioning;
+
 namespace TiaMcpServer.Diagnostics;
 
 public interface IApplicationInfoService
 {
+    [SupportedOSPlatformGuard("windows")]
     bool IsWindows { get; }
 
     string OsName { get; }

@@ -59,20 +59,13 @@ jobs:
           Write-Host "Resolved NuGet package version $packageVersion from release tag $releaseTag"
 
       - name: Build and Pack
-        run: dotnet pack TiaMcpServer/TiaMcpServer.csproj -c Release --no-restore -o ./out /p:Version=$env:PACKAGE_VERSION /p:PackageVersion=$env:PACKAGE_VERSION
+        run: dotnet pack TiaMcpServer/TiaMcpServer.csproj -c Release --no-restore -o ./out /p:Version=$env:PACKAGE_VERSION /p:PackageVersion=$env:PACKAGE_VERSION /p:InformationalVersion=$env:PACKAGE_VERSION /p:IncludeSourceRevisionInInformationalVersion=false
 
       - name: Verify tool package contents
         shell: pwsh
         run: |
           $pkg = Get-ChildItem -Path ./out -Filter *.nupkg | Select-Object -First 1
-          $entries = tar -tf $pkg.FullName
-          if ($entries -notcontains 'tools/net8.0/any/openness-worker/TiaMcpServer.OpennessWorker.exe') {
-            throw "NuGet tool package is missing openness-worker/TiaMcpServer.OpennessWorker.exe"
-          }
-
-          if ($entries | Where-Object { $_ -like '*Siemens.Engineering*.dll' }) {
-            throw "NuGet tool package must not include Siemens.Engineering*.dll"
-          }
+          ./scripts/verify-doctor-package.ps1 -PackagePath $pkg.FullName
 
        # Get a short-lived NuGet API key
       - name: NuGet login (OIDC → temp API key)
@@ -88,7 +81,7 @@ jobs:
           dotnet nuget push $pkg.FullName --api-key ${{steps.login.outputs.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish Standalone Binary
-        run: dotnet publish TiaMcpServer/TiaMcpServer.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PackAsTool=false -o ./publish-bin
+        run: dotnet publish TiaMcpServer/TiaMcpServer.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PackAsTool=false /p:Version=$env:PACKAGE_VERSION /p:PackageVersion=$env:PACKAGE_VERSION /p:InformationalVersion=$env:PACKAGE_VERSION /p:IncludeSourceRevisionInInformationalVersion=false -o ./publish-bin
 
       - name: Zip Standalone Binary
         run: Compress-Archive -Path ./publish-bin/* -DestinationPath ./out/tia-mcp-windows-x64.zip

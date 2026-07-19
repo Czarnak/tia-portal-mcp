@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace TiaMcpServer.Diagnostics;
 
 public static class DoctorTextRenderer
