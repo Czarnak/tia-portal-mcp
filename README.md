@@ -417,6 +417,14 @@ With an explicit project binding:
 - Access denied or attach failure: confirm the Windows user belongs to the `Siemens TIA Openness` user group, then sign out and back in.
 - `dotnet` selects the wrong SDK: install .NET SDK 8.0.4xx or update `global.json` to a locally installed .NET 8 SDK feature band.
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and how to set up your environment. For architecture and build reference, see [AGENTS.md](AGENTS.md).
+
+## Security
+
+For how to report security vulnerabilities, see [SECURITY.md](SECURITY.md).
+
 ## Check other tools
 
 - [TIA Portal V21 Git Add-In](https://github.com/Czarnak/tia-git-addin)
