@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Diagnostics;
 
 namespace TiaMcpServer.Worker;
 
@@ -800,38 +801,6 @@ public class OpennessWorkerClient : IDisposable
     }
 
     private static string LocateWorkerExecutable()
-    {
-        var packagedPath = Path.Combine(AppContext.BaseDirectory, "openness-worker", "TiaMcpServer.OpennessWorker.exe");
-        if (File.Exists(packagedPath))
-        {
-            return packagedPath;
-        }
-
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            foreach (var configuration in new[] { "Debug", "Release" })
-            {
-                var candidatePath = Path.Combine(
-                    directory.FullName,
-                    "TiaMcpServer.OpennessWorker",
-                    "bin",
-                    configuration,
-                    "net48",
-                    "TiaMcpServer.OpennessWorker.exe");
-
-                if (File.Exists(candidatePath))
-                {
-                    return candidatePath;
-                }
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new FileNotFoundException(
-            "TIA Openness worker executable was not found. Build the solution and ensure the openness-worker folder is beside the MCP server executable.",
-            packagedPath);
-    }
+        => OpennessWorkerLocator.LocateOrThrow(AppContext.BaseDirectory, FileSystemService.Instance);
 
 }

@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
     <TiaOpennessStubReferenceDir>$(MSBuildProjectDirectory)\..\ref</TiaOpennessStubReferenceDir>
     <UseTiaPortalReferenceStubs Condition="'$(UseTiaPortalReferenceStubs)' == '' and Exists('$(TiaPortalV21Dir)\Siemens.Engineering.Base.dll') and Exists('$(TiaPortalV21Dir)\Siemens.Engineering.Step7.dll')">false</UseTiaPortalReferenceStubs>
     <UseTiaPortalReferenceStubs Condition="'$(UseTiaPortalReferenceStubs)' == ''">true</UseTiaPortalReferenceStubs>

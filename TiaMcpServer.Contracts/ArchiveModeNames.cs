@@ -9,7 +9,7 @@ public static class ArchiveModeNames
 
     public static bool TryNormalize(string? value, out string normalized, out string? error)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (value is null || string.IsNullOrWhiteSpace(value))
         {
             normalized = Compressed;
             error = null;

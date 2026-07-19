@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,7 +34,7 @@
   <Target Name="CopyOpennessWorker" AfterTargets="Build">
     <ItemGroup>
       <OpennessWorkerFiles Include="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.*"
-                           Exclude="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\Siemens.Engineering*.dll" />
+                           Exclude="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\Siemens.Engineering*.dll;..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.runtimeconfig.json" />
     </ItemGroup>
     <Copy SourceFiles="@(OpennessWorkerFiles)"
           DestinationFiles="@(OpennessWorkerFiles->'$(OutputPath)openness-worker\%(RecursiveDir)%(Filename)%(Extension)')"
@@ -43,19 +44,18 @@
   <Target Name="CopyOpennessWorkerToPublish" AfterTargets="Publish">
     <ItemGroup>
       <OpennessWorkerFiles Include="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.*"
-                           Exclude="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\Siemens.Engineering*.dll" />
+                           Exclude="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\Siemens.Engineering*.dll;..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.runtimeconfig.json" />
     </ItemGroup>
     <Copy SourceFiles="@(OpennessWorkerFiles)"
           DestinationFiles="@(OpennessWorkerFiles->'$(PublishDir)openness-worker\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 
-  <Target Name="PackOpennessWorker" AfterTargets="PackTool" Condition="'$(PackAsTool)' == 'true'">
-    <ItemGroup>
-      <OpennessWorkerPackageFiles Include="$(OutputPath)openness-worker\**\*.*" />
-      <TfmSpecificPackageFile Include="@(OpennessWorkerPackageFiles)">
-        <PackagePath>tools/$(_NuGetShortFolderName)/any/openness-worker/%(OpennessWorkerPackageFiles.RecursiveDir)%(Filename)%(Extension)</PackagePath>
-      </TfmSpecificPackageFile>
-    </ItemGroup>
+  <Target Name="RemoveStaleOpennessWorkerRuntimeConfig"
+          BeforeTargets="CopyOpennessWorker;CopyOpennessWorkerToPublish;PackTool">
+    <Delete Files="$(OutputPath)openness-worker\TiaMcpServer.OpennessWorker.runtimeconfig.json" />
+    <Delete Files="$(PublishDir)openness-worker\TiaMcpServer.OpennessWorker.runtimeconfig.json"
+            Condition="'$(PublishDir)' != ''" />
   </Target>
+
 </Project>
