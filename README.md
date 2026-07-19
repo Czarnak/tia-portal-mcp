@@ -1,4 +1,7 @@
-# tia-portal-mcp
+# TIA Portal MCP server
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![NuGet Downloads](https://img.shields.io/nuget/dt/TiaMcpServer)
 
 MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents inspect a running TIA Portal project through the Siemens Openness API.
 
