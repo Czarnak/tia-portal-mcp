@@ -126,6 +126,19 @@ public static class CompileChecker
 
     private static CompilerResult CompileObject(object compilable)
     {
+        // Most compilable Openness objects (e.g. PlcSoftware) do not implement
+        // ICompilable directly - the capability is exposed as a service via
+        // IEngineeringServiceProvider.GetService<T>(), not as a type-level
+        // interface, so reflecting over GetInterfaces() never finds it.
+        if (compilable is IEngineeringServiceProvider serviceProvider)
+        {
+            var compilableService = serviceProvider.GetService<ICompilable>();
+            if (compilableService != null)
+            {
+                return compilableService.Compile();
+            }
+        }
+
         var compileMethod = FindCompileMethod(compilable.GetType());
         if (compileMethod == null)
         {
