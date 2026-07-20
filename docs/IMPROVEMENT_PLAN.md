@@ -1,8 +1,9 @@
 # Improvement Plan — tia-portal-mcp (2026-07-15)
 
 Consolidated from three parallel reviews (C# correctness, silent-failure hunt, AI-agent usability audit)
-plus manual verification of the highest-stakes claims. Test suite: 146/146 green (pure-logic tests only;
-no integration coverage of the worker or IPC layer).
+plus manual verification of the highest-stakes claims. Test suite at authoring time: 146/146 green
+(pure-logic tests only; no integration coverage of the worker or IPC layer). As of 2026-07-20 the
+suite is 341/341 green and does cover the worker/IPC layer via the fake-worker harness.
 
 ## Overall verdict
 
@@ -59,12 +60,32 @@ well-designed. The three biggest problems, in order of impact:
 
 | # | Change | Where | Est. reduction |
 |---|--------|-------|----------------|
-| 3.1 | Extract per-op descriptor + one generic executor for the six lifecycle preview/apply pairs. Phase 2.4 removed the duplicated `target`/`requestedInput` construction, so the drift bomb is resolved; remaining value is only per-op descriptor extraction and should be reassessed before starting. | `ProjectLifecycleTools.cs` (374 lines) | Reassess before starting; lower value after 2.4 |
-| 3.2 | Consolidate the 3 near-identical project-path binding checks into `ProjectSessionBinding` | `OpennessWorkerClient.cs:562-582` vs `ProjectSessionBinding.cs:16-68` | drift risk |
-| 3.3 | Collapse the double dispatch: `BatchWorkerInvoker` maps operation strings onto 20+ near-identical `OpennessWorkerClient` wrappers that only set `WorkerRequest` fields — build `WorkerRequest` directly from the batch item | `OpennessWorkerClient.cs:25-359`, `BatchWorkerInvoker.cs` | ~250 lines |
-| 3.4 | Merge `EquipmentCatalogSearcher`'s private reflection helpers (~90 lines) into `OpennessReflection` | worker Openness/ | ~90 lines |
-| 3.5 | Single shared `JsonSerializerOptions` (currently duplicated in 4 files); inject `WriteSafetyService` via DI instead of `.Shared` static (registration already exists in `Program.cs:18`) | host | consistency |
-| 3.6 | `WorkerRequest` god DTO (40+ fields, 28 methods): defer full split — flat is a defensible MCP trade-off — but group with `#region` per operation family and add a comment mapping fields→operations | Contracts | documentation |
+| 3.1 | ~~Extract per-op descriptor + one generic executor for the six lifecycle preview/apply pairs.~~ **DROPPED 2026-07-20** — Phase 2.4 already collapsed `ProjectLifecycleTools.cs` from 374 to 125 lines. The six tools are ~12 lines each and the shared machinery lives in `WriteSafetyTooling`; what remains is genuinely per-operation. A descriptor table would add indirection without removing duplication. | `ProjectLifecycleTools.cs` (125 lines) | Resolved by 2.4 |
+| 3.2 | Consolidate the 3 near-identical project-path binding checks into `ProjectSessionBinding` | `OpennessWorkerClient.cs`, `ProjectSessionBinding.cs` | drift risk — DONE 2026-07-20 |
+| 3.3 | Collapse the double dispatch: `BatchWorkerInvoker` maps operation strings onto 20+ near-identical `OpennessWorkerClient` wrappers that only set `WorkerRequest` fields — build `WorkerRequest` directly from the batch item | `OpennessWorkerClient.cs:25-359`, `BatchWorkerInvoker.cs` | ~250 lines — **DEFERRED 2026-07-20**; design retained in `docs/superpowers/specs/2026-07-20-phase3-simplification-design.md` |
+| 3.4 | ~~Merge `EquipmentCatalogSearcher`'s private reflection helpers (~90 lines) into `OpennessReflection`~~ **DROPPED 2026-07-20** — Phase 1.7 already did the merge. The remaining privates are `HasReadableProperty` (3 lines), `ReadStringProperty` (a 2-line passthrough already delegating to `OpennessReflection`), and two non-reflection helpers. ~10 lines of residual value. | worker Openness/ | Resolved by 1.7 |
+| 3.5 | Share the host presentation `JsonSerializerOptions` (was duplicated byte-identically in 3 files) via `TiaMcpServer/Json/TiaJson.cs`. **Corrected scope:** the original entry claimed one config duplicated in 4 files. There are two distinct configs — presentation (3 host copies, deduped) and wire/IPC (`PersistentWorkerTransport` + worker `Program.cs`, which differ deliberately and live in separate processes; sharing them would require a `System.Text.Json` PackageReference on the dependency-free `Contracts` assembly). Wire options intentionally left per-process. | host | consistency — DONE 2026-07-20 (presentation only) |
+| 3.5b | Inject `WriteSafetyService` via DI instead of the `.Shared` static (registration already exists in `Program.cs`) | host | **DEFERRED** — threads the service through the static `WriteSafetyTooling` API and 6 MCP tool signatures; the testability it buys is partly available already via the `(getUtcNow, tokenLifetime, auditDirectory)` constructor |
+| 3.6 | `WorkerRequest` god DTO (47 fields): defer full split — flat is a defensible MCP trade-off — but group with `#region` per operation family and add a comment mapping fields→operations | Contracts | documentation — DONE 2026-07-20 |
+
+## Follow-ups discovered during Phase 3 (2026-07-20)
+
+Documenting the `WorkerRequest` field→operation contract (3.6) surfaced two more instances of the
+same "declared but never forwarded" bug class Phase 0.4 found with `newName`. Neither is fixed —
+both need a decision, and the second needs the real Openness API to answer.
+
+- **`deviceItemName` on `configure_network_device`**: `BatchOperationRequest.cs` describes it
+  unscoped ("Optional device item name; defaults to deviceName when omitted"), but
+  `ConfigureNetworkDeviceAsync` has no such parameter and `BatchWorkerInvoker` never passes one.
+  Only `add_network_device` forwards it. An agent setting it on `configure_network_device` has it
+  silently dropped. Fix is either scoping the description or forwarding the field.
+- **`externalAccessible` / `externalVisible` / `externalWritable` / `isSafety` on `create_tag`**:
+  described as generic "Optional tag attribute", but only `update_tag` forwards them. `create_tag`
+  drops all four. Whether to forward them depends on whether Openness supports setting these at
+  tag-creation time — needs verification on the TIA machine.
+
+A catalog invariant test asserting every operation's declared fields are a subset of its forwarded
+fields would make this class unrepresentable; that assertion is part of the deferred 3.3 design.
 
 ## Deferred / explicitly not planned
 
