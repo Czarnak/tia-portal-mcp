@@ -68,6 +68,39 @@ well-designed. The three biggest problems, in order of impact:
 | 3.5b | Inject `WriteSafetyService` via DI instead of the `.Shared` static (registration already exists in `Program.cs`) | host | **PROMOTED 2026-07-20 — fixes a real bug, see below.** Still costs threading the service through the static `WriteSafetyTooling` API and 6 MCP tool signatures |
 | 3.6 | `WorkerRequest` god DTO (47 fields): defer full split — flat is a defensible MCP trade-off — but group with `#region` per operation family and add a comment mapping fields→operations | Contracts | documentation — DONE 2026-07-20 |
 
+## Session binding does not protect the default case (found live 2026-07-20)
+
+The session-binding guard is off in the workflow the server itself recommends. `tia-mcp doctor`
+reports "No project binding configured. Tools will use the project currently open in TIA Portal" —
+and in that state the guard never engages, because `ProjectSessionBinding.TryResolve(null)` returns
+the (null) binding without adopting anything. A session that always omits `projectPath` stays
+unbound indefinitely.
+
+The first call that *does* pass an explicit `projectPath` is then adopted unconditionally, whatever
+it is. Reproduced against a live V21 instance with `SimpleProject.ap21` open in the GUI:
+
+1. `get_project_status` with no `projectPath` — succeeds, session still unbound.
+2. `browse_project_tree` with `projectPath` pointing at an unrelated real project — accepted, and
+   the worker attempted to **open that other project alongside the user's**, warning
+   "Leaving user-opened project '…SimpleProject.ap21' open; opening '…LibReadTest.ap21' alongside it."
+3. Only TIA Portal's own refusal stopped it: "Unable to open project … Another project is already
+   open."
+
+So the sole thing preventing a hallucinated or mistyped path from retargeting the session was an
+external backstop. With no project open in the GUI, step 2 would have silently opened a different
+project and operated on it. The failed attempt also left that session unable to issue write
+previews; a fresh session recovered.
+
+By contrast, once the session *is* explicitly bound, the guard works correctly and rejects before
+attempting anything — verified live, including the unified wording from 3.2:
+"This MCP session is already bound to project 'A' and cannot use 'B'. Call open_project with
+forceRebind=true to rebind this session, or start a new MCP session for a different TIA project."
+
+Candidate fixes (not yet chosen): adopt the active project's path as the binding after the first
+successful call that resolved it — the path is already known, `get_project_status` returns it — or
+require `forceRebind=true` before accepting any explicit path that differs from the project
+currently open in the GUI. Note this is pre-existing behavior, unchanged by Phase 3.
+
 ## Found during live testing against TIA Portal V21 (2026-07-20)
 
 **The test suite writes into the production audit trail.** Measured on a real machine:
