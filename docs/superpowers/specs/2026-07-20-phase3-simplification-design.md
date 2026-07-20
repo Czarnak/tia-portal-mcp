@@ -14,11 +14,15 @@ Phase 3 was six items. Two are already resolved by earlier phases and are droppe
 
 Four items remain: **3.2, 3.3, 3.5a, 3.6**. All are behavior-preserving.
 
+**3.3 is deferred (decided 2026-07-20).** It is the only item that can silently change per-operation behavior, and it depends on a characterization-test seam that has not been built yet. Its design is retained in full below so it can be picked up as its own unit of work without re-deriving the analysis. **This spec's implementation plan covers 3.6, 3.2, and 3.5a only.**
+
 The `WriteSafetyService` DI conversion (the second half of the original 3.5) is deferred. It would thread the service through the static `WriteSafetyTooling` API and add a parameter to six MCP tool methods, and the testability it buys is already partly available through the existing `WriteSafetyService(getUtcNow, tokenLifetime, auditDirectory)` constructor.
 
 ---
 
-## 3.3 — Collapse the double dispatch
+## 3.3 — Collapse the double dispatch (DEFERRED)
+
+**Not in scope for this plan.** Retained as a design record; see the scope decision above.
 
 The substantive item. Everything else is mechanical.
 
@@ -147,19 +151,23 @@ Documentation only, no code change. If 3.3 lands first, the `ForwardedFields` ta
 
 ## Sequencing
 
-1. **3.6** — documentation only, zero risk, and produces the field→operation inventory that 3.3 needs anyway.
+In scope, in order:
+
+1. **3.6** — documentation only, zero risk. Produces the field→operation inventory that 3.3 will need if it is picked up later.
 2. **3.2** — small and self-contained.
 3. **3.5a** — mechanical, touches five files.
-4. **3.3** — last, and internally: characterization test green against current code → extend `BatchOperationSpec` → add `BatchRequestBuilder` → collapse the 22 wrappers → characterization test green again.
 
-3.3 last means the first three land independently even if 3.3 is abandoned.
+Each is independent; none blocks another. The order is lowest-risk-first so the suite has been exercised before the item that touches serialization.
+
+Deferred: **3.3**, which when picked up runs internally as characterization test green against current code → extend `BatchOperationSpec` → add `BatchRequestBuilder` → collapse the 22 wrappers → characterization test green again. Nothing in 3.6, 3.2, or 3.5a depends on it, and 3.6's field inventory makes it cheaper to start.
 
 ## Testing
 
 - Baseline: confirm the suite is green before starting, and record the count.
-- 3.3: the characterization test above; plus a catalog invariant test asserting every operation's `RequiredFields` is a subset of its `ForwardedFields` — the assertion that makes the `newName` bug class unrepresentable.
+- 3.6: none.
 - 3.2: extend `ProjectSessionBindingTests` for `CanBind`, including an assertion that the rebind-instruction wording is identical across `TryResolve`, `Bind`, and `CanBind`.
 - 3.5a: existing `WorkerResponseJsonTests` and `BatchOperationRequestJsonTests` cover the wire format; no new tests needed beyond confirming they stay green.
-- 3.6: none.
 
-Every item is behavior-preserving, so a green suite before and after is the acceptance criterion — with the two intentional exceptions of the unified binding error text (3.2) and the worker's null-omission staying worker-local (3.5a).
+Every in-scope item is behavior-preserving, so a green suite before and after is the acceptance criterion — with the two intentional exceptions of the unified binding error text (3.2) and the worker's null-omission staying worker-local (3.5a).
+
+When 3.3 is picked up it additionally needs the characterization test described in its section, plus a catalog invariant test asserting every operation's `RequiredFields` is a subset of its `ForwardedFields` — the assertion that makes the `newName` bug class unrepresentable.
