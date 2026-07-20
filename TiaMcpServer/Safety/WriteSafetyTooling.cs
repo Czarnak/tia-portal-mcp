@@ -1,17 +1,12 @@
 using System.Text;
 using System.Text.Json;
+using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Safety;
 
 public static class WriteSafetyTooling
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
     public static async Task<WriteSafetyApplyContext> ValidateForApplyAsync(
         string? safetyToken,
         string previewToolName,
@@ -95,7 +90,7 @@ public static class WriteSafetyTooling
                         result = verificationResult
                     }
             },
-            JsonOptions);
+            TiaJson.Presentation);
     }
 
     public static string CreateLineDiff(string before, string after)
@@ -142,7 +137,7 @@ public static class WriteSafetyTooling
                 exists = true,
                 length = file.Length,
                 lastWriteTimeUtc = file.LastWriteTimeUtc
-            }, JsonOptions);
+            }, TiaJson.Presentation);
         }
 
         if (Directory.Exists(path))
@@ -154,14 +149,14 @@ public static class WriteSafetyTooling
                 exists = true,
                 isDirectory = true,
                 lastWriteTimeUtc = directory.LastWriteTimeUtc
-            }, JsonOptions);
+            }, TiaJson.Presentation);
         }
 
         return JsonSerializer.Serialize(new
         {
             path = normalized,
             exists = false
-        }, JsonOptions);
+        }, TiaJson.Presentation);
     }
 
     public static string DescribeProjectCreationState(string projectDirectory, string projectName)
@@ -174,7 +169,7 @@ public static class WriteSafetyTooling
             targetDirectory = WriteSafetyService.NormalizeProjectPath(targetDirectory),
             parentExists = Directory.Exists(projectDirectory),
             targetExists = Directory.Exists(targetDirectory)
-        }, JsonOptions);
+        }, TiaJson.Presentation);
     }
 }
 

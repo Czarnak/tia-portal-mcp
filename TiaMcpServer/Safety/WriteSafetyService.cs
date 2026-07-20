@@ -2,17 +2,12 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using TiaMcpServer.Json;
 
 namespace TiaMcpServer.Safety;
 
 public sealed class WriteSafetyService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
     public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
 
     public static WriteSafetyService Shared { get; } = new();
@@ -80,7 +75,7 @@ public sealed class WriteSafetyService
                 diff,
                 instructions
             },
-            JsonOptions);
+            TiaJson.Presentation);
     }
 
     /// <summary>
@@ -248,7 +243,7 @@ public sealed class WriteSafetyService
                     resultHash = HashText(result),
                     resultPreview = result.Length <= 2000 ? result : result[..2000]
                 },
-                JsonOptions);
+                TiaJson.Presentation);
 
             File.AppendAllText(auditPath, record + Environment.NewLine, Encoding.UTF8);
         }
@@ -285,7 +280,7 @@ public sealed class WriteSafetyService
 
     public static string ToStableJson(object value)
     {
-        return JsonSerializer.Serialize(value, JsonOptions);
+        return JsonSerializer.Serialize(value, TiaJson.Presentation);
     }
 
     private static string CreateToken()
