@@ -16,7 +16,7 @@ namespace TiaMcpServer.Contracts;
 /// </summary>
 public class WorkerRequest
 {
-    #region Common — read by every operation
+    #region Common — dispatch and write-confirmation flags
 
     /// <summary>Operation name, dispatched by the worker's switch in Program.cs.</summary>
     public string Method { get; set; } = string.Empty;
@@ -64,7 +64,7 @@ public class WorkerRequest
 
     #endregion
 
-    #region Tag tables, tags, and user constants
+    #region PLC scoping, tag tables, tags, and user constants
 
     /// <summary>
     /// Forwarded by: read_cross_references, compile_check, list_tag_tables, start_plc,
@@ -147,8 +147,9 @@ public class WorkerRequest
     public string? DeviceName { get; set; }
 
     /// <summary>
-    /// Forwarded by: add_network_device, configure_network_device. Falls back to DeviceName
-    /// when the caller omits it.
+    /// Forwarded by: add_network_device ONLY. configure_network_device does not forward it —
+    /// setting it on that operation is silently dropped. The fallback to DeviceName when the
+    /// caller omits it is applied by BatchWorkerInvoker.ResolveDeviceItemName before the call.
     /// </summary>
     public string? DeviceItemName { get; set; }
 
