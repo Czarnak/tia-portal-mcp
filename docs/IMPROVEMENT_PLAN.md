@@ -65,8 +65,39 @@ well-designed. The three biggest problems, in order of impact:
 | 3.3 | Collapse the double dispatch: `BatchWorkerInvoker` maps operation strings onto 20+ near-identical `OpennessWorkerClient` wrappers that only set `WorkerRequest` fields — build `WorkerRequest` directly from the batch item | `OpennessWorkerClient.cs:25-359`, `BatchWorkerInvoker.cs` | ~250 lines — **DEFERRED 2026-07-20**; design retained in `docs/superpowers/specs/2026-07-20-phase3-simplification-design.md` |
 | 3.4 | ~~Merge `EquipmentCatalogSearcher`'s private reflection helpers (~90 lines) into `OpennessReflection`~~ **DROPPED 2026-07-20** — Phase 1.7 already did the merge. The remaining privates are `HasReadableProperty` (3 lines), `ReadStringProperty` (a 2-line passthrough already delegating to `OpennessReflection`), and two non-reflection helpers. ~10 lines of residual value. | worker Openness/ | Resolved by 1.7 |
 | 3.5 | Share the host presentation `JsonSerializerOptions` (was duplicated byte-identically in 3 files) via `TiaMcpServer/Json/TiaJson.cs`. **Corrected scope:** the original entry claimed one config duplicated in 4 files. There are two distinct configs — presentation (3 host copies, deduped) and wire/IPC (`PersistentWorkerTransport` + worker `Program.cs`, which differ deliberately and live in separate processes; sharing them would require a `System.Text.Json` PackageReference on the dependency-free `Contracts` assembly). Wire options intentionally left per-process. | host | consistency — DONE 2026-07-20 (presentation only) |
-| 3.5b | Inject `WriteSafetyService` via DI instead of the `.Shared` static (registration already exists in `Program.cs`) | host | **DEFERRED** — threads the service through the static `WriteSafetyTooling` API and 6 MCP tool signatures; the testability it buys is partly available already via the `(getUtcNow, tokenLifetime, auditDirectory)` constructor |
+| 3.5b | Inject `WriteSafetyService` via DI instead of the `.Shared` static (registration already exists in `Program.cs`) | host | **PROMOTED 2026-07-20 — fixes a real bug, see below.** Still costs threading the service through the static `WriteSafetyTooling` API and 6 MCP tool signatures |
 | 3.6 | `WorkerRequest` god DTO (47 fields): defer full split — flat is a defensible MCP trade-off — but group with `#region` per operation family and add a comment mapping fields→operations | Contracts | documentation — DONE 2026-07-20 |
+
+## Found during live testing against TIA Portal V21 (2026-07-20)
+
+**The test suite writes into the production audit trail.** Measured on a real machine:
+39 of 42 records in `%LOCALAPPDATA%\TiaMcpServer\audit` were produced by `dotnet test`, not by
+real TIA usage. `ProjectLifecycleTools` calls `WriteSafetyService.Shared.AppendAudit(...)` on the
+static singleton; `TiaMcpServer.Tests` links that file and exercises those tools, so every test run
+appends real records — recognizable by `projectPath` values pointing into `TiaMcpServer.Tests\bin\`
+and FakeWorker scripted keywords (`ok`, `hang`, `worker-error`) in `target`.
+
+This dilutes the forensic record for PLC-mutating operations to ~7% signal, and a test run could be
+mistaken for real engineering activity. It is the concrete justification for **3.5b** above: the
+`WriteSafetyService(getUtcNow, tokenLifetime, auditDirectory)` constructor already supports
+redirecting the audit directory, but no test that goes through the tool layer can reach it while the
+tools resolve `.Shared` statically. Fixing 3.5b lets the tests inject a temp directory.
+
+Interim mitigation if 3.5b stays deferred: have the audit writer no-op when the process is a test
+host, or point `WriteSafetyService.Shared` at a temp directory from a test fixture.
+
+Also confirmed live, all working as designed: bounded reads with `depth`/`startPath`/`maxResults`
+plus the explicit truncation trailer (2.3); per-item batch isolation, where a failing `compile_check`
+did not stop two sibling reads; `messages` arrays surfacing partial-read degradation rather than
+silently returning defaults (1.3/1.4) — `read_hardware_config` reported 20 unreadable device
+addresses, and `read_cross_references` reported "does not expose the cross-reference service"
+instead of an empty result an agent would misread as "no unused objects"; single-use safety tokens
+rejecting replay with the self-recovery instruction (0.3); and audit records whose
+`requestedInputHash` matches the issuing preview exactly.
+
+Separately, `compile_check` failed live with "Object 'PlcSoftware' does not expose a Compile
+method" against the installed `tia-mcp 2.3.0` — already fixed on `main` by ae8af80, confirming that
+fix addresses a real-hardware failure and that 2.3.0 predates it.
 
 ## Follow-ups discovered during Phase 3 (2026-07-20)
 
