@@ -240,9 +240,14 @@ these four attributes at tag-creation time?*
 
 ### E — Echo test
 
-`TiaMcpServer.FakeWorker` gains an echo mode, selected by the `TIA_FAKEWORKER_MODE=echo` environment
-variable so it applies to every method uniformly: the worker returns the received `WorkerRequest`,
-serialized, as its payload.
+`TiaMcpServer.FakeWorker` gains an `"echo"` scenario that returns the received `WorkerRequest` line,
+verbatim, as its payload. This reuses the harness's existing idiom — FakeWorker already selects its
+scenario from the request's `projectPath` field (`TiaMcpServer.FakeWorker/Program.cs:11-24`) — rather
+than introducing an environment variable, which would be process-global and could leak between
+xunit test classes running in parallel.
+
+`projectPath` is a universal field, excluded from every per-operation table, so pinning it to
+`"echo"` for the whole test costs no coverage.
 
 The catalog needs an enumerator over its specs. `BatchOperationCatalog` exposes `ReadOperationNames`,
 `WriteOperationNames`, and `TryGetSpec` today but no way to walk every spec, so add
