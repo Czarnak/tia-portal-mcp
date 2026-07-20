@@ -53,6 +53,17 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
+    public void BindStoresTrimmedProjectPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.True(binding.Bind("  C:\\Projects\\Line.ap21  ", forceRebind: false, out var error));
+
+        Assert.Null(error);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
     public void BindSetsUnboundProjectPath()
     {
         var binding = new ProjectSessionBinding(null);

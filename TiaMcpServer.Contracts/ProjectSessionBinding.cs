@@ -71,7 +71,7 @@ public sealed class ProjectSessionBinding
             return true;
         }
 
-        error = AlreadyBoundError(_boundProjectPath ?? string.Empty, requested);
+        error = AlreadyBoundError(_boundProjectPath, requested);
         return false;
     }
 
