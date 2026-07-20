@@ -472,7 +472,7 @@ public class OpennessWorkerClient : IDisposable
 
     public async Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
     {
-        if (!CanBind(projectPath, forceRebind, out var bindingError))
+        if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
         {
             return WorkerCallResult.Fail(bindingError!);
         }
@@ -705,28 +705,6 @@ public class OpennessWorkerClient : IDisposable
             _transport?.Dispose();
             _transport = null;
         }
-    }
-
-    private bool CanBind(string projectPath, bool forceRebind, out string? error)
-    {
-        error = null;
-
-        if (string.IsNullOrWhiteSpace(projectPath))
-        {
-            error = "Project path is required.";
-            return false;
-        }
-
-        var boundProjectPath = _projectSessionBinding.BoundProjectPath;
-        if (boundProjectPath is null ||
-            forceRebind ||
-            string.Equals(boundProjectPath, projectPath.Trim(), StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        error = $"This MCP session is already bound to project '{boundProjectPath}' and cannot use '{projectPath}'. Start a new MCP session for a different TIA project or set forceRebind=true.";
-        return false;
     }
 
     private static string? TryReadProjectPath(string? payload)
