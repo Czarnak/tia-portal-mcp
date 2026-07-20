@@ -87,6 +87,26 @@ both need a decision, and the second needs the real Openness API to answer.
 A catalog invariant test asserting every operation's declared fields are a subset of its forwarded
 fields would make this class unrepresentable; that assertion is part of the deferred 3.3 design.
 
+Three further follow-ups, all raised by the Phase 3 final review and deliberately left undone:
+
+- **Enforce the `WorkerRequest` forwarding comments with a test.** The field→operation map can be
+  re-derived deterministically in ~25 lines: walk `OpennessWorkerClient.cs`, extract every
+  `request.X =` inside each `SendBoundProjectRequestAsync` lambda and every `new WorkerRequest`
+  initializer, invert to field→operations, and assert it agrees with the doc comments. The test
+  project already links that source file. This is cheaper than the 3.3 catalog invariant, does not
+  depend on 3.3 landing, and would have caught the `deviceItemName` error above before review.
+- **Collapse `BatchPayloadBudget.ReadBatchResponseLength` into `BatchResultFormatter.ReadBatch`.**
+  It currently hand-mirrors that method's envelope purely to predict its output length. Phase 3
+  made the two share `TiaJson.Presentation` so they cannot drift on serializer settings, but the
+  duplicated envelope shape remains. Replacing the body with
+  `BatchResultFormatter.ReadBatch(results).Length` removes it, at the cost of one extra
+  serialization per budget probe — measure before adopting.
+- **`TiaJson.Presentation.MakeReadOnly()`.** The field is a public mutable `JsonSerializerOptions`
+  whose formatting feeds the safety-token `requestedInputHash`. Realistic harm is low (mutation only
+  succeeds before first use, and preview/apply share the instance so tokens stay self-consistent),
+  but a static constructor calling `MakeReadOnly()` turns the "keep this stable" comment into a
+  guarantee.
+
 ## Deferred / explicitly not planned
 
 - Splitting `WorkerRequest` into per-operation DTOs (churn > value while the protocol is stable).
