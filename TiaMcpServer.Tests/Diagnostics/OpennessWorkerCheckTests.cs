@@ -1,6 +1,5 @@
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Diagnostics.Checks;
-using System.Text.Json;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -114,52 +113,34 @@ public class OpennessWorkerCheckTests
         var repositoryRoot = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
             "..", "..", "..", ".."));
-        var assetsPath = Path.Combine(
-            repositoryRoot,
-            "TiaMcpServer.OpennessWorker",
-            "obj",
-            "project.assets.json");
+        var binRoot = Path.Combine(repositoryRoot, "TiaMcpServer.OpennessWorker", "bin");
 
-        using var assets = JsonDocument.Parse(File.ReadAllText(assetsPath));
+        // NuGet's project.assets.json restore-graph shape (bare TFM vs.
+        // RID-qualified targets, or something else entirely) varies across SDK
+        // versions and OS, so it isn't a stable source of truth here. The build
+        // output directory is: it's the exact set of files CopyOpennessWorker
+        // copies into openness-worker/, so compare against that instead.
+        var outputDir = Directory.Exists(binRoot)
+            ? Directory.EnumerateDirectories(binRoot)
+                .Select(configDir => Path.Combine(configDir, "net48"))
+                .FirstOrDefault(dir => File.Exists(Path.Combine(dir, "TiaMcpServer.OpennessWorker.exe")))
+            : null;
 
-        // Restoring a net48 SDK-style project on Windows can emit both a bare
-        // ".NETFramework,Version=v4.8" target and a RID-qualified variant
-        // (e.g. ".../win-x86") depending on SDK/restore state, so match either
-        // shape rather than requiring exactly one exact-string target.
-        const string TargetFrameworkMoniker = ".NETFramework,Version=v4.8";
-        var matchingTargets = assets.RootElement.GetProperty("targets")
-            .EnumerateObject()
-            .Where(property => property.Name == TargetFrameworkMoniker
-                || property.Name.StartsWith(TargetFrameworkMoniker + "/", StringComparison.Ordinal))
+        Assert.False(
+            string.IsNullOrEmpty(outputDir),
+            $"No built net48 output found under {binRoot}. Build TiaMcpServer.OpennessWorker before running this test.");
+
+        var builtDlls = Directory.EnumerateFiles(outputDir!, "*.dll", SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileName)
+            .Where(name => !name!.StartsWith("Siemens.Engineering", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        Assert.NotEmpty(matchingTargets);
-
-        var runtimeDlls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var target in matchingTargets)
-        {
-            foreach (var package in target.Value.EnumerateObject())
-            {
-                if (!package.Value.TryGetProperty("runtime", out var runtime))
-                {
-                    continue;
-                }
-
-                foreach (var asset in runtime.EnumerateObject())
-                {
-                    if (asset.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-                    {
-                        runtimeDlls.Add(Path.GetFileName(asset.Name));
-                    }
-                }
-            }
-        }
+        Assert.NotEmpty(builtDlls);
 
         Assert.All(
-            runtimeDlls,
+            builtDlls,
             dependency => Assert.Contains(
-                dependency,
+                dependency!,
                 OpennessWorkerCheck.RequiredCompanionFiles,
                 StringComparer.OrdinalIgnoreCase));
         Assert.Contains(
