@@ -121,23 +121,37 @@ public class OpennessWorkerCheckTests
             "project.assets.json");
 
         using var assets = JsonDocument.Parse(File.ReadAllText(assetsPath));
-        var target = assets.RootElement.GetProperty("targets")
+
+        // Restoring a net48 SDK-style project on Windows can emit both a bare
+        // ".NETFramework,Version=v4.8" target and a RID-qualified variant
+        // (e.g. ".../win-x86") depending on SDK/restore state, so match either
+        // shape rather than requiring exactly one exact-string target.
+        const string TargetFrameworkMoniker = ".NETFramework,Version=v4.8";
+        var matchingTargets = assets.RootElement.GetProperty("targets")
             .EnumerateObject()
-            .Single(property => property.Name == ".NETFramework,Version=v4.8");
+            .Where(property => property.Name == TargetFrameworkMoniker
+                || property.Name.StartsWith(TargetFrameworkMoniker + "/", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.NotEmpty(matchingTargets);
+
         var runtimeDlls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var package in target.Value.EnumerateObject())
+        foreach (var target in matchingTargets)
         {
-            if (!package.Value.TryGetProperty("runtime", out var runtime))
+            foreach (var package in target.Value.EnumerateObject())
             {
-                continue;
-            }
-
-            foreach (var asset in runtime.EnumerateObject())
-            {
-                if (asset.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                if (!package.Value.TryGetProperty("runtime", out var runtime))
                 {
-                    runtimeDlls.Add(Path.GetFileName(asset.Name));
+                    continue;
+                }
+
+                foreach (var asset in runtime.EnumerateObject())
+                {
+                    if (asset.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                    {
+                        runtimeDlls.Add(Path.GetFileName(asset.Name));
+                    }
                 }
             }
         }
