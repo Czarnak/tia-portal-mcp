@@ -53,6 +53,17 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
+    public void BindStoresTrimmedProjectPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.True(binding.Bind("  C:\\Projects\\Line.ap21  ", forceRebind: false, out var error));
+
+        Assert.Null(error);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
     public void BindSetsUnboundProjectPath()
     {
         var binding = new ProjectSessionBinding(null);
@@ -117,5 +128,70 @@ public class ProjectSessionBindingTests
         Assert.False(resolved);
         Assert.Contains("forceRebind", error);
         Assert.Contains("open_project", error);
+    }
+
+    [Fact]
+    public void CanBindAllowsFirstBindingWithoutMutating()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.True(binding.CanBind("C:\\Projects\\Line.ap21", forceRebind: false, out var error));
+
+        Assert.Null(error);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public void CanBindRejectsDifferentProjectPathWithoutMutating()
+    {
+        var binding = new ProjectSessionBinding("C:\\Projects\\Line.ap21");
+
+        Assert.False(binding.CanBind("C:\\Projects\\Other.ap21", forceRebind: false, out var error));
+
+        Assert.Contains("already bound", error);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public void CanBindAllowsDifferentProjectPathWhenForced()
+    {
+        var binding = new ProjectSessionBinding("C:\\Projects\\Line.ap21");
+
+        Assert.True(binding.CanBind("C:\\Projects\\Other.ap21", forceRebind: true, out var error));
+
+        Assert.Null(error);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public void CanBindRejectsBlankProjectPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.False(binding.CanBind("   ", forceRebind: false, out var error));
+
+        Assert.Equal("Project path is required.", error);
+    }
+
+    [Fact]
+    public void AllRejectionPathsGiveIdenticalRebindInstructions()
+    {
+        const string bound = "C:\\Projects\\Line.ap21";
+        const string other = "C:\\Projects\\Other.ap21";
+
+        var forTryResolve = new ProjectSessionBinding(bound);
+        forTryResolve.TryResolve(other, out _, out var tryResolveError);
+
+        var forBind = new ProjectSessionBinding(bound);
+        forBind.Bind(other, forceRebind: false, out var bindError);
+
+        var forCanBind = new ProjectSessionBinding(bound);
+        forCanBind.CanBind(other, forceRebind: false, out var canBindError);
+
+        Assert.NotNull(tryResolveError);
+        Assert.Equal(tryResolveError, bindError);
+        Assert.Equal(tryResolveError, canBindError);
+        Assert.Contains("forceRebind=true", tryResolveError);
+        Assert.Contains("open_project", tryResolveError);
     }
 }

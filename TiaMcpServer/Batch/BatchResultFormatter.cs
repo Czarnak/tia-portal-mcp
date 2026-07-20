@@ -1,18 +1,13 @@
 using System.Text.Json;
+using TiaMcpServer.Json;
 
 namespace TiaMcpServer.Batch;
 
 /// <summary>Builds the JSON envelopes returned by the batch MCP tools. Pure and unit-testable.</summary>
 public static class BatchResultFormatter
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
     public static string Error(string tool, string error)
-        => JsonSerializer.Serialize(new { tool, success = false, error }, JsonOptions);
+        => JsonSerializer.Serialize(new { tool, success = false, error }, TiaJson.Presentation);
 
     public static string ReadBatch(IReadOnlyList<BatchOperationResult> results)
     {
@@ -29,7 +24,7 @@ public static class BatchResultFormatter
                 omitted,
                 operations = Project(results)
             },
-            JsonOptions);
+            TiaJson.Presentation);
     }
 
     public static string ApplyBatch(IReadOnlyList<BatchOperationResult> results)
@@ -47,7 +42,7 @@ public static class BatchResultFormatter
                 skipped,
                 operations = Project(results)
             },
-            JsonOptions);
+            TiaJson.Presentation);
     }
 
     private static int Count(IReadOnlyList<BatchOperationResult> results, string status)

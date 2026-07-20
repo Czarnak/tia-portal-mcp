@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TiaMcpServer.Json;
 
 namespace TiaMcpServer.Batch;
 
@@ -183,6 +184,8 @@ public static class BatchPayloadBudget
     {
         var failed = results.Count(result => string.Equals(result.Status, BatchOperationStatus.Failed, StringComparison.Ordinal));
         var omitted = results.Count(result => string.Equals(result.Status, BatchOperationStatus.Omitted, StringComparison.Ordinal));
+        // Must serialize with the same options as BatchResultFormatter.ReadBatch, because this
+        // predicts that method's output length.
         return JsonSerializer.Serialize(new
         {
             tool = "execute_read_batch",
@@ -199,7 +202,7 @@ public static class BatchPayloadBudget
                 result = result.Result,
                 warnings = result.Warnings
             })
-        }).Length;
+        }, TiaJson.Presentation).Length;
     }
 
     private static string LimitMarker(string marker, int maxItemChars, string minimumMarker)
