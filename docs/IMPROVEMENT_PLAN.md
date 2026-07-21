@@ -171,6 +171,48 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
   but a static constructor calling `MakeReadOnly()` turns the "keep this stable" comment into a
   guarantee.
 
+## Round 5 — `get_project_status` can still open a project alongside the user's
+
+Found in review of Round 4 Task 5, which guarded `WithProject` and `SearchEquipmentCatalog` but not
+this third route. Round 4's `ProjectOpenPolicy` does not reach it.
+
+`get_project_status` is a zero-confirmation read tool (`ProjectLifecycleTools.cs:22` — no `confirm`,
+no `safetyToken`; worker dispatch passes `requiresConfirm: false`). It reaches
+`ProjectLifecycleService.EnsureProject` (`:181-192`), which calls `session.OpenProject(projectPath!)`
+unconditionally whenever the path is non-blank. Round 4's session binding does not stop it either: an
+unbound session forwards the requested path unchanged.
+
+The consequence is worse than an extra open. After `get_project_status(projectPath="B")` while the
+user has A open: B is opened alongside A, `session.Project` becomes B, the worker stamps
+`ResolvedProjectPath = B`, and the host binds the session to B. A later unqualified
+`preview_write_batch`/`apply_write_batch` then resolves to B and writes there — behind a preview and
+a safety token that are both perfectly consistent with B. Round 4 ships a containment for this
+(`OpennessWorkerClient` warns when an already-bound session's worker-reported path diverges), so the
+state is now visible to the agent, but the root cause is open.
+
+**Why it is not a one-line fix.** An attempt (commit `150d466`, reverted by `0041d65`) routed
+`get_project_status` through `ProjectOpenPolicy`. That broke `save_project`, `save_project_as`,
+`archive_project`, and `close_project`: the same `"get_project_status"` worker RPC doubles as their
+internal "read current state" probe, and `WriteSafetyTooling.cs:26-31,58-61` hard-fail the preview
+*and* the apply when that probe returns unsuccessfully. Gating the RPC as a read operation therefore
+kills cross-project writes outright, with a refusal message ("Read operations never switch projects")
+that is actively misleading on a write path.
+
+A fix needs to separate the two roles — the user-facing read tool and the write tools' internal state
+probe — so the policy applies only to the former. Precedent for the probe side already exists:
+`open_project`'s preview uses `WriteSafetyTooling.DescribePathState` rather than
+`GetProjectStatusAsync` (`ProjectLifecycleTools.cs:32`).
+
+Open design question to settle first: whether `save_project(projectPath="B")` while A is attached
+should be supported at all. It only ever worked by opening B alongside A, which is the very thing
+this work exists to prevent, and live V21 testing showed TIA Portal refusing that anyway.
+
+**Do this first, before implementing:** enumerate every worker dispatch path that can reach
+`session.OpenProject` and justify each one's treatment. `grep -n 'session\.OpenProject\|EnsureProject('`
+across `TiaMcpServer.OpennessWorker/` returns the full set in seconds. Round 4's plan scoped Task 5 to
+"read operations," implicitly defined as "whatever goes through `WithProject`" — which is exactly how
+this route was missed.
+
 ## Deferred / explicitly not planned
 
 - Splitting `WorkerRequest` into per-operation DTOs (churn > value while the protocol is stable).
