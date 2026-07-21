@@ -85,7 +85,7 @@ public sealed class BatchOperationRequest
     [Description("Device name. Required by add_network_device and configure_network_device.")]
     public string? DeviceName { get; set; }
 
-    [Description("Optional device item name; defaults to deviceName when omitted.")]
+    [Description("Optional device item name for add_network_device; defaults to deviceName when omitted. Not valid for configure_network_device.")]
     public string? DeviceItemName { get; set; }
 
     [Description("Optional IP address for configure_network_device, e.g. 192.168.0.10.")]

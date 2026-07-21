@@ -194,7 +194,7 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void AllWriteOperations_AcceptAFullyPopulatedRequest()
+    public void AllWriteOperations_AcceptARequestWithTheirRequiredFields()
     {
         foreach (var operation in BatchOperationCatalog.WriteOperationNames)
         {
@@ -204,7 +204,7 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void AllReadOperations_AcceptAFullyPopulatedRequest()
+    public void AllReadOperations_AcceptARequestWithTheirRequiredFields()
     {
         foreach (var operation in BatchOperationCatalog.ReadOperationNames)
         {
@@ -265,8 +265,8 @@ public class BatchOperationCatalogTests
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
 
         Assert.False(result.IsValid);
-        Assert.Contains("'depth' is only valid for browse_project_tree", result.Error);
-        Assert.Contains("'startPath' is only valid for browse_project_tree", result.Error);
+        Assert.Contains("'depth' is not valid for list_tag_tables", result.Error);
+        Assert.Contains("'startPath' is not valid for get_project_status", result.Error);
         Assert.Contains("operationId 'a'", result.Error);
         Assert.Contains("operationId 'b'", result.Error);
     }
@@ -282,7 +282,7 @@ public class BatchOperationCatalogTests
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
 
         Assert.False(result.IsValid);
-        Assert.Contains("'maxResults' is only valid for search_equipment_catalog and read_cross_references", result.Error);
+        Assert.Contains("'maxResults' is not valid for browse_project_tree", result.Error);
     }
 
     [Fact]
@@ -431,19 +431,149 @@ public class BatchOperationCatalogTests
         }
     }
 
-    private static BatchOperationRequest FullyPopulated(string id, string operation) => new()
+    [Fact]
+    public void DeviceItemNameOnConfigureNetworkDevice_IsRejected()
     {
-        OperationId = id,
-        Operation = operation,
-        BlockPath = "PLC_1/Main",
-        YamlContent = "name: Main",
-        BlockType = "FB",
-        Query = "CPU",
-        TableName = "Inputs",
-        Name = "Item",
-        DataType = "Bool",
-        Value = "1",
-        TypeIdentifier = "OrderNumber:X/V1.0",
-        DeviceName = "PLC_1",
-    };
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "a",
+                Operation = "configure_network_device",
+                DeviceName = "PLC_1",
+                DeviceItemName = "PROFINET interface_1"
+            }
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("deviceItemName", result.Error);
+        Assert.Contains("configure_network_device", result.Error);
+        Assert.Contains("ipAddress", result.Error);
+    }
+
+    [Fact]
+    public void ExternalAttributesOnCreateTag_AreRejected()
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "a",
+                Operation = "create_tag",
+                TableName = "Default tag table",
+                Name = "Motor",
+                DataType = "Bool",
+                ExternalAccessible = true,
+                IsSafety = false
+            }
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("externalAccessible", result.Error);
+        Assert.Contains("isSafety", result.Error);
+    }
+
+    [Fact]
+    public void ExternalAttributesOnUpdateTag_AreAccepted()
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "a",
+                Operation = "update_tag",
+                TableName = "Default tag table",
+                Name = "Motor",
+                ExternalAccessible = true,
+                IsSafety = false
+            }
+        });
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void InapplicableFieldErrors_AggregateWithOtherErrors()
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "a",
+                Operation = "create_tag",
+                TableName = "Default tag table",
+                ExternalAccessible = true
+            }
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("missing required field(s)", result.Error);
+        Assert.Contains("externalAccessible", result.Error);
+    }
+
+    [Fact]
+    public void UniversalFields_AreNeverRejected()
+    {
+        var result = BatchOperationCatalog.ValidateReadBatch(new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "a",
+                Operation = "get_project_status",
+                ProjectPath = "C:\\p.ap21"
+            }
+        });
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void DepthOnANonTreeOperation_IsStillRejected()
+    {
+        var result = BatchOperationCatalog.ValidateReadBatch(new[]
+        {
+            new BatchOperationRequest { OperationId = "a", Operation = "read_hardware_config", Depth = 2 }
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("depth", result.Error);
+    }
+
+    [Fact]
+    public void DepthBelowOne_IsStillRejected()
+    {
+        var result = BatchOperationCatalog.ValidateReadBatch(new[]
+        {
+            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", Depth = 0 }
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("1 or greater", result.Error);
+    }
+
+    private static BatchOperationRequest FullyPopulated(string id, string operation)
+    {
+        Assert.True(BatchOperationCatalog.TryGetSpec(operation, out var spec));
+        var request = new BatchOperationRequest { OperationId = id, Operation = operation };
+
+        foreach (var field in spec!.RequiredFields)
+        {
+            switch (field)
+            {
+                case "blockPath": request.BlockPath = "PLC_1/Main"; break;
+                case "yamlContent": request.YamlContent = "name: Main"; break;
+                case "blockType": request.BlockType = "FB"; break;
+                case "query": request.Query = "CPU"; break;
+                case "tableName": request.TableName = "Inputs"; break;
+                case "name": request.Name = "Item"; break;
+                case "dataType": request.DataType = "Bool"; break;
+                case "value": request.Value = "1"; break;
+                case "typeIdentifier": request.TypeIdentifier = "OrderNumber:X/V1.0"; break;
+                case "deviceName": request.DeviceName = "PLC_1"; break;
+                default: throw new InvalidOperationException($"No test value configured for required field '{field}'.");
+            }
+        }
+
+        return request;
+    }
 }

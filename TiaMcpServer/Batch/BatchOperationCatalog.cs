@@ -34,6 +34,22 @@ public static class BatchOperationCatalog
 
     private static readonly IReadOnlyDictionary<string, BatchOperationSpec> Specs = BuildSpecs();
 
+    private static readonly IReadOnlySet<string> UniversalFields = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "operationId",
+        "operation",
+        "projectPath",
+    };
+
+    // Cached once: every settable field on the flat request DTO, keyed by its camelCase wire name.
+    private static readonly (string Name, Func<BatchOperationRequest, bool> IsSet)[] AllRequestFields =
+        typeof(BatchOperationRequest)
+            .GetProperties()
+            .Select(property => (
+                Name: char.ToLowerInvariant(property.Name[0]) + property.Name.Substring(1),
+                IsSet: new Func<BatchOperationRequest, bool>(op => property.GetValue(op) is not null)))
+            .ToArray();
+
     public static IReadOnlyList<string> ReadOperationNames { get; } = NamesByCategory(BatchOperationCategory.Read);
 
     public static IReadOnlyList<string> WriteOperationNames { get; } = NamesByCategory(BatchOperationCategory.Write);
@@ -119,6 +135,16 @@ public static class BatchOperationCatalog
                     $"Operation '{op.Operation}' (operationId '{op.OperationId}') is missing required field(s): {string.Join(", ", missing)}.");
             }
 
+            foreach (var field in FindInapplicableFields(op, spec))
+            {
+                var valid = spec.OptionalFields.Count > 0
+                    ? string.Join(", ", spec.OptionalFields)
+                    : "(none)";
+                errors.Add(
+                    $"Operation '{op.Operation}' (operationId '{op.OperationId}'): '{field}' is not valid for "
+                    + $"{op.Operation}. Valid optional fields: {valid}.");
+            }
+
             foreach (var boundsError in ValidateBounds(op))
             {
                 errors.Add($"Operation '{op.Operation}' (operationId '{op.OperationId}'): {boundsError}");
@@ -189,28 +215,24 @@ public static class BatchOperationCatalog
         _ => false,
     };
 
+    private static IEnumerable<string> FindInapplicableFields(BatchOperationRequest op, BatchOperationSpec spec)
+    {
+        foreach (var field in AllRequestFields)
+        {
+            if (UniversalFields.Contains(field.Name) ||
+                spec.RequiredFields.Contains(field.Name) ||
+                spec.OptionalFields.Contains(field.Name) ||
+                !field.IsSet(op))
+            {
+                continue;
+            }
+
+            yield return field.Name;
+        }
+    }
+
     private static IEnumerable<string> ValidateBounds(BatchOperationRequest op)
     {
-        var isTree = string.Equals(op.Operation, "browse_project_tree", StringComparison.Ordinal);
-        var takesMaxResults =
-            string.Equals(op.Operation, "search_equipment_catalog", StringComparison.Ordinal) ||
-            string.Equals(op.Operation, "read_cross_references", StringComparison.Ordinal);
-
-        if (op.Depth is not null && !isTree)
-        {
-            yield return "'depth' is only valid for browse_project_tree.";
-        }
-
-        if (op.StartPath is not null && !isTree)
-        {
-            yield return "'startPath' is only valid for browse_project_tree.";
-        }
-
-        if (op.MaxResults is not null && !takesMaxResults)
-        {
-            yield return "'maxResults' is only valid for search_equipment_catalog and read_cross_references.";
-        }
-
         if (op.Depth is < 1)
         {
             yield return "'depth' must be 1 or greater.";
