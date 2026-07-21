@@ -596,7 +596,7 @@ internal static class Program
         return Execute(() => body(_sharedSession));
     }
 
-    /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure.</summary>
+    /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure and stamps completed operations with their resolved project path.</summary>
     private static WorkerResponse Execute(Func<WorkerResponse> body)
     {
         try
@@ -627,9 +627,20 @@ internal static class Program
     /// </summary>
     private static WorkerResponse Stamp(WorkerResponse response)
     {
-        if (response.Success)
+        if (!response.Success)
+        {
+            return response;
+        }
+
+        try
         {
             response.ResolvedProjectPath = _sharedSession.CurrentProjectPath;
+        }
+        catch (Exception)
+        {
+            // A diagnostic stamp must never demote a completed operation to a failure:
+            // the operation already succeeded, so a failed path read leaves the path null
+            // rather than propagating out of Execute and being reported as an error.
         }
 
         return response;
