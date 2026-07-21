@@ -37,4 +37,25 @@ public class WorkerResponseJsonTests
 
         Assert.DoesNotContain("\"warnings\"", json);
     }
+
+    [Fact]
+    public void Deserializes_ResolvedProjectPath()
+    {
+        const string json = """{"success":true,"payload":"{}","resolvedProjectPath":"C:\\proj\\SimpleProject.ap21"}""";
+
+        var response = JsonSerializer.Deserialize<WorkerResponse>(json, JsonOptions);
+
+        Assert.NotNull(response);
+        Assert.Equal("C:\\proj\\SimpleProject.ap21", response!.ResolvedProjectPath);
+    }
+
+    [Fact]
+    public void ResolvedProjectPath_DefaultsToNull()
+    {
+        const string json = """{"success":true,"payload":"{}"}""";
+
+        var response = JsonSerializer.Deserialize<WorkerResponse>(json, JsonOptions);
+
+        Assert.Null(response!.ResolvedProjectPath);
+    }
 }

@@ -28,6 +28,9 @@ while ((line = Console.In.ReadLine()) is not null)
             // seq proves whether two requests hit the same process (2.1 reuse/restart tests).
             Respond($$"""{"success":true,"payload":"{\"seq\":{{seq}}}"}""");
             break;
+        case "ok-with-resolved-path":
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
+            break;
         case "ok-with-warnings":
             Respond("""{"success":true,"payload":"{\"hello\":true}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
             break;

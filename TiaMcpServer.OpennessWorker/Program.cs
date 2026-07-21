@@ -601,7 +601,7 @@ internal static class Program
     {
         try
         {
-            return body();
+            return Stamp(body());
         }
         catch (EngineeringException ex)
         {
@@ -619,6 +619,20 @@ internal static class Program
         {
             return Failure(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Records which project the worker actually operated on. Stamped in one place so all
+    /// operations report it without each remembering to.
+    /// </summary>
+    private static WorkerResponse Stamp(WorkerResponse response)
+    {
+        if (response.Success)
+        {
+            response.ResolvedProjectPath = _sharedSession.CurrentProjectPath;
+        }
+
+        return response;
     }
 
     private static WorkerResponse Success<T>(T payload)
