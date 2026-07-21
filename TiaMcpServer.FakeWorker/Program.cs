@@ -80,6 +80,11 @@ while ((line = Console.In.ReadLine()) is not null)
         case "hang":
             Thread.Sleep(Timeout.Infinite);
             break;
+        case "echo":
+            // Returns the received request verbatim so tests can assert which fields survived
+            // the BatchOperationRequest -> WorkerRequest hop.
+            Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
+            break;
         default:
             Respond($$"""{"success":false,"error":"unknown scenario '{{scenario}}'"}""");
             break;
