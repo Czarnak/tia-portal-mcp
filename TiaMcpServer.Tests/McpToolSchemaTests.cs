@@ -51,12 +51,15 @@ public class McpToolSchemaTests
             options: new McpServerToolCreateOptions { Services = Services });
 
         var inputSchema = tool.ProtocolTool.InputSchema;
-        if (!inputSchema.TryGetProperty("properties", out var properties))
-        {
-            return Array.Empty<string>();
-        }
+        var names = inputSchema.TryGetProperty("properties", out var properties)
+            ? properties.EnumerateObject().Select(p => p.Name).ToArray()
+            : Array.Empty<string>();
 
-        return properties.EnumerateObject().Select(p => p.Name).ToArray();
+        // A DoesNotContain-only assertion downstream would pass vacuously if schema generation
+        // silently broke for a tool (empty/missing "properties" node) - this makes that a hard
+        // failure instead of a false green.
+        Assert.NotEmpty(names);
+        return names;
     }
 
     [Theory]

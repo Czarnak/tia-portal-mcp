@@ -562,7 +562,11 @@ public class OpennessWorkerClient : IDisposable
                 request.Confirm = true;
                 request.AllowTiaConfirmations = true;
             },
-            "{}").ConfigureAwait(false);
+            "{}",
+            // rebind=true deliberately changes which project is attached (worker closes the
+            // original and opens the copy before this call returns) - the divergence warning
+            // exists to catch unintended drift, not this tool's documented purpose.
+            attachmentChangeExpected: rebind).ConfigureAwait(false);
 
         if (rebind && result.Success)
         {
@@ -628,7 +632,8 @@ public class OpennessWorkerClient : IDisposable
         string method,
         string? projectPath,
         Action<WorkerRequest> configure,
-        string emptyPayload)
+        string emptyPayload,
+        bool attachmentChangeExpected = false)
     {
         var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
         var sessionWasUnbound = boundProjectPathBeforeCall is null;
@@ -670,12 +675,21 @@ public class OpennessWorkerClient : IDisposable
                     };
                 }
             }
-            else if (!string.Equals(boundProjectPathBeforeCall, result.ResolvedProjectPath, StringComparison.OrdinalIgnoreCase))
+            else if (!attachmentChangeExpected && !_projectSessionBinding.IsBoundTo(result.ResolvedProjectPath))
             {
                 // Containment only (see docs/superpowers/specs Round 4 design): the root cause -
                 // a zero-confirmation read tool able to attach a different project than the one
                 // this session is bound to - is deferred. Surface the divergence so the caller
                 // (and a human) can see it, rather than silently trusting the bound path.
+                //
+                // attachmentChangeExpected opts out an operation that deliberately changes what
+                // is attached (save_project_as with rebind=true is the only caller today) - for
+                // that operation a "resolved path differs from the bound path" is the documented
+                // outcome, not a signal of drift.
+                //
+                // IsBoundTo canonicalizes both sides (see ProjectPathNormalization) instead of a
+                // raw string compare, so 8.3 short names, junctions/symlinks, and UNC-vs-mapped-drive
+                // spellings of the same project do not misfire this warning on every call.
                 _logger?.LogWarning(
                     "TIA Openness worker: session is bound to '{BoundProjectPath}' but the worker reports it "
                     + "operated on '{ResolvedProjectPath}'.",

@@ -87,6 +87,24 @@ public sealed class ProjectSessionBinding
         return true;
     }
 
+    /// <summary>
+    /// True when <paramref name="projectPath"/>, once canonicalized, identifies the same project
+    /// this session is currently bound to. Lets callers outside this assembly (notably
+    /// <c>OpennessWorkerClient</c>) compare against the binding using the same canonicalization
+    /// as <see cref="TryResolve"/>/<see cref="Bind"/> without <see cref="ProjectPathNormalization"/>
+    /// itself needing to be public. Returns false when unbound or given a null path - there is no
+    /// "same project" to affirm in either case.
+    /// </summary>
+    public bool IsBoundTo(string? projectPath)
+    {
+        if (_boundProjectPath is null || projectPath is null)
+        {
+            return false;
+        }
+
+        return IsSameProject(_boundProjectPath, projectPath);
+    }
+
     public bool Clear(string? projectPath, out string? error)
     {
         error = null;

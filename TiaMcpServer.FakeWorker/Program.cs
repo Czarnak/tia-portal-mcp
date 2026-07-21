@@ -43,6 +43,13 @@ while ((line = Console.In.ReadLine()) is not null)
             // own scenario key back as resolvedProjectPath - no divergence, no warning expected.
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\stable\\Project.ap21"}""");
             break;
+        case "C:\\equivalent\\Project.ap21":
+            // Used by the "equivalent but differently-spelled path" divergence test (Finding 2):
+            // reports the identical project via forward slashes instead of back slashes. A raw
+            // string.Equals would misclassify this as divergence; the canonicalized comparison
+            // (ProjectSessionBinding.IsBoundTo) must not.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:/equivalent/Project.ap21"}""");
+            break;
         case "ok-with-warnings":
             Respond("""{"success":true,"payload":"{\"hello\":true}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
             break;

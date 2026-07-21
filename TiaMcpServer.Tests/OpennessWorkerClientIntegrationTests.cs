@@ -284,6 +284,55 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task AlreadyBoundSession_NoSpuriousWarningWhenTheWorkerReportsAnEquivalentlySpelledPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\equivalent\\Project.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Finding 2 regression: the divergence check used a raw string.Equals, which would treat
+        // a forward-vs-back-slash spelling of the identical path as a different project and warn
+        // on every call. ProjectSessionBinding.IsBoundTo canonicalizes both sides (matching
+        // TryResolve/Bind's own "same project?" logic) so an equivalent spelling must NOT warn.
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\equivalent\\Project.ap21", binding.BoundProjectPath);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task SaveProjectAsWithRebind_NoDivergenceWarningWhenTheWorkerReportsTheCopiedProjectPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Finding 1 regression: save_project_as with rebind=true deliberately changes which
+        // project is attached (the worker closes the original and opens the copy before this
+        // call returns). Reusing the "C:\\bound\\Session.ap21" FakeWorker scenario - which
+        // reports a genuinely different resolvedProjectPath ("C:\\actual\\Other.ap21") - proves
+        // this documented attachment change no longer produces the divergence warning that an
+        // ordinary bound call gets under the identical worker response (see
+        // AlreadyBoundSession_SurfacesAWarningWhenTheWorkerReportsADifferentProject below, which
+        // exercises the same scenario through GetProjectStatusAsync and still warns).
+        var result = await client.SaveProjectAsAsync(
+            projectPath: null,
+            targetDirectory: "C:\\Target",
+            targetName: "Copy",
+            rebind: true);
+
+        Assert.True(result.Success);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
     public async Task NonExecutableWorkerPath_ProducesActionableWin32Message()
     {
         var bogus = Path.Combine(Path.GetTempPath(), $"tia-fake-{Guid.NewGuid():N}.txt");
