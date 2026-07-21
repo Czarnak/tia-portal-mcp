@@ -71,28 +71,30 @@ well-designed. The three biggest problems, in order of impact:
 ## Session binding now protects the default case — DONE 2026-07-20 (Round 4)
 
 The chosen fix binds a session from the worker-reported active-project path after its first
-successful call; the worker report is the ground truth. Once bound, a call that names a different
-`projectPath` is rejected unless `open_project` uses `forceRebind=true`.
+successful call; the worker report is the ground truth. For project-scoped operations, once bound, a
+call that names a different `projectPath` is rejected unless `open_project` uses `forceRebind=true`.
 
-Read-side project-open policy completes the other half of the fix: a read operation will not switch
-the project currently open in TIA Portal. It returns: "TIA Portal currently has project 'A' open,
-but this request targets 'B'. Read operations never switch projects. Omit projectPath to use the
-open project, or call open_project to switch."
+Read-side project-open policy completes the other half of the fix for project-scoped read paths: they
+will not switch the project currently open in TIA Portal. They return: "TIA Portal currently has
+project 'A' open, but this request targets 'B'. Read operations never switch projects. Omit
+projectPath to use the open project, or call open_project to switch." `get_project_status(projectPath)`
+is a known exception deferred to Round 5 because its lifecycle RPC also serves guarded write-state
+probes; do not use it to switch projects. Use `open_project` for a deliberate session switch.
 
 ## Found during live testing against TIA Portal V21 (2026-07-20)
 
-**The test suite no longer writes into the production audit trail — DONE via 3.5b (Round 4, Task 2).**
+**Pre-Task-2 audit contamination is resolved — DONE via 3.5b (Round 4, Task 2).**
 39 of 42 records in `%LOCALAPPDATA%\TiaMcpServer\audit` were produced by `dotnet test`, not by
-real TIA usage. The audited tool layer now receives `WriteSafetyService` through DI, and tests inject
-a temporary audit directory, so every test run
-appends real records — recognizable by `projectPath` values pointing into `TiaMcpServer.Tests\bin\`
-and FakeWorker scripted keywords (`ok`, `hang`, `worker-error`) in `target`.
+real TIA usage. Before Task 2, the tool layer used the production audit directory, and every test run
+appended real records — recognizable by `projectPath` values pointing into `TiaMcpServer.Tests\bin\`
+and FakeWorker scripted keywords (`ok`, `hang`, `worker-error`) in `target`. The audited tool layer
+now receives `WriteSafetyService` through DI, and tests inject a temporary audit directory.
 
-This dilutes the forensic record for PLC-mutating operations to ~7% signal, and a test run could be
-mistaken for real engineering activity. It is the concrete justification for **3.5b** above: the
-`WriteSafetyService(getUtcNow, tokenLifetime, auditDirectory)` constructor already supports
-redirecting the audit directory, but no test that goes through the tool layer can reach it while the
-tools receive the service through DI; tests now inject a temporary audit directory.
+This diluted the forensic record for PLC-mutating operations to ~7% signal, and a test run could be
+mistaken for real engineering activity. It was the concrete justification for **3.5b** above: the
+`WriteSafetyService(getUtcNow, tokenLifetime, auditDirectory)` constructor already supported
+redirecting the audit directory, but the tool layer could not use that test-specific directory before
+Task 2. DI now makes that isolation available to the tests.
 
 
 Also confirmed live, all working as designed: bounded reads with `depth`/`startPath`/`maxResults`
@@ -145,10 +147,12 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
 
 ## Read-side project-open policy — DONE 2026-07-20 (Round 4)
 
-All user-facing read paths, including `get_project_status`, now use the read-side open policy. A read
-request targeting a project other than the one open in TIA Portal is refused; callers omit
-`projectPath` to use the active project or use `open_project` to switch. Write-side internal state
-probes remain separate from this user-facing policy.
+Project-scoped read paths use the read-side open policy. A request targeting a project other than the
+one open in TIA Portal is refused; callers omit `projectPath` to use the active project or use
+`open_project` to switch. `get_project_status(projectPath)` is the known deferred exception: it still
+uses the lifecycle RPC shared with guarded write-state probes and can request the supplied path. Do
+not rely on it for session switching; use `open_project` instead. Splitting the user-facing status
+read from the write-side probe remains a Round 5 task.
 
 
 

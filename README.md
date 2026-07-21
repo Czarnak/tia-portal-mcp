@@ -115,12 +115,14 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-After the first successful call, the session binds to the worker-reported active project. A later call
-that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
-rebind the session, or start a new MCP session for a different customer project. Read operations also
-refuse to switch projects: `TIA Portal currently has project 'A' open, but this request targets 'B'.
-Read operations never switch projects. Omit projectPath to use the open project, or call
-open_project to switch.`
+After the first successful call, the session binds to the worker-reported active project. A later
+project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
+rebind the session, or start a new MCP session for a different customer project. Project-scoped read
+operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
+request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
+or call open_project to switch.` `get_project_status(projectPath)` is currently excluded from that
+policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+projects. Use `open_project` for deliberate session switching.
 
 ### Doctor command
 
@@ -368,12 +370,14 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-After the first successful call, the session binds to the worker-reported active project. A later call
-that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
-rebind the session, or start a new MCP session for a different customer project. Read operations also
-refuse to switch projects: `TIA Portal currently has project 'A' open, but this request targets 'B'.
-Read operations never switch projects. Omit projectPath to use the open project, or call
-open_project to switch.`
+After the first successful call, the session binds to the worker-reported active project. A later
+project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
+rebind the session, or start a new MCP session for a different customer project. Project-scoped read
+operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
+request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
+or call open_project to switch.` `get_project_status(projectPath)` is currently excluded from that
+policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+projects. Use `open_project` for deliberate session switching.
 
 ## Block Paths
 
