@@ -95,6 +95,33 @@ public class BatchFieldForwardingTests
         return (request, expected);
     }
 
+    private static string RenderValue(object value) => value switch
+    {
+        bool b => b ? "true" : "false",
+        int i => i.ToString(),
+        _ => JsonSerializer.Serialize(value).Trim('"')
+    };
+
+    private static int CountOccurrences(string value, string needle)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = value.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+
+        return count;
+    }
+
+    private static BatchOperationRequest BuildBaseline(BatchOperationSpec spec) => new()
+    {
+        OperationId = "baseline",
+        Operation = spec.Name,
+        ProjectPath = "echo"
+    };
+
     public static TheoryData<string> AllOperations()
     {
         var data = new TheoryData<string>();
@@ -122,19 +149,23 @@ public class BatchFieldForwardingTests
 
         Assert.True(result.Success, result.Error);
 
-        foreach (var value in expected)
+        var groups = expected.Select(RenderValue).GroupBy(value => value, StringComparer.Ordinal).ToList();
+        var baselinePayload = string.Empty;
+        if (groups.Any(group => group.Count() > 1))
         {
-            var rendered = value switch
-            {
-                bool b => b ? "true" : "false",
-                int i => i.ToString(),
-                _ => JsonSerializer.Serialize(value).Trim('"')
-            };
+            var baselineResult = await BatchWorkerInvoker.InvokeAsync(client, BuildBaseline(spec!));
+            Assert.True(baselineResult.Success, baselineResult.Error);
+            baselinePayload = baselineResult.Payload;
+        }
 
+        foreach (var group in groups)
+        {
+            var actualCount = CountOccurrences(result.Payload, group.Key)
+                - CountOccurrences(baselinePayload, group.Key);
             Assert.True(
-                result.Payload.Contains(rendered, StringComparison.Ordinal),
-                $"Operation '{operationName}' declares a field whose value '{rendered}' never reached "
-                + $"the worker. Echoed request: {result.Payload}");
+                actualCount == group.Count(),
+                $"Operation '{operationName}' expected {group.Count()} occurrences of value "
+                + $"'{group.Key}' but received {actualCount}. Echoed request: {result.Payload}");
         }
     }
 
