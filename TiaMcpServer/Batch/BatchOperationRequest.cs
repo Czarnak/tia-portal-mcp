@@ -7,6 +7,10 @@ namespace TiaMcpServer.Batch;
 /// Flat request shape for a single item inside a batch operation. Fields mirror the
 /// scalar parameters of the existing single MCP tools; only the fields relevant to the
 /// chosen <see cref="Operation"/> are read.
+/// This type is public so the MCP SDK can discover and bind tool arguments. The host is
+/// distributed as an executable .NET global tool, not as a reference library: its supported
+/// client contract is the camel-case MCP JSON shape (including <c>obEventClass</c>), not these
+/// CLR property names.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class BatchOperationRequest

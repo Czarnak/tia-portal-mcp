@@ -687,9 +687,10 @@ public class OpennessWorkerClient : IDisposable
                 // that operation a "resolved path differs from the bound path" is the documented
                 // outcome, not a signal of drift.
                 //
-                // IsBoundTo canonicalizes both sides (see ProjectPathNormalization) instead of a
-                // raw string compare, so 8.3 short names, junctions/symlinks, and UNC-vs-mapped-drive
-                // spellings of the same project do not misfire this warning on every call.
+                // IsBoundTo lexically canonicalizes both sides with Path.GetFullPath (see
+                // ProjectPathNormalization) instead of comparing the caller's raw spelling.
+                // It does not resolve filesystem identity aliases such as 8.3 short names,
+                // junctions/symlinks, or UNC paths versus mapped drives.
                 _logger?.LogWarning(
                     "TIA Openness worker: session is bound to '{BoundProjectPath}' but the worker reports it "
                     + "operated on '{ResolvedProjectPath}'.",
