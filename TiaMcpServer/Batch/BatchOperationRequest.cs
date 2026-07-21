@@ -110,5 +110,5 @@ public sealed class BatchOperationRequest
     public string? Language { get; set; }
 
     [Description("OB event class for create_block when blockType=OB. Valid values: ProgramCycle, Startup, TimeDelay, CyclicInterrupt, HardwareInterrupt, Diagnostic, TimeOfDay. Defaults to ProgramCycle.")]
-    public string? OBEventClass { get; set; }
+    public string? ObEventClass { get; set; }
 }

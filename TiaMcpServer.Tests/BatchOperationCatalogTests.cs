@@ -551,6 +551,24 @@ public class BatchOperationCatalogTests
         Assert.Contains("1 or greater", result.Error);
     }
 
+    [Fact]
+    public void ObEventClassOnCreateBlock_IsAccepted()
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "a",
+                Operation = "create_block",
+                BlockPath = "PLC_1/Blocks/Main",
+                BlockType = "OB",
+                ObEventClass = "ProgramCycle"
+            }
+        });
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
     private static BatchOperationRequest FullyPopulated(string id, string operation)
     {
         Assert.True(BatchOperationCatalog.TryGetSpec(operation, out var spec));
