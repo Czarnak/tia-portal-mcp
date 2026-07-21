@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -45,21 +46,34 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task CollapsedOpenProject_PreviewThenApply_RoundTrips()
     {
-        using var client = CreateClient();
+        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
+        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, auditDirectory);
+        try
+        {
+            using var client = CreateClient();
 
-        var preview = await ProjectLifecycleTools.OpenProject(client, projectPath: "ok");
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+            var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
+            using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+            var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.OpenProject(
-            client,
-            projectPath: "ok",
-            confirm: true,
-            safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+            var applied = await ProjectLifecycleTools.OpenProject(
+                client,
+                safety,
+                projectPath: "ok",
+                confirm: true,
+                safetyToken: token);
+            using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
-        Assert.Equal("open_project", appliedDoc.RootElement.GetProperty("toolName").GetString());
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+            Assert.Equal("open_project", appliedDoc.RootElement.GetProperty("toolName").GetString());
+            Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        }
+        finally
+        {
+            if (Directory.Exists(auditDirectory))
+            {
+                Directory.Delete(auditDirectory, recursive: true);
+            }
+        }
     }
 
     [Fact]

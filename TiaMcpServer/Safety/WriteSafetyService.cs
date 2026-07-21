@@ -10,8 +10,6 @@ public sealed class WriteSafetyService
 {
     public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
 
-    public static WriteSafetyService Shared { get; } = new();
-
     private readonly ConcurrentDictionary<string, SafetyTokenEntry> _tokens = new(StringComparer.Ordinal);
     private readonly Func<DateTimeOffset> _getUtcNow;
     private readonly TimeSpan _tokenLifetime;

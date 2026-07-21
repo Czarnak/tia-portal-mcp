@@ -21,7 +21,7 @@ namespace TiaMcpServer
             var builder = Host.CreateApplicationBuilder(args);
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(ResolveStartupProjectPath(args)));
-            builder.Services.AddSingleton(WriteSafetyService.Shared);
+            builder.Services.AddSingleton(new WriteSafetyService());
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>()));

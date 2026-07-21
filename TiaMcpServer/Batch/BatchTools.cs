@@ -42,6 +42,7 @@ public static class BatchTools
         + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc.")]
     public static async Task<string> PreviewWriteBatch(
         OpennessWorkerClient workerClient,
+        WriteSafetyService safety,
         [Description("Ordered list of write operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)
     {
         var validation = BatchOperationCatalog.ValidateWriteBatch(operations);
@@ -61,7 +62,7 @@ public static class BatchTools
         var summary = $"Apply {operations.Length} write operation(s) sequentially; stops on first failure (no rollback). "
             + "The current-state snapshot is read per item and is not an atomic point-in-time view.";
 
-        return WriteSafetyService.Shared.CreatePreview(
+        return safety.CreatePreview(
             ApplyToolName,
             projectPath,
             targets,
@@ -77,6 +78,7 @@ public static class BatchTools
         + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc.")]
     public static async Task<string> ApplyWriteBatch(
         OpennessWorkerClient workerClient,
+        WriteSafetyService safety,
         [Description("Ordered list of write operations. Must match the list passed to preview_write_batch.")] BatchOperationRequest[] operations,
         [Description("Set to true to confirm the write operations. Required safety flag; operation is rejected when false.")] bool confirm = false,
         [Description("Safety token returned by preview_write_batch for this exact batch.")] string? safetyToken = null)
@@ -105,7 +107,7 @@ public static class BatchTools
         var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
 
         // Reject dead/mismatched tokens BEFORE the expensive per-item current-state read.
-        var envelope = WriteSafetyService.Shared.ValidateEnvelope(
+        var envelope = safety.ValidateEnvelope(
             safetyToken,
             ApplyToolName,
             projectPath,
@@ -123,7 +125,7 @@ public static class BatchTools
             return BatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
         }
 
-        var tokenValidation = WriteSafetyService.Shared.ValidateAndConsume(
+        var tokenValidation = safety.ValidateAndConsume(
             safetyToken,
             ApplyToolName,
             projectPath,
@@ -141,7 +143,7 @@ public static class BatchTools
             op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
 
         var resultJson = BatchResultFormatter.ApplyBatch(results);
-        WriteSafetyService.Shared.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);
+        safety.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);
         return resultJson;
     }
 
