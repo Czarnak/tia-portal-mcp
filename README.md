@@ -115,7 +115,12 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Call `open_project` with `forceRebind=true` to rebind the session, or start a new MCP session for a different customer project.
+After the first successful call, the session binds to the worker-reported active project. A later call
+that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
+rebind the session, or start a new MCP session for a different customer project. Read operations also
+refuse to switch projects: `TIA Portal currently has project 'A' open, but this request targets 'B'.
+Read operations never switch projects. Omit projectPath to use the open project, or call
+open_project to switch.`
 
 ### Doctor command
 
@@ -363,7 +368,12 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Call `open_project` with `forceRebind=true` to rebind the session, or start a new MCP session for a different customer project.
+After the first successful call, the session binds to the worker-reported active project. A later call
+that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
+rebind the session, or start a new MCP session for a different customer project. Read operations also
+refuse to switch projects: `TIA Portal currently has project 'A' open, but this request targets 'B'.
+Read operations never switch projects. Omit projectPath to use the open project, or call
+open_project to switch.`
 
 ## Block Paths
 
