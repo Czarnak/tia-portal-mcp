@@ -186,9 +186,33 @@ The consequence is worse than an extra open. After `get_project_status(projectPa
 user has A open: B is opened alongside A, `session.Project` becomes B, the worker stamps
 `ResolvedProjectPath = B`, and the host binds the session to B. A later unqualified
 `preview_write_batch`/`apply_write_batch` then resolves to B and writes there — behind a preview and
-a safety token that are both perfectly consistent with B. Round 4 ships a containment for this
-(`OpennessWorkerClient` warns when an already-bound session's worker-reported path diverges), so the
-state is now visible to the agent, but the root cause is open.
+a safety token that are both perfectly consistent with B.
+
+**This is not contained. Do not assume otherwise.** Round 4 added a divergence warning in
+`OpennessWorkerClient` (fires when an already-bound session's worker-reported path differs from the
+bound one), and it was initially believed to cover this. It does not. The sequence above starts from
+an *unbound* session, so the host takes the bind branch: it binds to B while the worker is attached to
+B, and the two agree. The wrong project is the one both sides agree on, and the host cannot detect
+that by comparing itself against the worker — the worker's attachment is ground truth by construction.
+If the session were already bound to A, `TryResolve("B")` rejects at the host before the worker ever
+sees B. The divergence warning is still worth having for genuine drift; it just does not cover this.
+
+**The signal already exists and is being discarded one layer up.** `TiaPortalSession.OpenProject`'s
+user-opened branch already writes `Leaving user-opened project '{A}' open; opening '{B}' alongside it.`
+to stderr during request handling, which `HandleLineWithCapturedStderr` turns into
+`WorkerResponse.Warnings`. That string is the signal, generated at the moment the defect occurs,
+naming both projects. It reaches `WorkerCallResult.Warnings` and is then dropped, because
+`WorkerCallResult.ToText()` returns only `Payload` or `Error` — and `get_project_status`
+(`ProjectLifecycleTools.cs:24`) returns exactly that. Batch reads surface warnings
+(`BatchResultFormatter.cs:59`) and lifecycle write applies surface them (`WriteSafetyTooling.cs:86`);
+the one confirm-free tool that triggers this does not.
+
+So the cheap containment — separate from the root-cause fix below — is to make `ToText()`, or
+`get_project_status` specifically, carry warnings. Verify one thing first: that the stderr line is
+drained into *this* response's warnings rather than the next one's. It is written early in request
+handling, well before the response is serialized, so it is far safer than the `Stamp` helper's stderr
+write (which happens immediately before the stdout response) — but "far safer" should become
+"verified" before a safety control rests on it.
 
 **Why it is not a one-line fix.** An attempt (commit `150d466`, reverted by `0041d65`) routed
 `get_project_status` through `ProjectOpenPolicy`. That broke `save_project`, `save_project_as`,
@@ -212,6 +236,36 @@ this work exists to prevent, and live V21 testing showed TIA Portal refusing tha
 across `TiaMcpServer.OpennessWorker/` returns the full set in seconds. Round 4's plan scoped Task 5 to
 "read operations," implicitly defined as "whatever goes through `WithProject`" — which is exactly how
 this route was missed.
+
+### Smaller follow-ups from the same review
+
+- **No test for the declined-bind warning branch** in `OpennessWorkerClient`. Reaching it needs a
+  controlled interleaving, not a race: add a `delay` FakeWorker scenario, start the call, and bind
+  from the test thread while the await is provably pending. `ProjectSessionBinding` is `sealed` with
+  non-virtual methods, so the test-double route is closed without touching production code.
+- **`ProjectPathNormalization`'s exception fallback is untested**, and being `internal` it is now
+  harder to reach directly. Note that `Path.GetFullPath`'s throwing behaviour differs between net48
+  (where the worker runs) and net8.0 (where the tests run), so a net8.0 test cannot characterise what
+  the worker actually does with an odd path.
+- **FakeWorker scenario keys are literal Windows paths** (`TiaMcpServer.FakeWorker/Program.cs:286,293`)
+  because `projectPath` doubles as the dispatch key. A separate `scenarioKey` field would age better.
+- **`Stamp`'s comment claims its stderr write lands in this response's warnings**, which depends on
+  drain timing — the same assumption the containment above would rest on. Verify or soften.
+- **Duplicate tests in `ProjectSessionBindingTests.cs`** (`FirstExplicitProjectPathResolvesWithoutBindingTheSession`
+  vs `TryResolve_DoesNotAdoptTheRequestedPath`; `DifferentProjectPathIsRejectedAfterBinding` vs
+  `TryResolve_StillRejectsADifferentPathOnceBound`) — inherited from the plan's mandated test set.
+- **`TiaJson.cs`** — the static-constructor comment duplicates the field's XML-doc rationale.
+- **`GetStatus`'s graceful `IsOpen=false` branch** looks unreachable: `EnsureProject` throws first.
+  Predates Round 4; will be revisited by the read-tool/write-probe split above.
+
+### Process note
+
+The `get_project_status` route was missed because Task 5's scope was defined by *mechanism*
+("operations going through `WithProject`") rather than by *capability* ("everything that can cause a
+project to open"). Two of Round 4's most serious findings — this one and the divergence
+mis-specification above — were only visible from a whole-branch view; neither could have been caught
+by reviewing a single task's diff. Worth budgeting for a broad review pass on any change that spans
+a process boundary.
 
 ## Deferred / explicitly not planned
 
