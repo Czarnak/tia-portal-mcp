@@ -324,6 +324,50 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
+    public void All_MatchesTheAuthoritativeOperationFieldContract()
+    {
+        var none = Array.Empty<string>();
+        var expected = new Dictionary<string, (BatchOperationCategory Category, IReadOnlyList<string> Required, IReadOnlyList<string> Optional)>
+        {
+            ["browse_project_tree"] = (BatchOperationCategory.Read, none, new[] { "depth", "startPath" }),
+            ["read_hardware_config"] = (BatchOperationCategory.Read, none, none),
+            ["search_equipment_catalog"] = (BatchOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
+            ["read_cross_references"] = (BatchOperationCategory.Read, none, new[] { "plcName", "filter", "maxResults" }),
+            ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, none),
+            ["list_tag_tables"] = (BatchOperationCategory.Read, none, new[] { "plcName" }),
+            ["compile_check"] = (BatchOperationCategory.Read, none, new[] { "blockPath", "plcName" }),
+            ["get_project_status"] = (BatchOperationCategory.Read, none, none),
+            ["update_block_logic"] = (BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, none),
+            ["create_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+            ["delete_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+            ["create_tag"] = (BatchOperationCategory.Write, new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
+            ["update_tag"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
+            ["delete_tag"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+            ["create_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
+            ["update_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
+            ["delete_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+            ["add_network_device"] = (BatchOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
+            ["configure_network_device"] = (BatchOperationCategory.Write, new[] { "deviceName" }, new[] { "ipAddress", "subnetMask", "pnDeviceName", "subnetName", "ioSystemName" }),
+            ["create_block"] = (BatchOperationCategory.Write, new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
+            ["delete_block"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
+            ["create_block_group"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
+            ["delete_block_group"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
+            ["start_plc"] = (BatchOperationCategory.Write, none, new[] { "plcName" }),
+            ["stop_plc"] = (BatchOperationCategory.Write, none, new[] { "plcName" }),
+        };
+        var actual = BatchOperationCatalog.All.ToDictionary(spec => spec.Name, StringComparer.Ordinal);
+
+        Assert.Equal(expected.Keys.OrderBy(name => name), actual.Keys.OrderBy(name => name));
+        foreach (var (name, expectedSpec) in expected)
+        {
+            var actualSpec = actual[name];
+            Assert.Equal(expectedSpec.Category, actualSpec.Category);
+            Assert.Equal(expectedSpec.Required, actualSpec.RequiredFields);
+            Assert.Equal(expectedSpec.Optional, actualSpec.OptionalFields);
+        }
+    }
+
+    [Fact]
     public void ConfigureNetworkDevice_DoesNotDeclareDeviceItemName()
     {
         Assert.True(BatchOperationCatalog.TryGetSpec("configure_network_device", out var spec));

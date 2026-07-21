@@ -55,8 +55,16 @@ Outcome: passed — 385 passed, 0 failed, 0 skipped.
 
 ## Commit
 
-`b2f6a7d0077a1f8cca9088e52e74fbe776ac6e13` — `feat: declare each batch operation's optional field surface in the catalog`
+`0aab1868d8efe00b6f22c837559be29f44519cd4` — `feat: declare each batch operation's optional field surface in the catalog`
 
 ## Concerns
 
 None.
+
+## Review correction — exact catalog contract coverage
+
+- Added `All_MatchesTheAuthoritativeOperationFieldContract`, which specifies every operation name, category, required-field list, and optional-field list for all 25 catalog entries.
+- The test was added as coverage for the existing green implementation, so no red state was fabricated. It passed against current production code.
+- Focused verification: `dotnet test TiaMcpServer.Tests --filter FullyQualifiedName~BatchOperationCatalogTests` — 33 passed, 0 failed, 0 skipped.
+- Full verification: `dotnet test TiaMcpServer.Tests` — 386 passed, 0 failed, 0 skipped.
+- Self-review: the expected dictionary verifies exact names before comparing every category and field list, preventing count-preserving substitutions, table swaps, and field renames from passing.
