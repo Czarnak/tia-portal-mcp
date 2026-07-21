@@ -636,11 +636,14 @@ internal static class Program
         {
             response.ResolvedProjectPath = _sharedSession.CurrentProjectPath;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // A diagnostic stamp must never demote a completed operation to a failure:
             // the operation already succeeded, so a failed path read leaves the path null
             // rather than propagating out of Execute and being reported as an error.
+            // However, a systematically failing path read must not vanish: stderr is captured
+            // into the response's Warnings, and stdout is the wire protocol so it cannot be used.
+            Console.Error.WriteLine($"Could not resolve project path for response stamp: {ex.GetType().Name}: {ex.Message}");
         }
 
         return response;
