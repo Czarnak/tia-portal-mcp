@@ -644,11 +644,10 @@ public class OpennessWorkerClient : IDisposable
         configure(request);
 
         var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
-        if (!result.Success && sessionWasUnbound && effectiveProjectPath is not null)
+        if (result.Success && sessionWasUnbound && result.ResolvedProjectPath is not null)
         {
-            // The first implicit binding is provisional until its worker call succeeds.
-            // Do not let a failed attach/crash permanently reserve that project path.
-            _projectSessionBinding.Clear(effectiveProjectPath, out _);
+            // Bind to what the worker actually operated on, never to what the caller asked for.
+            _projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: true, out _);
         }
 
         return result.Success && string.IsNullOrEmpty(result.Payload)
@@ -668,7 +667,10 @@ public class OpennessWorkerClient : IDisposable
             }
 
             return response.Success
-                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings)
+                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings) with
+                    {
+                        ResolvedProjectPath = response.ResolvedProjectPath
+                    }
                 : WorkerCallResult.Fail(
                     response.Error ?? "The TIA Openness worker failed without an error message.",
                     warnings);

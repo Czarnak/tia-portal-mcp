@@ -153,16 +153,16 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task SuccessfulFirstRequest_KeepsTheSessionBinding()
+    public async Task SuccessfulFirstRequest_BindsToTheResolvedPathAndRejectsADifferentProjectAfterward()
     {
         using var client = CreateClient();
 
-        var succeeded = await client.GetProjectStatusAsync("ok");
+        var succeeded = await client.GetProjectStatusAsync("ok-with-resolved-path");
         var changedProject = await client.GetProjectStatusAsync("worker-error");
 
         Assert.True(succeeded.Success);
         Assert.False(changedProject.Success);
-        Assert.Contains("already bound to project 'ok'", changedProject.Error);
+        Assert.Contains("already bound to project 'C:\\resolved\\Ground.ap21'", changedProject.Error);
     }
 
     [Fact]
@@ -193,6 +193,36 @@ public class OpennessWorkerClientIntegrationTests
         // The protocol-invalid process must be replaced, not reused.
         Assert.True(recovered.Success);
         Assert.Equal("{\"seq\":1}", recovered.Payload);
+    }
+
+    [Fact]
+    public async Task UnboundSession_BindsToTheWorkerReportedPathAfterSuccess()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var boundClient = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var result = await boundClient.GetProjectStatusAsync("ok-with-resolved-path");
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\resolved\\Ground.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task FailedCall_LeavesTheSessionUnbound()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var result = await client.GetProjectStatusAsync("worker-error");
+
+        Assert.False(result.Success);
+        Assert.Null(binding.BoundProjectPath);
     }
 
     [Fact]

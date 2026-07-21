@@ -60,7 +60,8 @@ public sealed class ProjectSessionBinding
 
         if (_boundProjectPath is null)
         {
-            _boundProjectPath = requested;
+            // Deliberately does NOT adopt: a mistyped-but-real path must not retarget the session.
+            // OpennessWorkerClient binds after the call succeeds, using the worker-reported path.
             effectiveProjectPath = requested;
             return true;
         }

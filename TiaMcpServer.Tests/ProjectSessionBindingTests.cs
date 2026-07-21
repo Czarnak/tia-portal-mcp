@@ -6,7 +6,7 @@ namespace TiaMcpServer.Tests;
 public class ProjectSessionBindingTests
 {
     [Fact]
-    public void FirstExplicitProjectPathBindsSession()
+    public void FirstExplicitProjectPathResolvesWithoutBindingTheSession()
     {
         var binding = new ProjectSessionBinding(null);
 
@@ -14,14 +14,14 @@ public class ProjectSessionBindingTests
 
         Assert.Equal("C:\\Projects\\Line.ap21", effectivePath);
         Assert.Null(error);
-        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+        Assert.Null(binding.BoundProjectPath);
     }
 
     [Fact]
     public void RepeatedSameProjectPathIsAccepted()
     {
         var binding = new ProjectSessionBinding(null);
-        binding.TryResolve("C:\\Projects\\Line.ap21", out _, out _);
+        binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
 
         Assert.True(binding.TryResolve("C:\\Projects\\Line.ap21", out var effectivePath, out var error));
 
@@ -33,7 +33,7 @@ public class ProjectSessionBindingTests
     public void DifferentProjectPathIsRejectedAfterBinding()
     {
         var binding = new ProjectSessionBinding(null);
-        binding.TryResolve("C:\\Projects\\Line.ap21", out _, out _);
+        binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
 
         Assert.False(binding.TryResolve("C:\\Projects\\Other.ap21", out var effectivePath, out var error));
 
@@ -171,6 +171,42 @@ public class ProjectSessionBindingTests
         Assert.False(binding.CanBind("   ", forceRebind: false, out var error));
 
         Assert.Equal("Project path is required.", error);
+    }
+
+    [Fact]
+    public void TryResolve_DoesNotAdoptTheRequestedPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.True(binding.TryResolve("C:\\a.ap21", out var effective, out var error));
+
+        Assert.Equal("C:\\a.ap21", effective);
+        Assert.Null(error);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public void TryResolve_LeavesSessionUnboundSoASecondDifferentPathIsStillAccepted()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.True(binding.TryResolve("C:\\a.ap21", out _, out _));
+        Assert.True(binding.TryResolve("C:\\b.ap21", out var effective, out var error));
+
+        Assert.Equal("C:\\b.ap21", effective);
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public void TryResolve_StillRejectsADifferentPathOnceBound()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\a.ap21", forceRebind: false, out _));
+
+        Assert.False(binding.TryResolve("C:\\b.ap21", out _, out var error));
+
+        Assert.Contains("already bound", error);
+        Assert.Contains("forceRebind=true", error);
     }
 
     [Fact]
