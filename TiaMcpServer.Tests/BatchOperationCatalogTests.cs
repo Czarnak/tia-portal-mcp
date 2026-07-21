@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using TiaMcpServer.Batch;
 using Xunit;
 
@@ -313,6 +314,77 @@ public class BatchOperationCatalogTests
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
 
         Assert.True(result.IsValid, result.Error);
+    }
+
+    [Fact]
+    public void All_ExposesEverySpec()
+    {
+        // 8 reads + 17 writes.
+        Assert.Equal(25, BatchOperationCatalog.All.Count);
+    }
+
+    [Fact]
+    public void ConfigureNetworkDevice_DoesNotDeclareDeviceItemName()
+    {
+        Assert.True(BatchOperationCatalog.TryGetSpec("configure_network_device", out var spec));
+
+        Assert.DoesNotContain("deviceItemName", spec!.OptionalFields);
+        Assert.Contains("ipAddress", spec.OptionalFields);
+        Assert.Contains("subnetMask", spec.OptionalFields);
+        Assert.Contains("pnDeviceName", spec.OptionalFields);
+        Assert.Contains("subnetName", spec.OptionalFields);
+        Assert.Contains("ioSystemName", spec.OptionalFields);
+    }
+
+    [Fact]
+    public void AddNetworkDevice_DeclaresDeviceItemName()
+    {
+        Assert.True(BatchOperationCatalog.TryGetSpec("add_network_device", out var spec));
+
+        Assert.Contains("deviceItemName", spec!.OptionalFields);
+    }
+
+    [Fact]
+    public void CreateTag_DoesNotDeclareTheExternalAttributes()
+    {
+        Assert.True(BatchOperationCatalog.TryGetSpec("create_tag", out var spec));
+
+        Assert.DoesNotContain("externalAccessible", spec!.OptionalFields);
+        Assert.DoesNotContain("externalVisible", spec.OptionalFields);
+        Assert.DoesNotContain("externalWritable", spec.OptionalFields);
+        Assert.DoesNotContain("isSafety", spec.OptionalFields);
+    }
+
+    [Fact]
+    public void UpdateTag_DeclaresTheExternalAttributes()
+    {
+        Assert.True(BatchOperationCatalog.TryGetSpec("update_tag", out var spec));
+
+        Assert.Contains("externalAccessible", spec!.OptionalFields);
+        Assert.Contains("externalVisible", spec.OptionalFields);
+        Assert.Contains("externalWritable", spec.OptionalFields);
+        Assert.Contains("isSafety", spec.OptionalFields);
+        Assert.Contains("newName", spec.OptionalFields);
+    }
+
+    [Fact]
+    public void NoSpecDeclaresAUniversalFieldAsOptional()
+    {
+        foreach (var spec in BatchOperationCatalog.All)
+        {
+            Assert.DoesNotContain("operationId", spec.OptionalFields);
+            Assert.DoesNotContain("operation", spec.OptionalFields);
+            Assert.DoesNotContain("projectPath", spec.OptionalFields);
+        }
+    }
+
+    [Fact]
+    public void RequiredAndOptionalFieldsNeverOverlap()
+    {
+        foreach (var spec in BatchOperationCatalog.All)
+        {
+            Assert.Empty(spec.RequiredFields.Intersect(spec.OptionalFields));
+        }
     }
 
     private static BatchOperationRequest FullyPopulated(string id, string operation) => new()
