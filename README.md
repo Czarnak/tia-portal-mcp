@@ -120,8 +120,8 @@ project-scoped call that names a different `projectPath` is rejected; call `open
 rebind the session, or start a new MCP session for a different customer project. Project-scoped read
 operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
 request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is currently excluded from that
-policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+or call open_project to switch.` `get_project_status(projectPath)` is the human-approved Round 5
+deferral from that policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
 projects. Use `open_project` for deliberate session switching.
 
 ### Doctor command
@@ -375,8 +375,8 @@ project-scoped call that names a different `projectPath` is rejected; call `open
 rebind the session, or start a new MCP session for a different customer project. Project-scoped read
 operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
 request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is currently excluded from that
-policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+or call open_project to switch.` `get_project_status(projectPath)` is the human-approved Round 5
+deferral from that policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
 projects. Use `open_project` for deliberate session switching.
 
 ## Block Paths
