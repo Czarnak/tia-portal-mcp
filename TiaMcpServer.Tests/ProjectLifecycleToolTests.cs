@@ -57,27 +57,18 @@ public class ProjectLifecycleToolTests
     [Fact]
     public async Task SaveProjectAsWithTokenButNoConfirm_Rejects()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, auditDirectory);
-        try
-        {
-            var result = await ProjectLifecycleTools.SaveProjectAs(
-                workerClient: null!,
-                safety,
-                targetDirectory: "C:\\Projects",
-                targetName: "LineCopy",
-                confirm: false,
-                safetyToken: "some-token");
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            Assert.Contains("confirm=true", result);
-            Assert.Contains("without safetyToken", result);
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await ProjectLifecycleTools.SaveProjectAs(
+            workerClient: null!,
+            safety,
+            targetDirectory: "C:\\Projects",
+            targetName: "LineCopy",
+            confirm: false,
+            safetyToken: "some-token");
+
+        Assert.Contains("confirm=true", result);
+        Assert.Contains("without safetyToken", result);
     }
 }

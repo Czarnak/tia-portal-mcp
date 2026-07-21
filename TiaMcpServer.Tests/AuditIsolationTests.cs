@@ -7,84 +7,54 @@ using Xunit;
 namespace TiaMcpServer.Tests;
 
 /// <summary>
-/// The tool layer must never reach a process-wide audit directory. Before DI this was impossible
-/// to assert: ProjectLifecycleTools resolved WriteSafetyService.Shared, so 39 of 42 records in a
-/// real machine's audit trail came from `dotnet test`.
+/// The tool layer must never reach a process-wide audit directory. Before dependency injection
+/// was introduced, ProjectLifecycleTools resolved a single process-wide WriteSafetyService
+/// instance, so 39 of 42 records in a real machine's audit trail came from `dotnet test`.
 /// </summary>
 public class AuditIsolationTests
 {
-    private static string LocateFakeWorker()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            foreach (var configuration in new[] { "Debug", "Release" })
-            {
-                var candidate = Path.Combine(
-                    directory.FullName,
-                    "TiaMcpServer.FakeWorker", "bin", configuration, "net8.0",
-                    "TiaMcpServer.FakeWorker.exe");
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            directory = directory.Parent!;
-        }
-
-        throw new FileNotFoundException("TiaMcpServer.FakeWorker.exe not found; build the solution first.");
-    }
+    /// <summary>
+    /// Records are appended as lines to an existing per-day *.jsonl file, so a stray write can
+    /// leave the file count in a directory unchanged. Summing line counts across all files is
+    /// the only way this assertion can actually detect an unwanted write.
+    /// </summary>
+    private static int CountAuditLines(string directory)
+        => Directory.Exists(directory)
+            ? Directory.GetFiles(directory).Sum(file => File.ReadAllLines(file).Length)
+            : 0;
 
     [Fact]
     public async Task LifecycleTool_WritesAuditOnlyToTheInjectedDirectory()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-audit-" + Guid.NewGuid().ToString("N"));
         var defaultDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TiaMcpServer",
             "audit");
-        var before = Directory.Exists(defaultDirectory)
-            ? Directory.GetFiles(defaultDirectory).Length
-            : 0;
+        var before = CountAuditLines(defaultDirectory);
 
-        try
-        {
-            var safety = new WriteSafetyService(
-                () => DateTimeOffset.UtcNow,
-                TimeSpan.FromMinutes(10),
-                auditDirectory);
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            using var client = new OpennessWorkerClient(
-                new ProjectSessionBinding(null),
-                logger: null,
-                workerExecutablePath: LocateFakeWorker());
+        using var client = new OpennessWorkerClient(
+            new ProjectSessionBinding(null),
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
 
-            var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
-            using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-            var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-            await ProjectLifecycleTools.OpenProject(
-                client,
-                safety,
-                projectPath: "ok",
-                confirm: true,
-                safetyToken: token);
+        await ProjectLifecycleTools.OpenProject(
+            client,
+            safety,
+            projectPath: "ok",
+            confirm: true,
+            safetyToken: token);
 
-            Assert.True(Directory.Exists(auditDirectory));
-            Assert.NotEmpty(Directory.GetFiles(auditDirectory));
+        Assert.True(Directory.Exists(audit.Path));
+        Assert.NotEmpty(Directory.GetFiles(audit.Path));
 
-            var after = Directory.Exists(defaultDirectory)
-                ? Directory.GetFiles(defaultDirectory).Length
-                : 0;
-            Assert.Equal(before, after);
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var after = CountAuditLines(defaultDirectory);
+        Assert.Equal(before, after);
     }
 }

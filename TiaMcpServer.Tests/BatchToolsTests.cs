@@ -16,9 +16,6 @@ public class BatchToolsTests
         return request;
     }
 
-    private static WriteSafetyService CreateSafety(string auditDirectory)
-        => new(() => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, auditDirectory);
-
     [Theory]
     [InlineData("ExecuteReadBatch", "execute_read_batch")]
     [InlineData("PreviewWriteBatch", "preview_write_batch")]
@@ -60,161 +57,107 @@ public class BatchToolsTests
     [Fact]
     public async Task PreviewWriteBatch_RejectsReadOperation()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await BatchTools.PreviewWriteBatch(
-                workerClient: null!,
-                safety,
-                new[] { Op("a", "get_block_content", r => r.BlockPath = "Main") });
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            var root = JsonDocument.Parse(result).RootElement;
-            Assert.False(root.GetProperty("success").GetBoolean());
-            Assert.Contains("get_block_content", root.GetProperty("error").GetString());
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await BatchTools.PreviewWriteBatch(
+            workerClient: null!,
+            safety,
+            new[] { Op("a", "get_block_content", r => r.BlockPath = "Main") });
+
+        var root = JsonDocument.Parse(result).RootElement;
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Contains("get_block_content", root.GetProperty("error").GetString());
     }
 
     [Fact]
     public async Task PreviewWriteBatch_RejectsProjectLifecycleOperation()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await BatchTools.PreviewWriteBatch(
-                workerClient: null!,
-                safety,
-                new[] { Op("a", "close_project") });
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            var root = JsonDocument.Parse(result).RootElement;
-            Assert.False(root.GetProperty("success").GetBoolean());
-            Assert.Contains("close_project", root.GetProperty("error").GetString());
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await BatchTools.PreviewWriteBatch(
+            workerClient: null!,
+            safety,
+            new[] { Op("a", "close_project") });
+
+        var root = JsonDocument.Parse(result).RootElement;
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Contains("close_project", root.GetProperty("error").GetString());
     }
 
     [Fact]
     public async Task ApplyWriteBatch_RejectsUnconfirmedRequests()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await BatchTools.ApplyWriteBatch(
-                workerClient: null!,
-                safety,
-                new[] { Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }) },
-                confirm: false);
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            var root = JsonDocument.Parse(result).RootElement;
-            Assert.False(root.GetProperty("success").GetBoolean());
-            Assert.Contains("confirm=true", root.GetProperty("error").GetString());
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await BatchTools.ApplyWriteBatch(
+            workerClient: null!,
+            safety,
+            new[] { Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }) },
+            confirm: false);
+
+        var root = JsonDocument.Parse(result).RootElement;
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Contains("confirm=true", root.GetProperty("error").GetString());
     }
 
     [Fact]
     public async Task ApplyWriteBatch_RejectsInvalidBatchBeforeWorker()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await BatchTools.ApplyWriteBatch(
-                workerClient: null!,
-                safety,
-                new[] { Op("a", "get_block_content", r => r.BlockPath = "Main") },
-                confirm: true,
-                safetyToken: "anything");
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            var root = JsonDocument.Parse(result).RootElement;
-            Assert.False(root.GetProperty("success").GetBoolean());
-            Assert.Contains("get_block_content", root.GetProperty("error").GetString());
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await BatchTools.ApplyWriteBatch(
+            workerClient: null!,
+            safety,
+            new[] { Op("a", "get_block_content", r => r.BlockPath = "Main") },
+            confirm: true,
+            safetyToken: "anything");
+
+        var root = JsonDocument.Parse(result).RootElement;
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Contains("get_block_content", root.GetProperty("error").GetString());
     }
 
     [Fact]
     public async Task ApplyWriteBatch_RejectsMissingSafetyToken()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await BatchTools.ApplyWriteBatch(
-                workerClient: null!,
-                safety,
-                new[] { Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }) },
-                confirm: true);
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            Assert.Contains("Safety token required", result);
-            Assert.Contains("preview_write_batch", result);
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await BatchTools.ApplyWriteBatch(
+            workerClient: null!,
+            safety,
+            new[] { Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }) },
+            confirm: true);
+
+        Assert.Contains("Safety token required", result);
+        Assert.Contains("preview_write_batch", result);
     }
 
     [Fact]
     public async Task ApplyWriteBatch_RejectsBadTokenBeforeReadingCurrentState()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var operations = new[]
-            {
-                new BatchOperationRequest { OperationId = "op-1", Operation = "start_plc" }
-            };
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            // workerClient is null: if the token envelope were checked AFTER the state read,
-            // this call would throw NullReferenceException instead of returning the token error.
-            var result = await BatchTools.ApplyWriteBatch(
-                workerClient: null!,
-                safety,
-                operations,
-                confirm: true,
-                safetyToken: "bogus-token");
-
-            Assert.Contains("Safety token", result);
-            Assert.Contains("preview_write_batch", result);
-        }
-        finally
+        var operations = new[]
         {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+            new BatchOperationRequest { OperationId = "op-1", Operation = "start_plc" }
+        };
+
+        // workerClient is null: if the token envelope were checked AFTER the state read,
+        // this call would throw NullReferenceException instead of returning the token error.
+        var result = await BatchTools.ApplyWriteBatch(
+            workerClient: null!,
+            safety,
+            operations,
+            confirm: true,
+            safetyToken: "bogus-token");
+
+        Assert.Contains("Safety token", result);
+        Assert.Contains("preview_write_batch", result);
     }
 }

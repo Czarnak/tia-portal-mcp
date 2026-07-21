@@ -13,67 +13,34 @@ namespace TiaMcpServer.Tests;
 /// </summary>
 public class OpennessWorkerClientIntegrationTests
 {
-    private static string LocateFakeWorker()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            foreach (var configuration in new[] { "Debug", "Release" })
-            {
-                var candidate = Path.Combine(
-                    directory.FullName,
-                    "TiaMcpServer.FakeWorker", "bin", configuration, "net8.0",
-                    "TiaMcpServer.FakeWorker.exe");
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            directory = directory.Parent!;
-        }
-
-        throw new FileNotFoundException("TiaMcpServer.FakeWorker.exe not found; build the solution first.");
-    }
-
     private static OpennessWorkerClient CreateClient(string? workerPath = null, TimeSpan? requestTimeout = null)
         => new(
             new ProjectSessionBinding(null),
             logger: null,
-            workerExecutablePath: workerPath ?? LocateFakeWorker(),
+            workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(),
             requestTimeout: requestTimeout);
 
     [Fact]
     public async Task CollapsedOpenProject_PreviewThenApply_RoundTrips()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, auditDirectory);
-        try
-        {
-            using var client = CreateClient();
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
 
-            var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
-            using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-            var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-            var applied = await ProjectLifecycleTools.OpenProject(
-                client,
-                safety,
-                projectPath: "ok",
-                confirm: true,
-                safetyToken: token);
-            using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+        var applied = await ProjectLifecycleTools.OpenProject(
+            client,
+            safety,
+            projectPath: "ok",
+            confirm: true,
+            safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
-            Assert.Equal("open_project", appliedDoc.RootElement.GetProperty("toolName").GetString());
-            Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        Assert.Equal("open_project", appliedDoc.RootElement.GetProperty("toolName").GetString());
+        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
     }
 
     [Fact]

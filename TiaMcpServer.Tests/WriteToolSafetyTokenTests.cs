@@ -9,9 +9,6 @@ namespace TiaMcpServer.Tests;
 
 public class WriteToolSafetyTokenTests
 {
-    private static WriteSafetyService CreateSafety(string auditDirectory)
-        => new(() => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, auditDirectory);
-
     [Theory]
     [InlineData("PreviewOpenProject")]
     [InlineData("PreviewCreateProject")]
@@ -46,77 +43,50 @@ public class WriteToolSafetyTokenTests
     [Fact]
     public async Task WriteToolWithoutToken_ReturnsPreviewWithTokenAndInstructions()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await ProjectLifecycleTools.OpenProject(
-                workerClient: null!,
-                safety,
-                projectPath: "C:\\Projects\\Line.ap21");
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            using var doc = JsonDocument.Parse(result);
-            Assert.Equal("open_project", doc.RootElement.GetProperty("toolName").GetString());
-            Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("safetyToken").GetString()));
-            Assert.Contains("confirm=true", doc.RootElement.GetProperty("instructions").GetString());
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await ProjectLifecycleTools.OpenProject(
+            workerClient: null!,
+            safety,
+            projectPath: "C:\\Projects\\Line.ap21");
+
+        using var doc = JsonDocument.Parse(result);
+        Assert.Equal("open_project", doc.RootElement.GetProperty("toolName").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("safetyToken").GetString()));
+        Assert.Contains("confirm=true", doc.RootElement.GetProperty("instructions").GetString());
     }
 
     [Fact]
     public async Task WriteToolWithTokenButNoConfirm_RejectsBeforeAnyWork()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await ProjectLifecycleTools.CloseProject(
-                workerClient: null!,
-                safety,
-                confirm: false,
-                safetyToken: "some-token");
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            Assert.Contains("confirm=true", result);
-            Assert.Contains("without safetyToken", result);
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await ProjectLifecycleTools.CloseProject(
+            workerClient: null!,
+            safety,
+            confirm: false,
+            safetyToken: "some-token");
+
+        Assert.Contains("confirm=true", result);
+        Assert.Contains("without safetyToken", result);
     }
 
     [Fact]
     public async Task WriteToolWithBadToken_PointsBackAtTheTokenlessCall()
     {
-        var auditDirectory = Path.Combine(Path.GetTempPath(), "tia-test-audit-" + Guid.NewGuid().ToString("N"));
-        var safety = CreateSafety(auditDirectory);
-        try
-        {
-            var result = await ProjectLifecycleTools.OpenProject(
-                workerClient: null!,
-                safety,
-                projectPath: "C:\\Projects\\Line.ap21",
-                confirm: true,
-                safetyToken: "bogus-token");
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
-            Assert.Contains("Safety token", result);
-            Assert.Contains("open_project (without safetyToken)", result);
-        }
-        finally
-        {
-            if (Directory.Exists(auditDirectory))
-            {
-                Directory.Delete(auditDirectory, recursive: true);
-            }
-        }
+        var result = await ProjectLifecycleTools.OpenProject(
+            workerClient: null!,
+            safety,
+            projectPath: "C:\\Projects\\Line.ap21",
+            confirm: true,
+            safetyToken: "bogus-token");
+
+        Assert.Contains("Safety token", result);
+        Assert.Contains("open_project (without safetyToken)", result);
     }
 }
