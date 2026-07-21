@@ -28,4 +28,11 @@ public static class TiaJson
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false
     };
+
+    static TiaJson()
+    {
+        // Frozen on purpose: audit records and the safety-token input hash are both derived
+        // through these options, so a formatting change would invalidate outstanding tokens.
+        Presentation.MakeReadOnly(populateMissingResolver: true);
+    }
 }
