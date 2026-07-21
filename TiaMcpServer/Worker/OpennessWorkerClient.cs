@@ -108,7 +108,7 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter, int? maxResults = null)
     {
-        // Validate the filter before TryResolve so an invalid filter does not bind the session.
+        // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
         {
             return Task.FromResult(WorkerCallResult.Fail(filterError!));
@@ -647,7 +647,15 @@ public class OpennessWorkerClient : IDisposable
         if (result.Success && sessionWasUnbound && result.ResolvedProjectPath is not null)
         {
             // Bind to what the worker actually operated on, never to what the caller asked for.
-            _projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: true, out _);
+            // forceRebind is false: if a concurrent OpenProjectAsync/CreateProjectAsync bound the
+            // session while this call was in flight, decline rather than clobber that binding.
+            if (!_projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: false, out var bindError))
+            {
+                _logger?.LogWarning(
+                    "TIA Openness worker: could not bind session to resolved project path '{ResolvedProjectPath}': {Error}",
+                    result.ResolvedProjectPath,
+                    bindError);
+            }
         }
 
         return result.Success && string.IsNullOrEmpty(result.Payload)

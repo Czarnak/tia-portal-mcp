@@ -226,6 +226,21 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task SuccessfulCallWithoutAResolvedPath_LeavesTheSessionUnbound()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var result = await client.GetProjectStatusAsync("ok");
+
+        Assert.True(result.Success);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
     public async Task NonExecutableWorkerPath_ProducesActionableWin32Message()
     {
         var bogus = Path.Combine(Path.GetTempPath(), $"tia-fake-{Guid.NewGuid():N}.txt");
