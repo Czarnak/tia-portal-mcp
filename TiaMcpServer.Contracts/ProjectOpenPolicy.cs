@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 
 namespace TiaMcpServer.Contracts;
 
@@ -26,13 +25,13 @@ public static class ProjectOpenPolicy
 {
     public static ProjectOpenDecision Decide(string? currentPath, string? requestedPath)
     {
-        var requested = Normalize(requestedPath);
+        var requested = ProjectPathNormalization.Canonicalize(requestedPath);
         if (requested is null)
         {
             return ProjectOpenDecision.UseAttached;
         }
 
-        var current = Normalize(currentPath);
+        var current = ProjectPathNormalization.Canonicalize(currentPath);
         if (current is null)
         {
             return ProjectOpenDecision.OpenRequested;
@@ -47,23 +46,4 @@ public static class ProjectOpenPolicy
         => $"TIA Portal currently has project '{currentPath}' open, but this request targets "
             + $"'{requestedPath}'. Read operations never switch projects. Omit projectPath to use "
             + "the open project, or call open_project to switch.";
-
-    private static string? Normalize(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return null;
-        }
-
-        var trimmed = path!.Trim();
-        try
-        {
-            return Path.GetFullPath(trimmed);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            // Not a resolvable path (a FakeWorker scenario keyword, for instance). Compare literally.
-            return trimmed;
-        }
-    }
 }

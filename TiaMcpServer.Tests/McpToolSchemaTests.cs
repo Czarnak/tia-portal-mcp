@@ -1,0 +1,136 @@
+using System.Reflection;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Server;
+using TiaMcpServer.Batch;
+using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
+using TiaMcpServer.Tools;
+using TiaMcpServer.Worker;
+using Xunit;
+
+namespace TiaMcpServer.Tests;
+
+/// <summary>
+/// Verifies the MCP input schema the SDK actually generates for the write tools never exposes
+/// the DI-injected <c>safety</c>/<c>workerClient</c> parameters as model-supplied arguments.
+///
+/// Those tools declare <c>WriteSafetyService safety</c> and <c>OpennessWorkerClient
+/// workerClient</c> as plain typed parameters with no [FromServices]-style attribute, relying
+/// entirely on the MCP SDK inferring "these come from DI, not the model" from
+/// McpServerToolCreateOptions.Services (mirroring exactly how the real host wires tools in
+/// Program.cs via WithToolsFromAssembly). If the SDK ever stopped recognizing that - a version
+/// bump, a change in how Services is threaded through - every write tool's schema would gain a
+/// required object argument no model can ever supply, taking down the entire write surface,
+/// while BatchToolMetadataTests and WriteToolSafetyTokenTests (which only reflect over
+/// [McpServerTool]/[Description] attributes) would stay green.
+///
+/// This is why it has to inspect McpServerTool.Create(...).ProtocolTool.InputSchema - the actual
+/// generated JSON schema - rather than attributes.
+/// </summary>
+public class McpToolSchemaTests
+{
+    private static readonly IServiceProvider Services = BuildServices();
+
+    private static IServiceProvider BuildServices()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var workerClient = new OpennessWorkerClient(binding);
+        var safety = new WriteSafetyService();
+        return new FakeServiceProvider(binding, workerClient, safety);
+    }
+
+    private static string[] SchemaPropertyNames(Type toolType, string methodName)
+    {
+        var method = toolType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var tool = McpServerTool.Create(
+            method!,
+            target: null,
+            options: new McpServerToolCreateOptions { Services = Services });
+
+        var inputSchema = tool.ProtocolTool.InputSchema;
+        if (!inputSchema.TryGetProperty("properties", out var properties))
+        {
+            return Array.Empty<string>();
+        }
+
+        return properties.EnumerateObject().Select(p => p.Name).ToArray();
+    }
+
+    [Theory]
+    [InlineData(nameof(ProjectLifecycleTools.GetProjectStatus))]
+    [InlineData(nameof(ProjectLifecycleTools.OpenProject))]
+    [InlineData(nameof(ProjectLifecycleTools.CreateProject))]
+    [InlineData(nameof(ProjectLifecycleTools.SaveProject))]
+    [InlineData(nameof(ProjectLifecycleTools.SaveProjectAs))]
+    [InlineData(nameof(ProjectLifecycleTools.ArchiveProject))]
+    [InlineData(nameof(ProjectLifecycleTools.CloseProject))]
+    public void ProjectLifecycleTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
+    {
+        var properties = SchemaPropertyNames(typeof(ProjectLifecycleTools), methodName);
+
+        Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("safety", properties);
+    }
+
+    [Fact]
+    public void OpenProject_SchemaStillExposesProjectPathAsAModelArgument()
+    {
+        // Negative assertions alone would also pass if the SDK generated an empty schema for
+        // every tool (e.g. a broken reflection path) - this proves it did pick up the real,
+        // model-facing parameters, not just excluded the DI ones.
+        var properties = SchemaPropertyNames(typeof(ProjectLifecycleTools), nameof(ProjectLifecycleTools.OpenProject));
+
+        Assert.Contains("projectPath", properties);
+        Assert.Contains("confirm", properties);
+        Assert.Contains("safetyToken", properties);
+    }
+
+    [Theory]
+    [InlineData(nameof(BatchTools.PreviewWriteBatch))]
+    [InlineData(nameof(BatchTools.ApplyWriteBatch))]
+    public void BatchTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
+    {
+        var properties = SchemaPropertyNames(typeof(BatchTools), methodName);
+
+        Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("safety", properties);
+        Assert.Contains("operations", properties);
+    }
+
+    /// <summary>
+    /// Minimal hand-rolled IServiceProvider (rather than pulling in Microsoft.Extensions.DependencyInjection
+    /// for a ServiceCollection) - the schema generator only needs GetService(type) to resolve for
+    /// the exact runtime types the tools declare, mirroring Program.cs's real DI registrations.
+    /// </summary>
+    private sealed class FakeServiceProvider : IServiceProvider, IServiceProviderIsService
+    {
+        private readonly Dictionary<Type, object> _services;
+
+        public FakeServiceProvider(params object[] services)
+            => _services = services.ToDictionary(s => s.GetType(), s => s);
+
+        public object? GetService(Type serviceType)
+        {
+            // The SDK's schema builder does not cast Services to IServiceProviderIsService - it
+            // asks the container to RESOLVE one: options.Services.GetService<IServiceProviderIsService>().
+            // The real Microsoft.Extensions.DependencyInjection ServiceProvider registers itself
+            // as that service internally; a hand-rolled IServiceProvider has to do the same, or
+            // every DI-injected parameter silently falls back to a required schema property
+            // (confirmed empirically before this line was added: "workerClient" showed up as a
+            // required {"type":"object"} property even though this class already implemented
+            // IServiceProviderIsService.IsService below - implementing the interface was not
+            // enough, resolving it through GetService is what the SDK actually calls).
+            if (serviceType == typeof(IServiceProviderIsService))
+            {
+                return this;
+            }
+
+            return _services.TryGetValue(serviceType, out var service) ? service : null;
+        }
+
+        public bool IsService(Type serviceType) => _services.ContainsKey(serviceType);
+    }
+}

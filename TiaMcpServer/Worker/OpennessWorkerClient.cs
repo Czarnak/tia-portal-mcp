@@ -630,7 +630,8 @@ public class OpennessWorkerClient : IDisposable
         Action<WorkerRequest> configure,
         string emptyPayload)
     {
-        var sessionWasUnbound = _projectSessionBinding.BoundProjectPath is null;
+        var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
+        var sessionWasUnbound = boundProjectPathBeforeCall is null;
         if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
         {
             return WorkerCallResult.Fail(bindingError!);
@@ -644,23 +645,66 @@ public class OpennessWorkerClient : IDisposable
         configure(request);
 
         var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
-        if (result.Success && sessionWasUnbound && result.ResolvedProjectPath is not null)
+        if (result.Success && result.ResolvedProjectPath is not null)
         {
-            // Bind to what the worker actually operated on, never to what the caller asked for.
-            // forceRebind is false: if a concurrent OpenProjectAsync/CreateProjectAsync bound the
-            // session while this call was in flight, decline rather than clobber that binding.
-            if (!_projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: false, out var bindError))
+            if (sessionWasUnbound)
             {
+                // Bind to what the worker actually operated on, never to what the caller asked for.
+                // forceRebind is false: if a concurrent OpenProjectAsync/CreateProjectAsync bound the
+                // session while this call was in flight, decline rather than clobber that binding.
+                if (!_projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: false, out var bindError))
+                {
+                    _logger?.LogWarning(
+                        "TIA Openness worker: could not bind session to resolved project path '{ResolvedProjectPath}': {Error}",
+                        result.ResolvedProjectPath,
+                        bindError);
+                    result = result with
+                    {
+                        Warnings = AppendWarning(
+                            result.Warnings,
+                            $"The TIA Openness worker operated on project '{result.ResolvedProjectPath}', but this MCP "
+                            + $"session could not be bound to it ({bindError}). This call's results describe "
+                            + $"'{result.ResolvedProjectPath}', which may differ from whatever project a later call "
+                            + "without an explicit projectPath resolves to. Pass projectPath explicitly on subsequent "
+                            + "calls until the session's binding is resolved.")
+                    };
+                }
+            }
+            else if (!string.Equals(boundProjectPathBeforeCall, result.ResolvedProjectPath, StringComparison.OrdinalIgnoreCase))
+            {
+                // Containment only (see docs/superpowers/specs Round 4 design): the root cause -
+                // a zero-confirmation read tool able to attach a different project than the one
+                // this session is bound to - is deferred. Surface the divergence so the caller
+                // (and a human) can see it, rather than silently trusting the bound path.
                 _logger?.LogWarning(
-                    "TIA Openness worker: could not bind session to resolved project path '{ResolvedProjectPath}': {Error}",
-                    result.ResolvedProjectPath,
-                    bindError);
+                    "TIA Openness worker: session is bound to '{BoundProjectPath}' but the worker reports it "
+                    + "operated on '{ResolvedProjectPath}'.",
+                    boundProjectPathBeforeCall,
+                    result.ResolvedProjectPath);
+                result = result with
+                {
+                    Warnings = AppendWarning(
+                        result.Warnings,
+                        $"This MCP session is bound to project '{boundProjectPathBeforeCall}', but the TIA Openness "
+                        + $"worker reports it actually operated on '{result.ResolvedProjectPath}' for this call. "
+                        + $"Treat this call's results as describing '{result.ResolvedProjectPath}', not the bound "
+                        + "project. If this is unexpected, verify what is currently open in the TIA Portal UI "
+                        + "before issuing any write, or start a new MCP session bound to the intended project.")
+                };
             }
         }
 
         return result.Success && string.IsNullOrEmpty(result.Payload)
             ? result with { Payload = emptyPayload }
             : result;
+    }
+
+    private static IReadOnlyList<string> AppendWarning(IReadOnlyList<string> warnings, string warning)
+    {
+        var combined = new List<string>(warnings.Count + 1);
+        combined.AddRange(warnings);
+        combined.Add(warning);
+        return combined;
     }
 
     private async Task<WorkerCallResult> InvokeWorkerAsync(WorkerRequest request)

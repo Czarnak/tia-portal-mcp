@@ -241,6 +241,49 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task AlreadyBoundSession_SurfacesAWarningWhenTheWorkerReportsADifferentProject()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // No explicit projectPath: TryResolve forwards the bound path itself, so the FakeWorker
+        // scenario key IS the bound path (see the "C:\\bound\\Session.ap21" case).
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.True(result.Success);
+        // Finding 1 is containment only: the divergence is surfaced, the session binding itself
+        // is untouched (still bound to what it was bound to before this call).
+        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+        Assert.Contains(
+            result.Warnings,
+            w => w.Contains("C:\\bound\\Session.ap21", StringComparison.Ordinal)
+                && w.Contains("C:\\actual\\Other.ap21", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AlreadyBoundSession_NoSpuriousWarningWhenTheWorkerReportsTheSameProject()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\stable\\Project.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Bound path equals the FakeWorker "C:\\stable\\Project.ap21" scenario key, and that
+        // scenario reports the identical resolvedProjectPath back - no divergence.
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\stable\\Project.ap21", binding.BoundProjectPath);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
     public async Task NonExecutableWorkerPath_ProducesActionableWin32Message()
     {
         var bogus = Path.Combine(Path.GetTempPath(), $"tia-fake-{Guid.NewGuid():N}.txt");

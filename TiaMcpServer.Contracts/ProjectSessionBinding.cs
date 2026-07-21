@@ -8,7 +8,7 @@ public sealed class ProjectSessionBinding
 
     public ProjectSessionBinding(string? startupProjectPath)
     {
-        _boundProjectPath = Normalize(startupProjectPath);
+        _boundProjectPath = ProjectPathNormalization.Canonicalize(startupProjectPath);
     }
 
     public string? BoundProjectPath => _boundProjectPath;
@@ -36,7 +36,7 @@ public sealed class ProjectSessionBinding
         }
 
         if (_boundProjectPath is null ||
-            string.Equals(_boundProjectPath, requested, StringComparison.OrdinalIgnoreCase) ||
+            IsSameProject(_boundProjectPath, requested) ||
             forceRebind)
         {
             return true;
@@ -66,7 +66,7 @@ public sealed class ProjectSessionBinding
             return true;
         }
 
-        if (string.Equals(_boundProjectPath, requested, StringComparison.OrdinalIgnoreCase))
+        if (IsSameProject(_boundProjectPath, requested))
         {
             effectiveProjectPath = _boundProjectPath;
             return true;
@@ -83,7 +83,7 @@ public sealed class ProjectSessionBinding
             return false;
         }
 
-        _boundProjectPath = Normalize(projectPath);
+        _boundProjectPath = ProjectPathNormalization.Canonicalize(projectPath);
         return true;
     }
 
@@ -94,7 +94,7 @@ public sealed class ProjectSessionBinding
         var requested = Normalize(projectPath);
         if (requested is not null &&
             _boundProjectPath is not null &&
-            !string.Equals(_boundProjectPath, requested, StringComparison.OrdinalIgnoreCase))
+            !IsSameProject(_boundProjectPath, requested))
         {
             error = $"This MCP session is already bound to project '{_boundProjectPath}' and cannot clear '{requested}'.";
             return false;
@@ -104,6 +104,26 @@ public sealed class ProjectSessionBinding
         return true;
     }
 
+    /// <summary>
+    /// True when both paths identify the same project once canonicalized (relative segments
+    /// resolved, separators normalized), compared case-insensitively. <paramref name="requestedProjectPath"/>
+    /// arrives here only trimmed (see <see cref="Normalize"/>), so this is where the actual
+    /// "same project?" comparison happens - not a second normalization pass on the bound value's
+    /// storage, which is already canonical (see <see cref="Bind"/> and the constructor).
+    /// </summary>
+    private static bool IsSameProject(string boundProjectPath, string requestedProjectPath)
+        => string.Equals(
+            ProjectPathNormalization.Canonicalize(boundProjectPath),
+            ProjectPathNormalization.Canonicalize(requestedProjectPath),
+            StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Trims only - deliberately not canonicalized. This is the value forwarded to the worker
+    /// when the session is unbound (<see cref="TryResolve"/>) and the value used for null-checks
+    /// throughout; canonicalizing it would change what gets sent over the wire for every unbound
+    /// call, not just what gets compared. <see cref="IsSameProject"/> is where canonical
+    /// comparison actually happens.
+    /// </summary>
     private static string? Normalize(string? projectPath)
     {
         if (string.IsNullOrWhiteSpace(projectPath))

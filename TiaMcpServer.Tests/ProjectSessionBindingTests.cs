@@ -18,6 +18,40 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
+    public void RepeatedSameProjectPath_WithDotDotSegments_IsAcceptedAsTheSameProject()
+    {
+        // Finding 3 regression: the binding stores TIA's canonical Project.Path.FullName, so a
+        // later caller who spells the same project differently (relative segments here, but the
+        // same applies to forward-vs-back slashes or trailing separators) must still match -
+        // Trim()-only comparison previously rejected this as "already bound to a different project".
+        var binding = new ProjectSessionBinding(null);
+        binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
+
+        Assert.True(binding.TryResolve(
+            "C:\\Projects\\Other\\..\\Line.ap21",
+            out var effectivePath,
+            out var error));
+
+        Assert.Equal("C:\\Projects\\Line.ap21", effectivePath);
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public void RepeatedSameProjectPath_WithForwardSlashes_IsAcceptedAsTheSameProject()
+    {
+        var binding = new ProjectSessionBinding(null);
+        binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
+
+        Assert.True(binding.TryResolve(
+            "C:/Projects/Line.ap21",
+            out var effectivePath,
+            out var error));
+
+        Assert.Equal("C:\\Projects\\Line.ap21", effectivePath);
+        Assert.Null(error);
+    }
+
+    [Fact]
     public void RepeatedSameProjectPathIsAccepted()
     {
         var binding = new ProjectSessionBinding(null);

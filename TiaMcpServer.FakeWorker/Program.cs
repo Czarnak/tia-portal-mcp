@@ -31,6 +31,18 @@ while ((line = Console.In.ReadLine()) is not null)
         case "ok-with-resolved-path":
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
             break;
+        case "C:\\bound\\Session.ap21":
+            // Used by the "already bound but worker reports a different project" test: the
+            // session is pre-bound to this literal path (see IsSameProject/TryResolve), so a
+            // request without an explicit projectPath forwards this exact string as the
+            // scenario key. Reports a DIFFERENT resolvedProjectPath to simulate divergence.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\actual\\Other.ap21"}""");
+            break;
+        case "C:\\stable\\Project.ap21":
+            // Used by the "already bound, worker reports the SAME project" test: reports its
+            // own scenario key back as resolvedProjectPath - no divergence, no warning expected.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\stable\\Project.ap21"}""");
+            break;
         case "ok-with-warnings":
             Respond("""{"success":true,"payload":"{\"hello\":true}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
             break;
