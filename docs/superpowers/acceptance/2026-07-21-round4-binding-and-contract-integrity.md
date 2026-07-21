@@ -2,7 +2,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-20-round4-binding-and-contract-integrity-design.md`
 **Date:** 2026-07-21
-**Status:** Draft
+**Status:** Approved
 
 ---
 
