@@ -466,16 +466,32 @@ internal static class Program
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)
     {
-        return ProjectLifecycle(request, session =>
+        // get_project_status is a read tool with no confirm gate (unlike SaveProject,
+        // SaveProjectAs, ArchiveProject, and CloseProject, which are safety-token gated at the
+        // host layer and are allowed to switch projects as part of their write). It must never
+        // open a project alongside one the user already has open, so route it through the same
+        // ProjectOpenPolicy check as WithProject/SearchEquipmentCatalog. Once the policy has
+        // settled which project is attached, call GetStatus with projectPath: null so it only
+        // reads the already-attached project instead of re-running its own unconditional
+        // EnsureProject open.
+        return WithSession(request, session =>
         {
-            var status = ProjectLifecycleService.GetStatus(session, request.ProjectPath);
-            return new ProjectLifecycleResultInfo
+            session.EnsureConnected();
+
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null)
+            {
+                return failure;
+            }
+
+            var status = ProjectLifecycleService.GetStatus(session, projectPath: null);
+            return Success(new ProjectLifecycleResultInfo
             {
                 Operation = "get_project_status",
                 ProjectPath = status.Path,
                 Project = status
-            };
-        }, requiresConfirm: false);
+            });
+        });
     }
 
     private static WorkerResponse OpenProject(WorkerRequest request)
