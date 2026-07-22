@@ -445,6 +445,14 @@ With an explicit project binding:
 - Access denied or attach failure: confirm the Windows user belongs to the `Siemens TIA Openness` user group, then sign out and back in.
 - `dotnet` selects the wrong SDK: install .NET SDK 8.0.4xx or update `global.json` to a locally installed .NET 8 SDK feature band.
 
+## Known Issues
+
+Found via manual end-to-end testing of every tool against a live TIA Portal project. Not yet fixed.
+
+- **`create_block` fails for `language: "SCL"`.** Creating a block with `language: "SCL"` fails with `Language of 'SCL' have to have at least one compile unit.` from `Siemens.Engineering.SW.Blocks.PlcBlockComposition.Import`. The identical call with `language: "LAD"` succeeds, so the empty-block XML template used before `Import` appears to omit a compile unit for the SCL case. Workaround: none currently; avoid creating SCL blocks via `create_block`.
+- **`update_block_logic` fails unconditionally.** Every call fails with `The file '<BlockName>' does not exist` from `ImportFromDocuments`, including a byte-for-byte round-trip of content just read back via `get_block_content` with no edits at all. The target block is left unmodified by the failed call (verified via `get_block_content` and `compile_check` afterward), so the failure is non-destructive but the operation is currently unusable for its documented purpose (modifying existing blocks).
+- **`save_project_as` with `rebind: false` can strand the MCP session.** Siemens' underlying `SaveAs` API switches the actually-open TIA Portal project to the new copy regardless of the `rebind` flag; `rebind: false` only affects the MCP session's own path bookkeeping, not the live engineering session. Once that mismatch happens, no MCP call can recover it: `open_project`/`get_project_status` against the original path fail with `Another project is already open`, and any call against the new, actually-open path is rejected upfront because the session is still bound to the original path. Recovery currently requires closing the project by hand in the TIA Portal UI and reopening it via `open_project`. Treat `rebind: false` as unsafe until this is fixed.
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and how to set up your environment. For architecture and build reference, see [AGENTS.md](AGENTS.md).
