@@ -167,9 +167,10 @@ internal static class Program
         {
             session.EnsureConnected();
 
-            if (!string.IsNullOrEmpty(request.ProjectPath))
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null)
             {
-                session.OpenProject(request.ProjectPath!);
+                return failure;
             }
 
             if (session.TiaPortal is null)
@@ -576,9 +577,10 @@ internal static class Program
         {
             session.EnsureConnected();
 
-            if (!string.IsNullOrEmpty(request.ProjectPath))
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null)
             {
-                session.OpenProject(request.ProjectPath!);
+                return failure;
             }
 
             if (session.Project is null)
@@ -590,18 +592,37 @@ internal static class Program
         });
     }
 
+    /// <summary>
+    /// Applies <see cref="ProjectOpenPolicy"/> before any non-lifecycle operation may open a
+    /// project. Returns null to continue, or the failure response to return to the host.
+    /// </summary>
+    private static WorkerResponse? EnsureRequestedProjectOpen(WorkerTiaPortalSession session, string? requestedProjectPath)
+    {
+        var currentPath = session.CurrentProjectPath;
+        switch (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath))
+        {
+            case ProjectOpenDecision.OpenRequested:
+                session.OpenProject(requestedProjectPath!);
+                return null;
+            case ProjectOpenDecision.Refuse:
+                return Failure(ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
+            default:
+                return null;
+        }
+    }
+
     /// <summary>Runs <paramref name="body"/> with the shared long-lived session.</summary>
     private static WorkerResponse WithSession(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
     {
         return Execute(() => body(_sharedSession));
     }
 
-    /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure.</summary>
+    /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure and stamps completed operations with their resolved project path.</summary>
     private static WorkerResponse Execute(Func<WorkerResponse> body)
     {
         try
         {
-            return body();
+            return Stamp(body());
         }
         catch (EngineeringException ex)
         {
@@ -619,6 +640,34 @@ internal static class Program
         {
             return Failure(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Records which project the worker actually operated on. Stamped in one place so all
+    /// operations report it without each remembering to.
+    /// </summary>
+    private static WorkerResponse Stamp(WorkerResponse response)
+    {
+        if (!response.Success)
+        {
+            return response;
+        }
+
+        try
+        {
+            response.ResolvedProjectPath = _sharedSession.CurrentProjectPath;
+        }
+        catch (Exception ex)
+        {
+            // A diagnostic stamp must never demote a completed operation to a failure:
+            // the operation already succeeded, so a failed path read leaves the path null
+            // rather than propagating out of Execute and being reported as an error.
+            // However, a systematically failing path read must not vanish: stderr is captured
+            // into the response's Warnings, and stdout is the wire protocol so it cannot be used.
+            Console.Error.WriteLine($"Could not resolve project path for response stamp: {ex.GetType().Name}: {ex.Message}");
+        }
+
+        return response;
     }
 
     private static WorkerResponse Success<T>(T payload)

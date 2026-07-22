@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using ModelContextProtocol.Server;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using Xunit;
 
@@ -42,8 +43,12 @@ public class WriteToolSafetyTokenTests
     [Fact]
     public async Task WriteToolWithoutToken_ReturnsPreviewWithTokenAndInstructions()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await ProjectLifecycleTools.OpenProject(
             workerClient: null!,
+            safety,
             projectPath: "C:\\Projects\\Line.ap21");
 
         using var doc = JsonDocument.Parse(result);
@@ -55,8 +60,12 @@ public class WriteToolSafetyTokenTests
     [Fact]
     public async Task WriteToolWithTokenButNoConfirm_RejectsBeforeAnyWork()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await ProjectLifecycleTools.CloseProject(
             workerClient: null!,
+            safety,
             confirm: false,
             safetyToken: "some-token");
 
@@ -67,8 +76,12 @@ public class WriteToolSafetyTokenTests
     [Fact]
     public async Task WriteToolWithBadToken_PointsBackAtTheTokenlessCall()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await ProjectLifecycleTools.OpenProject(
             workerClient: null!,
+            safety,
             projectPath: "C:\\Projects\\Line.ap21",
             confirm: true,
             safetyToken: "bogus-token");

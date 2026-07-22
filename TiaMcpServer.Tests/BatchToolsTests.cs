@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests;
@@ -56,8 +57,12 @@ public class BatchToolsTests
     [Fact]
     public async Task PreviewWriteBatch_RejectsReadOperation()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await BatchTools.PreviewWriteBatch(
             workerClient: null!,
+            safety,
             new[] { Op("a", "get_block_content", r => r.BlockPath = "Main") });
 
         var root = JsonDocument.Parse(result).RootElement;
@@ -68,8 +73,12 @@ public class BatchToolsTests
     [Fact]
     public async Task PreviewWriteBatch_RejectsProjectLifecycleOperation()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await BatchTools.PreviewWriteBatch(
             workerClient: null!,
+            safety,
             new[] { Op("a", "close_project") });
 
         var root = JsonDocument.Parse(result).RootElement;
@@ -80,8 +89,12 @@ public class BatchToolsTests
     [Fact]
     public async Task ApplyWriteBatch_RejectsUnconfirmedRequests()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await BatchTools.ApplyWriteBatch(
             workerClient: null!,
+            safety,
             new[] { Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }) },
             confirm: false);
 
@@ -93,8 +106,12 @@ public class BatchToolsTests
     [Fact]
     public async Task ApplyWriteBatch_RejectsInvalidBatchBeforeWorker()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await BatchTools.ApplyWriteBatch(
             workerClient: null!,
+            safety,
             new[] { Op("a", "get_block_content", r => r.BlockPath = "Main") },
             confirm: true,
             safetyToken: "anything");
@@ -107,8 +124,12 @@ public class BatchToolsTests
     [Fact]
     public async Task ApplyWriteBatch_RejectsMissingSafetyToken()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await BatchTools.ApplyWriteBatch(
             workerClient: null!,
+            safety,
             new[] { Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }) },
             confirm: true);
 
@@ -119,6 +140,9 @@ public class BatchToolsTests
     [Fact]
     public async Task ApplyWriteBatch_RejectsBadTokenBeforeReadingCurrentState()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var operations = new[]
         {
             new BatchOperationRequest { OperationId = "op-1", Operation = "start_plc" }
@@ -128,6 +152,7 @@ public class BatchToolsTests
         // this call would throw NullReferenceException instead of returning the token error.
         var result = await BatchTools.ApplyWriteBatch(
             workerClient: null!,
+            safety,
             operations,
             confirm: true,
             safetyToken: "bogus-token");

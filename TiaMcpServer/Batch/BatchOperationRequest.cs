@@ -7,6 +7,10 @@ namespace TiaMcpServer.Batch;
 /// Flat request shape for a single item inside a batch operation. Fields mirror the
 /// scalar parameters of the existing single MCP tools; only the fields relevant to the
 /// chosen <see cref="Operation"/> are read.
+/// This type is public so the MCP SDK can discover and bind tool arguments. The host is
+/// distributed as an executable .NET global tool, not as a reference library: its supported
+/// client contract is the camel-case MCP JSON shape (including <c>obEventClass</c>), not these
+/// CLR property names.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class BatchOperationRequest
@@ -85,7 +89,7 @@ public sealed class BatchOperationRequest
     [Description("Device name. Required by add_network_device and configure_network_device.")]
     public string? DeviceName { get; set; }
 
-    [Description("Optional device item name; defaults to deviceName when omitted.")]
+    [Description("Optional device item name for add_network_device; defaults to deviceName when omitted. Not valid for configure_network_device.")]
     public string? DeviceItemName { get; set; }
 
     [Description("Optional IP address for configure_network_device, e.g. 192.168.0.10.")]
@@ -110,5 +114,5 @@ public sealed class BatchOperationRequest
     public string? Language { get; set; }
 
     [Description("OB event class for create_block when blockType=OB. Valid values: ProgramCycle, Startup, TimeDelay, CyclicInterrupt, HardwareInterrupt, Diagnostic, TimeOfDay. Defaults to ProgramCycle.")]
-    public string? OBEventClass { get; set; }
+    public string? ObEventClass { get; set; }
 }

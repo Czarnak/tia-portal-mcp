@@ -28,6 +28,28 @@ while ((line = Console.In.ReadLine()) is not null)
             // seq proves whether two requests hit the same process (2.1 reuse/restart tests).
             Respond($$"""{"success":true,"payload":"{\"seq\":{{seq}}}"}""");
             break;
+        case "ok-with-resolved-path":
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
+            break;
+        case "C:\\bound\\Session.ap21":
+            // Used by the "already bound but worker reports a different project" test: the
+            // session is pre-bound to this literal path (see IsSameProject/TryResolve), so a
+            // request without an explicit projectPath forwards this exact string as the
+            // scenario key. Reports a DIFFERENT resolvedProjectPath to simulate divergence.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\actual\\Other.ap21"}""");
+            break;
+        case "C:\\stable\\Project.ap21":
+            // Used by the "already bound, worker reports the SAME project" test: reports its
+            // own scenario key back as resolvedProjectPath - no divergence, no warning expected.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\stable\\Project.ap21"}""");
+            break;
+        case "C:\\equivalent\\Project.ap21":
+            // Used by the "equivalent but differently-spelled path" divergence test (Finding 2):
+            // reports the identical project via forward slashes instead of back slashes. A raw
+            // string.Equals would misclassify this as divergence; the canonicalized comparison
+            // (ProjectSessionBinding.IsBoundTo) must not.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:/equivalent/Project.ap21"}""");
+            break;
         case "ok-with-warnings":
             Respond("""{"success":true,"payload":"{\"hello\":true}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
             break;
@@ -57,6 +79,11 @@ while ((line = Console.In.ReadLine()) is not null)
             return;
         case "hang":
             Thread.Sleep(Timeout.Infinite);
+            break;
+        case "echo":
+            // Returns the received request verbatim so tests can assert which fields survived
+            // the BatchOperationRequest -> WorkerRequest hop.
+            Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
             break;
         default:
             Respond($$"""{"success":false,"error":"unknown scenario '{{scenario}}'"}""");

@@ -18,10 +18,16 @@ namespace TiaMcpServer
                 return await DoctorCommand.RunAsync(args[1..]);
             }
 
+            if (args.Length > 0 && (string.Equals(args[0], "--version", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(args[0], "-v", StringComparison.OrdinalIgnoreCase)))
+            {
+                return VersionCommand.Run(Console.Out);
+            }
+
             var builder = Host.CreateApplicationBuilder(args);
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(ResolveStartupProjectPath(args)));
-            builder.Services.AddSingleton(WriteSafetyService.Shared);
+            builder.Services.AddSingleton(new WriteSafetyService());
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>()));

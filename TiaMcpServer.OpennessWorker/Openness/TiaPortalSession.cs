@@ -110,6 +110,9 @@ public class TiaPortalSession : IDisposable
         _projectOpenedByWorker = true;
     }
 
+    /// <summary>Absolute path of the attached project, or null when nothing is attached.</summary>
+    public string? CurrentProjectPath => TryReadCurrentProjectPath();
+
     private string? TryReadCurrentProjectPath()
     {
         if (Project is null)

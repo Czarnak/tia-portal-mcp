@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using ModelContextProtocol.Server;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -56,8 +57,12 @@ public class ProjectLifecycleToolTests
     [Fact]
     public async Task SaveProjectAsWithTokenButNoConfirm_Rejects()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
         var result = await ProjectLifecycleTools.SaveProjectAs(
             workerClient: null!,
+            safety,
             targetDirectory: "C:\\Projects",
             targetName: "LineCopy",
             confirm: false,

@@ -108,7 +108,7 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter, int? maxResults = null)
     {
-        // Validate the filter before TryResolve so an invalid filter does not bind the session.
+        // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
         {
             return Task.FromResult(WorkerCallResult.Fail(filterError!));
@@ -562,7 +562,11 @@ public class OpennessWorkerClient : IDisposable
                 request.Confirm = true;
                 request.AllowTiaConfirmations = true;
             },
-            "{}").ConfigureAwait(false);
+            "{}",
+            // rebind=true deliberately changes which project is attached (worker closes the
+            // original and opens the copy before this call returns) - the divergence warning
+            // exists to catch unintended drift, not this tool's documented purpose.
+            attachmentChangeExpected: rebind).ConfigureAwait(false);
 
         if (rebind && result.Success)
         {
@@ -628,9 +632,11 @@ public class OpennessWorkerClient : IDisposable
         string method,
         string? projectPath,
         Action<WorkerRequest> configure,
-        string emptyPayload)
+        string emptyPayload,
+        bool attachmentChangeExpected = false)
     {
-        var sessionWasUnbound = _projectSessionBinding.BoundProjectPath is null;
+        var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
+        var sessionWasUnbound = boundProjectPathBeforeCall is null;
         if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
         {
             return WorkerCallResult.Fail(bindingError!);
@@ -644,16 +650,76 @@ public class OpennessWorkerClient : IDisposable
         configure(request);
 
         var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
-        if (!result.Success && sessionWasUnbound && effectiveProjectPath is not null)
+        if (result.Success && result.ResolvedProjectPath is not null)
         {
-            // The first implicit binding is provisional until its worker call succeeds.
-            // Do not let a failed attach/crash permanently reserve that project path.
-            _projectSessionBinding.Clear(effectiveProjectPath, out _);
+            if (sessionWasUnbound)
+            {
+                // Bind to what the worker actually operated on, never to what the caller asked for.
+                // forceRebind is false: if a concurrent OpenProjectAsync/CreateProjectAsync bound the
+                // session while this call was in flight, decline rather than clobber that binding.
+                if (!_projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: false, out var bindError))
+                {
+                    _logger?.LogWarning(
+                        "TIA Openness worker: could not bind session to resolved project path '{ResolvedProjectPath}': {Error}",
+                        result.ResolvedProjectPath,
+                        bindError);
+                    result = result with
+                    {
+                        Warnings = AppendWarning(
+                            result.Warnings,
+                            $"The TIA Openness worker operated on project '{result.ResolvedProjectPath}', but this MCP "
+                            + $"session could not be bound to it ({bindError}). This call's results describe "
+                            + $"'{result.ResolvedProjectPath}', which may differ from whatever project a later call "
+                            + "without an explicit projectPath resolves to. Pass projectPath explicitly on subsequent "
+                            + "calls until the session's binding is resolved.")
+                    };
+                }
+            }
+            else if (!attachmentChangeExpected && !_projectSessionBinding.IsBoundTo(result.ResolvedProjectPath))
+            {
+                // Containment only (see docs/superpowers/specs Round 4 design): the root cause -
+                // a zero-confirmation read tool able to attach a different project than the one
+                // this session is bound to - is deferred. Surface the divergence so the caller
+                // (and a human) can see it, rather than silently trusting the bound path.
+                //
+                // attachmentChangeExpected opts out an operation that deliberately changes what
+                // is attached (save_project_as with rebind=true is the only caller today) - for
+                // that operation a "resolved path differs from the bound path" is the documented
+                // outcome, not a signal of drift.
+                //
+                // IsBoundTo lexically canonicalizes both sides with Path.GetFullPath (see
+                // ProjectPathNormalization) instead of comparing the caller's raw spelling.
+                // It does not resolve filesystem identity aliases such as 8.3 short names,
+                // junctions/symlinks, or UNC paths versus mapped drives.
+                _logger?.LogWarning(
+                    "TIA Openness worker: session is bound to '{BoundProjectPath}' but the worker reports it "
+                    + "operated on '{ResolvedProjectPath}'.",
+                    boundProjectPathBeforeCall,
+                    result.ResolvedProjectPath);
+                result = result with
+                {
+                    Warnings = AppendWarning(
+                        result.Warnings,
+                        $"This MCP session is bound to project '{boundProjectPathBeforeCall}', but the TIA Openness "
+                        + $"worker reports it actually operated on '{result.ResolvedProjectPath}' for this call. "
+                        + $"Treat this call's results as describing '{result.ResolvedProjectPath}', not the bound "
+                        + "project. If this is unexpected, verify what is currently open in the TIA Portal UI "
+                        + "before issuing any write, or start a new MCP session bound to the intended project.")
+                };
+            }
         }
 
         return result.Success && string.IsNullOrEmpty(result.Payload)
             ? result with { Payload = emptyPayload }
             : result;
+    }
+
+    private static IReadOnlyList<string> AppendWarning(IReadOnlyList<string> warnings, string warning)
+    {
+        var combined = new List<string>(warnings.Count + 1);
+        combined.AddRange(warnings);
+        combined.Add(warning);
+        return combined;
     }
 
     private async Task<WorkerCallResult> InvokeWorkerAsync(WorkerRequest request)
@@ -668,7 +734,10 @@ public class OpennessWorkerClient : IDisposable
             }
 
             return response.Success
-                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings)
+                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings) with
+                    {
+                        ResolvedProjectPath = response.ResolvedProjectPath
+                    }
                 : WorkerCallResult.Fail(
                     response.Error ?? "The TIA Openness worker failed without an error message.",
                     warnings);

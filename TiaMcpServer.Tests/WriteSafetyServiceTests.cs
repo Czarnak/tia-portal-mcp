@@ -10,7 +10,8 @@ public class WriteSafetyServiceTests
     public void PreviewBindsTokenToToolInputAndCurrentState()
     {
         var now = new DateTimeOffset(2026, 5, 26, 10, 0, 0, TimeSpan.Zero);
-        var safety = new WriteSafetyService(() => now);
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety(() => now);
 
         var previewJson = safety.CreatePreview(
             toolName: "update_block_logic",
@@ -38,7 +39,8 @@ public class WriteSafetyServiceTests
     public void TokenCannotBeReused()
     {
         var now = new DateTimeOffset(2026, 5, 26, 10, 0, 0, TimeSpan.Zero);
-        var safety = new WriteSafetyService(() => now);
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety(() => now);
         var token = ReadToken(safety.CreatePreview(
             "create_tag_table",
             null,
@@ -71,7 +73,8 @@ public class WriteSafetyServiceTests
     public void TokenRejectsChangedInputAndChangedCurrentState()
     {
         var now = new DateTimeOffset(2026, 5, 26, 10, 0, 0, TimeSpan.Zero);
-        var safety = new WriteSafetyService(() => now);
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety(() => now);
         var changedInputToken = ReadToken(safety.CreatePreview(
             "update_tag",
             null,
@@ -112,7 +115,8 @@ public class WriteSafetyServiceTests
     public void TokenExpiresAfterConfiguredLifetime()
     {
         var now = new DateTimeOffset(2026, 5, 26, 10, 0, 0, TimeSpan.Zero);
-        var safety = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety(() => now, TimeSpan.FromMinutes(10));
         var token = ReadToken(safety.CreatePreview(
             "close_project",
             null,
@@ -137,7 +141,8 @@ public class WriteSafetyServiceTests
     [Fact]
     public void RejectionIncludesRecoveryGuidanceWithPreviewToolName()
     {
-        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow);
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
 
         var result = safety.ValidateAndConsume(
             "unknown-token",
@@ -157,7 +162,8 @@ public class WriteSafetyServiceTests
     [Fact]
     public void RecoveryGuidanceUsesConfiguredLifetime()
     {
-        var safety = new WriteSafetyService(() => DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2));
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety(tokenLifetime: TimeSpan.FromMinutes(2));
 
         var result = safety.ValidateAndConsume(
             "unknown-token", "apply_write_batch", null, new { }, new { }, "state");
@@ -170,25 +176,15 @@ public class WriteSafetyServiceTests
     [Fact]
     public void AppendAudit_WritesJsonlRecordToConfiguredDirectory()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "tia-mcp-audit-test-" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            var now = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
-            var safety = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10), dir);
+        using var audit = new TempAuditDirectory();
+        var now = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
+        var safety = audit.CreateSafety(() => now, TimeSpan.FromMinutes(10));
 
-            safety.AppendAudit("apply_write_batch", null, new { }, new { }, "state", "result");
+        safety.AppendAudit("apply_write_batch", null, new { }, new { }, "state", "result");
 
-            var auditPath = Path.Combine(dir, "2026-07-15.jsonl");
-            Assert.True(File.Exists(auditPath));
-            Assert.Contains("apply_write_batch", File.ReadAllText(auditPath));
-        }
-        finally
-        {
-            if (Directory.Exists(dir))
-            {
-                Directory.Delete(dir, recursive: true);
-            }
-        }
+        var auditPath = Path.Combine(audit.Path, "2026-07-15.jsonl");
+        Assert.True(File.Exists(auditPath));
+        Assert.Contains("apply_write_batch", File.ReadAllText(auditPath));
     }
 
     [Fact]
@@ -217,7 +213,8 @@ public class WriteSafetyServiceTests
     public void CreatePreview_EvictsExpiredTokens()
     {
         var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
-        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety(() => now, TimeSpan.FromMinutes(10));
 
         service.CreatePreview("apply_write_batch", null, new { a = 1 }, "s", new { b = 1 }, "state-1");
         service.CreatePreview("apply_write_batch", null, new { a = 2 }, "s", new { b = 2 }, "state-2");
@@ -234,7 +231,8 @@ public class WriteSafetyServiceTests
     public void CreatePreview_KeepsUnexpiredTokens()
     {
         var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
-        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety(() => now, TimeSpan.FromMinutes(10));
 
         service.CreatePreview("apply_write_batch", null, new { a = 1 }, "s", new { b = 1 }, "state-1");
         now = now.AddMinutes(5);
@@ -247,7 +245,8 @@ public class WriteSafetyServiceTests
     public void ValidateEnvelope_AcceptsMatchingTokenWithoutConsumingIt()
     {
         var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
-        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety(() => now, TimeSpan.FromMinutes(10));
         var previewJson = service.CreatePreview("apply_write_batch", "C:\\p.ap21", new { t = 1 }, "s", new { i = 1 }, "state");
         var token = ReadToken(previewJson);
 
@@ -268,7 +267,8 @@ public class WriteSafetyServiceTests
     public void ValidateEnvelope_RejectsUnknownExpiredAndMismatchedTokens()
     {
         var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
-        var service = new WriteSafetyService(() => now, TimeSpan.FromMinutes(10));
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety(() => now, TimeSpan.FromMinutes(10));
         var previewJson = service.CreatePreview("apply_write_batch", "C:\\p.ap21", new { t = 1 }, "s", new { i = 1 }, "state");
         var token = ReadToken(previewJson);
 

@@ -15,4 +15,11 @@ public class WorkerResponse
     /// request was being handled (e.g. "Skipping device X: access denied"). Null when none.
     /// </summary>
     public List<string>? Warnings { get; set; }
+
+    /// <summary>
+    /// Absolute path of the project the worker actually operated on, or null when no project was
+    /// attached. This is ground truth for session binding: the host binds to THIS, never to the
+    /// path the caller requested, so a mistyped-but-real path cannot silently retarget a session.
+    /// </summary>
+    public string? ResolvedProjectPath { get; set; }
 }

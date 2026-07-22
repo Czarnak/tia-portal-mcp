@@ -65,59 +65,37 @@ well-designed. The three biggest problems, in order of impact:
 | 3.3 | Collapse the double dispatch: `BatchWorkerInvoker` maps operation strings onto 20+ near-identical `OpennessWorkerClient` wrappers that only set `WorkerRequest` fields — build `WorkerRequest` directly from the batch item | `OpennessWorkerClient.cs:25-359`, `BatchWorkerInvoker.cs` | ~250 lines — **DEFERRED 2026-07-20**; design retained in `docs/superpowers/specs/2026-07-20-phase3-simplification-design.md` |
 | 3.4 | ~~Merge `EquipmentCatalogSearcher`'s private reflection helpers (~90 lines) into `OpennessReflection`~~ **DROPPED 2026-07-20** — Phase 1.7 already did the merge. The remaining privates are `HasReadableProperty` (3 lines), `ReadStringProperty` (a 2-line passthrough already delegating to `OpennessReflection`), and two non-reflection helpers. ~10 lines of residual value. | worker Openness/ | Resolved by 1.7 |
 | 3.5 | Share the host presentation `JsonSerializerOptions` (was duplicated byte-identically in 3 files) via `TiaMcpServer/Json/TiaJson.cs`. **Corrected scope:** the original entry claimed one config duplicated in 4 files. There are two distinct configs — presentation (3 host copies, deduped) and wire/IPC (`PersistentWorkerTransport` + worker `Program.cs`, which differ deliberately and live in separate processes; sharing them would require a `System.Text.Json` PackageReference on the dependency-free `Contracts` assembly). Wire options intentionally left per-process. | host | consistency — DONE 2026-07-20 (presentation only) |
-| 3.5b | Inject `WriteSafetyService` via DI instead of the `.Shared` static (registration already exists in `Program.cs`) | host | **PROMOTED 2026-07-20 — fixes a real bug, see below.** Still costs threading the service through the static `WriteSafetyTooling` API and 6 MCP tool signatures |
+| 3.5b | Inject `WriteSafetyService` via DI instead of the static audit path (registration already exists in `Program.cs`) | host | **DONE 2026-07-20 (Round 4, Task 2).** The tool layer receives the service through DI, so tests inject a temporary audit directory. |
 | 3.6 | `WorkerRequest` god DTO (47 fields): defer full split — flat is a defensible MCP trade-off — but group with `#region` per operation family and add a comment mapping fields→operations | Contracts | documentation — DONE 2026-07-20 |
 
-## Session binding does not protect the default case (found live 2026-07-20)
+## Session binding now protects the default case — DONE 2026-07-20 (Round 4)
 
-The session-binding guard is off in the workflow the server itself recommends. `tia-mcp doctor`
-reports "No project binding configured. Tools will use the project currently open in TIA Portal" —
-and in that state the guard never engages, because `ProjectSessionBinding.TryResolve(null)` returns
-the (null) binding without adopting anything. A session that always omits `projectPath` stays
-unbound indefinitely.
+The chosen fix binds a session from the worker-reported active-project path after its first
+successful call; the worker report is the ground truth. For project-scoped operations, once bound, a
+call that names a different `projectPath` is rejected unless `open_project` uses `forceRebind=true`.
 
-The first call that *does* pass an explicit `projectPath` is then adopted unconditionally, whatever
-it is. Reproduced against a live V21 instance with `SimpleProject.ap21` open in the GUI:
-
-1. `get_project_status` with no `projectPath` — succeeds, session still unbound.
-2. `browse_project_tree` with `projectPath` pointing at an unrelated real project — accepted, and
-   the worker attempted to **open that other project alongside the user's**, warning
-   "Leaving user-opened project '…SimpleProject.ap21' open; opening '…LibReadTest.ap21' alongside it."
-3. Only TIA Portal's own refusal stopped it: "Unable to open project … Another project is already
-   open."
-
-So the sole thing preventing a hallucinated or mistyped path from retargeting the session was an
-external backstop. With no project open in the GUI, step 2 would have silently opened a different
-project and operated on it. The failed attempt also left that session unable to issue write
-previews; a fresh session recovered.
-
-By contrast, once the session *is* explicitly bound, the guard works correctly and rejects before
-attempting anything — verified live, including the unified wording from 3.2:
-"This MCP session is already bound to project 'A' and cannot use 'B'. Call open_project with
-forceRebind=true to rebind this session, or start a new MCP session for a different TIA project."
-
-Candidate fixes (not yet chosen): adopt the active project's path as the binding after the first
-successful call that resolved it — the path is already known, `get_project_status` returns it — or
-require `forceRebind=true` before accepting any explicit path that differs from the project
-currently open in the GUI. Note this is pre-existing behavior, unchanged by Phase 3.
+Read-side project-open policy completes the other half of the fix for project-scoped read paths: they
+will not switch the project currently open in TIA Portal. They return: "TIA Portal currently has
+project 'A' open, but this request targets 'B'. Read operations never switch projects. Omit
+projectPath to use the open project, or call open_project to switch." `get_project_status(projectPath)`
+is a known exception deferred to Round 5 because its lifecycle RPC also serves guarded write-state
+probes; do not use it to switch projects. Use `open_project` for a deliberate session switch.
 
 ## Found during live testing against TIA Portal V21 (2026-07-20)
 
-**The test suite writes into the production audit trail.** Measured on a real machine:
+**Pre-Task-2 audit contamination is resolved — DONE via 3.5b (Round 4, Task 2).**
 39 of 42 records in `%LOCALAPPDATA%\TiaMcpServer\audit` were produced by `dotnet test`, not by
-real TIA usage. `ProjectLifecycleTools` calls `WriteSafetyService.Shared.AppendAudit(...)` on the
-static singleton; `TiaMcpServer.Tests` links that file and exercises those tools, so every test run
-appends real records — recognizable by `projectPath` values pointing into `TiaMcpServer.Tests\bin\`
-and FakeWorker scripted keywords (`ok`, `hang`, `worker-error`) in `target`.
+real TIA usage. Before Task 2, the tool layer used the production audit directory, and every test run
+appended real records — recognizable by `projectPath` values pointing into `TiaMcpServer.Tests\bin\`
+and FakeWorker scripted keywords (`ok`, `hang`, `worker-error`) in `target`. The audited tool layer
+now receives `WriteSafetyService` through DI, and tests inject a temporary audit directory.
 
-This dilutes the forensic record for PLC-mutating operations to ~7% signal, and a test run could be
-mistaken for real engineering activity. It is the concrete justification for **3.5b** above: the
-`WriteSafetyService(getUtcNow, tokenLifetime, auditDirectory)` constructor already supports
-redirecting the audit directory, but no test that goes through the tool layer can reach it while the
-tools resolve `.Shared` statically. Fixing 3.5b lets the tests inject a temp directory.
+This diluted the forensic record for PLC-mutating operations to ~7% signal, and a test run could be
+mistaken for real engineering activity. It was the concrete justification for **3.5b** above: the
+`WriteSafetyService(getUtcNow, tokenLifetime, auditDirectory)` constructor already supported
+redirecting the audit directory, but the tool layer could not use that test-specific directory before
+Task 2. DI now makes that isolation available to the tests.
 
-Interim mitigation if 3.5b stays deferred: have the audit writer no-op when the process is a test
-host, or point `WriteSafetyService.Shared` at a temp directory from a test fixture.
 
 Also confirmed live, all working as designed: bounded reads with `depth`/`startPath`/`maxResults`
 plus the explicit truncation trailer (2.3); per-item batch isolation, where a failing `compile_check`
@@ -135,41 +113,81 @@ fix addresses a real-hardware failure and that 2.3.0 predates it.
 ## Follow-ups discovered during Phase 3 (2026-07-20)
 
 Documenting the `WorkerRequest` field→operation contract (3.6) surfaced two more instances of the
-same "declared but never forwarded" bug class Phase 0.4 found with `newName`. Neither is fixed —
-both need a decision, and the second needs the real Openness API to answer.
+same "declared but never forwarded" bug class Phase 0.4 found with `newName`. Round 4 resolved the
+software-side behavior and added forwarding coverage for every declared field; the hardware question
+for tag creation remains deferred.
 
 - **`deviceItemName` on `configure_network_device`**: `BatchOperationRequest.cs` describes it
   unscoped ("Optional device item name; defaults to deviceName when omitted"), but
   `ConfigureNetworkDeviceAsync` has no such parameter and `BatchWorkerInvoker` never passes one.
   Only `add_network_device` forwards it. An agent setting it on `configure_network_device` has it
-  silently dropped. Fix is either scoping the description or forwarding the field.
+  silently dropped. **Resolved (Round 4, Task 7):** catalog validation now rejects
+  `deviceItemName` for `configure_network_device` rather than accepting and dropping it.
 - **`externalAccessible` / `externalVisible` / `externalWritable` / `isSafety` on `create_tag`**:
   described as generic "Optional tag attribute", but only `update_tag` forwards them. `create_tag`
-  drops all four. Whether to forward them depends on whether Openness supports setting these at
-  tag-creation time — needs verification on the TIA machine.
+  drops all four. **Resolved interim behavior (Round 4):** `create_tag` now errors when any of
+  these attributes is supplied instead of silently dropping it. Whether Openness supports forwarding
+  them at tag-creation time remains a hardware-gated decision.
 
-A catalog invariant test asserting every operation's declared fields are a subset of its forwarded
-fields would make this class unrepresentable; that assertion is part of the deferred 3.3 design.
+A forwarding test now covers every declared field, preventing another declared-but-unforwarded field
+from silently reaching the worker boundary.
 
 Three further follow-ups, all raised by the Phase 3 final review and deliberately left undone:
 
-- **Enforce the `WorkerRequest` forwarding comments with a test.** The field→operation map can be
-  re-derived deterministically in ~25 lines: walk `OpennessWorkerClient.cs`, extract every
-  `request.X =` inside each `SendBoundProjectRequestAsync` lambda and every `new WorkerRequest`
-  initializer, invert to field→operations, and assert it agrees with the doc comments. The test
-  project already links that source file. This is cheaper than the 3.3 catalog invariant, does not
-  depend on 3.3 landing, and would have caught the `deviceItemName` error above before review.
+- **Enforce the `WorkerRequest` forwarding comments with a test.** **DONE (Round 4):** the field→
+  operation forwarding map is now tested for every declared field.
 - **Collapse `BatchPayloadBudget.ReadBatchResponseLength` into `BatchResultFormatter.ReadBatch`.**
   It currently hand-mirrors that method's envelope purely to predict its output length. Phase 3
   made the two share `TiaJson.Presentation` so they cannot drift on serializer settings, but the
   duplicated envelope shape remains. Replacing the body with
   `BatchResultFormatter.ReadBatch(results).Length` removes it, at the cost of one extra
   serialization per budget probe — measure before adopting.
-- **`TiaJson.Presentation.MakeReadOnly()`.** The field is a public mutable `JsonSerializerOptions`
-  whose formatting feeds the safety-token `requestedInputHash`. Realistic harm is low (mutation only
-  succeeds before first use, and preview/apply share the instance so tokens stay self-consistent),
-  but a static constructor calling `MakeReadOnly()` turns the "keep this stable" comment into a
-  guarantee.
+- **`TiaJson.Presentation.MakeReadOnly()`.** **DONE (Round 4):** presentation serialization options
+  are frozen, protecting the safety-token `requestedInputHash` format.
+
+## Read-side project-open policy — DONE 2026-07-20 (Round 4)
+
+Project-scoped read paths use the read-side open policy. A request targeting a project other than the
+one open in TIA Portal is refused; callers omit `projectPath` to use the active project or use
+`open_project` to switch. `get_project_status(projectPath)` is the known deferred exception: it still
+uses the lifecycle RPC shared with guarded write-state probes and can request the supplied path. Do
+not rely on it for session switching; use `open_project` instead. Splitting the user-facing status
+read from the write-side probe remains a Round 5 task.
+
+
+
+
+
+
+### Smaller follow-ups from the same review
+
+- **No test for the declined-bind warning branch** in `OpennessWorkerClient`. Reaching it needs a
+  controlled interleaving, not a race: add a `delay` FakeWorker scenario, start the call, and bind
+  from the test thread while the await is provably pending. `ProjectSessionBinding` is `sealed` with
+  non-virtual methods, so the test-double route is closed without touching production code.
+- **`ProjectPathNormalization`'s exception fallback is untested**, and being `internal` it is now
+  harder to reach directly. Note that `Path.GetFullPath`'s throwing behaviour differs between net48
+  (where the worker runs) and net8.0 (where the tests run), so a net8.0 test cannot characterise what
+  the worker actually does with an odd path.
+- **FakeWorker scenario keys are literal Windows paths** (`TiaMcpServer.FakeWorker/Program.cs:286,293`)
+  because `projectPath` doubles as the dispatch key. A separate `scenarioKey` field would age better.
+- **`Stamp`'s comment claims its stderr write lands in this response's warnings**, which depends on
+  drain timing — the same assumption the containment above would rest on. Verify or soften.
+- **Duplicate tests in `ProjectSessionBindingTests.cs`** (`FirstExplicitProjectPathResolvesWithoutBindingTheSession`
+  vs `TryResolve_DoesNotAdoptTheRequestedPath`; `DifferentProjectPathIsRejectedAfterBinding` vs
+  `TryResolve_StillRejectsADifferentPathOnceBound`) — inherited from the plan's mandated test set.
+- **`TiaJson.cs`** — the static-constructor comment duplicates the field's XML-doc rationale.
+- **`GetStatus`'s graceful `IsOpen=false` branch** looks unreachable: `EnsureProject` throws first.
+  Predates Round 4; will be revisited by the read-tool/write-probe split above.
+
+### Process note
+
+The `get_project_status` route was missed because Task 5's scope was defined by *mechanism*
+("operations going through `WithProject`") rather than by *capability* ("everything that can cause a
+project to open"). Two of Round 4's most serious findings — this one and the divergence
+mis-specification above — were only visible from a whole-branch view; neither could have been caught
+by reviewing a single task's diff. Worth budgeting for a broad review pass on any change that spans
+a process boundary.
 
 ## Deferred / explicitly not planned
 
@@ -177,6 +195,12 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
 - MCP protocol-level error signaling instead of text results (needs SDK investigation; revisit after 1.1).
 - `NetworkDeviceConfigurator` speculative-reflection "UNVERIFIED SDK CALL" paths: verify against real
   Openness V21 API on the TIA machine and pin exact method signatures (needs hardware access).
+- **Next round (needs TIA Portal hardware):** forward `externalAccessible`/`externalVisible`/
+  `externalWritable`/`isSafety` on `create_tag` if Openness V21 permits setting them at tag-creation
+  time — Round 4 narrowed this to that single question by making the fields an explicit error
+  instead of a silent drop. Same session should verify the `NetworkDeviceConfigurator`
+  "UNVERIFIED SDK CALL" reflection paths and decide whether `deviceItemName` is meaningful for
+  `configure_network_device`.
 
 ## Testing gaps to close alongside
 

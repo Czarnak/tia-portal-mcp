@@ -53,7 +53,7 @@ public static class BatchWorkerInvoker
         "delete_user_constant" => client.DeleteUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath),
         "add_network_device" => client.AddNetworkDeviceAsync(op.TypeIdentifier!, op.DeviceName!, ResolveDeviceItemName(op), op.ProjectPath),
         "configure_network_device" => client.ConfigureNetworkDeviceAsync(op.DeviceName!, op.IpAddress, op.SubnetMask, op.PnDeviceName, op.SubnetName, op.IoSystemName, op.ProjectPath),
-        "create_block" => client.CreateBlockAsync(op.BlockPath!, op.BlockType!, op.Language, op.OBEventClass, op.ProjectPath),
+        "create_block" => client.CreateBlockAsync(op.BlockPath!, op.BlockType!, op.Language, op.ObEventClass, op.ProjectPath),
         "delete_block" => client.DeleteBlockAsync(op.BlockPath!, op.ProjectPath),
         "create_block_group" => client.CreateBlockGroupAsync(op.BlockPath!, op.ProjectPath),
         "delete_block_group" => client.DeleteBlockGroupAsync(op.BlockPath!, op.ProjectPath),

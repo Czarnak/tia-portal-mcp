@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -12,47 +13,27 @@ namespace TiaMcpServer.Tests;
 /// </summary>
 public class OpennessWorkerClientIntegrationTests
 {
-    private static string LocateFakeWorker()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            foreach (var configuration in new[] { "Debug", "Release" })
-            {
-                var candidate = Path.Combine(
-                    directory.FullName,
-                    "TiaMcpServer.FakeWorker", "bin", configuration, "net8.0",
-                    "TiaMcpServer.FakeWorker.exe");
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            directory = directory.Parent!;
-        }
-
-        throw new FileNotFoundException("TiaMcpServer.FakeWorker.exe not found; build the solution first.");
-    }
-
     private static OpennessWorkerClient CreateClient(string? workerPath = null, TimeSpan? requestTimeout = null)
         => new(
             new ProjectSessionBinding(null),
             logger: null,
-            workerExecutablePath: workerPath ?? LocateFakeWorker(),
+            workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(),
             requestTimeout: requestTimeout);
 
     [Fact]
     public async Task CollapsedOpenProject_PreviewThenApply_RoundTrips()
     {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
         using var client = CreateClient();
 
-        var preview = await ProjectLifecycleTools.OpenProject(client, projectPath: "ok");
+        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
         var applied = await ProjectLifecycleTools.OpenProject(
             client,
+            safety,
             projectPath: "ok",
             confirm: true,
             safetyToken: token);
@@ -172,16 +153,16 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task SuccessfulFirstRequest_KeepsTheSessionBinding()
+    public async Task SuccessfulFirstRequest_BindsToTheResolvedPathAndRejectsADifferentProjectAfterward()
     {
         using var client = CreateClient();
 
-        var succeeded = await client.GetProjectStatusAsync("ok");
+        var succeeded = await client.GetProjectStatusAsync("ok-with-resolved-path");
         var changedProject = await client.GetProjectStatusAsync("worker-error");
 
         Assert.True(succeeded.Success);
         Assert.False(changedProject.Success);
-        Assert.Contains("already bound to project 'ok'", changedProject.Error);
+        Assert.Contains("already bound to project 'C:\\resolved\\Ground.ap21'", changedProject.Error);
     }
 
     [Fact]
@@ -212,6 +193,143 @@ public class OpennessWorkerClientIntegrationTests
         // The protocol-invalid process must be replaced, not reused.
         Assert.True(recovered.Success);
         Assert.Equal("{\"seq\":1}", recovered.Payload);
+    }
+
+    [Fact]
+    public async Task UnboundSession_BindsToTheWorkerReportedPathAfterSuccess()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var boundClient = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var result = await boundClient.GetProjectStatusAsync("ok-with-resolved-path");
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\resolved\\Ground.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task FailedCall_LeavesTheSessionUnbound()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var result = await client.GetProjectStatusAsync("worker-error");
+
+        Assert.False(result.Success);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task SuccessfulCallWithoutAResolvedPath_LeavesTheSessionUnbound()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var result = await client.GetProjectStatusAsync("ok");
+
+        Assert.True(result.Success);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task AlreadyBoundSession_SurfacesAWarningWhenTheWorkerReportsADifferentProject()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // No explicit projectPath: TryResolve forwards the bound path itself, so the FakeWorker
+        // scenario key IS the bound path (see the "C:\\bound\\Session.ap21" case).
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.True(result.Success);
+        // Finding 1 is containment only: the divergence is surfaced, the session binding itself
+        // is untouched (still bound to what it was bound to before this call).
+        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+        Assert.Contains(
+            result.Warnings,
+            w => w.Contains("C:\\bound\\Session.ap21", StringComparison.Ordinal)
+                && w.Contains("C:\\actual\\Other.ap21", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AlreadyBoundSession_NoSpuriousWarningWhenTheWorkerReportsTheSameProject()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\stable\\Project.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Bound path equals the FakeWorker "C:\\stable\\Project.ap21" scenario key, and that
+        // scenario reports the identical resolvedProjectPath back - no divergence.
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\stable\\Project.ap21", binding.BoundProjectPath);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task AlreadyBoundSession_NoSpuriousWarningWhenTheWorkerReportsAnEquivalentlySpelledPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\equivalent\\Project.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Finding 2 regression: the divergence check used a raw string.Equals, which would treat
+        // a forward-vs-back-slash spelling of the identical path as a different project and warn
+        // on every call. ProjectSessionBinding.IsBoundTo canonicalizes both sides (matching
+        // TryResolve/Bind's own "same project?" logic) so an equivalent spelling must NOT warn.
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\equivalent\\Project.ap21", binding.BoundProjectPath);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task SaveProjectAsWithRebind_NoDivergenceWarningWhenTheWorkerReportsTheCopiedProjectPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Finding 1 regression: save_project_as with rebind=true deliberately changes which
+        // project is attached (the worker closes the original and opens the copy before this
+        // call returns). Reusing the "C:\\bound\\Session.ap21" FakeWorker scenario - which
+        // reports a genuinely different resolvedProjectPath ("C:\\actual\\Other.ap21") - proves
+        // this documented attachment change no longer produces the divergence warning that an
+        // ordinary bound call gets under the identical worker response (see
+        // AlreadyBoundSession_SurfacesAWarningWhenTheWorkerReportsADifferentProject below, which
+        // exercises the same scenario through GetProjectStatusAsync and still warns).
+        var result = await client.SaveProjectAsAsync(
+            projectPath: null,
+            targetDirectory: "C:\\Target",
+            targetName: "Copy",
+            rebind: true);
+
+        Assert.True(result.Success);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]

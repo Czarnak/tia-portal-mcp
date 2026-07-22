@@ -115,7 +115,18 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Call `open_project` with `forceRebind=true` to rebind the session, or start a new MCP session for a different customer project.
+After the first successful call, the session binds to the worker-reported active project. A later
+project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
+rebind the session, or start a new MCP session for a different customer project. Project-scoped read
+operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
+request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
+or call open_project to switch.` `get_project_status(projectPath)` is the human-approved Round 5
+deferral from that policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+projects. Use `open_project` for deliberate session switching.
+
+### Version flag
+
+Run `tia-mcp --version` (or `tia-mcp -v`) to print the host version and exit without starting the MCP server.
 
 ### Doctor command
 
@@ -363,7 +374,14 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-Once a server process is bound to a project path, later tool calls with a different `projectPath` are rejected. Call `open_project` with `forceRebind=true` to rebind the session, or start a new MCP session for a different customer project.
+After the first successful call, the session binds to the worker-reported active project. A later
+project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
+rebind the session, or start a new MCP session for a different customer project. Project-scoped read
+operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
+request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
+or call open_project to switch.` `get_project_status(projectPath)` is the human-approved Round 5
+deferral from that policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+projects. Use `open_project` for deliberate session switching.
 
 ## Block Paths
 
@@ -426,6 +444,14 @@ With an explicit project binding:
 - No running TIA Portal instance: start TIA Portal V21 before calling tools that attach to the current project.
 - Access denied or attach failure: confirm the Windows user belongs to the `Siemens TIA Openness` user group, then sign out and back in.
 - `dotnet` selects the wrong SDK: install .NET SDK 8.0.4xx or update `global.json` to a locally installed .NET 8 SDK feature band.
+
+## Known Issues
+
+Found via manual end-to-end testing of every tool against a live TIA Portal project. Not yet fixed.
+
+- **`create_block` fails for `language: "SCL"`.** Creating a block with `language: "SCL"` fails with `Language of 'SCL' have to have at least one compile unit.` from `Siemens.Engineering.SW.Blocks.PlcBlockComposition.Import`. The identical call with `language: "LAD"` succeeds, so the empty-block XML template used before `Import` appears to omit a compile unit for the SCL case. Workaround: none currently; avoid creating SCL blocks via `create_block`.
+- **`update_block_logic` fails unconditionally.** Every call fails with `The file '<BlockName>' does not exist` from `ImportFromDocuments`, including a byte-for-byte round-trip of content just read back via `get_block_content` with no edits at all. The target block is left unmodified by the failed call (verified via `get_block_content` and `compile_check` afterward), so the failure is non-destructive but the operation is currently unusable for its documented purpose (modifying existing blocks).
+- **`save_project_as` with `rebind: false` can strand the MCP session.** Siemens' underlying `SaveAs` API switches the actually-open TIA Portal project to the new copy regardless of the `rebind` flag; `rebind: false` only affects the MCP session's own path bookkeeping, not the live engineering session. Once that mismatch happens, no MCP call can recover it: `open_project`/`get_project_status` against the original path fail with `Another project is already open`, and any call against the new, actually-open path is rejected upfront because the session is still bound to the original path. Recovery currently requires closing the project by hand in the TIA Portal UI and reopening it via `open_project`. Treat `rebind: false` as unsafe until this is fixed.
 
 ## Contributing
 

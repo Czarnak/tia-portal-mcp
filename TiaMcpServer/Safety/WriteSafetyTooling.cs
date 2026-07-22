@@ -8,6 +8,7 @@ namespace TiaMcpServer.Safety;
 public static class WriteSafetyTooling
 {
     public static async Task<WriteSafetyApplyContext> ValidateForApplyAsync(
+        WriteSafetyService safety,
         string? safetyToken,
         string previewToolName,
         string toolName,
@@ -29,7 +30,7 @@ public static class WriteSafetyTooling
                 $"Could not read current state before write. Error: {currentState.Error}");
         }
 
-        var validation = WriteSafetyService.Shared.ValidateAndConsume(
+        var validation = safety.ValidateAndConsume(
             safetyToken,
             toolName,
             projectPath,
@@ -44,6 +45,7 @@ public static class WriteSafetyTooling
     }
 
     public static string CreatePreview(
+        WriteSafetyService safety,
         string toolName,
         string? projectPath,
         object target,
@@ -58,7 +60,7 @@ public static class WriteSafetyTooling
             return $"Could not read current state before preview. Error: {currentState.Error}";
         }
 
-        return WriteSafetyService.Shared.CreatePreview(
+        return safety.CreatePreview(
             toolName,
             projectPath,
             target,

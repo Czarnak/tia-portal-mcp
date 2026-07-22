@@ -12,6 +12,12 @@ public sealed record WorkerCallResult(
     string? Error,
     IReadOnlyList<string> Warnings)
 {
+    /// <summary>
+    /// Project the worker actually operated on, when it reported one. Ground truth for session
+    /// binding — see ProjectSessionBinding.
+    /// </summary>
+    public string? ResolvedProjectPath { get; init; }
+
     public static WorkerCallResult Ok(string payload, IReadOnlyList<string>? warnings = null)
         => new(true, payload, null, warnings ?? Array.Empty<string>());
 

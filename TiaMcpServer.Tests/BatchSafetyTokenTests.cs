@@ -59,7 +59,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void UnchangedBatchValidates()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
         var token = CreatePreview(service, ops, states);
 
@@ -71,7 +72,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void ReorderedOperationsAreRejected()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
         var token = CreatePreview(service, ops, states);
 
@@ -85,7 +87,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void ChangedInputIsRejected()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
         var token = CreatePreview(service, ops, states);
 
@@ -102,7 +105,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void ChangedCurrentStateIsRejected()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
         var token = CreatePreview(service, ops, states);
 
@@ -114,7 +118,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void DifferentProjectPathIsRejected()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
         var token = CreatePreview(service, ops, states);
 
@@ -131,7 +136,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void WrongToolNameIsRejected()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
         var token = CreatePreview(service, ops, states);
 
@@ -143,7 +149,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void TokenIsSingleUse()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
         var token = CreatePreview(service, ops, states);
 
@@ -154,7 +161,8 @@ public class BatchSafetyTokenTests
     [Fact]
     public void UnknownTokenIsRejected()
     {
-        var service = new WriteSafetyService();
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
         var (ops, states) = TwoItemBatch();
 
         var result = Consume(service, "never-issued", ops, states);
