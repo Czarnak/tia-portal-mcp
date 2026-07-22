@@ -124,6 +124,10 @@ or call open_project to switch.` `get_project_status(projectPath)` is the human-
 deferral from that policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
 projects. Use `open_project` for deliberate session switching.
 
+### Version flag
+
+Run `tia-mcp --version` (or `tia-mcp -v`) to print the host version and exit without starting the MCP server.
+
 ### Doctor command
 
 Run `tia-mcp doctor` to validate the runtime environment before using the MCP server. It checks the operating system, .NET runtimes, TIA Portal installation, Openness assemblies, user group membership, worker executable, host/worker version compatibility, running TIA Portal processes, and project binding.
