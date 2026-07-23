@@ -142,6 +142,20 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
+    public void ClearWithNullPath_ClearsAnyBinding()
+    {
+        // The Close BindingTransition falls back to Clear(null) so a session always ends unbound
+        // after a successful close, regardless of which project was bound. Clear(null) is
+        // unconditional: no path is named to conflict with, so it clears whatever is bound.
+        var binding = new ProjectSessionBinding("C:\\Projects\\Line.ap21");
+
+        Assert.True(binding.Clear(null, out var error));
+
+        Assert.Null(error);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
     public void ClearRejectsDifferentProjectPath()
     {
         var binding = new ProjectSessionBinding("C:\\Projects\\Line.ap21");

@@ -12,9 +12,15 @@ while ((line = Console.In.ReadLine()) is not null)
     try
     {
         using var doc = JsonDocument.Parse(line);
-        if (doc.RootElement.TryGetProperty("projectPath", out var p))
+        if (doc.RootElement.TryGetProperty("projectPath", out var p) && p.ValueKind == JsonValueKind.String)
         {
             scenario = p.GetString();
+        }
+        else if (doc.RootElement.TryGetProperty("projectDirectory", out var d) && d.ValueKind == JsonValueKind.String)
+        {
+            // create_project carries no projectPath; its scenario key is the target directory so
+            // create-specific IPC tests can drive the fake worker just like path-keyed scenarios.
+            scenario = d.GetString();
         }
     }
     catch (JsonException)
@@ -30,6 +36,23 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "ok-with-resolved-path":
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
+            break;
+        case "open-resolved-differs":
+            // Worker reports a resolved project path that differs from the caller-supplied path,
+            // proving open binds the worker's ground-truth path, never the caller's argument.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\worker\\Ground.ap21"}""");
+            break;
+        case "create-resolved-differs":
+            // Keyed by projectDirectory (create sends no projectPath). Reports a resolved path
+            // matching neither the target directory nor the project name, proving create binds
+            // the worker's ground-truth path, never the caller's create arguments.
+            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\worker\\Created.ap21"}""");
+            break;
+        case "C:\\open\\Line.ap21":
+            // A normal open: the worker reports the SAME path it was asked to open. Both the
+            // open_project call and the follow-up get_project_status call resolve here, so a
+            // full open preview/apply round trip succeeds and the session binds to this path.
+            Respond("""{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\open\\Line.ap21"}""");
             break;
         case "C:\\bound\\Session.ap21":
             // Used by the "already bound but worker reports a different project" test: the

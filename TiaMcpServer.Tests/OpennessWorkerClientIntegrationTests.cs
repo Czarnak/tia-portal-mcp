@@ -30,14 +30,18 @@ public class OpennessWorkerClientIntegrationTests
         var safety = audit.CreateSafety();
         using var client = CreateClient();
 
-        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
+        // "C:\\open\\Line.ap21" reports the same path back as resolvedProjectPath, so open can
+        // bind to the worker's ground truth (open now requires a resolved path to bind - a bare
+        // success with none is postcondition_failed).
+        const string projectPath = "C:\\open\\Line.ap21";
+        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
         var applied = await ProjectLifecycleTools.OpenProject(
             client,
             safety,
-            projectPath: "ok",
+            projectPath: projectPath,
             confirm: true,
             safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
@@ -230,20 +234,27 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task SuccessfulFirstRequest_BindsToTheResolvedPathAndRejectsADifferentProjectAfterward()
+    public async Task UnboundSession_UnrelatedReadSuccess_DoesNotBindSession()
     {
-        using var client = CreateClient();
+        // Phase 5 Plan 2 Task 3 behavior change: an unrelated data read (here
+        // ReadHardwareConfigAsync) is BindingTransition.None. A successful such read no longer
+        // binds an unbound session as a side effect - only open/create/save-as(rebind) bind. A
+        // subsequent read of a DIFFERENT project is therefore still accepted, not rejected as an
+        // already-bound conflict (which is exactly what the old bind-on-success behavior caused).
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
 
-        // ReadHardwareConfigAsync (not GetProjectStatusAsync) is the vehicle here deliberately:
-        // this test exercises SendBoundProjectRequestAsync's default bind-on-success-if-unbound
-        // behavior, which every OTHER call site still has - GetProjectStatusAsync itself opted
-        // out of it (see UnboundSession_DirectStatusSuccess_DoesNotBindSession below).
         var succeeded = await client.ReadHardwareConfigAsync("ok-with-resolved-path");
-        var changedProject = await client.ReadHardwareConfigAsync("worker-error");
+        var differentProject = await client.ReadHardwareConfigAsync("ok");
 
         Assert.True(succeeded.Success);
-        Assert.False(changedProject.Success);
-        Assert.Contains("already bound to project 'C:\\resolved\\Ground.ap21'", changedProject.Error);
+        Assert.Null(binding.BoundProjectPath);
+        // "ok" would be an already-bound binding_conflict if the first read had bound the session
+        // to "C:\\resolved\\Ground.ap21"; it succeeds, proving the session stayed unbound.
+        Assert.True(differentProject.Success);
     }
 
     [Fact]
@@ -543,5 +554,123 @@ public class OpennessWorkerClientIntegrationTests
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
         Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+    }
+
+    // --- Task 3: explicit, worker-grounded binding transitions -----------------------------
+
+    [Fact]
+    public async Task FailedLifecycleCall_DoesNotChangeExistingBinding()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // A lifecycle call (open, forceRebind so it clears the CanBind gate) that fails at the
+        // worker must leave the existing binding exactly as it was - no partial rebind.
+        var result = await client.OpenProjectAsync("worker-error", forceRebind: true);
+
+        Assert.False(result.Success);
+        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task DirectStatusSuccess_DoesNotBindUnboundSession()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Direct status is BindingTransition.None: even a success carrying a resolvedProjectPath
+        // must not bind an unbound session.
+        var result = await client.GetProjectStatusAsync("ok-with-resolved-path");
+
+        Assert.True(result.Success);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task OpenSuccess_BindsWorkerResolvedPath_NotCallerPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Caller asks for "open-resolved-differs"; the worker reports it actually opened
+        // "C:\\worker\\Ground.ap21". The session must bind the worker's ground truth, never the
+        // caller's argument.
+        var result = await client.OpenProjectAsync("open-resolved-differs", forceRebind: false);
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\worker\\Ground.ap21", binding.BoundProjectPath);
+        Assert.DoesNotContain("open-resolved-differs", binding.BoundProjectPath!);
+    }
+
+    [Fact]
+    public async Task CreateSuccess_BindsWorkerResolvedPath_NotCallerPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Caller supplies directory "create-resolved-differs" and name "Line"; the worker reports
+        // it created "C:\\worker\\Created.ap21". The session must bind the worker's ground truth,
+        // never the caller's directory/name arguments.
+        var result = await client.CreateProjectAsync(
+            projectDirectory: "create-resolved-differs",
+            projectName: "Line",
+            author: null,
+            comment: null);
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\worker\\Created.ap21", binding.BoundProjectPath);
+        Assert.DoesNotContain("create-resolved-differs", binding.BoundProjectPath!);
+        Assert.DoesNotContain("Line", binding.BoundProjectPath!);
+    }
+
+    [Fact]
+    public async Task RequiredResolvedPathMissing_ReturnsPostconditionFailed()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // "ok" succeeds but reports no resolvedProjectPath. Open requires one to bind, so this is
+        // a broken postcondition - never a silent fallback to the caller's path - and the session
+        // stays unbound.
+        var result = await client.OpenProjectAsync("ok", forceRebind: false);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
+        Assert.Null(binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task CloseSuccess_ClearsBinding()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Close is BindingTransition.Clear: a successful close leaves the session with nothing
+        // bound. The "C:\\bound\\Session.ap21" scenario (the bound path is forwarded when no
+        // explicit projectPath is given) returns success.
+        var result = await client.CloseProjectAsync(projectPath: null, saveBeforeClose: false);
+
+        Assert.True(result.Success);
+        Assert.Null(binding.BoundProjectPath);
     }
 }

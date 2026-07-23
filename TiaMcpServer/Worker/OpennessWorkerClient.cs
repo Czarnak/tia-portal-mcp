@@ -29,6 +29,27 @@ public class OpennessWorkerClient : IDisposable
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
     }
 
+    /// <summary>
+    /// How a completed (successful) worker call changes this session's project binding. Declared
+    /// explicitly per call site so the binding transition is a deliberate, readable property of
+    /// each operation rather than an implicit side effect of "some call succeeded".
+    /// </summary>
+    private enum BindingTransition
+    {
+        /// <summary>No binding change. Direct status, the internal lifecycle probe, save, archive,
+        /// and every unrelated data read/write use this; an unbound session stays unbound, and a
+        /// bound session only gets a divergence warning if the worker reports a different project.</summary>
+        None,
+
+        /// <summary>Bind the session to the worker's reported <see cref="WorkerCallResult.ResolvedProjectPath"/>.
+        /// Open, create, and rebinding save-as use this; a missing resolved path is a broken
+        /// postcondition, never a fallback to caller input.</summary>
+        BindResolvedPath,
+
+        /// <summary>Clear the session binding. Close uses this.</summary>
+        Clear
+    }
+
     public Task<WorkerCallResult> BrowseProjectTreeAsync(string? projectPath, int? depth = null, string? startPath = null)
     {
         return SendBoundProjectRequestAsync(
@@ -463,12 +484,13 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> GetProjectStatusAsync(string? projectPath)
     {
+        // BindingTransition.None (the default): a direct status read never binds an unbound
+        // session and never adopts a diverging worker path - it only warns on divergence.
         return SendBoundProjectRequestAsync(
             "get_project_status",
             projectPath,
             _ => { },
-            "{}",
-            bindOnSuccessIfUnbound: false);
+            "{}");
     }
 
     /// <summary>
@@ -476,7 +498,7 @@ public class OpennessWorkerClient : IDisposable
     /// current-state checks. The worker method backing this call may open a project when a
     /// path is supplied and none is open yet (required so those lifecycle writes can inspect
     /// state before acting) - but exactly like <see cref="GetProjectStatusAsync"/>, this
-    /// host-side call performs no binding transition of its own: an unbound session stays
+    /// host-side call is <see cref="BindingTransition.None"/>: an unbound session stays
     /// unbound even on success. Never exposed as an MCP tool; callable only from
     /// <c>ProjectLifecycleTools</c>'s own lifecycle-write implementations.
     /// </summary>
@@ -486,8 +508,7 @@ public class OpennessWorkerClient : IDisposable
             "probe_project_status_for_lifecycle",
             projectPath,
             _ => { },
-            "{}",
-            bindOnSuccessIfUnbound: false);
+            "{}");
     }
 
     public async Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
@@ -500,11 +521,14 @@ public class OpennessWorkerClient : IDisposable
             return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "Project path is required.");
         }
 
+        // Upfront gate: the generic helper's TryResolve has no forceRebind concept, so open keeps
+        // its own binding-policy check against the CALLER's requested path before doing any work.
         if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
         }
 
+        var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
         var result = await InvokeWorkerAsync(
             new WorkerRequest
             {
@@ -520,9 +544,17 @@ public class OpennessWorkerClient : IDisposable
             return result;
         }
 
-        if (!_projectSessionBinding.Bind(projectPath, forceRebind, out var bindError))
+        // Bind to the project the worker actually opened, never the caller's projectPath argument.
+        result = ApplyBindingTransition(
+            BindingTransition.BindResolvedPath,
+            result,
+            requestedProjectPath: projectPath,
+            boundProjectPathBeforeCall,
+            bindForceRebind: forceRebind);
+
+        if (!result.Success)
         {
-            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindError!, result.Warnings);
+            return result;
         }
 
         return string.IsNullOrEmpty(result.Payload) ? result with { Payload = "{}" } : result;
@@ -534,6 +566,7 @@ public class OpennessWorkerClient : IDisposable
         string? author,
         string? comment)
     {
+        var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
         var result = await InvokeWorkerAsync(
             new WorkerRequest
             {
@@ -551,10 +584,19 @@ public class OpennessWorkerClient : IDisposable
             return result;
         }
 
-        var projectPath = TryReadProjectPath(result.Payload);
-        if (!string.IsNullOrWhiteSpace(projectPath))
+        // Bind to the project the worker actually created (its ResolvedProjectPath), never a path
+        // parsed from payload text or reconstructed from the caller's directory/name. A newly
+        // created project is a fresh binding target, so force-rebind past any prior binding.
+        result = ApplyBindingTransition(
+            BindingTransition.BindResolvedPath,
+            result,
+            requestedProjectPath: null,
+            boundProjectPathBeforeCall,
+            bindForceRebind: true);
+
+        if (!result.Success)
         {
-            _projectSessionBinding.Bind(projectPath!, forceRebind: true, out _);
+            return result;
         }
 
         return string.IsNullOrEmpty(result.Payload) ? result with { Payload = "{}" } : result;
@@ -573,13 +615,13 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public async Task<WorkerCallResult> SaveProjectAsAsync(
+    public Task<WorkerCallResult> SaveProjectAsAsync(
         string? projectPath,
         string targetDirectory,
         string targetName,
         bool rebind)
     {
-        var result = await SendBoundProjectRequestAsync(
+        return SendBoundProjectRequestAsync(
             "save_project_as",
             projectPath,
             request =>
@@ -591,21 +633,12 @@ public class OpennessWorkerClient : IDisposable
                 request.AllowTiaConfirmations = true;
             },
             "{}",
-            // rebind=true deliberately changes which project is attached (worker closes the
-            // original and opens the copy before this call returns) - the divergence warning
-            // exists to catch unintended drift, not this tool's documented purpose.
-            attachmentChangeExpected: rebind).ConfigureAwait(false);
-
-        if (rebind && result.Success)
-        {
-            var copiedProjectPath = TryReadProjectPath(result.Payload);
-            if (!string.IsNullOrWhiteSpace(copiedProjectPath))
-            {
-                _projectSessionBinding.Bind(copiedProjectPath!, forceRebind: true, out _);
-            }
-        }
-
-        return result;
+            // rebind=true deliberately changes which project is attached (the worker opens the
+            // copy before this call returns), so it adopts the worker's ResolvedProjectPath and
+            // gets no divergence warning. rebind=false leaves the binding untouched (None). Either
+            // way the host-side bind reads only ResolvedProjectPath - never payload text. (Task 4
+            // tightens the worker-side copied-path guarantees behind ResolvedProjectPath.)
+            rebind ? BindingTransition.BindResolvedPath : BindingTransition.None);
     }
 
     public Task<WorkerCallResult> ArchiveProjectAsync(
@@ -635,9 +668,9 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public async Task<WorkerCallResult> CloseProjectAsync(string? projectPath, bool saveBeforeClose)
+    public Task<WorkerCallResult> CloseProjectAsync(string? projectPath, bool saveBeforeClose)
     {
-        var result = await SendBoundProjectRequestAsync(
+        return SendBoundProjectRequestAsync(
             "close_project",
             projectPath,
             request =>
@@ -646,14 +679,8 @@ public class OpennessWorkerClient : IDisposable
                 request.Confirm = true;
                 request.AllowTiaConfirmations = true;
             },
-            "{}").ConfigureAwait(false);
-
-        if (result.Success && _projectSessionBinding.Clear(projectPath, out _) is false)
-        {
-            _projectSessionBinding.Clear(null, out _);
-        }
-
-        return result;
+            "{}",
+            BindingTransition.Clear);
     }
 
     private async Task<WorkerCallResult> SendBoundProjectRequestAsync(
@@ -661,11 +688,9 @@ public class OpennessWorkerClient : IDisposable
         string? projectPath,
         Action<WorkerRequest> configure,
         string emptyPayload,
-        bool attachmentChangeExpected = false,
-        bool bindOnSuccessIfUnbound = true)
+        BindingTransition transition = BindingTransition.None)
     {
         var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
-        var sessionWasUnbound = boundProjectPathBeforeCall is null;
         if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
@@ -679,75 +704,125 @@ public class OpennessWorkerClient : IDisposable
         configure(request);
 
         var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
-        if (result.Success && result.ResolvedProjectPath is not null)
+        if (result.Success)
         {
-            if (sessionWasUnbound)
-            {
-                // bindOnSuccessIfUnbound is false only for the direct status read and the internal
-                // lifecycle probe: both are read-only from the host's point of view and must never
-                // cause an unbound session to become bound as a side effect (see GetProjectStatusAsync
-                // / ProbeProjectStatusForLifecycleAsync). Every other caller keeps the default.
-                if (bindOnSuccessIfUnbound)
-                {
-                    // Bind to what the worker actually operated on, never to what the caller asked for.
-                    // forceRebind is false: if a concurrent OpenProjectAsync/CreateProjectAsync bound the
-                    // session while this call was in flight, decline rather than clobber that binding.
-                    if (!_projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: false, out var bindError))
-                    {
-                        _logger?.LogWarning(
-                            "TIA Openness worker: could not bind session to resolved project path '{ResolvedProjectPath}': {Error}",
-                            result.ResolvedProjectPath,
-                            bindError);
-                        result = result with
-                        {
-                            Warnings = AppendWarning(
-                                result.Warnings,
-                                $"The TIA Openness worker operated on project '{result.ResolvedProjectPath}', but this MCP "
-                                + $"session could not be bound to it ({bindError}). This call's results describe "
-                                + $"'{result.ResolvedProjectPath}', which may differ from whatever project a later call "
-                                + "without an explicit projectPath resolves to. Pass projectPath explicitly on subsequent "
-                                + "calls until the session's binding is resolved.")
-                        };
-                    }
-                }
-            }
-            else if (!attachmentChangeExpected && !_projectSessionBinding.IsBoundTo(result.ResolvedProjectPath))
-            {
-                // Containment only (see docs/superpowers/specs Round 4 design): the root cause -
-                // a zero-confirmation read tool able to attach a different project than the one
-                // this session is bound to - is deferred. Surface the divergence so the caller
-                // (and a human) can see it, rather than silently trusting the bound path.
-                //
-                // attachmentChangeExpected opts out an operation that deliberately changes what
-                // is attached (save_project_as with rebind=true is the only caller today) - for
-                // that operation a "resolved path differs from the bound path" is the documented
-                // outcome, not a signal of drift.
-                //
-                // IsBoundTo lexically canonicalizes both sides with Path.GetFullPath (see
-                // ProjectPathNormalization) instead of comparing the caller's raw spelling.
-                // It does not resolve filesystem identity aliases such as 8.3 short names,
-                // junctions/symlinks, or UNC paths versus mapped drives.
-                _logger?.LogWarning(
-                    "TIA Openness worker: session is bound to '{BoundProjectPath}' but the worker reports it "
-                    + "operated on '{ResolvedProjectPath}'.",
-                    boundProjectPathBeforeCall,
-                    result.ResolvedProjectPath);
-                result = result with
-                {
-                    Warnings = AppendWarning(
-                        result.Warnings,
-                        $"This MCP session is bound to project '{boundProjectPathBeforeCall}', but the TIA Openness "
-                        + $"worker reports it actually operated on '{result.ResolvedProjectPath}' for this call. "
-                        + $"Treat this call's results as describing '{result.ResolvedProjectPath}', not the bound "
-                        + "project. If this is unexpected, verify what is currently open in the TIA Portal UI "
-                        + "before issuing any write, or start a new MCP session bound to the intended project.")
-                };
-            }
+            // The only helper caller that binds is save_project_as(rebind:true), which force-rebinds
+            // onto the copy by design; None/Clear ignore bindForceRebind.
+            result = ApplyBindingTransition(
+                transition,
+                result,
+                requestedProjectPath: projectPath,
+                boundProjectPathBeforeCall,
+                bindForceRebind: true);
         }
 
         return result.Success && string.IsNullOrEmpty(result.Payload)
             ? result with { Payload = emptyPayload }
             : result;
+    }
+
+    /// <summary>
+    /// Applies a call's declared <see cref="BindingTransition"/> to a SUCCESSFUL worker result.
+    /// This is the single place a session binding changes as the result of a completed call, so
+    /// the rule "bind only to worker ground truth, only on success" lives in exactly one method.
+    /// Returns the original result (possibly with a divergence warning appended), or a
+    /// <c>postcondition_failed</c>/<c>binding_conflict</c> failure if a required bind could not
+    /// be honored.
+    /// </summary>
+    private WorkerCallResult ApplyBindingTransition(
+        BindingTransition transition,
+        WorkerCallResult result,
+        string? requestedProjectPath,
+        string? boundProjectPathBeforeCall,
+        bool bindForceRebind)
+    {
+        switch (transition)
+        {
+            case BindingTransition.BindResolvedPath:
+                return BindToResolvedProjectPath(result, bindForceRebind);
+            case BindingTransition.Clear:
+                // Close leaves the session with nothing bound. Clear(requestedProjectPath) is the
+                // guarded path; if it refuses (a different project was actually open) fall back to
+                // the unconditional Clear(null) so no stale binding can survive a close.
+                if (!_projectSessionBinding.Clear(requestedProjectPath, out _))
+                {
+                    _projectSessionBinding.Clear(null, out _);
+                }
+
+                return result;
+            case BindingTransition.None:
+            default:
+                return WarnOnBindingDivergence(result, boundProjectPathBeforeCall);
+        }
+    }
+
+    /// <summary>
+    /// Binds the session to the worker's reported <see cref="WorkerCallResult.ResolvedProjectPath"/>.
+    /// A success with no resolved path is a broken postcondition - it must NEVER fall back to the
+    /// caller's requested path, a target directory/name, or anything parsed from payload text.
+    /// </summary>
+    private WorkerCallResult BindToResolvedProjectPath(WorkerCallResult result, bool forceRebind)
+    {
+        if (string.IsNullOrWhiteSpace(result.ResolvedProjectPath))
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.PostconditionFailed,
+                "The TIA Openness worker reported success but did not return the project path it "
+                + "opened, so this MCP session cannot be bound to it. Inspect the current project "
+                + "state in TIA Portal before retrying.",
+                result.Warnings);
+        }
+
+        if (!_projectSessionBinding.Bind(result.ResolvedProjectPath!, forceRebind, out var bindError))
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindError!, result.Warnings);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// For a <see cref="BindingTransition.None"/> call on an already-bound session, surfaces a
+    /// single divergence warning (without adopting the worker's path) when the worker reports it
+    /// operated on a different project than the one this session is bound to. Equivalent path
+    /// spellings produce no warning; the binding is left untouched.
+    /// </summary>
+    private WorkerCallResult WarnOnBindingDivergence(WorkerCallResult result, string? boundProjectPathBeforeCall)
+    {
+        if (boundProjectPathBeforeCall is null
+            || result.ResolvedProjectPath is null
+            || _projectSessionBinding.IsBoundTo(result.ResolvedProjectPath))
+        {
+            // Unbound sessions never bind here (that is the intentional behavior change: only
+            // open/create/save-as bind), and an equivalent path is not a divergence.
+            return result;
+        }
+
+        // Containment only (see docs/superpowers/specs Round 4 design): the root cause - a
+        // zero-confirmation read tool able to attach a different project than the one this session
+        // is bound to - is deferred. Surface the divergence so the caller (and a human) can see it,
+        // rather than silently trusting the bound path.
+        //
+        // IsBoundTo lexically canonicalizes both sides with Path.GetFullPath (see
+        // ProjectPathNormalization) instead of comparing the caller's raw spelling. It does not
+        // resolve filesystem identity aliases such as 8.3 short names, junctions/symlinks, or UNC
+        // paths versus mapped drives.
+        _logger?.LogWarning(
+            "TIA Openness worker: session is bound to '{BoundProjectPath}' but the worker reports it "
+            + "operated on '{ResolvedProjectPath}'.",
+            boundProjectPathBeforeCall,
+            result.ResolvedProjectPath);
+
+        return result with
+        {
+            Warnings = AppendWarning(
+                result.Warnings,
+                $"This MCP session is bound to project '{boundProjectPathBeforeCall}', but the TIA Openness "
+                + $"worker reports it actually operated on '{result.ResolvedProjectPath}' for this call. "
+                + $"Treat this call's results as describing '{result.ResolvedProjectPath}', not the bound "
+                + "project. If this is unexpected, verify what is currently open in the TIA Portal UI "
+                + "before issuing any write, or start a new MCP session bound to the intended project.")
+        };
     }
 
     private static IReadOnlyList<string> AppendWarning(IReadOnlyList<string> warnings, string warning)
@@ -838,38 +913,6 @@ public class OpennessWorkerClient : IDisposable
         {
             _transport?.Dispose();
             _transport = null;
-        }
-    }
-
-    private static string? TryReadProjectPath(string? payload)
-    {
-        if (string.IsNullOrWhiteSpace(payload))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(payload);
-            if (document.RootElement.TryGetProperty("projectPath", out var projectPath) &&
-                projectPath.ValueKind == JsonValueKind.String)
-            {
-                return projectPath.GetString();
-            }
-
-            if (document.RootElement.TryGetProperty("project", out var project) &&
-                project.ValueKind == JsonValueKind.Object &&
-                project.TryGetProperty("path", out var statusPath) &&
-                statusPath.ValueKind == JsonValueKind.String)
-            {
-                return statusPath.GetString();
-            }
-
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
         }
     }
 
