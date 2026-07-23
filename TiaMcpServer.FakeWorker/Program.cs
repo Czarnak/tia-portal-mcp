@@ -130,10 +130,25 @@ while ((line = Console.In.ReadLine()) is not null)
             // read reverts to the direct status operation: fails ONLY when the request used
             // get_project_status; every other operation (the probe itself, or the tool's own
             // write call that follows) succeeds normally so the full preview/apply round trip
-            // can complete.
-            Respond(ReadMethod(line) == "get_project_status"
-                ? """{"success":false,"error":"current-state read must use probe_project_status_for_lifecycle, not get_project_status"}"""
-                : """{"success":true,"payload":"{\"isOpen\":true}"}""");
+            // can complete. save_project_as additionally needs a resolvedProjectPath so the
+            // rebind bind succeeds after the write.
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":false,"error":"current-state read must use probe_project_status_for_lifecycle, not get_project_status"}""",
+                "save_project_as" => """{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\lifecycle\\Copy.ap21"}""",
+                _ => """{"success":true,"payload":"{\"isOpen\":true}"}"""
+            });
+            break;
+        case "save-as-uncertain-state":
+            // Simulates the real worker's postcondition_failed when save_project_as saved a copy
+            // but could not confirm the active project is that copy: a failure carrying the
+            // uncertain-state warning. The host must surface it and never bind the session.
+            Respond("""{"success":false,"failureCategory":"postcondition_failed","error":"could not confirm the copied project path","warnings":["Project state may have changed; inspect the open project before retrying."]}""");
+            break;
+        case "C:\\bound\\FailingSave.ap21":
+            // A bound-path scenario whose save_project_as call fails, proving a failed rebinding
+            // save-as leaves the pre-existing session binding untouched (no partial rebind).
+            Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"save failed"}""");
             break;
         default:
             Respond($$"""{"success":false,"error":"unknown scenario '{{scenario}}'"}""");

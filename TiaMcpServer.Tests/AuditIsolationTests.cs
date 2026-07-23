@@ -57,4 +57,33 @@ public class AuditIsolationTests
         var after = CountAuditLines(defaultDirectory);
         Assert.Equal(before, after);
     }
+
+    [Fact]
+    public async Task RejectedSaveProjectAs_RebindFalse_WritesNoAuditAnywhere()
+    {
+        var defaultDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TiaMcpServer",
+            "audit");
+        var before = CountAuditLines(defaultDirectory);
+
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
+        // rebind=false is rejected as validation_error before any audit append. workerClient: null!
+        // additionally proves the worker was never invoked (any call would NullReferenceException).
+        var response = await ProjectLifecycleTools.SaveProjectAs(
+            workerClient: null!,
+            safety,
+            targetDirectory: "C:\\Target",
+            targetName: "Copy",
+            rebind: false);
+
+        using var doc = System.Text.Json.JsonDocument.Parse(response);
+        Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
+
+        // No audit lines in the injected directory, and nothing leaked to the process-wide default.
+        Assert.Equal(0, CountAuditLines(audit.Path));
+        Assert.Equal(before, CountAuditLines(defaultDirectory));
+    }
 }

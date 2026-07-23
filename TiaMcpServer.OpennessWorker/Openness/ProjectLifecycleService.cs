@@ -115,6 +115,12 @@ public static class ProjectLifecycleService
         return Result("save_project", project);
     }
 
+    /// <summary>Shared rejection message for the unsupported <c>save_project_as(rebind:false)</c> mode.</summary>
+    internal const string RebindFalseUnsupportedMessage =
+        "save_project_as requires rebind=true. The rebind=false mode is not supported: Siemens "
+        + "SaveAs switches the active project to the copy, so a non-rebinding save would leave the "
+        + "worker and the MCP session bound to different projects.";
+
     public static ProjectLifecycleResultInfo SaveProjectAs(
         TiaPortalSession session,
         string? projectPath,
@@ -122,6 +128,15 @@ public static class ProjectLifecycleService
         string targetName,
         bool rebind)
     {
+        // Defense in depth (host layers reject first): rebind=false is unsupported. Reject before
+        // any Siemens-touching call so a rejected mode can never mutate project state.
+        if (!rebind)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                RebindFalseUnsupportedMessage);
+        }
+
         var project = EnsureProject(session, projectPath);
         RequireAbsoluteDirectory(targetDirectory, "TargetDirectory", mustExist: true);
         RequireName(targetName, "TargetName");
@@ -129,27 +144,35 @@ public static class ProjectLifecycleService
         var copyDirectory = Path.Combine(targetDirectory, targetName);
         project.SaveAs(new DirectoryInfo(copyDirectory));
 
+        // Siemens SaveAs switches the active project to the copy in place. Do NOT close/reopen: a
+        // second lifecycle mutation is exactly what previously stranded host and worker on different
+        // projects. Instead, discover the copied .ap?? file and require the live active project to
+        // BE that file. Program.Stamp then reports it as ResolvedProjectPath (from
+        // session.CurrentProjectPath), and the host binds only from that verified field.
         var copiedProjectPath = Directory.Exists(copyDirectory)
             ? Directory.GetFiles(copyDirectory, "*.ap??", SearchOption.AllDirectories).FirstOrDefault()
             : null;
+        var activeProjectPath = session.CurrentProjectPath;
 
-        if (rebind)
+        if (string.IsNullOrWhiteSpace(copiedProjectPath)
+            || string.IsNullOrWhiteSpace(activeProjectPath)
+            || !ProjectPathsEqual(copiedProjectPath!, activeProjectPath!))
         {
-            if (string.IsNullOrWhiteSpace(copiedProjectPath))
-            {
-                throw new InvalidOperationException($"Could not locate a copied TIA project file under '{copyDirectory}'.");
-            }
-
-            project.Close();
-            session.MarkProjectClosed();
-            session.OpenProject(copiedProjectPath!);
-            return Result("save_project_as", session.Project);
+            throw new WorkerOperationException(
+                WorkerFailureCategories.PostconditionFailed,
+                $"save_project_as saved under '{copyDirectory}' but could not confirm the active project "
+                + $"matches the copied project file (discovered copy: '{copiedProjectPath ?? "(none)"}', "
+                + $"active project: '{activeProjectPath ?? "(none)"}').",
+                warnings: new[] { "Project state may have changed; inspect the open project before retrying." });
         }
 
-        var result = Result("save_project_as", project);
-        result.ProjectPath = copiedProjectPath ?? copyDirectory;
-        return result;
+        // session.Project is already the copy (Siemens switched it), so the payload is built from it
+        // without any explicit close/reopen.
+        return Result("save_project_as", session.Project);
     }
+
+    private static bool ProjectPathsEqual(string left, string right)
+        => string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
 
     public static ProjectLifecycleResultInfo ArchiveProject(
         TiaPortalSession session,

@@ -615,12 +615,34 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
+    /// <summary>
+    /// Shared rejection message for the unsupported <c>save_project_as(rebind:false)</c> mode.
+    /// Referenced by both this client's guard and <c>ProjectLifecycleTools.SaveProjectAs</c> so
+    /// the two host-side defenses speak with one voice.
+    /// </summary>
+    internal const string RebindFalseUnsupportedMessage =
+        "save_project_as requires rebind=true. The rebind=false mode is not supported: Siemens "
+        + "SaveAs switches the active project to the copy, so a non-rebinding save would leave the "
+        + "TIA Openness worker and this MCP session bound to different projects.";
+
     public Task<WorkerCallResult> SaveProjectAsAsync(
         string? projectPath,
         string targetDirectory,
         string targetName,
         bool rebind)
     {
+        // Defense in depth (mirrors the tool-layer guard): rebind=false is rejected before any
+        // worker invocation, so it can never reach the transport or mutate the session binding.
+        if (!rebind)
+        {
+            return Task.FromResult(
+                WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, RebindFalseUnsupportedMessage));
+        }
+
+        // Past the guard rebind is always true: the worker opens the copy before this call
+        // returns, so the session adopts the worker's ResolvedProjectPath (never payload text) and
+        // gets no divergence warning. Task 4 tightens the worker-side copied-path guarantees behind
+        // that ResolvedProjectPath.
         return SendBoundProjectRequestAsync(
             "save_project_as",
             projectPath,
@@ -628,17 +650,12 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.TargetDirectory = targetDirectory;
                 request.TargetName = targetName;
-                request.Rebind = rebind;
+                request.Rebind = true;
                 request.Confirm = true;
                 request.AllowTiaConfirmations = true;
             },
             "{}",
-            // rebind=true deliberately changes which project is attached (the worker opens the
-            // copy before this call returns), so it adopts the worker's ResolvedProjectPath and
-            // gets no divergence warning. rebind=false leaves the binding untouched (None). Either
-            // way the host-side bind reads only ResolvedProjectPath - never payload text. (Task 4
-            // tightens the worker-side copied-path guarantees behind ResolvedProjectPath.)
-            rebind ? BindingTransition.BindResolvedPath : BindingTransition.None);
+            BindingTransition.BindResolvedPath);
     }
 
     public Task<WorkerCallResult> ArchiveProjectAsync(

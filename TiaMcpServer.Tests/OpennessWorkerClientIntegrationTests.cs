@@ -503,17 +503,122 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient();
         const string projectPath = "lifecycle-probe-only";
 
+        // rebind=true (the only supported mode): the "lifecycle-probe-only" scenario reports a
+        // resolvedProjectPath for the save_project_as write so the rebind bind succeeds; the
+        // current-state reads still route through the probe, never get_project_status.
         var preview = await ProjectLifecycleTools.SaveProjectAs(
-            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: false);
+            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: true);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
         var applied = await ProjectLifecycleTools.SaveProjectAs(
-            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: false,
+            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: true,
             confirm: true, safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
         Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+    }
+
+    // --- Task 4: save_project_as rebind guarantees ------------------------------------------
+
+    [Fact]
+    public async Task SaveProjectAsAsync_RebindFalse_IsValidationErrorAndNeverInvokesWorker()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+
+        // A worker path that cannot launch: had the guard let the call reach the transport, the
+        // result would be a worker launch failure (worker_operation_failed), not validation_error.
+        // So validation_error is positive proof the worker was never invoked.
+        var unlaunchableWorker = Path.Combine(Path.GetTempPath(), $"tia-nonexistent-{Guid.NewGuid():N}.exe");
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: unlaunchableWorker);
+
+        var result = await client.SaveProjectAsAsync(
+            projectPath: null,
+            targetDirectory: "C:\\Target",
+            targetName: "Copy",
+            rebind: false);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
+        // The existing binding is untouched.
+        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task SaveProjectAs_RebindTrue_BindsOnlyWorkerCopiedPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // "ok-with-resolved-path" reports resolvedProjectPath "C:\\resolved\\Ground.ap21" - matching
+        // neither the caller's targetDirectory nor targetName. rebind=true must bind the session to
+        // the worker's reported copied path, never to caller input.
+        var result = await client.SaveProjectAsAsync(
+            projectPath: "ok-with-resolved-path",
+            targetDirectory: "C:\\Target",
+            targetName: "Copy",
+            rebind: true);
+
+        Assert.True(result.Success);
+        Assert.Equal("C:\\resolved\\Ground.ap21", binding.BoundProjectPath);
+        Assert.DoesNotContain("Target", binding.BoundProjectPath!);
+        Assert.DoesNotContain("Copy", binding.BoundProjectPath!);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task SaveProjectAs_Failure_PreservesOriginalBinding()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.Bind("C:\\bound\\FailingSave.ap21", forceRebind: false, out _));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // The bound path's FakeWorker scenario fails the save_project_as call. A failed rebinding
+        // save-as must leave the pre-existing binding exactly as it was - no partial rebind.
+        var result = await client.SaveProjectAsAsync(
+            projectPath: null,
+            targetDirectory: "C:\\Target",
+            targetName: "Copy",
+            rebind: true);
+
+        Assert.False(result.Success);
+        Assert.Equal("C:\\bound\\FailingSave.ap21", binding.BoundProjectPath);
+    }
+
+    [Fact]
+    public async Task SaveProjectAs_MissingCopiedPath_IsPostconditionFailedWithUncertainStateWarning()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // The worker reports it could not confirm the copied project path: a postcondition_failed
+        // failure carrying the uncertain-state warning. The client must surface it unchanged and
+        // never bind the session.
+        var result = await client.SaveProjectAsAsync(
+            projectPath: "save-as-uncertain-state",
+            targetDirectory: "C:\\Target",
+            targetName: "Copy",
+            rebind: true);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
+        Assert.Contains(
+            result.Warnings,
+            w => w.Contains("Project state may have changed", StringComparison.Ordinal));
+        Assert.Null(binding.BoundProjectPath);
     }
 
     [Fact]

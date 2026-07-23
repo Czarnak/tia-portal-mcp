@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 
@@ -73,8 +74,19 @@ namespace TiaMcpServer.Tools
 
         [McpServerTool(Name = "save_project_as")]
         [Description("Save the active TIA Portal project to a copy directory. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
-        public static async Task<string> SaveProjectAs(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Parent directory for the copied project.")] string targetDirectory, [Description("Name of the copied project directory.")] string targetName, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null, [Description("Set true to bind this MCP session to the copied project path after save-as.")] bool rebind = true, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
+        public static async Task<string> SaveProjectAs(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Parent directory for the copied project.")] string targetDirectory, [Description("Name of the copied project directory.")] string targetName, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null, [Description("Bind this MCP session to the copied project after save-as. Must be true; rebind=false is not supported.")] bool rebind = true, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
         {
+            // rebind=false is an unsupported mode: Siemens SaveAs switches the active project to the
+            // copy, so a non-rebinding save would strand this MCP session and the worker on different
+            // projects. Reject at the first boundary - before any current-state probe, preview,
+            // token issuance, worker invocation, or audit append.
+            if (!rebind)
+            {
+                return WriteSafetyTooling.BuildApplyResult(
+                    "save_project_as",
+                    WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, OpennessWorkerClient.RebindFalseUnsupportedMessage));
+            }
+
             var target = new { projectPath, targetDirectory, targetName };
             var requestedInput = new { projectPath, targetDirectory, targetName, rebind };
             if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "save_project_as", projectPath, target, $"Save active project as '{targetName}' in '{targetDirectory}'.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project_as"));
