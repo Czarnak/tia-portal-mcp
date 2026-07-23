@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Linq;
+using TiaMcpServer.Contracts;
+using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;
 
@@ -67,8 +69,35 @@ public class BlockImportStagerTests
         {
             var bundle = CreateBundle(new BlockImportDocument("Main.xml", "..\\escaped.xml", "<Main />"));
 
-            Assert.Throws<ArgumentException>(() => BlockImportStager.StageDocuments(stagingRoot, bundle));
+            var exception = Assert.Throws<WorkerOperationException>(
+                () => BlockImportStager.StageDocuments(stagingRoot, bundle));
+
+            Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
             Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(stagingRoot)!, "escaped.xml")));
+        }
+        finally
+        {
+            Directory.Delete(stagingRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Stage_RejectsAnExistingDestinationAsValidationError()
+    {
+        var stagingRoot = CreateStagingRoot();
+
+        try
+        {
+            var destination = Path.Combine(stagingRoot, "Main.xml");
+            File.WriteAllText(destination, "<Existing />");
+
+            var exception = Assert.Throws<WorkerOperationException>(
+                () => BlockImportStager.StageDocuments(
+                    stagingRoot,
+                    CreateBundle(new BlockImportDocument("Main.xml", "Main.xml", "<Main />"))));
+
+            Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+            Assert.Equal("<Existing />", File.ReadAllText(destination));
         }
         finally
         {
@@ -83,11 +112,15 @@ public class BlockImportStagerTests
 
         try
         {
-            var bundle = CreateBundle(new BlockImportDocument("Main.xml", "Main.xml", "<Main />"));
+            var bundle = CreateBundle(
+                new BlockImportDocument("Main.xml", "Main.xml", "<Main />"),
+                new BlockImportDocument("Types.xml", "Types.xml", "<Types />"));
 
             BlockImportStager.StageDocuments(stagingRoot, bundle);
 
-            Assert.Equal(new[] { "Main.xml" }, Directory.EnumerateFiles(stagingRoot).Select(Path.GetFileName));
+            Assert.Equal(
+                new[] { "Main.xml", "Types.xml" },
+                Directory.EnumerateFiles(stagingRoot).Select(Path.GetFileName).OrderBy(fileName => fileName));
         }
         finally
         {

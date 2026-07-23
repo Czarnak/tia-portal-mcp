@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 
@@ -21,12 +22,12 @@ internal static class BlockImportStager
             var stagedPath = Path.GetFullPath(Path.Combine(canonicalRoot, document.SafeFileName));
             if (!IsDirectChildOfRoot(canonicalRoot, stagedPath))
             {
-                throw new ArgumentException("Block import document path must remain directly under the staging root.", nameof(bundle));
+                throw ValidationFailure("Block import document path must remain directly under the staging root.");
             }
 
             if (File.Exists(stagedPath))
             {
-                throw new IOException("Block import staging destination already exists.");
+                throw ValidationFailure("Block import staging destination already exists.");
             }
 
             File.WriteAllText(stagedPath, document.Content, Encoding.UTF8);
@@ -39,6 +40,11 @@ internal static class BlockImportStager
         }
 
         return stagedPaths.AsReadOnly();
+    }
+
+    private static WorkerOperationException ValidationFailure(string message)
+    {
+        return new WorkerOperationException(WorkerFailureCategories.ValidationError, message);
     }
 
     private static string CanonicalizeRoot(string stagingRoot)
