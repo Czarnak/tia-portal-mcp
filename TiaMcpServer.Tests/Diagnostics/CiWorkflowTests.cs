@@ -82,8 +82,8 @@ public class CiWorkflowTests
         string Value(string elementName) => config.Element(elementName)?.Value ?? string.Empty;
 
         Assert.Equal("cobertura", Value("Format"));
-        Assert.Equal("[TiaMcpServer]*,[TiaMcpServer.Contracts]*", Value("Include"));
-        Assert.Equal("[TiaMcpServer.Tests]*,[TiaMcpServer.FakeWorker]*,[TiaMcpServer.OpennessWorker]*", Value("Exclude"));
+        Assert.Equal("[TiaMcpServer]*,[TiaMcpServer.Contracts]*,[TiaMcpServer.Tests]TiaMcpServer.*", Value("Include"));
+        Assert.Equal("[TiaMcpServer.Tests]TiaMcpServer.Tests.*,[TiaMcpServer.Tests]TiaMcpServer.OpennessWorker.*,[TiaMcpServer.FakeWorker]*,[TiaMcpServer.OpennessWorker]*", Value("Exclude"));
         Assert.Contains("GeneratedCodeAttribute", Value("ExcludeByAttribute"), StringComparison.Ordinal);
         Assert.Contains("CompilerGeneratedAttribute", Value("ExcludeByAttribute"), StringComparison.Ordinal);
         Assert.Contains("**/*.g.cs", Value("ExcludeByFile"), StringComparison.Ordinal);
