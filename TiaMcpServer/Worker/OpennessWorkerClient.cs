@@ -472,6 +472,14 @@ public class OpennessWorkerClient : IDisposable
 
     public async Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
     {
+        // A blank/whitespace path is caller input error, not a binding conflict — check it
+        // separately so CanBind's single out-string ("Project path is required." vs. an
+        // already-bound conflict) isn't collapsed into one category by inferring from its text.
+        if (string.IsNullOrWhiteSpace(projectPath))
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "Project path is required.");
+        }
+
         if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);

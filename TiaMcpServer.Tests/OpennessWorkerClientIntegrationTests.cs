@@ -47,6 +47,56 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task CollapsedOpenProject_PreviewThenApply_WorkerFailureRendersFailureCategoryNeverSuccessShaped()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+
+        // "worker-error-with-category" is a FakeWorker scenario, not a real path; DescribePathState
+        // just reports it as non-existent, so preview/apply token validation proceeds normally and
+        // only the worker call itself (inside apply) fails.
+        const string projectPath = "worker-error-with-category";
+
+        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: projectPath);
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+
+        var applied = await ProjectLifecycleTools.OpenProject(
+            client,
+            safety,
+            projectPath: projectPath,
+            confirm: true,
+            safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+        var root = appliedDoc.RootElement;
+
+        Assert.Equal("open_project", root.GetProperty("toolName").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
+        Assert.Equal("invalid value", root.GetProperty("error").GetString());
+        // BuildApplyResult's failure branch must never be success-shaped: no operationResult,
+        // no verification field, even though OpenProject's apply path always requests one.
+        Assert.False(root.TryGetProperty("operationResult", out _));
+        Assert.False(root.TryGetProperty("verification", out _));
+    }
+
+    [Fact]
+    public async Task OpenProject_BlankProjectPath_IsValidationErrorNotBindingConflict()
+    {
+        using var client = CreateClient();
+
+        // CanBind's single out-string covers two distinct reasons ("Project path is required."
+        // and an already-bound conflict); a blank path must be categorized as caller input error,
+        // not binding_conflict, and OpenProjectAsync must check this before ever calling CanBind.
+        var result = await client.OpenProjectAsync("   ", forceRebind: false);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
+        Assert.Equal("Project path is required.", result.Error);
+    }
+
+    [Fact]
     public async Task Success_ReturnsStructuredPayload()
     {
         using var client = CreateClient();
