@@ -53,5 +53,6 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDocument.cs" Link="Linked\Openness\BlockImportDocument.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ParsedBlockImportBundle.cs" Link="Linked\Openness\ParsedBlockImportBundle.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportBundleParser.cs" Link="Linked\Openness\BlockImportBundleParser.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportStager.cs" Link="Linked\Openness\BlockImportStager.cs" />
   </ItemGroup>
 </Project>
