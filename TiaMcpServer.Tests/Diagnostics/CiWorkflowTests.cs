@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -57,6 +58,36 @@ public class CiWorkflowTests
 
         // The corrected token-boundary check must reject this false positive.
         Assert.DoesNotMatch(SingleNodeBuildFlagPattern, lookalikeCommand);
+    }
+
+    [Fact]
+    public void CoverageRunsettings_UsesApprovedScope()
+    {
+        var runsettingsPath = Path.Combine(
+            GetRepositoryRoot(),
+            "TiaMcpServer.Tests",
+            "coverage.runsettings");
+
+        Assert.True(File.Exists(runsettingsPath), $"Expected coverage.runsettings to exist at {runsettingsPath}");
+
+        var doc = XDocument.Load(runsettingsPath);
+        var config = doc.Root?
+            .Element("DataCollectionRunSettings")?
+            .Element("DataCollectors")?
+            .Element("DataCollector")?
+            .Element("Configuration");
+
+        Assert.NotNull(config);
+
+        string Value(string elementName) => config.Element(elementName)?.Value ?? string.Empty;
+
+        Assert.Equal("cobertura", Value("Format"));
+        Assert.Equal("[TiaMcpServer]*,[TiaMcpServer.Contracts]*", Value("Include"));
+        Assert.Equal("[TiaMcpServer.Tests]*,[TiaMcpServer.FakeWorker]*,[TiaMcpServer.OpennessWorker]*", Value("Exclude"));
+        Assert.Contains("GeneratedCodeAttribute", Value("ExcludeByAttribute"), StringComparison.Ordinal);
+        Assert.Contains("CompilerGeneratedAttribute", Value("ExcludeByAttribute"), StringComparison.Ordinal);
+        Assert.Contains("**/*.g.cs", Value("ExcludeByFile"), StringComparison.Ordinal);
+        Assert.Contains("**/*.Designer.cs", Value("ExcludeByFile"), StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> EnumerateWorkflowFiles()
