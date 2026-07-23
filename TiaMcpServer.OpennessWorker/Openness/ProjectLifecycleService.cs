@@ -1,11 +1,46 @@
 using Siemens.Engineering;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.OpennessWorker;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class ProjectLifecycleService
 {
-    public static ProjectStatusInfo GetStatus(TiaPortalSession session, string? projectPath)
+    /// <summary>
+    /// Pure read: never opens, closes, or switches a project. Reuses
+    /// <see cref="ProjectOpenPolicy"/> - the same decision engine every other read-only worker
+    /// operation already uses via <c>Program.EnsureRequestedProjectOpen</c> - so "a read must
+    /// never silently attach a different project" is enforced identically everywhere instead of
+    /// this method re-deriving its own rule.
+    /// </summary>
+    public static ProjectStatusInfo GetStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)
+    {
+        session.EnsureConnected();
+
+        var currentPath = session.CurrentProjectPath;
+        if (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath) == ProjectOpenDecision.Refuse)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.BindingConflict,
+                ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
+        }
+
+        // ProjectOpenDecision.OpenRequested (nothing attached, a path was requested) is
+        // deliberately NOT acted on here, unlike EnsureRequestedProjectOpen: a read must report
+        // IsOpen=false rather than open the requested project as a side effect.
+        return session.Project is null
+            ? new ProjectStatusInfo { IsOpen = false }
+            : ReadStatus(session.Project);
+    }
+
+    /// <summary>
+    /// Internal state probe for save/save-as/archive/close preview and apply-time
+    /// current-state checks only - never exposed as an MCP tool. Retains the original
+    /// <c>GetStatus</c> behavior: it may open <paramref name="projectPath"/> when nothing is
+    /// open yet, because those lifecycle writes must be able to inspect a project's state
+    /// before acting on it.
+    /// </summary>
+    public static ProjectStatusInfo ProbeStatusForLifecycle(TiaPortalSession session, string? projectPath)
     {
         EnsureProject(session, projectPath);
 

@@ -38,20 +38,65 @@ public class ProjectLifecycleToolTests
         }
     }
 
+    /// <summary>
+    /// Single source of truth for the public project-lifecycle surface of
+    /// <see cref="OpennessWorkerClient"/> - both the per-name Theory below and the exact-count
+    /// Fact read from this same array, so the "seven" in the count assertion can never drift
+    /// from the names actually being checked.
+    /// </summary>
+    private static readonly string[] ProjectLifecycleMethodNames =
+    {
+        "GetProjectStatusAsync",
+        "OpenProjectAsync",
+        "CreateProjectAsync",
+        "SaveProjectAsync",
+        "SaveProjectAsAsync",
+        "ArchiveProjectAsync",
+        "CloseProjectAsync"
+    };
+
+    public static IEnumerable<object[]> ProjectLifecycleMethodNameData()
+        => ProjectLifecycleMethodNames.Select(name => new object[] { name });
+
     [Theory]
-    [InlineData("GetProjectStatusAsync")]
-    [InlineData("OpenProjectAsync")]
-    [InlineData("CreateProjectAsync")]
-    [InlineData("SaveProjectAsync")]
-    [InlineData("SaveProjectAsAsync")]
-    [InlineData("ArchiveProjectAsync")]
-    [InlineData("CloseProjectAsync")]
+    [MemberData(nameof(ProjectLifecycleMethodNameData))]
     public void OpennessWorkerClientExposesProjectLifecycleMethods(string methodName)
     {
         var method = typeof(OpennessWorkerClient).GetMethod(methodName);
 
         Assert.NotNull(method);
         Assert.Equal(typeof(Task<WorkerCallResult>), method.ReturnType);
+    }
+
+    [Fact]
+    public void OpennessWorkerClient_ExposesExactlySevenProjectLifecycleMethods()
+    {
+        Assert.Equal(7, ProjectLifecycleMethodNames.Length);
+    }
+
+    [Fact]
+    public void OpennessWorkerClient_ProjectStatusSurface_HasExactlyOnePublicMethod()
+    {
+        var type = typeof(OpennessWorkerClient);
+
+        // Enumerates every public instance method whose name mentions ProjectStatus - proves
+        // GetProjectStatusAsync is the ONLY public status-shaped entry point, i.e. the internal
+        // lifecycle probe never leaks out as a second public status method.
+        var publicProjectStatusMethods = type
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(m => m.Name.Contains("ProjectStatus", StringComparison.Ordinal))
+            .Select(m => m.Name)
+            .ToArray();
+
+        Assert.Equal(new[] { "GetProjectStatusAsync" }, publicProjectStatusMethods);
+
+        var probeMethod = type.GetMethod(
+            "ProbeProjectStatusForLifecycleAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(probeMethod);
+        Assert.False(probeMethod!.IsPublic);
+        Assert.Equal(typeof(Task<WorkerCallResult>), probeMethod.ReturnType);
     }
 
     [Fact]

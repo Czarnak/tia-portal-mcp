@@ -21,7 +21,7 @@ namespace TiaMcpServer.Tools
         [McpServerTool(Name = "get_project_status")]
         [Description("Get status and metadata for the active TIA Portal project.")]
         public static async Task<string> GetProjectStatus(OpennessWorkerClient workerClient, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
-            => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText();
+            => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToEnvelopeText();
 
         [McpServerTool(Name = "open_project")]
         [Description("Open a TIA Portal project and bind this MCP session to it. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
@@ -61,9 +61,9 @@ namespace TiaMcpServer.Tools
         {
             var target = new { projectPath };
             var requestedInput = new { projectPath };
-            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "save_project", projectPath, target, "Save the active TIA Portal project.", requestedInput, await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project"));
+            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "save_project", projectPath, target, "Save the active TIA Portal project.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project"));
             if (!confirm) return ConfirmRequired("save_project");
-            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project"), "save_project", projectPath, target, requestedInput, () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
+            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project"), "save_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
             if (!safetyContext.IsValid) return safetyContext.Error!;
             var result = await workerClient.SaveProjectAsync(projectPath).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
@@ -77,9 +77,9 @@ namespace TiaMcpServer.Tools
         {
             var target = new { projectPath, targetDirectory, targetName };
             var requestedInput = new { projectPath, targetDirectory, targetName, rebind };
-            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "save_project_as", projectPath, target, $"Save active project as '{targetName}' in '{targetDirectory}'.", requestedInput, await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project_as"));
+            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "save_project_as", projectPath, target, $"Save active project as '{targetName}' in '{targetDirectory}'.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project_as"));
             if (!confirm) return ConfirmRequired("save_project_as");
-            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project_as"), "save_project_as", projectPath, target, requestedInput, () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
+            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project_as"), "save_project_as", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
             if (!safetyContext.IsValid) return safetyContext.Error!;
             var result = await workerClient.SaveProjectAsAsync(projectPath, targetDirectory, targetName, rebind).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(rebind ? null : projectPath).ConfigureAwait(false)).ToText() : null;
@@ -93,9 +93,9 @@ namespace TiaMcpServer.Tools
         {
             var target = new { projectPath, archiveDirectory, archiveName };
             var requestedInput = new { projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive };
-            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "archive_project", projectPath, target, $"Archive active project to '{archiveDirectory}\\{archiveName}'.", requestedInput, await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("archive_project"));
+            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "archive_project", projectPath, target, $"Archive active project to '{archiveDirectory}\\{archiveName}'.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("archive_project"));
             if (!confirm) return ConfirmRequired("archive_project");
-            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("archive_project"), "archive_project", projectPath, target, requestedInput, () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
+            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("archive_project"), "archive_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
             if (!safetyContext.IsValid) return safetyContext.Error!;
             var result = await workerClient.ArchiveProjectAsync(projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
@@ -109,9 +109,9 @@ namespace TiaMcpServer.Tools
         {
             var target = new { projectPath };
             var requestedInput = new { projectPath, saveBeforeClose };
-            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "close_project", projectPath, target, "Close the active TIA Portal project.", requestedInput, await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("close_project"));
+            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "close_project", projectPath, target, "Close the active TIA Portal project.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("close_project"));
             if (!confirm) return ConfirmRequired("close_project");
-            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("close_project"), "close_project", projectPath, target, requestedInput, () => workerClient.GetProjectStatusAsync(projectPath)).ConfigureAwait(false);
+            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("close_project"), "close_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
             if (!safetyContext.IsValid) return safetyContext.Error!;
             var result = await workerClient.CloseProjectAsync(projectPath, saveBeforeClose).ConfigureAwait(false);
             safety.AppendAudit("close_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());

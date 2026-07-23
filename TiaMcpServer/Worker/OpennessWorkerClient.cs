@@ -467,7 +467,27 @@ public class OpennessWorkerClient : IDisposable
             "get_project_status",
             projectPath,
             _ => { },
-            "{}");
+            "{}",
+            bindOnSuccessIfUnbound: false);
+    }
+
+    /// <summary>
+    /// Internal state read used only by save/save-as/archive/close preview and apply-time
+    /// current-state checks. The worker method backing this call may open a project when a
+    /// path is supplied and none is open yet (required so those lifecycle writes can inspect
+    /// state before acting) - but exactly like <see cref="GetProjectStatusAsync"/>, this
+    /// host-side call performs no binding transition of its own: an unbound session stays
+    /// unbound even on success. Never exposed as an MCP tool; callable only from
+    /// <c>ProjectLifecycleTools</c>'s own lifecycle-write implementations.
+    /// </summary>
+    internal Task<WorkerCallResult> ProbeProjectStatusForLifecycleAsync(string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "probe_project_status_for_lifecycle",
+            projectPath,
+            _ => { },
+            "{}",
+            bindOnSuccessIfUnbound: false);
     }
 
     public async Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
@@ -641,7 +661,8 @@ public class OpennessWorkerClient : IDisposable
         string? projectPath,
         Action<WorkerRequest> configure,
         string emptyPayload,
-        bool attachmentChangeExpected = false)
+        bool attachmentChangeExpected = false,
+        bool bindOnSuccessIfUnbound = true)
     {
         var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
         var sessionWasUnbound = boundProjectPathBeforeCall is null;
@@ -662,25 +683,32 @@ public class OpennessWorkerClient : IDisposable
         {
             if (sessionWasUnbound)
             {
-                // Bind to what the worker actually operated on, never to what the caller asked for.
-                // forceRebind is false: if a concurrent OpenProjectAsync/CreateProjectAsync bound the
-                // session while this call was in flight, decline rather than clobber that binding.
-                if (!_projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: false, out var bindError))
+                // bindOnSuccessIfUnbound is false only for the direct status read and the internal
+                // lifecycle probe: both are read-only from the host's point of view and must never
+                // cause an unbound session to become bound as a side effect (see GetProjectStatusAsync
+                // / ProbeProjectStatusForLifecycleAsync). Every other caller keeps the default.
+                if (bindOnSuccessIfUnbound)
                 {
-                    _logger?.LogWarning(
-                        "TIA Openness worker: could not bind session to resolved project path '{ResolvedProjectPath}': {Error}",
-                        result.ResolvedProjectPath,
-                        bindError);
-                    result = result with
+                    // Bind to what the worker actually operated on, never to what the caller asked for.
+                    // forceRebind is false: if a concurrent OpenProjectAsync/CreateProjectAsync bound the
+                    // session while this call was in flight, decline rather than clobber that binding.
+                    if (!_projectSessionBinding.Bind(result.ResolvedProjectPath, forceRebind: false, out var bindError))
                     {
-                        Warnings = AppendWarning(
-                            result.Warnings,
-                            $"The TIA Openness worker operated on project '{result.ResolvedProjectPath}', but this MCP "
-                            + $"session could not be bound to it ({bindError}). This call's results describe "
-                            + $"'{result.ResolvedProjectPath}', which may differ from whatever project a later call "
-                            + "without an explicit projectPath resolves to. Pass projectPath explicitly on subsequent "
-                            + "calls until the session's binding is resolved.")
-                    };
+                        _logger?.LogWarning(
+                            "TIA Openness worker: could not bind session to resolved project path '{ResolvedProjectPath}': {Error}",
+                            result.ResolvedProjectPath,
+                            bindError);
+                        result = result with
+                        {
+                            Warnings = AppendWarning(
+                                result.Warnings,
+                                $"The TIA Openness worker operated on project '{result.ResolvedProjectPath}', but this MCP "
+                                + $"session could not be bound to it ({bindError}). This call's results describe "
+                                + $"'{result.ResolvedProjectPath}', which may differ from whatever project a later call "
+                                + "without an explicit projectPath resolves to. Pass projectPath explicitly on subsequent "
+                                + "calls until the session's binding is resolved.")
+                        };
+                    }
                 }
             }
             else if (!attachmentChangeExpected && !_projectSessionBinding.IsBoundTo(result.ResolvedProjectPath))

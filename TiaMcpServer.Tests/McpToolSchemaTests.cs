@@ -78,6 +78,35 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("safety", properties);
     }
 
+    /// <summary>
+    /// Whole-assembly enumeration (not a hardcoded/spot-checked list of tool classes): finds
+    /// every type carrying <see cref="McpServerToolTypeAttribute"/> in the same assembly
+    /// ProjectLifecycleTools lives in - which, for TiaMcpServer.Tests, is the test assembly
+    /// itself, since the host's tool source files are compiled directly into it (see
+    /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
+    /// carrying [McpServerTool] and asserts the exact approved surface: 10 tools total, and the
+    /// internal lifecycle probe (probe_project_status_for_lifecycle, never [McpServerTool]-decorated)
+    /// absent.
+    /// </summary>
+    [Fact]
+    public void McpToolSurface_ExposesExactlyTenApprovedTools()
+    {
+        var toolTypes = typeof(ProjectLifecycleTools).Assembly
+            .GetTypes()
+            .Where(t => t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null);
+
+        var toolNames = toolTypes
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            .Select(m => m.GetCustomAttribute<McpServerToolAttribute>())
+            .Where(a => a is not null)
+            .Select(a => a!.Name)
+            .ToArray();
+
+        Assert.Equal(10, toolNames.Length);
+        Assert.Equal(10, toolNames.Distinct().Count());
+        Assert.DoesNotContain("probe_project_status_for_lifecycle", toolNames);
+    }
+
     [Fact]
     public void OpenProject_SchemaStillExposesProjectPathAsAModelArgument()
     {

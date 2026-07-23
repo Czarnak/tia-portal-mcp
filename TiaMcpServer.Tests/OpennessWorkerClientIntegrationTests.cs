@@ -234,8 +234,12 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var client = CreateClient();
 
-        var succeeded = await client.GetProjectStatusAsync("ok-with-resolved-path");
-        var changedProject = await client.GetProjectStatusAsync("worker-error");
+        // ReadHardwareConfigAsync (not GetProjectStatusAsync) is the vehicle here deliberately:
+        // this test exercises SendBoundProjectRequestAsync's default bind-on-success-if-unbound
+        // behavior, which every OTHER call site still has - GetProjectStatusAsync itself opted
+        // out of it (see UnboundSession_DirectStatusSuccess_DoesNotBindSession below).
+        var succeeded = await client.ReadHardwareConfigAsync("ok-with-resolved-path");
+        var changedProject = await client.ReadHardwareConfigAsync("worker-error");
 
         Assert.True(succeeded.Success);
         Assert.False(changedProject.Success);
@@ -243,8 +247,12 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task UnboundSession_BindsToTheWorkerReportedPathAfterSuccess()
+    public async Task UnboundSession_DirectStatusSuccess_DoesNotBindSession()
     {
+        // The direct status read must never bind an unbound session, even when the worker
+        // reports a resolved project path - unlike every other read/write call site, which
+        // still binds on success (see SuccessfulFirstRequest_BindsToTheResolvedPathAndRejectsADifferentProjectAfterward
+        // above, using ReadHardwareConfigAsync as the vehicle for that unchanged behavior).
         var binding = new ProjectSessionBinding(null);
         using var boundClient = new OpennessWorkerClient(
             binding,
@@ -254,7 +262,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await boundClient.GetProjectStatusAsync("ok-with-resolved-path");
 
         Assert.True(result.Success);
-        Assert.Equal("C:\\resolved\\Ground.ap21", binding.BoundProjectPath);
+        Assert.Null(binding.BoundProjectPath);
     }
 
     [Fact]
@@ -398,5 +406,142 @@ public class OpennessWorkerClientIntegrationTests
         {
             File.Delete(bogus);
         }
+    }
+
+    // --- Task 2: direct status vs. internal lifecycle probe routing -----------------------
+
+    private static string? ExtractEchoedMethod(string payload)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(payload);
+        return doc.RootElement.TryGetProperty("method", out var method) ? method.GetString() : null;
+    }
+
+    [Fact]
+    public async Task GetProjectStatusAsync_SendsGetProjectStatusOperationOnly()
+    {
+        using var client = CreateClient();
+
+        var result = await client.GetProjectStatusAsync("echo");
+
+        Assert.True(result.Success);
+        Assert.Equal("get_project_status", ExtractEchoedMethod(result.Payload));
+    }
+
+    [Fact]
+    public async Task ProbeProjectStatusForLifecycleAsync_SendsProbeOperationOnly()
+    {
+        using var client = CreateClient();
+
+        var result = await client.ProbeProjectStatusForLifecycleAsync("echo");
+
+        Assert.True(result.Success);
+        Assert.Equal("probe_project_status_for_lifecycle", ExtractEchoedMethod(result.Payload));
+    }
+
+    [Fact]
+    public async Task DirectGetProjectStatus_UsesGetProjectStatusOperationOnly()
+    {
+        using var client = CreateClient();
+
+        // "direct-status-only" fails the call unless the worker request's method is exactly
+        // get_project_status - proving the user-facing tool never routes through the internal
+        // lifecycle probe.
+        var result = await ProjectLifecycleTools.GetProjectStatus(client, projectPath: "direct-status-only");
+        using var doc = System.Text.Json.JsonDocument.Parse(result);
+
+        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+    }
+
+    [Fact]
+    public async Task NoProjectOpen_DirectStatusReturnsIsOpenFalse()
+    {
+        using var client = CreateClient();
+
+        var result = await ProjectLifecycleTools.GetProjectStatus(client, projectPath: "status-no-project");
+        using var doc = System.Text.Json.JsonDocument.Parse(result);
+
+        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+        using var payloadDoc = System.Text.Json.JsonDocument.Parse(doc.RootElement.GetProperty("payload").GetString()!);
+        Assert.False(payloadDoc.RootElement.GetProperty("isOpen").GetBoolean());
+    }
+
+    [Fact]
+    public async Task SaveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+        const string projectPath = "lifecycle-probe-only";
+
+        var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+
+        var applied = await ProjectLifecycleTools.SaveProject(
+            client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+
+        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+    }
+
+    [Fact]
+    public async Task SaveProjectAs_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+        const string projectPath = "lifecycle-probe-only";
+
+        var preview = await ProjectLifecycleTools.SaveProjectAs(
+            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: false);
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+
+        var applied = await ProjectLifecycleTools.SaveProjectAs(
+            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: false,
+            confirm: true, safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+
+        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ArchiveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+        const string projectPath = "lifecycle-probe-only";
+
+        var preview = await ProjectLifecycleTools.ArchiveProject(
+            client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath);
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+
+        var applied = await ProjectLifecycleTools.ArchiveProject(
+            client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath,
+            confirm: true, safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+
+        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+    }
+
+    [Fact]
+    public async Task CloseProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+        const string projectPath = "lifecycle-probe-only";
+
+        var preview = await ProjectLifecycleTools.CloseProject(client, safety, projectPath: projectPath);
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+
+        var applied = await ProjectLifecycleTools.CloseProject(
+            client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+
+        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
     }
 }

@@ -116,6 +116,7 @@ internal static class Program
                 "update_user_constant" => UpdateUserConstant(request),
                 "delete_user_constant" => DeleteUserConstant(request),
                 "get_project_status"  => GetProjectStatus(request),
+                "probe_project_status_for_lifecycle" => ProbeProjectStatusForLifecycle(request),
                 "create_block"        => CreateBlock(request),
                 "delete_block"        => DeleteBlock(request),
                 "create_block_group"  => CreateBlockGroup(request),
@@ -500,10 +501,29 @@ internal static class Program
     {
         return ProjectLifecycle(request, session =>
         {
-            var status = ProjectLifecycleService.GetStatus(session, request.ProjectPath);
+            var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath);
             return new ProjectLifecycleResultInfo
             {
                 Operation = "get_project_status",
+                ProjectPath = status.Path,
+                Project = status
+            };
+        }, requiresConfirm: false);
+    }
+
+    /// <summary>
+    /// Internal state probe for save/save-as/archive/close preview and apply-time
+    /// current-state checks. Never registered as an MCP tool; callable only via this worker
+    /// operation name from the host's <c>OpennessWorkerClient.ProbeProjectStatusForLifecycleAsync</c>.
+    /// </summary>
+    private static WorkerResponse ProbeProjectStatusForLifecycle(WorkerRequest request)
+    {
+        return ProjectLifecycle(request, session =>
+        {
+            var status = ProjectLifecycleService.ProbeStatusForLifecycle(session, request.ProjectPath);
+            return new ProjectLifecycleResultInfo
+            {
+                Operation = "probe_project_status_for_lifecycle",
                 ProjectPath = status.Path,
                 Project = status
             };

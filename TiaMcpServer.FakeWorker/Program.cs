@@ -90,6 +90,28 @@ while ((line = Console.In.ReadLine()) is not null)
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
             break;
+        case "direct-status-only":
+            // Used to prove the direct get_project_status MCP tool routes through the
+            // GetProjectStatusAsync operation only, never the internal lifecycle probe.
+            Respond(ReadMethod(line) == "get_project_status"
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
+            break;
+        case "status-no-project":
+            // Simulates the real worker's GetStatusReadOnly when nothing is open and no path
+            // was requested: isOpen:false, no resolvedProjectPath - nothing was opened.
+            Respond("""{"success":true,"payload":"{\"isOpen\":false}"}""");
+            break;
+        case "lifecycle-probe-only":
+            // Guards against a regression where a save/save-as/archive/close current-state
+            // read reverts to the direct status operation: fails ONLY when the request used
+            // get_project_status; every other operation (the probe itself, or the tool's own
+            // write call that follows) succeeds normally so the full preview/apply round trip
+            // can complete.
+            Respond(ReadMethod(line) == "get_project_status"
+                ? """{"success":false,"error":"current-state read must use probe_project_status_for_lifecycle, not get_project_status"}"""
+                : """{"success":true,"payload":"{\"isOpen\":true}"}""");
+            break;
         default:
             Respond($$"""{"success":false,"error":"unknown scenario '{{scenario}}'"}""");
             break;
@@ -100,4 +122,17 @@ void Respond(string json)
 {
     Console.Out.WriteLine(json);
     Console.Out.Flush();
+}
+
+string? ReadMethod(string requestLine)
+{
+    try
+    {
+        using var doc = JsonDocument.Parse(requestLine);
+        return doc.RootElement.TryGetProperty("method", out var method) ? method.GetString() : null;
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
 }
