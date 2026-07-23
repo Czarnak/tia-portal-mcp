@@ -31,10 +31,16 @@ public static class BlockExporter
                 documentName => target.Block!.ExportAsDocuments(
                     new DirectoryInfo(verificationDirectory),
                     documentName));
-            var primaryPath = Path.Combine(verificationDirectory, primaryDocumentName);
-            reExportSucceeded = result.State == DocumentResultState.Success
-                && File.Exists(primaryPath)
-                && new FileInfo(primaryPath).Length > 0;
+            reExportSucceeded = BlockPostconditionVerifier.VerifyReExportedPrimaryDocument(
+                target.DocumentName,
+                primaryDocumentName,
+                documentName =>
+                {
+                    var documentPath = Path.Combine(verificationDirectory, documentName);
+                    return result.State == DocumentResultState.Success
+                        && File.Exists(documentPath)
+                        && new FileInfo(documentPath).Length > 0;
+                });
             diagnosticMessage = reExportSucceeded
                 ? "Verified."
                 : "Re-export did not produce a non-empty primary document.";

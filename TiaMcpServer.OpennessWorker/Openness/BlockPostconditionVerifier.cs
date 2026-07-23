@@ -36,4 +36,16 @@ internal static class BlockPostconditionVerifier
             "Block update postcondition failed: " + evidence.DiagnosticMessage,
             new[] { UncertainStateWarning });
     }
+
+    internal static bool VerifyReExportedPrimaryDocument(
+        string resolvedTargetDocumentName,
+        string primaryDocumentName,
+        Func<string, bool> isNonEmptyDocument)
+    {
+        if (resolvedTargetDocumentName is null) throw new ArgumentNullException(nameof(resolvedTargetDocumentName));
+        if (primaryDocumentName is null) throw new ArgumentNullException(nameof(primaryDocumentName));
+        if (isNonEmptyDocument is null) throw new ArgumentNullException(nameof(isNonEmptyDocument));
+
+        return isNonEmptyDocument(primaryDocumentName);
+    }
 }
