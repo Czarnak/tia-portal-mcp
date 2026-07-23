@@ -280,7 +280,11 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "YamlContent is required.");
         }
 
-        return WithProject(request, project => RawPayload(BlockImporter.Import(project, request.BlockPath!, request.YamlContent!)));
+        return WithProject(request, project =>
+        {
+            var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!);
+            return RawPayload(result.Payload, result.Warnings);
+        });
     }
 
     private static WorkerResponse ListTagTables(WorkerRequest request)
@@ -738,12 +742,13 @@ internal static class Program
         };
     }
 
-    private static WorkerResponse RawPayload(string payload)
+    private static WorkerResponse RawPayload(string payload, IReadOnlyList<string>? warnings = null)
     {
         return new WorkerResponse
         {
             Success = true,
-            Payload = payload
+            Payload = payload,
+            Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null
         };
     }
 

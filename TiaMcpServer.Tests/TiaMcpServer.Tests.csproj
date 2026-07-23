@@ -54,5 +54,9 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ParsedBlockImportBundle.cs" Link="Linked\Openness\ParsedBlockImportBundle.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportBundleParser.cs" Link="Linked\Openness\BlockImportBundleParser.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportStager.cs" Link="Linked\Openness\BlockImportStager.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockPostconditionEvidence.cs" Link="Linked\Openness\BlockPostconditionEvidence.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockPostconditionVerifier.cs" Link="Linked\Openness\BlockPostconditionVerifier.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportResult.cs" Link="Linked\Openness\BlockImportResult.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportCoordinator.cs" Link="Linked\Openness\BlockImportCoordinator.cs" />
   </ItemGroup>
 </Project>

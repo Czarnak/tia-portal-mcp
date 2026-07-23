@@ -93,6 +93,9 @@ while ((line = Console.In.ReadLine()) is not null)
             // worker-reported category instead of overwriting it with worker_operation_failed.
             Respond("""{"success":false,"error":"invalid value","failureCategory":"validation_error"}""");
             break;
+        case "update-block-postcondition-failed":
+            Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block update verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            break;
         case "malformed":
             Console.Out.WriteLine("this is not json");
             Console.Out.Flush();
