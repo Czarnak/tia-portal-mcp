@@ -84,6 +84,7 @@ public class CiWorkflowTests
         Assert.Equal("cobertura", Value("Format"));
         Assert.Equal("[TiaMcpServer]*,[TiaMcpServer.Contracts]*,[TiaMcpServer.Tests]TiaMcpServer.*", Value("Include"));
         Assert.Equal("[TiaMcpServer.Tests]TiaMcpServer.Tests.*,[TiaMcpServer.Tests]TiaMcpServer.OpennessWorker.*,[TiaMcpServer.FakeWorker]*,[TiaMcpServer.OpennessWorker]*", Value("Exclude"));
+        Assert.Equal("true", Value("IncludeTestAssembly"));
         Assert.Contains("GeneratedCodeAttribute", Value("ExcludeByAttribute"), StringComparison.Ordinal);
         Assert.Contains("CompilerGeneratedAttribute", Value("ExcludeByAttribute"), StringComparison.Ordinal);
         Assert.Contains("**/*.g.cs", Value("ExcludeByFile"), StringComparison.Ordinal);
