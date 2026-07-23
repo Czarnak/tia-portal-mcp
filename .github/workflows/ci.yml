@@ -24,15 +24,19 @@ jobs:
             - name: Build
               run: dotnet build TiaMcpServer.sln -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
 
-            - name: Run tests with coverage
-              # Uses the built-in Coverlet collector.
-              # We force the output into a specific directory so it's easy to find.
-              run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+            - name: Run scoped coverage
+              run: dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --configuration Release --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory TestResults
+
+            - name: Enforce coverage threshold
+              shell: pwsh
+              run: |
+                  $reports = @(Get-ChildItem -Path TestResults -Recurse -Filter coverage.cobertura.xml)
+                  if ($reports.Count -ne 1) { throw "Expected exactly one Cobertura report; found $($reports.Count)." }
+                  ./scripts/verify-coverage-threshold.ps1 -CoveragePath $reports[0].FullName -MinimumLineRate 0.80
 
             - name: Upload coverage to Codecov
               uses: codecov/codecov-action@v4
               with:
                   token: ${{ secrets.CODECOV_TOKEN }}
-                  # Coverlet creates a folder with a random GUID, so we use a wildcard (**)
-                  file: ./coverage/**/coverage.cobertura.xml
+                  file: TestResults/**/coverage.cobertura.xml
                   fail_ci_if_error: true

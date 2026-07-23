@@ -90,6 +90,43 @@ public class CiWorkflowTests
         Assert.Contains("**/*.Designer.cs", Value("ExcludeByFile"), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CiCoverage_CollectsThenEnforcesBeforeUpload()
+    {
+        var ciWorkflowPath = Path.Combine(GetRepositoryRoot(), ".github", "workflows", "ci.yml");
+        Assert.True(File.Exists(ciWorkflowPath), $"Expected CI workflow to exist at {ciWorkflowPath}");
+
+        var workflowText = File.ReadAllText(ciWorkflowPath);
+
+        var runsettingsIndex = workflowText.IndexOf(
+            "--settings TiaMcpServer.Tests/coverage.runsettings",
+            StringComparison.Ordinal);
+        var thresholdScriptIndex = workflowText.IndexOf(
+            "verify-coverage-threshold.ps1",
+            StringComparison.Ordinal);
+        var minimumLineRateIndex = workflowText.IndexOf(
+            "-MinimumLineRate 0.80",
+            StringComparison.Ordinal);
+        var codecovIndex = workflowText.IndexOf(
+            "codecov/codecov-action",
+            StringComparison.Ordinal);
+
+        Assert.True(runsettingsIndex >= 0, "Expected the CI workflow to collect coverage using coverage.runsettings.");
+        Assert.True(thresholdScriptIndex >= 0, "Expected the CI workflow to invoke verify-coverage-threshold.ps1.");
+        Assert.True(minimumLineRateIndex >= 0, "Expected the CI workflow to pass -MinimumLineRate 0.80.");
+        Assert.True(codecovIndex >= 0, "Expected the CI workflow to upload to Codecov.");
+
+        Assert.True(
+            runsettingsIndex < thresholdScriptIndex,
+            "Expected scoped coverage collection to precede the threshold script.");
+        Assert.True(
+            thresholdScriptIndex < minimumLineRateIndex,
+            "Expected the threshold script invocation to precede its -MinimumLineRate argument.");
+        Assert.True(
+            minimumLineRateIndex < codecovIndex,
+            "Expected the threshold enforcement to precede the Codecov upload.");
+    }
+
     private static IEnumerable<string> EnumerateWorkflowFiles()
     {
         var workflowsDirectory = Path.Combine(GetRepositoryRoot(), ".github", "workflows");
