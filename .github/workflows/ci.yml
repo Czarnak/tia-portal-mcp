@@ -18,11 +18,11 @@ jobs:
               with:
                   dotnet-version: "8.0.x"
 
-            - name: Restore dependencies
-              run: dotnet restore
+            - name: Restore
+              run: dotnet restore TiaMcpServer.sln
 
             - name: Build
-              run: dotnet build --no-restore --configuration Release
+              run: dotnet build TiaMcpServer.sln -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
 
             - name: Run tests with coverage
               # Uses the built-in Coverlet collector.
