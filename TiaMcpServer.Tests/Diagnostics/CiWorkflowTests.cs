@@ -9,6 +9,16 @@ public class CiWorkflowTests
         @"[\w./\\-]+\.(?:ps1|cmd|bat)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>
+    /// Matches the "-m:1" MSBuild node-count flag only as a whole, standalone token —
+    /// i.e. not as a prefix of a longer flag such as "-m:10" or "-m:12". A plain
+    /// substring check (e.g. <c>command.Contains("-m:1")</c>) would incorrectly accept
+    /// those longer flags too, since "-m:10" literally contains the substring "-m:1".
+    /// </summary>
+    private static readonly Regex SingleNodeBuildFlagPattern = new(
+        @"(?<=^|\s)-m:1(?=\s|$)",
+        RegexOptions.Compiled);
+
     [Fact]
     public void EverySolutionBuild_IsSerialized()
     {
@@ -20,7 +30,33 @@ public class CiWorkflowTests
             .ToArray();
 
         Assert.NotEmpty(solutionBuildCommands);
-        Assert.All(solutionBuildCommands, command => Assert.Contains("-m:1", command, StringComparison.Ordinal));
+        Assert.All(solutionBuildCommands, command => Assert.True(
+            SingleNodeBuildFlagPattern.IsMatch(command),
+            $"Expected solution build command to contain the exact '-m:1' flag as a standalone token, but it did not: {command}"));
+    }
+
+    [Theory]
+    [InlineData("dotnet build TiaMcpServer.sln -m:1", true)]
+    [InlineData("dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true", true)]
+    [InlineData("dotnet build TiaMcpServer.sln -m:10", false)]
+    [InlineData("dotnet build TiaMcpServer.sln -m:12", false)]
+    [InlineData("dotnet build TiaMcpServer.sln -m:100", false)]
+    public void SingleNodeBuildFlagPattern_MatchesOnlyExactToken(string command, bool expectedMatch)
+    {
+        Assert.Equal(expectedMatch, SingleNodeBuildFlagPattern.IsMatch(command));
+    }
+
+    [Fact]
+    public void SingleNodeBuildFlagPattern_RejectsFalsePositive_ThatOldSubstringCheckWouldHaveAccepted()
+    {
+        const string lookalikeCommand = "dotnet build TiaMcpServer.sln -m:10";
+
+        // This demonstrates the exact gap the old assertion had: "-m:10" contains the
+        // literal substring "-m:1", so `Assert.Contains("-m:1", command, ...)` passed here.
+        Assert.Contains("-m:1", lookalikeCommand, StringComparison.Ordinal);
+
+        // The corrected token-boundary check must reject this false positive.
+        Assert.DoesNotMatch(SingleNodeBuildFlagPattern, lookalikeCommand);
     }
 
     private static IEnumerable<string> EnumerateWorkflowFiles()
