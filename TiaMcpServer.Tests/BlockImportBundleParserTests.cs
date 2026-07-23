@@ -28,6 +28,67 @@ public class BlockImportBundleParserTests
     }
 
     [Theory]
+    [InlineData("Main.xml.")]
+    [InlineData("Main.xml. ")]
+    [InlineData("Main.xml ")]
+    public void Parse_RejectsDocumentNamesThatWindowsNormalizes(string name)
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse(name, "<Document />"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Theory]
+    [InlineData("Main?.xml")]
+    [InlineData("Main<.xml")]
+    public void Parse_RejectsNamesWithInvalidFileNameCharacters(string name)
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse(name, "<Document />"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Fact]
+    public void Parse_RejectsRootEscapingDocumentName()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse("../Main.xml", "<Document />"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Fact]
+    public void Parse_RejectsSeparatorContainingDocumentName()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse("folder/Main.xml", "<Document />"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Fact]
+    public void Parse_RejectsRootedDocumentName()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse("C:\\temp\\Main.xml", "<Document />"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Theory]
+    [InlineData(".")]
+    [InlineData("..")]
+    public void Parse_RejectsTraversalDocumentName(string name)
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse(name, "<Document />"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Theory]
     [InlineData("../Main.xml")]
     [InlineData("..\\Main.xml")]
     [InlineData("C:\\temp\\Main.xml")]
@@ -52,6 +113,42 @@ public class BlockImportBundleParserTests
         Assert.Equal("Main.xml", document.LogicalName);
         Assert.Equal("Main.xml", document.SafeFileName);
         Assert.Equal("<Document />", document.Content);
+    }
+
+    [Fact]
+    public void Parse_RejectsUndeclaredPreamble()
+    {
+        const string content = "<Preamble />\n--- FILE: Main.xml ---\n<Main />";
+
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse("fallback.xml", content));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Fact]
+    public void Parse_RejectsEmptyDeclaredDocument()
+    {
+        const string content = "--- FILE: Main.xml ---\n\n--- FILE: Types.xml ---\n<Types />";
+
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse("fallback.xml", content));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Fact]
+    public void ParsedBlockImportBundle_CopiesSuppliedDocumentList()
+    {
+        var documents = new List<BlockImportDocument>
+        {
+            new("Main.xml", "Main.xml", "<Main />")
+        };
+
+        var bundle = new ParsedBlockImportBundle("Main.xml", documents);
+        documents.Clear();
+
+        Assert.Single(bundle.Documents);
     }
 
     [Fact]

@@ -79,6 +79,8 @@ internal static class BlockImportBundleParser
             !string.Equals(Path.GetFileName(name), name, StringComparison.Ordinal) ||
             name == "." ||
             name == ".." ||
+            name.EndsWith(".", StringComparison.Ordinal) ||
+            name.EndsWith(" ", StringComparison.Ordinal) ||
             name.IndexOfAny(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\' }) >= 0 ||
             name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
