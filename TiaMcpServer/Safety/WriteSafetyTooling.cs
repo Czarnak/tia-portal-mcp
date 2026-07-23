@@ -77,11 +77,27 @@ public static class WriteSafetyTooling
         string? verificationName = null,
         string? verificationResult = null)
     {
+        // Failure is never rendered success-shaped: failureCategory/error/warnings are the
+        // whole story, with no operationResult/verification fields implying completion.
+        if (!operationResult.Success)
+        {
+            return JsonSerializer.Serialize(
+                new
+                {
+                    toolName,
+                    success = false,
+                    failureCategory = operationResult.FailureCategory,
+                    error = operationResult.Error,
+                    warnings = operationResult.Warnings.Count > 0 ? operationResult.Warnings : null
+                },
+                TiaJson.Presentation);
+        }
+
         return JsonSerializer.Serialize(
             new
             {
                 toolName,
-                success = operationResult.Success,
+                success = true,
                 operationResult = operationResult.ToText(),
                 warnings = operationResult.Warnings.Count > 0 ? operationResult.Warnings : null,
                 verification = verificationName is null

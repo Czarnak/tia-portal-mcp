@@ -92,7 +92,7 @@ internal static class Program
             var request = JsonSerializer.Deserialize<WorkerRequest>(line, JsonOptions);
             if (request is null)
             {
-                return Failure("Worker request was empty.");
+                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Worker request was empty.");
             }
 
             return request.Method switch
@@ -128,17 +128,25 @@ internal static class Program
                 "save_project_as"     => SaveProjectAs(request),
                 "archive_project"     => ArchiveProject(request),
                 "close_project"       => CloseProject(request),
-                _                     => Failure($"Unsupported worker method '{request.Method}'.")
+                _ => throw new WorkerOperationException(
+                    WorkerFailureCategories.ValidationError,
+                    $"Unsupported worker method '{request.Method}'.")
             };
         }
         catch (JsonException ex)
         {
-            return Failure($"Worker request was invalid JSON: {ex.Message}");
+            return Failure(WorkerFailureCategories.ValidationError, $"Worker request was invalid JSON: {ex.Message}");
+        }
+        catch (WorkerOperationException ex)
+        {
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine(ex);
-            return Failure($"{ex.GetType().Name}: {ex.Message}");
+            // Type + message only — never the full exception (which includes a stack trace) —
+            // since this is captured into the response's Warnings by HandleLineWithCapturedStderr.
+            Console.Error.WriteLine($"Unhandled worker exception: {ex.GetType().Name}: {ex.Message}");
+            return Failure(WorkerFailureCategories.WorkerOperationFailed, $"{ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -160,7 +168,7 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(request.Query))
         {
-            return Failure("Query is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Query is required.");
         }
 
         return WithSession(request, session =>
@@ -175,7 +183,9 @@ internal static class Program
 
             if (session.TiaPortal is null)
             {
-                return Failure("No TIA Portal session is connected. Please start TIA Portal and try again.");
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No TIA Portal session is connected. Please start TIA Portal and try again.");
             }
 
             return Success(EquipmentCatalogSearcher.Search(session.TiaPortal, request.Query!, request.MaxResults));
@@ -186,17 +196,21 @@ internal static class Program
     {
         if (!CatalogTypeIdentifier.IsCreatable(request.TypeIdentifier))
         {
-            return Failure(CatalogTypeIdentifier.BuildValidationMessage(request.TypeIdentifier));
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                CatalogTypeIdentifier.BuildValidationMessage(request.TypeIdentifier));
         }
 
         if (string.IsNullOrWhiteSpace(request.DeviceName))
         {
-            return Failure("DeviceName is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "DeviceName is required.");
         }
 
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with adding a network device.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with adding a network device.");
         }
 
         return WithProject(request, project => Success(NetworkDeviceCreator.Create(
@@ -210,12 +224,14 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(request.DeviceName))
         {
-            return Failure("DeviceName is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "DeviceName is required.");
         }
 
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with configuring a network device.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with configuring a network device.");
         }
 
         return WithProject(request, project => Success(NetworkDeviceConfigurator.Configure(
@@ -235,7 +251,9 @@ internal static class Program
                 out var filter,
                 out var filterError))
         {
-            return Failure(filterError ?? "Invalid cross-reference filter.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                filterError ?? "Invalid cross-reference filter.");
         }
 
         return WithProject(request, project => Success(
@@ -246,7 +264,7 @@ internal static class Program
     {
         if (string.IsNullOrEmpty(request.BlockPath))
         {
-            return Failure("BlockPath is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
         return WithProject(request, project => RawPayload(BlockExporter.Export(project, request.BlockPath!)));
@@ -256,12 +274,12 @@ internal static class Program
     {
         if (string.IsNullOrEmpty(request.BlockPath))
         {
-            return Failure("BlockPath is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
         if (string.IsNullOrEmpty(request.YamlContent))
         {
-            return Failure("YamlContent is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "YamlContent is required.");
         }
 
         return WithProject(request, project => RawPayload(BlockImporter.Import(project, request.BlockPath!, request.YamlContent!)));
@@ -372,17 +390,21 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(request.BlockPath))
         {
-            return Failure("BlockPath is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
         if (string.IsNullOrWhiteSpace(request.BlockType))
         {
-            return Failure("BlockType is required. Valid values: FB, FC, OB, GlobalDB.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "BlockType is required. Valid values: FB, FC, OB, GlobalDB.");
         }
 
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with creating a block.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with creating a block.");
         }
 
         return WithProject(request, project => Success(
@@ -398,12 +420,14 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(request.BlockPath))
         {
-            return Failure("BlockPath is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with deleting a block.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with deleting a block.");
         }
 
         return WithProject(request, project => Success(
@@ -414,12 +438,14 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(request.BlockPath))
         {
-            return Failure("BlockPath is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with creating a block group.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with creating a block group.");
         }
 
         return WithProject(request, project => Success(
@@ -430,12 +456,14 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(request.BlockPath))
         {
-            return Failure("BlockPath is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with deleting a block group.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with deleting a block group.");
         }
 
         return WithProject(request, project => Success(
@@ -446,7 +474,9 @@ internal static class Program
     {
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with starting the PLC.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with starting the PLC.");
         }
 
         return WithProject(request, project => Success(
@@ -457,7 +487,9 @@ internal static class Program
     {
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with stopping the PLC.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with stopping the PLC.");
         }
 
         return WithProject(request, project => Success(
@@ -482,7 +514,7 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(request.ProjectPath))
         {
-            return Failure("ProjectPath is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "ProjectPath is required.");
         }
 
         return ProjectLifecycle(
@@ -551,7 +583,9 @@ internal static class Program
     {
         if (!request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with the tag operation.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with the tag operation.");
         }
 
         return WithProject(request, project => Success(mutate(project)));
@@ -564,7 +598,9 @@ internal static class Program
     {
         if (requiresConfirm && !request.Confirm)
         {
-            return Failure("Operation not confirmed. Set confirm=true to proceed with the project operation.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with the project operation.");
         }
 
         return WithSession(request, session => Success(operation(session)));
@@ -585,7 +621,9 @@ internal static class Program
 
             if (session.Project is null)
             {
-                return Failure("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No project is open. Provide a projectPath argument or open a project in TIA Portal.");
             }
 
             return body(session.Project);
@@ -605,7 +643,9 @@ internal static class Program
                 session.OpenProject(requestedProjectPath!);
                 return null;
             case ProjectOpenDecision.Refuse:
-                return Failure(ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
+                return Failure(
+                    WorkerFailureCategories.BindingConflict,
+                    ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
             default:
                 return null;
         }
@@ -626,19 +666,21 @@ internal static class Program
         }
         catch (EngineeringException ex)
         {
-            return Failure($"TIA Portal operation failed: {ex.Message}");
+            return Failure(WorkerFailureCategories.WorkerOperationFailed, $"TIA Portal operation failed: {ex.Message}");
         }
         catch (NonRecoverableException ex)
         {
-            return Failure($"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
+            return Failure(
+                WorkerFailureCategories.WorkerOperationFailed,
+                $"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
         }
         catch (InvalidOperationException ex)
         {
-            return Failure(ex.Message);
+            return Failure(WorkerFailureCategories.WorkerOperationFailed, ex.Message);
         }
         catch (System.IO.IOException ex)
         {
-            return Failure(ex.Message);
+            return Failure(WorkerFailureCategories.WorkerOperationFailed, ex.Message);
         }
     }
 
@@ -688,12 +730,14 @@ internal static class Program
         };
     }
 
-    private static WorkerResponse Failure(string error)
+    private static WorkerResponse Failure(string failureCategory, string error, IReadOnlyList<string>? warnings = null)
     {
         return new WorkerResponse
         {
             Success = false,
-            Error = error
+            Error = error,
+            FailureCategory = failureCategory,
+            Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null
         };
     }
 }

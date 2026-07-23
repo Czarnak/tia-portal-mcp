@@ -65,6 +65,11 @@ while ((line = Console.In.ReadLine()) is not null)
         case "worker-error":
             Respond("""{"success":false,"error":"boom"}""");
             break;
+        case "worker-error-with-category":
+            // Proves OpennessWorkerClient.InvokeWorkerAsync preserves an approved
+            // worker-reported category instead of overwriting it with worker_operation_failed.
+            Respond("""{"success":false,"error":"invalid value","failureCategory":"validation_error"}""");
+            break;
         case "malformed":
             Console.Out.WriteLine("this is not json");
             Console.Out.Flush();
@@ -73,7 +78,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Console.Out.WriteLine("null");
             Console.Out.Flush();
             break;
-        case "silent-exit":
+        case "crash":
             Console.Error.WriteLine("worker crashed during attach");
             Console.Error.Flush();
             return;

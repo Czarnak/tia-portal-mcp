@@ -20,6 +20,9 @@ public class OpennessWorkerClientIntegrationTests
             workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(),
             requestTimeout: requestTimeout);
 
+    private const string InspectStateBeforeRetryGuidance =
+        "The write outcome is unknown. Inspect current project state before retrying.";
+
     [Fact]
     public async Task CollapsedOpenProject_PreviewThenApply_RoundTrips()
     {
@@ -69,31 +72,42 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task CrashedWorker_FailsTheRequestAndRestartsForTheNext()
-    {
-        using var client = CreateClient();
-
-        var crashed = await client.GetProjectStatusAsync("silent-exit");
-        var recovered = await client.GetProjectStatusAsync("ok");
-
-        Assert.False(crashed.Success);
-        Assert.Contains("worker crashed during attach", crashed.Error);
-        Assert.True(recovered.Success);
-        // A fresh process restarts its request counter.
-        Assert.Equal("{\"seq\":1}", recovered.Payload);
-    }
-
-    [Fact]
-    public async Task HangingWorker_TimesOutAndRestartsForTheNext()
+    public async Task HangingWrite_ReturnsWorkerTimeout_AndIsIssuedOnce()
     {
         using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
 
         var timedOut = await client.GetProjectStatusAsync("hang");
+        // SendAsync issues exactly one write+read per call (no internal retry loop); the fresh
+        // process below restarting at seq=1 is the observable evidence that the timed-out
+        // request was never reissued against a still-alive worker.
         var recovered = await client.GetProjectStatusAsync("ok");
 
         Assert.False(timedOut.Success);
-        Assert.Contains("did not respond", timedOut.Error);
+        Assert.Equal(WorkerFailureCategories.WorkerTimeout, timedOut.FailureCategory);
+        Assert.Equal(InspectStateBeforeRetryGuidance, timedOut.Error);
         Assert.True(recovered.Success);
+        // A fresh process restarts its request counter — proves the worker was restarted for
+        // the NEXT call only, never replayed for the one that timed out.
+        Assert.Equal("{\"seq\":1}", recovered.Payload);
+    }
+
+    [Theory]
+    [InlineData("crash")]
+    [InlineData("malformed")]
+    [InlineData("null-response")]
+    public async Task LostWrite_ReturnsWorkerCrashed_AndIsIssuedOnce(string scenario)
+    {
+        using var client = CreateClient();
+
+        var lost = await client.GetProjectStatusAsync(scenario);
+        var recovered = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(lost.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerCrashed, lost.FailureCategory);
+        Assert.Equal(InspectStateBeforeRetryGuidance, lost.Error);
+        Assert.True(recovered.Success);
+        // A fresh process restarts its request counter — proves the crashed/lost worker was
+        // restarted for the NEXT call only, never replayed for the one that was lost.
         Assert.Equal("{\"seq\":1}", recovered.Payload);
     }
 
@@ -137,6 +151,19 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(result.Success);
         Assert.Equal("boom", result.Error);
         Assert.Equal("Error: boom", result.ToText());
+        // The worker reported no category, so the client defaults to worker_operation_failed.
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+    }
+
+    [Fact]
+    public async Task WorkerReportedErrorWithApprovedCategory_PreservesIt()
+    {
+        using var client = CreateClient();
+        var result = await client.GetProjectStatusAsync("worker-error-with-category");
+
+        Assert.False(result.Success);
+        Assert.Equal("invalid value", result.Error);
+        Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
     }
 
     [Fact]
@@ -163,36 +190,6 @@ public class OpennessWorkerClientIntegrationTests
         Assert.True(succeeded.Success);
         Assert.False(changedProject.Success);
         Assert.Contains("already bound to project 'C:\\resolved\\Ground.ap21'", changedProject.Error);
-    }
-
-    [Fact]
-    public async Task MalformedResponse_FailsAndRestartsForTheNext()
-    {
-        using var client = CreateClient();
-
-        var malformed = await client.GetProjectStatusAsync("malformed");
-        var recovered = await client.GetProjectStatusAsync("ok");
-
-        Assert.False(malformed.Success);
-        Assert.NotNull(malformed.Error);
-        // The desynced process was killed; a fresh one serves the next request.
-        Assert.True(recovered.Success);
-        Assert.Equal("{\"seq\":1}", recovered.Payload);
-    }
-
-    [Fact]
-    public async Task NullResponse_FailsAndRestartsForTheNext()
-    {
-        using var client = CreateClient();
-
-        var nullResponse = await client.GetProjectStatusAsync("null-response");
-        var recovered = await client.GetProjectStatusAsync("ok");
-
-        Assert.False(nullResponse.Success);
-        Assert.Contains("empty response", nullResponse.Error);
-        // The protocol-invalid process must be replaced, not reused.
-        Assert.True(recovered.Success);
-        Assert.Equal("{\"seq\":1}", recovered.Payload);
     }
 
     [Fact]
@@ -345,6 +342,7 @@ public class OpennessWorkerClientIntegrationTests
             Assert.False(result.Success);
             Assert.Contains(".NET Framework 4.8", result.Error);
             Assert.Contains("openness-worker", result.Error);
+            Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
         }
         finally
         {

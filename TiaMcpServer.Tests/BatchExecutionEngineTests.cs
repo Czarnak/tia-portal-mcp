@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -38,7 +39,9 @@ public class BatchExecutionEngineTests
 
         var results = await BatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            op => Task.FromResult(op.OperationId == "b" ? WorkerCallResult.Fail("not found") : WorkerCallResult.Ok("ok")));
+            op => Task.FromResult(op.OperationId == "b"
+                ? WorkerCallResult.Fail(WorkerFailureCategories.WorkerOperationFailed, "not found")
+                : WorkerCallResult.Ok("ok")));
 
         Assert.Equal(BatchOperationStatus.Succeeded, results[0].Status);
         Assert.Equal(BatchOperationStatus.Failed, results[1].Status);
@@ -74,7 +77,9 @@ public class BatchExecutionEngineTests
             op =>
             {
                 invoked.Add(op.OperationId);
-                return Task.FromResult(op.OperationId == "b" ? WorkerCallResult.Fail("boom") : WorkerCallResult.Ok("done"));
+                return Task.FromResult(op.OperationId == "b"
+                    ? WorkerCallResult.Fail(WorkerFailureCategories.WorkerOperationFailed, "boom")
+                    : WorkerCallResult.Ok("done"));
             });
 
         Assert.Equal(BatchOperationStatus.Succeeded, results[0].Status);

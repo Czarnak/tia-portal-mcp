@@ -111,7 +111,7 @@ public class OpennessWorkerClient : IDisposable
         // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
         {
-            return Task.FromResult(WorkerCallResult.Fail(filterError!));
+            return Task.FromResult(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, filterError!));
         }
 
         return SendBoundProjectRequestAsync(
@@ -474,7 +474,7 @@ public class OpennessWorkerClient : IDisposable
     {
         if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
         {
-            return WorkerCallResult.Fail(bindingError!);
+            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
         }
 
         var result = await InvokeWorkerAsync(
@@ -494,7 +494,7 @@ public class OpennessWorkerClient : IDisposable
 
         if (!_projectSessionBinding.Bind(projectPath, forceRebind, out var bindError))
         {
-            return WorkerCallResult.Fail(bindError!, result.Warnings);
+            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindError!, result.Warnings);
         }
 
         return string.IsNullOrEmpty(result.Payload) ? result with { Payload = "{}" } : result;
@@ -589,7 +589,7 @@ public class OpennessWorkerClient : IDisposable
     {
         if (!ArchiveModeNames.TryNormalize(mode, out var normalizedMode, out var modeError))
         {
-            return Task.FromResult(WorkerCallResult.Fail(modeError!));
+            return Task.FromResult(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, modeError!));
         }
 
         return SendBoundProjectRequestAsync(
@@ -639,7 +639,7 @@ public class OpennessWorkerClient : IDisposable
         var sessionWasUnbound = boundProjectPathBeforeCall is null;
         if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
         {
-            return WorkerCallResult.Fail(bindingError!);
+            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
         }
 
         var request = new WorkerRequest
@@ -722,10 +722,21 @@ public class OpennessWorkerClient : IDisposable
         return combined;
     }
 
+    /// <summary>
+    /// Message used for every transport-level failure (timeout, crash, broken pipe, null
+    /// response, malformed protocol data): the write may or may not have reached TIA Portal, so
+    /// the caller must inspect current state rather than assume either outcome and retry.
+    /// </summary>
+    private const string InspectStateBeforeRetryGuidance =
+        "The write outcome is unknown. Inspect current project state before retrying.";
+
     private async Task<WorkerCallResult> InvokeWorkerAsync(WorkerRequest request)
     {
         try
         {
+            // Exactly one transport request per call: SendAsync neither loops nor retries: on any
+            // failure below the transport already killed/will-recreate its process on the NEXT
+            // call, and this method never re-invokes SendAsync for the request that just failed.
             var response = await GetOrCreateTransport().SendAsync(request).ConfigureAwait(false);
             var warnings = CapWarnings(response.Warnings);
             foreach (var warning in warnings)
@@ -733,25 +744,43 @@ public class OpennessWorkerClient : IDisposable
                 _logger?.LogWarning("TIA Openness worker warning: {Line}", warning);
             }
 
-            return response.Success
-                ? WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings) with
-                    {
-                        ResolvedProjectPath = response.ResolvedProjectPath
-                    }
-                : WorkerCallResult.Fail(
-                    response.Error ?? "The TIA Openness worker failed without an error message.",
-                    warnings);
+            if (response.Success)
+            {
+                return WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings) with
+                {
+                    ResolvedProjectPath = response.ResolvedProjectPath
+                };
+            }
+
+            var failureCategory = WorkerFailureCategories.IsKnown(response.FailureCategory)
+                ? response.FailureCategory!
+                : WorkerFailureCategories.WorkerOperationFailed;
+            return WorkerCallResult.Fail(
+                failureCategory,
+                response.Error ?? "The TIA Openness worker failed without an error message.",
+                warnings);
         }
         catch (Win32Exception ex)
         {
+            // The worker process never started (e.g. missing/invalid executable): a distinct,
+            // more actionable failure than a mid-request crash, so it keeps its own message and
+            // the generic worker-operation-failed category rather than worker_crashed.
             return WorkerCallResult.Fail(
+                WorkerFailureCategories.WorkerOperationFailed,
                 $"Failed to launch the TIA Openness worker process ({ex.Message}). "
                 + "Verify that .NET Framework 4.8 is installed and that the 'openness-worker' folder "
                 + "beside the MCP server executable is complete; rebuild or reinstall if files are missing.");
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException or JsonException)
+        catch (TimeoutException)
         {
-            return WorkerCallResult.Fail(ex.Message);
+            return WorkerCallResult.Fail(WorkerFailureCategories.WorkerTimeout, InspectStateBeforeRetryGuidance);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException)
+        {
+            // Broken pipe (IOException), a crashed/null response or a failed process launch
+            // (InvalidOperationException), or malformed/protocol-desynced JSON (JsonException) —
+            // all mean the worker cannot be trusted to have completed the request as sent.
+            return WorkerCallResult.Fail(WorkerFailureCategories.WorkerCrashed, InspectStateBeforeRetryGuidance);
         }
     }
 
