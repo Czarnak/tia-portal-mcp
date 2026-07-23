@@ -11,10 +11,14 @@ internal static class BlockImportCoordinator
         string documentName,
         string rawContent,
         Action<DirectoryInfo, string> importDocuments,
-        Func<BlockPostconditionEvidence> verifyPostcondition)
+        Func<BlockPostconditionEvidence> verifyPostcondition,
+        Action<string>? cleanupDirectory = null)
     {
         if (importDocuments is null) throw new ArgumentNullException(nameof(importDocuments));
         if (verifyPostcondition is null) throw new ArgumentNullException(nameof(verifyPostcondition));
+
+        Action<string> deleteDirectory = cleanupDirectory
+            ?? (path => Directory.Delete(path, recursive: true));
 
         var bundle = BlockImportBundleParser.Parse(documentName, rawContent);
         var warnings = new List<string>();
@@ -45,11 +49,12 @@ internal static class BlockImportCoordinator
         }
         finally
         {
-            if (!string.IsNullOrEmpty(stagingPath) && Directory.Exists(stagingPath))
+            var cleanupPath = stagingPath;
+            if (cleanupPath is not null && cleanupPath.Length > 0 && Directory.Exists(cleanupPath))
             {
                 try
                 {
-                    Directory.Delete(stagingPath, recursive: true);
+                    deleteDirectory(cleanupPath);
                 }
                 catch (Exception exception)
                 {

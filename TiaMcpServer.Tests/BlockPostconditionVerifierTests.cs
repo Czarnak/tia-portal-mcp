@@ -52,4 +52,20 @@ public class BlockPostconditionVerifierTests
         Assert.Contains(exception.Warnings, warning =>
             warning.Contains("project state may have changed", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void ReExportPrimaryDocument_PassesDeclaredPrimaryDocumentNameToExporter()
+    {
+        string? exportedDocumentName = null;
+
+        BlockPostconditionVerifier.ReExportPrimaryDocument(
+            "DeclaredPrimary.s7dcl",
+            documentName =>
+            {
+                exportedDocumentName = documentName;
+                return 0;
+            });
+
+        Assert.Equal("DeclaredPrimary.s7dcl", exportedDocumentName);
+    }
 }

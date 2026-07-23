@@ -98,4 +98,40 @@ public class BlockImportCoordinatorTests
         Assert.NotNull(failedStagingPath);
         Assert.False(Directory.Exists(failedStagingPath));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Execute_CleanupFailure_AddsCappedWarningWithoutChangingOutcome(bool importFails)
+    {
+        var cleanupFailure = new string('x', 600);
+
+        if (importFails)
+        {
+            var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+                "Main.xml",
+                "<Main />",
+                (_, _) => throw new InvalidOperationException("Import failed."),
+                () => new BlockPostconditionEvidence(true, true, "Verified."),
+                cleanupDirectory: _ => throw new IOException(cleanupFailure)));
+
+            Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, exception.FailureCategory);
+            var warning = Assert.Single(exception.Warnings);
+            Assert.StartsWith("Block import staging cleanup failed: ", warning);
+            Assert.Equal(512, warning.Length);
+            return;
+        }
+
+        var result = BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _) => { },
+            () => new BlockPostconditionEvidence(true, true, "Verified."),
+            cleanupDirectory: _ => throw new IOException(cleanupFailure));
+
+        Assert.Equal("Import succeeded.", result.Payload);
+        var successWarning = Assert.Single(result.Warnings);
+        Assert.StartsWith("Block import staging cleanup failed: ", successWarning);
+        Assert.Equal(512, successWarning.Length);
+    }
 }

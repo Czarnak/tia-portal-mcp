@@ -8,6 +8,20 @@ internal static class BlockPostconditionVerifier
     private const string UncertainStateWarning =
         "Project state may have changed; inspect the project before retrying.";
 
+    internal static T ReExportPrimaryDocument<T>(
+        string primaryDocumentName,
+        Func<string, T> exportDocuments)
+    {
+        if (string.IsNullOrWhiteSpace(primaryDocumentName))
+        {
+            throw new ArgumentException("A primary document name is required.", nameof(primaryDocumentName));
+        }
+
+        if (exportDocuments is null) throw new ArgumentNullException(nameof(exportDocuments));
+
+        return exportDocuments(primaryDocumentName);
+    }
+
     public static void Verify(BlockPostconditionEvidence evidence)
     {
         if (evidence is null) throw new ArgumentNullException(nameof(evidence));

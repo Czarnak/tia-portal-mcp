@@ -26,9 +26,11 @@ public static class BlockExporter
             verificationDirectory = Path.Combine(Path.GetTempPath(), "tia-mcp-verify-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(verificationDirectory);
 
-            var result = target.Block!.ExportAsDocuments(
-                new DirectoryInfo(verificationDirectory),
-                target.DocumentName);
+            var result = BlockPostconditionVerifier.ReExportPrimaryDocument(
+                primaryDocumentName,
+                documentName => target.Block!.ExportAsDocuments(
+                    new DirectoryInfo(verificationDirectory),
+                    documentName));
             var primaryPath = Path.Combine(verificationDirectory, primaryDocumentName);
             reExportSucceeded = result.State == DocumentResultState.Success
                 && File.Exists(primaryPath)
