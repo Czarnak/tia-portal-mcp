@@ -189,6 +189,59 @@ mis-specification above — were only visible from a whole-branch view; neither 
 by reviewing a single task's diff. Worth budgeting for a broad review pass on any change that spans
 a process boundary.
 
+## CI and coverage foundation — DONE 2026-07-23 (Phase 5 Plan 1)
+
+Solution builds are serialized (`-m:1`), a scoped coverage gate is wired into CI (collect → enforce
+locally at `>= 0.80` → Codecov upload, reporting-only), and all three are pinned by named tests in
+`CiWorkflowTests`/`CoverageThresholdScriptTests`.
+
+A gap was found and fixed mid-implementation: `TiaMcpServer.Tests` has no `ProjectReference` to
+`TiaMcpServer` (deliberate — a normal reference would drag `TiaMcpServer.csproj`'s `BeforeTargets="Build"`
+hook into building the net48 Openness worker against real `Siemens.Engineering*.dll`). Host code
+instead reaches the test project via `<Compile Include>` and compiles into the `TiaMcpServer.Tests`
+module, so assembly-scoped Coverlet filters (`[TiaMcpServer]*`) could never see it — the real Cobertura
+report contained only `TiaMcpServer.Contracts` (92%), while all host logic was silently swallowed by the
+`[TiaMcpServer.Tests]*` exclude. Fixed with namespace-scoped filters instead (`[TiaMcpServer.Tests]TiaMcpServer.*`
+include, carving back out `TiaMcpServer.Tests.*` and `TiaMcpServer.OpennessWorker.*`) plus
+`IncludeTestAssembly=true` (Coverlet defaults this `false`, which alone would have made the filter
+change a no-op). New aggregate: 0.836.
+
+### Follow-up architectural task (flagged by the final whole-branch review, not fixed in Plan 1)
+
+The fix above is correct today but couples the coverage gate's meaning to a namespace-naming
+convention rather than assembly identity: a future host class placed outside the `TiaMcpServer.*`
+namespace would be silently excluded from coverage (undercounting real code, potentially masking a
+genuine regression without failing any test), and a test-support class placed outside
+`TiaMcpServer.Tests.*` would be silently counted as production. The durable fix is a real
+`ProjectReference` from `TiaMcpServer.Tests` to `TiaMcpServer` with a build path that stays stub-safe
+(doesn't force the net48 Openness worker's real Siemens-DLL build during `dotnet test`). Scope that as
+its own task rather than folding it into a later phase's unrelated work. A cheap interim guard in the
+meantime: a test that fails if any instrumented type in the test assembly matching include-minus-exclude
+is itself a `[Fact]`/`[Theory]`-bearing class, turning silent scope drift into a loud one.
+
+### Smaller follow-ups from the same review
+
+- **`ReadRunCommandBlocks` (`CiWorkflowTests.cs`) misses inline `- run: <command>` YAML shorthand** —
+  the key-position guard rejects any line where text before `run:` is non-blank, which includes the
+  `- ` array-item marker. A solution build written in that shorthand (no sibling `name:`) would escape
+  the `-m:1` enforcement entirely. Not used by any current workflow; widen the guard to also accept a
+  lone leading `- ` if that style is ever introduced.
+- **`GetRepositoryRoot()` is duplicated verbatim** between `CiWorkflowTests.cs` and
+  `CoverageThresholdScriptTests.cs`, and its 4-level `../` walk assumes the standard
+  `bin/<config>/<tfm>/` output layout. Extract to one shared test helper.
+- **The threshold script accepts `NaN`/`Infinity` as a passing line-rate** (`NaN -lt $min` is `false`
+  in .NET) — unreachable with real Cobertura output, but an explicit `IsNaN`/`IsInfinity` guard is
+  cheap insurance.
+- **`CoverageThresholdScriptTests.RunScript` reads stdout then stderr with sequential `ReadToEnd()`
+  before `WaitForExit()`** — deadlock-prone in theory if either buffer fills; harmless today given the
+  script's one-line output. Switch to async reads if the script's output ever grows.
+- Status/error message interpolation in the threshold script isn't invariant-culture (cosmetic; moot
+  on GitHub's en-US-locale runners).
+- Worst-covered (0% line-rate) host classes, now visible now for the first time thanks to the fix
+  above, noted as a possible future test-writing target: `EnvironmentVariableService`,
+  `FileSystemService`, `ProcessEnumerationService`, `RegistryService`, `WindowsIdentityService` (thin
+  OS-adapter classes).
+
 ## Deferred / explicitly not planned
 
 - Splitting `WorkerRequest` into per-operation DTOs (churn > value while the protocol is stable).
