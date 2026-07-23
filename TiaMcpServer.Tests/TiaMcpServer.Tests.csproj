@@ -49,5 +49,9 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectRebindCloseGuard.cs" Link="Worker\ProjectRebindCloseGuard.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\AssemblyResolver.cs" Link="Worker\AssemblyResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerWarningMerger.cs" Link="Worker\WorkerWarningMerger.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationException.cs" Link="Linked\Openness\WorkerOperationException.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDocument.cs" Link="Linked\Openness\BlockImportDocument.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ParsedBlockImportBundle.cs" Link="Linked\Openness\ParsedBlockImportBundle.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportBundleParser.cs" Link="Linked\Openness\BlockImportBundleParser.cs" />
   </ItemGroup>
 </Project>
