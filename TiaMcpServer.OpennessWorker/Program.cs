@@ -62,10 +62,7 @@ internal static class Program
         }
 
         var captured = SplitWarningLines(buffer.ToString());
-        if (captured.Count > 0)
-        {
-            response.Warnings = captured;
-        }
+        response.Warnings = WorkerWarningMerger.Merge(response.Warnings, captured);
 
         return response;
     }

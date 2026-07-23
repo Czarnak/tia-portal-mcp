@@ -48,5 +48,6 @@
     <Compile Include="..\TiaMcpServer\Batch\BatchTools.cs" Link="Host\Batch\BatchTools.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectRebindCloseGuard.cs" Link="Worker\ProjectRebindCloseGuard.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\AssemblyResolver.cs" Link="Worker\AssemblyResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerWarningMerger.cs" Link="Worker\WorkerWarningMerger.cs" />
   </ItemGroup>
 </Project>
