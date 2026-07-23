@@ -59,6 +59,44 @@ public class AuditIsolationTests
     }
 
     [Fact]
+    public async Task SafetyRejectedApply_WritesNoAuditAndIsNotSuccess()
+    {
+        var defaultDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TiaMcpServer",
+            "audit");
+        var before = CountAuditLines(defaultDirectory);
+
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
+        using var client = new OpennessWorkerClient(
+            new ProjectSessionBinding(null),
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        // Real token from a preview, then apply against a DIFFERENT project path: rejected as
+        // binding_conflict before any worker call or audit append. A safety-rejected apply must
+        // never be audit-recorded nor rendered as success.
+        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "C:\\open\\Line.ap21");
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+
+        var applied = await ProjectLifecycleTools.OpenProject(
+            client, safety, projectPath: "C:\\other\\Line.ap21", confirm: true, safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+
+        Assert.False(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(
+            WorkerFailureCategories.BindingConflict,
+            appliedDoc.RootElement.GetProperty("failureCategory").GetString());
+
+        // No audit line in the injected directory, and nothing leaked to the process-wide default.
+        Assert.Equal(0, CountAuditLines(audit.Path));
+        Assert.Equal(before, CountAuditLines(defaultDirectory));
+    }
+
+    [Fact]
     public async Task RejectedSaveProjectAs_RebindFalse_WritesNoAuditAnywhere()
     {
         var defaultDirectory = Path.Combine(

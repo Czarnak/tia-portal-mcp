@@ -146,6 +146,35 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Theory]
+    [InlineData("hang")]
+    [InlineData("crash")]
+    [InlineData("malformed")]
+    [InlineData("null-response")]
+    public async Task UncertainOutcome_IssuesFailedWriteOnce_ThenRestartedWorkerServesTheNextRequests(string scenario)
+    {
+        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
+
+        var failed = await client.GetProjectStatusAsync(scenario);
+        Assert.False(failed.Success);
+        Assert.Contains(
+            failed.FailureCategory,
+            new[] { WorkerFailureCategories.WorkerTimeout, WorkerFailureCategories.WorkerCrashed });
+        Assert.Equal(InspectStateBeforeRetryGuidance, failed.Error);
+
+        // The failed write was issued exactly once (no internal retry loop). A fresh worker
+        // process serves the next request - seq resets to 1, proving the timed-out/lost request
+        // was never replayed on a surviving worker - and the request AFTER that is served by the
+        // SAME restarted process (seq=2), proving the restart is for the next caller only, not a
+        // new process per request.
+        var next = await client.GetProjectStatusAsync("ok");
+        var afterNext = await client.GetProjectStatusAsync("ok");
+
+        Assert.True(next.Success);
+        Assert.Equal("{\"seq\":1}", next.Payload);
+        Assert.Equal("{\"seq\":2}", afterNext.Payload);
+    }
+
+    [Theory]
     [InlineData("crash")]
     [InlineData("malformed")]
     [InlineData("null-response")]

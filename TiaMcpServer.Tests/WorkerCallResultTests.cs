@@ -76,6 +76,25 @@ public class WorkerCallResultTests
     }
 
     [Fact]
+    public void ToEnvelopeText_SuccessCarriesPayloadAndSeparateWarningsArray()
+    {
+        // A degraded-but-successful direct status read: warnings live in their own array, never
+        // concatenated into the payload, and failureCategory stays null on success.
+        var result = WorkerCallResult.Ok(
+            "{\"isOpen\":true}",
+            new[] { "Skipping device 'X' while reading hardware configuration: access denied." });
+
+        using var envelope = JsonDocument.Parse(result.ToEnvelopeText());
+        var root = envelope.RootElement;
+
+        Assert.True(root.GetProperty("success").GetBoolean());
+        Assert.Equal("{\"isOpen\":true}", root.GetProperty("payload").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("failureCategory").ValueKind);
+        Assert.Equal(1, root.GetProperty("warnings").GetArrayLength());
+        Assert.DoesNotContain("Skipping device", root.GetProperty("payload").GetString()!);
+    }
+
+    [Fact]
     public void ToEnvelopeText_KeepsFailureCategoryPrimaryEvenWhenWarningsExist()
     {
         var result = WorkerCallResult.Fail(

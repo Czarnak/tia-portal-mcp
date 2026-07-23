@@ -33,7 +33,7 @@ namespace TiaMcpServer.Tools
             if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "open_project", projectPath, target, $"Open and bind TIA Portal project '{projectPath}'.", requestedInput, WorkerCallResult.Ok(WriteSafetyTooling.DescribePathState(projectPath)), diff: null, instructions: ApplyInstructions("open_project"));
             if (!confirm) return ConfirmRequired("open_project");
             var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("open_project"), "open_project", projectPath, target, requestedInput, () => Task.FromResult(WorkerCallResult.Ok(WriteSafetyTooling.DescribePathState(projectPath)))).ConfigureAwait(false);
-            if (!safetyContext.IsValid) return safetyContext.Error!;
+            if (!safetyContext.IsValid) return SafetyFailure("open_project", safetyContext);
             var result = await workerClient.OpenProjectAsync(projectPath, forceRebind).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
             safety.AppendAudit("open_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
@@ -49,7 +49,7 @@ namespace TiaMcpServer.Tools
             if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "create_project", null, target, $"Create TIA Portal project '{projectName}' in '{projectDirectory}'.", requestedInput, WorkerCallResult.Ok(WriteSafetyTooling.DescribeProjectCreationState(projectDirectory, projectName)), diff: null, instructions: ApplyInstructions("create_project"));
             if (!confirm) return ConfirmRequired("create_project");
             var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("create_project"), "create_project", null, target, requestedInput, () => Task.FromResult(WorkerCallResult.Ok(WriteSafetyTooling.DescribeProjectCreationState(projectDirectory, projectName)))).ConfigureAwait(false);
-            if (!safetyContext.IsValid) return safetyContext.Error!;
+            if (!safetyContext.IsValid) return SafetyFailure("create_project", safetyContext);
             var result = await workerClient.CreateProjectAsync(projectDirectory, projectName, author, comment).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(null).ConfigureAwait(false)).ToText() : null;
             safety.AppendAudit("create_project", null, target, requestedInput, safetyContext.CurrentState, result.ToText());
@@ -65,7 +65,7 @@ namespace TiaMcpServer.Tools
             if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "save_project", projectPath, target, "Save the active TIA Portal project.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project"));
             if (!confirm) return ConfirmRequired("save_project");
             var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project"), "save_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
-            if (!safetyContext.IsValid) return safetyContext.Error!;
+            if (!safetyContext.IsValid) return SafetyFailure("save_project", safetyContext);
             var result = await workerClient.SaveProjectAsync(projectPath).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
             safety.AppendAudit("save_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
@@ -92,7 +92,7 @@ namespace TiaMcpServer.Tools
             if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "save_project_as", projectPath, target, $"Save active project as '{targetName}' in '{targetDirectory}'.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project_as"));
             if (!confirm) return ConfirmRequired("save_project_as");
             var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project_as"), "save_project_as", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
-            if (!safetyContext.IsValid) return safetyContext.Error!;
+            if (!safetyContext.IsValid) return SafetyFailure("save_project_as", safetyContext);
             var result = await workerClient.SaveProjectAsAsync(projectPath, targetDirectory, targetName, rebind).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(rebind ? null : projectPath).ConfigureAwait(false)).ToText() : null;
             safety.AppendAudit("save_project_as", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
@@ -108,7 +108,7 @@ namespace TiaMcpServer.Tools
             if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "archive_project", projectPath, target, $"Archive active project to '{archiveDirectory}\\{archiveName}'.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("archive_project"));
             if (!confirm) return ConfirmRequired("archive_project");
             var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("archive_project"), "archive_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
-            if (!safetyContext.IsValid) return safetyContext.Error!;
+            if (!safetyContext.IsValid) return SafetyFailure("archive_project", safetyContext);
             var result = await workerClient.ArchiveProjectAsync(projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
             safety.AppendAudit("archive_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
@@ -124,14 +124,32 @@ namespace TiaMcpServer.Tools
             if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "close_project", projectPath, target, "Close the active TIA Portal project.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("close_project"));
             if (!confirm) return ConfirmRequired("close_project");
             var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("close_project"), "close_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
-            if (!safetyContext.IsValid) return safetyContext.Error!;
+            if (!safetyContext.IsValid) return SafetyFailure("close_project", safetyContext);
             var result = await workerClient.CloseProjectAsync(projectPath, saveBeforeClose).ConfigureAwait(false);
             safety.AppendAudit("close_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("close_project", result, "get_project_status", null);
         }
 
         private static string ApplyInstructions(string toolName) => $"Preview only — nothing was changed. To apply, call {toolName} again with the same arguments plus confirm=true and this safetyToken.";
-        private static string ConfirmRequired(string toolName) => $"Safety token provided but confirm=false. Set confirm=true and resend the safetyToken to apply, or call {toolName} without safetyToken for a fresh preview.";
+
+        // confirm=false is caller input error: render it as a categorized validation_error envelope
+        // through the same BuildApplyResult path as every other guarded-write failure, never as a
+        // raw uncapped string.
+        private static string ConfirmRequired(string toolName) => WriteSafetyTooling.BuildApplyResult(
+            toolName,
+            WorkerCallResult.Fail(
+                WorkerFailureCategories.ValidationError,
+                $"Safety token provided but confirm=false. Set confirm=true and resend the safetyToken to apply, or call {toolName} without safetyToken for a fresh preview."));
+
+        // A safety-token rejection already carries a real category (validation_error / binding_conflict
+        // / state_changed, or an uncertain read outcome's own category); surface it as the same
+        // categorized envelope shape, not a bare error string.
+        private static string SafetyFailure(string toolName, WriteSafetyApplyContext safetyContext) => WriteSafetyTooling.BuildApplyResult(
+            toolName,
+            WorkerCallResult.Fail(
+                safetyContext.FailureCategory ?? WorkerFailureCategories.ValidationError,
+                safetyContext.Error ?? "Safety validation failed."));
+
         private static string PreviewHint(string toolName) => $"{toolName} (without safetyToken)";
     }
 }

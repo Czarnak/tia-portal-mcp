@@ -844,10 +844,14 @@ public class OpennessWorkerClient : IDisposable
 
     private static IReadOnlyList<string> AppendWarning(IReadOnlyList<string> warnings, string warning)
     {
+        // Route the appended line back through CapWarnings: the incoming warnings may already sit
+        // at the 20-line cap (a degraded read), so a bare append would push the surfaced list past
+        // the cap with no truncation marker. CapWarnings is the single capping authority and is
+        // idempotent for already-capped, short lines.
         var combined = new List<string>(warnings.Count + 1);
         combined.AddRange(warnings);
         combined.Add(warning);
-        return combined;
+        return CapWarnings(combined);
     }
 
     /// <summary>
