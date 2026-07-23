@@ -106,6 +106,56 @@ public class BlockImportStagerTests
     }
 
     [Fact]
+    public void Stage_RejectsAReusedRootWithAnUndeclaredFileBeforeWritingDocuments()
+    {
+        var stagingRoot = CreateStagingRoot();
+
+        try
+        {
+            File.WriteAllText(Path.Combine(stagingRoot, "undeclared.xml"), "<Undeclared />");
+            var bundle = CreateBundle(
+                new BlockImportDocument("Main.xml", "Main.xml", "<Main />"),
+                new BlockImportDocument("Types.xml", "Types.xml", "<Types />"));
+
+            var exception = Assert.Throws<WorkerOperationException>(
+                () => BlockImportStager.StageDocuments(stagingRoot, bundle));
+
+            Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+            Assert.False(File.Exists(Path.Combine(stagingRoot, "Main.xml")));
+            Assert.False(File.Exists(Path.Combine(stagingRoot, "Types.xml")));
+        }
+        finally
+        {
+            Directory.Delete(stagingRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Stage_RejectsAReusedRootWithAnUndeclaredSubdirectoryBeforeWritingDocuments()
+    {
+        var stagingRoot = CreateStagingRoot();
+
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(stagingRoot, "undeclared"));
+            var bundle = CreateBundle(
+                new BlockImportDocument("Main.xml", "Main.xml", "<Main />"),
+                new BlockImportDocument("Types.xml", "Types.xml", "<Types />"));
+
+            var exception = Assert.Throws<WorkerOperationException>(
+                () => BlockImportStager.StageDocuments(stagingRoot, bundle));
+
+            Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+            Assert.False(File.Exists(Path.Combine(stagingRoot, "Main.xml")));
+            Assert.False(File.Exists(Path.Combine(stagingRoot, "Types.xml")));
+        }
+        finally
+        {
+            Directory.Delete(stagingRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Stage_DoesNotCreateUndeclaredFiles()
     {
         var stagingRoot = CreateStagingRoot();

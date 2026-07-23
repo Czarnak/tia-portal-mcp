@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using TiaMcpServer.Contracts;
 
@@ -15,6 +16,11 @@ internal static class BlockImportStager
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
 
         var canonicalRoot = CanonicalizeRoot(stagingRoot);
+        if (Directory.EnumerateFileSystemEntries(canonicalRoot).Any())
+        {
+            throw ValidationFailure("Block import staging root must not contain undeclared entries.");
+        }
+
         var stagedPaths = new List<string>(bundle.Documents.Count);
 
         foreach (var document in bundle.Documents)
