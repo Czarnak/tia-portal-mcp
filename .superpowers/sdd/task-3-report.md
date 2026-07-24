@@ -121,6 +121,60 @@ Result: `549` passed, `0` failed, `0` skipped.
 - `TiaMcpServer.Tests/BlockPostconditionVerifierTests.cs`
 - `.superpowers/sdd/task-3-report.md`
 
+## Final Review Fixes
+
+### Fix Summary
+
+- Added an internal, dependency-free `BlockExporter` verification seam. The Siemens-facing `VerifyPrimaryDocument` now delegates its re-export and verification-temp cleanup into that seam.
+- Added direct `BlockExporter` regression coverage that asserts the export delegate receives the declared primary document name when it differs from the resolved target document name.
+- Added verification-temp cleanup-failure coverage for both re-export outcomes. The warning is capped at 512 characters and does not change the postcondition result.
+
+### TDD RED/GREEN Evidence
+
+#### RED
+
+```powershell
+dotnet test TiaMcpServer.Tests\TiaMcpServer.Tests.csproj --no-restore --filter "FullyQualifiedName~BlockExporterVerificationTests" -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: failed as expected with `CS2001` because the linked `BlockExporterVerification` production seam did not yet exist.
+
+#### GREEN
+
+```powershell
+dotnet test TiaMcpServer.Tests\TiaMcpServer.Tests.csproj --no-restore --filter "FullyQualifiedName~BlockExporterVerificationTests" -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: passed, 3/3 tests.
+
+### Covering Tests
+
+```powershell
+dotnet test TiaMcpServer.Tests\TiaMcpServer.Tests.csproj --no-build --filter "FullyQualifiedName~BlockExporterVerificationTests|FullyQualifiedName~BlockPostconditionVerifierTests|FullyQualifiedName~BlockImportCoordinatorTests" -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: passed, 15/15 tests.
+
+```powershell
+dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: initial sandboxed restore was blocked by NuGet TLS/authentication `NU1301`; the required rerun with external package access succeeded with 0 warnings and 0 errors.
+
+```powershell
+dotnet test TiaMcpServer.sln --no-build -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: passed, 552/552 tests.
+
+### Files Changed
+
+- `TiaMcpServer.OpennessWorker/Openness/BlockExporter.cs`
+- `TiaMcpServer.OpennessWorker/Openness/BlockExporterVerification.cs`
+- `TiaMcpServer.Tests/BlockExporterVerificationTests.cs`
+- `TiaMcpServer.Tests/TiaMcpServer.Tests.csproj`
+- `.superpowers/sdd/task-3-report.md`
+
 ## Self-review Findings
 
 - Fixed before final verification: multi-document verification must use the first declared document, not the single-document fallback name.

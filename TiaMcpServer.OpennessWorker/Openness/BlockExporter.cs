@@ -7,69 +7,36 @@ using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 
-public static class BlockExporter
+public static partial class BlockExporter
 {
     internal static BlockPostconditionEvidence VerifyPrimaryDocument(
         Project project,
         string blockPath,
         string primaryDocumentName)
     {
-        string? verificationDirectory = null;
-        var warnings = new List<string>();
-        var reExportSucceeded = false;
-        var diagnosticMessage = "Re-exported primary document was not verified.";
-
         try
         {
             var address = BlockAddress.Parse(blockPath);
             var target = BlockTargetResolver.ResolveForExport(project, address);
-            verificationDirectory = Path.Combine(Path.GetTempPath(), "tia-mcp-verify-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(verificationDirectory);
-
-            var result = BlockPostconditionVerifier.ReExportPrimaryDocument(
-                primaryDocumentName,
-                documentName => target.Block!.ExportAsDocuments(
-                    new DirectoryInfo(verificationDirectory),
-                    documentName));
-            reExportSucceeded = BlockPostconditionVerifier.VerifyReExportedPrimaryDocument(
+            return VerifyReExportedPrimaryDocument(
                 target.DocumentName,
                 primaryDocumentName,
-                documentName =>
+                (directory, documentName) =>
                 {
-                    var documentPath = Path.Combine(verificationDirectory, documentName);
+                    var result = target.Block!.ExportAsDocuments(directory, documentName);
+                    var documentPath = Path.Combine(directory.FullName, documentName);
                     return result.State == DocumentResultState.Success
                         && File.Exists(documentPath)
                         && new FileInfo(documentPath).Length > 0;
                 });
-            diagnosticMessage = reExportSucceeded
-                ? "Verified."
-                : "Re-export did not produce a non-empty primary document.";
         }
         catch (Exception exception)
         {
-            diagnosticMessage = "Re-export could not complete after block import: " + exception.Message;
+            return new BlockPostconditionEvidence(
+                compileSucceeded: true,
+                reExportSucceeded: false,
+                diagnosticMessage: "Re-export could not complete after block import: " + exception.Message);
         }
-        finally
-        {
-            if (!string.IsNullOrEmpty(verificationDirectory) && Directory.Exists(verificationDirectory))
-            {
-                try
-                {
-                    Directory.Delete(verificationDirectory, recursive: true);
-                }
-                catch (Exception exception)
-                {
-                    var warning = "Block update verification cleanup failed: " + exception.Message;
-                    warnings.Add(warning.Length <= 512 ? warning : warning.Substring(0, 512));
-                }
-            }
-        }
-
-        return new BlockPostconditionEvidence(
-            compileSucceeded: true,
-            reExportSucceeded: reExportSucceeded,
-            diagnosticMessage: diagnosticMessage,
-            warnings: warnings);
     }
 
     public static string Export(Project project, string blockPath)
