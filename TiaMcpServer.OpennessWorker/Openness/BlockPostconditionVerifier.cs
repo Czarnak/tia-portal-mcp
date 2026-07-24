@@ -10,7 +10,13 @@ internal static class BlockPostconditionVerifier
 
     public static void Verify(BlockPostconditionEvidence evidence)
     {
+        Verify(evidence, "update");
+    }
+
+    public static void Verify(BlockPostconditionEvidence evidence, string operation)
+    {
         if (evidence is null) throw new ArgumentNullException(nameof(evidence));
+        if (string.IsNullOrWhiteSpace(operation)) throw new ArgumentException("Operation is required.", nameof(operation));
 
         if (evidence.CompileSucceeded && evidence.ReExportSucceeded)
         {
@@ -19,7 +25,7 @@ internal static class BlockPostconditionVerifier
 
         throw new WorkerOperationException(
             WorkerFailureCategories.PostconditionFailed,
-            "Block update postcondition failed: " + evidence.DiagnosticMessage,
+            "Block " + operation + " postcondition failed: " + evidence.DiagnosticMessage,
             new[] { UncertainStateWarning });
     }
 }

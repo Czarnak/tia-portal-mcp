@@ -26,6 +26,7 @@ public class BlockPostconditionVerifierTests
                 diagnosticMessage: "Compilation reported errors.")));
 
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, exception.FailureCategory);
+        Assert.StartsWith("Block update postcondition failed:", exception.Message);
     }
 
     [Fact]

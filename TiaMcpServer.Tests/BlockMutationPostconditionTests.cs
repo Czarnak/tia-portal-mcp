@@ -61,6 +61,23 @@ public class BlockMutationPostconditionTests
     }
 
     [Fact]
+    public void Execute_CompileFailureReportsCreatePostconditionFailure()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockCreationCoordinator.Execute(
+                () => "created",
+                () => new BlockPostconditionEvidence(
+                    compileSucceeded: false,
+                    reExportSucceeded: true,
+                    diagnosticMessage: "Compilation reported errors after block creation.")));
+
+        Assert.StartsWith("Block create postcondition failed:", exception.Message);
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, exception.FailureCategory);
+        Assert.Contains(exception.Warnings, warning =>
+            warning.Contains("project state may have changed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Execute_ResolveFailurePreventsSuccessAndDoesNotRetryImport()
     {
         var importCalls = 0;

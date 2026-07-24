@@ -12,7 +12,7 @@ internal static class BlockCreationCoordinator
         if (verifyPostcondition is null) throw new ArgumentNullException(nameof(verifyPostcondition));
 
         var result = importBlock();
-        BlockPostconditionVerifier.Verify(verifyPostcondition());
+        BlockPostconditionVerifier.Verify(verifyPostcondition(), "create");
         return result;
     }
 }
