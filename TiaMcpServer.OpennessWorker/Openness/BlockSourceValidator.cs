@@ -64,9 +64,11 @@ internal static class BlockSourceValidator
             .Select(compileUnit => compileUnit.Element("AttributeList"))
             .Where(attributeList => attributeList is not null)
             .Select(attributeList => attributeList!.Element("NetworkSource"))
-            .Any(networkSource => networkSource?
-                .Descendants()
-                .Any(element => element.Name.LocalName == "StructuredText") == true);
+            .Select(networkSource => networkSource?
+                .Elements()
+                .SingleOrDefault(element => element.Name.LocalName == "StructuredText"))
+            .Any(structuredText =>
+                !string.IsNullOrWhiteSpace(structuredText?.Value));
     }
 
     private static WorkerOperationException ValidationFailure(string message)

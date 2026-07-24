@@ -142,7 +142,7 @@ internal static class BlockSourceGenerator
       <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
         <AttributeList>
           <NetworkSource>
-            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"" />
+            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"">// Generated SCL source</StructuredText>
           </NetworkSource>
           <ProgrammingLanguage>{language}</ProgrammingLanguage>
         </AttributeList>

@@ -18,11 +18,13 @@ public class BlockSourceGeneratorTests
         var document = XDocument.Parse(xml);
         var block = document.Descendants($"SW.Blocks.{blockType}").Single();
         var compileUnit = document.Descendants("SW.Blocks.CompileUnit").Single();
-        var source = compileUnit.Descendants().SingleOrDefault(element =>
-            element.Name.LocalName == "NetworkSource");
+        var source = compileUnit.Element("AttributeList")?.Element("NetworkSource");
+        var structuredText = source?.Elements().SingleOrDefault(element =>
+            element.Name.LocalName == "StructuredText");
 
         Assert.Equal("Task4Block", block.Element("AttributeList")?.Element("Name")?.Value);
         Assert.NotNull(source);
-        Assert.NotEmpty(source!.Elements());
+        Assert.NotNull(structuredText);
+        Assert.False(string.IsNullOrWhiteSpace(structuredText!.Value));
     }
 }

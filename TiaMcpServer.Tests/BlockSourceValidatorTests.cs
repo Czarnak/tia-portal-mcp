@@ -30,6 +30,20 @@ public class BlockSourceValidatorTests
     }
 
     [Fact]
+    public void Validate_RejectsSclCompileUnitWithNestedStructuredText()
+    {
+        const string malformedXml =
+            "<Document><SW.Blocks.FB><ObjectList><SW.Blocks.CompileUnit><AttributeList>" +
+            "<NetworkSource><Wrapper><StructuredText>BEGIN END_FUNCTION</StructuredText></Wrapper>" +
+            "</NetworkSource></AttributeList></SW.Blocks.CompileUnit></ObjectList></SW.Blocks.FB></Document>";
+
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockSourceValidator.Validate("FB", "SCL", malformedXml));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Fact]
     public void Validate_RejectsMismatchedBlockType()
     {
         var exception = Assert.Throws<WorkerOperationException>(
