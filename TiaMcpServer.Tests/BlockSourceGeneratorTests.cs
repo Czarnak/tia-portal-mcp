@@ -27,4 +27,19 @@ public class BlockSourceGeneratorTests
         Assert.NotNull(structuredText);
         Assert.False(string.IsNullOrWhiteSpace(structuredText!.Value));
     }
+
+    [Fact]
+    public void Generate_FbStlBlock_DoesNotUseNonEmptySclStructuredText()
+    {
+        var xml = BlockSourceGenerator.Generate("Task4Block", "FB", "STL", null);
+
+        var document = XDocument.Parse(xml);
+        var compileUnit = document.Descendants("SW.Blocks.CompileUnit").Single();
+        var source = compileUnit.Element("AttributeList")?.Element("NetworkSource");
+        var structuredText = source?.Elements().SingleOrDefault(element =>
+            element.Name.LocalName == "StructuredText");
+
+        Assert.NotNull(structuredText);
+        Assert.True(string.IsNullOrWhiteSpace(structuredText!.Value));
+    }
 }

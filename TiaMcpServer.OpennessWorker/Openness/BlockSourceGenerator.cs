@@ -133,7 +133,12 @@ internal static class BlockSourceGenerator
 
     private static string GenerateCompileUnit(string language, bool includeStl)
     {
-        if (language != "SCL" && (!includeStl || language != "STL"))
+        if (includeStl && language == "STL")
+        {
+            return GenerateEmptyStlCompileUnit();
+        }
+
+        if (language != "SCL")
         {
             return string.Empty;
         }
@@ -145,6 +150,23 @@ internal static class BlockSourceGenerator
             <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"">// Generated SCL source</StructuredText>
           </NetworkSource>
           <ProgrammingLanguage>{language}</ProgrammingLanguage>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID=""4"" CompositionName=""Comment"" />
+          <MultilingualText ID=""5"" CompositionName=""Title"" />
+        </ObjectList>
+       </SW.Blocks.CompileUnit>";
+    }
+
+    private static string GenerateEmptyStlCompileUnit()
+    {
+        return @"
+      <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
+        <AttributeList>
+          <NetworkSource>
+            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"" />
+          </NetworkSource>
+          <ProgrammingLanguage>STL</ProgrammingLanguage>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID=""4"" CompositionName=""Comment"" />
