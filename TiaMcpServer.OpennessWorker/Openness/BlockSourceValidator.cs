@@ -29,9 +29,7 @@ internal static class BlockSourceValidator
             throw ValidationFailure($"Generated source does not contain a {expectedBlockElement} block.");
         }
 
-        if (language == "SCL"
-            && !document.Descendants("SW.Blocks.CompileUnit")
-                .Any(compileUnit => compileUnit.Descendants().Any()))
+        if (language == "SCL" && !HasSclSourceBody(document))
         {
             throw ValidationFailure($"Generated {blockType} SCL source must contain a non-empty compile unit.");
         }
@@ -58,6 +56,17 @@ internal static class BlockSourceValidator
         {
             throw ValidationFailure($"Unsupported programming language '{language}'.");
         }
+    }
+
+    private static bool HasSclSourceBody(XDocument document)
+    {
+        return document.Descendants("SW.Blocks.CompileUnit")
+            .Select(compileUnit => compileUnit.Element("AttributeList"))
+            .Where(attributeList => attributeList is not null)
+            .Select(attributeList => attributeList!.Element("NetworkSource"))
+            .Any(networkSource => networkSource?
+                .Descendants()
+                .Any(element => element.Name.LocalName == "StructuredText") == true);
     }
 
     private static WorkerOperationException ValidationFailure(string message)
