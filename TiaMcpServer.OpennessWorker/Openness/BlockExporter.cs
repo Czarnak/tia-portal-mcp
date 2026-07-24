@@ -18,7 +18,7 @@ public static partial class BlockExporter
         {
             var address = BlockAddress.Parse(blockPath);
             var target = BlockTargetResolver.ResolveForExport(project, address);
-            return VerifyReExportedPrimaryDocument(
+            return VerifyPrimaryDocument(
                 target.DocumentName,
                 primaryDocumentName,
                 (directory, documentName) =>

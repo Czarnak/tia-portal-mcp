@@ -8,24 +8,6 @@ namespace TiaMcpServer.Tests;
 public class BlockPostconditionVerifierTests
 {
     [Fact]
-    public void VerifyReExportedPrimaryDocument_UsesDeclaredPrimaryNameRatherThanResolvedTargetName()
-    {
-        string? verifiedDocumentName = null;
-
-        var reExportSucceeded = BlockPostconditionVerifier.VerifyReExportedPrimaryDocument(
-            "ResolvedTarget.xml",
-            "DeclaredPrimary.xml",
-            documentName =>
-            {
-                verifiedDocumentName = documentName;
-                return documentName == "DeclaredPrimary.xml";
-            });
-
-        Assert.True(reExportSucceeded);
-        Assert.Equal("DeclaredPrimary.xml", verifiedDocumentName);
-    }
-
-    [Fact]
     public void Verify_AcceptsSuccessfulCompileAndNonEmptyReExport()
     {
         BlockPostconditionVerifier.Verify(new BlockPostconditionEvidence(
@@ -71,19 +53,4 @@ public class BlockPostconditionVerifierTests
             warning.Contains("project state may have changed", StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
-    public void ReExportPrimaryDocument_PassesDeclaredPrimaryDocumentNameToExporter()
-    {
-        string? exportedDocumentName = null;
-
-        BlockPostconditionVerifier.ReExportPrimaryDocument(
-            "DeclaredPrimary.s7dcl",
-            documentName =>
-            {
-                exportedDocumentName = documentName;
-                return 0;
-            });
-
-        Assert.Equal("DeclaredPrimary.s7dcl", exportedDocumentName);
-    }
 }

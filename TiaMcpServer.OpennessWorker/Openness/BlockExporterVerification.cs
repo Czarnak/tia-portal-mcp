@@ -6,10 +6,10 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static partial class BlockExporter
 {
-    internal static BlockPostconditionEvidence VerifyReExportedPrimaryDocument(
+    internal static BlockPostconditionEvidence VerifyPrimaryDocument(
         string resolvedTargetDocumentName,
         string primaryDocumentName,
-        Func<DirectoryInfo, string, bool> exportAndVerify,
+        Func<DirectoryInfo, string, bool> exportDocuments,
         Action<string>? cleanupDirectory = null)
     {
         string? verificationDirectory = null;
@@ -29,11 +29,11 @@ public static partial class BlockExporter
                 throw new ArgumentException("A primary document name is required.", nameof(primaryDocumentName));
             }
 
-            if (exportAndVerify is null) throw new ArgumentNullException(nameof(exportAndVerify));
+            if (exportDocuments is null) throw new ArgumentNullException(nameof(exportDocuments));
 
             verificationDirectory = Path.Combine(Path.GetTempPath(), "tia-mcp-verify-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(verificationDirectory);
-            reExportSucceeded = exportAndVerify(new DirectoryInfo(verificationDirectory), primaryDocumentName);
+            reExportSucceeded = exportDocuments(new DirectoryInfo(verificationDirectory), primaryDocumentName);
             diagnosticMessage = reExportSucceeded
                 ? "Verified."
                 : "Re-export did not produce a non-empty primary document.";

@@ -186,6 +186,62 @@ Result: passed, 552/552 tests.
 - Verification used compile-time Siemens stubs. A live TIA Portal execution remains necessary to validate the Siemens API behavior against a real project.
 - Cleanup failure warnings are covered by the coordinator implementation, but deterministic filesystem cleanup-failure injection is not included in the pure test suite.
 
+## Final Adapter Seam Review Fix
+
+### Fix Summary
+
+- Added the authoritative dependency-free `BlockExporter.VerifyPrimaryDocument` post-resolution seam. Its Siemens-facing overload now resolves the target and delegates the export/verification decision to this seam.
+- The seam accepts the resolved target document name and declared primary document name, calls the export delegate with the declared primary name, and verifies that same exported document through the delegate result.
+- Kept verification-temp cleanup warnings in the seam. Warnings remain capped at 512 characters and do not change the re-export success result.
+- Removed the obsolete `BlockPostconditionVerifier.ReExportPrimaryDocument` and `VerifyReExportedPrimaryDocument` helpers, plus their superseded tests.
+
+### TDD RED/GREEN Evidence
+
+#### RED
+
+```powershell
+dotnet test TiaMcpServer.Tests\TiaMcpServer.Tests.csproj --no-restore --filter "FullyQualifiedName~BlockExporterVerificationTests" -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: failed as expected with `CS0117` because the dependency-free `BlockExporter.VerifyPrimaryDocument` overload did not yet exist.
+
+#### GREEN
+
+```powershell
+dotnet test TiaMcpServer.Tests\TiaMcpServer.Tests.csproj --no-restore --filter "FullyQualifiedName~BlockExporterVerificationTests" -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: `3` passed, `0` failed, `0` skipped.
+
+### Covering Tests
+
+```powershell
+dotnet test TiaMcpServer.Tests\TiaMcpServer.Tests.csproj --no-restore --filter "FullyQualifiedName~BlockExporterVerificationTests|FullyQualifiedName~BlockPostconditionVerifierTests|FullyQualifiedName~BlockImportCoordinatorTests" -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: `13` passed, `0` failed, `0` skipped.
+
+```powershell
+dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: initial sandboxed restore failed with NuGet `NU1301` TLS/authentication errors; the required external-access retry succeeded with `0` warnings and `0` errors.
+
+```powershell
+dotnet test TiaMcpServer.sln --no-build -m:1 /p:UseTiaPortalReferenceStubs=true
+```
+
+Result: `550` passed, `0` failed, `0` skipped.
+
+### Files Changed
+
+- `TiaMcpServer.OpennessWorker/Openness/BlockExporter.cs`
+- `TiaMcpServer.OpennessWorker/Openness/BlockExporterVerification.cs`
+- `TiaMcpServer.OpennessWorker/Openness/BlockPostconditionVerifier.cs`
+- `TiaMcpServer.Tests/BlockExporterVerificationTests.cs`
+- `TiaMcpServer.Tests/BlockPostconditionVerifierTests.cs`
+- `.superpowers/sdd/task-3-report.md`
+
 ## Review Fix Follow-up
 
 ### Fix Summary
