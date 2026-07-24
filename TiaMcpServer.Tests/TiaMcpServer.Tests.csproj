@@ -59,6 +59,7 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockExporterVerification.cs" Link="Linked\Openness\BlockExporterVerification.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportResult.cs" Link="Linked\Openness\BlockImportResult.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportCoordinator.cs" Link="Linked\Openness\BlockImportCoordinator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockCreationCoordinator.cs" Link="Linked\Openness\BlockCreationCoordinator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceGenerator.cs" Link="Linked\Openness\BlockSourceGenerator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceValidator.cs" Link="Linked\Openness\BlockSourceValidator.cs" />
   </ItemGroup>

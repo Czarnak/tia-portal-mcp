@@ -223,6 +223,25 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task CreateBlock_PostconditionFailure_SurfacesUncertainStateWarningWithoutRetry()
+    {
+        using var client = CreateClient();
+
+        var result = await client.CreateBlockAsync(
+            blockPath: "PLC/Blocks/Created",
+            blockType: "FC",
+            language: "SCL",
+            obEventClass: null,
+            projectPath: "create-block-postcondition-failed");
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
+        Assert.Contains(result.Warnings, warning =>
+            warning.Contains("project state may have changed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("attempt 1", result.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task OrphanStderr_DoesNotBecomeWarnings()
     {
         using var client = CreateClient();

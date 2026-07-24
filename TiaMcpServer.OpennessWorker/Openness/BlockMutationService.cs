@@ -25,25 +25,71 @@ public static class BlockMutationService
         var normalizedType = blockType.ToUpperInvariant();
         var normalizedLang = (language ?? "LAD").ToUpperInvariant();
 
-        if (normalizedType is "FB" or "FC" or "OB" or "GLOBALDB" or "DB")
-        {
-            ImportBlockFromXml(group, blockName, normalizedType, normalizedLang, obEventClass);
-        }
-        else
+        if (normalizedType is not ("FB" or "FC" or "OB" or "GLOBALDB" or "DB"))
         {
             throw new InvalidOperationException(
                 $"Unknown block type '{blockType}'. Valid types: FB, FC, OB, GlobalDB.");
         }
 
-        return new BlockMutationResultInfo
+        return BlockCreationCoordinator.Execute(
+            () =>
+            {
+                ImportBlockFromXml(group, blockName, normalizedType, normalizedLang, obEventClass);
+
+                return new BlockMutationResultInfo
+                {
+                    Operation = "create_block",
+                    ProjectPath = project.Path.FullName,
+                    PlcName = address.PlcName ?? plcSoftware.Name,
+                    BlockPath = blockPath,
+                    BlockType = normalizedType,
+                    Language = (normalizedType is "GLOBALDB" or "DB") ? null : normalizedLang
+                };
+            },
+            () => VerifyCreatedBlockPostconditions(project, address, blockPath));
+    }
+
+    private static BlockPostconditionEvidence VerifyCreatedBlockPostconditions(
+        Project project,
+        BlockAddress address,
+        string blockPath)
+    {
+        try
         {
-            Operation = "create_block",
-            ProjectPath = project.Path.FullName,
-            PlcName = address.PlcName ?? plcSoftware.Name,
-            BlockPath = blockPath,
-            BlockType = normalizedType,
-            Language = (normalizedType is "GLOBALDB" or "DB") ? null : normalizedLang
-        };
+            _ = BlockTargetResolver.ResolveForExport(project, address);
+        }
+        catch (Exception exception)
+        {
+            return new BlockPostconditionEvidence(
+                compileSucceeded: false,
+                reExportSucceeded: false,
+                diagnosticMessage: "Created block could not be resolved: " + exception.Message);
+        }
+
+        try
+        {
+            var report = CompileChecker.Compile(project, address.PlcName, blockPath);
+            if (report.TotalErrorCount != 0
+                || string.Equals(report.OverallState, "Error", StringComparison.OrdinalIgnoreCase))
+            {
+                return new BlockPostconditionEvidence(
+                    compileSucceeded: false,
+                    reExportSucceeded: true,
+                    diagnosticMessage: "Compilation reported errors after block creation.");
+            }
+        }
+        catch (Exception exception)
+        {
+            return new BlockPostconditionEvidence(
+                compileSucceeded: false,
+                reExportSucceeded: true,
+                diagnosticMessage: "Compilation could not complete after block creation: " + exception.Message);
+        }
+
+        return new BlockPostconditionEvidence(
+            compileSucceeded: true,
+            reExportSucceeded: true,
+            diagnosticMessage: "Created block resolved and compiled successfully.");
     }
 
     public static BlockMutationResultInfo DeleteBlock(Project project, string blockPath)
