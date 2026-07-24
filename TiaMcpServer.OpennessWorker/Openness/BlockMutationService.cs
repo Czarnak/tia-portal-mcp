@@ -17,19 +17,14 @@ public static class BlockMutationService
         string? language,
         string? obEventClass)
     {
-        var address = BlockAddress.Parse(blockPath);
+        var preflight = BlockWritePreflight.PrepareCreate(blockPath, blockType, language);
+        var address = preflight.Address;
         var plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
         var group = ResolveGroupFromAddress(plcSoftware, address);
 
         var blockName = address.BlockName;
-        var normalizedType = blockType.ToUpperInvariant();
-        var normalizedLang = (language ?? "LAD").ToUpperInvariant();
-
-        if (normalizedType is not ("FB" or "FC" or "OB" or "GLOBALDB" or "DB"))
-        {
-            throw new InvalidOperationException(
-                $"Unknown block type '{blockType}'. Valid types: FB, FC, OB, GlobalDB.");
-        }
+        var normalizedType = preflight.BlockType;
+        var normalizedLang = preflight.Language;
 
         return BlockCreationCoordinator.Execute(
             () =>

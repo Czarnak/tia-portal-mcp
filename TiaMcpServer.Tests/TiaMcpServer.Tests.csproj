@@ -62,5 +62,6 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockCreationCoordinator.cs" Link="Linked\Openness\BlockCreationCoordinator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceGenerator.cs" Link="Linked\Openness\BlockSourceGenerator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceValidator.cs" Link="Linked\Openness\BlockSourceValidator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockWritePreflight.cs" Link="Linked\Openness\BlockWritePreflight.cs" />
   </ItemGroup>
 </Project>

@@ -12,28 +12,34 @@ public static class BlockImporter
     internal static BlockImportResult Import(Project project, string blockPath, string yamlContent)
     {
         if (project is null) throw new ArgumentNullException(nameof(project));
-        if (blockPath is null) throw new ArgumentNullException(nameof(blockPath));
         if (yamlContent is null) throw new ArgumentNullException(nameof(yamlContent));
 
         var fallbackDocumentName = Path.GetFileName(blockPath) + ".xml";
-        var primaryDocumentName = BlockImportBundleParser
-            .Parse(fallbackDocumentName, yamlContent)
-            .PrimaryDocumentName;
+        var preflight = BlockWritePreflight.PrepareUpdate(
+            blockPath,
+            fallbackDocumentName,
+            yamlContent);
 
         return BlockImportCoordinator.Execute(
             fallbackDocumentName,
             yamlContent,
-            (directory, primaryDocumentName) => ImportDocuments(project, blockPath, directory, primaryDocumentName),
-            () => VerifyPostconditions(project, blockPath, primaryDocumentName));
+            (directory, primaryDocumentName) => ImportDocuments(
+                project,
+                preflight.Address,
+                directory,
+                primaryDocumentName),
+            () => VerifyPostconditions(
+                project,
+                blockPath,
+                preflight.Bundle.PrimaryDocumentName));
     }
 
     private static void ImportDocuments(
         Project project,
-        string blockPath,
+        BlockAddress address,
         DirectoryInfo directory,
         string primaryDocumentName)
     {
-        var address = BlockAddress.Parse(blockPath);
         var target = BlockTargetResolver.ResolveForImport(project, address);
         var result = target.Group.Blocks.ImportFromDocuments(
             directory,

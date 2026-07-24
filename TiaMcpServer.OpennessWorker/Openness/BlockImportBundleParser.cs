@@ -11,6 +11,12 @@ internal static class BlockImportBundleParser
     private static readonly Regex DocumentDelimiter = new(
         @"^--- FILE: (?<name>.+) ---(?:\r?\n|$)",
         RegexOptions.Multiline | RegexOptions.CultureInvariant);
+    private static readonly Regex DocumentDelimiterCandidate = new(
+        @"^--- FILE:",
+        RegexOptions.Multiline | RegexOptions.CultureInvariant);
+    private static readonly Regex ReservedDeviceName = new(
+        @"^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     public static ParsedBlockImportBundle Parse(string documentName, string rawContent)
     {
@@ -21,6 +27,7 @@ internal static class BlockImportBundleParser
             throw ValidationFailure("Block import document content is required.");
         }
 
+        ValidateDelimiterLines(rawContent);
         var delimiters = DocumentDelimiter.Matches(rawContent);
         if (delimiters.Count == 0)
         {
@@ -72,6 +79,18 @@ internal static class BlockImportBundleParser
         return new BlockImportDocument(name, name, content);
     }
 
+    private static void ValidateDelimiterLines(string rawContent)
+    {
+        foreach (Match candidate in DocumentDelimiterCandidate.Matches(rawContent))
+        {
+            var delimiter = DocumentDelimiter.Match(rawContent, candidate.Index);
+            if (!delimiter.Success || delimiter.Index != candidate.Index)
+            {
+                throw ValidationFailure("Block import bundle delimiter is invalid.");
+            }
+        }
+    }
+
     private static void ValidateDocumentName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) ||
@@ -82,7 +101,8 @@ internal static class BlockImportBundleParser
             name.EndsWith(".", StringComparison.Ordinal) ||
             name.EndsWith(" ", StringComparison.Ordinal) ||
             name.IndexOfAny(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\' }) >= 0 ||
-            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            ReservedDeviceName.IsMatch(name))
         {
             throw ValidationFailure("Block import document name is invalid.");
         }

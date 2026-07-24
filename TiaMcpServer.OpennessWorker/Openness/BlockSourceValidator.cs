@@ -39,7 +39,7 @@ internal static class BlockSourceValidator
     {
         if (blockType is "GLOBALDB" or "DB")
         {
-            if (language == "SCL")
+            if (language != "LAD")
             {
                 throw ValidationFailure($"Block type '{blockType}' does not support language '{language}'.");
             }

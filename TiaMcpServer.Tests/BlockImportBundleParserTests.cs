@@ -28,6 +28,35 @@ public class BlockImportBundleParserTests
     }
 
     [Theory]
+    [InlineData("--- FILE:  ---\n<Document />")]
+    [InlineData("--- FILE: Main.xml --\n<Document />")]
+    [InlineData("--- FILE: Main.xml --- trailing\n<Document />")]
+    public void Parse_RejectsMalformedDelimiterLines(string content)
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse("fallback.xml", content));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("prn.xml")]
+    [InlineData("AUX.txt")]
+    [InlineData("nul.XML")]
+    [InlineData("COM1")]
+    [InlineData("com9.xml")]
+    [InlineData("LPT1")]
+    [InlineData("lpt9.xml")]
+    public void Parse_RejectsWindowsReservedDeviceNames(string name)
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockImportBundleParser.Parse(name, "<Document />"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+    }
+
+    [Theory]
     [InlineData("Main.xml.")]
     [InlineData("Main.xml. ")]
     [InlineData("Main.xml ")]

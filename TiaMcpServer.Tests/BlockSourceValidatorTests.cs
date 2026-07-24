@@ -64,4 +64,15 @@ public class BlockSourceValidatorTests
             WorkerFailureCategories.ValidationError,
             exception.FailureCategory);
     }
+
+    [Fact]
+    public void ValidateTypeLanguage_RejectsUnknownDatabaseLanguage()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockSourceValidator.ValidateTypeLanguage("DB", "UNKNOWN"));
+
+        Assert.Equal(
+            WorkerFailureCategories.ValidationError,
+            exception.FailureCategory);
+    }
 }
