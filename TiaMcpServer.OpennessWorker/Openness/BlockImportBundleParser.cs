@@ -8,12 +8,6 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 internal static class BlockImportBundleParser
 {
-    private static readonly Regex DocumentDelimiter = new(
-        @"^--- FILE: (?<name>.+) ---(?:\r?\n|$)",
-        RegexOptions.Multiline | RegexOptions.CultureInvariant);
-    private static readonly Regex DocumentDelimiterCandidate = new(
-        @"^--- FILE:",
-        RegexOptions.Multiline | RegexOptions.CultureInvariant);
     private static readonly Regex ReservedDeviceName = new(
         @"^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -28,7 +22,7 @@ internal static class BlockImportBundleParser
         }
 
         ValidateDelimiterLines(rawContent);
-        var delimiters = DocumentDelimiter.Matches(rawContent);
+        var delimiters = BlockBundleFormat.DocumentDelimiter.Matches(rawContent);
         if (delimiters.Count == 0)
         {
             return CreateBundle(new[] { CreateDocument(documentName, rawContent) });
@@ -81,9 +75,9 @@ internal static class BlockImportBundleParser
 
     private static void ValidateDelimiterLines(string rawContent)
     {
-        foreach (Match candidate in DocumentDelimiterCandidate.Matches(rawContent))
+        foreach (Match candidate in BlockBundleFormat.DocumentDelimiterCandidate.Matches(rawContent))
         {
-            var delimiter = DocumentDelimiter.Match(rawContent, candidate.Index);
+            var delimiter = BlockBundleFormat.DocumentDelimiter.Match(rawContent, candidate.Index);
             if (!delimiter.Success || delimiter.Index != candidate.Index)
             {
                 throw ValidationFailure("Block import bundle delimiter is invalid.");

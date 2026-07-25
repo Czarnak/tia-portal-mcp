@@ -80,7 +80,8 @@
       </MultilingualText>
     </ObjectList>
   </SW.Blocks.OB>
-</Document>--- FILE: Main.s7dcl ---
+</Document>
+--- FILE: Main.s7dcl ---
 {
     S7_Optimized := "TRUE";
     S7_PreferredLanguage := "LAD";

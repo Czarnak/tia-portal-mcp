@@ -100,5 +100,9 @@
       Link="Linked\Openness\BlockWritePreflight.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockXmlSanitizer.cs"
       Link="Linked\Openness\BlockXmlSanitizer.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockBundleFormat.cs"
+      Link="Linked\Openness\BlockBundleFormat.cs" />
+    <None Include="Fixtures\get_block_content.ob-lad.bundle.txt"
+      CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
