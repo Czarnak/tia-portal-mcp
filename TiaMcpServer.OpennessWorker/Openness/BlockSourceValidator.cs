@@ -29,9 +29,17 @@ internal static class BlockSourceValidator
             throw ValidationFailure($"Generated source does not contain a {expectedBlockElement} block.");
         }
 
-        if (language == "SCL" && !HasSclSourceBody(document))
+        if (ContainsRawStructuredTextNode(document))
         {
-            throw ValidationFailure($"Generated {blockType} SCL source must contain a non-empty compile unit.");
+            throw ValidationFailure(
+                "Generated source places raw text inside a StructuredText element, which the "
+                + "Simatic ML schema forbids.");
+        }
+
+        if (language is "SCL" or "STL" && !HasCompileUnitFor(document, language))
+        {
+            throw ValidationFailure(
+                $"Generated {blockType} {language} source must contain a compile unit.");
         }
     }
 
@@ -60,17 +68,23 @@ internal static class BlockSourceValidator
         }
     }
 
-    private static bool HasSclSourceBody(XDocument document)
+    private static bool HasCompileUnitFor(XDocument document, string language)
     {
         return document.Descendants("SW.Blocks.CompileUnit")
             .Select(compileUnit => compileUnit.Element("AttributeList"))
             .Where(attributeList => attributeList is not null)
-            .Select(attributeList => attributeList!.Element("NetworkSource"))
-            .Select(networkSource => networkSource?
-                .Elements()
-                .SingleOrDefault(element => element.Name.LocalName == "StructuredText"))
-            .Any(structuredText =>
-                !string.IsNullOrWhiteSpace(structuredText?.Value));
+            .Any(attributeList => string.Equals(
+                attributeList!.Element("ProgrammingLanguage")?.Value,
+                language,
+                StringComparison.Ordinal));
+    }
+
+    private static bool ContainsRawStructuredTextNode(XDocument document)
+    {
+        return document.Descendants()
+            .Where(element => element.Name.LocalName == "StructuredText")
+            .Any(element => element.Nodes().OfType<XText>().Any(
+                text => !string.IsNullOrWhiteSpace(text.Value)));
     }
 
     private static WorkerOperationException ValidationFailure(string message)

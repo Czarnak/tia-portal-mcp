@@ -11,7 +11,7 @@ public class BlockSourceGeneratorTests
     [InlineData("FB", "SCL")]
     [InlineData("FC", "SCL")]
     [InlineData("OB", "SCL")]
-    public void Generate_SclBlock_HasNonEmptyCompileUnit(string blockType, string language)
+    public void Generate_SclBlock_HasCompileUnitWithEmptyNetworkSource(string blockType, string language)
     {
         var xml = BlockSourceGenerator.Generate("Task4Block", blockType, language, "ProgramCycle");
 
@@ -19,28 +19,23 @@ public class BlockSourceGeneratorTests
         var block = document.Descendants($"SW.Blocks.{blockType}").Single();
         var compileUnit = document.Descendants("SW.Blocks.CompileUnit").Single();
         var source = compileUnit.Element("AttributeList")?.Element("NetworkSource");
-        var structuredText = source?.Elements().SingleOrDefault(element =>
-            element.Name.LocalName == "StructuredText");
 
         Assert.Equal("Task4Block", block.Element("AttributeList")?.Element("Name")?.Value);
         Assert.NotNull(source);
-        Assert.NotNull(structuredText);
-        Assert.False(string.IsNullOrWhiteSpace(structuredText!.Value));
+        Assert.True(source!.IsEmpty);
     }
 
     [Fact]
-    public void Generate_FbStlBlock_DoesNotUseNonEmptySclStructuredText()
+    public void Generate_FbStlBlock_HasEmptyNetworkSource()
     {
         var xml = BlockSourceGenerator.Generate("Task4Block", "FB", "STL", null);
 
         var document = XDocument.Parse(xml);
         var compileUnit = document.Descendants("SW.Blocks.CompileUnit").Single();
         var source = compileUnit.Element("AttributeList")?.Element("NetworkSource");
-        var structuredText = source?.Elements().SingleOrDefault(element =>
-            element.Name.LocalName == "StructuredText");
 
-        Assert.NotNull(structuredText);
-        Assert.True(string.IsNullOrWhiteSpace(structuredText!.Value));
+        Assert.NotNull(source);
+        Assert.True(source!.IsEmpty);
     }
 
     [Fact]
@@ -67,5 +62,44 @@ public class BlockSourceGeneratorTests
 
         Assert.DoesNotContain("HeaderAuthor", xml);
         Assert.DoesNotContain("HeaderVersion", xml);
+    }
+
+    [Theory]
+    [InlineData("FB")]
+    [InlineData("FC")]
+    [InlineData("OB")]
+    public void Scl_source_contains_a_compile_unit_with_an_empty_network_source(string blockType)
+    {
+        var xml = BlockSourceGenerator.Generate("MyBlock", blockType, "SCL", obEventClass: null);
+
+        Assert.Contains("<SW.Blocks.CompileUnit", xml);
+        Assert.Contains("<NetworkSource />", xml);
+        Assert.Contains("<ProgrammingLanguage>SCL</ProgrammingLanguage>", xml);
+    }
+
+    [Theory]
+    [InlineData("SCL")]
+    [InlineData("STL")]
+    public void Generated_sources_never_emit_a_StructuredText_element(string language)
+    {
+        var xml = BlockSourceGenerator.Generate("MyBlock", "FB", language, obEventClass: null);
+
+        Assert.DoesNotContain("StructuredText", xml);
+        Assert.DoesNotContain("StructuredText/v3", xml);
+    }
+
+    [Fact]
+    public void Object_ids_increase_monotonically_in_document_order()
+    {
+        var xml = BlockSourceGenerator.Generate("MyBlock", "FB", "SCL", obEventClass: null);
+
+        var ids = System.Text.RegularExpressions.Regex.Matches(xml, "ID=\"(\\d+)\"");
+        var previous = -1;
+        foreach (System.Text.RegularExpressions.Match match in ids)
+        {
+            var current = int.Parse(match.Groups[1].Value);
+            Assert.True(current > previous, $"ID {current} follows {previous} in document order.");
+            previous = current;
+        }
     }
 }

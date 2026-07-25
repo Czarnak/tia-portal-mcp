@@ -45,8 +45,8 @@ internal static class BlockSourceGenerator
       <SetENOAutomatically>false</SetENOAutomatically>
     </AttributeList>
     <ObjectList>
-      <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, includeStl: true)}
-      <MultilingualText ID=""2"" CompositionName=""Title"" />
+      <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, compileUnitId: 2)}
+      <MultilingualText ID=""3"" CompositionName=""Title"" />
     </ObjectList>
   </SW.Blocks.FB>
 </Document>";
@@ -71,8 +71,8 @@ internal static class BlockSourceGenerator
       <SetENOAutomatically>false</SetENOAutomatically>
     </AttributeList>
     <ObjectList>
-      <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, includeStl: false)}
-      <MultilingualText ID=""2"" CompositionName=""Title"" />
+      <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, compileUnitId: 2)}
+      <MultilingualText ID=""3"" CompositionName=""Title"" />
     </ObjectList>
   </SW.Blocks.FC>
 </Document>";
@@ -99,8 +99,8 @@ internal static class BlockSourceGenerator
       <SetENOAutomatically>false</SetENOAutomatically>
     </AttributeList>
     <ObjectList>
-      <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, includeStl: false)}
-      <MultilingualText ID=""2"" CompositionName=""Title"" />
+      <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, compileUnitId: 2)}
+      <MultilingualText ID=""3"" CompositionName=""Title"" />
     </ObjectList>
   </SW.Blocks.OB>
 </Document>";
@@ -128,47 +128,25 @@ internal static class BlockSourceGenerator
 </Document>";
   }
 
-  private static string GenerateCompileUnit(string language, bool includeStl)
+  /// <summary>
+  /// Emits a compile unit for languages that require one. The NetworkSource is empty and
+  /// self-closing: real V21 exports contain that exact shape (five occur in a single LAD FB
+  /// export), and it avoids hand-authoring a StructuredText token stream, which is what made
+  /// the previous SCL template schema-invalid.
+  /// </summary>
+  private static string GenerateCompileUnit(string language, int compileUnitId)
   {
-    if (includeStl && language == "STL")
-    {
-      return GenerateEmptyStlCompileUnit();
-    }
-
-    if (language != "SCL")
+    if (language is not ("SCL" or "STL"))
     {
       return string.Empty;
     }
 
     return $@"
-      <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
+      <SW.Blocks.CompileUnit ID=""{compileUnitId}"" CompositionName=""CompileUnits"">
         <AttributeList>
-          <NetworkSource>
-            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"">// Generated SCL source</StructuredText>
-          </NetworkSource>
+          <NetworkSource />
           <ProgrammingLanguage>{language}</ProgrammingLanguage>
         </AttributeList>
-        <ObjectList>
-          <MultilingualText ID=""4"" CompositionName=""Comment"" />
-          <MultilingualText ID=""5"" CompositionName=""Title"" />
-        </ObjectList>
-       </SW.Blocks.CompileUnit>";
-  }
-
-  private static string GenerateEmptyStlCompileUnit()
-  {
-    return @"
-      <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
-        <AttributeList>
-          <NetworkSource>
-            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"" />
-          </NetworkSource>
-          <ProgrammingLanguage>STL</ProgrammingLanguage>
-        </AttributeList>
-        <ObjectList>
-          <MultilingualText ID=""4"" CompositionName=""Comment"" />
-          <MultilingualText ID=""5"" CompositionName=""Title"" />
-        </ObjectList>
       </SW.Blocks.CompileUnit>";
   }
 

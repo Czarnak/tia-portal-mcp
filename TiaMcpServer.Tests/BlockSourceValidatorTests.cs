@@ -75,4 +75,48 @@ public class BlockSourceValidatorTests
             WorkerFailureCategories.ValidationError,
             exception.FailureCategory);
     }
+
+    [Fact]
+    public void Validation_accepts_an_scl_compile_unit_with_an_empty_network_source()
+    {
+        var xml = BlockSourceGenerator.Generate("MyBlock", "FB", "SCL", obEventClass: null);
+
+        BlockSourceValidator.Validate("FB", "SCL", xml);
+    }
+
+    [Fact]
+    public void Validation_rejects_a_raw_text_node_inside_StructuredText()
+    {
+        const string xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Document>
+  <SW.Blocks.FB ID=""0"">
+    <ObjectList>
+      <SW.Blocks.CompileUnit ID=""1"">
+        <AttributeList>
+          <NetworkSource>
+            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v4"">// raw</StructuredText>
+          </NetworkSource>
+          <ProgrammingLanguage>SCL</ProgrammingLanguage>
+        </AttributeList>
+      </SW.Blocks.CompileUnit>
+    </ObjectList>
+  </SW.Blocks.FB>
+</Document>";
+
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockSourceValidator.Validate("FB", "SCL", xml));
+
+        Assert.Contains("StructuredText", exception.Message);
+    }
+
+    [Fact]
+    public void Validation_rejects_scl_source_with_no_compile_unit()
+    {
+        const string xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Document>
+  <SW.Blocks.FB ID=""0""><ObjectList /></SW.Blocks.FB>
+</Document>";
+
+        Assert.Throws<WorkerOperationException>(() => BlockSourceValidator.Validate("FB", "SCL", xml));
+    }
 }
