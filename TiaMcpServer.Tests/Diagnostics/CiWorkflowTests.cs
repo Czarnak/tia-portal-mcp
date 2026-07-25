@@ -128,6 +128,63 @@ public class CiWorkflowTests
             "Expected the threshold enforcement to precede the Codecov upload.");
     }
 
+    /// <summary>
+    /// README-side counterpart to <see cref="EverySolutionBuild_IsSerialized"/>: the "Build From
+    /// Source" section is a human-facing copy of the same command and can drift independently of
+    /// the CI workflow files. Reuses <see cref="SingleNodeBuildFlagPattern"/> so both surfaces are
+    /// held to the exact same token-boundary standard (no false-positive match on "-m:10").
+    /// </summary>
+    [Fact]
+    public void Readme_BuildFromSourceCommand_ContainsSingleNodeBuildFlag()
+    {
+        var readmePath = Path.Combine(GetRepositoryRoot(), "README.md");
+        Assert.True(File.Exists(readmePath), $"Expected README.md to exist at {readmePath}");
+
+        var readmeText = File.ReadAllText(readmePath);
+        var headingIndex = readmeText.IndexOf("## Build From Source", StringComparison.Ordinal);
+        Assert.True(headingIndex >= 0, "Expected README.md to contain a 'Build From Source' section.");
+
+        var nextHeadingIndex = readmeText.IndexOf("\n## ", headingIndex + 1, StringComparison.Ordinal);
+        var sectionLength = nextHeadingIndex >= 0 ? nextHeadingIndex - headingIndex : readmeText.Length - headingIndex;
+        var section = readmeText.Substring(headingIndex, sectionLength);
+
+        var solutionBuildLine = section
+            .Split('\n')
+            .FirstOrDefault(line =>
+                line.Contains("dotnet build", StringComparison.OrdinalIgnoreCase) &&
+                line.Contains("TiaMcpServer.sln", StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(solutionBuildLine is not null, "Expected README.md 'Build From Source' section to contain a 'dotnet build TiaMcpServer.sln' command.");
+        Assert.True(
+            SingleNodeBuildFlagPattern.IsMatch(solutionBuildLine!),
+            $"Expected the README 'Build From Source' solution build command to contain the exact '-m:1' flag as a standalone token, but it did not: {solutionBuildLine}");
+    }
+
+    /// <summary>
+    /// Pins that <c>get_project_status</c> is documented as read-only/non-binding and that
+    /// deliberate project switching is documented exclusively through <c>open_project</c> - never
+    /// as something achievable by calling <c>get_project_status</c> with a different path. Guards
+    /// against the README regressing to instructing side-effecting status-based switching.
+    /// </summary>
+    [Fact]
+    public void Readme_DescribesGetProjectStatusAsReadOnlyNonBindingAndSwitchingThroughOpenProject()
+    {
+        var readmePath = Path.Combine(GetRepositoryRoot(), "README.md");
+        Assert.True(File.Exists(readmePath), $"Expected README.md to exist at {readmePath}");
+
+        // The README hard-wraps some paragraphs at ~120 columns, so a phrase spanning a wrap point
+        // would contain a newline where this assertion expects a space. Collapse all whitespace runs
+        // (including line breaks) to a single space first so the check is resilient to rewrapping.
+        var normalizedReadmeText = Regex.Replace(File.ReadAllText(readmePath), @"\s+", " ");
+
+        Assert.Contains(
+            "get_project_status(projectPath)` is read-only and non-binding",
+            normalizedReadmeText,
+            StringComparison.Ordinal);
+        Assert.Contains("do not use it to switch projects", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Use `open_project` for deliberate session switching", normalizedReadmeText, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> EnumerateWorkflowFiles()
     {
         var workflowsDirectory = Path.Combine(GetRepositoryRoot(), ".github", "workflows");

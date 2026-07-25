@@ -44,6 +44,8 @@ Safety tokens are single-use, expire 10 minutes after preview, and are bound to 
 
 `preview_write_batch` issues one token for the whole batch, bound to the exact ordered operation list and the combined current state. Reordering items, changing any item's input, retargeting the project path, or a change in project state all invalidate the token. `apply_write_batch` re-reads the combined current state once before consuming the token, then applies items sequentially and stops on the first failure.
 
+Every failed write reports a categorized `failureCategory` field alongside its human-readable `error` message, so a caller can branch on the exact failure without parsing text: `validation_error`, `binding_conflict`, `state_changed`, `worker_operation_failed`, `worker_timeout`, `worker_crashed`, or `postcondition_failed`. `save_project_as` requires `rebind:true`; calling it with `rebind:false` is rejected up front with `validation_error` before any preview, safety-token issuance, Siemens `SaveAs` call, or audit write, so it has no side effects. Warnings are always reported in a separate `warnings` array from the primary success/failure outcome — a populated `warnings` array never turns a failure into a success, and a categorized failure is never masked by an accompanying warning.
+
 ## Architecture
 
 TIA Portal V21 ships its Openness API as .NET Framework 4.8 assemblies. Those assemblies use .NET Framework remoting APIs that cannot run correctly inside a .NET 8 process.
@@ -120,8 +122,9 @@ project-scoped call that names a different `projectPath` is rejected; call `open
 rebind the session, or start a new MCP session for a different customer project. Project-scoped read
 operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
 request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is the human-approved Round 5
-deferral from that policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+or call open_project to switch.` `get_project_status(projectPath)` is read-only and non-binding: it never opens or switches projects, even
+when `projectPath` names a project that is not the one currently open. It is the human-approved Round 5
+deferral from the read-side switching policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
 projects. Use `open_project` for deliberate session switching.
 
 ### Version flag
@@ -163,6 +166,19 @@ The source build creates the .NET 8 host and copies the .NET Framework worker in
 ```text
 TiaMcpServer\bin\Debug\net8.0\openness-worker
 ```
+
+### Coverage
+
+CI collects coverage, then enforces an 80% scoped line-coverage threshold locally (before the Codecov upload, which stays reporting-only). Run the same scoped collection and threshold check locally:
+
+```powershell
+$results = Join-Path 'TestResults' ('local-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory $results
+$report = Get-ChildItem -LiteralPath $results -Recurse -Filter coverage.cobertura.xml | Select-Object -First 1
+./scripts/verify-coverage-threshold.ps1 -CoveragePath $report.FullName -MinimumLineRate 0.80
+```
+
+`coverage.runsettings` scopes the Cobertura report to `TiaMcpServer` and `TiaMcpServer.Contracts`; test assemblies, `TiaMcpServer.FakeWorker`, and `TiaMcpServer.OpennessWorker` are excluded. `verify-coverage-threshold.ps1` exits non-zero below the threshold.
 
 ## Run Locally
 
@@ -379,8 +395,9 @@ project-scoped call that names a different `projectPath` is rejected; call `open
 rebind the session, or start a new MCP session for a different customer project. Project-scoped read
 operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
 request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is the human-approved Round 5
-deferral from that policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+or call open_project to switch.` `get_project_status(projectPath)` is read-only and non-binding: it never opens or switches projects, even
+when `projectPath` names a project that is not the one currently open. It is the human-approved Round 5
+deferral from the read-side switching policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
 projects. Use `open_project` for deliberate session switching.
 
 ## Block Paths
@@ -447,9 +464,11 @@ With an explicit project binding:
 
 ## Known Issues
 
-Found via manual end-to-end testing of every tool against a live TIA Portal project. Not yet fixed.
+Found via manual end-to-end testing of every tool against a live TIA Portal project.
 
-- **`save_project_as` with `rebind: false` can strand the MCP session.** Siemens' underlying `SaveAs` API switches the actually-open TIA Portal project to the new copy regardless of the `rebind` flag; `rebind: false` only affects the MCP session's own path bookkeeping, not the live engineering session. Once that mismatch happens, no MCP call can recover it: `open_project`/`get_project_status` against the original path fail with `Another project is already open`, and any call against the new, actually-open path is rejected upfront because the session is still bound to the original path. Recovery currently requires closing the project by hand in the TIA Portal UI and reopening it via `open_project`. Treat `rebind: false` as unsafe until this is fixed.
+- **`update_block_logic` multi-document block round trips, and `create_block` with `language=SCL` or `blockType=GlobalDB`, are pending live V21 re-verification.** A block-bundle formatting and SCL/GlobalDB source-generation bug affected these paths. A fix has been implemented and passes the full automated test suite, but formal live TIA Portal V21 acceptance testing for this fix has not yet completed. Until that formal acceptance passes, treat multi-document `update_block_logic` round trips and SCL/GlobalDB `create_block` calls as unverified.
+
+`save_project_as` with `rebind: false` is resolved: it is rejected up front with a `validation_error` response, before any preview, safety-token issuance, Siemens `SaveAs` call, or audit write, so it has no side effects. `rebind: true` is required; see [Write safety](#write-safety). This fix is provable by API-level tests without a live TIA Portal instance, so it does not carry the same live re-verification caveat as the block-write items above.
 
 ## Contributing
 

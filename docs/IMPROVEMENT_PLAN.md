@@ -242,8 +242,62 @@ is itself a `[Fact]`/`[Theory]`-bearing class, turning silent scope drift into a
   `FileSystemService`, `ProcessEnumerationService`, `RegistryService`, `WindowsIdentityService` (thin
   OS-adapter classes).
 
+## Lifecycle and response integrity — DONE 2026-07-23 (Phase 5 Plan 2)
+
+Closed the `WorkerFailureCategories` vocabulary (`validation_error`, `binding_conflict`, `state_changed`,
+`worker_operation_failed`, `worker_timeout`, `worker_crashed`, `postcondition_failed`) across every
+guarded write path; split the user-facing `get_project_status` read from the internal
+`probe_project_status_for_lifecycle` write-state probe so status reads are side-effect-free and never
+open or switch projects; introduced an explicit `BindingTransition` model so session binding only
+adopts worker-reported ground truth, never caller input; fixed a `save_project_as` divergence where a
+successful SaveAs could leave the host and worker bound to different projects; and made
+`save_project_as(rebind:false)` a rejected `validation_error` before any preview, token, or Siemens
+call. Automated gates pass: full suite green at the Plan 2 tip (branch
+`fix/phase5-02-lifecycle-response-integrity`, commit `66cce7b`), 506/506.
+
+**Not yet certified:** live TIA Portal V21 acceptance for this plan's API-level claims
+(AC-006–AC-018, AC-032–AC-035, AC-045) is Task 2 of the Phase 5 Plan 4 certification plan and has not
+run yet.
+
+## PLC block-write repairs — DONE 2026-07-25 (Phase 5 Plan 3 + block-write-format-repair follow-up)
+
+Plan 3 (`docs/superpowers/plans/2026-07-23-phase5-03-plc-block-write-repairs.md`) added block-bundle
+parsing/staging validation (reject missing/duplicate documents, unsafe filenames, path traversal),
+postcondition verification for `update_block_logic` and `create_block` (compile/re-export checks
+instead of trusting Siemens' import return value), and SCL source generation. Automated gates passed
+at the Plan 3 tip (branch `codex/phase5-03-plc-block-write-repairs`, commit `e65dc64`), full suite
+582/582.
+
+Live manual testing on 2026-07-25 (see `priv/MCP_TOOL_TEST_REPORT_2026-07-25.md`) found Plan 3's
+postcondition checks did not catch a real corruption bug: `BlockExporter.Export()` omitted a newline
+before each `--- FILE: ... ---` marker after the first, so `BlockImportBundleParser`'s
+multiline-anchored delimiter regex could not see any delimiter past the first, and any multi-document
+block round trip silently corrupted. Also found `create_block` failed outright for `language=SCL`
+(schema-invalid template) and had no working input for `blockType=GlobalDB`.
+
+The 2026-07-25 block-write-format-repair follow-up plan
+(`docs/superpowers/plans/2026-07-25-block-write-format-repair.md`, Tasks 1-7, commits `d105dfb`..`81b73fc`)
+fixed all three: `BlockBundleFormat.Compose` now guarantees a newline before every marker after the
+first; block-document import routes Simatic ML XML through `BlockImportRouting` with a
+non-authoritative-document guard; `GlobalDB` creation now defaults to/requires `language="DB"`;
+SCL/STL compile units use a schema-valid empty `<NetworkSource />` instead of a raw-text
+`StructuredText` node. Automated gates pass: full suite 615/615 at commit `81b73fc`.
+
+**Not yet certified:** the fix was also exercised through informal live TIA Portal V21 testing
+(`priv/MCP_TOOL_TEST_REPORT_ROUND3.md` — byte-identical round trip, edited round trip,
+`create_block(language=SCL)`, `create_block(blockType=GlobalDB)` all succeeded), but that was informal
+verification outside this repository's certification process. The formal live acceptance run required
+before this fix can be documented as verified is Task 2 of the Phase 5 Plan 4 certification plan
+(`docs/superpowers/plans/2026-07-23-phase5-04-certification-documentation.md`) and has not run yet.
+README's Known Issues section keeps `update_block_logic` and SCL/GlobalDB `create_block` marked
+pending live V21 re-verification until that task passes.
+
 ## Deferred / explicitly not planned
 
+- Openness `Transaction` and `ExclusiveAccess` APIs, authentication/authorization-event subscriptions,
+  server-push/long-polling MCP notifications, and exposing `doctor` diagnostics as an MCP-callable tool
+  (it remains CLI-only via `tia-mcp doctor`) — all out of Phase 5 production scope (AC-044); Phase 6+
+  candidates.
 - Splitting `WorkerRequest` into per-operation DTOs (churn > value while the protocol is stable).
 - MCP protocol-level error signaling instead of text results (needs SDK investigation; revisit after 1.1).
 - `NetworkDeviceConfigurator` speculative-reflection "UNVERIFIED SDK CALL" paths: verify against real
