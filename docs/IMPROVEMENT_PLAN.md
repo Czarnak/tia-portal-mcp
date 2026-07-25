@@ -255,9 +255,10 @@ successful SaveAs could leave the host and worker bound to different projects; a
 call. Automated gates pass: full suite green at the Plan 2 tip (branch
 `fix/phase5-02-lifecycle-response-integrity`, commit `66cce7b`), 506/506.
 
-**Not yet certified:** live TIA Portal V21 acceptance for this plan's API-level claims
-(AC-006–AC-018, AC-032–AC-035, AC-045) is Task 2 of the Phase 5 Plan 4 certification plan and has not
-run yet.
+**Certification evidence recorded:** Task 2 of the Phase 5 Plan 4 certification plan recorded live
+TIA Portal V21 evidence for the externally observable lifecycle cases. The internal-only timeout,
+crash, and null-binding cases remain primarily covered by the automated FakeWorker suite; the
+acceptance report records each scope boundary explicitly.
 
 ## PLC block-write repairs — DONE 2026-07-25 (Phase 5 Plan 3 + block-write-format-repair follow-up)
 
@@ -283,14 +284,20 @@ non-authoritative-document guard; `GlobalDB` creation now defaults to/requires `
 SCL/STL compile units use a schema-valid empty `<NetworkSource />` instead of a raw-text
 `StructuredText` node. Automated gates pass: full suite 615/615 at commit `81b73fc`.
 
-**Not yet certified:** the fix was also exercised through informal live TIA Portal V21 testing
-(`priv/MCP_TOOL_TEST_REPORT_ROUND3.md` — byte-identical round trip, edited round trip,
-`create_block(language=SCL)`, `create_block(blockType=GlobalDB)` all succeeded), but that was informal
-verification outside this repository's certification process. The formal live acceptance run required
-before this fix can be documented as verified is Task 2 of the Phase 5 Plan 4 certification plan
-(`docs/superpowers/plans/2026-07-23-phase5-04-certification-documentation.md`) and has not run yet.
-README's Known Issues section keeps `update_block_logic` and SCL/GlobalDB `create_block` marked
-pending live V21 re-verification until that task passes.
+**Certification evidence recorded:** Task 2 of the Phase 5 Plan 4 certification plan confirmed the
+authoritative-document byte-identical and edited `update_block_logic` paths, malformed-bundle
+non-mutation, and SCL `create_block` resolution/compilation on TIA Portal V21. The report retains
+the exact scope caveats for non-authoritative document companions and unexercised block types; those
+are evidence boundaries, not known unresolved product defects. README now documents the verified
+recovery behavior rather than carrying a stale pending-live caveat.
+
+## Phase 5 certification documentation — DONE 2026-07-25 (Phase 5 Plan 4 Tasks 1–4)
+
+The repository documentation and the authorized source `tia-portal-mcp` skill now describe the
+ten-tool public surface, self-previewing lifecycle writes, non-binding status reads, required
+`save_project_as(rebind:true)`, categorized failures, separate warnings, and verified block-write
+behavior. The installed plugin cache was not modified. The Phase 5 exit still requires the Plan 4
+graph/review and final automated acceptance gates; Phase 6 exclusions below remain unchanged.
 
 ## Deferred / explicitly not planned
 

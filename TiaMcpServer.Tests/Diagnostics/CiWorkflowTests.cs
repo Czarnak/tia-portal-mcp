@@ -185,6 +185,19 @@ public class CiWorkflowTests
         Assert.Contains("Use `open_project` for deliberate session switching", normalizedReadmeText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Readme_DescribesLiveVerifiedBlockWritesWithoutAPendingCaveat()
+    {
+        var readmePath = Path.Combine(GetRepositoryRoot(), "README.md");
+        Assert.True(File.Exists(readmePath), $"Expected README.md to exist at {readmePath}");
+
+        var normalizedReadmeText = Regex.Replace(File.ReadAllText(readmePath), @"\s+", " ");
+
+        Assert.DoesNotContain("pending live V21 re-verification", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("multi-document `update_block_logic` round trips are verified", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SCL `create_block` calls are verified", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static IEnumerable<string> EnumerateWorkflowFiles()
     {
         var workflowsDirectory = Path.Combine(GetRepositoryRoot(), ".github", "workflows");

@@ -462,13 +462,24 @@ With an explicit project binding:
 - Access denied or attach failure: confirm the Windows user belongs to the `Siemens TIA Openness` user group, then sign out and back in.
 - `dotnet` selects the wrong SDK: install .NET SDK 8.0.4xx or update `global.json` to a locally installed .NET 8 SDK feature band.
 
-## Known Issues
+## Verified TIA Portal V21 behavior
 
-Found via manual end-to-end testing of every tool against a live TIA Portal project.
+The Phase 5 acceptance record documents the verified recovery guidance for these previously
+problematic paths. Multi-document `update_block_logic` round trips are verified: submit the
+exported SIMATIC ML document bundle through a guarded batch, expect one import followed by compile
+and re-export verification, and treat a structural/unsafe-document rejection as a no-change result.
+An edited bundle is likewise compiled and re-exported. Do not automatically retry a write with an
+uncertain worker outcome; inspect the current block instead.
 
-- **`update_block_logic` multi-document block round trips, and `create_block` with `language=SCL` or `blockType=GlobalDB`, are pending live V21 re-verification.** A block-bundle formatting and SCL/GlobalDB source-generation bug affected these paths. A fix has been implemented and passes the full automated test suite, but formal live TIA Portal V21 acceptance testing for this fix has not yet completed. Until that formal acceptance passes, treat multi-document `update_block_logic` round trips and SCL/GlobalDB `create_block` calls as unverified.
+SCL `create_block` calls are verified: the generated SCL source contains a non-empty compile unit,
+the requested block resolves at its requested path, and `compile_check` confirms it compiles. The
+same guarded preview/token/apply flow applies to SCL and GlobalDB block creation.
 
-`save_project_as` with `rebind: false` is resolved: it is rejected up front with a `validation_error` response, before any preview, safety-token issuance, Siemens `SaveAs` call, or audit write, so it has no side effects. `rebind: true` is required; see [Write safety](#write-safety). This fix is provable by API-level tests without a live TIA Portal instance, so it does not carry the same live re-verification caveat as the block-write items above.
+`save_project_as` with `rebind: false` is resolved: it is rejected up front with a
+`validation_error` response, before any preview, safety-token issuance, Siemens `SaveAs` call, or
+audit write, so it has no side effects. `rebind: true` is required; see
+[Write safety](#write-safety). A supported SaveAs rebinds both host and worker to the
+worker-reported copied project path; verify it with a subsequent status or read call.
 
 ## Contributing
 
