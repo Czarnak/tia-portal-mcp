@@ -83,4 +83,19 @@ public class BlockBundleFormatTests
         Assert.Equal("Main.s7dcl", parsed.Documents[1].LogicalName);
         Assert.DoesNotContain("--- FILE:", parsed.Documents[0].Content);
     }
+
+    [Fact]
+    public void Post_repair_captured_get_block_content_output_parses_into_both_documents()
+    {
+        var raw = File.ReadAllText(
+            Path.Combine("Fixtures", "get_block_content.ob-lad.v2.bundle.txt"));
+
+        var parsed = BlockImportBundleParser.Parse("Main.xml", raw);
+
+        Assert.Equal(2, parsed.Documents.Count);
+        Assert.Equal("Main.xml", parsed.Documents[0].LogicalName);
+        Assert.Equal("Main.s7dcl", parsed.Documents[1].LogicalName);
+        Assert.DoesNotContain("--- FILE:", parsed.Documents[0].Content);
+        Assert.StartsWith("<?xml version=\"1.0\" encoding=\"utf-8\"?>", parsed.Documents[0].Content);
+    }
 }
