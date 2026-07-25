@@ -55,7 +55,7 @@ internal static class BlockWritePreflight
         }
 
         var normalizedType = blockType.ToUpperInvariant();
-        var normalizedLanguage = (language ?? "LAD").ToUpperInvariant();
+        var normalizedLanguage = (language ?? DefaultLanguageFor(normalizedType)).ToUpperInvariant();
         BlockSourceValidator.ValidateTypeLanguage(normalizedType, normalizedLanguage);
 
         var address = ParseAddress(blockPath);
@@ -72,6 +72,11 @@ internal static class BlockWritePreflight
         {
             throw ValidationFailure("Block path is invalid: " + exception.Message);
         }
+    }
+
+    private static string DefaultLanguageFor(string normalizedBlockType)
+    {
+        return normalizedBlockType is "GLOBALDB" or "DB" ? "DB" : "LAD";
     }
 
     private static WorkerOperationException ValidationFailure(string message)

@@ -39,9 +39,11 @@ internal static class BlockSourceValidator
     {
         if (blockType is "GLOBALDB" or "DB")
         {
-            if (language != "LAD")
+            if (language != "DB")
             {
-                throw ValidationFailure($"Block type '{blockType}' does not support language '{language}'.");
+                throw ValidationFailure(
+                    $"Block type '{blockType}' uses language 'DB'; '{language}' is not supported. "
+                    + "Omit the language parameter for data blocks.");
             }
 
             return;

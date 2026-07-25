@@ -42,4 +42,30 @@ public class BlockSourceGeneratorTests
         Assert.NotNull(structuredText);
         Assert.True(string.IsNullOrWhiteSpace(structuredText!.Value));
     }
+
+    [Fact]
+    public void GlobalDb_source_declares_the_DB_programming_language()
+    {
+        var xml = BlockSourceGenerator.Generate("MyDb", "GLOBALDB", "DB", obEventClass: null);
+
+        Assert.Contains("<ProgrammingLanguage>DB</ProgrammingLanguage>", xml);
+    }
+
+    [Fact]
+    public void GlobalDb_source_uses_MemoryLayout_not_an_Optimized_element()
+    {
+        var xml = BlockSourceGenerator.Generate("MyDb", "GLOBALDB", "DB", obEventClass: null);
+
+        Assert.Contains("<MemoryLayout>Optimized</MemoryLayout>", xml);
+        Assert.DoesNotContain("<Optimized>", xml);
+    }
+
+    [Fact]
+    public void GlobalDb_source_omits_header_attributes()
+    {
+        var xml = BlockSourceGenerator.Generate("MyDb", "GLOBALDB", "DB", obEventClass: null);
+
+        Assert.DoesNotContain("HeaderAuthor", xml);
+        Assert.DoesNotContain("HeaderVersion", xml);
+    }
 }

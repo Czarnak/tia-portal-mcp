@@ -110,7 +110,7 @@ public sealed class BatchOperationRequest
     [Description("Block type for create_block. Valid values: FB, FC, OB, GlobalDB.")]
     public string? BlockType { get; set; }
 
-    [Description("Programming language for create_block (FB/FC/OB only). Valid values: LAD, FBD, STL, SCL, GRAPH. Defaults to LAD.")]
+    [Description("Programming language for create_block (FB/FC/OB only). Valid values: LAD, FBD, STL, SCL, GRAPH. Defaults to LAD. Omit for blockType=GlobalDB, which always uses DB.")]
     public string? Language { get; set; }
 
     [Description("OB event class for create_block when blockType=OB. Valid values: ProgramCycle, Startup, TimeDelay, CyclicInterrupt, HardwareInterrupt, Diagnostic, TimeOfDay. Defaults to ProgramCycle.")]

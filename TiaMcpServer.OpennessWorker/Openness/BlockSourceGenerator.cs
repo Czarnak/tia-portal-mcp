@@ -5,30 +5,30 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 internal static class BlockSourceGenerator
 {
-    private const string EngineeringVersion = "V21";
+  private const string EngineeringVersion = "V21";
 
-    public static string Generate(
-        string blockName,
-        string blockType,
-        string language,
-        string? obEventClass)
+  public static string Generate(
+      string blockName,
+      string blockType,
+      string language,
+      string? obEventClass)
+  {
+    BlockSourceValidator.ValidateTypeLanguage(blockType, language);
+
+    var escapedBlockName = SecurityElement.Escape(blockName) ?? string.Empty;
+    return blockType switch
     {
-        BlockSourceValidator.ValidateTypeLanguage(blockType, language);
+      "FB" => GenerateFbXml(escapedBlockName, language),
+      "FC" => GenerateFcXml(escapedBlockName, language),
+      "OB" => GenerateObXml(escapedBlockName, language, obEventClass),
+      "GLOBALDB" or "DB" => GenerateGlobalDbXml(escapedBlockName),
+      _ => throw ValidationFailure($"Unsupported block type for XML generation: {blockType}")
+    };
+  }
 
-        var escapedBlockName = SecurityElement.Escape(blockName) ?? string.Empty;
-        return blockType switch
-        {
-            "FB" => GenerateFbXml(escapedBlockName, language),
-            "FC" => GenerateFcXml(escapedBlockName, language),
-            "OB" => GenerateObXml(escapedBlockName, language, obEventClass),
-            "GLOBALDB" or "DB" => GenerateGlobalDbXml(escapedBlockName),
-            _ => throw ValidationFailure($"Unsupported block type for XML generation: {blockType}")
-        };
-    }
-
-    private static string GenerateFbXml(string blockName, string language)
-    {
-        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+  private static string GenerateFbXml(string blockName, string language)
+  {
+    return $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <Document>
   <Engineering version=""{EngineeringVersion}"" />
   <SW.Blocks.FB ID=""0"">
@@ -50,11 +50,11 @@ internal static class BlockSourceGenerator
     </ObjectList>
   </SW.Blocks.FB>
 </Document>";
-    }
+  }
 
-    private static string GenerateFcXml(string blockName, string language)
-    {
-        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+  private static string GenerateFcXml(string blockName, string language)
+  {
+    return $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <Document>
   <Engineering version=""{EngineeringVersion}"" />
   <SW.Blocks.FC ID=""0"">
@@ -76,12 +76,12 @@ internal static class BlockSourceGenerator
     </ObjectList>
   </SW.Blocks.FC>
 </Document>";
-    }
+  }
 
-    private static string GenerateObXml(string blockName, string language, string? obEventClass)
-    {
-        var escapedEventClass = SecurityElement.Escape(obEventClass ?? "ProgramCycle") ?? "ProgramCycle";
-        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+  private static string GenerateObXml(string blockName, string language, string? obEventClass)
+  {
+    var escapedEventClass = SecurityElement.Escape(obEventClass ?? "ProgramCycle") ?? "ProgramCycle";
+    return $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <Document>
   <Engineering version=""{EngineeringVersion}"" />
   <SW.Blocks.OB ID=""0"">
@@ -104,24 +104,21 @@ internal static class BlockSourceGenerator
     </ObjectList>
   </SW.Blocks.OB>
 </Document>";
-    }
+  }
 
-    private static string GenerateGlobalDbXml(string blockName)
-    {
-        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+  private static string GenerateGlobalDbXml(string blockName)
+  {
+    return $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <Document>
   <Engineering version=""{EngineeringVersion}"" />
   <SW.Blocks.GlobalDB ID=""0"">
     <AttributeList>
       <AutoNumber>true</AutoNumber>
-      <HeaderAuthor></HeaderAuthor>
-      <HeaderFamily></HeaderFamily>
-      <HeaderName></HeaderName>
-      <HeaderVersion>0.1</HeaderVersion>
       <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Static"" /></Sections></Interface>
+      <MemoryLayout>Optimized</MemoryLayout>
       <Name>{blockName}</Name>
       <Namespace></Namespace>
-      <Optimized>true</Optimized>
+      <ProgrammingLanguage>DB</ProgrammingLanguage>
     </AttributeList>
     <ObjectList>
       <MultilingualText ID=""1"" CompositionName=""Comment"" />
@@ -129,21 +126,21 @@ internal static class BlockSourceGenerator
     </ObjectList>
   </SW.Blocks.GlobalDB>
 </Document>";
+  }
+
+  private static string GenerateCompileUnit(string language, bool includeStl)
+  {
+    if (includeStl && language == "STL")
+    {
+      return GenerateEmptyStlCompileUnit();
     }
 
-    private static string GenerateCompileUnit(string language, bool includeStl)
+    if (language != "SCL")
     {
-        if (includeStl && language == "STL")
-        {
-            return GenerateEmptyStlCompileUnit();
-        }
+      return string.Empty;
+    }
 
-        if (language != "SCL")
-        {
-            return string.Empty;
-        }
-
-        return $@"
+    return $@"
       <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
         <AttributeList>
           <NetworkSource>
@@ -156,11 +153,11 @@ internal static class BlockSourceGenerator
           <MultilingualText ID=""5"" CompositionName=""Title"" />
         </ObjectList>
        </SW.Blocks.CompileUnit>";
-    }
+  }
 
-    private static string GenerateEmptyStlCompileUnit()
-    {
-        return @"
+  private static string GenerateEmptyStlCompileUnit()
+  {
+    return @"
       <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
         <AttributeList>
           <NetworkSource>
@@ -173,10 +170,10 @@ internal static class BlockSourceGenerator
           <MultilingualText ID=""5"" CompositionName=""Title"" />
         </ObjectList>
       </SW.Blocks.CompileUnit>";
-    }
+  }
 
-    private static WorkerOperationException ValidationFailure(string message)
-    {
-        return new WorkerOperationException(WorkerFailureCategories.ValidationError, message);
-    }
+  private static WorkerOperationException ValidationFailure(string message)
+  {
+    return new WorkerOperationException(WorkerFailureCategories.ValidationError, message);
+  }
 }
