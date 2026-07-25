@@ -2,7 +2,7 @@
 
 **Spec/Criteria:** `docs/superpowers/acceptance/2026-07-23-phase5-reliability-lifecycle-integrity.md` (Status: Approved)
 **Plan under certification:** `docs/superpowers/plans/2026-07-23-phase5-04-certification-documentation.md`
-**Report status:** Plan 4 Tasks 1–4 are complete: automated/documentation contracts, live TIA Portal V21 acceptance, the authorized source-skill update, and repository documentation alignment. Tasks 5–6 (graphify/whole-branch review and final automated acceptance) remain before the Phase 5 exit verdict.
+**Report status:** Plan 4 Tasks 1–5 are complete: automated/documentation contracts, recorded user-accepted live TIA Portal V21 acceptance, the authorized source-skill update, documentation alignment, refreshed architecture graph, and one consolidated whole-branch review. Task 6 automated acceptance remains. The consolidated security scan found one unresolved P2 item, so AC-041 is FAIL and the Phase 5 exit gate cannot certify the branch until it is remediated under its owning work.
 
 ---
 
@@ -88,8 +88,8 @@ Result legend: **PASS (live)** = directly exercised against real TIA Portal V21 
 | AC-037 | Live acceptance evidence identifies actual Siemens runtime | API | **PASS** | This report's "Commit / dependency / runtime identity" and "Disposable project provenance" sections |
 | AC-038 | Repository documentation matches delivered behavior | Logic | **PASS (Task 4)** | README now records verified multi-document `update_block_logic`, SCL `create_block`, SaveAs rebind, and recovery behavior without the obsolete pending-live wording. `IMPROVEMENT_PLAN.md` closes the documentation work while preserving its Phase 6+ exclusions. The focused documentation/schema filter passed 41/41. |
 | AC-039 | Source skill documentation updated without touching installed cache | Logic | **PASS (Task 3)** | User supplied and authorized the owning `totally-integrated-claude` checkout. Commit `ed6ebce` documents the ten-tool batch/lifecycle surface, self-previewing lifecycle writes, non-binding status, `rebind:true`, failure categories/warnings, and block-write behavior; its repository validator passed. The installed cache was not modified. |
-| AC-040 | Graphify artifacts reflect final code state | Logic | **PENDING (Task 5)** | Last graph refresh (`e65dc64`) predates `.cs` test-file changes committed afterward — `TiaMcpServer.Tests/BlockBundleFormatTests.cs` (commit `81b73fc`) and `TiaMcpServer.Tests/Diagnostics/CiWorkflowTests.cs` (commit `a1624e8`, Task 1). `graphify update .` has not been rerun yet |
-| AC-041 | No hardcoded secrets/protected-data leakage introduced | Logic | **PENDING (Task 5)** | Formal branch-diff secret scan is part of the Task 5 whole-branch review; not run yet. No secrets were typed into any live tool call or report file in Tasks 1–2 (self-observed, not a substitute for the formal scan) |
+| AC-040 | Graphify artifacts reflect final code state | Logic | **PASS (Task 5)** | `graphify update .` after the reviewed lifecycle-preview envelope fix rebuilt 1,767 nodes, 2,544 edges, and 202 communities. Generated `graphify-out/` artifacts committed at `ff938ee`. Graph-freshness proof will be rerun after the Task 6 report-only commit. |
+| AC-041 | No hardcoded secrets/protected-data leakage introduced | Logic | **FAIL (Task 5 security scan)** | Sealed Codex Security diff scan of `f0b81c8..1a27765` closed all 60 worklist rows and found no secret, cache-boundary, retry, or false-success issue, but reported **P2 / medium** `SEC-P5-W1B-001`: raw postcondition `Exception.Message` is concatenated into a caller-visible MCP error (`BlockExporter.cs:43`, `BlockExporterVerification.cs:43`, `BlockPostconditionVerifier.cs:26–29`). The local-stdio boundary limits exposure, but the disclosure remains unresolved. Per Task 5, do not patch it inside certification; route it to its owning block-write work before certification can pass. |
 | AC-042 | Changed external inputs validated at host/worker boundaries | Logic | **PASS (live + automated)** | Live: `rebind:false` and the duplicate-document bundle both rejected before any Siemens call; existing automated negative-path tests cover the rest |
 | AC-043 | Audit semantics preserved; no uncertain-outcome false success | Logic | **PASS (live, partial — successful + validation-failed only)** | Every failed call this session returned an explicit failure category (`validation_error`/`binding_conflict`), never partial/ambiguous success — confirmed both in tool responses and in the raw audit JSONL, which records failed guarded-write attempts as `success:false` (not omitted, not misreported). AC's full precondition also lists worker-failed, timeout/crash, and postcondition-failed guarded writes, none of which occurred against a healthy live worker in this session; those remain covered by existing FakeWorker-based automated tests |
 | AC-044 | Phase 6 capabilities stay outside Phase 5 scope | Logic | PASS (automated) | Task 1's `IMPROVEMENT_PLAN.md` additions explicitly keep Transactions/ExclusiveAccess/Openness events/auth expansion/doctor enhancements as Phase 6+; no such capability appears in this branch's diff |
@@ -105,9 +105,10 @@ Recounted directly from the table above after the post-review corrections (no do
 - **PASS, satisfied by this report's own recorded runtime/provenance data:** 1 — AC-037
 - **PASS, automated-primary (pre-existing suite or Task 1; a few of these rows — AC-004, AC-012, AC-013 — also cite supporting live observations, but the automated suite is the authoritative proof):** 23 — AC-001–005, AC-009, AC-011–014, AC-017–021, AC-024, AC-025, AC-029, AC-032–034, AC-044, AC-045
 - **PASS, documentation/source-skill (Tasks 3–4):** 2 — AC-038, AC-039
-- **PENDING (not started):** 2 — AC-040 (Task 5 graph refresh), AC-041 (Task 5 scan)
-- **FAIL:** 0
-- Total: 16 + 1 + 1 + 23 + 2 + 2 = 45 ✓
+- **PASS, graph/review infrastructure (Task 5):** 1 — AC-040
+- **PENDING:** 0
+- **FAIL:** 1 — AC-041 (unresolved P2 diagnostic disclosure)
+- Total: 16 + 1 + 1 + 23 + 2 + 1 + 1 = 45 ✓
 
 ## Residual state (as of end of Task 2)
 
@@ -118,8 +119,8 @@ Recounted directly from the table above after the post-review corrections (no do
 
 ## Outstanding work (not claimed complete by this report)
 
-- **Task 5** — `graphify update .`, whole-branch code/security review (secrets scan, path traversal, category completeness, binding-mutation-only-on-success, no same-call retries, uncertain-outcome-never-success), graph-freshness proof.
 - **Task 6** — full automated rerun from a clean worktree using the solution-scoped `dotnet test TiaMcpServer.sln`, finalize this report, and commit the evidence. Per the user's explicit instruction for this execution, do not rerun TIA Portal live/API acceptance; retain and reference the recorded Task 2 live evidence instead.
+- **Remediation prerequisite for certification** — `SEC-P5-W1B-001` must be fixed and verified in its owning block-write work before AC-041 and the Phase 5 exit gate can pass. The completed scan report is retained as a local Codex Security artifact; no TIA Portal interaction was used during the scan.
 
 **Evidence-file caveats (for whoever picks this up next):**
 - The raw evidence files this report cites (`task-2-steps1-4-evidence.md`, `task-2-blocks-report.md`, and `priv/MCP_TOOL_TEST_REPORT_ROUND3.md`) live under gitignored paths (`.superpowers/sdd/*` is scratch by design; `priv/` is ignored separately) and will not exist in the repo once committed. The load-bearing specifics (exact error text, timestamps, byte counts, command output) have been quoted verbatim inline in this report's table wherever they support a PASS verdict, so this report should be self-sufficient even if those files are later cleaned up — but if anything here needs re-verification, regenerate it live rather than assuming the scratch files still exist.
@@ -129,4 +130,4 @@ Recounted directly from the table above after the post-review corrections (no do
 
 **Task 2 (live TIA Portal V21 acceptance) scope: PASS, with documented caveats.** Every criterion within Task 2's stated ownership (live/API portions of AC-006–AC-010, AC-015–AC-016, AC-026–AC-028, AC-031, AC-035, AC-037, plus live confirmation of AC-041–AC-043 to the extent observable) was exercised against real TIA Portal V21 on the user-authorized disposable project. None failed outright, but three rows carry a materially narrower scope than a first pass claimed and were corrected after task review: AC-026 (only the authoritative `.xml` document was proven byte-identical, not the full 3-document bundle — two full-bundle attempts failed first), AC-006/AC-008 (tested with the session already bound, not in the AC's literal unbound-session precondition), and AC-010/AC-035/AC-043/AC-030 (each narrower than originally stated — see table). AC-036 required an additional Release-configuration run (discovered missing during review) which now passes cleanly (617/617, coverage 0.8671).
 
-**Phase 5 as a whole is NOT yet certified.** Tasks 3–4 are now complete; AC-040/AC-041 and the final automated rerun remain. Task 6 will not rerun live/API acceptance because the user explicitly accepted the existing Task 2 V21 evidence and directed this execution not to run TIA Portal live tests.
+**Phase 5 is not certified.** Task 5 completed one consolidated review. Its code-review finding — lifecycle preview read failures were returned as bare text rather than structured envelopes — was corrected test-first in `3813784` and the focused xUnit regression test passed. The review also produced unresolved P2 `SEC-P5-W1B-001`, so AC-041 is FAIL. Task 6 will run the final automated gates only; it will not rerun live/API acceptance because the user explicitly accepted the recorded Task 2 V21 evidence and directed this execution not to run TIA Portal live tests.
