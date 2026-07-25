@@ -16,10 +16,10 @@ public class BlockImportCoordinatorTests
         var result = BlockImportCoordinator.Execute(
             "fallback.xml",
             "--- FILE: Main.xml ---\n<Main />\n--- FILE: Types.xml ---\n<Types />",
-            (directory, primaryDocumentName) =>
+            (directory, bundle) =>
             {
                 importCalls++;
-                Assert.Equal("Main.xml", primaryDocumentName);
+                Assert.Equal("Main.xml", bundle.PrimaryDocumentName);
                 Assert.Equal("<Main />\n", File.ReadAllText(Path.Combine(directory.FullName, "Main.xml")));
                 Assert.Equal("<Types />", File.ReadAllText(Path.Combine(directory.FullName, "Types.xml")));
             },

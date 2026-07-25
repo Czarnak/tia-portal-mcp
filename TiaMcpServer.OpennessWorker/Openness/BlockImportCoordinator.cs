@@ -10,7 +10,7 @@ internal static class BlockImportCoordinator
     public static BlockImportResult Execute(
         string documentName,
         string rawContent,
-        Action<DirectoryInfo, string> importDocuments,
+        Action<DirectoryInfo, ParsedBlockImportBundle> importDocuments,
         Func<BlockPostconditionEvidence> verifyPostcondition,
         Action<string>? cleanupDirectory = null)
     {
@@ -34,7 +34,7 @@ internal static class BlockImportCoordinator
             var stagedPaths = BlockImportStager.StageDocuments(stagingPath, bundle);
             VerifyStagedDocuments(stagingPath, bundle, stagedPaths);
 
-            importDocuments(new DirectoryInfo(stagingPath), bundle.PrimaryDocumentName);
+            importDocuments(new DirectoryInfo(stagingPath), bundle);
 
             var evidence = verifyPostcondition()
                 ?? throw new InvalidOperationException("Block update verification did not return evidence.");

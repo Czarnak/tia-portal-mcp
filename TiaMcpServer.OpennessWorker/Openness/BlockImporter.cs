@@ -23,11 +23,12 @@ public static class BlockImporter
         return BlockImportCoordinator.Execute(
             fallbackDocumentName,
             yamlContent,
-            (directory, primaryDocumentName) => ImportDocuments(
+            (directory, bundle) => ImportDocuments(
                 project,
                 preflight.Address,
+                blockPath,
                 directory,
-                primaryDocumentName),
+                bundle),
             () => VerifyPostconditions(
                 project,
                 blockPath,
@@ -37,13 +38,36 @@ public static class BlockImporter
     private static void ImportDocuments(
         Project project,
         BlockAddress address,
+        string blockPath,
         DirectoryInfo directory,
-        string primaryDocumentName)
+        ParsedBlockImportBundle bundle)
     {
         var target = BlockTargetResolver.ResolveForImport(project, address);
+
+        if (BlockImportRouting.SelectRoute(bundle) == BlockImportRoute.SimaticMl)
+        {
+            var authoritative = BlockImportRouting.SelectAuthoritativeDocument(bundle);
+
+            if (bundle.Documents.Count > 1)
+            {
+                var current = BlockImportBundleParser.Parse(
+                    authoritative.LogicalName,
+                    BlockExporter.Export(project, blockPath));
+                BlockImportRouting.EnsureOnlyAuthoritativeDocumentChanged(
+                    bundle, current, authoritative.LogicalName);
+            }
+
+            // A single Simatic ML XML document must go through Import(FileInfo, ImportOptions).
+            // ImportFromDocuments is only for SIMATIC SD packages keyed by an extension-less
+            // base name; passing it a bare .xml produces a misleading "file does not exist".
+            var xmlPath = Path.Combine(directory.FullName, authoritative.SafeFileName);
+            target.Group.Blocks.Import(new FileInfo(xmlPath), ImportOptions.Override);
+            return;
+        }
+
         var result = target.Group.Blocks.ImportFromDocuments(
             directory,
-            primaryDocumentName,
+            BlockImportRouting.SimaticSdBaseName(bundle),
             ImportDocumentOptions.Override);
 
         if (result.State != DocumentResultState.Success)
