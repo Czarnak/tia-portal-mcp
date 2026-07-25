@@ -5,6 +5,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 internal static class BlockPostconditionVerifier
 {
+    private const string PublicFailureDetail = "verification did not complete.";
     private const string UncertainStateWarning =
         "Project state may have changed; inspect the project before retrying.";
 
@@ -25,7 +26,7 @@ internal static class BlockPostconditionVerifier
 
         throw new WorkerOperationException(
             WorkerFailureCategories.PostconditionFailed,
-            "Block " + operation + " postcondition failed: " + evidence.DiagnosticMessage,
+            "Block " + operation + " postcondition failed: " + PublicFailureDetail,
             new[] { UncertainStateWarning });
     }
 }
