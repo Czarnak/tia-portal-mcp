@@ -42,6 +42,24 @@ public class BlockPostconditionVerifierTests
     }
 
     [Fact]
+    public void Verify_RedactsDiagnosticMessageFromCallerVisibleError()
+    {
+        const string rawDiagnostic = "RAW_INTERNAL_TIA_EXCEPTION: C:\\Users\\operator\\secret-project.ap21";
+
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockPostconditionVerifier.Verify(new BlockPostconditionEvidence(
+                compileSucceeded: true,
+                reExportSucceeded: false,
+                diagnosticMessage: rawDiagnostic)));
+
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, exception.FailureCategory);
+        Assert.Equal("Block update postcondition failed: verification did not complete.", exception.Message);
+        Assert.DoesNotContain(rawDiagnostic, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(exception.Warnings, warning =>
+            warning.Contains("project state may have changed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Verify_FailureCarriesUncertainStateWarning()
     {
         var exception = Assert.Throws<WorkerOperationException>(() =>
