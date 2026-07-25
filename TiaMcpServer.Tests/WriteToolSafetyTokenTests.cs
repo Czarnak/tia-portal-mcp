@@ -60,6 +60,32 @@ public class WriteToolSafetyTokenTests
     }
 
     [Fact]
+    public void PreviewCurrentStateReadFailure_ReturnsCategorizedEnvelopeAndWarnings()
+    {
+        using var audit = new TempAuditDirectory();
+
+        var result = WriteSafetyTooling.CreatePreview(
+            audit.CreateSafety(),
+            "save_project",
+            "C:\\Projects\\Line.ap21",
+            new { projectPath = "C:\\Projects\\Line.ap21" },
+            "Save the active TIA Portal project.",
+            new { projectPath = "C:\\Projects\\Line.ap21" },
+            WorkerCallResult.Fail(
+                WorkerFailureCategories.WorkerTimeout,
+                "Timed out while reading current project state.",
+                new[] { "Worker stderr was captured." }));
+
+        using var document = JsonDocument.Parse(result);
+        var root = document.RootElement;
+        Assert.Equal("save_project", root.GetProperty("toolName").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(WorkerFailureCategories.WorkerTimeout, root.GetProperty("failureCategory").GetString());
+        Assert.Equal("Timed out while reading current project state.", root.GetProperty("error").GetString());
+        Assert.Equal("Worker stderr was captured.", root.GetProperty("warnings")[0].GetString());
+    }
+
+    [Fact]
     public async Task WriteToolWithTokenButNoConfirm_RejectsBeforeAnyWork()
     {
         using var audit = new TempAuditDirectory();

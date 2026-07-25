@@ -65,7 +65,7 @@ public static class WriteSafetyTooling
     {
         if (!currentState.Success)
         {
-            return $"Could not read current state before preview. Error: {currentState.Error}";
+            return BuildApplyResult(toolName, currentState);
         }
 
         return safety.CreatePreview(
