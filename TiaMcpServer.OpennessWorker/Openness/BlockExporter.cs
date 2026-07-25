@@ -1,5 +1,4 @@
 using System.Text;
-using System.Xml.Linq;
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
@@ -61,7 +60,7 @@ public static partial class BlockExporter
                 string xmlPath = Path.Combine(tempDir, target.DocumentName + ".xml");
                 target.Block!.Export(new FileInfo(xmlPath), ExportOptions.None);
                 combined.Append($"--- FILE: {target.DocumentName}.xml ---\n");
-                combined.Append(StripNonDeterministic(File.ReadAllText(xmlPath)));
+                combined.Append(BlockXmlSanitizer.RemoveDocumentInfo(File.ReadAllText(xmlPath)));
             }
             catch (Exception ex)
             {
@@ -87,29 +86,6 @@ public static partial class BlockExporter
         {
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, true);
-        }
-    }
-
-    /// <summary>
-    /// Removes non-deterministic content from exported Simatic ML XML so the result is stable
-    /// across calls. The &lt;DocumentInfo&gt; element carries a &lt;Created&gt; timestamp that changes
-    /// every export; including it would make get_block_content non-idempotent and invalidate the
-    /// write-safety state hash (which binds to GetBlockContent output) on every preview/apply.
-    /// </summary>
-    private static string StripNonDeterministic(string xml)
-    {
-        try
-        {
-            var doc = XDocument.Parse(xml);
-            doc.Root?.Elements()
-                .Where(e => e.Name.LocalName == "DocumentInfo")
-                .Remove();
-            return doc.ToString();
-        }
-        catch
-        {
-            // If parsing fails for any reason, fall back to the raw text.
-            return xml;
         }
     }
 }
