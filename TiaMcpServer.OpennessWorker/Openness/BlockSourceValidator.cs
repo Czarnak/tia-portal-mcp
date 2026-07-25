@@ -1,0 +1,94 @@
+using System;
+using System.Linq;
+using System.Xml.Linq;
+using TiaMcpServer.Contracts;
+
+namespace TiaMcpServer.OpennessWorker.Openness;
+
+internal static class BlockSourceValidator
+{
+    public static void Validate(string blockType, string language, string xml)
+    {
+        ValidateTypeLanguage(blockType, language);
+
+        XDocument document;
+        try
+        {
+            document = XDocument.Parse(xml, LoadOptions.None);
+        }
+        catch (Exception exception) when (exception is System.Xml.XmlException or ArgumentException)
+        {
+            throw ValidationFailure("Generated block source is not well-formed XML.");
+        }
+
+        var expectedBlockElement = blockType is "GLOBALDB" or "DB"
+            ? "SW.Blocks.GlobalDB"
+            : $"SW.Blocks.{blockType}";
+        if (!document.Descendants(expectedBlockElement).Any())
+        {
+            throw ValidationFailure($"Generated source does not contain a {expectedBlockElement} block.");
+        }
+
+        if (ContainsRawStructuredTextNode(document))
+        {
+            throw ValidationFailure(
+                "Generated source places raw text inside a StructuredText element, which the "
+                + "Simatic ML schema forbids.");
+        }
+
+        if (language is "SCL" or "STL" && !HasCompileUnitFor(document, language))
+        {
+            throw ValidationFailure(
+                $"Generated {blockType} {language} source must contain a compile unit.");
+        }
+    }
+
+    internal static void ValidateTypeLanguage(string blockType, string language)
+    {
+        if (blockType is "GLOBALDB" or "DB")
+        {
+            if (language != "DB")
+            {
+                throw ValidationFailure(
+                    $"Block type '{blockType}' uses language 'DB'; '{language}' is not supported. "
+                    + "Omit the language parameter for data blocks.");
+            }
+
+            return;
+        }
+
+        if (blockType is not ("FB" or "FC" or "OB"))
+        {
+            throw ValidationFailure($"Unsupported block type '{blockType}'.");
+        }
+
+        if (language is not ("LAD" or "FBD" or "STL" or "SCL" or "GRAPH"))
+        {
+            throw ValidationFailure($"Unsupported programming language '{language}'.");
+        }
+    }
+
+    private static bool HasCompileUnitFor(XDocument document, string language)
+    {
+        return document.Descendants("SW.Blocks.CompileUnit")
+            .Select(compileUnit => compileUnit.Element("AttributeList"))
+            .Where(attributeList => attributeList is not null)
+            .Any(attributeList => string.Equals(
+                attributeList!.Element("ProgrammingLanguage")?.Value,
+                language,
+                StringComparison.Ordinal));
+    }
+
+    private static bool ContainsRawStructuredTextNode(XDocument document)
+    {
+        return document.Descendants()
+            .Where(element => element.Name.LocalName == "StructuredText")
+            .Any(element => element.Nodes().OfType<XText>().Any(
+                text => !string.IsNullOrWhiteSpace(text.Value)));
+    }
+
+    private static WorkerOperationException ValidationFailure(string message)
+    {
+        return new WorkerOperationException(WorkerFailureCategories.ValidationError, message);
+    }
+}

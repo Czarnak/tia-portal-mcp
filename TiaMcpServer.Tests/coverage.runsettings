@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[TiaMcpServer]*,[TiaMcpServer.Contracts]*,[TiaMcpServer.Tests]TiaMcpServer.*</Include>
+          <Exclude>[TiaMcpServer.Tests]TiaMcpServer.Tests.*,[TiaMcpServer.Tests]TiaMcpServer.OpennessWorker.*,[TiaMcpServer.FakeWorker]*,[TiaMcpServer.OpennessWorker]*</Exclude>
+          <IncludeTestAssembly>true</IncludeTestAssembly>
+          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
+          <ExcludeByFile>**/*.g.cs,**/*.Designer.cs,**/obj/**</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

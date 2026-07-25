@@ -11,6 +11,13 @@ public class WorkerResponse
     public string? Error { get; set; }
 
     /// <summary>
+    /// Closed failure category from <see cref="WorkerFailureCategories"/>, set once at the point
+    /// the failure is constructed and never mutated afterward — unlike <see cref="Warnings"/> and
+    /// <see cref="ResolvedProjectPath"/>, which are patched in after the fact. Null on success.
+    /// </summary>
+    public string? FailureCategory { get; init; }
+
+    /// <summary>
     /// Non-fatal degradation notes captured from the worker's Console.Error while THIS
     /// request was being handled (e.g. "Skipping device X: access denied"). Null when none.
     /// </summary>

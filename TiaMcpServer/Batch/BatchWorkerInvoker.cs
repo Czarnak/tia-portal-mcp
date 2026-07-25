@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Batch;
@@ -25,7 +26,9 @@ public static class BatchWorkerInvoker
             => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
         "start_plc" or "stop_plc"
             => client.GetProjectStatusAsync(op.ProjectPath),
-        _ => Task.FromResult(WorkerCallResult.Fail($"Unsupported batch write operation '{op.Operation}'.")),
+        _ => Task.FromResult(WorkerCallResult.Fail(
+            WorkerFailureCategories.ValidationError,
+            $"Unsupported batch write operation '{op.Operation}'.")),
     };
 
     /// <summary>Executes a single read or write item against the worker.</summary>
@@ -60,7 +63,9 @@ public static class BatchWorkerInvoker
         "start_plc" => client.StartPlcAsync(op.PlcName, op.ProjectPath),
         "stop_plc" => client.StopPlcAsync(op.PlcName, op.ProjectPath),
 
-        _ => Task.FromResult(WorkerCallResult.Fail($"Unsupported batch operation '{op.Operation}'.")),
+        _ => Task.FromResult(WorkerCallResult.Fail(
+            WorkerFailureCategories.ValidationError,
+            $"Unsupported batch operation '{op.Operation}'.")),
     };
 
     private static string ResolveDeviceItemName(BatchOperationRequest op)

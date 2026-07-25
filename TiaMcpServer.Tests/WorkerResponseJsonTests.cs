@@ -58,4 +58,49 @@ public class WorkerResponseJsonTests
 
         Assert.Null(response!.ResolvedProjectPath);
     }
+
+    [Theory]
+    [InlineData("validation_error")]
+    [InlineData("binding_conflict")]
+    [InlineData("state_changed")]
+    [InlineData("worker_operation_failed")]
+    [InlineData("worker_timeout")]
+    [InlineData("worker_crashed")]
+    [InlineData("postcondition_failed")]
+    public void WorkerResponse_RoundTripsFailureCategory(string category)
+    {
+        var response = new WorkerResponse
+        {
+            Success = false,
+            Error = "boom",
+            FailureCategory = category
+        };
+
+        var json = JsonSerializer.Serialize(response, JsonOptions);
+        var roundTripped = JsonSerializer.Deserialize<WorkerResponse>(json, JsonOptions);
+
+        Assert.Contains($"\"failureCategory\":\"{category}\"", json);
+        Assert.NotNull(roundTripped);
+        Assert.Equal(category, roundTripped!.FailureCategory);
+    }
+
+    [Fact]
+    public void FailureCategory_DefaultsToNull()
+    {
+        const string json = """{"success":true,"payload":"{}"}""";
+
+        var response = JsonSerializer.Deserialize<WorkerResponse>(json, JsonOptions);
+
+        Assert.Null(response!.FailureCategory);
+    }
+
+    [Fact]
+    public void OmitsFailureCategoryWhenNull()
+    {
+        var response = new WorkerResponse { Success = true };
+
+        var json = JsonSerializer.Serialize(response, JsonOptions);
+
+        Assert.DoesNotContain("\"failureCategory\"", json);
+    }
 }

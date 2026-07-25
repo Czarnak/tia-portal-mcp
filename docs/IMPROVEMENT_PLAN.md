@@ -189,8 +189,122 @@ mis-specification above — were only visible from a whole-branch view; neither 
 by reviewing a single task's diff. Worth budgeting for a broad review pass on any change that spans
 a process boundary.
 
+## CI and coverage foundation — DONE 2026-07-23 (Phase 5 Plan 1)
+
+Solution builds are serialized (`-m:1`), a scoped coverage gate is wired into CI (collect → enforce
+locally at `>= 0.80` → Codecov upload, reporting-only), and all three are pinned by named tests in
+`CiWorkflowTests`/`CoverageThresholdScriptTests`.
+
+A gap was found and fixed mid-implementation: `TiaMcpServer.Tests` has no `ProjectReference` to
+`TiaMcpServer` (deliberate — a normal reference would drag `TiaMcpServer.csproj`'s `BeforeTargets="Build"`
+hook into building the net48 Openness worker against real `Siemens.Engineering*.dll`). Host code
+instead reaches the test project via `<Compile Include>` and compiles into the `TiaMcpServer.Tests`
+module, so assembly-scoped Coverlet filters (`[TiaMcpServer]*`) could never see it — the real Cobertura
+report contained only `TiaMcpServer.Contracts` (92%), while all host logic was silently swallowed by the
+`[TiaMcpServer.Tests]*` exclude. Fixed with namespace-scoped filters instead (`[TiaMcpServer.Tests]TiaMcpServer.*`
+include, carving back out `TiaMcpServer.Tests.*` and `TiaMcpServer.OpennessWorker.*`) plus
+`IncludeTestAssembly=true` (Coverlet defaults this `false`, which alone would have made the filter
+change a no-op). New aggregate: 0.836.
+
+### Follow-up architectural task (flagged by the final whole-branch review, not fixed in Plan 1)
+
+The fix above is correct today but couples the coverage gate's meaning to a namespace-naming
+convention rather than assembly identity: a future host class placed outside the `TiaMcpServer.*`
+namespace would be silently excluded from coverage (undercounting real code, potentially masking a
+genuine regression without failing any test), and a test-support class placed outside
+`TiaMcpServer.Tests.*` would be silently counted as production. The durable fix is a real
+`ProjectReference` from `TiaMcpServer.Tests` to `TiaMcpServer` with a build path that stays stub-safe
+(doesn't force the net48 Openness worker's real Siemens-DLL build during `dotnet test`). Scope that as
+its own task rather than folding it into a later phase's unrelated work. A cheap interim guard in the
+meantime: a test that fails if any instrumented type in the test assembly matching include-minus-exclude
+is itself a `[Fact]`/`[Theory]`-bearing class, turning silent scope drift into a loud one.
+
+### Smaller follow-ups from the same review
+
+- **`ReadRunCommandBlocks` (`CiWorkflowTests.cs`) misses inline `- run: <command>` YAML shorthand** —
+  the key-position guard rejects any line where text before `run:` is non-blank, which includes the
+  `- ` array-item marker. A solution build written in that shorthand (no sibling `name:`) would escape
+  the `-m:1` enforcement entirely. Not used by any current workflow; widen the guard to also accept a
+  lone leading `- ` if that style is ever introduced.
+- **`GetRepositoryRoot()` is duplicated verbatim** between `CiWorkflowTests.cs` and
+  `CoverageThresholdScriptTests.cs`, and its 4-level `../` walk assumes the standard
+  `bin/<config>/<tfm>/` output layout. Extract to one shared test helper.
+- **The threshold script accepts `NaN`/`Infinity` as a passing line-rate** (`NaN -lt $min` is `false`
+  in .NET) — unreachable with real Cobertura output, but an explicit `IsNaN`/`IsInfinity` guard is
+  cheap insurance.
+- **`CoverageThresholdScriptTests.RunScript` reads stdout then stderr with sequential `ReadToEnd()`
+  before `WaitForExit()`** — deadlock-prone in theory if either buffer fills; harmless today given the
+  script's one-line output. Switch to async reads if the script's output ever grows.
+- Status/error message interpolation in the threshold script isn't invariant-culture (cosmetic; moot
+  on GitHub's en-US-locale runners).
+- Worst-covered (0% line-rate) host classes, now visible now for the first time thanks to the fix
+  above, noted as a possible future test-writing target: `EnvironmentVariableService`,
+  `FileSystemService`, `ProcessEnumerationService`, `RegistryService`, `WindowsIdentityService` (thin
+  OS-adapter classes).
+
+## Lifecycle and response integrity — DONE 2026-07-23 (Phase 5 Plan 2)
+
+Closed the `WorkerFailureCategories` vocabulary (`validation_error`, `binding_conflict`, `state_changed`,
+`worker_operation_failed`, `worker_timeout`, `worker_crashed`, `postcondition_failed`) across every
+guarded write path; split the user-facing `get_project_status` read from the internal
+`probe_project_status_for_lifecycle` write-state probe so status reads are side-effect-free and never
+open or switch projects; introduced an explicit `BindingTransition` model so session binding only
+adopts worker-reported ground truth, never caller input; fixed a `save_project_as` divergence where a
+successful SaveAs could leave the host and worker bound to different projects; and made
+`save_project_as(rebind:false)` a rejected `validation_error` before any preview, token, or Siemens
+call. Automated gates pass: full suite green at the Plan 2 tip (branch
+`fix/phase5-02-lifecycle-response-integrity`, commit `66cce7b`), 506/506.
+
+**Certification evidence recorded:** Task 2 of the Phase 5 Plan 4 certification plan recorded live
+TIA Portal V21 evidence for the externally observable lifecycle cases. The internal-only timeout,
+crash, and null-binding cases remain primarily covered by the automated FakeWorker suite; the
+acceptance report records each scope boundary explicitly.
+
+## PLC block-write repairs — DONE 2026-07-25 (Phase 5 Plan 3 + block-write-format-repair follow-up)
+
+Plan 3 (`docs/superpowers/plans/2026-07-23-phase5-03-plc-block-write-repairs.md`) added block-bundle
+parsing/staging validation (reject missing/duplicate documents, unsafe filenames, path traversal),
+postcondition verification for `update_block_logic` and `create_block` (compile/re-export checks
+instead of trusting Siemens' import return value), and SCL source generation. Automated gates passed
+at the Plan 3 tip (branch `codex/phase5-03-plc-block-write-repairs`, commit `e65dc64`), full suite
+582/582.
+
+Live manual testing on 2026-07-25 (see `priv/MCP_TOOL_TEST_REPORT_2026-07-25.md`) found Plan 3's
+postcondition checks did not catch a real corruption bug: `BlockExporter.Export()` omitted a newline
+before each `--- FILE: ... ---` marker after the first, so `BlockImportBundleParser`'s
+multiline-anchored delimiter regex could not see any delimiter past the first, and any multi-document
+block round trip silently corrupted. Also found `create_block` failed outright for `language=SCL`
+(schema-invalid template) and had no working input for `blockType=GlobalDB`.
+
+The 2026-07-25 block-write-format-repair follow-up plan
+(`docs/superpowers/plans/2026-07-25-block-write-format-repair.md`, Tasks 1-7, commits `d105dfb`..`81b73fc`)
+fixed all three: `BlockBundleFormat.Compose` now guarantees a newline before every marker after the
+first; block-document import routes Simatic ML XML through `BlockImportRouting` with a
+non-authoritative-document guard; `GlobalDB` creation now defaults to/requires `language="DB"`;
+SCL/STL compile units use a schema-valid empty `<NetworkSource />` instead of a raw-text
+`StructuredText` node. Automated gates pass: full suite 615/615 at commit `81b73fc`.
+
+**Certification evidence recorded:** Task 2 of the Phase 5 Plan 4 certification plan confirmed the
+authoritative-document byte-identical and edited `update_block_logic` paths, malformed-bundle
+non-mutation, and SCL `create_block` resolution/compilation on TIA Portal V21. The report retains
+the exact scope caveats for non-authoritative document companions and unexercised block types; those
+are evidence boundaries, not known unresolved product defects. README now documents the verified
+recovery behavior rather than carrying a stale pending-live caveat.
+
+## Phase 5 certification documentation — DONE 2026-07-25 (Phase 5 Plan 4 Tasks 1–4)
+
+The repository documentation and the authorized source `tia-portal-mcp` skill now describe the
+ten-tool public surface, self-previewing lifecycle writes, non-binding status reads, required
+`save_project_as(rebind:true)`, categorized failures, separate warnings, and verified block-write
+behavior. The installed plugin cache was not modified. The Phase 5 exit still requires the Plan 4
+graph/review and final automated acceptance gates; Phase 6 exclusions below remain unchanged.
+
 ## Deferred / explicitly not planned
 
+- Openness `Transaction` and `ExclusiveAccess` APIs, authentication/authorization-event subscriptions,
+  server-push/long-polling MCP notifications, and exposing `doctor` diagnostics as an MCP-callable tool
+  (it remains CLI-only via `tia-mcp doctor`) — all out of Phase 5 production scope (AC-044); Phase 6+
+  candidates.
 - Splitting `WorkerRequest` into per-operation DTOs (churn > value while the protocol is stable).
 - MCP protocol-level error signaling instead of text results (needs SDK investigation; revisit after 1.1).
 - `NetworkDeviceConfigurator` speculative-reflection "UNVERIFIED SDK CALL" paths: verify against real

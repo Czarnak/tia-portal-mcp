@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
 
@@ -20,14 +21,19 @@ public static class WriteSafetyTooling
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
             return WriteSafetyApplyContext.Invalid(
-                $"Safety token required. Call {previewToolName} first, review the preview, then pass its safetyToken with confirm=true.");
+                $"Safety token required. Call {previewToolName} first, review the preview, then pass its safetyToken with confirm=true.",
+                WorkerFailureCategories.ValidationError);
         }
 
         var currentState = await readCurrentState().ConfigureAwait(false);
         if (!currentState.Success)
         {
+            // The pre-write state read already failed with its own real category (e.g.
+            // worker_timeout / worker_crashed / postcondition_failed) — carry that through rather
+            // than inventing one, so an uncertain read outcome stays an uncertain outcome.
             return WriteSafetyApplyContext.Invalid(
-                $"Could not read current state before write. Error: {currentState.Error}");
+                $"Could not read current state before write. Error: {currentState.Error}",
+                currentState.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed);
         }
 
         var validation = safety.ValidateAndConsume(
@@ -41,7 +47,9 @@ public static class WriteSafetyTooling
 
         return validation.IsValid
             ? WriteSafetyApplyContext.Valid(currentState.Payload)
-            : WriteSafetyApplyContext.Invalid(validation.Error);
+            : WriteSafetyApplyContext.Invalid(
+                validation.Error,
+                validation.FailureCategory ?? WorkerFailureCategories.ValidationError);
     }
 
     public static string CreatePreview(
@@ -57,7 +65,7 @@ public static class WriteSafetyTooling
     {
         if (!currentState.Success)
         {
-            return $"Could not read current state before preview. Error: {currentState.Error}";
+            return BuildApplyResult(toolName, currentState);
         }
 
         return safety.CreatePreview(
@@ -77,11 +85,27 @@ public static class WriteSafetyTooling
         string? verificationName = null,
         string? verificationResult = null)
     {
+        // Failure is never rendered success-shaped: failureCategory/error/warnings are the
+        // whole story, with no operationResult/verification fields implying completion.
+        if (!operationResult.Success)
+        {
+            return JsonSerializer.Serialize(
+                new
+                {
+                    toolName,
+                    success = false,
+                    failureCategory = operationResult.FailureCategory,
+                    error = operationResult.Error,
+                    warnings = operationResult.Warnings.Count > 0 ? operationResult.Warnings : null
+                },
+                TiaJson.Presentation);
+        }
+
         return JsonSerializer.Serialize(
             new
             {
                 toolName,
-                success = operationResult.Success,
+                success = true,
                 operationResult = operationResult.ToText(),
                 warnings = operationResult.Warnings.Count > 0 ? operationResult.Warnings : null,
                 verification = verificationName is null
@@ -175,15 +199,20 @@ public static class WriteSafetyTooling
     }
 }
 
-public sealed record WriteSafetyApplyContext(bool IsValid, string? Error, string CurrentState)
+public sealed record WriteSafetyApplyContext(bool IsValid, string? Error, string CurrentState, string? FailureCategory = null)
 {
     public static WriteSafetyApplyContext Valid(string currentState)
     {
         return new(true, null, currentState);
     }
 
-    public static WriteSafetyApplyContext Invalid(string error)
+    /// <summary>
+    /// Builds an invalid apply context carrying an explicit <paramref name="failureCategory"/> from
+    /// the closed <see cref="WorkerFailureCategories"/> vocabulary, so the lifecycle tool can render
+    /// a categorized failure envelope instead of a raw string.
+    /// </summary>
+    public static WriteSafetyApplyContext Invalid(string error, string failureCategory)
     {
-        return new(false, error, string.Empty);
+        return new(false, error, string.Empty, failureCategory);
     }
 }

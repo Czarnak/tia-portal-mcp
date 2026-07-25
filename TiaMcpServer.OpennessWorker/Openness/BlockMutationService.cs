@@ -17,33 +17,74 @@ public static class BlockMutationService
         string? language,
         string? obEventClass)
     {
-        var address = BlockAddress.Parse(blockPath);
+        var preflight = BlockWritePreflight.PrepareCreate(blockPath, blockType, language);
+        var address = preflight.Address;
         var plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
         var group = ResolveGroupFromAddress(plcSoftware, address);
 
         var blockName = address.BlockName;
-        var normalizedType = blockType.ToUpperInvariant();
-        var normalizedLang = (language ?? "LAD").ToUpperInvariant();
+        var normalizedType = preflight.BlockType;
+        var normalizedLang = preflight.Language;
 
-        if (normalizedType is "FB" or "FC" or "OB" or "GLOBALDB" or "DB")
+        return BlockCreationCoordinator.Execute(
+            () =>
+            {
+                ImportBlockFromXml(group, blockName, normalizedType, normalizedLang, obEventClass);
+
+                return new BlockMutationResultInfo
+                {
+                    Operation = "create_block",
+                    ProjectPath = project.Path.FullName,
+                    PlcName = address.PlcName ?? plcSoftware.Name,
+                    BlockPath = blockPath,
+                    BlockType = normalizedType,
+                    Language = (normalizedType is "GLOBALDB" or "DB") ? null : normalizedLang
+                };
+            },
+            () => VerifyCreatedBlockPostconditions(project, address, blockPath));
+    }
+
+    private static BlockPostconditionEvidence VerifyCreatedBlockPostconditions(
+        Project project,
+        BlockAddress address,
+        string blockPath)
+    {
+        try
         {
-            ImportBlockFromXml(group, blockName, normalizedType, normalizedLang, obEventClass);
+            _ = BlockTargetResolver.ResolveForExport(project, address);
         }
-        else
+        catch (Exception exception)
         {
-            throw new InvalidOperationException(
-                $"Unknown block type '{blockType}'. Valid types: FB, FC, OB, GlobalDB.");
+            return new BlockPostconditionEvidence(
+                compileSucceeded: false,
+                reExportSucceeded: false,
+                diagnosticMessage: "Created block could not be resolved: " + exception.Message);
         }
 
-        return new BlockMutationResultInfo
+        try
         {
-            Operation = "create_block",
-            ProjectPath = project.Path.FullName,
-            PlcName = address.PlcName ?? plcSoftware.Name,
-            BlockPath = blockPath,
-            BlockType = normalizedType,
-            Language = (normalizedType is "GLOBALDB" or "DB") ? null : normalizedLang
-        };
+            var report = CompileChecker.Compile(project, address.PlcName, blockPath);
+            if (report.TotalErrorCount != 0
+                || string.Equals(report.OverallState, "Error", StringComparison.OrdinalIgnoreCase))
+            {
+                return new BlockPostconditionEvidence(
+                    compileSucceeded: false,
+                    reExportSucceeded: true,
+                    diagnosticMessage: "Compilation reported errors after block creation.");
+            }
+        }
+        catch (Exception exception)
+        {
+            return new BlockPostconditionEvidence(
+                compileSucceeded: false,
+                reExportSucceeded: true,
+                diagnosticMessage: "Compilation could not complete after block creation: " + exception.Message);
+        }
+
+        return new BlockPostconditionEvidence(
+            compileSucceeded: true,
+            reExportSucceeded: true,
+            diagnosticMessage: "Created block resolved and compiled successfully.");
     }
 
     public static BlockMutationResultInfo DeleteBlock(Project project, string blockPath)
@@ -183,7 +224,8 @@ public static class BlockMutationService
         string language,
         string? obEventClass)
     {
-        var xml = GenerateBlockXml(blockName, blockType, language, obEventClass);
+        var xml = BlockSourceGenerator.Generate(blockName, blockType, language, obEventClass);
+        BlockSourceValidator.Validate(blockType, language, xml);
         var tempFile = Path.Combine(
             Path.GetTempPath(),
             $"tia-mcp-create-{Guid.NewGuid():N}.xml");
@@ -201,149 +243,5 @@ public static class BlockMutationService
             }
         }
     }
-
-    private static string GenerateBlockXml(
-        string blockName,
-        string blockType,
-        string language,
-        string? obEventClass)
-    {
-        var engineeringVersion = "V21";
-
-        return blockType switch
-        {
-            "FB" => GenerateFbXml(blockName, language, engineeringVersion),
-
-            "FC" => $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<Document>
-  <Engineering version=""{engineeringVersion}"" />
-  <SW.Blocks.FC ID=""0"">
-    <AttributeList>
-      <AutoNumber>true</AutoNumber>
-      <HeaderAuthor></HeaderAuthor>
-      <HeaderFamily></HeaderFamily>
-      <HeaderName></HeaderName>
-      <HeaderVersion>0.1</HeaderVersion>
-      <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Input"" /><Section Name=""Output"" /><Section Name=""InOut"" /><Section Name=""Temp"" /><Section Name=""Return""><Member Name=""Ret_Val"" Datatype=""Void"" /></Section></Sections></Interface>
-      <Name>{blockName}</Name>
-      <Namespace></Namespace>
-      <ProgrammingLanguage>{ToProgrammingLanguageXml(language)}</ProgrammingLanguage>
-      <SetENOAutomatically>false</SetENOAutomatically>
-    </AttributeList>
-    <ObjectList>
-      <MultilingualText ID=""1"" CompositionName=""Comment"" />
-      <MultilingualText ID=""2"" CompositionName=""Title"" />
-    </ObjectList>
-  </SW.Blocks.FC>
-</Document>",
-
-            "OB" => $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<Document>
-  <Engineering version=""{engineeringVersion}"" />
-  <SW.Blocks.OB ID=""0"">
-    <AttributeList>
-      <AutoNumber>true</AutoNumber>
-      <HeaderAuthor></HeaderAuthor>
-      <HeaderFamily></HeaderFamily>
-      <HeaderName></HeaderName>
-      <HeaderVersion>0.1</HeaderVersion>
-      <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Temp"" /><Section Name=""Constant"" /></Sections></Interface>
-      <Name>{blockName}</Name>
-      <Namespace></Namespace>
-      <ProgrammingLanguage>{ToProgrammingLanguageXml(language)}</ProgrammingLanguage>
-      <SecondaryType>{obEventClass ?? "ProgramCycle"}</SecondaryType>
-      <SetENOAutomatically>false</SetENOAutomatically>
-    </AttributeList>
-    <ObjectList>
-      <MultilingualText ID=""1"" CompositionName=""Comment"" />
-      <MultilingualText ID=""2"" CompositionName=""Title"" />
-    </ObjectList>
-  </SW.Blocks.OB>
-</Document>",
-
-            "GLOBALDB" or "DB" => $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<Document>
-  <Engineering version=""{engineeringVersion}"" />
-  <SW.Blocks.GlobalDB ID=""0"">
-    <AttributeList>
-      <AutoNumber>true</AutoNumber>
-      <HeaderAuthor></HeaderAuthor>
-      <HeaderFamily></HeaderFamily>
-      <HeaderName></HeaderName>
-      <HeaderVersion>0.1</HeaderVersion>
-      <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Static"" /></Sections></Interface>
-      <Name>{blockName}</Name>
-      <Namespace></Namespace>
-      <Optimized>true</Optimized>
-    </AttributeList>
-    <ObjectList>
-      <MultilingualText ID=""1"" CompositionName=""Comment"" />
-      <MultilingualText ID=""2"" CompositionName=""Title"" />
-    </ObjectList>
-  </SW.Blocks.GlobalDB>
-</Document>",
-
-            _ => throw new InvalidOperationException($"Unsupported block type for XML generation: {blockType}")
-        };
-    }
-
-    private static string GenerateFbXml(string blockName, string language, string engineeringVersion)
-    {
-        var langXml = ToProgrammingLanguageXml(language);
-        // SCL and STL require at least one compile unit; LAD/FBD/GRAPH do not.
-        var compileUnits = language is "SCL" or "STL"
-            ? $@"
-      <SW.Blocks.CompileUnit ID=""3"" CompositionName=""CompileUnits"">
-        <AttributeList>
-          <NetworkSource>
-            <StructuredText xmlns=""http://www.siemens.com/automation/Openness/SW/NetworkSource/StructuredText/v3"" />
-          </NetworkSource>
-          <ProgrammingLanguage>{langXml}</ProgrammingLanguage>
-        </AttributeList>
-        <ObjectList>
-          <MultilingualText ID=""4"" CompositionName=""Comment"" />
-          <MultilingualText ID=""5"" CompositionName=""Title"" />
-        </ObjectList>
-      </SW.Blocks.CompileUnit>"
-            : string.Empty;
-
-        return $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<Document>
-  <Engineering version=""{engineeringVersion}"" />
-  <SW.Blocks.FB ID=""0"">
-    <AttributeList>
-      <AutoNumber>true</AutoNumber>
-      <HeaderAuthor></HeaderAuthor>
-      <HeaderFamily></HeaderFamily>
-      <HeaderName></HeaderName>
-      <HeaderVersion>0.1</HeaderVersion>
-      <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Input"" /><Section Name=""Output"" /><Section Name=""InOut"" /><Section Name=""Static"" /><Section Name=""Temp"" /><Section Name=""Constant"" /></Sections></Interface>
-      <Name>{blockName}</Name>
-      <Namespace></Namespace>
-      <ProgrammingLanguage>{langXml}</ProgrammingLanguage>
-      <SetENOAutomatically>false</SetENOAutomatically>
-    </AttributeList>
-    <ObjectList>
-      <MultilingualText ID=""1"" CompositionName=""Comment"" />{compileUnits}
-      <MultilingualText ID=""2"" CompositionName=""Title"" />
-    </ObjectList>
-  </SW.Blocks.FB>
-</Document>";
-    }
-
-    private static string ToProgrammingLanguageXml(string language)
-    {
-        return language switch
-        {
-            "LAD" => "LAD",
-            "FBD" => "FBD",
-            "STL" => "STL",
-            "SCL" => "SCL",
-            "GRAPH" => "GRAPH",
-            _ => throw new InvalidOperationException(
-                $"Unknown programming language '{language}'. Valid values: LAD, FBD, STL, SCL, GRAPH.")
-        };
-    }
-
 
 }
