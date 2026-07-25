@@ -1,16 +1,16 @@
 # Graph Report - tia-portal-mcp  (2026-07-25)
 
 ## Corpus Check
-- 204 files · ~67,920 words
+- 204 files · ~67,977 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1767 nodes · 2544 edges · 202 communities (26 shown, 176 thin omitted)
+- 1768 nodes · 2545 edges · 197 communities (23 shown, 174 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1a277651`
+- Built from commit: `0b7a62f6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -127,10 +127,10 @@
 - [[_COMMUNITY_Community 109|Community 109]]
 - [[_COMMUNITY_Community 110|Community 110]]
 - [[_COMMUNITY_Community 111|Community 111]]
-- [[_COMMUNITY_Community 112|Community 112]]
 - [[_COMMUNITY_Community 113|Community 113]]
 - [[_COMMUNITY_Community 114|Community 114]]
 - [[_COMMUNITY_Community 115|Community 115]]
+- [[_COMMUNITY_Community 116|Community 116]]
 - [[_COMMUNITY_Community 117|Community 117]]
 - [[_COMMUNITY_Community 118|Community 118]]
 - [[_COMMUNITY_Community 119|Community 119]]
@@ -202,13 +202,8 @@
 - [[_COMMUNITY_Community 185|Community 185]]
 - [[_COMMUNITY_Community 186|Community 186]]
 - [[_COMMUNITY_Community 187|Community 187]]
-- [[_COMMUNITY_Community 188|Community 188]]
-- [[_COMMUNITY_Community 189|Community 189]]
-- [[_COMMUNITY_Community 190|Community 190]]
-- [[_COMMUNITY_Community 191|Community 191]]
-- [[_COMMUNITY_Community 192|Community 192]]
-- [[_COMMUNITY_Community 200|Community 200]]
-- [[_COMMUNITY_Community 201|Community 201]]
+- [[_COMMUNITY_Community 195|Community 195]]
+- [[_COMMUNITY_Community 196|Community 196]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `OpennessWorkerClient` - 61 edges
@@ -223,6 +218,8 @@
 10. `ProjectLifecycleTools` - 19 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `PersistentWorkerTransport` --references--> `bool`  [EXTRACTED]
+  TiaMcpServer/Worker/PersistentWorkerTransport.cs → TiaMcpServer.OpennessWorker/Openness/TiaPortalSession.cs
 - `BatchOperationCatalog` --references--> `int`  [EXTRACTED]
   TiaMcpServer/Batch/BatchOperationCatalog.cs → TiaMcpServer.OpennessWorker/Openness/EquipmentCatalogSearcher.cs
 - `BatchOperationCatalog` --references--> `string`  [EXTRACTED]
@@ -231,26 +228,24 @@
   TiaMcpServer/Batch/BatchPayloadBudget.cs → TiaMcpServer.OpennessWorker/Openness/EquipmentCatalogSearcher.cs
 - `OpennessWorkerClient` --references--> `int`  [EXTRACTED]
   TiaMcpServer/Worker/OpennessWorkerClient.cs → TiaMcpServer.OpennessWorker/Openness/EquipmentCatalogSearcher.cs
-- `PersistentWorkerTransport` --references--> `int`  [EXTRACTED]
-  TiaMcpServer/Worker/PersistentWorkerTransport.cs → TiaMcpServer.OpennessWorker/Openness/EquipmentCatalogSearcher.cs
 
-## Communities (202 total, 176 thin omitted)
+## Communities (197 total, 174 thin omitted)
+
+### Community 0 - "Community 0"
+Cohesion: 0.06
+Nodes (13): ConcurrentQueue, IDisposable, ILogger, object, PersistentWorkerTransport, Process, ProjectSessionBinding, SemaphoreSlim (+5 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.08
-Nodes (4): object, PersistentWorkerTransport, ProjectSessionBinding, OpennessWorkerClient
+Cohesion: 0.05
+Nodes (13): BatchResultFormatter, ConcurrentDictionary, TiaJson, JsonSerializerOptions, Invalid(), Valid(), WriteSafetyService, Invalid() (+5 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.07
-Nodes (16): bool, ConcurrentDictionary, ConcurrentQueue, IDisposable, ILogger, TiaPortalSession, Process, Invalid() (+8 more)
-
-### Community 5 - "Community 5"
-Cohesion: 0.04
-Nodes (45): Architecture, Block Paths, Build From Source, code:text (C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21), code:powershell (dotnet run --project TiaMcpServer), code:powershell ('{ "method": "browse_project_tree", "projectPath": null }' |), code:json ({"success":true,"payload":"[...]"}), code:json ({"success":false,"error":"No running TIA Portal V21 instance) (+37 more)
+Cohesion: 0.05
+Nodes (15): FakeApplicationInfoService, FakeEnvironmentVariableService, FakeFileSystemService, FakeProcessEnumerationService, FakeRegistryService, ProcessEnumerationService, Dictionary, HashSet (+7 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.06
-Nodes (9): BatchResultFormatter, TiaJson, JsonSerializerOptions, Invalid(), Valid(), WriteSafetyTooling, BatchOperationRequestJsonTests, HardwareConfigInfoTests (+1 more)
+Cohesion: 0.04
+Nodes (45): Architecture, Block Paths, Build From Source, code:text (C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21), code:powershell (dotnet run --project TiaMcpServer), code:powershell ('{ "method": "browse_project_tree", "projectPath": null }' |), code:json ({"success":true,"payload":"[...]"}), code:json ({"success":false,"error":"No running TIA Portal V21 instance) (+37 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.1
@@ -268,65 +263,53 @@ Nodes (7): BatchOperationCatalog, Invalid(), Valid(), DoctorRunner, IReadOnlyDic
 Cohesion: 0.12
 Nodes (6): BatchOperationStatus, DoctorCliParser, DoctorCommand, BlockPostconditionVerifier, string, ArchiveModeNames
 
-### Community 28 - "Community 28"
-Cohesion: 0.16
-Nodes (7): DotNetRuntimeCheck, OperatingSystemCheck, TiaPortalProcessCheck, StubCheck, DiagnosticStatus, IApplicationInfoService, IDiagnosticCheck
+### Community 19 - "Community 19"
+Cohesion: 0.15
+Nodes (8): DotNetRuntimeCheck, OperatingSystemCheck, TiaPortalProcessCheck, StubCheck, ThrowingCheck, DiagnosticStatus, IApplicationInfoService, IDiagnosticCheck
 
-### Community 34 - "Community 34"
-Cohesion: 0.17
-Nodes (4): FakeApplicationInfoService, FakeEnvironmentVariableService, FakeRegistryService, Dictionary
+### Community 30 - "Community 30"
+Cohesion: 0.21
+Nodes (3): bool, TiaPortalSession, TiaPortal
 
 ### Community 35 - "Community 35"
-Cohesion: 0.21
-Nodes (4): IServiceProvider, IServiceProviderIsService, FakeServiceProvider, McpToolSchemaTests
+Cohesion: 0.2
+Nodes (4): OpennessGroupCheck, FakeWindowsIdentityService, WindowsIdentityService, IWindowsIdentityService
 
-### Community 40 - "Community 40"
+### Community 39 - "Community 39"
 Cohesion: 0.2
 Nodes (5): OpennessAssembliesCheck, OpennessWorkerCheck, TiaPortalInstallationCheck, IFileSystemService, IRegistryService
 
-### Community 46 - "Community 46"
-Cohesion: 0.18
-Nodes (3): FakeFileSystemService, HashSet, WorkerFailureCategories
-
-### Community 57 - "Community 57"
+### Community 56 - "Community 56"
 Cohesion: 0.36
 Nodes (3): BlockCreatePreflight, BlockUpdatePreflight, BlockWritePreflight
 
-### Community 77 - "Community 77"
+### Community 76 - "Community 76"
 Cohesion: 0.33
 Nodes (3): ProjectBindingCheck, EnvironmentVariableService, IEnvironmentVariableService
 
-### Community 84 - "Community 84"
-Cohesion: 0.29
-Nodes (3): OpennessGroupCheck, FakeWindowsIdentityService, IWindowsIdentityService
-
-### Community 89 - "Community 89"
+### Community 86 - "Community 86"
 Cohesion: 0.29
 Nodes (7): Model Context Protocol, Siemens TIA Openness User Group, Phase 1: Implementation, Phase 2: Universal Block Support, Phase 3: Hardware and Network Discovery, Phase 4: Advanced Diagnostics, tia-portal-mcp
-
-### Community 103 - "Community 103"
-Cohesion: 0.4
-Nodes (3): FakeProcessEnumerationService, ProcessEnumerationService, IProcessEnumerationService
 
 ## Knowledge Gaps
 - **74 isolated node(s):** `IReadOnlyDictionary`, `IReadOnlySet`, `BatchOperationRequest`, `IApplicationInfoService`, `ConcurrentDictionary` (+69 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **176 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **174 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `string` connect `Community 17` to `Community 0`, `Community 1`, `Community 3`, `Community 8`, `Community 12`, `Community 13`, `Community 14`, `Community 144`, `Community 145`, `Community 19`, `Community 27`, `Community 28`, `Community 31`, `Community 40`, `Community 41`, `Community 45`, `Community 46`, `Community 49`, `Community 50`, `Community 64`, `Community 67`, `Community 72`, `Community 73`, `Community 77`, `Community 84`, `Community 91`, `Community 101`, `Community 102`, `Community 113`?**
-  _High betweenness centrality (0.121) - this node is a cross-community bridge._
-- **Why does `JsonSerializerOptions` connect `Community 6` to `Community 1`, `Community 2`, `Community 3`?**
-  _High betweenness centrality (0.056) - this node is a cross-community bridge._
-- **Why does `OpennessWorkerClient` connect `Community 1` to `Community 17`, `Community 3`, `Community 113`, `Community 6`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Why does `string` connect `Community 17` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 133`, `Community 134`, `Community 8`, `Community 12`, `Community 13`, `Community 14`, `Community 19`, `Community 24`, `Community 29`, `Community 31`, `Community 35`, `Community 39`, `Community 40`, `Community 41`, `Community 46`, `Community 47`, `Community 54`, `Community 63`, `Community 66`, `Community 67`, `Community 76`, `Community 87`, `Community 88`, `Community 89`, `Community 111`?**
+  _High betweenness centrality (0.127) - this node is a cross-community bridge._
+- **Why does `JsonSerializerOptions` connect `Community 1` to `Community 0`, `Community 4`?**
+  _High betweenness centrality (0.057) - this node is a cross-community bridge._
+- **Why does `OpennessWorkerClient` connect `Community 0` to `Community 17`, `Community 1`, `Community 111`?**
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._
 - **What connects `IReadOnlyDictionary`, `IReadOnlySet`, `BatchOperationRequest` to the rest of the system?**
   _74 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.06 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.08 - nodes in this community are weakly interconnected._
-- **Should `Community 3` be split into smaller, more focused modules?**
-  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+- **Should `Community 2` be split into smaller, more focused modules?**
+  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
