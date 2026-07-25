@@ -33,7 +33,7 @@ public static partial class BlockExporter
 
             verificationDirectory = Path.Combine(Path.GetTempPath(), "tia-mcp-verify-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(verificationDirectory);
-            reExportSucceeded = exportDocuments(new DirectoryInfo(verificationDirectory), primaryDocumentName);
+            reExportSucceeded = exportDocuments(new DirectoryInfo(verificationDirectory), resolvedTargetDocumentName);
             diagnosticMessage = reExportSucceeded
                 ? "Verified."
                 : "Re-export did not produce a non-empty primary document.";

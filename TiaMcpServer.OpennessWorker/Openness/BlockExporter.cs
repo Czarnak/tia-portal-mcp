@@ -24,10 +24,20 @@ public static partial class BlockExporter
                 (directory, documentName) =>
                 {
                     var result = target.Block!.ExportAsDocuments(directory, documentName);
-                    var documentPath = Path.Combine(directory.FullName, documentName);
-                    return result.State == DocumentResultState.Success
-                        && File.Exists(documentPath)
-                        && new FileInfo(documentPath).Length > 0;
+                    if (result.State != DocumentResultState.Success)
+                    {
+                        return false;
+                    }
+
+                    foreach (FileInfo exported in result.ExportedDocuments)
+                    {
+                        if (exported.Exists && exported.Length > 0)
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
                 });
         }
         catch (Exception exception)

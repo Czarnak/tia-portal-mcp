@@ -19,7 +19,26 @@ public class BlockExporterVerificationTests
                 return true;
             });
 
-        Assert.Equal("DeclaredPrimary.xml", exportedDocumentName);
+        Assert.Equal("ResolvedTarget.xml", exportedDocumentName);
+        Assert.True(evidence.ReExportSucceeded);
+    }
+
+    [Fact]
+    public void Re_export_uses_the_resolved_base_name_not_the_declared_document_name()
+    {
+        string? observedName = null;
+
+        var evidence = BlockExporter.VerifyPrimaryDocument(
+            resolvedTargetDocumentName: "Main",
+            primaryDocumentName: "Main.xml",
+            exportDocuments: (directory, name) =>
+            {
+                observedName = name;
+                return true;
+            },
+            cleanupDirectory: _ => { });
+
+        Assert.Equal("Main", observedName);
         Assert.True(evidence.ReExportSucceeded);
     }
 
