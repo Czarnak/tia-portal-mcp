@@ -1,0 +1,27 @@
+﻿DATA_BLOCK "Simulation_DB"
+{ DB_Accessible_From_OPC_UA := 'FALSE' ;
+ DB_Accessible_From_Webserver := 'FALSE' ;
+ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR 
+      Simulation { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      DigitalInputs : Struct
+         EmergencyStop : Bool;
+         Start : Bool;
+         Stop : Bool;
+         Reset : Bool;
+         ContactorON : Array[1..2] of Bool;
+         SoftstartON : Array[1..2] of Bool;
+         SoftstartBypassed : Array[1..2] of Bool;
+         SoftstartFault : Array[1..2] of Bool;
+         Protection : Array[1..2] of Bool;
+      END_STRUCT;
+      TankLevel { ExternalWritable := 'False'} : Array[1..2] of Int;
+   END_VAR
+
+
+BEGIN
+
+END_DATA_BLOCK
+
