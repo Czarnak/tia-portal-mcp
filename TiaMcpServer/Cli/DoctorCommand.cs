@@ -8,13 +8,16 @@ namespace TiaMcpServer.Cli;
 public static class DoctorCommand
 {
     private const string UsageText = """
-        Usage: tia-mcp doctor [--json] [--verbose] [--project <path>] [--help]
+        Usage: tia-mcp doctor [--json] [--verbose] [--project <path>] [--access-mode <mode>] [--help]
 
         Options:
-          --json       Emit a single JSON document to stdout.
-          --verbose    Include additional evidence.
-          --project    Informational project binding (does not start the MCP host).
-          --help       Show command usage and exit.
+          --json          Emit a single JSON document to stdout.
+          --verbose       Include additional evidence.
+          --project       Informational project binding (does not start the MCP host).
+          --access-mode   Report diagnostics for read-only or read-write mode.
+          --read-only     Alias for --access-mode read-only.
+          --read-write    Alias for --access-mode read-write.
+          --help          Show command usage and exit.
 
         Exit codes:
           0  No blocking failures.
