@@ -111,6 +111,8 @@
     <None Include="Fixtures\Simulation_DB.db" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceTextEncoding.cs"
       Link="Linked\Openness\SourceTextEncoding.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcTypeSourcePreflight.cs"
+      Link="Linked\Openness\PlcTypeSourcePreflight.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportRouting.cs"
       Link="Linked\Openness\BlockImportRouting.cs" />
   </ItemGroup>
