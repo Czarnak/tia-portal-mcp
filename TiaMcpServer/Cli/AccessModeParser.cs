@@ -17,17 +17,44 @@ public static class AccessModeParser
     /// </summary>
     public static AccessModeParseResult Parse(string[] args)
     {
-        // 1. Check CLI arguments
+        McpAccessMode? cliMode = null;
+
+        AccessModeParseResult? RecordCliMode(McpAccessMode candidate)
+        {
+            if (cliMode is not null && cliMode.Value != candidate)
+            {
+                return AccessModeParseResult.Fail(
+                    "Conflicting access mode arguments were supplied. Specify only one of 'read-only' or 'read-write'.");
+            }
+
+            cliMode = candidate;
+            return null;
+        }
+
+        // 1. Check all CLI arguments. Repeating the same mode is harmless; contradictory
+        // explicit modes are rejected rather than depending on argument order.
         for (int i = 0; i < args.Length; i++)
         {
             if (string.Equals(args[i], "--read-only", StringComparison.OrdinalIgnoreCase))
             {
-                return AccessModeParseResult.Ok(McpAccessMode.ReadOnly);
+                var conflict = RecordCliMode(McpAccessMode.ReadOnly);
+                if (conflict is not null)
+                {
+                    return conflict;
+                }
+
+                continue;
             }
 
             if (string.Equals(args[i], "--read-write", StringComparison.OrdinalIgnoreCase))
             {
-                return AccessModeParseResult.Ok(McpAccessMode.ReadWrite);
+                var conflict = RecordCliMode(McpAccessMode.ReadWrite);
+                if (conflict is not null)
+                {
+                    return conflict;
+                }
+
+                continue;
             }
 
             if (string.Equals(args[i], "--access-mode", StringComparison.OrdinalIgnoreCase))
@@ -40,14 +67,41 @@ public static class AccessModeParser
                         "--access-mode requires a value. Valid values: 'read-only', 'read-write'.");
                 }
 
-                return ParseValue(args[i + 1]);
+                var parsed = ParseValue(args[++i]);
+                if (!parsed.IsValid)
+                {
+                    return parsed;
+                }
+
+                var conflict = RecordCliMode(parsed.Mode);
+                if (conflict is not null)
+                {
+                    return conflict;
+                }
+
+                continue;
             }
 
             const string accessModePrefix = "--access-mode=";
             if (args[i].StartsWith(accessModePrefix, StringComparison.OrdinalIgnoreCase))
             {
-                return ParseValue(args[i].Substring(accessModePrefix.Length));
+                var parsed = ParseValue(args[i].Substring(accessModePrefix.Length));
+                if (!parsed.IsValid)
+                {
+                    return parsed;
+                }
+
+                var conflict = RecordCliMode(parsed.Mode);
+                if (conflict is not null)
+                {
+                    return conflict;
+                }
             }
+        }
+
+        if (cliMode is not null)
+        {
+            return AccessModeParseResult.Ok(cliMode.Value);
         }
 
         // 2. Check environment variable
