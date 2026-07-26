@@ -162,6 +162,30 @@ for that order, derived from the analysis above:
 | 4 — LAD (SimaticSD) | Verify whether `ImportFromDocuments` can apply a real network-level change to a LAD block from an edited `.s7dcl`/`.s7res` pair; if confirmed, add SimaticSD as a selectable/default read (and, if verified, write) format for LAD. FBD only if it's confirmed to behave the same way; GRAPH explicitly out of scope. | Phase 0; independent of Phases 1-3 otherwise |
 | 5 — Rollout | Add the explicit format selector on `get_block_content`/`update_block_logic`, flip defaults per block language/type now that 1-4 exist, measure real token savings, keep `xml` permanently available everywhere as an explicit override. GRAPH (and FBD/LAD if Phase 4 finds import doesn't work) never leave `xml`. | Phases 1-4 |
 
+### Phase 0 — V21 API exposure confirmed (2026-07-26)
+
+Static inspection of the installed V21 public API (`Siemens.Engineering.Step7.dll`,
+assembly version `21.0.0.0`) confirms that Openness has a native external-source pipeline;
+it is not necessary to assume or design a handwritten `.scl`/`.db`/`.udt` parser first.
+
+- `PlcType` (UDT), `DataBlock`, and `PlcBlock` all implement
+  `Siemens.Engineering.SW.ExternalSources.IGenerateSource`.
+- `PlcSoftware.ExternalSourceGroup.GenerateSource(IEnumerable<IGenerateSource>, FileInfo[, GenerateOptions])`
+  writes a source file for those objects.
+- `ExternalSources.CreateFromFile(name, path)` creates a `PlcExternalSource`, whose
+  `GenerateBlocksFromSource` overloads generate into either a `PlcBlockUserGroup` or a
+  `PlcTypeUserGroup`.
+- The structured fallback remains available: `PlcBlock`/`PlcType` expose `Export` and
+  `ExportAsDocuments`; their respective compositions expose `Import` and
+  `ImportFromDocuments`.
+
+This proves the relevant public API surface exists for UDTs, DBs, and SCL-language blocks.
+It does **not** prove that the existing samples were produced by this pipeline, nor certify
+that any exact `.udt`, `.db`, or `.scl` file round-trips on a target CPU. The API accepts a
+generic `FileInfo`/path rather than a type-specific extension selector. Keep Phase 0 open
+until a real V21 fixture proves `GenerateSource → CreateFromFile → GenerateBlocksFromSource`,
+followed by compile and re-export comparison, for one representative UDT, DB, and SCL block.
+
 ## Non-goals
 
 - Removing SimaticML support entirely — it's required for graphical languages and stays available
