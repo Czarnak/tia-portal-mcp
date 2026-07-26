@@ -102,6 +102,8 @@ internal static class Program
                 "read_cross_references" => ReadCrossReferences(request),
                 "get_block_content"   => GetBlockContent(request),
                 "update_block_logic"  => UpdateBlockLogic(request),
+                "get_type_content"    => GetTypeContent(request),
+                "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
@@ -285,6 +287,54 @@ internal static class Program
             var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!);
             return RawPayload(result.Payload, result.Warnings);
         });
+    }
+
+    private static WorkerResponse GetTypeContent(WorkerRequest request)
+    {
+        if (string.IsNullOrEmpty(request.TypePath))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "TypePath is required.");
+        }
+
+        var format = NormalizeTypeFormat(request.Format);
+
+        return WithProject(request, project => RawPayload(
+            PlcTypeExporter.Export(project, request.TypePath!, format)));
+    }
+
+    private static WorkerResponse UpdateTypeContent(WorkerRequest request)
+    {
+        if (string.IsNullOrEmpty(request.TypePath))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "TypePath is required.");
+        }
+
+        if (string.IsNullOrEmpty(request.SourceContent))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SourceContent is required.");
+        }
+
+        var format = NormalizeTypeFormat(request.Format);
+
+        return WithProject(request, project => Success(
+            PlcTypeImporter.Import(project, request.TypePath!, request.SourceContent!, format)));
+    }
+
+    /// <summary>
+    /// The host normalizes <see cref="WorkerRequest.Format"/> before sending, but the worker is
+    /// also driven directly by the live harness — so the type operations re-apply their own
+    /// default (source, i.e. .udt) rather than trusting the field to be set.
+    /// </summary>
+    private static string NormalizeTypeFormat(string? format)
+    {
+        if (!SourceFormatNames.TryNormalize(format, SourceFormatNames.Source, out var normalized, out var error))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                error ?? "Invalid format.");
+        }
+
+        return normalized;
     }
 
     private static WorkerResponse ListTagTables(WorkerRequest request)
