@@ -13,11 +13,24 @@ internal static class WorkerOperationAuthorization
     /// <summary>
     /// Parses the access mode from the worker process command-line arguments.
     /// Missing configuration preserves the historical read-write default. Explicit but malformed
-    /// configuration fails closed to read-only so a launch or argument-propagation defect cannot
-    /// silently enable mutation operations.
+    /// or contradictory configuration fails closed to read-only so a launch or argument-
+    /// propagation defect cannot silently enable mutation operations.
     /// </summary>
     public static McpAccessMode ParseAccessMode(string[] args)
     {
+        McpAccessMode? explicitMode = null;
+
+        bool RecordMode(McpAccessMode candidate)
+        {
+            if (explicitMode is not null && explicitMode.Value != candidate)
+            {
+                return false;
+            }
+
+            explicitMode = candidate;
+            return true;
+        }
+
         for (int i = 0; i < args.Length; i++)
         {
             if (string.Equals(args[i], "--access-mode", StringComparison.OrdinalIgnoreCase))
@@ -29,17 +42,38 @@ internal static class WorkerOperationAuthorization
                     return FailClosed("--access-mode requires a value");
                 }
 
-                return ParseValueOrFailClosed(args[i + 1]);
+                var parsed = ParseValue(args[++i]);
+                if (parsed is null)
+                {
+                    return FailClosed($"invalid access mode '{args[i]}'");
+                }
+
+                if (!RecordMode(parsed.Value))
+                {
+                    return FailClosed("conflicting access mode arguments were supplied");
+                }
+
+                continue;
             }
 
             const string prefix = "--access-mode=";
             if (args[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                return ParseValueOrFailClosed(args[i].Substring(prefix.Length));
+                var value = args[i].Substring(prefix.Length);
+                var parsed = ParseValue(value);
+                if (parsed is null)
+                {
+                    return FailClosed($"invalid access mode '{value}'");
+                }
+
+                if (!RecordMode(parsed.Value))
+                {
+                    return FailClosed("conflicting access mode arguments were supplied");
+                }
             }
         }
 
-        return McpAccessMode.ReadWrite;
+        return explicitMode ?? McpAccessMode.ReadWrite;
     }
 
     /// <summary>
@@ -67,7 +101,7 @@ internal static class WorkerOperationAuthorization
         };
     }
 
-    private static McpAccessMode ParseValueOrFailClosed(string value)
+    private static McpAccessMode? ParseValue(string value)
     {
         var normalizedValue = value.Trim();
         if (string.Equals(normalizedValue, "read-only", StringComparison.OrdinalIgnoreCase))
@@ -80,7 +114,7 @@ internal static class WorkerOperationAuthorization
             return McpAccessMode.ReadWrite;
         }
 
-        return FailClosed($"invalid access mode '{value}'");
+        return null;
     }
 
     private static McpAccessMode FailClosed(string reason)
