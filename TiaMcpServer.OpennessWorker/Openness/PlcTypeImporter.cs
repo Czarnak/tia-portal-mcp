@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Siemens.Engineering;
@@ -63,12 +64,12 @@ internal static class PlcTypeImporter
         }
 
         // 4/5. Apply the document.
-        var projectNodeRemoved = string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal)
+        var outcome = string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal)
             ? ImportXml(target, sourceContent)
-            : ImportSource(project, target, targetName, sourceContent);
+            : ImportSource(target, targetName, sourceContent);
 
         // 6. Verify, carrying whether the temporary project node made it back out.
-        var evidence = PlcTypePostconditionVerifier.BuildEvidence(project, address, format, projectNodeRemoved);
+        var evidence = PlcTypePostconditionVerifier.BuildEvidence(project, address, format, outcome.ProjectNodeRemoved);
         PlcTypePostconditionVerifier.Verify(evidence);
 
         return new PlcTypeImportResult
@@ -77,15 +78,16 @@ internal static class PlcTypeImporter
             TypePath = address.ToDisplayPath(),
             TypeName = targetName,
             Format = format,
-            ProjectNodeRemoved = projectNodeRemoved
+            ProjectNodeRemoved = outcome.ProjectNodeRemoved,
+            GeneratedObjectCount = outcome.GeneratedObjectCount
         };
     }
 
     /// <summary>
-    /// Simatic ML goes straight through PlcTypeComposition.Import — no external source node is
-    /// created, so there is nothing that could survive in the project.
+    /// Simatic ML goes straight into the resolved group's own composition — no external source node
+    /// is created, so there is nothing that could survive in the project.
     /// </summary>
-    private static bool ImportXml(ResolvedTypeTarget target, string sourceContent)
+    private static ImportOutcome ImportXml(ResolvedTypeTarget target, string sourceContent)
     {
         var stagingDirectory = Path.Combine(
             Path.GetTempPath(), "tia-mcp-type-import-" + Guid.NewGuid().ToString("N"));
@@ -96,8 +98,8 @@ internal static class PlcTypeImporter
             var path = Path.Combine(stagingDirectory, target.DocumentName + ".xml");
             File.WriteAllText(path, sourceContent, Encoding.UTF8);
 
-            target.Group.Types.Import(new FileInfo(path), ImportOptions.Override);
-            return true;
+            var imported = target.Group.Types.Import(new FileInfo(path), ImportOptions.Override);
+            return new ImportOutcome(projectNodeRemoved: true, imported?.Count ?? 0);
         }
         finally
         {
@@ -107,37 +109,39 @@ internal static class PlcTypeImporter
 
     /// <summary>
     /// External-source text goes through the Siemens pipeline: register the file as a
-    /// PlcExternalSource, generate from it, then remove the node again. The scope owns both halves
-    /// of that cleanup and is disposed on every path, including a throwing GenerateBlocksFromSource.
+    /// PlcExternalSource under the owning software scope's group, generate from it, then remove the
+    /// node again. The scope owns both halves of that cleanup and is disposed on every path,
+    /// including a throwing GenerateBlocksFromSource.
     /// </summary>
-    private static bool ImportSource(
-        Project project,
+    private static ImportOutcome ImportSource(
         ResolvedTypeTarget target,
         string targetName,
         string sourceContent)
     {
-        var plcSoftware = PlcSoftwareLocator.ForType(project, target.Type!);
-        var scope = ExternalSourceScope.Create(plcSoftware, targetName + ".udt", sourceContent);
+        // target.ExternalSourceGroup, not one re-derived from the type: for a type inside a
+        // software unit this is the unit's own group, and registering under the top-level PLC
+        // instead would generate a stray type there and leave the real one untouched.
+        var scope = ExternalSourceScope.Create(
+            target.ExternalSourceGroup, targetName + ".udt", sourceContent);
+
+        IList<IEngineeringObject> generated;
 
         try
         {
-            if (target.UserGroup is not null)
-            {
-                scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None);
-            }
-            else
-            {
-                // The Types root is a PlcTypeSystemGroup, not a user group; the parameterless
-                // overload generates into the source's own PLC at its default location.
-                scope.Source.GenerateBlocksFromSource();
-            }
+            generated = target.UserGroup is not null
+                ? scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None)
+                // The Types root is a PlcTypeSystemGroup, not a user group, so there is no group to
+                // pass. GenerateBlockOption.None is still passed explicitly: the truly parameterless
+                // overload leaves the on-error behaviour implicit, and both branches must refuse to
+                // keep partially generated objects.
+                : scope.Source.GenerateBlocksFromSource(GenerateBlockOption.None);
         }
         finally
         {
             scope.Dispose();
         }
 
-        return scope.ProjectNodeRemoved;
+        return new ImportOutcome(scope.ProjectNodeRemoved, generated?.Count ?? 0);
     }
 
     private static void TryDeleteDirectory(string directory)
@@ -155,6 +159,20 @@ internal static class PlcTypeImporter
             // the response warnings, so a systematically failing cleanup still surfaces.
             Console.Error.WriteLine($"PLC data type import staging cleanup failed: {ex.Message}");
         }
+    }
+
+    /// <summary>What one applied document did, before postcondition verification runs.</summary>
+    private readonly struct ImportOutcome
+    {
+        public ImportOutcome(bool projectNodeRemoved, int generatedObjectCount)
+        {
+            ProjectNodeRemoved = projectNodeRemoved;
+            GeneratedObjectCount = generatedObjectCount;
+        }
+
+        public bool ProjectNodeRemoved { get; }
+
+        public int GeneratedObjectCount { get; }
     }
 }
 
@@ -176,4 +194,12 @@ internal sealed class PlcTypeImportResult
     /// rather than hidden: it is a visible change they did not ask for.
     /// </summary>
     public bool ProjectNodeRemoved { get; set; }
+
+    /// <summary>
+    /// How many objects TIA Portal reported creating or replacing — generated from the source for
+    /// <c>format=source</c>, imported for <c>format=xml</c>. Reported because these code paths have
+    /// no automated coverage: a count other than 1 is the cheapest signal that a write did
+    /// something other than update the single type it was addressed to.
+    /// </summary>
+    public int GeneratedObjectCount { get; set; }
 }

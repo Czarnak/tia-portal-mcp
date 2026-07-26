@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.ExternalSources;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
@@ -10,10 +9,16 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// guarantees both are gone afterwards.
 ///
 /// <para>
-/// ExternalSources.CreateFromFile adds a node under the PLC's "External source files" folder —
-/// a visible, persistent change to the user's project that has nothing to do with what they asked
-/// for. Every import path must dispose this scope, and PlcTypePostconditionVerifier asserts no
-/// residual node survived.
+/// ExternalSources.CreateFromFile adds a node under an "External source files" folder — a visible,
+/// persistent change to the user's project that has nothing to do with what they asked for. Every
+/// import path must dispose this scope; <see cref="ProjectNodeRemoved"/> then reports whether the
+/// removal actually succeeded, and PlcTypePostconditionVerifier turns a false into a user-facing
+/// warning.
+/// </para>
+/// <para>
+/// The scope is handed the external source group to create under rather than a PlcSoftware,
+/// because a software unit owns its own PlcExternalSourceSystemGroup: a unit-scoped type must
+/// register its source under the unit, not under the top-level PLC.
 /// </para>
 /// </summary>
 internal sealed class ExternalSourceScope : IDisposable
@@ -37,10 +42,17 @@ internal sealed class ExternalSourceScope : IDisposable
     /// <summary>True once the project node is gone. Read by the postcondition verifier.</summary>
     public bool ProjectNodeRemoved { get; private set; }
 
-    /// <summary>Writes <paramref name="content"/> to a temp file and registers it with the PLC.</summary>
-    public static ExternalSourceScope Create(PlcSoftware plcSoftware, string fileName, string content)
+    /// <summary>
+    /// Writes <paramref name="content"/> to a temp file and registers it under
+    /// <paramref name="externalSourceGroup"/> — the group of the software scope that owns the
+    /// object being written (the PLC's, or a software unit's own).
+    /// </summary>
+    public static ExternalSourceScope Create(
+        PlcExternalSourceSystemGroup externalSourceGroup,
+        string fileName,
+        string content)
     {
-        if (plcSoftware is null) throw new ArgumentNullException(nameof(plcSoftware));
+        if (externalSourceGroup is null) throw new ArgumentNullException(nameof(externalSourceGroup));
         if (string.IsNullOrWhiteSpace(fileName)) throw new ArgumentException("A file name is required.", nameof(fileName));
 
         var tempDirectory = Path.Combine(
@@ -55,8 +67,7 @@ internal sealed class ExternalSourceScope : IDisposable
             var sourceName = Path.GetFileNameWithoutExtension(fileName)
                 + "_tiamcp_" + Guid.NewGuid().ToString("N").Substring(0, 8);
 
-            var source = plcSoftware.ExternalSourceGroup.ExternalSources.CreateFromFile(
-                sourceName, filePath);
+            var source = externalSourceGroup.ExternalSources.CreateFromFile(sourceName, filePath);
 
             return new ExternalSourceScope(tempDirectory, source, filePath);
         }

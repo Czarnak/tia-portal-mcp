@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
+using Siemens.Engineering.SW.ExternalSources;
 using Siemens.Engineering.SW.Types;
 using Siemens.Engineering.SW.Units;
 using TiaMcpServer.Contracts;
@@ -12,6 +13,15 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// Resolves a <see cref="PlcTypeAddress"/> to a live type group and (optionally) the type itself.
 /// Deliberately a mirror of <see cref="BlockTargetResolver"/>: same deterministic walk, same fuzzy
 /// fallback, same ambiguity refusal — resolved against type groups instead of block groups.
+///
+/// <para>
+/// One thing it does that the block resolver does not: it carries the owning external source group
+/// out with the result. A PLC and each of its software units own a separate
+/// <c>PlcExternalSourceSystemGroup</c>, and only the walk that found the type knows which one it
+/// went through. Re-deriving that afterwards from the <see cref="PlcType"/> alone cannot
+/// distinguish a unit-scoped type from a PLC-scoped one, and getting it wrong sends the whole
+/// external-source round trip into the wrong software context.
+/// </para>
 /// </summary>
 internal static class PlcTypeTargetResolver
 {
@@ -21,11 +31,12 @@ internal static class PlcTypeTargetResolver
 
         if (address.IsDeterministic)
         {
-            var group = ResolveDeterministicTypeGroup(plcSoftware, address);
+            var owner = ResolveDeterministicOwner(plcSoftware, address);
+            var group = FindTypeGroup(owner.RootTypeGroup, address.FolderPath);
             var type = group.Types.Find(address.TypeName)
                 ?? throw new InvalidOperationException($"PLC data type '{address.TypeName}' was not found at '{address.ToDisplayPath()}'.");
 
-            return new ResolvedTypeTarget(group, type, address.TypeName);
+            return new ResolvedTypeTarget(owner.ExternalSourceGroup, group, type, address.TypeName);
         }
 
         var matches = FindLegacyMatches(plcSoftware, address.TypeName);
@@ -48,9 +59,11 @@ internal static class PlcTypeTargetResolver
 
         if (address.IsDeterministic)
         {
-            var group = ResolveDeterministicTypeGroup(plcSoftware, address);
+            var owner = ResolveDeterministicOwner(plcSoftware, address);
+            var group = FindTypeGroup(owner.RootTypeGroup, address.FolderPath);
             var existing = group.Types.Find(address.TypeName);
-            return new ResolvedTypeTarget(group, existing, address.TypeName);
+
+            return new ResolvedTypeTarget(owner.ExternalSourceGroup, group, existing, address.TypeName);
         }
 
         var matches = FindLegacyMatches(plcSoftware, address.TypeName);
@@ -61,7 +74,11 @@ internal static class PlcTypeTargetResolver
 
         return matches.Count == 1
             ? matches[0]
-            : new ResolvedTypeTarget(plcSoftware.TypeGroup, type: null, address.TypeName);
+            : new ResolvedTypeTarget(
+                plcSoftware.ExternalSourceGroup,
+                plcSoftware.TypeGroup,
+                type: null,
+                address.TypeName);
     }
 
     private static string AmbiguousPathMessage(string typeName)
@@ -69,13 +86,15 @@ internal static class PlcTypeTargetResolver
         return $"PLC data type '{typeName}' is ambiguous. Use the deterministic Path from browse_project_tree, for example 'PLC/Types/.../Type' or 'PLC/Units/Unit/Types/.../Type'.";
     }
 
-    private static PlcTypeGroup ResolveDeterministicTypeGroup(PlcSoftware plcSoftware, PlcTypeAddress address)
+    private static TypeOwner ResolveDeterministicOwner(PlcSoftware plcSoftware, PlcTypeAddress address)
     {
-        PlcTypeGroup rootGroup = address.UsesSoftwareUnit
-            ? FindSoftwareUnit(plcSoftware, address.UnitName!).TypeGroup
-            : plcSoftware.TypeGroup;
+        if (!address.UsesSoftwareUnit)
+        {
+            return new TypeOwner(plcSoftware.TypeGroup, plcSoftware.ExternalSourceGroup);
+        }
 
-        return FindTypeGroup(rootGroup, address.FolderPath);
+        PlcUnit unit = FindSoftwareUnit(plcSoftware, address.UnitName!);
+        return new TypeOwner(unit.TypeGroup, unit.ExternalSourceGroup);
     }
 
     private static PlcUnit FindSoftwareUnit(PlcSoftware plcSoftware, string unitName)
@@ -122,43 +141,89 @@ internal static class PlcTypeTargetResolver
     private static List<ResolvedTypeTarget> FindLegacyMatches(PlcSoftware plcSoftware, string typeName)
     {
         var matches = new List<ResolvedTypeTarget>();
-        CollectMatches(plcSoftware.TypeGroup, typeName, matches);
 
-        PlcUnitProvider? unitProvider = plcSoftware.GetService<PlcUnitProvider>();
-        if (unitProvider is not null)
+        foreach (var owner in EnumerateOwners(plcSoftware))
         {
-            foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
-            {
-                CollectMatches(unit.TypeGroup, typeName, matches);
-            }
+            CollectMatches(owner, owner.RootTypeGroup, typeName, matches);
         }
 
         return matches;
     }
 
-    private static void CollectMatches(PlcTypeGroup group, string typeName, List<ResolvedTypeTarget> matches)
+    /// <summary>
+    /// The PLC itself, then each of its software units — every scope that owns both a type tree and
+    /// its own external source group.
+    /// </summary>
+    private static IEnumerable<TypeOwner> EnumerateOwners(PlcSoftware plcSoftware)
+    {
+        yield return new TypeOwner(plcSoftware.TypeGroup, plcSoftware.ExternalSourceGroup);
+
+        PlcUnitProvider? unitProvider = plcSoftware.GetService<PlcUnitProvider>();
+        if (unitProvider is null)
+        {
+            yield break;
+        }
+
+        foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
+        {
+            yield return new TypeOwner(unit.TypeGroup, unit.ExternalSourceGroup);
+        }
+    }
+
+    private static void CollectMatches(
+        TypeOwner owner,
+        PlcTypeGroup group,
+        string typeName,
+        List<ResolvedTypeTarget> matches)
     {
         var type = group.Types.Find(typeName);
         if (type is not null)
         {
-            matches.Add(new ResolvedTypeTarget(group, type, typeName));
+            matches.Add(new ResolvedTypeTarget(owner.ExternalSourceGroup, group, type, typeName));
         }
 
         foreach (PlcTypeUserGroup childGroup in group.Groups)
         {
-            CollectMatches(childGroup, typeName, matches);
+            CollectMatches(owner, childGroup, typeName, matches);
         }
+    }
+
+    /// <summary>A software scope that owns a type tree: either the PLC itself or one software unit.</summary>
+    private readonly struct TypeOwner
+    {
+        public TypeOwner(PlcTypeGroup rootTypeGroup, PlcExternalSourceSystemGroup externalSourceGroup)
+        {
+            RootTypeGroup = rootTypeGroup;
+            ExternalSourceGroup = externalSourceGroup;
+        }
+
+        public PlcTypeGroup RootTypeGroup { get; }
+
+        public PlcExternalSourceSystemGroup ExternalSourceGroup { get; }
     }
 }
 
 internal sealed class ResolvedTypeTarget
 {
-    public ResolvedTypeTarget(PlcTypeGroup group, PlcType? type, string documentName)
+    public ResolvedTypeTarget(
+        PlcExternalSourceSystemGroup externalSourceGroup,
+        PlcTypeGroup group,
+        PlcType? type,
+        string documentName)
     {
+        ExternalSourceGroup = externalSourceGroup;
         Group = group;
         Type = type;
         DocumentName = documentName;
     }
+
+    /// <summary>
+    /// The external source group of the software scope the type actually lives in — the PLC's for a
+    /// PLC-scoped type, the unit's own for a unit-scoped one. Both GenerateSource (export) and
+    /// CreateFromFile (import) must run against this one, or the round trip silently targets the
+    /// wrong software context.
+    /// </summary>
+    public PlcExternalSourceSystemGroup ExternalSourceGroup { get; }
 
     public PlcTypeGroup Group { get; }
 
@@ -168,7 +233,7 @@ internal sealed class ResolvedTypeTarget
 
     /// <summary>
     /// GenerateBlocksFromSource targets a PlcTypeUserGroup; the root PlcTypeSystemGroup is not one.
-    /// Live test L1.1 exists to establish whether the root case needs the parameterless overload.
+    /// Live test L1.1 exists to establish whether the root case needs the group-less overload.
     /// </summary>
     public PlcTypeUserGroup? UserGroup => Group as PlcTypeUserGroup;
 }
