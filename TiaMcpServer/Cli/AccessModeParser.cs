@@ -88,7 +88,7 @@ public static class AccessModeParser
     }
 }
 
-public sealed record AccessModeParseResult(bool IsValid, McAccessMode Mode, string? Error)
+public sealed record AccessModeParseResult(bool IsValid, McpAccessMode Mode, string? Error)
 {
     public static AccessModeParseResult Ok(McpAccessMode mode) => new(true, mode, null);
 
