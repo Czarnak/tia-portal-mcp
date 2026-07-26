@@ -30,9 +30,16 @@ public static class AccessModeParser
                 return AccessModeParseResult.Ok(McpAccessMode.ReadWrite);
             }
 
-            if (string.Equals(args[i], "--access-mode", StringComparison.OrdinalIgnoreCase) &&
-                i + 1 < args.Length)
+            if (string.Equals(args[i], "--access-mode", StringComparison.OrdinalIgnoreCase))
             {
+                if (i + 1 >= args.Length ||
+                    string.IsNullOrWhiteSpace(args[i + 1]) ||
+                    args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                {
+                    return AccessModeParseResult.Fail(
+                        "--access-mode requires a value. Valid values: 'read-only', 'read-write'.");
+                }
+
                 return ParseValue(args[i + 1]);
             }
 
@@ -65,12 +72,13 @@ public static class AccessModeParser
                 "Access mode value is empty. Valid values: 'read-only', 'read-write'.");
         }
 
-        if (string.Equals(value, "read-only", StringComparison.OrdinalIgnoreCase))
+        var normalizedValue = value.Trim();
+        if (string.Equals(normalizedValue, "read-only", StringComparison.OrdinalIgnoreCase))
         {
             return AccessModeParseResult.Ok(McpAccessMode.ReadOnly);
         }
 
-        if (string.Equals(value, "read-write", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalizedValue, "read-write", StringComparison.OrdinalIgnoreCase))
         {
             return AccessModeParseResult.Ok(McpAccessMode.ReadWrite);
         }
@@ -80,7 +88,7 @@ public static class AccessModeParser
     }
 }
 
-public sealed record AccessModeParseResult(bool IsValid, McpAccessMode Mode, string? Error)
+public sealed record AccessModeParseResult(bool IsValid, McAccessMode Mode, string? Error)
 {
     public static AccessModeParseResult Ok(McpAccessMode mode) => new(true, mode, null);
 
