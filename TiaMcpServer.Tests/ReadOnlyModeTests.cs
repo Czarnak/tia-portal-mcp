@@ -3,6 +3,7 @@ using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Cli;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -644,6 +645,301 @@ public class ReadOnlyModeTests
         var result = policy.Authorize("save_project");
         Assert.NotNull(result);
         Assert.False(result.Success);
+    }
+
+    #endregion
+
+    #region ProjectWriteTools Coverage Tests
+
+    [Fact]
+    public async Task ProjectWriteTools_OpenProject_Preview_ReturnsTokenAndInstructions()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        var result = await ProjectWriteTools.OpenProject(
+            workerClient: null!,
+            safety,
+            projectPath: @"C:\Projects\Line.ap21");
+
+        Assert.Contains("safetyToken", result);
+        Assert.Contains("open_project", result);
+        Assert.Contains("Preview only", result);
+    }
+
+    [Fact]
+    public async Task ProjectWriteTools_CreateProject_Preview_ReturnsTokenAndInstructions()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        var result = await ProjectWriteTools.CreateProject(
+            workerClient: null!,
+            safety,
+            projectDirectory: @"C:\Projects",
+            projectName: "NewProject");
+
+        Assert.Contains("safetyToken", result);
+        Assert.Contains("create_project", result);
+        Assert.Contains("Preview only", result);
+    }
+
+    [Fact]
+    public async Task ProjectWriteTools_OpenProject_ConfirmFalse_ReturnsConfirmRequired()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        var result = await ProjectWriteTools.OpenProject(
+            workerClient: null!,
+            safety,
+            projectPath: @"C:\Projects\Line.ap21",
+            confirm: false,
+            safetyToken: "fake-token");
+
+        Assert.Contains("confirm=true", result);
+        Assert.Contains("without safetyToken", result);
+    }
+
+    [Fact]
+    public async Task ProjectWriteTools_CreateProject_ConfirmFalse_ReturnsConfirmRequired()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        var result = await ProjectWriteTools.CreateProject(
+            workerClient: null!,
+            safety,
+            projectDirectory: @"C:\Projects",
+            projectName: "NewProject",
+            confirm: false,
+            safetyToken: "fake-token");
+
+        Assert.Contains("confirm=true", result);
+    }
+
+    [Fact]
+    public async Task ProjectWriteTools_SaveProject_ConfirmFalse_ReturnsConfirmRequired()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        var result = await ProjectWriteTools.SaveProject(
+            workerClient: null!,
+            safety,
+            confirm: false,
+            safetyToken: "fake-token");
+
+        Assert.Contains("confirm=true", result);
+    }
+
+    [Fact]
+    public async Task ProjectWriteTools_ArchiveProject_ConfirmFalse_ReturnsConfirmRequired()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        var result = await ProjectWriteTools.ArchiveProject(
+            workerClient: null!,
+            safety,
+            archiveDirectory: @"C:\Archive",
+            archiveName: "backup",
+            confirm: false,
+            safetyToken: "fake-token");
+
+        Assert.Contains("confirm=true", result);
+    }
+
+    [Fact]
+    public async Task ProjectWriteTools_CloseProject_ConfirmFalse_ReturnsConfirmRequired()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        var result = await ProjectWriteTools.CloseProject(
+            workerClient: null!,
+            safety,
+            confirm: false,
+            safetyToken: "fake-token");
+
+        Assert.Contains("confirm=true", result);
+    }
+
+    #endregion
+
+    #region Doctor Access Mode Coverage Tests
+
+    [Fact]
+    public void DoctorJsonRenderer_WithReadOnlyAccessMode_IncludesAccessMode()
+    {
+        var report = new DoctorReport(
+            DiagnosticStatus.Passed,
+            DateTimeOffset.UtcNow,
+            "1.0.0",
+            new DoctorSummary(1, 0, 0),
+            new[] { new DiagnosticCheckResult("test", "Test", DiagnosticStatus.Passed, "ok") });
+
+        var json = DoctorJsonRenderer.Render(report, verbose: false, accessMode: McpAccessMode.ReadOnly);
+
+        Assert.Contains("\"accessMode\": \"read-only\"", json);
+    }
+
+    [Fact]
+    public void DoctorJsonRenderer_WithReadWriteAccessMode_IncludesAccessMode()
+    {
+        var report = new DoctorReport(
+            DiagnosticStatus.Passed,
+            DateTimeOffset.UtcNow,
+            "1.0.0",
+            new DoctorSummary(1, 0, 0),
+            new[] { new DiagnosticCheckResult("test", "Test", DiagnosticStatus.Passed, "ok") });
+
+        var json = DoctorJsonRenderer.Render(report, verbose: false, accessMode: McpAccessMode.ReadWrite);
+
+        Assert.Contains("\"accessMode\": \"read-write\"", json);
+    }
+
+    [Fact]
+    public void DoctorJsonRenderer_WithoutAccessMode_OmitsAccessMode()
+    {
+        var report = new DoctorReport(
+            DiagnosticStatus.Passed,
+            DateTimeOffset.UtcNow,
+            "1.0.0",
+            new DoctorSummary(1, 0, 0),
+            new[] { new DiagnosticCheckResult("test", "Test", DiagnosticStatus.Passed, "ok") });
+
+        var json = DoctorJsonRenderer.Render(report, verbose: false, accessMode: null);
+
+        Assert.DoesNotContain("accessMode", json);
+    }
+
+    [Fact]
+    public void DoctorTextRenderer_WithReadOnlyAccessMode_ShowsReadOnly()
+    {
+        var report = new DoctorReport(
+            DiagnosticStatus.Passed,
+            DateTimeOffset.UtcNow,
+            "1.0.0",
+            new DoctorSummary(1, 0, 0),
+            new[] { new DiagnosticCheckResult("test", "Test", DiagnosticStatus.Passed, "ok") });
+
+        var writer = new StringWriter();
+        DoctorTextRenderer.Render(report, verbose: false, writer, accessMode: McpAccessMode.ReadOnly);
+
+        var output = writer.ToString();
+        Assert.Contains("Access mode: READ-ONLY", output);
+    }
+
+    [Fact]
+    public void DoctorTextRenderer_WithReadWriteAccessMode_ShowsReadWrite()
+    {
+        var report = new DoctorReport(
+            DiagnosticStatus.Passed,
+            DateTimeOffset.UtcNow,
+            "1.0.0",
+            new DoctorSummary(1, 0, 0),
+            new[] { new DiagnosticCheckResult("test", "Test", DiagnosticStatus.Passed, "ok") });
+
+        var writer = new StringWriter();
+        DoctorTextRenderer.Render(report, verbose: false, writer, accessMode: McpAccessMode.ReadWrite);
+
+        var output = writer.ToString();
+        Assert.Contains("Access mode: READ-WRITE", output);
+    }
+
+    [Fact]
+    public void DoctorTextRenderer_WithoutAccessMode_OmitsAccessModeLine()
+    {
+        var report = new DoctorReport(
+            DiagnosticStatus.Passed,
+            DateTimeOffset.UtcNow,
+            "1.0.0",
+            new DoctorSummary(1, 0, 0),
+            new[] { new DiagnosticCheckResult("test", "Test", DiagnosticStatus.Passed, "ok") });
+
+        var writer = new StringWriter();
+        DoctorTextRenderer.Render(report, verbose: false, writer, accessMode: null);
+
+        var output = writer.ToString();
+        Assert.DoesNotContain("Access mode:", output);
+    }
+
+    [Fact]
+    public void DoctorCliParser_EnvVarReadOnly_DetectsReadOnlyMode()
+    {
+        try
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", "read-only");
+            var options = DoctorCliParser.Parse(Array.Empty<string>());
+            Assert.True(options.Valid);
+            Assert.Equal(McpAccessMode.ReadOnly, options.AccessMode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
+        }
+    }
+
+    [Fact]
+    public void DoctorCliParser_EnvVarReadWrite_DetectsReadWriteMode()
+    {
+        try
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", "read-write");
+            var options = DoctorCliParser.Parse(Array.Empty<string>());
+            Assert.True(options.Valid);
+            Assert.Equal(McpAccessMode.ReadWrite, options.AccessMode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
+        }
+    }
+
+    [Fact]
+    public void DoctorCliParser_NoEnvVar_DefaultsToReadWrite()
+    {
+        try
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
+            var options = DoctorCliParser.Parse(Array.Empty<string>());
+            Assert.True(options.Valid);
+            Assert.Equal(McpAccessMode.ReadWrite, options.AccessMode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
+        }
+    }
+
+    [Fact]
+    public void DoctorCliParser_InvalidEnvVar_DefaultsToReadWrite()
+    {
+        try
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", "invalid");
+            var options = DoctorCliParser.Parse(Array.Empty<string>());
+            Assert.True(options.Valid);
+            Assert.Equal(McpAccessMode.ReadWrite, options.AccessMode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
+        }
+    }
+
+    #endregion
+
+    #region OpennessWorkerClient Without Policy Tests
+
+    [Fact]
+    public async Task OpennessWorkerClient_NoPolicy_AllowsAllOperations()
+    {
+        var binding = new ProjectSessionBinding(null);
+        // No accessPolicy — should not throw, will fail at transport level (no worker)
+        var client = new OpennessWorkerClient(
+            binding,
+            workerExecutablePath: "/nonexistent/path");
+
+        // This will fail with a transport error (worker not found), not access_denied
+        var result = await client.UpdateBlockLogicAsync("Main", "yaml", null);
+
+        Assert.False(result.Success);
+        Assert.NotEqual(WorkerFailureCategories.AccessDenied, result.FailureCategory);
     }
 
     #endregion
