@@ -34,6 +34,7 @@ public static class BatchSafetySnapshot
         "delete_user_constant" => $"Delete PLC user constant '{op.Name}' from table '{op.TableName}'.",
         "add_network_device" => $"Add network device '{op.DeviceName}' using catalog type '{op.TypeIdentifier}'.",
         "configure_network_device" => $"Configure network properties for device '{op.DeviceName}'.",
+        "update_type_content" => $"Update PLC data type '{op.TypePath}'.",
         _ => $"{op.Operation}.",
     };
 

@@ -18,7 +18,7 @@ public static class BatchTools
 
     [McpServerTool(Name = "execute_read_batch")]
     [Description("Run up to 50 read operations in one call. Each item is { operationId (unique), operation, ...that operation's parameters }; projectPath is optional on every item. Reads run independently, so a failing item does not stop the others. "
-        + "Valid operations (parentheses list required fields): browse_project_tree, read_hardware_config, read_cross_references, search_equipment_catalog (query), get_block_content (blockPath), list_tag_tables, compile_check, get_project_status. "
+        + "Valid operations (parentheses list required fields): browse_project_tree, read_hardware_config, read_cross_references, search_equipment_catalog (query), get_block_content (blockPath), list_tag_tables, compile_check, get_project_status, get_type_content (typePath). "
         + "Large projects: bound payloads with depth/startPath (browse_project_tree) and maxResults (search_equipment_catalog, read_cross_references); oversized responses are truncated server-side with an explicit marker.")]
     public static async Task<string> ExecuteReadBatch(
         OpennessWorkerClient workerClient,
@@ -39,7 +39,7 @@ public static class BatchTools
 
     [McpServerTool(Name = "preview_write_batch")]
     [Description("Preview up to 50 write operations and return one batch-level safetyToken bound to the exact ordered operation list and the combined current state. The token is single-use and expires after 10 minutes. Pass the token to apply_write_batch after reviewing the preview. All items must target the same project. "
-        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc.")]
+        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc, update_type_content (typePath, sourceContent).")]
     public static async Task<string> PreviewWriteBatch(
         OpennessWorkerClient workerClient,
         WriteSafetyService safety,
@@ -75,7 +75,7 @@ public static class BatchTools
 
     [McpServerTool(Name = "apply_write_batch")]
     [Description("Apply a previewed batch of write operations sequentially, stopping on the first failure (later items are skipped; no rollback). Requires confirm=true and a safetyToken from preview_write_batch; pass the identical operations list. "
-        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc.")]
+        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc, update_type_content (typePath, sourceContent).")]
     public static async Task<string> ApplyWriteBatch(
         OpennessWorkerClient workerClient,
         WriteSafetyService safety,

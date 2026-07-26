@@ -319,8 +319,8 @@ public class BatchOperationCatalogTests
     [Fact]
     public void All_ExposesEverySpec()
     {
-        // 8 reads + 17 writes.
-        Assert.Equal(25, BatchOperationCatalog.All.Count);
+        // 9 reads + 18 writes.
+        Assert.Equal(27, BatchOperationCatalog.All.Count);
     }
 
     [Fact]
@@ -333,11 +333,12 @@ public class BatchOperationCatalogTests
             ["read_hardware_config"] = (BatchOperationCategory.Read, none, none),
             ["search_equipment_catalog"] = (BatchOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             ["read_cross_references"] = (BatchOperationCategory.Read, none, new[] { "plcName", "filter", "maxResults" }),
-            ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, none),
+            ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format" }),
             ["list_tag_tables"] = (BatchOperationCategory.Read, none, new[] { "plcName" }),
             ["compile_check"] = (BatchOperationCategory.Read, none, new[] { "blockPath", "plcName" }),
             ["get_project_status"] = (BatchOperationCategory.Read, none, none),
-            ["update_block_logic"] = (BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, none),
+            ["get_type_content"] = (BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format" }),
+            ["update_block_logic"] = (BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, new[] { "format" }),
             ["create_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
             ["delete_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
             ["create_tag"] = (BatchOperationCategory.Write, new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
@@ -354,6 +355,7 @@ public class BatchOperationCatalogTests
             ["delete_block_group"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
             ["start_plc"] = (BatchOperationCategory.Write, none, new[] { "plcName" }),
             ["stop_plc"] = (BatchOperationCategory.Write, none, new[] { "plcName" }),
+            ["update_type_content"] = (BatchOperationCategory.Write, new[] { "typePath", "sourceContent" }, new[] { "format" }),
         };
         var actual = BatchOperationCatalog.All.ToDictionary(spec => spec.Name, StringComparer.Ordinal);
 
@@ -588,6 +590,8 @@ public class BatchOperationCatalogTests
                 case "value": request.Value = "1"; break;
                 case "typeIdentifier": request.TypeIdentifier = "OrderNumber:X/V1.0"; break;
                 case "deviceName": request.DeviceName = "PLC_1"; break;
+                case "typePath": request.TypePath = "PLC_1/Types/AnalogInputSettings"; break;
+                case "sourceContent": request.SourceContent = "TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n"; break;
                 default: throw new InvalidOperationException($"No test value configured for required field '{field}'.");
             }
         }

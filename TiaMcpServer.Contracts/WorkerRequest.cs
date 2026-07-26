@@ -62,6 +62,19 @@ public class WorkerRequest
     /// </summary>
     public string? OBEventClass { get; set; }
 
+    /// <summary>Forwarded by: get_type_content, update_type_content.</summary>
+    public string? TypePath { get; set; }
+
+    /// <summary>Forwarded by: update_type_content.</summary>
+    public string? SourceContent { get; set; }
+
+    /// <summary>
+    /// Forwarded by: get_type_content, update_type_content, get_block_content,
+    /// update_block_logic. Normalized by SourceFormatNames on the host before sending, so the
+    /// worker never sees an unrecognized value.
+    /// </summary>
+    public string? Format { get; set; }
+
     #endregion
 
     #region PLC scoping, tag tables, tags, and user constants
