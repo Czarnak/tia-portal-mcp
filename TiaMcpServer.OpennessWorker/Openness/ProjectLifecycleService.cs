@@ -191,12 +191,14 @@ public static class ProjectLifecycleService
             throw new InvalidOperationException($"Invalid archive mode '{archiveMode}'.");
         }
 
+        var resolvedArchiveName = ArchiveModeNames.EnsureArchiveExtension(archiveName, archiveMode);
+
         if (saveBeforeArchive)
         {
             project.Save();
         }
 
-        project.Archive(new DirectoryInfo(archiveDirectory), archiveName, mode);
+        project.Archive(new DirectoryInfo(archiveDirectory), resolvedArchiveName, mode);
 
         return Result("archive_project", project);
     }
