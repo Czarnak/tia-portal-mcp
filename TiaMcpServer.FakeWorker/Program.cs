@@ -156,6 +156,13 @@ while ((line = Console.In.ReadLine()) is not null)
             // save-as leaves the pre-existing session binding untouched (no partial rebind).
             Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"save failed"}""");
             break;
+        case "C:\\Projects\\SimpleProject\\SimpleProject.ap21":
+            // Used by the archive-directory-guard preview test: every request (including the
+            // probe_project_status_for_lifecycle current-state read) reports itself as the
+            // resolvedProjectPath, so the host-side ArchiveDirectoryGuard check has a concrete
+            // project path to classify the caller's archiveDirectory against.
+            Respond("""{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\Projects\\SimpleProject\\SimpleProject.ap21"}""");
+            break;
         default:
             Respond($$"""{"success":false,"error":"unknown scenario '{{scenario}}'"}""");
             break;

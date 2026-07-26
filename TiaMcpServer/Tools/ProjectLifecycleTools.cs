@@ -111,9 +111,9 @@ namespace TiaMcpServer.Tools
                 : archiveName;
             var target = new { projectPath, archiveDirectory, archiveName = resolvedArchiveName };
             var requestedInput = new { projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive };
-            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "archive_project", projectPath, target, $"Archive active project to '{archiveDirectory}\\{resolvedArchiveName}'.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("archive_project"));
+            if (string.IsNullOrWhiteSpace(safetyToken)) return WriteSafetyTooling.CreatePreview(safety, "archive_project", projectPath, target, $"Archive active project to '{archiveDirectory}\\{resolvedArchiveName}'.", requestedInput, RejectIfArchiveDirectoryWithinProjectFolder(await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), archiveDirectory), diff: null, instructions: ApplyInstructions("archive_project"));
             if (!confirm) return ConfirmRequired("archive_project");
-            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("archive_project"), "archive_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
+            var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("archive_project"), "archive_project", projectPath, target, requestedInput, async () => RejectIfArchiveDirectoryWithinProjectFolder(await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), archiveDirectory)).ConfigureAwait(false);
             if (!safetyContext.IsValid) return SafetyFailure("archive_project", safetyContext);
             var result = await workerClient.ArchiveProjectAsync(projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive).ConfigureAwait(false);
             var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
@@ -134,6 +134,28 @@ namespace TiaMcpServer.Tools
             var result = await workerClient.CloseProjectAsync(projectPath, saveBeforeClose).ConfigureAwait(false);
             safety.AppendAudit("close_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
             return WriteSafetyTooling.BuildApplyResult("close_project", result, "get_project_status", null);
+        }
+
+        /// <summary>
+        /// Host-side mirror of the worker's <c>RequireArchiveDirectoryOutsideProjectFolder</c> guard,
+        /// applied to the SAME current-state probe the preview/apply flow already reads (no extra
+        /// worker round trip). Substitutes a validation_error in place of the probe's real payload
+        /// when <paramref name="archiveDirectory"/> is nested in the open project's folder, so
+        /// <see cref="WriteSafetyTooling.CreatePreview"/> and <c>ValidateForApplyAsync</c> - both of
+        /// which already treat a failed current-state read as "render/report the failure, don't
+        /// issue or honor a token" - reject the call before a safety token is ever created. A
+        /// rejected preview costs the caller nothing but a fresh call with a corrected path; without
+        /// this, the only rejection point was apply-time, after a token round trip had already been
+        /// spent on a target that was always going to fail.
+        /// </summary>
+        private static WorkerCallResult RejectIfArchiveDirectoryWithinProjectFolder(WorkerCallResult probe, string archiveDirectory)
+        {
+            if (!probe.Success || !ArchiveDirectoryGuard.IsWithinProjectFolder(archiveDirectory, probe.ResolvedProjectPath ?? string.Empty))
+            {
+                return probe;
+            }
+
+            return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, ArchiveDirectoryGuard.BuildRejectionMessage(archiveDirectory));
         }
 
         private static string ApplyInstructions(string toolName) => $"Preview only — nothing was changed. To apply, call {toolName} again with the same arguments plus confirm=true and this safetyToken.";

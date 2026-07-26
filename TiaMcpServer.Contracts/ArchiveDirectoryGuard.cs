@@ -47,4 +47,18 @@ public static class ArchiveDirectoryGuard
 
     private static string Normalize(string path)
         => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    /// <summary>
+    /// Shared rejection text for both call sites: the worker's apply-time check (last line of
+    /// defense before Openness touches the project) and the host's preview-time check (fails the
+    /// preview before a safety token is ever issued, so a caller learns the target is rejected
+    /// without spending a preview/apply round trip on it). Kept in one place so the two messages
+    /// can never drift apart.
+    /// </summary>
+    public static string BuildRejectionMessage(string archiveDirectory)
+        => $"ArchiveDirectory '{archiveDirectory}' is the open project's own folder or a subdirectory "
+            + "of it. TIA Portal either rejects archiving there outright (\"A project directory that "
+            + "already exists cannot be saved\") or, for subdirectories, may silently delete the "
+            + "target directory. Choose a different directory, such as the parent folder or a sibling "
+            + "directory.";
 }

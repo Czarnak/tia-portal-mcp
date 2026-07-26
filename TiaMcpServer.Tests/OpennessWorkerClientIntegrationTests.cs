@@ -708,6 +708,38 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task ArchiveProject_PreviewRejectsArchiveDirectoryInsideProjectFolder_WithoutIssuingSafetyToken()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+        const string projectPath = "C:\\Projects\\SimpleProject\\SimpleProject.ap21";
+
+        var preview = await ProjectLifecycleTools.ArchiveProject(
+            client, safety,
+            archiveDirectory: "C:\\Projects\\SimpleProject\\Sub",
+            archiveName: "Backup",
+            mode: "Compressed",
+            projectPath: projectPath);
+
+        using var doc = System.Text.Json.JsonDocument.Parse(preview);
+        Assert.Equal("archive_project", doc.RootElement.GetProperty("toolName").GetString());
+        Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(WorkerFailureCategories.ValidationError, doc.RootElement.GetProperty("failureCategory").GetString());
+        Assert.Contains("own folder or a subdirectory", doc.RootElement.GetProperty("error").GetString());
+
+        // A rejection, not a preview: no safetyToken is issued, so there is nothing to replay
+        // against the worker's real archive_project operation - the caller must fix the path and
+        // request a fresh preview instead.
+        Assert.False(doc.RootElement.TryGetProperty("safetyToken", out _));
+
+        var auditLineCount = Directory.Exists(audit.Path)
+            ? Directory.GetFiles(audit.Path).Sum(file => File.ReadAllLines(file).Length)
+            : 0;
+        Assert.Equal(0, auditLineCount);
+    }
+
+    [Fact]
     public async Task CloseProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();

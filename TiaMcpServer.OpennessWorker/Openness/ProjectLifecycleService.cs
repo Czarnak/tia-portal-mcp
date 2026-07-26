@@ -194,11 +194,7 @@ public static class ProjectLifecycleService
 
         throw new WorkerOperationException(
             WorkerFailureCategories.ValidationError,
-            $"ArchiveDirectory '{archiveDirectory}' is the open project's own folder or a subdirectory "
-            + "of it. TIA Portal either rejects archiving there outright (\"A project directory that "
-            + "already exists cannot be saved\") or, for subdirectories, may silently delete the "
-            + "target directory. Choose a different directory, such as the parent folder or a sibling "
-            + "directory.");
+            ArchiveDirectoryGuard.BuildRejectionMessage(archiveDirectory));
     }
 
     public static ProjectLifecycleResultInfo ArchiveProject(
@@ -210,9 +206,13 @@ public static class ProjectLifecycleService
         bool saveBeforeArchive)
     {
         var project = EnsureProject(session, projectPath);
-        RequireAbsoluteDirectory(archiveDirectory, "ArchiveDirectory", mustExist: true);
+        // Existence is checked further down, AFTER the project-folder guard: a caller pointed at a
+        // non-existent subdirectory of the project's own folder must see the guard's explanation,
+        // not a bare "directory not found" that gives no hint the target is categorically rejected.
+        RequireAbsoluteDirectory(archiveDirectory, "ArchiveDirectory", mustExist: false);
         RequireName(archiveName, "ArchiveName");
         RequireArchiveDirectoryOutsideProjectFolder(project, archiveDirectory);
+        RequireDirectoryExists(archiveDirectory, "ArchiveDirectory");
 
         if (!Enum.TryParse<ProjectArchivationMode>(archiveMode, ignoreCase: true, out var mode))
         {
@@ -378,6 +378,14 @@ public static class ProjectLifecycleService
         if (string.IsNullOrWhiteSpace(value))
         {
             throw new InvalidOperationException($"{fieldName} is required.");
+        }
+    }
+
+    private static void RequireDirectoryExists(string path, string fieldName)
+    {
+        if (!Directory.Exists(path))
+        {
+            throw new DirectoryNotFoundException($"{fieldName} '{path}' was not found.");
         }
     }
 }
