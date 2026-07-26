@@ -16,7 +16,12 @@ public static class BatchWorkerInvoker
         "update_block_logic" => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
         // The safety token binds to the type's current exported source, so an edit made inside
         // TIA Portal between preview and apply invalidates the token, exactly like update_block_logic.
-        "update_type_content" => client.GetTypeContentAsync(op.TypePath!, NormalizeFormat(op), op.ProjectPath),
+        // NormalizeFormat can throw for an invalid format; WithValidatedFormat converts that into
+        // a failed result instead of letting it propagate out of the batch loop (see InvokeAsync's
+        // format-bearing arms for the same treatment).
+        "update_type_content" => WithValidatedFormat(
+            () => NormalizeFormat(op),
+            format => client.GetTypeContentAsync(op.TypePath!, format, op.ProjectPath)),
         "create_tag_table" or "delete_tag_table"
             or "create_tag" or "update_tag" or "delete_tag"
             or "create_user_constant" or "update_user_constant" or "delete_user_constant"
@@ -132,27 +137,47 @@ public static class BatchWorkerInvoker
     }
 
     private static Task<WorkerCallResult> InvokeGetBlockContent(OpennessWorkerClient client, BatchOperationRequest op)
-    {
-        var request = BuildRequest(op);
-        return client.GetBlockContentAsync(request.BlockPath!, op.ProjectPath, request.Format);
-    }
+        => WithValidatedFormat(
+            () => BuildRequest(op),
+            request => client.GetBlockContentAsync(request.BlockPath!, op.ProjectPath, request.Format));
 
     private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, BatchOperationRequest op)
-    {
-        var request = BuildRequest(op);
-        return client.UpdateBlockLogicAsync(request.BlockPath!, request.YamlContent!, op.ProjectPath, request.Format);
-    }
+        => WithValidatedFormat(
+            () => BuildRequest(op),
+            request => client.UpdateBlockLogicAsync(request.BlockPath!, request.YamlContent!, op.ProjectPath, request.Format));
 
     private static Task<WorkerCallResult> InvokeGetTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
-    {
-        var request = BuildRequest(op);
-        return client.GetTypeContentAsync(request.TypePath!, request.Format, op.ProjectPath);
-    }
+        => WithValidatedFormat(
+            () => BuildRequest(op),
+            request => client.GetTypeContentAsync(request.TypePath!, request.Format, op.ProjectPath));
 
     private static Task<WorkerCallResult> InvokeUpdateTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
+        => WithValidatedFormat(
+            () => BuildRequest(op),
+            request => client.UpdateTypeContentAsync(request.TypePath!, request.SourceContent!, request.Format, op.ProjectPath));
+
+    /// <summary>
+    /// Runs a format-validating builder (<see cref="BuildRequest"/> or <see cref="NormalizeFormat"/>,
+    /// both of which throw <see cref="ArgumentException"/> for an invalid format) and, on success,
+    /// hands its result to the worker call. A batch item with a bad format must fail only that item —
+    /// per BatchTools.cs's documented contract that one failing item never stops the others — so the
+    /// exception is caught here and converted into the same graceful validation_error result every
+    /// other rejected-before-the-worker case in this class already returns (compare the catalog-miss
+    /// fallback arms above and ReadCrossReferencesAsync's filter validation).
+    /// </summary>
+    private static Task<WorkerCallResult> WithValidatedFormat<T>(Func<T> build, Func<T, Task<WorkerCallResult>> invoke)
     {
-        var request = BuildRequest(op);
-        return client.UpdateTypeContentAsync(request.TypePath!, request.SourceContent!, request.Format, op.ProjectPath);
+        T value;
+        try
+        {
+            value = build();
+        }
+        catch (ArgumentException ex)
+        {
+            return Task.FromResult(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, ex.Message));
+        }
+
+        return invoke(value);
     }
 
     private static string ResolveDeviceItemName(BatchOperationRequest op)

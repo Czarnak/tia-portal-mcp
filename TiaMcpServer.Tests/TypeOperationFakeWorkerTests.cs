@@ -104,4 +104,62 @@ public class TypeOperationFakeWorkerTests
         Assert.False(secondDoc.RootElement.GetProperty("success").GetBoolean());
         Assert.Contains("Safety token", secondDoc.RootElement.GetProperty("error").GetString());
     }
+
+    /// <summary>
+    /// A bad format value must fail only its own item, not the whole batch loop. Regression test
+    /// for a gap the review caught: BatchWorkerInvoker.NormalizeFormat throws ArgumentException
+    /// (by design — TypeOperationInvokerTests.An_invalid_format_is_rejected_before_the_session_binds
+    /// requires this), and that exception used to propagate straight out of
+    /// BatchExecutionEngine.ExecuteReadsAsync's plain foreach loop, crashing every other item in
+    /// the same batch instead of just the offending one — breaking the documented
+    /// "a failing item does not stop the others" contract (BatchTools.cs:20). Runs the real
+    /// execute_read_batch pipeline (not just BuildRequest) so the fix in the invoke arms is what's
+    /// actually exercised.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteReadBatch_OneItemWithInvalidFormat_FailsOnlyThatItemAndLeavesOthersSucceeding()
+    {
+        using var client = CreateClient();
+
+        var operations = new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "ok-block",
+                Operation = "get_block_content",
+                BlockPath = "PLC_1/Blocks/Main",
+                ProjectPath = "echo",
+            },
+            new BatchOperationRequest
+            {
+                OperationId = "bad-format",
+                Operation = "get_type_content",
+                TypePath = TypePath,
+                Format = "bogus",
+                ProjectPath = "echo",
+            },
+            new BatchOperationRequest
+            {
+                OperationId = "ok-type",
+                Operation = "get_type_content",
+                TypePath = TypePath,
+                ProjectPath = "echo",
+            },
+        };
+
+        var result = await BatchTools.ExecuteReadBatch(client, operations);
+
+        using var doc = JsonDocument.Parse(result);
+        var items = doc.RootElement.GetProperty("operations");
+
+        Assert.Equal("ok-block", items[0].GetProperty("operationId").GetString());
+        Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
+
+        Assert.Equal("bad-format", items[1].GetProperty("operationId").GetString());
+        Assert.Equal("failed", items[1].GetProperty("status").GetString());
+        Assert.Contains("bogus", items[1].GetProperty("result").GetString());
+
+        Assert.Equal("ok-type", items[2].GetProperty("operationId").GetString());
+        Assert.Equal("succeeded", items[2].GetProperty("status").GetString());
+    }
 }
