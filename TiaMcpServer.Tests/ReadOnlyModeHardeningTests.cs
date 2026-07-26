@@ -53,6 +53,24 @@ public class ReadOnlyModeHardeningTests
     }
 
     [Fact]
+    public void HostArgumentFilter_RemovesBareAccessModeAlias()
+    {
+        var filtered = HostArgumentFilter.RemoveAccessModeArguments(
+            new[] { "--read-only", "--project", "Line.ap21" });
+
+        Assert.Equal(new[] { "--project", "Line.ap21" }, filtered);
+    }
+
+    [Fact]
+    public void HostArgumentFilter_RemovesAccessModeKeyAndValue()
+    {
+        var filtered = HostArgumentFilter.RemoveAccessModeArguments(
+            new[] { "--json", "--access-mode", "read-write", "--project=Line.ap21" });
+
+        Assert.Equal(new[] { "--json", "--project=Line.ap21" }, filtered);
+    }
+
+    [Fact]
     public void WorkerAccessMode_InvalidExplicitValue_FailsClosed()
     {
         var mode = WorkerOperationAuthorization.ParseAccessMode(
