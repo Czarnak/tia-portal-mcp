@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using Siemens.Engineering;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
@@ -13,13 +14,13 @@ public class TiaPortalSession : IDisposable
     private bool _disposed;
     private bool _projectOpenedByWorker;
 
-    public TiaPortalSession(bool allowTiaConfirmations = false)
+    public TiaPortalSession(
+        bool allowTiaConfirmations = false,
+        McpAccessMode accessMode = McpAccessMode.ReadWrite)
     {
-        // Even when a caller requests automatic confirmations, an explicitly configured
-        // read-only worker must reject every TIA confirmation dialog. This keeps the final
-        // Siemens-facing layer fail-closed if a nominally read operation unexpectedly asks
-        // TIA Portal to confirm a state-changing action.
-        var accessMode = WorkerOperationAuthorization.ParseAccessMode(Environment.GetCommandLineArgs());
+        // Even when a caller requests automatic confirmations, a read-only worker must reject
+        // every TIA confirmation dialog. This keeps the final Siemens-facing layer fail-closed
+        // if a nominally read operation unexpectedly asks TIA Portal to confirm a state change.
         _allowTiaConfirmations = allowTiaConfirmations &&
             WorkerOperationAuthorization.AllowsTiaConfirmations(accessMode);
     }
