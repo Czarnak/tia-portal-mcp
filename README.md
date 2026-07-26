@@ -150,6 +150,61 @@ Options:
 
 Exit codes: `0` (no blocking failures), `1` (one or more checks failed), `2` (invalid arguments).
 
+### Access modes
+
+The server supports two access modes that control which operations are available:
+
+- **read-write** (default) - full tool surface with the existing preview-and-apply write safety model.
+- **read-only** - only observation operations are available. Write tools are not advertised to MCP clients, and prohibited operations are rejected at both the host and worker levels.
+
+Enable read-only mode:
+
+```powershell
+tia-mcp --access-mode read-only
+tia-mcp --read-only
+$env:TIA_MCP_ACCESS_MODE = 'read-only'
+tia-mcp
+```
+
+Configuration precedence: CLI argument > environment variable > default (read-write).
+
+The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
+
+In read-only mode, the server exposes only two MCP tools:
+
+- `get_project_status` - read active project metadata.
+- `execute_read_batch` - run read operations in a batch (including `browse_project_tree`, `read_hardware_config`, `read_cross_references`, `search_equipment_catalog`, `get_block_content`, `list_tag_tables`, `get_project_status`).
+
+The following operations are **not available** in read-only mode:
+
+- `compile_check` (invokes the Siemens compilation API)
+- All project lifecycle operations (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`)
+- All data mutations (block, tag, tag table, user constant, network device operations)
+- All PLC control operations (`start_plc`, `stop_plc`)
+
+In read-only mode, the server operates only on the project already open in TIA Portal. It never opens, creates, switches, or closes a project. A supplied `projectPath` is used only as an assertion that must match the currently open project.
+
+Read-only mode is a security boundary enforced at three layers:
+
+1. Write tools are not registered in the MCP tool discovery response.
+2. The host-side `OperationAccessPolicy` rejects prohibited operations before the worker process is started.
+3. The worker-side `WorkerOperationAuthorization` independently rejects prohibited operations even if a raw worker request bypasses the host.
+
+MCP client configuration example:
+
+```json
+{
+  "mcpServers": {
+    "tia-portal-read-only": {
+      "command": "tia-mcp",
+      "args": ["--access-mode", "read-only"]
+    }
+  }
+}
+```
+
+The `tia-mcp doctor` command reports the active access mode.
+
 The package includes the `openness-worker` folder and required non-Siemens dependencies. It intentionally excludes `Siemens.Engineering*.dll`; those are loaded from the local TIA Portal installation at runtime.
 
 ## Build From Source

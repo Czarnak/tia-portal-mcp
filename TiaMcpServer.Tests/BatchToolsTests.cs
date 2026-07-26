@@ -22,9 +22,16 @@ public class BatchToolsTests
     [InlineData("ApplyWriteBatch", "apply_write_batch")]
     public void BatchToolsHaveMcpMetadata(string methodName, string expectedToolName)
     {
-        Assert.NotNull(typeof(BatchTools).GetCustomAttribute<McpServerToolTypeAttribute>());
+        // Tools have been split into ReadBatchTools and WriteBatchTools.
+        // BatchTools retains the methods for backward compatibility but no longer
+        // carries [McpServerToolType]/[McpServerTool] attributes.
+        var type = methodName == "ExecuteReadBatch"
+            ? typeof(ReadBatchTools)
+            : typeof(WriteBatchTools);
 
-        var method = typeof(BatchTools).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(type.GetCustomAttribute<McpServerToolTypeAttribute>());
+
+        var method = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
 
         Assert.NotNull(method);
         var toolAttribute = method!.GetCustomAttribute<McpServerToolAttribute>();

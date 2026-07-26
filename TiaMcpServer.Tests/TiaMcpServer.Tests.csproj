@@ -37,6 +37,8 @@
     <Compile Include="..\TiaMcpServer\Diagnostics\Checks\*.cs"
       Link="Host\Diagnostics\Checks\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Cli\*.cs" Link="Host\Cli\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Safety\OperationAccessPolicy.cs"
+      Link="Host\OperationAccessPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
       Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
@@ -47,6 +49,10 @@
       Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectLifecycleTools.cs"
       Link="Host\ProjectLifecycleTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
+      Link="Host\ProjectReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectWriteTools.cs"
+      Link="Host\ProjectWriteTools.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchOperationRequest.cs"
       Link="Host\Batch\BatchOperationRequest.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchOperationCatalog.cs"
@@ -64,6 +70,8 @@
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
       Link="Host\Batch\BatchWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchTools.cs" Link="Host\Batch\BatchTools.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\ReadBatchTools.cs" Link="Host\Batch\ReadBatchTools.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectRebindCloseGuard.cs"
       Link="Worker\ProjectRebindCloseGuard.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\AssemblyResolver.cs"
@@ -72,6 +80,8 @@
       Link="Worker\WorkerWarningMerger.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationException.cs"
       Link="Linked\Openness\WorkerOperationException.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationAuthorization.cs"
+      Link="Linked\Openness\WorkerOperationAuthorization.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDocument.cs"
       Link="Linked\Openness\BlockImportDocument.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ParsedBlockImportBundle.cs"

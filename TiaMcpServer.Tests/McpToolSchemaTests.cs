@@ -96,7 +96,7 @@ public class McpToolSchemaTests
             .Where(t => t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null);
 
         var toolNames = toolTypes
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
             .Select(m => m.GetCustomAttribute<McpServerToolAttribute>())
             .Where(a => a is not null)
             .Select(a => a!.Name)

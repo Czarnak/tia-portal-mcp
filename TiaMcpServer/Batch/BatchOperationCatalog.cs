@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 
 namespace TiaMcpServer.Batch;
@@ -56,6 +57,37 @@ public static class BatchOperationCatalog
 
     /// <summary>Every registered spec. Used by the field-forwarding invariant test.</summary>
     public static IReadOnlyCollection<BatchOperationSpec> All { get; } = Specs.Values.ToArray();
+
+    /// <summary>
+    /// Validates that all operations in a batch are allowed under the given access mode.
+    /// Returns null when all operations are allowed, or a list of per-operation errors.
+    /// </summary>
+    public static IReadOnlyList<string> ValidateAccessMode(
+        IReadOnlyList<BatchOperationRequest> operations,
+        McpAccessMode mode)
+    {
+        if (mode == McpAccessMode.ReadWrite)
+        {
+            return Array.Empty<string>();
+        }
+
+        var errors = new List<string>();
+        foreach (var op in operations)
+        {
+            if (op is null || string.IsNullOrWhiteSpace(op.Operation))
+            {
+                continue;
+            }
+
+            if (!OperationPolicyCatalog.IsAllowed(mode, op.Operation))
+            {
+                errors.Add(
+                    $"Operation '{op.Operation}' (operationId '{op.OperationId}') is not permitted in read-only mode.");
+            }
+        }
+
+        return errors;
+    }
 
     // Real single tools that exist but are intentionally not available inside a batch, so the
     // caller gets a precise message instead of a generic "unknown operation".

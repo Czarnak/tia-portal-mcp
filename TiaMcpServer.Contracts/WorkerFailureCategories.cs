@@ -33,6 +33,9 @@ public static class WorkerFailureCategories
     /// <summary>An operation reported success but a required postcondition (e.g. a resolved project path) was missing.</summary>
     public const string PostconditionFailed = "postcondition_failed";
 
+    /// <summary>The operation is not permitted in the current access mode (e.g. a write attempted in read-only mode).</summary>
+    public const string AccessDenied = "access_denied";
+
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
         ValidationError,
@@ -41,7 +44,8 @@ public static class WorkerFailureCategories
         WorkerOperationFailed,
         WorkerTimeout,
         WorkerCrashed,
-        PostconditionFailed
+        PostconditionFailed,
+        AccessDenied
     };
 
     /// <summary>True when <paramref name="value"/> is exactly one of the approved category constants.</summary>

@@ -11,20 +11,21 @@ namespace TiaMcpServer.Tools
     /// safetyToken to get a preview plus a single-use token, then call it again with the
     /// same arguments plus confirm=true and the token to apply. target/requestedInput are
     /// built exactly once per method so preview and apply can never drift apart.
+    ///
+    /// NOTE: This class is no longer registered as an MCP tool type. Tools have been split
+    /// into ProjectReadTools and ProjectWriteTools. This class is kept for test backward
+    /// compatibility (tests reference its methods directly).
     /// </summary>
-    [McpServerToolType]
     public static class ProjectLifecycleTools
     {
         private const string SafetyFlowDescription =
             "Two-step safety flow in one tool: call WITHOUT safetyToken to get a preview and a single-use token "
             + "(expires after 10 minutes), review it, then call again with the same arguments plus confirm=true and the safetyToken.";
 
-        [McpServerTool(Name = "get_project_status")]
         [Description("Get status and metadata for the active TIA Portal project.")]
         public static async Task<string> GetProjectStatus(OpennessWorkerClient workerClient, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
             => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToEnvelopeText();
 
-        [McpServerTool(Name = "open_project")]
         [Description("Open a TIA Portal project and bind this MCP session to it. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
         public static async Task<string> OpenProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Path to the .ap21 project file to open.")] string projectPath, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null, [Description("Set true to allow rebinding this MCP session from a previously bound project.")] bool forceRebind = false)
         {
@@ -40,7 +41,6 @@ namespace TiaMcpServer.Tools
             return WriteSafetyTooling.BuildApplyResult("open_project", result, "get_project_status", status);
         }
 
-        [McpServerTool(Name = "create_project")]
         [Description("Create a new TIA Portal project and bind this MCP session to it. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
         public static async Task<string> CreateProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Directory where the project folder should be created.")] string projectDirectory, [Description("Name of the new TIA Portal project.")] string projectName, [Description("Optional project author metadata.")] string? author = null, [Description("Optional project comment metadata.")] string? comment = null, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
         {
@@ -56,7 +56,6 @@ namespace TiaMcpServer.Tools
             return WriteSafetyTooling.BuildApplyResult("create_project", result, "get_project_status", status);
         }
 
-        [McpServerTool(Name = "save_project")]
         [Description("Save the active TIA Portal project. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
         public static async Task<string> SaveProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
         {
@@ -72,7 +71,6 @@ namespace TiaMcpServer.Tools
             return WriteSafetyTooling.BuildApplyResult("save_project", result, "get_project_status", status);
         }
 
-        [McpServerTool(Name = "save_project_as")]
         [Description("Save the active TIA Portal project to a copy directory. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
         public static async Task<string> SaveProjectAs(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Parent directory for the copied project.")] string targetDirectory, [Description("Name of the copied project directory.")] string targetName, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null, [Description("Bind this MCP session to the copied project after save-as. Must be true; rebind=false is not supported.")] bool rebind = true, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
         {
@@ -99,7 +97,6 @@ namespace TiaMcpServer.Tools
             return WriteSafetyTooling.BuildApplyResult("save_project_as", result, "get_project_status", status);
         }
 
-        [McpServerTool(Name = "archive_project")]
         [Description("Archive the active TIA Portal project. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
         public static async Task<string> ArchiveProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Directory where the archive should be written. TIA Portal rejects a combined directory+file path longer than roughly 140 characters.")] string archiveDirectory, [Description("Archive file name. For Compressed and DiscardRestorableDataAndCompressed modes, .zap21 is appended automatically if not already present.")] string archiveName, [Description("Archive mode: None, DiscardRestorableData, Compressed, or DiscardRestorableDataAndCompressed.")] string? mode = null, [Description("Save the project before archiving.")] bool saveBeforeArchive = true, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
         {
@@ -121,7 +118,6 @@ namespace TiaMcpServer.Tools
             return WriteSafetyTooling.BuildApplyResult("archive_project", result, "get_project_status", status);
         }
 
-        [McpServerTool(Name = "close_project")]
         [Description("Close the active TIA Portal project and clear this MCP session binding. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
         public static async Task<string> CloseProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Optional path to a .ap21 project file. If omitted, closes the currently bound/open project.")] string? projectPath = null, [Description("Save the project before closing it.")] bool saveBeforeClose = true, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
         {

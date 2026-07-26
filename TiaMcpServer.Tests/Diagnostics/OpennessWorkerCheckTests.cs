@@ -163,7 +163,7 @@ public class OpennessWorkerCheckTests
             "TiaMcpServer.csproj"));
 
         Assert.Equal(
-            3,
+            4,
             project.Split("**\\*.runtimeconfig.json", StringSplitOptions.None).Length);
         Assert.Contains("RemoveStaleOpennessWorkerRuntimeConfig", project);
         Assert.DoesNotContain("PackOpennessWorker", project);
