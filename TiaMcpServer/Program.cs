@@ -42,7 +42,11 @@ namespace TiaMcpServer
                 Console.Error.WriteLine("Project opening, compilation, writes, lifecycle operations, and PLC control are disabled.");
             }
 
-            var builder = Host.CreateApplicationBuilder(args);
+            // Application-specific access-mode switches have already been parsed. Remove them
+            // before generic-host configuration processes the remaining command line because
+            // value-less switches such as --read-only are not valid configuration key/value pairs.
+            var builder = Host.CreateApplicationBuilder(
+                HostArgumentFilter.RemoveAccessModeArguments(args));
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(ResolveStartupProjectPath(args)));
             builder.Services.AddSingleton(new WriteSafetyService());
