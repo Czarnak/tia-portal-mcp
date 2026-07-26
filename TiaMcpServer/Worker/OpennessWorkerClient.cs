@@ -147,16 +147,20 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> GetBlockContentAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> GetBlockContentAsync(string blockPath, string? projectPath, string? format = null)
     {
         return SendBoundProjectRequestAsync(
             "get_block_content",
             projectPath,
-            request => request.BlockPath = blockPath,
+            request =>
+            {
+                request.BlockPath = blockPath;
+                request.Format = format;
+            },
             string.Empty);
     }
 
-    public Task<WorkerCallResult> UpdateBlockLogicAsync(string blockPath, string yamlContent, string? projectPath)
+    public Task<WorkerCallResult> UpdateBlockLogicAsync(string blockPath, string yamlContent, string? projectPath, string? format = null)
     {
         return SendBoundProjectRequestAsync(
             "update_block_logic",
@@ -165,6 +169,44 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.YamlContent = yamlContent;
+                request.Format = format;
+                request.AllowTiaConfirmations = true;
+            },
+            string.Empty);
+    }
+
+    /// <summary>
+    /// Reads a PLC data type's exported source. Mirrors <see cref="GetBlockContentAsync"/>: same
+    /// <see cref="SendBoundProjectRequestAsync"/> construction, same result handling, no bespoke logic.
+    /// </summary>
+    public Task<WorkerCallResult> GetTypeContentAsync(string typePath, string? format, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "get_type_content",
+            projectPath,
+            request =>
+            {
+                request.TypePath = typePath;
+                request.Format = format;
+            },
+            string.Empty);
+    }
+
+    /// <summary>
+    /// Writes a PLC data type's exported source. Mirrors <see cref="UpdateBlockLogicAsync"/>: same
+    /// <see cref="SendBoundProjectRequestAsync"/> construction, hardcoded AllowTiaConfirmations like
+    /// its sibling, no bespoke logic.
+    /// </summary>
+    public Task<WorkerCallResult> UpdateTypeContentAsync(string typePath, string sourceContent, string? format, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "update_type_content",
+            projectPath,
+            request =>
+            {
+                request.TypePath = typePath;
+                request.SourceContent = sourceContent;
+                request.Format = format;
                 request.AllowTiaConfirmations = true;
             },
             string.Empty);
