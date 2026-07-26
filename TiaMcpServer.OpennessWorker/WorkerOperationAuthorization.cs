@@ -12,50 +12,42 @@ internal static class WorkerOperationAuthorization
 {
     /// <summary>
     /// Parses the access mode from the worker process command-line arguments.
+    /// Missing configuration preserves the historical read-write default. Explicit but malformed
+    /// configuration fails closed to read-only so a launch or argument-propagation defect cannot
+    /// silently enable mutation operations.
     /// </summary>
     public static McpAccessMode ParseAccessMode(string[] args)
     {
         for (int i = 0; i < args.Length; i++)
         {
-            if (string.Equals(args[i], "--access-mode", StringComparison.OrdinalIgnoreCase) &&
-                i + 1 < args.Length)
+            if (string.Equals(args[i], "--access-mode", StringComparison.OrdinalIgnoreCase))
             {
-                var value = args[i + 1];
-                if (string.Equals(value, "read-only", StringComparison.OrdinalIgnoreCase))
+                if (i + 1 >= args.Length ||
+                    string.IsNullOrWhiteSpace(args[i + 1]) ||
+                    args[i + 1].StartsWith("--", StringComparison.Ordinal))
                 {
-                    return McpAccessMode.ReadOnly;
+                    return FailClosed("--access-mode requires a value");
                 }
 
-                if (string.Equals(value, "read-write", StringComparison.OrdinalIgnoreCase))
-                {
-                    return McpAccessMode.ReadWrite;
-                }
-
-                Console.Error.WriteLine($"Warning: Invalid worker access mode '{value}'. Defaulting to read-write.");
-                return McpAccessMode.ReadWrite;
+                return ParseValueOrFailClosed(args[i + 1]);
             }
 
             const string prefix = "--access-mode=";
             if (args[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                var value = args[i].Substring(prefix.Length);
-                if (string.Equals(value, "read-only", StringComparison.OrdinalIgnoreCase))
-                {
-                    return McpAccessMode.ReadOnly;
-                }
-
-                if (string.Equals(value, "read-write", StringComparison.OrdinalIgnoreCase))
-                {
-                    return McpAccessMode.ReadWrite;
-                }
-
-                Console.Error.WriteLine($"Warning: Invalid worker access mode '{value}'. Defaulting to read-write.");
-                return McpAccessMode.ReadWrite;
+                return ParseValueOrFailClosed(args[i].Substring(prefix.Length));
             }
         }
 
         return McpAccessMode.ReadWrite;
     }
+
+    /// <summary>
+    /// Whether the worker may automatically accept TIA Portal confirmation dialogs.
+    /// Read-only mode must never auto-confirm an action that could change state.
+    /// </summary>
+    public static bool AllowsTiaConfirmations(McpAccessMode mode)
+        => mode == McpAccessMode.ReadWrite;
 
     /// <summary>
     /// Returns null if the operation is allowed, or a failure response if denied.
@@ -73,6 +65,29 @@ internal static class WorkerOperationAuthorization
             Error = $"Operation '{operation}' is disabled because the worker is running in {ModeLabel(mode)} mode.",
             FailureCategory = WorkerFailureCategories.AccessDenied
         };
+    }
+
+    private static McpAccessMode ParseValueOrFailClosed(string value)
+    {
+        var normalizedValue = value.Trim();
+        if (string.Equals(normalizedValue, "read-only", StringComparison.OrdinalIgnoreCase))
+        {
+            return McpAccessMode.ReadOnly;
+        }
+
+        if (string.Equals(normalizedValue, "read-write", StringComparison.OrdinalIgnoreCase))
+        {
+            return McpAccessMode.ReadWrite;
+        }
+
+        return FailClosed($"invalid access mode '{value}'");
+    }
+
+    private static McpAccessMode FailClosed(string reason)
+    {
+        Console.Error.WriteLine(
+            $"Error: Worker access-mode configuration is invalid ({reason}). Falling back to read-only.");
+        return McpAccessMode.ReadOnly;
     }
 
     private static string ModeLabel(McpAccessMode mode)
