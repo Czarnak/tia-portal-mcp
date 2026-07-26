@@ -35,6 +35,24 @@ public class ReadOnlyModeHardeningTests
     }
 
     [Fact]
+    public void AccessModeParser_ConflictingModes_FailClearly()
+    {
+        var result = AccessModeParser.Parse(new[] { "--read-only", "--access-mode", "read-write" });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Conflicting", result.Error);
+    }
+
+    [Fact]
+    public void AccessModeParser_RepeatedEquivalentModes_AreAllowed()
+    {
+        var result = AccessModeParser.Parse(new[] { "--read-only", "--access-mode=read-only" });
+
+        Assert.True(result.IsValid);
+        Assert.Equal(McpAccessMode.ReadOnly, result.Mode);
+    }
+
+    [Fact]
     public void WorkerAccessMode_InvalidExplicitValue_FailsClosed()
     {
         var mode = WorkerOperationAuthorization.ParseAccessMode(
@@ -48,6 +66,15 @@ public class ReadOnlyModeHardeningTests
     {
         var mode = WorkerOperationAuthorization.ParseAccessMode(
             new[] { "--access-mode" });
+
+        Assert.Equal(McpAccessMode.ReadOnly, mode);
+    }
+
+    [Fact]
+    public void WorkerAccessMode_ConflictingModes_FailClosed()
+    {
+        var mode = WorkerOperationAuthorization.ParseAccessMode(
+            new[] { "--access-mode=read-write", "--access-mode", "read-only" });
 
         Assert.Equal(McpAccessMode.ReadOnly, mode);
     }
@@ -85,5 +112,14 @@ public class ReadOnlyModeHardeningTests
 
         Assert.False(options.Valid);
         Assert.Contains("requires a value", options.ParseError);
+    }
+
+    [Fact]
+    public void DoctorCliParser_ConflictingModes_FailClearly()
+    {
+        var options = DoctorCliParser.Parse(new[] { "--read-only", "--read-write" });
+
+        Assert.False(options.Valid);
+        Assert.Contains("Conflicting", options.ParseError);
     }
 }
