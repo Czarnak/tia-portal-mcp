@@ -174,6 +174,33 @@ public static class ProjectLifecycleService
     private static bool ProjectPathsEqual(string left, string right)
         => string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Rejects before any Siemens-touching call (mirrors the save_project_as rebind=false defense
+    /// above): archiving with the open project's own containing folder as the target always fails
+    /// against a live TIA Portal V21 instance ("A project directory that already exists cannot be
+    /// saved"), and archiving into a subdirectory of that folder was reported to sometimes succeed
+    /// but have TIA Portal silently auto-delete the subdirectory. "Permitted in some cases" is not a
+    /// reason to allow it here - block the whole folder categorically rather than distinguish safe
+    /// from unsafe subdirectories.
+    /// </summary>
+    private static void RequireArchiveDirectoryOutsideProjectFolder(Project project, string archiveDirectory)
+    {
+        var projectFilePath = project.Path?.FullName;
+        if (string.IsNullOrWhiteSpace(projectFilePath)
+            || !ArchiveDirectoryGuard.IsWithinProjectFolder(archiveDirectory, projectFilePath!))
+        {
+            return;
+        }
+
+        throw new WorkerOperationException(
+            WorkerFailureCategories.ValidationError,
+            $"ArchiveDirectory '{archiveDirectory}' is the open project's own folder or a subdirectory "
+            + "of it. TIA Portal either rejects archiving there outright (\"A project directory that "
+            + "already exists cannot be saved\") or, for subdirectories, may silently delete the "
+            + "target directory. Choose a different directory, such as the parent folder or a sibling "
+            + "directory.");
+    }
+
     public static ProjectLifecycleResultInfo ArchiveProject(
         TiaPortalSession session,
         string? projectPath,
@@ -185,6 +212,7 @@ public static class ProjectLifecycleService
         var project = EnsureProject(session, projectPath);
         RequireAbsoluteDirectory(archiveDirectory, "ArchiveDirectory", mustExist: true);
         RequireName(archiveName, "ArchiveName");
+        RequireArchiveDirectoryOutsideProjectFolder(project, archiveDirectory);
 
         if (!Enum.TryParse<ProjectArchivationMode>(archiveMode, ignoreCase: true, out var mode))
         {
