@@ -179,7 +179,7 @@ global DB, `.udt` for a type), never supplied by the caller.
 | `TiaMcpServer.Contracts/WorkerRequest.cs` | Add `WithDependencies`. |
 | `TiaMcpServer/Batch/BatchOperationRequest.cs` | Add `WithDependencies`. |
 | `TiaMcpServer/Batch/BatchOperationCatalog.cs` | Add `withDependencies` to `get_block_content` and `get_type_content` optional fields. |
-| `TiaMcpServer/Batch/BatchSafetySnapshot.cs` | Preview text for an SCL block write names the block and says "SCL source". |
+| `TiaMcpServer/Batch/BatchSafetySnapshot.cs` | Preview text for a `format=source` block write says so, rather than reading identically to an XML write. |
 | `TiaMcpServer/Batch/BatchWorkerInvoker.cs` | Thread `withDependencies` through. |
 | `TiaMcpServer/Worker/OpennessWorkerClient.cs` | Thread `withDependencies` through. |
 
