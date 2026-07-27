@@ -13,7 +13,8 @@
 
     THIS SCRIPT MUTATES THE PROJECT. Every check that writes restores what it wrote, and the run
     ends by confirming the original content is byte-identical, the project compiles clean, and no
-    object was added to or removed from the project tree.
+    object was added to or removed from the project tree. If L2.7a fails, the project is left
+    modified and says which blocks and what to do about it.
 
 .PARAMETER ProjectPath
     Absolute path to the .ap21 project file.
@@ -442,23 +443,34 @@ else {
 
 # --- L2.7 restore and verify -----------------------------------------------------------
 Assert-Check 'L2.7a' 'Original content is restored byte-identically' {
-    $targets = @(
+    # This is the only restore in the run: L2.2b, L2.3b and L2.8 leave their writes in place. If it
+    # fails, the user's real project keeps the written blocks, so both failure paths must say so and
+    # say what to do about it — naming every target still outstanding, not just the one that failed.
+    # A block whose original was never captured was never written either, so it is not pending.
+    $pending = @(@(
         @{ Path = $OptimizedDbPath;    Original = $script:optimizedOriginal }
         @{ Path = $NonOptimizedDbPath; Original = $script:nonOptimizedOriginal }
         @{ Path = $UnitScopedDbPath;   Original = $script:unitOriginal }
-    )
+    ) | Where-Object { $_.Path -and $_.Original })
 
     $restored = 0
-    foreach ($target in $targets) {
-        # A block whose original was never captured was never written either.
-        if (-not $target.Path -or -not $target.Original) { continue }
+    for ($index = 0; $index -lt $pending.Count; $index++) {
+        $target = $pending[$index]
+        $outstanding = @($pending[$index..($pending.Count - 1)] |
+            ForEach-Object { "'$($_.Path)'" }) -join ', '
 
         $result = Set-BlockSource -BlockPath $target.Path -Content $target.Original
-        if (-not $result.success) { throw "Restore of '$($target.Path)' failed: $($result.error)" }
+        if (-not $result.success) {
+            throw ("Restore of '$($target.Path)' failed: $($result.error). THE PROJECT IS LEFT " +
+                "MODIFIED — these blocks were written and nothing has undone them: $outstanding. " +
+                "Restore them manually in TIA Portal before using this project.")
+        }
 
         $after = Get-BlockSource -BlockPath $target.Path
         if ($after -ne $target.Original) {
-            throw "Restored content of '$($target.Path)' differs from the original."
+            throw ("Restored content of '$($target.Path)' differs from the original. THE PROJECT " +
+                "IS LEFT MODIFIED — restore these blocks manually in TIA Portal before using this " +
+                "project: $outstanding")
         }
         $restored++
     }
