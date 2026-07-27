@@ -124,7 +124,7 @@ Observations:
   that path is currently only exercised as a fallback, not verified as the primary, default-driving
   route for every block type it would need to cover.
 
-## Suggested phasing (not yet scheduled)
+## Suggested phasing (Phase 0 partially closed; Phases 1-2 delivered; 3-5 not yet scheduled)
 
 Priority order is **UDT → DB → SCL**, not the historical order these were investigated in. Reasons
 for that order, derived from the analysis above:
@@ -163,7 +163,7 @@ for that order, derived from the analysis above:
 |---|---|---|
 | 0 — Spike | Confirm whether these sample files were produced by Siemens' native "generate/import external source" Openness API rather than `Block.Export`/`Import`. If so, prefer driving that API over hand-rolling a `.scl`/`.db`/`.udt` parser — changes the shape of every phase below. | — |
 | 1 — UDT | Add read/export/import support for PLC data types (delivered — `get_type_content`/`update_type_content`) with `.udt` as its format. | Phase 0 |
-| 2 — DB | Add `.db` as a selectable/default format for data blocks, alongside the existing SimaticML path (delivered — round trip proven live, see Phase 0 below). | Phase 1 (`ExternalSourceScope` and the declared-name preflight), Phase 0 |
+| 2 — DB | Add `.db` as a selectable/default format for data blocks, alongside the existing SimaticML path (round trip delivered and proven live, see Phase 0 below; the selectable-format work itself is Phase 5). | Phase 1 (`ExternalSourceScope` and the declared-name preflight), Phase 0 |
 | 3 — SCL | Add `.scl` as a selectable/default format for SCL/STL-language blocks; replace the `BlockSourceGenerator` XML-only placeholder with real source generation. | Phase 1 (inline UDT dependencies), Phase 0 |
 | 4 — LAD (SimaticSD) | Verify whether `ImportFromDocuments` can apply a real network-level change to a LAD block from an edited `.s7dcl`/`.s7res` pair; if confirmed, add SimaticSD as a selectable/default read (and, if verified, write) format for LAD. FBD only if it's confirmed to behave the same way; GRAPH explicitly out of scope. | Phase 0; independent of Phases 1-3 otherwise |
 | 5 — Rollout | Add the explicit format selector on `get_block_content`/`update_block_logic`, flip defaults per block language/type now that 1-4 exist, measure real token savings, keep `xml` permanently available everywhere as an explicit override. GRAPH (and FBD/LAD if Phase 4 finds import doesn't work) never leave `xml`. | Phases 1-4 |
@@ -192,8 +192,10 @@ generic `FileInfo`/path rather than a type-specific extension selector.
 
 **Phase 0 partially closed (see `docs/superpowers/plans/2026-07-26-udt-db-external-source.md`).**
 The `GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip is proven live for
-UDTs by `scripts/live-test-udt.ps1` and for global DBs by `scripts/live-test-db.ps1`. It remains
-unproven for SCL blocks; Phase 3 must close that itself.
+UDTs by `scripts/live-test-udt.ps1` and for global DBs by `scripts/live-test-db.ps1`. The DB leg's
+live coverage includes a global DB inside a software unit, resolved through the owning unit's
+`ExternalSourceGroup` rather than the top-level one, also via `scripts/live-test-db.ps1`. It
+remains unproven for SCL blocks; Phase 3 must close that itself.
 
 A non-optimized global DB's external-source export is **identical in shape** to an optimized one.
 There is no `Offset` column. The only difference is `S7_Optimized_Access := 'FALSE'` in the
