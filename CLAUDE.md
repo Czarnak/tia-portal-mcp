@@ -48,6 +48,7 @@ dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\
 Every write goes through preview-then-apply. This is non-negotiable.
 
 - **Batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the token
+- **Type writes** (`update_type_content`): batch data writes like any other, but strict — the type must already exist and the declared name in `sourceContent` must match the target. Openness would otherwise create a new type from an unrecognized name.
 - **Project lifecycle writes** (`open_project`, `create_project`, etc.): self-previewing — call the tool without `safetyToken` to get a preview + token, then call again with `confirm=true` + the token
 - Safety tokens are single-use, expire in 10 minutes, bound to exact tool name + project path + requested input + current project state
 - Reordering, changing input, or project state changes invalidate the token
