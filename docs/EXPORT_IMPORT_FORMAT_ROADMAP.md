@@ -124,7 +124,7 @@ Observations:
   that path is currently only exercised as a fallback, not verified as the primary, default-driving
   route for every block type it would need to cover.
 
-## Suggested phasing (Phase 0 partially closed; Phases 1-2 delivered; 3-5 not yet scheduled)
+## Suggested phasing (Phase 0 partially closed; Phase 1 delivered; Phase 2 round trip delivered; 3-5 not yet scheduled)
 
 Priority order is **UDT → DB → SCL**, not the historical order these were investigated in. Reasons
 for that order, derived from the analysis above:
