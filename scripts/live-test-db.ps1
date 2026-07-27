@@ -336,7 +336,12 @@ Assert-Check 'L2.5d' 'Writing the FB as source is refused by block type' {
 }
 
 # --- L2.6 no residual external source node --------------------------------------------
-Assert-Check 'L2.6' 'No residual PlcExternalSource node remains' {
+# The description states what is actually being checked. The plan-mandated tree scan below is
+# INERT — ProjectTreeWalker visits blocks, tag tables, types and software units, never external
+# source groups — so a surviving node can never appear in the JSON it searches. It is kept because
+# the plan calls for it, but the printed line must not let a reader over-credit it. The warning
+# scan is the half that can actually fail, and L2.9 re-runs it over the writes that happen later.
+Assert-Check 'L2.6' 'No residual-external-source warning was reported (tree scan is inert — the walker does not visit external source groups)' {
     $tree = Invoke-Worker @{
         method      = 'browse_project_tree'
         projectPath = $ProjectPath
@@ -345,8 +350,8 @@ Assert-Check 'L2.6' 'No residual PlcExternalSource node remains' {
     $rendered = $tree | ConvertTo-Json -Depth 30
     if ($rendered -match '_tiamcp_') { throw 'A temporary external source node survived in the project.' }
 
-    # browse_project_tree walks blocks, tags and types but not external source groups, so the
-    # scan above cannot see a surviving node directly. The worker's own warning can.
+    # This covers only the writes that have happened so far. L2.8 and L2.7a write AFTER this
+    # point, so L2.9 sweeps the full warning list once every write is done.
     $residual = @($script:Warnings | Where-Object { $_.Message -match 'temporary external source node' })
     if ($residual.Count -gt 0) {
         throw "The worker reported a residual external source node: $($residual[0].Message)"
@@ -354,7 +359,8 @@ Assert-Check 'L2.6' 'No residual PlcExternalSource node remains' {
 }
 
 # --- L2.8 the unit-scoped write lands in the unit -------------------------------------
-# Runs before L2.7 because L2.7 is the closing restore-and-verify: nothing may write after it.
+# Ordered before L2.7a because L2.7a's restore is itself a write and must be the LAST write of the
+# run. L2.9 then sweeps every warning both of them produced.
 if ($UnitScopedDbPath) {
     Assert-Check 'L2.8' 'Unit-scoped DB round trip adds nothing to the top-level PLC' {
         $plcSegment = ($UnitScopedDbPath -split '/')[0]
@@ -378,6 +384,25 @@ if ($UnitScopedDbPath) {
         $topLevelBefore = ConvertTo-NodeKeys @($before | Where-Object {
             $_.Path.StartsWith("$blocksRoot/", [System.StringComparison]::Ordinal)
         })
+
+        # The stray-node assertion at the end of this check is set membership on Type|Path, so it
+        # can only see an object that was ADDED. If the top-level PLC already holds a block with
+        # this same name, a misdirected GenerateBlocksFromSource OVERWRITES it instead: no key
+        # appears, this check passes, L2.7c passes, and the clobbered top-level block is never
+        # restored — a silent, unreported mutation of a real project. Software units make
+        # same-named blocks natural, so refuse the fixture rather than run blind.
+        $unitBlockName = (($UnitScopedDbPath -split '/')[-1]) -replace '\s*\[[A-Za-z]+\d*\]$', ''
+        $collisions = @($before | Where-Object {
+            $_.Path.StartsWith("$blocksRoot/", [System.StringComparison]::Ordinal) -and
+            $_.Path.EndsWith("/$unitBlockName", [System.StringComparison]::OrdinalIgnoreCase)
+        } | ForEach-Object { $_.Path })
+        if ($collisions.Count -gt 0) {
+            throw ("The top-level PLC already contains a block named '$unitBlockName' (" +
+                ($collisions -join ', ') + "). A misdirected write would overwrite that block " +
+                "rather than add a node, so the stray-node assertion would miss it and the " +
+                "clobbered block would never be restored. Point -UnitScopedDbPath at a unit " +
+                "block whose name is unique across the whole PLC.")
+        }
 
         $script:unitOriginal = Get-BlockSource -BlockPath $UnitScopedDbPath
         if ($script:unitOriginal -notmatch '(?m)^\s*DATA_BLOCK\b') {
@@ -463,6 +488,36 @@ Assert-Check 'L2.7c' 'The project tree is exactly as the run found it' {
     }
 }
 
+# --- L2.9 the unrequested-change warnings decide the outcome ---------------------------
+# Runs last, after every write in the run, over the COMPLETE warning list.
+#
+# These two warnings are the only detectors that exist for their failure modes, and both are
+# reported as warnings rather than errors, so without this check they print in yellow and the run
+# still exits 0 — a green line that would then be quoted as proof the route is sound.
+#
+#   * "generated N objects; expected 1" — GenerateBlocksFromSource has no notion of the object it
+#     was addressed to. A count other than 1 is the only cheap signal that the write landed on a
+#     software scope it was not pointed at. Nothing else sees it: the block still compiles and
+#     still re-exports, and postcondition verification re-resolves through the original path and
+#     finds the original unchanged.
+#   * "temporary external source node could not be removed" — a visible, persistent addition to
+#     the user's project that browse_project_tree structurally cannot see (see L2.6).
+Assert-Check 'L2.9' 'No worker warning reports an unrequested change to the project' {
+    $strayWrites = @($script:Warnings | Where-Object { $_.Message -match 'generated \d+ objects' })
+    $residual = @($script:Warnings | Where-Object { $_.Message -match 'temporary external source node' })
+
+    $problems = @()
+    foreach ($entry in @($strayWrites) + @($residual)) {
+        $target = if ($entry.Target) { " on '$($entry.Target)'" } else { '' }
+        $problems += "[$($entry.Method)$target] $($entry.Message)"
+    }
+
+    if ($problems.Count -gt 0) {
+        throw ("$($problems.Count) warning(s) report an unrequested project change: " +
+            ($problems -join ' | '))
+    }
+}
+
 # --- summary ------------------------------------------------------------------------
 Write-Host ''
 
@@ -473,8 +528,9 @@ if ($script:Warnings.Count -gt 0) {
         Write-Host "  - [$($entry.Method)$target] $($entry.Message)" -ForegroundColor Yellow
     }
     Write-Host '  A "generated N objects; expected 1" warning during a single-block round trip' -ForegroundColor Yellow
-    Write-Host '  means the write touched something it was not addressed to. Investigate before' -ForegroundColor Yellow
-    Write-Host '  treating this run as a pass.' -ForegroundColor Yellow
+    Write-Host '  means the write touched something it was not addressed to. L2.9 fails the run on' -ForegroundColor Yellow
+    Write-Host '  that warning and on a residual external source node; any other warning here is' -ForegroundColor Yellow
+    Write-Host '  informational, but read it before treating this run as a pass.' -ForegroundColor Yellow
     Write-Host ''
 }
 
