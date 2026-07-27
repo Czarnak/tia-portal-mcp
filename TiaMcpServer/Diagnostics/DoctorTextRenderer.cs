@@ -1,11 +1,19 @@
+using TiaMcpServer.Contracts;
+
 namespace TiaMcpServer.Diagnostics;
 
 public static class DoctorTextRenderer
 {
-    public static void Render(DoctorReport report, bool verbose, TextWriter writer)
+    public static void Render(DoctorReport report, bool verbose, TextWriter writer, McpAccessMode? accessMode = null)
     {
         writer.WriteLine("TIA Portal MCP Environment Doctor");
         writer.WriteLine();
+        if (accessMode.HasValue)
+        {
+            var modeLabel = accessMode.Value == McpAccessMode.ReadOnly ? "READ-ONLY" : "READ-WRITE";
+            writer.WriteLine($"Access mode: {modeLabel}");
+            writer.WriteLine();
+        }
 
         foreach (var check in report.Checks)
         {

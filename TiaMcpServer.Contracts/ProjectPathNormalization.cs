@@ -19,7 +19,7 @@ namespace TiaMcpServer.Contracts;
 /// crash, so any failure to canonicalize falls back to the trimmed literal instead of
 /// propagating - a bare catch is the correct scope here, not an enumerated exception list.
 /// </summary>
-internal static class ProjectPathNormalization
+public static class ProjectPathNormalization
 {
     public static string? Canonicalize(string? path)
     {

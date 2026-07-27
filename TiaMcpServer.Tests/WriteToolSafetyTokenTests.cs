@@ -20,18 +20,28 @@ public class WriteToolSafetyTokenTests
     [InlineData("PreviewCloseProject")]
     public void SeparatePreviewToolsAreGone(string methodName)
     {
+        // Check both the old and new classes — neither should have separate preview tools.
         Assert.Null(typeof(ProjectLifecycleTools).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static));
+        Assert.Null(typeof(ProjectWriteTools).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance));
     }
 
     [Fact]
     public void LifecycleSurfaceIsExactlySevenTools()
     {
-        var toolNames = typeof(ProjectLifecycleTools)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+        // Tools have been split into ProjectReadTools (1 tool) and ProjectWriteTools (6 tools).
+        var readToolNames = typeof(ProjectReadTools)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
             .Select(m => m.GetCustomAttribute<McpServerToolAttribute>()?.Name)
             .Where(name => name is not null)
-            .OrderBy(name => name)
             .ToArray();
+
+        var writeToolNames = typeof(ProjectWriteTools)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+            .Select(m => m.GetCustomAttribute<McpServerToolAttribute>()?.Name)
+            .Where(name => name is not null)
+            .ToArray();
+
+        var allToolNames = readToolNames.Concat(writeToolNames).OrderBy(name => name).ToArray();
 
         Assert.Equal(
             new[]
@@ -39,7 +49,7 @@ public class WriteToolSafetyTokenTests
                 "archive_project", "close_project", "create_project", "get_project_status",
                 "open_project", "save_project", "save_project_as"
             },
-            toolNames);
+            allToolNames);
     }
 
     [Fact]

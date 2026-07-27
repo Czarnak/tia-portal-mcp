@@ -21,7 +21,12 @@ public class ProjectLifecycleToolTests
     [InlineData("CloseProject", "close_project", true)]
     public void ProjectLifecycleToolsHaveMcpMetadata(string methodName, string expectedToolName, bool requiresConfirm)
     {
-        var type = typeof(ProjectLifecycleTools);
+        // Tools have been split into ProjectReadTools and ProjectWriteTools.
+        // ProjectLifecycleTools retains the methods for backward compatibility but no longer
+        // carries [McpServerToolType]/[McpServerTool] attributes.
+        var type = methodName == "GetProjectStatus"
+            ? typeof(ProjectReadTools)
+            : typeof(ProjectWriteTools);
 
         Assert.NotNull(type.GetCustomAttribute<McpServerToolTypeAttribute>());
 

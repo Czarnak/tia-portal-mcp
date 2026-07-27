@@ -14,6 +14,7 @@ public class OpennessWorkerClient : IDisposable
     private readonly ILogger<OpennessWorkerClient>? _logger;
     private readonly string? _workerExecutablePathOverride;
     private readonly TimeSpan _requestTimeout;
+    private readonly Safety.OperationAccessPolicy? _accessPolicy;
     private readonly object _transportLock = new();
     private PersistentWorkerTransport? _transport;
 
@@ -21,13 +22,19 @@ public class OpennessWorkerClient : IDisposable
         ProjectSessionBinding projectSessionBinding,
         ILogger<OpennessWorkerClient>? logger = null,
         string? workerExecutablePath = null,
-        TimeSpan? requestTimeout = null)
+        TimeSpan? requestTimeout = null,
+        Safety.OperationAccessPolicy? accessPolicy = null)
     {
         _projectSessionBinding = projectSessionBinding;
         _logger = logger;
         _workerExecutablePathOverride = workerExecutablePath;
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
+        _accessPolicy = accessPolicy;
     }
+
+    /// <summary>The current access mode policy, if set. Used by batch tools to validate
+    /// operations before worker invocation.</summary>
+    public Safety.OperationAccessPolicy? AccessPolicy => _accessPolicy;
 
     /// <summary>
     /// How a completed (successful) worker call changes this session's project binding. Declared
@@ -864,6 +871,17 @@ public class OpennessWorkerClient : IDisposable
 
     private async Task<WorkerCallResult> InvokeWorkerAsync(WorkerRequest request)
     {
+        // Defense in depth: authorize BEFORE the worker process is started, before any
+        // request is written to stdin, and before TIA Portal is connected.
+        if (_accessPolicy is not null)
+        {
+            var denial = _accessPolicy.Authorize(request.Method);
+            if (denial is not null)
+            {
+                return denial;
+            }
+        }
+
         try
         {
             // Exactly one transport request per call: SendAsync neither loops nor retries: on any
@@ -920,10 +938,14 @@ public class OpennessWorkerClient : IDisposable
     {
         lock (_transportLock)
         {
+            var workerArgs = _accessPolicy is not null
+                ? $"--access-mode {(_accessPolicy.Mode == Contracts.McpAccessMode.ReadOnly ? "read-only" : "read-write")}"
+                : null;
             _transport ??= new PersistentWorkerTransport(
                 _workerExecutablePathOverride ?? LocateWorkerExecutable(),
                 _requestTimeout,
-                _logger);
+                _logger,
+                workerArgs);
             return _transport;
         }
     }

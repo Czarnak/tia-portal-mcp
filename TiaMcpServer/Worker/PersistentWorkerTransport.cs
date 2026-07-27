@@ -30,17 +30,19 @@ public sealed class PersistentWorkerTransport : IDisposable
     private readonly string _workerExecutablePath;
     private readonly TimeSpan _requestTimeout;
     private readonly ILogger? _logger;
+    private readonly string? _workerArgs;
     private readonly ConcurrentQueue<string> _recentStderr = new();
 
     private Process? _process;
     private Task? _stderrPump;
     private bool _disposed;
 
-    public PersistentWorkerTransport(string workerExecutablePath, TimeSpan requestTimeout, ILogger? logger = null)
+    public PersistentWorkerTransport(string workerExecutablePath, TimeSpan requestTimeout, ILogger? logger = null, string? workerArgs = null)
     {
         _workerExecutablePath = workerExecutablePath;
         _requestTimeout = requestTimeout;
         _logger = logger;
+        _workerArgs = workerArgs;
     }
 
     public async Task<WorkerResponse> SendAsync(WorkerRequest request)
@@ -127,6 +129,7 @@ public sealed class PersistentWorkerTransport : IDisposable
         var startInfo = new ProcessStartInfo
         {
             FileName = _workerExecutablePath,
+            Arguments = _workerArgs ?? string.Empty,
             WorkingDirectory = Path.GetDirectoryName(_workerExecutablePath) ?? AppContext.BaseDirectory,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,

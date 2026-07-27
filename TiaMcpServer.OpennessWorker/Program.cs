@@ -20,6 +20,9 @@ internal static class Program
     // 세션을 프로세스 수명 동안 재사용해 Attach()를 최초 1회만 호출한다.
     private static readonly WorkerTiaPortalSession _sharedSession = new(allowTiaConfirmations: true);
 
+    private static readonly McpAccessMode _accessMode = WorkerOperationAuthorization.ParseAccessMode(
+        Environment.GetCommandLineArgs());
+
     static Program()
     {
         AssemblyResolver.Register();
@@ -29,6 +32,8 @@ internal static class Program
     {
         Console.InputEncoding = System.Text.Encoding.UTF8;
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+        Console.Error.WriteLine($"TIA Openness worker access mode: {_accessMode.ToString().ToUpperInvariant()}");
 
         string? line;
         while ((line = Console.In.ReadLine()) is not null)
@@ -90,6 +95,14 @@ internal static class Program
             if (request is null)
             {
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Worker request was empty.");
+            }
+
+            // Defense in depth: authorize BEFORE the dispatch switch, before any handler
+            // is called, and before any Siemens API call is made.
+            var denial = WorkerOperationAuthorization.Authorize(_accessMode, request.Method);
+            if (denial is not null)
+            {
+                return denial;
             }
 
             return request.Method switch
@@ -654,10 +667,49 @@ internal static class Program
     /// <summary>
     /// Applies <see cref="ProjectOpenPolicy"/> before any non-lifecycle operation may open a
     /// project. Returns null to continue, or the failure response to return to the host.
+    /// In read-only mode, opening a project is never permitted — only the currently open
+    /// project may be used.
     /// </summary>
     private static WorkerResponse? EnsureRequestedProjectOpen(WorkerTiaPortalSession session, string? requestedProjectPath)
     {
         var currentPath = session.CurrentProjectPath;
+
+        if (_accessMode == McpAccessMode.ReadOnly)
+        {
+            // Read-only mode: never open a project. Only use what is already open.
+            if (currentPath is null)
+            {
+                var requested = ProjectPathNormalization.Canonicalize(requestedProjectPath);
+                if (requested is not null)
+                {
+                    // A path was supplied but nothing is open — do NOT open it; treat it as an assertion failure.
+                    return Failure(
+                        WorkerFailureCategories.AccessDenied,
+                        "Read-only mode operates only on the project already open in TIA Portal. "
+                        + "Open the intended project manually and retry.");
+                }
+
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No project is open in TIA Portal. Open the intended project manually and retry.");
+            }
+
+            if (requestedProjectPath is not null)
+            {
+                var requested = ProjectPathNormalization.Canonicalize(requestedProjectPath);
+                if (requested is not null && !string.Equals(currentPath, requested, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Failure(
+                        WorkerFailureCategories.BindingConflict,
+                        $"Read-only mode is bound to '{currentPath}' but the request targets '{requested}'. "
+                        + "Read-only mode does not switch projects. Omit projectPath to use the open project.");
+                }
+            }
+
+            return null;
+        }
+
+        // Read-write mode: existing behavior.
         switch (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath))
         {
             case ProjectOpenDecision.OpenRequested:
