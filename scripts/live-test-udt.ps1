@@ -10,6 +10,9 @@
 
     Requires TIA Portal V21 running with the target project open.
 
+    THIS SCRIPT MUTATES THE PROJECT. Every check that writes restores what it wrote, and the run
+    ends by confirming the original content is byte-identical and the project compiles clean.
+
 .PARAMETER ProjectPath
     Absolute path to the .ap21 project file.
 
@@ -31,17 +34,45 @@ param(
 $ErrorActionPreference = 'Stop'
 $script:Failures = @()
 
+# Every warning any worker call reports, in arrival order, plus the stray-write signal this route
+# reports in its payload rather than as a warning (see Set-TypeSource). Both are invisible to the
+# compiler and to the re-export, so they must never be discarded.
+$script:Warnings = @()
+
 function Invoke-Worker {
     param([hashtable] $Request)
     $json = $Request | ConvertTo-Json -Compress -Depth 10
     $response = $json | & $WorkerPath | Select-Object -First 1
     if (-not $response) { throw "Worker returned no response for method '$($Request.method)'." }
-    return $response | ConvertFrom-Json
+
+    $parsed = $response | ConvertFrom-Json
+
+    foreach ($warning in @($parsed.warnings)) {
+        if ($null -eq $warning) { continue }
+        $script:Warnings += [pscustomobject]@{
+            Method  = [string]$Request.method
+            Target  = [string]$Request.typePath
+            Message = [string]$warning
+        }
+    }
+
+    return $parsed
+}
+
+function Write-CheckWarnings {
+    param([int] $SinceIndex)
+    for ($index = $SinceIndex; $index -lt $script:Warnings.Count; $index++) {
+        $entry = $script:Warnings[$index]
+        $target = if ($entry.Target) { " on '$($entry.Target)'" } else { '' }
+        Write-Host "      WARNING from $($entry.Method)$target" -ForegroundColor Yellow
+        Write-Host "        $($entry.Message)" -ForegroundColor Yellow
+    }
 }
 
 function Assert-Check {
     param([string] $Id, [string] $Description, [scriptblock] $Test)
     Write-Host "[$Id] $Description ... " -NoNewline
+    $warningMark = $script:Warnings.Count
     try {
         & $Test
         Write-Host "PASS" -ForegroundColor Green
@@ -50,6 +81,11 @@ function Assert-Check {
         Write-Host "FAIL" -ForegroundColor Red
         Write-Host "      $($_.Exception.Message)" -ForegroundColor Red
         $script:Failures += "$Id — $Description — $($_.Exception.Message)"
+    }
+    finally {
+        # Printed after the verdict so a warning is never lost inside a passing check: a
+        # count-mismatch warning during a normal single-type round trip is itself a finding.
+        Write-CheckWarnings -SinceIndex $warningMark
     }
 }
 
@@ -67,7 +103,7 @@ function Get-TypeSource {
 
 function Set-TypeSource {
     param([string] $TypePath, [string] $Content, [string] $Format = 'source')
-    return Invoke-Worker @{
+    $response = Invoke-Worker @{
         method                = 'update_type_content'
         projectPath           = $ProjectPath
         typePath              = $TypePath
@@ -75,6 +111,43 @@ function Set-TypeSource {
         format                = $Format
         allowTiaConfirmations = $true
     }
+
+    # The stray-write signal reaches this route through the PAYLOAD, not through `warnings`.
+    # PlcTypePostconditionVerifier only warns about a residual external source node; the object
+    # count that the block route emits as a "generated N objects" warning of its own is, here,
+    # PlcTypeImportResult.generatedObjectCount. Lifting it into $script:Warnings in that same
+    # wording gives L1.8 a single list to sweep and makes the count visible per check.
+    #
+    # GenerateBlocksFromSource has no notion of the object it was addressed to, so a count other
+    # than 1 is the only cheap signal that the write landed on a software scope it was not pointed
+    # at. Nothing else sees it: the type still compiles and still re-exports, and postcondition
+    # verification re-resolves through the original path and finds the original unchanged.
+    if ($response.success -and $response.payload) {
+        try { $report = $response.payload | ConvertFrom-Json }
+        catch {
+            throw ("update_type_content returned an unreadable payload, so the generated object " +
+                "count could not be checked: $($_.Exception.Message)")
+        }
+
+        $count = $report.generatedObjectCount
+        if ($null -eq $count) {
+            throw ("update_type_content's payload carries no generatedObjectCount, so the " +
+                "stray-write signal could not be read. The worker contract changed; this harness " +
+                "must not report a pass it did not verify.")
+        }
+
+        if ($count -ne 1) {
+            $script:Warnings += [pscustomobject]@{
+                Method  = 'update_type_content'
+                Target  = $TypePath
+                Message = ("TIA Portal generated $count objects from the submitted source; " +
+                    "expected 1. Inspect '$TypePath' and its PLC for objects this write was not " +
+                    "addressed to.")
+            }
+        }
+    }
+
+    return $response
 }
 
 # --- L1.1 both group kinds export -------------------------------------------------
@@ -116,7 +189,13 @@ Assert-Check 'L1.3' 'A modified initial value survives the round trip' {
 }
 
 # --- L1.4 no residual external source node ----------------------------------------
-Assert-Check 'L1.4' 'No residual PlcExternalSource node remains' {
+# The description states what is actually being checked. The plan-mandated tree scan below is
+# INERT — ProjectTreeWalker visits blocks, tag tables, types and software units, never external
+# source groups — and the '_tiamcp_' marker exists only in the PlcExternalSource node name, so a
+# surviving node can never appear in the JSON it searches. It is kept because the plan calls for
+# it, but the printed line must not let a reader over-credit it. The warning scan is the half that
+# can actually fail, and L1.8 re-runs it over the writes that happen later.
+Assert-Check 'L1.4' 'No residual-external-source warning was reported (tree scan is inert — the walker does not visit external source groups)' {
     $tree = Invoke-Worker @{
         method      = 'browse_project_tree'
         projectPath = $ProjectPath
@@ -124,6 +203,13 @@ Assert-Check 'L1.4' 'No residual PlcExternalSource node remains' {
     if (-not $tree.success) { throw "browse_project_tree failed: $($tree.error)" }
     $rendered = $tree | ConvertTo-Json -Depth 30
     if ($rendered -match '_tiamcp_') { throw 'A temporary external source node survived in the project.' }
+
+    # This covers only the writes that have happened so far. L1.6 and L1.7a write AFTER this
+    # point, so L1.8 sweeps the full warning list once every write is done.
+    $residual = @($script:Warnings | Where-Object { $_.Message -match 'temporary external source node' })
+    if ($residual.Count -gt 0) {
+        throw "The worker reported a residual external source node: $($residual[0].Message)"
+    }
 }
 
 # --- L1.5 strict preflight ---------------------------------------------------------
@@ -164,10 +250,64 @@ Assert-Check 'L1.7a' 'Original content is restored byte-identically' {
 Assert-Check 'L1.7b' 'Project compiles without errors' {
     $result = Invoke-Worker @{ method = 'compile_check'; projectPath = $ProjectPath }
     if (-not $result.success) { throw "compile_check failed: $($result.error)" }
+
+    # compile_check succeeds whenever the compile RAN; the report says whether it was clean.
+    $report = $result.payload | ConvertFrom-Json
+    if ($report.totalErrorCount -ne 0) {
+        throw "Compilation reported $($report.totalErrorCount) error(s); state '$($report.overallState)'."
+    }
+    if ($report.overallState -eq 'Error') {
+        throw "Compilation reported no error count but an overall state of 'Error'."
+    }
+}
+
+# --- L1.8 the unrequested-change warnings decide the outcome ---------------------------
+# Runs last, after every write in the run — including L1.7a's restore, which is itself a write —
+# over the COMPLETE warning list.
+#
+# These two signals are the only detectors that exist for their failure modes, and neither is
+# reported as an error, so without this check they print in yellow and the run still exits 0 — a
+# green line that would then be quoted as proof the route is sound.
+#
+#   * "generated N objects; expected 1" — lifted from update_type_content's payload by
+#     Set-TypeSource. A count other than 1 is the only cheap signal that the write landed on a
+#     software scope it was not pointed at. Nothing else sees it: the type still compiles and
+#     still re-exports, and postcondition verification re-resolves through the original path and
+#     finds the original unchanged. This is the exact bug class the type route shipped.
+#   * "temporary external source node could not be removed" — a visible, persistent addition to
+#     the user's project that browse_project_tree structurally cannot see (see L1.4).
+Assert-Check 'L1.8' 'No worker warning reports an unrequested change to the project' {
+    $strayWrites = @($script:Warnings | Where-Object { $_.Message -match 'generated \d+ objects' })
+    $residual = @($script:Warnings | Where-Object { $_.Message -match 'temporary external source node' })
+
+    $problems = @()
+    foreach ($entry in @($strayWrites) + @($residual)) {
+        $target = if ($entry.Target) { " on '$($entry.Target)'" } else { '' }
+        $problems += "[$($entry.Method)$target] $($entry.Message)"
+    }
+
+    if ($problems.Count -gt 0) {
+        throw ("$($problems.Count) warning(s) report an unrequested project change: " +
+            ($problems -join ' | '))
+    }
 }
 
 # --- summary ------------------------------------------------------------------------
 Write-Host ''
+
+if ($script:Warnings.Count -gt 0) {
+    Write-Host "$($script:Warnings.Count) warning(s) were reported during the run:" -ForegroundColor Yellow
+    foreach ($entry in $script:Warnings) {
+        $target = if ($entry.Target) { " on '$($entry.Target)'" } else { '' }
+        Write-Host "  - [$($entry.Method)$target] $($entry.Message)" -ForegroundColor Yellow
+    }
+    Write-Host '  A "generated N objects; expected 1" warning during a single-type round trip' -ForegroundColor Yellow
+    Write-Host '  means the write touched something it was not addressed to. L1.8 fails the run on' -ForegroundColor Yellow
+    Write-Host '  that warning and on a residual external source node; any other warning here is' -ForegroundColor Yellow
+    Write-Host '  informational, but read it before treating this run as a pass.' -ForegroundColor Yellow
+    Write-Host ''
+}
+
 if ($script:Failures.Count -eq 0) {
     Write-Host 'All Phase 1 live checks passed.' -ForegroundColor Green
     exit 0
@@ -176,5 +316,7 @@ if ($script:Failures.Count -eq 0) {
 Write-Host "$($script:Failures.Count) check(s) FAILED:" -ForegroundColor Red
 $script:Failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
 Write-Host ''
-Write-Host 'L1.1 and L1.4 are blocking. If either failed, do not start Phase 2.' -ForegroundColor Yellow
+Write-Host 'L1.1 and L1.8 are blocking. If either failed, do not start Phase 2.' -ForegroundColor Yellow
+Write-Host 'L1.8 is the check that can actually observe a stray write or a residual external' -ForegroundColor Yellow
+Write-Host 'source node; L1.4 tree scan alone proves neither (see the comment above it).' -ForegroundColor Yellow
 exit 1
