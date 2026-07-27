@@ -280,7 +280,10 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
-        return WithProject(request, project => RawPayload(BlockExporter.Export(project, request.BlockPath!)));
+        var format = NormalizeBlockFormat(request.Format);
+
+        return WithProject(request, project => RawPayload(
+            BlockExporter.Export(project, request.BlockPath!, format)));
     }
 
     private static WorkerResponse UpdateBlockLogic(WorkerRequest request)
@@ -295,9 +298,11 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "YamlContent is required.");
         }
 
+        var format = NormalizeBlockFormat(request.Format);
+
         return WithProject(request, project =>
         {
-            var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!);
+            var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!, format);
             return RawPayload(result.Payload, result.Warnings);
         });
     }
@@ -341,6 +346,23 @@ internal static class Program
     private static string NormalizeTypeFormat(string? format)
     {
         if (!SourceFormatNames.TryNormalize(format, SourceFormatNames.Source, out var normalized, out var error))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                error ?? "Invalid format.");
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// Same contract as <see cref="NormalizeTypeFormat"/> with the block default: xml, because
+    /// get_block_content and update_block_logic have callers whose payloads must not change when
+    /// format is omitted.
+    /// </summary>
+    private static string NormalizeBlockFormat(string? format)
+    {
+        if (!SourceFormatNames.TryNormalize(format, SourceFormatNames.Xml, out var normalized, out var error))
         {
             throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError,
