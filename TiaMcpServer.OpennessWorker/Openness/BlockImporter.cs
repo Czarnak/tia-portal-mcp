@@ -98,16 +98,51 @@ public static class BlockImporter
         string blockPath,
         string primaryDocumentName)
     {
+        var compileFailure = CompileAndBuildFailureEvidence(
+            project, plcName: null, blockPath, "block import", warnings: null);
+
+        if (compileFailure is not null)
+        {
+            return compileFailure;
+        }
+
+        return BlockExporter.VerifyPrimaryDocument(project, blockPath, primaryDocumentName);
+    }
+
+    /// <summary>
+    /// Compiles and returns failure evidence, or null when the compile is clean and the caller
+    /// should go on to its own re-export check.
+    ///
+    /// <para>
+    /// Shared by both write routes on purpose: the predicate below is this repo's definition of
+    /// "the write broke the project", and a route that drifted from it would start accepting writes
+    /// the other route rejects. The routes differ only in compile scope — the Simatic ML route
+    /// compiles the one block, the external-source route compiles the whole PLC — and in the phrase
+    /// that names the operation in the diagnostic.
+    /// </para>
+    /// </summary>
+    /// <param name="messageSuffix">
+    /// Names the operation inside "Compilation reported errors after {suffix}." and
+    /// "Compilation could not complete after {suffix}: …".
+    /// </param>
+    private static BlockPostconditionEvidence? CompileAndBuildFailureEvidence(
+        Project project,
+        string? plcName,
+        string? blockPath,
+        string messageSuffix,
+        IReadOnlyList<string>? warnings)
+    {
         try
         {
-            var compileReport = CompileChecker.Compile(project, plcName: null, blockPath);
-            if (compileReport.TotalErrorCount != 0
-                || string.Equals(compileReport.OverallState, "Error", StringComparison.OrdinalIgnoreCase))
+            var report = CompileChecker.Compile(project, plcName, blockPath);
+            if (report.TotalErrorCount != 0
+                || string.Equals(report.OverallState, "Error", StringComparison.OrdinalIgnoreCase))
             {
                 return new BlockPostconditionEvidence(
                     compileSucceeded: false,
                     reExportSucceeded: false,
-                    diagnosticMessage: "Compilation reported errors after block import.");
+                    diagnosticMessage: $"Compilation reported errors after {messageSuffix}.",
+                    warnings: warnings);
             }
         }
         catch (Exception exception)
@@ -115,10 +150,11 @@ public static class BlockImporter
             return new BlockPostconditionEvidence(
                 compileSucceeded: false,
                 reExportSucceeded: false,
-                diagnosticMessage: "Compilation could not complete after block import: " + exception.Message);
+                diagnosticMessage: $"Compilation could not complete after {messageSuffix}: " + exception.Message,
+                warnings: warnings);
         }
 
-        return BlockExporter.VerifyPrimaryDocument(project, blockPath, primaryDocumentName);
+        return null;
     }
 
     /// <summary>
@@ -186,11 +222,13 @@ public static class BlockImporter
         var scope = ExternalSourceScope.Create(
             target.ExternalSourceGroup, targetName + ".db", sourceContent);
 
+        IList<IEngineeringObject>? generated;
+
         try
         {
             if (target.UserGroup is not null)
             {
-                scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None);
+                generated = scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None);
             }
             else
             {
@@ -198,7 +236,7 @@ public static class BlockImporter
                 // no group to pass. GenerateBlockOption.None is still passed explicitly: the truly
                 // parameterless overload leaves the on-error behaviour implicit, and both branches
                 // must refuse to keep partially generated blocks.
-                scope.Source.GenerateBlocksFromSource(GenerateBlockOption.None);
+                generated = scope.Source.GenerateBlocksFromSource(GenerateBlockOption.None);
             }
         }
         finally
@@ -206,8 +244,11 @@ public static class BlockImporter
             scope.Dispose();
         }
 
-        // 6. Verify, carrying whether the temporary project node made it back out.
-        var evidence = VerifySourcePostconditions(project, address, blockPath, scope.ProjectNodeRemoved);
+        // 6. Verify. The warnings seeded here are the two things verification itself cannot see.
+        var warnings = BuildSourceWriteWarnings(
+            address, scope.ProjectNodeRemoved, generated?.Count ?? 0);
+
+        var evidence = VerifySourcePostconditions(project, address, blockPath, warnings);
 
         try
         {
@@ -228,6 +269,45 @@ public static class BlockImporter
     }
 
     /// <summary>
+    /// The two unrequested outcomes an external-source write can produce that neither the compiler
+    /// nor the re-export can see.
+    ///
+    /// <para>
+    /// The object count is the important one. GenerateBlocksFromSource creates whatever the source
+    /// declares and has no notion of the object it was addressed to, so a write that landed on the
+    /// wrong software scope leaves the addressed block intact — it compiles clean and re-exports
+    /// non-empty, and postcondition verification passes. A count other than 1 is the only cheap
+    /// signal that this route did something besides update the single block it was pointed at, and
+    /// this route has no automated coverage. Same rationale as
+    /// <c>PlcTypeImportResult.GeneratedObjectCount</c>.
+    /// </para>
+    /// </summary>
+    private static List<string> BuildSourceWriteWarnings(
+        BlockAddress address,
+        bool projectNodeRemoved,
+        int generatedObjectCount)
+    {
+        var warnings = new List<string>();
+
+        if (!projectNodeRemoved)
+        {
+            warnings.Add(
+                "A temporary external source node could not be removed and is still in the project. "
+                + "Delete it in TIA Portal under the PLC's external source files.");
+        }
+
+        if (generatedObjectCount != 1)
+        {
+            warnings.Add(
+                $"TIA Portal generated {generatedObjectCount} objects from the submitted source; "
+                + $"expected 1. Inspect '{address.ToDisplayPath()}' and its PLC for objects this "
+                + "write was not addressed to.");
+        }
+
+        return warnings;
+    }
+
+    /// <summary>
     /// Compiles the PLC and re-exports the block as source.
     ///
     /// <para>
@@ -241,36 +321,14 @@ public static class BlockImporter
         Project project,
         BlockAddress address,
         string blockPath,
-        bool projectNodeRemoved)
+        IReadOnlyList<string> warnings)
     {
-        var warnings = new List<string>();
-        if (!projectNodeRemoved)
-        {
-            warnings.Add(
-                "A temporary external source node could not be removed and is still in the project. "
-                + "Delete it in TIA Portal under the PLC's external source files.");
-        }
+        var compileFailure = CompileAndBuildFailureEvidence(
+            project, address.PlcName, blockPath: null, "the data block update", warnings);
 
-        try
+        if (compileFailure is not null)
         {
-            var report = CompileChecker.Compile(project, address.PlcName, blockPath: null);
-            if (report.TotalErrorCount != 0
-                || string.Equals(report.OverallState, "Error", StringComparison.OrdinalIgnoreCase))
-            {
-                return new BlockPostconditionEvidence(
-                    compileSucceeded: false,
-                    reExportSucceeded: false,
-                    diagnosticMessage: "Compilation reported errors after the data block update.",
-                    warnings: warnings);
-            }
-        }
-        catch (Exception exception)
-        {
-            return new BlockPostconditionEvidence(
-                compileSucceeded: false,
-                reExportSucceeded: false,
-                diagnosticMessage: "Compilation could not complete after the data block update: " + exception.Message,
-                warnings: warnings);
+            return compileFailure;
         }
 
         try
