@@ -210,7 +210,9 @@ Assert-Check 'L1.3' 'A modified initial value survives the round trip' {
     }
     $original = $Matches[1]
     $mutant = [int]$original + 1
-    $edited = $script:nestedOriginal -replace ":=\s*$original\b", ":= $mutant"
+    # (?![#.\w]) rather than \b: \b matches between the '6' and the '#' of a hex literal, so
+    # ':= 16#0F' would be rewritten to ':= 17#0F' and this check would submit a corrupt document.
+    $edited = $script:nestedOriginal -replace ":=\s*$original(?![#.\w])", ":= $mutant"
 
     $result = Set-TypeSource -TypePath $NestedTypePath -Content $edited
     if (-not $result.success) { throw "update_type_content failed: $($result.error)" }

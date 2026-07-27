@@ -166,6 +166,49 @@ function Set-BlockSource {
     return $response
 }
 
+<#
+Picks an integer initial value in $Source that L2.2c can mutate without leaving its declared type's
+range, and returns @{ Original; Mutant } — or $null when the fixture offers none.
+
+Mutating DOWNWARD is what makes this safe. The pattern only matches a non-negative literal, so
+value-1 is never below 0 as long as value is at least 1, and every integer type a DB member can
+declare — SInt through ULInt, signed or unsigned — accepts every value from 0 upward. Mutating UP
+would be rejected by TIA for any member sitting at its type's maximum (:= 127 on an SInt, := 255 on
+a Byte, := 65535 on a Word), and that rejection would surface as "update_block_logic failed",
+blaming the round trip for what is really a fixture the check chose badly.
+
+A candidate whose predecessor already appears in the source is rejected too: L2.2c proves the write
+landed by finding the mutant on re-export, and it could not tell a real write from a no-op if the
+mutant token were in the document to begin with.
+
+The first pass prefers an ordinary small member (2..127 — in range for every integer type, and
+unambiguously not a Bool written as 0 or 1) before the second pass falls back to any usable value.
+BigInteger, not [int], because a ULInt initial value can exceed Int32 and even Int64.
+#>
+function Select-MutableInitialValue {
+    param([string] $Source)
+
+    $candidates = @([regex]::Matches($Source, ':=\s*(\d+)(?![#.\w])') |
+        ForEach-Object { $_.Groups[1].Value } |
+        Select-Object -Unique)
+    if ($candidates.Count -eq 0) { return $null }
+
+    foreach ($preferSmall in @($true, $false)) {
+        foreach ($text in $candidates) {
+            $value = [bigint]::Parse($text)
+            if ($value -lt [bigint]1) { continue }
+            if ($preferSmall -and ($value -lt [bigint]2 -or $value -gt [bigint]127)) { continue }
+
+            $mutant = ($value - [bigint]1).ToString()
+            if ($Source -match ":=\s*$mutant(?![#.\w])") { continue }
+
+            return @{ Original = $text; Mutant = $mutant }
+        }
+    }
+
+    return $null
+}
+
 function Assert-RejectionNamesKind {
     param([string] $ErrorText, [string] $Pattern)
     if (-not $ErrorText) { throw 'The rejection carried no error message.' }
@@ -299,15 +342,31 @@ Assert-Check 'L2.2b' 'Optimized DB: unchanged round trip re-exports byte-identic
 Assert-Check 'L2.2c' 'A modified initial value survives the round trip' {
     if (-not $script:optimizedOriginal) { throw 'No original source was captured in L2.2a.' }
 
-    # (?![#.\w]) rejects a hex or real literal — bumping the 16 in '16#0F' or the 1 in '1.5' would
-    # submit a corrupt document and fail for a reason that has nothing to do with the round trip.
-    # A DB source carries far more numeric literals than a UDT does, so the guard earns its place.
-    if ($script:optimizedOriginal -notmatch ':=\s*(\d+)(?![#.\w])') {
-        throw ('Fixture DB has no plain integer initial value to mutate. Point -OptimizedDbPath ' +
-            'at an optimized global DB with at least one integer member.')
+    # Which value is mutated, and in which direction, is Select-MutableInitialValue's job — see the
+    # comment there for why it always mutates downward.
+    # Both misses below are FIXTURE limitations, not round-trip failures. They say so, and they
+    # name the parameter to repoint, so neither can be read as a verdict on format=source.
+    $choice = Select-MutableInitialValue -Source $script:optimizedOriginal
+    if (-not $choice) {
+        if ($script:optimizedOriginal -notmatch ':=\s*(\d+)(?![#.\w])') {
+            throw ('Fixture DB has no plain integer initial value to mutate — only hex, real or ' +
+                'non-numeric literals. This is a FIXTURE limitation, not a round-trip failure: ' +
+                'point -OptimizedDbPath at an optimized global DB with an ordinary integer member.')
+        }
+        throw ('No integer initial value in this DB can be mutated safely — every candidate is ' +
+            'either 0 or already has its predecessor present in the source, which would make the ' +
+            're-export assertion unable to tell a real write from a no-op. This is a FIXTURE ' +
+            'limitation, not a round-trip failure: point -OptimizedDbPath at an optimized global ' +
+            'DB with an ordinary integer member (an Int somewhere in 2..127 is ideal).')
     }
-    $original = $Matches[1]
-    $mutant = [int]$original + 1
+
+    $original = $choice.Original
+    $mutant = $choice.Mutant
+
+    # -replace is GLOBAL: every member sharing this initial value is rewritten, not just the first
+    # one found. That is deliberate and harmless — L2.7a restores the whole block from
+    # $script:optimizedOriginal — and Select-MutableInitialValue already proved the mutant token is
+    # absent from the source, so finding it below still distinguishes a real write from a no-op.
     $edited = $script:optimizedOriginal -replace ":=\s*$original(?![#.\w])", ":= $mutant"
     if ($edited -eq $script:optimizedOriginal) {
         throw ("Rewriting ':= $original' to ':= $mutant' changed nothing, so this check would " +
@@ -315,7 +374,11 @@ Assert-Check 'L2.2c' 'A modified initial value survives the round trip' {
     }
 
     $result = Set-BlockSource -BlockPath $OptimizedDbPath -Content $edited
-    if (-not $result.success) { throw "update_block_logic failed: $($result.error)" }
+    if (-not $result.success) {
+        throw ("update_block_logic failed: $($result.error). The submitted edit only LOWERED " +
+            "':= $original' to ':= $mutant', which is in range for every integer type a DB member " +
+            'can declare, so a rejection here points at the round trip rather than at the value.')
+    }
 
     $after = Get-BlockSource -BlockPath $OptimizedDbPath
     if ($after -notmatch ":=\s*$mutant(?![#.\w])") {
@@ -683,6 +746,9 @@ Write-Host 'L2.1, L2.2 (all of L2.2a, L2.2b and L2.2c) and L2.9 are blocking. If
 Write-Host 'format=source for global data blocks is not proven and must not ship. L2.2c is the' -ForegroundColor Yellow
 Write-Host 'only check that can observe a write that did nothing; L2.9 is the only one that can' -ForegroundColor Yellow
 Write-Host 'observe a stray write or a residual external source node.' -ForegroundColor Yellow
+Write-Host 'L2.2c can also fail because the FIXTURE has no integer member it can safely mutate.' -ForegroundColor Yellow
+Write-Host 'If its message names -OptimizedDbPath, repoint the fixture and re-run: that is not a' -ForegroundColor Yellow
+Write-Host 'code defect and says nothing about format=source.' -ForegroundColor Yellow
 Write-Host 'If only L2.3b failed, the non-optimized round trip is lossy: ship optimized-DB-only' -ForegroundColor Yellow
 Write-Host 'support rather than a lossy round trip.' -ForegroundColor Yellow
 exit 1
