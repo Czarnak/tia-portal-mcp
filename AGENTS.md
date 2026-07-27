@@ -1,81 +1,62 @@
+# Project overview
+
+MCP server for Siemens TIA Portal V21. Exposes 10 tools (batch reads/writes, project lifecycle, diagnostics) to MCP clients. Windows-only, requires TIA Portal V21 with Openness enabled.
+
+## Two-process architecture (critical to understand)
+
+The host (`TiaMcpServer`, net8.0) and the worker (`TiaMcpServer.OpennessWorker`, net48) are separate processes. Siemens Openness DLLs use .NET Framework remoting and **cannot run in a .NET 8 process** — this is why the split exists.
+
+- Host communicates with worker via newline-delimited JSON over stdin/stdout
+- The host builds the worker and copies it to `openness-worker/` subdirectory automatically
+- The worker restarts automatically after crash or timeout
+- `ref/` contains compile-time Siemens stubs so CI can build without TIA Portal installed
+
+**Do not try to run Openness code directly from the host process** — always go through the worker.
+
+## Solution structure
+
+| Project | TFM | Role |
+| --------- | ----- | ------ |
+| `TiaMcpServer` | net8.0 | MCP stdio server, tool registration, batch engine, safety tokens, CLI (doctor) |
+| `TiaMcpServer.Contracts` | netstandard2.0 | Shared DTOs (`WorkerRequest`, `WorkerResponse`, all info/result types) |
+| `TiaMcpServer.OpennessWorker` | net48 | Worker that loads `Siemens.Engineering.*`, handles all TIA Portal operations |
+| `TiaMcpServer.Tests` | net8.0 | xunit tests; links host source files directly via `<Compile Include>` (not a project reference) |
+| `TiaMcpServer.FakeWorker` | net8.0 | Scripted worker stand-in for IPC integration tests |
+
 ## Build and test
 
 ```powershell
 dotnet restore TiaMcpServer.sln
-dotnet build TiaMcpServer.sln -m:1        # CRITICAL: -m:1 required — parallel builds race on worker copy targets
-dotnet test TiaMcpServer.sln               # xUnit; no TIA Portal needed for unit tests
+dotnet build TiaMcpServer.sln -m:1          # -m:1 serializes builds — required to avoid parallel worker build conflicts
+dotnet test TiaMcpServer.Tests
 ```
 
-The host csproj has MSBuild targets that build the net48 worker and copy it into `TiaMcpServer/bin/<Config>/net8.0/openness-worker/`. Parallel solution builds cause duplicate copy conflicts — always use `-m:1`.
+CI/stub build (no TIA Portal needed):
 
-## Project structure
-
-```
-TiaMcpServer/                  # .NET 8 MCP stdio host (entrypoint, packs as `tia-mcp` global tool)
-TiaMcpServer.Contracts/        # netstandard2.0 shared contracts (worker IPC schema)
-TiaMcpServer.OpennessWorker/   # .NET Framework 4.8 worker — loads Siemens.Engineering.*, talks to TIA Portal
-TiaMcpServer.Tests/            # xUnit tests — uses linked <Compile Include> to test host internals
-TiaMcpServer.FakeWorker/       # Fake worker for integration-testing IPC (NOT for diagnostic fakes)
-ref/                           # Compile-time Siemens stubs for CI/package builds without TIA installed
-```
-
-**Two-process architecture**: The .NET 8 host cannot load Siemens Openness DLLs (they require .NET Framework remoting). It spawns a persistent net48 worker process and communicates via newline-delimited JSON over stdin/stdout. The worker auto-restarts after crash or timeout.
-
-## Build reference selection
-
-The worker csproj auto-detects whether to use real TIA assemblies or compile-time stubs:
-
-- If `TiaPortalV21Dir` points to a folder containing `Siemens.Engineering.Base.dll` and `Siemens.Engineering.Step7.dll` → uses real references
-- Otherwise → falls back to stubs in `ref/` (for CI and machines without TIA)
-
-Override explicitly:
 ```powershell
-dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true    # force stubs
-dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=false   # force real TIA refs
+dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true
 ```
 
-`Directory.Build.props` sets the default `TiaPortalV21Dir` to `C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48`. Override via MSBuild property or environment variable.
+Local dev (uses real TIA assemblies):
 
-## Testing
+```powershell
+dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
+```
 
-- **Framework**: xUnit with `[Fact]` / `[Theory]` / `[InlineData]`
-- **No mocking libraries** — hand-written fakes implementing service interfaces
-- **Linked compilation**: `TiaMcpServer.Tests.csproj` compiles host source via `<Compile Include>` with `<Link>` paths (e.g. `Diagnostics\*.cs`, `Worker\OpennessWorkerClient.cs`) to test internal classes without making them public
-- **Each test class is self-contained** — no shared fixtures or base classes
-- **Test file naming**: `{ClassUnderTest}Tests.cs` in namespace `TiaMcpServer.Tests`
-- **Diagnostic fakes**: 6 service interfaces need fakes: `IApplicationInfoService`, `IEnvironmentVariableService`, `IRegistryService`, `IFileSystemService`, `IWindowsIdentityService`, `IProcessEnumerationService`
-- **FakeWorker is NOT for diagnostics** — it's for integration-testing the worker IPC transport
+## Write safety model
 
-### Gotchas
+Every write goes through preview-then-apply. This is non-negotiable.
 
-- `Microsoft.Win32.Registry` NuGet package — use version `5.0.0` (8.0.0 does not exist on nuget.org)
-- `DiagnosticCheckResult` record: `Evidence` is an init-only property, not a constructor param — use object initializer `{ Evidence = dict }`, not named argument
-- `DoctorJsonRenderer.cs` uses `System.Text.Encoding` but may be missing `using System.Text;` in linked-compilation context
-- Using `params DiagnosticCheckResult[]` in test helpers can cause CS8752 under linked compilation — use non-params arrays with `new[] { ... }`
+- **Batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the token
+- **Project lifecycle writes** (`open_project`, `create_project`, etc.): self-previewing — call the tool without `safetyToken` to get a preview + token, then call again with `confirm=true` + the token
+- Safety tokens are single-use, expire in 10 minutes, bound to exact tool name + project path + requested input + current project state
+- Reordering, changing input, or project state changes invalidate the token
+- Successful writes append audit JSONL under `%LOCALAPPDATA%\TiaMcpServer\audit`
 
-## CI/CD
+## Key conventions
 
-Single workflow: `.github/workflows/publish.yml`
-
-- Triggers on `v*` tags or manual `workflow_dispatch`
-- Runs on `windows-latest`, builds with stubs (no TIA Portal in CI)
-- Packs NuGet package + standalone win-x64 binary
-- Publishes to NuGet via OIDC and creates GitHub Release with both artifacts
-- Verifies package contents: must include `openness-worker/TiaMcpServer.OpennessWorker.exe`, must NOT include `Siemens.Engineering*.dll`
-
-## Runtime requirements
-
-- Windows only
-- Siemens TIA Portal V21 with Openness enabled
-- Current user must be in `Siemens TIA Openness` Windows user group
-- .NET SDK 8.0.4xx+ for builds (`global.json` pins 8.0.400 with `rollForward: latestMajor`)
-- .NET Framework 4.8 Runtime for the worker process
-
-## graphify
-
-This project has a graphify knowledge graph at `graphify-out/`.
-
-- Before answering architecture or codebase questions, read `graphify-out/GRAPH_REPORT.md` for god nodes and community structure
-- If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query`, `graphify path`, or `graphify explain` over grep
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+- **`global.json`** pins .NET SDK 8.0.400 with `rollForward: latestMajor` — use `dotnet` commands, not raw `dotnet8`
+- **Tests link host source files** via `<Compile Include>` — when editing files in `TiaMcpServer/Worker/`, `TiaMcpServer/Batch/`, `TiaMcpServer/Safety/`, `TiaMcpServer/Tools/`, `TiaMcpServer/Diagnostics/`, or `TiaMcpServer/Cli/`, the test project picks up changes automatically
+- **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression and register them in the batch catalog
+- **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
+- Siemens DLLs are **never committed** to the repo or the NuGet package
