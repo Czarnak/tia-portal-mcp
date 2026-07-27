@@ -363,7 +363,10 @@ Assert-Check 'L2.6' 'No residual-external-source warning was reported (tree scan
 # run. L2.9 then sweeps every warning both of them produced.
 if ($UnitScopedDbPath) {
     Assert-Check 'L2.8' 'Unit-scoped DB round trip adds nothing to the top-level PLC' {
-        $plcSegment = ($UnitScopedDbPath -split '/')[0]
+        # Trimmed the way BlockAddress.SplitSegments trims every segment, so this check reads the
+        # path the same way the worker resolves it. The tree paths compared against below are built
+        # by ProjectTreeWalker from real object names and carry no padding, so they need no trim.
+        $plcSegment = (($UnitScopedDbPath -split '/')[0]).Trim()
         $blocksRoot = "$plcSegment/Blocks"
 
         $before = Get-ProjectNodeIndex
@@ -391,7 +394,13 @@ if ($UnitScopedDbPath) {
         # appears, this check passes, L2.7c passes, and the clobbered top-level block is never
         # restored — a silent, unreported mutation of a real project. Software units make
         # same-named blocks natural, so refuse the fixture rather than run blind.
-        $unitBlockName = (($UnitScopedDbPath -split '/')[-1]) -replace '\s*\[[A-Za-z]+\d*\]$', ''
+        # Trim, replace, Trim — the worker's exact order: SplitSegments trims every segment
+        # (BlockAddress.cs:141) BEFORE StripBlockSuffix runs its $-anchored replace and trims again
+        # (BlockAddress.cs:155). The order matters: the leading Trim is what lets the anchor match
+        # on " UnitValues_DB [DB5] ", and the trailing Trim handles " UnitValues_DB ". Reading the
+        # path any other way than the worker does would let padding defeat this guard silently —
+        # the worker would resolve and write the block while the guard matched nothing.
+        $unitBlockName = ((($UnitScopedDbPath -split '/')[-1]).Trim() -replace '\s*\[[A-Za-z]+\d*\]$', '').Trim()
         $collisions = @($before | Where-Object {
             $_.Path.StartsWith("$blocksRoot/", [System.StringComparison]::Ordinal) -and
             $_.Path.EndsWith("/$unitBlockName", [System.StringComparison]::OrdinalIgnoreCase)
