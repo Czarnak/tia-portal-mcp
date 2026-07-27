@@ -11,7 +11,8 @@
 
     Requires TIA Portal V21 running with the target project open.
 
-    THIS SCRIPT MUTATES THE PROJECT. Every check that writes restores what it wrote, and the run
+    THIS SCRIPT MUTATES THE PROJECT. L2.2b, L2.2c, L2.3b and L2.8 write and leave their write in
+    place; L2.7a restores on their behalf. Every write is restored before the run ends, and the run
     ends by confirming the original content is byte-identical, the project compiles clean, and no
     object was added to or removed from the project tree. If L2.7a fails, the project is left
     modified and says which blocks and what to do about it.
@@ -65,6 +66,12 @@ $script:Failures = @()
 # from the submitted source. That is the stray-write signal, and it is invisible to both the
 # compiler and the re-export, so it must never be discarded.
 $script:Warnings = @()
+
+# update_block_logic calls that actually succeeded. L2.9 refuses to pass on an empty warning list
+# unless at least one write got that far. On this route the stray-write signal arrives as a worker
+# WARNING rather than in the write's payload, so a run in which every write failed produces exactly
+# the same empty list as a clean run — without this counter L2.9 would sweep nothing and print PASS.
+$script:VerifiedWrites = 0
 
 $script:optimizedOriginal = $null
 $script:nonOptimizedOriginal = $null
@@ -150,7 +157,13 @@ function Set-BlockSource {
     }
     if ($Format) { $request.format = $Format }
 
-    return Invoke-Worker $request
+    $response = Invoke-Worker $request
+
+    # Counted only on success, so the refusal checks (L2.5b, L2.5d, L2.5e, L2.5f) — which call this
+    # function expecting a rejection — never make L2.9's positive control look satisfied.
+    if ($response.success) { $script:VerifiedWrites++ }
+
+    return $response
 }
 
 function Assert-RejectionNamesKind {
@@ -274,6 +287,43 @@ Assert-Check 'L2.2b' 'Optimized DB: unchanged round trip re-exports byte-identic
     if ($after -ne $script:optimizedOriginal) { throw 'Re-export differs from the original.' }
 }
 
+# --- L2.2c a real edit applies ---------------------------------------------------------
+# Ported from live-test-udt.ps1's L1.3. Every other DB write in this run submits the content it
+# just read, so "the re-export is byte-identical" holds just as well if GenerateBlocksFromSource
+# silently failed to override the existing block: without this check the gate that will be quoted
+# as proof the DB round trip works cannot observe a total write failure. The mutation is left in
+# place; L2.7a's restore already covers $OptimizedDbPath and undoes it.
+#
+# L2.4 is retired, not vacant: it was the stale-offset contingency, dropped once non-optimized DB
+# exports were established to carry no offset column. Do not reuse the ID.
+Assert-Check 'L2.2c' 'A modified initial value survives the round trip' {
+    if (-not $script:optimizedOriginal) { throw 'No original source was captured in L2.2a.' }
+
+    # (?![#.\w]) rejects a hex or real literal — bumping the 16 in '16#0F' or the 1 in '1.5' would
+    # submit a corrupt document and fail for a reason that has nothing to do with the round trip.
+    # A DB source carries far more numeric literals than a UDT does, so the guard earns its place.
+    if ($script:optimizedOriginal -notmatch ':=\s*(\d+)(?![#.\w])') {
+        throw ('Fixture DB has no plain integer initial value to mutate. Point -OptimizedDbPath ' +
+            'at an optimized global DB with at least one integer member.')
+    }
+    $original = $Matches[1]
+    $mutant = [int]$original + 1
+    $edited = $script:optimizedOriginal -replace ":=\s*$original(?![#.\w])", ":= $mutant"
+    if ($edited -eq $script:optimizedOriginal) {
+        throw ("Rewriting ':= $original' to ':= $mutant' changed nothing, so this check would " +
+            'submit the unmodified original and prove nothing about the write.')
+    }
+
+    $result = Set-BlockSource -BlockPath $OptimizedDbPath -Content $edited
+    if (-not $result.success) { throw "update_block_logic failed: $($result.error)" }
+
+    $after = Get-BlockSource -BlockPath $OptimizedDbPath
+    if ($after -notmatch ":=\s*$mutant(?![#.\w])") {
+        throw ("Edited value $mutant is absent after re-export — the write reported success but " +
+            'did not change the block.')
+    }
+}
+
 # --- L2.3 non-optimized DB round trip -------------------------------------------------
 Assert-Check 'L2.3a' 'The non-optimized DB fixture really is non-optimized' {
     $script:nonOptimizedOriginal = Get-BlockSource -BlockPath $NonOptimizedDbPath
@@ -334,6 +384,55 @@ Assert-Check 'L2.5d' 'Writing the FB as source is refused by block type' {
     $response = Set-BlockSource -BlockPath $FunctionBlockPath -Content $script:probeSource
     if ($response.success) { throw 'format=source was accepted for a function block.' }
     Assert-RejectionNamesKind -ErrorText $response.error -Pattern 'function block \(FB\)'
+}
+
+# --- L2.5e/f the other two preflight refusals -----------------------------------------
+# BlockImporter.ImportSource refuses three things before it mutates anything: a missing block, a
+# block that is not a GlobalDB, and a declared name that does not match the target. L2.5a-d cover
+# only the second. The name-mismatch refusal is what stops a path typo from making
+# GenerateBlocksFromSource create a stray block — this branch's own highest-risk failure mode — and
+# BlockImporter touches Siemens types, so it cannot be linked into TiaMcpServer.Tests: these two
+# checks are its ONLY coverage. Ported from live-test-udt.ps1's L1.5a and L1.5b.
+Assert-Check 'L2.5e' 'A name mismatch is rejected and changes nothing' {
+    $before = Get-BlockSource -BlockPath $OptimizedDbPath
+    $wrongName = $before -replace '(?m)^(\s*DATA_BLOCK\s+)("?)([A-Za-z_][A-Za-z0-9_]*)\2', '$1"NotTheTargetBlock"'
+    if ($wrongName -eq $before) {
+        throw ('Could not rewrite the declared block name, so this check would submit the ' +
+            'unmodified original and a success would be misreported as an accepted mismatch. ' +
+            'The DATA_BLOCK header format changed.')
+    }
+
+    $result = Set-BlockSource -BlockPath $OptimizedDbPath -Content $wrongName
+    if ($result.success) { throw 'Name mismatch was accepted; the write should be strict.' }
+
+    # Asserting on the refusal's wording, the way L2.5a-d already do through
+    # Assert-RejectionNamesKind: 'some error happened' would also be satisfied by the document
+    # being rejected as unparseable, which would leave the name-mismatch refusal itself unproven.
+    if ($result.error -notmatch "declares 'NotTheTargetBlock'") {
+        throw ("The rejection does not name the mismatched declaration, so it may not be the " +
+            "name-mismatch refusal at all: $($result.error)")
+    }
+
+    # If the refusal had not landed, the project would now hold a block named 'NotTheTargetBlock'.
+    # This comparison sees the addressed block being clobbered; L2.7c sees the stray node.
+    $after = Get-BlockSource -BlockPath $OptimizedDbPath
+    if ($after -ne $before) { throw 'Project changed despite the rejection.' }
+}
+
+Assert-Check 'L2.5f' 'A nonexistent block path is rejected' {
+    if (-not $script:optimizedOriginal) { throw 'No original source was captured in L2.2a.' }
+
+    # The parent scope is derived from a fixture that is known to resolve, so the refusal is for
+    # the block name and not for a PLC this project does not have. A hardcoded 'PLC_1/Blocks/...'
+    # would be rejected on any differently-named PLC for the wrong reason and pass vacuously.
+    $missingPath = ($OptimizedDbPath -replace '/[^/]+$', '') + '/DefinitelyNotARealBlock'
+
+    $result = Set-BlockSource -BlockPath $missingPath -Content $script:optimizedOriginal
+    if ($result.success) { throw 'Nonexistent block was accepted; update must never create.' }
+    if ($result.error -notmatch 'No block exists at') {
+        throw ("The rejection does not state that no block exists there, so it may not be the " +
+            "missing-block refusal at all: $($result.error)")
+    }
 }
 
 # --- L2.6 no residual external source node --------------------------------------------
@@ -443,7 +542,8 @@ else {
 
 # --- L2.7 restore and verify -----------------------------------------------------------
 Assert-Check 'L2.7a' 'Original content is restored byte-identically' {
-    # This is the only restore in the run: L2.2b, L2.3b and L2.8 leave their writes in place. If it
+    # This is the only restore in the run: L2.2b, L2.2c, L2.3b and L2.8 leave their writes in
+    # place — L2.2c leaves a deliberately MUTATED optimized DB, which this restore undoes. If it
     # fails, the user's real project keeps the written blocks, so both failure paths must say so and
     # say what to do about it — naming every target still outstanding, not just the one that failed.
     # A block whose original was never captured was never written either, so it is not pending.
@@ -524,6 +624,15 @@ Assert-Check 'L2.7c' 'The project tree is exactly as the run found it' {
 #   * "temporary external source node could not be removed" — a visible, persistent addition to
 #     the user's project that browse_project_tree structurally cannot see (see L2.6).
 Assert-Check 'L2.9' 'No worker warning reports an unrequested change to the project' {
+    # An empty warning list is only meaningful if a write actually got far enough to be measured.
+    # Without this, a run in which L2.2b, L2.3b and L2.8 all failed would print a green L2.9 having
+    # swept nothing — the run still exits 1, but that green line is exactly what gets quoted.
+    if ($script:VerifiedWrites -eq 0) {
+        throw ('No update_block_logic call succeeded, so the stray-write signal was never sampled ' +
+            'and this check swept nothing. Fix the failures above and re-run; do not read this as ' +
+            'evidence the route is sound.')
+    }
+
     $strayWrites = @($script:Warnings | Where-Object { $_.Message -match 'generated \d+ objects' })
     $residual = @($script:Warnings | Where-Object { $_.Message -match 'temporary external source node' })
 
@@ -570,8 +679,10 @@ if ($script:Failures.Count -eq 0) {
 Write-Host "$($script:Failures.Count) check(s) FAILED:" -ForegroundColor Red
 $script:Failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
 Write-Host ''
-Write-Host 'L2.1 and L2.2 (both L2.2a and L2.2b) are blocking. If either failed, format=source' -ForegroundColor Yellow
-Write-Host 'for global data blocks is not proven and must not ship.' -ForegroundColor Yellow
+Write-Host 'L2.1, L2.2 (all of L2.2a, L2.2b and L2.2c) and L2.9 are blocking. If any failed,' -ForegroundColor Yellow
+Write-Host 'format=source for global data blocks is not proven and must not ship. L2.2c is the' -ForegroundColor Yellow
+Write-Host 'only check that can observe a write that did nothing; L2.9 is the only one that can' -ForegroundColor Yellow
+Write-Host 'observe a stray write or a residual external source node.' -ForegroundColor Yellow
 Write-Host 'If only L2.3b failed, the non-optimized round trip is lossy: ship optimized-DB-only' -ForegroundColor Yellow
 Write-Host 'support rather than a lossy round trip.' -ForegroundColor Yellow
 exit 1
