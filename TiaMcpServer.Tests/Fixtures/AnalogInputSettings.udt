@@ -1,0 +1,20 @@
+﻿TYPE "AnalogInputSettings"
+VERSION : 0.1
+   STRUCT
+      Scaling : Struct
+         "Type" : Bool := TRUE;   // 0- multiply, 1 - scale
+         regMin : Int := 0;
+         regMax : Int := 27648;
+         valueMin : Real;
+         valueMax : Real;
+         Multiplier : Real;
+      END_STRUCT;
+      Limits : Struct
+         regMin : Int := -500;
+         regMax : Int := 30000;
+         regAlarmDelay : Time := T#1s;
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+

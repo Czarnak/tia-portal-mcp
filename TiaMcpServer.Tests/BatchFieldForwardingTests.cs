@@ -47,6 +47,10 @@ public class BatchFieldForwardingTests
         ["dataType"] = "Bool",
         ["depth"] = 7,
         ["maxResults"] = 4242,
+        // format is validated against SourceFormatNames.Allowed (BatchWorkerInvoker.NormalizeFormat
+        // rejects anything else before any worker call), so an arbitrary sentinel string would fail
+        // request construction rather than exercise forwarding.
+        ["format"] = SourceFormatNames.Xml,
     };
 
     private static object SentinelFor(PropertyInfo property, string fieldName)

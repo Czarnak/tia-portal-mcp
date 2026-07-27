@@ -119,6 +119,19 @@ while ((line = Console.In.ReadLine()) is not null)
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
             break;
+        case "type-content-roundtrip":
+            // Used by TypeOperationFakeWorkerTests to drive a full get_type_content /
+            // update_type_content round trip. A single scenario key must serve both methods:
+            // update_type_content's preview AND apply each also issue a get_type_content
+            // current-state read against the SAME projectPath, so the method (not the
+            // scenario key) is what has to pick the response.
+            Respond(ReadMethod(line) switch
+            {
+                "get_type_content" => """{"success":true,"payload":"TYPE AnalogInputSettings STRUCT Value : Real; END_STRUCT END_TYPE"}""",
+                "update_type_content" => """{"success":true,"payload":"{}"}""",
+                _ => $$"""{"success":false,"error":"expected get_type_content or update_type_content, got '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "direct-status-only":
             // Used to prove the direct get_project_status MCP tool routes through the
             // GetProjectStatusAsync operation only, never the internal lifecycle probe.

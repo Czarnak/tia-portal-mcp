@@ -244,6 +244,8 @@ public static class BatchOperationCatalog
         "typeIdentifier" => !string.IsNullOrWhiteSpace(op.TypeIdentifier),
         "deviceName" => !string.IsNullOrWhiteSpace(op.DeviceName),
         "blockType" => !string.IsNullOrWhiteSpace(op.BlockType),
+        "typePath" => !string.IsNullOrWhiteSpace(op.TypePath),
+        "sourceContent" => !string.IsNullOrWhiteSpace(op.SourceContent),
         _ => false,
     };
 
@@ -288,13 +290,14 @@ public static class BatchOperationCatalog
             new BatchOperationSpec("read_hardware_config", BatchOperationCategory.Read, None, None),
             new BatchOperationSpec("search_equipment_catalog", BatchOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new BatchOperationSpec("read_cross_references", BatchOperationCategory.Read, None, new[] { "plcName", "filter", "maxResults" }),
-            new BatchOperationSpec("get_block_content", BatchOperationCategory.Read, new[] { "blockPath" }, None),
+            new BatchOperationSpec("get_block_content", BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format" }),
             new BatchOperationSpec("list_tag_tables", BatchOperationCategory.Read, None, new[] { "plcName" }),
             new BatchOperationSpec("compile_check", BatchOperationCategory.Read, None, new[] { "blockPath", "plcName" }),
             new BatchOperationSpec("get_project_status", BatchOperationCategory.Read, None, None),
+            new BatchOperationSpec("get_type_content", BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format" }),
 
             // Data writes
-            new BatchOperationSpec("update_block_logic", BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, None),
+            new BatchOperationSpec("update_block_logic", BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, new[] { "format" }),
             new BatchOperationSpec("create_tag_table", BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
             new BatchOperationSpec("delete_tag_table", BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
             new BatchOperationSpec("create_tag", BatchOperationCategory.Write, new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
@@ -311,6 +314,7 @@ public static class BatchOperationCatalog
             new BatchOperationSpec("delete_block_group", BatchOperationCategory.Write, new[] { "blockPath" }, None),
             new BatchOperationSpec("start_plc", BatchOperationCategory.Write, None, new[] { "plcName" }),
             new BatchOperationSpec("stop_plc", BatchOperationCategory.Write, None, new[] { "plcName" }),
+            new BatchOperationSpec("update_type_content", BatchOperationCategory.Write, new[] { "typePath", "sourceContent" }, new[] { "format" }),
         };
 
         return specs.ToDictionary(spec => spec.Name, StringComparer.Ordinal);
