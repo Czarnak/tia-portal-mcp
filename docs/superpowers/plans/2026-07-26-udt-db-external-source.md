@@ -2404,8 +2404,8 @@ Checks:
 |---|---|
 | L2.1 | `get_block_content` **without** `format` returns a payload containing `--- FILE:` and `<Document` — i.e. today's bundle, unchanged. **Blocking.** |
 | L2.2 | Optimized DB: `format=source` exports, re-imports unchanged, and re-exports byte-identically. **Blocking.** |
-| L2.3 | Non-optimized DB: same round trip, and the re-export still contains an offset column. |
-| L2.4 | Non-optimized DB with a member **added** and therefore stale offsets: record whether TIA accepts or rejects it. |
+| L2.3 | Non-optimized DB: same round trip. *(Amended — the offset-column half of this assertion was removed; see below.)* |
+| ~~L2.4~~ | **RETIRED — do not look for an L2.4 result; one will never exist.** See the amendment below. |
 | L2.5 | `format=source` on the instance DB and on the FB are each rejected with an error naming the block type. |
 | L2.6 | No residual `_tiamcp_` external source node (same check as L1.4). |
 | L2.7 | Original content restored; project compiles clean. |
@@ -2421,14 +2421,26 @@ pwsh scripts/live-test-db.ps1 `
     -FunctionBlockPath "PLC_1/Blocks/Inputs_FB"
 ```
 
-- [ ] **Step 3: Apply the L2.4 contingency**
+- [x] ~~**Step 3: Apply the L2.4 contingency**~~ — **RETIRED, along with Task 9 and check L2.4.**
 
-L2.4 is a decision point, not a pass/fail:
-
-- **TIA rejected the stale offsets** → upgrade `DbSourceOffsetColumn`'s warning to a **hard error** in `BlockImportCoordinator`, telling the caller to remove the offset column before resubmitting. Add a test asserting the rejection.
-- **TIA accepted and recomputed them** → change the import path to **strip** the offset column before writing the file, and drop the warning. Add a test asserting the column is stripped.
-
-Either outcome is implementable. Implement whichever the run actually produced, and say in the commit message which one it was.
+> **Amendment (2026-07-27), by user decision.** This plan assumed non-optimized DBs export a
+> per-variable byte-offset column. The user, who owns the TIA Portal V21 install, established
+> that they do not: **a non-optimized DB's external-source export is identical in shape to an
+> optimized one, with no `Offset` column.** The only difference is the
+> `S7_Optimized_Access := 'FALSE'` header attribute.
+>
+> Consequently: **Task 9 (`DbSourceOffsetColumn`) was never built**, Task 10 ships no offset
+> detection and no optimized/non-optimized branching (one identical code path), check **L2.4 is
+> retired permanently**, and L2.3 keeps only its byte-identical round-trip assertion. The `L2.4`
+> ID is **not** reused — a result labelled L2.4 would be ambiguous between this retired check and
+> anything later given the same number.
+>
+> The delivered harness also carries checks this table does not list, added after review found
+> the gate could pass vacuously: **L2.2c** (a mutated initial value survives the round trip —
+> without it every write in the gate was a no-op and a total write failure was undetectable),
+> **L2.5e/L2.5f** (name-mismatch and nonexistent-path refusals), **L2.8** (software-unit-scoped
+> DB, optional via `-UnitScopedDbPath`), and **L2.9** (a post-run sweep that fails the gate on
+> stray-write or residual-node warnings). See `.superpowers/sdd/progress.md` for the full record.
 
 - [ ] **Step 4: Handle a failed L2.3**
 
