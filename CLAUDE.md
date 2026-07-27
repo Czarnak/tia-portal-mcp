@@ -1,14 +1,4 @@
-## graphify
-
-This project has a graphify knowledge graph at graphify-out/.
-
-Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
-
-## Project overview
+# Project overview
 
 MCP server for Siemens TIA Portal V21. Exposes 10 tools (batch reads/writes, project lifecycle, diagnostics) to MCP clients. Windows-only, requires TIA Portal V21 with Openness enabled.
 
@@ -26,7 +16,7 @@ The host (`TiaMcpServer`, net8.0) and the worker (`TiaMcpServer.OpennessWorker`,
 ## Solution structure
 
 | Project | TFM | Role |
-|---------|-----|------|
+| --------- | ----- | ------ |
 | `TiaMcpServer` | net8.0 | MCP stdio server, tool registration, batch engine, safety tokens, CLI (doctor) |
 | `TiaMcpServer.Contracts` | netstandard2.0 | Shared DTOs (`WorkerRequest`, `WorkerResponse`, all info/result types) |
 | `TiaMcpServer.OpennessWorker` | net48 | Worker that loads `Siemens.Engineering.*`, handles all TIA Portal operations |
@@ -42,11 +32,13 @@ dotnet test TiaMcpServer.Tests
 ```
 
 CI/stub build (no TIA Portal needed):
+
 ```powershell
 dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true
 ```
 
 Local dev (uses real TIA assemblies):
+
 ```powershell
 dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
 ```
@@ -56,6 +48,7 @@ dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\
 Every write goes through preview-then-apply. This is non-negotiable.
 
 - **Batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the token
+- **Type writes** (`update_type_content`): batch data writes like any other, but strict — the type must already exist and the declared name in `sourceContent` must match the target. Openness would otherwise create a new type from an unrecognized name.
 - **Project lifecycle writes** (`open_project`, `create_project`, etc.): self-previewing — call the tool without `safetyToken` to get a preview + token, then call again with `confirm=true` + the token
 - Safety tokens are single-use, expire in 10 minutes, bound to exact tool name + project path + requested input + current project state
 - Reordering, changing input, or project state changes invalidate the token
@@ -68,7 +61,3 @@ Every write goes through preview-then-apply. This is non-negotiable.
 - **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression and register them in the batch catalog
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
 - Siemens DLLs are **never committed** to the repo or the NuGet package
-
-## Graphify knowledge graph
-
-Before answering architecture or codebase questions, check `graphify-out/GRAPH_REPORT.md` for god nodes and community structure. The graph covers 1335 nodes across 80 communities. Top god nodes: `OpennessWorkerClient` (76 edges), `TiaMcpServer.Contracts` (67 edges), `Program` (46 edges).

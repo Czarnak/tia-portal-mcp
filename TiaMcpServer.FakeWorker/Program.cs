@@ -132,6 +132,19 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"expected get_type_content or update_type_content, got '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "block-source-roundtrip":
+            // Used by BlockCurrentStateReadTests to drive a full format=source preview/apply round
+            // trip for update_block_logic. Dispatches on method AND format: the current-state read
+            // the safety token binds to must carry the write item's own format, so a read that
+            // fell back to xml is answered with a failure naming what it sent rather than a
+            // payload, and the round trip fails loudly instead of binding the wrong artifact.
+            Respond((ReadMethod(line), ReadField(line, "format")) switch
+            {
+                ("get_block_content", "source") => """{"success":true,"payload":"DATA_BLOCK \"Recipe\"\r\nSTRUCT\r\nEND_STRUCT;\r\nBEGIN\r\nEND_DATA_BLOCK\r\n"}""",
+                ("update_block_logic", "source") => """{"success":true,"payload":"{}"}""",
+                var other => $$"""{"success":false,"error":"expected format 'source' for both methods, got method '{{other.Item1}}' with format '{{other.Item2}}'"}"""
+            });
+            break;
         case "direct-status-only":
             // Used to prove the direct get_project_status MCP tool routes through the
             // GetProjectStatusAsync operation only, never the internal lifecycle probe.
@@ -188,12 +201,20 @@ void Respond(string json)
     Console.Out.Flush();
 }
 
-string? ReadMethod(string requestLine)
+string? ReadMethod(string requestLine) => ReadField(requestLine, "method");
+
+string? ReadField(string requestLine, string propertyName)
 {
     try
     {
         using var doc = JsonDocument.Parse(requestLine);
-        return doc.RootElement.TryGetProperty("method", out var method) ? method.GetString() : null;
+        // ValueKind-guarded so a missing field, an explicit JSON null and a non-string all read as
+        // null rather than throwing: a scenario that dispatches on an ABSENT field (format) must be
+        // able to see its absence.
+        return doc.RootElement.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
     }
     catch (JsonException)
     {

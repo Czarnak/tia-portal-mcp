@@ -13,12 +13,21 @@ public static class BatchWorkerInvoker
     /// <summary>Reads the current state a write item's safety token binds to.</summary>
     public static Task<WorkerCallResult> ReadCurrentStateAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
     {
-        "update_block_logic" => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
-        // The safety token binds to the type's current exported source, so an edit made inside
-        // TIA Portal between preview and apply invalidates the token, exactly like update_block_logic.
+        // The safety token binds to the block as the WRITE will see it, so the current-state read
+        // must use the write item's own format. Reading xml while a format=source write goes
+        // through the external-source pipeline leaves the token blind to everything a .db source
+        // carries but Simatic ML does not — S7_Optimized_Access, block and member comments, an
+        // attribute-only edit. A concurrent TIA Portal edit of any of those would keep the token's
+        // state hash matching, so the token would be accepted and the edit silently overwritten,
+        // which is the exact thing the token exists to prevent.
         // NormalizeFormat can throw for an invalid format; WithValidatedFormat converts that into
         // a failed result instead of letting it propagate out of the batch loop (see InvokeAsync's
         // format-bearing arms for the same treatment).
+        "update_block_logic" => WithValidatedFormat(
+            () => NormalizeFormat(op),
+            format => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath, format)),
+        // The safety token binds to the type's current exported source, so an edit made inside
+        // TIA Portal between preview and apply invalidates the token, exactly like update_block_logic.
         "update_type_content" => WithValidatedFormat(
             () => NormalizeFormat(op),
             format => client.GetTypeContentAsync(op.TypePath!, format, op.ProjectPath)),
@@ -30,6 +39,8 @@ public static class BatchWorkerInvoker
             => client.ReadHardwareConfigAsync(op.ProjectPath),
         "create_block" or "create_block_group" or "delete_block_group"
             => client.BrowseProjectTreeAsync(op.ProjectPath),
+        // delete_block declares no 'format' field (see BatchOperationCatalog), so there is no
+        // caller format to honour here and the worker's default export is the right binding.
         "delete_block"
             => client.GetBlockContentAsync(op.BlockPath!, op.ProjectPath),
         "start_plc" or "stop_plc"

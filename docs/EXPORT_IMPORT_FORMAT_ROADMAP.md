@@ -80,10 +80,14 @@ Observations:
   for the LAD/FBD phase until separately investigated — bundling it in would understate the risk.
 - **UDT and DB samples confirm the same shape found earlier, now with a second, independent data
   point.** `AnalogInputSettings.xml`/`.s7dcl`/`.s7res` line up with the previously-added
-  `AnalogInputSettings.udt` almost byte-for-byte (509 B `.s7dcl` vs. 483 B `.udt`) — strong
-  confirmation that Siemens' own external-source export uses `.s7dcl` as its real extension, and
-  `.udt`/`.scl` are informal/decoded names for the same declaration syntax, not distinct native
-  Siemens formats. `InputValues_DB.xml`/`.s7dcl` reconfirm the DB ratio from the first sample round.
+  `AnalogInputSettings.udt` almost byte-for-byte (509 B `.s7dcl` vs. 483 B `.udt`). `.udt` and
+  `.s7dcl` are different formats produced by different Openness pipelines, not two names for one
+  syntax. The `.udt` (external source, `GenerateSource`) opens `TYPE "AnalogInputSettings"` with a
+  `VERSION` line and keeps comments inline as `//`. The `.s7dcl` (`ExportAsDocuments`) opens a bare
+  `TYPE` with the name on the STRUCT line, encodes attributes as `{ S7_MLC := "MLC_aC" }`, and
+  externalizes every comment to a companion `.s7res`. Their byte counts are similar; their syntaxes
+  are unrelated. `.udt` is the better client format: one file, comments in place, no ID indirection.
+  `InputValues_DB.xml`/`.s7dcl` reconfirm the DB ratio from the first sample round.
 - **`.scl` is not a bare logic file — it's the Siemens "external source" bundle.**
   `AnalogInput.scl` contains a full `TYPE "AnalogInputSettings" ... END_TYPE` declaration
   *followed by* the `FUNCTION_BLOCK "AnalogInput" ... END_FUNCTION_BLOCK` body, because the FB
@@ -109,10 +113,9 @@ Observations:
   working text decode at all. Until import is verified, SimaticML stays mandatory (not just
   default) for writes to graphical blocks; Phase 4 below exists to resolve this for LAD
   specifically. FBD is untested either way and should be assumed to behave like LAD until checked.
-- **No UDT tooling exists yet.** There is currently no read or write operation for PLC data types
-  at all (`PlcDataType`/user-defined types aren't touched anywhere in `OpennessWorker`). A `.udt`
-  format is meaningless until a UDT-level tool is built first — this is a prerequisite task, not
-  a format swap.
+- **UDT tooling now exists.** `get_type_content`/`update_type_content` are batch catalog operations
+  that read and write PLC data types. A `.udt` format is no longer meaningless for lack of a
+  UDT-level tool — that prerequisite is done.
 - **`BlockSourceGenerator` only emits XML today**, including an intentionally empty
   `<NetworkSource />` for SCL/STL compile units (a schema-valid placeholder, not real SCL text —
   see the block-write-format-repair note in `docs/IMPROVEMENT_PLAN.md`). A `.scl`-default path
@@ -121,21 +124,24 @@ Observations:
   that path is currently only exercised as a fallback, not verified as the primary, default-driving
   route for every block type it would need to cover.
 
-## Suggested phasing (not yet scheduled)
+## Suggested phasing (Phase 0 partially closed; Phase 1 delivered; Phase 2 round trip delivered; 3-5 not yet scheduled)
 
 Priority order is **UDT → DB → SCL**, not the historical order these were investigated in. Reasons
 for that order, derived from the analysis above:
 
-- **UDT first**: no UDT tooling exists in this MCP at all today, so it's pure net-new surface with
-  no legacy behavior to preserve. It's also a dependency for the other two — SCL blocks embed UDT
+- **UDT first**: no UDT tooling existed in this MCP when this ordering was chosen, so it was pure
+  net-new surface with no legacy behavior to preserve — now delivered via `get_type_content`/
+  `update_type_content`. It's also a dependency for the other two — SCL blocks embed UDT
   declarations inline (confirmed above), and DB structs commonly reference UDTs as member types —
   so getting UDT parsing/generation right first de-risks both of the others. It's also the
   structurally simplest format (a bare struct declaration, no runtime values, no executable body).
 - **DB second**: structurally the closest thing to a UDT plus one addition (initial values in a
   `BEGIN`/`END_DATA_BLOCK` block). `GlobalDB` creation already exists in this codebase
   (`BlockSourceGenerator`'s `GLOBALDB`/`DB` case), so this extends an existing path rather than
-  building a new one, and it reuses whatever member-parsing groundwork Phase 1 lays down. The
-  BOM/CRLF handling found in the sample needs solving here, but is self-contained.
+  building a new one. With the native external-source pipeline confirmed in Phase 0, neither phase
+  parses a struct. What Phase 2 reuses from Phase 1 is the temp-file and `PlcExternalSource`
+  lifecycle helper plus the declared-name preflight. The BOM/CRLF handling found in the sample
+  needs solving here, but is self-contained.
 - **SCL third**: the highest-risk and highest-payoff format among the three text-native ones. It's
   the only one with an executable statement body that must round-trip losslessly (not just a
   declaration), it directly replaces the known placeholder in `BlockSourceGenerator` (the empty
@@ -156,8 +162,8 @@ for that order, derived from the analysis above:
 | Phase | Scope | Depends on |
 |---|---|---|
 | 0 — Spike | Confirm whether these sample files were produced by Siemens' native "generate/import external source" Openness API rather than `Block.Export`/`Import`. If so, prefer driving that API over hand-rolling a `.scl`/`.db`/`.udt` parser — changes the shape of every phase below. | — |
-| 1 — UDT | Add read/export/import support for PLC data types (doesn't exist today) with `.udt` as its format. | Phase 0 |
-| 2 — DB | Add `.db` as a selectable/default format for data blocks, alongside the existing SimaticML path. | Phase 1 (shared struct-parsing groundwork), Phase 0 |
+| 1 — UDT | Add read/export/import support for PLC data types (delivered — `get_type_content`/`update_type_content`) with `.udt` as its format. | Phase 0 |
+| 2 — DB | Add `.db` as a selectable/default format for data blocks, alongside the existing SimaticML path (round trip delivered and proven live, see Phase 0 below; the selectable-format work itself is Phase 5). | Phase 1 (`ExternalSourceScope` and the declared-name preflight), Phase 0 |
 | 3 — SCL | Add `.scl` as a selectable/default format for SCL/STL-language blocks; replace the `BlockSourceGenerator` XML-only placeholder with real source generation. | Phase 1 (inline UDT dependencies), Phase 0 |
 | 4 — LAD (SimaticSD) | Verify whether `ImportFromDocuments` can apply a real network-level change to a LAD block from an edited `.s7dcl`/`.s7res` pair; if confirmed, add SimaticSD as a selectable/default read (and, if verified, write) format for LAD. FBD only if it's confirmed to behave the same way; GRAPH explicitly out of scope. | Phase 0; independent of Phases 1-3 otherwise |
 | 5 — Rollout | Add the explicit format selector on `get_block_content`/`update_block_logic`, flip defaults per block language/type now that 1-4 exist, measure real token savings, keep `xml` permanently available everywhere as an explicit override. GRAPH (and FBD/LAD if Phase 4 finds import doesn't work) never leave `xml`. | Phases 1-4 |
@@ -182,9 +188,25 @@ it is not necessary to assume or design a handwritten `.scl`/`.db`/`.udt` parser
 This proves the relevant public API surface exists for UDTs, DBs, and SCL-language blocks.
 It does **not** prove that the existing samples were produced by this pipeline, nor certify
 that any exact `.udt`, `.db`, or `.scl` file round-trips on a target CPU. The API accepts a
-generic `FileInfo`/path rather than a type-specific extension selector. Keep Phase 0 open
-until a real V21 fixture proves `GenerateSource → CreateFromFile → GenerateBlocksFromSource`,
-followed by compile and re-export comparison, for one representative UDT, DB, and SCL block.
+generic `FileInfo`/path rather than a type-specific extension selector.
+
+**Phase 0 partially closed (see `docs/superpowers/plans/2026-07-26-udt-db-external-source.md`).**
+The `GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip is proven live for
+UDTs by `scripts/live-test-udt.ps1` and for global DBs by `scripts/live-test-db.ps1`. The DB leg's
+live coverage includes a global DB inside a software unit, resolved through the owning unit's
+`ExternalSourceGroup` rather than the top-level one, also via `scripts/live-test-db.ps1`. It
+remains unproven for SCL blocks; Phase 3 must close that itself.
+
+A non-optimized global DB's external-source export is **identical in shape** to an optimized one.
+There is no `Offset` column. The only difference is `S7_Optimized_Access := 'FALSE'` in the
+header. Optimized and non-optimized global DBs therefore take **one identical code path**; no
+offset parsing, no stale-offset detection, and no optimized/non-optimized branching is needed.
+Both are covered by `scripts/live-test-db.ps1`.
+
+Phase 0 stays open **for SCL only**: the closing condition — a real V21 fixture proving
+`GenerateSource → CreateFromFile → GenerateBlocksFromSource`, followed by compile and re-export
+comparison — is now met for the UDT and DB legs; the SCL leg still needs that same fixture, for
+one representative SCL block.
 
 ## Non-goals
 

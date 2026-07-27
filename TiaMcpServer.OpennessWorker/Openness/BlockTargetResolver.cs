@@ -3,11 +3,24 @@ using System.Collections.Generic;
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
+using Siemens.Engineering.SW.ExternalSources;
 using Siemens.Engineering.SW.Units;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 
+/// <summary>
+/// Resolves a <see cref="BlockAddress"/> to a live block group and (optionally) the block itself.
+///
+/// <para>
+/// It carries the owning external source group out with the result. A PLC and each of its software
+/// units own a separate <c>PlcExternalSourceSystemGroup</c>, and only the walk that found the block
+/// knows which one it went through. Re-deriving that afterwards from the <see cref="PlcBlock"/>
+/// alone cannot distinguish a unit-scoped block from a PLC-scoped one, and getting it wrong sends
+/// the external-source round trip into the wrong software context — silently writing a stray new
+/// block into the top-level PLC instead of updating the addressed one.
+/// </para>
+/// </summary>
 internal static class BlockTargetResolver
 {
     public static ResolvedBlockTarget ResolveForExport(Project project, BlockAddress address)
@@ -16,11 +29,12 @@ internal static class BlockTargetResolver
 
         if (address.IsDeterministic)
         {
-            var group = ResolveDeterministicBlockGroup(plcSoftware, address);
+            var owner = ResolveDeterministicOwner(plcSoftware, address);
+            var group = FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
             var block = group.Blocks.Find(address.BlockName)
                 ?? throw new InvalidOperationException($"Block '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
 
-            return new ResolvedBlockTarget(group, block, address.BlockName);
+            return new ResolvedBlockTarget(owner.ExternalSourceGroup, group, block, address.BlockName);
         }
 
         var matches = FindLegacyMatches(plcSoftware, address.BlockName);
@@ -44,9 +58,10 @@ internal static class BlockTargetResolver
 
         if (address.IsDeterministic)
         {
-            var group = ResolveDeterministicBlockGroup(plcSoftware, address);
+            var owner = ResolveDeterministicOwner(plcSoftware, address);
+            var group = FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
             var existing = group.Blocks.Find(address.BlockName);
-            return new ResolvedBlockTarget(group, existing, address.BlockName);
+            return new ResolvedBlockTarget(owner.ExternalSourceGroup, group, existing, address.BlockName);
         }
 
         var matches = FindLegacyMatches(plcSoftware, address.BlockName);
@@ -58,16 +73,22 @@ internal static class BlockTargetResolver
 
         return matches.Count == 1
             ? matches[0]
-            : new ResolvedBlockTarget(plcSoftware.BlockGroup, block: null, address.BlockName);
+            : new ResolvedBlockTarget(
+                plcSoftware.ExternalSourceGroup,
+                plcSoftware.BlockGroup,
+                block: null,
+                address.BlockName);
     }
 
-    private static PlcBlockGroup ResolveDeterministicBlockGroup(PlcSoftware plcSoftware, BlockAddress address)
+    private static BlockOwner ResolveDeterministicOwner(PlcSoftware plcSoftware, BlockAddress address)
     {
-        PlcBlockGroup rootGroup = address.UsesSoftwareUnit
-            ? FindSoftwareUnit(plcSoftware, address.UnitName!).BlockGroup
-            : plcSoftware.BlockGroup;
+        if (!address.UsesSoftwareUnit)
+        {
+            return new BlockOwner(plcSoftware.BlockGroup, plcSoftware.ExternalSourceGroup);
+        }
 
-        return FindBlockGroup(rootGroup, address.FolderPath);
+        PlcUnit unit = FindSoftwareUnit(plcSoftware, address.UnitName!);
+        return new BlockOwner(unit.BlockGroup, unit.ExternalSourceGroup);
     }
 
     private static PlcUnit FindSoftwareUnit(PlcSoftware plcSoftware, string unitName)
@@ -114,47 +135,100 @@ internal static class BlockTargetResolver
     private static List<ResolvedBlockTarget> FindLegacyMatches(PlcSoftware plcSoftware, string blockName)
     {
         var matches = new List<ResolvedBlockTarget>();
-        CollectMatches(plcSoftware.BlockGroup, blockName, matches);
 
-        PlcUnitProvider? unitProvider = plcSoftware.GetService<PlcUnitProvider>();
-        if (unitProvider is not null)
+        foreach (var owner in EnumerateOwners(plcSoftware))
         {
-            foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
-            {
-                CollectMatches(unit.BlockGroup, blockName, matches);
-            }
+            CollectMatches(owner, owner.RootBlockGroup, blockName, matches);
         }
 
         return matches;
     }
 
-    private static void CollectMatches(PlcBlockGroup group, string blockName, List<ResolvedBlockTarget> matches)
+    /// <summary>
+    /// The PLC itself, then each of its software units — every scope that owns both a block tree
+    /// and its own external source group.
+    /// </summary>
+    private static IEnumerable<BlockOwner> EnumerateOwners(PlcSoftware plcSoftware)
+    {
+        yield return new BlockOwner(plcSoftware.BlockGroup, plcSoftware.ExternalSourceGroup);
+
+        PlcUnitProvider? unitProvider = plcSoftware.GetService<PlcUnitProvider>();
+        if (unitProvider is null)
+        {
+            yield break;
+        }
+
+        foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
+        {
+            yield return new BlockOwner(unit.BlockGroup, unit.ExternalSourceGroup);
+        }
+    }
+
+    private static void CollectMatches(
+        BlockOwner owner,
+        PlcBlockGroup group,
+        string blockName,
+        List<ResolvedBlockTarget> matches)
     {
         var block = group.Blocks.Find(blockName);
         if (block is not null)
         {
-            matches.Add(new ResolvedBlockTarget(group, block, blockName));
+            matches.Add(new ResolvedBlockTarget(owner.ExternalSourceGroup, group, block, blockName));
         }
 
         foreach (PlcBlockGroup childGroup in group.Groups)
         {
-            CollectMatches(childGroup, blockName, matches);
+            CollectMatches(owner, childGroup, blockName, matches);
         }
+    }
+
+    /// <summary>A software scope that owns a block tree: either the PLC itself or one software unit.</summary>
+    private readonly struct BlockOwner
+    {
+        public BlockOwner(PlcBlockGroup rootBlockGroup, PlcExternalSourceSystemGroup externalSourceGroup)
+        {
+            RootBlockGroup = rootBlockGroup;
+            ExternalSourceGroup = externalSourceGroup;
+        }
+
+        public PlcBlockGroup RootBlockGroup { get; }
+
+        public PlcExternalSourceSystemGroup ExternalSourceGroup { get; }
     }
 }
 
 internal sealed class ResolvedBlockTarget
 {
-    public ResolvedBlockTarget(PlcBlockGroup group, PlcBlock? block, string documentName)
+    public ResolvedBlockTarget(
+        PlcExternalSourceSystemGroup externalSourceGroup,
+        PlcBlockGroup group,
+        PlcBlock? block,
+        string documentName)
     {
+        ExternalSourceGroup = externalSourceGroup;
         Group = group;
         Block = block;
         DocumentName = documentName;
     }
+
+    /// <summary>
+    /// The external source group of the software scope the block actually lives in — the PLC's for
+    /// a PLC-scoped block, the unit's own for a unit-scoped one. Both GenerateSource (export) and
+    /// CreateFromFile (import) must run against this one, or the round trip silently targets the
+    /// wrong software context.
+    /// </summary>
+    public PlcExternalSourceSystemGroup ExternalSourceGroup { get; }
 
     public PlcBlockGroup Group { get; }
 
     public PlcBlock? Block { get; }
 
     public string DocumentName { get; }
+
+    /// <summary>
+    /// GenerateBlocksFromSource targets a PlcBlockUserGroup; the root PlcBlockSystemGroup is not
+    /// one, so a block sitting directly under "Program blocks" resolves to null here and takes the
+    /// group-less overload.
+    /// </summary>
+    public PlcBlockUserGroup? UserGroup => Group as PlcBlockUserGroup;
 }

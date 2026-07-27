@@ -62,7 +62,12 @@ internal static class BlockWritePreflight
         return new BlockCreatePreflight(address, normalizedType, normalizedLanguage);
     }
 
-    private static BlockAddress ParseAddress(string blockPath)
+    /// <summary>
+    /// Internal rather than private so the external-source write route, which parses a block path
+    /// without building a document bundle, still reports a malformed path as a validation error
+    /// instead of an uncategorized worker failure.
+    /// </summary>
+    internal static BlockAddress ParseAddress(string blockPath)
     {
         try
         {

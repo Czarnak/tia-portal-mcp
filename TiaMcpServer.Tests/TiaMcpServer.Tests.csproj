@@ -125,5 +125,7 @@
       Link="Linked\Openness\PlcTypeSourcePreflight.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportRouting.cs"
       Link="Linked\Openness\BlockImportRouting.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceWriteWarnings.cs"
+      Link="Linked\Openness\BlockSourceWriteWarnings.cs" />
   </ItemGroup>
 </Project>
