@@ -10,8 +10,10 @@
 
     Requires TIA Portal V21 running with the target project open.
 
-    THIS SCRIPT MUTATES THE PROJECT. Every check that writes restores what it wrote, and the run
-    ends by confirming the original content is byte-identical and the project compiles clean.
+    THIS SCRIPT MUTATES THE PROJECT. L1.3 and L1.6 write and leave their write in place; L1.7a
+    restores on their behalf. Every write is restored before the run ends, and the run ends by
+    confirming the original content is byte-identical and the project compiles clean. If L1.7a
+    fails, the project is left modified and says so.
 
 .PARAMETER ProjectPath
     Absolute path to the .ap21 project file.
@@ -37,7 +39,15 @@ $script:Failures = @()
 # Every warning any worker call reports, in arrival order, plus the stray-write signal this route
 # reports in its payload rather than as a warning (see Set-TypeSource). Both are invisible to the
 # compiler and to the re-export, so they must never be discarded.
+#
+# Each record carries a structural Kind: 'Worker' for something the worker actually warned about,
+# 'StrayWrite' for a record this script synthesized from a payload field. L1.8 filters on Kind
+# rather than on prose, and the printers label the provenance so the two are never confused.
 $script:Warnings = @()
+
+# update_type_content calls that succeeded AND whose generated-object count was readable. L1.8
+# refuses to pass on an empty warning list unless at least one write actually reached that point.
+$script:VerifiedWrites = 0
 
 function Invoke-Worker {
     param([hashtable] $Request)
@@ -50,8 +60,10 @@ function Invoke-Worker {
     foreach ($warning in @($parsed.warnings)) {
         if ($null -eq $warning) { continue }
         $script:Warnings += [pscustomobject]@{
+            Kind    = 'Worker'
             Method  = [string]$Request.method
             Target  = [string]$Request.typePath
+            Format  = [string]$Request.format
             Message = [string]$warning
         }
     }
@@ -59,12 +71,24 @@ function Invoke-Worker {
     return $parsed
 }
 
+<#
+One provenance line for a warning record, used by the per-check printer, the L1.8 failure message
+and the summary so all three stay consistent. '(derived from payload)' marks a record this script
+synthesized, which would otherwise be indistinguishable from something the worker warned about.
+#>
+function Format-WarningOrigin {
+    param($Entry)
+    $target = if ($Entry.Target) { " on '$($Entry.Target)'" } else { '' }
+    $format = if ($Entry.Format) { " [format=$($Entry.Format)]" } else { '' }
+    $origin = if ($Entry.Kind -eq 'StrayWrite') { ' (derived from payload)' } else { '' }
+    return "$($Entry.Method)$target$format$origin"
+}
+
 function Write-CheckWarnings {
     param([int] $SinceIndex)
     for ($index = $SinceIndex; $index -lt $script:Warnings.Count; $index++) {
         $entry = $script:Warnings[$index]
-        $target = if ($entry.Target) { " on '$($entry.Target)'" } else { '' }
-        Write-Host "      WARNING from $($entry.Method)$target" -ForegroundColor Yellow
+        Write-Host "      WARNING from $(Format-WarningOrigin $entry)" -ForegroundColor Yellow
         Write-Host "        $($entry.Message)" -ForegroundColor Yellow
     }
 }
@@ -136,10 +160,17 @@ function Set-TypeSource {
                 "must not report a pass it did not verify.")
         }
 
+        $script:VerifiedWrites++
+
         if ($count -ne 1) {
+            # Kind is what L1.8 filters on. The message wording mirrors the block route's warning
+            # only so an operator reads the same sentence on both routes — rewording it must not be
+            # able to disarm the check, which is why the structural field exists.
             $script:Warnings += [pscustomobject]@{
+                Kind    = 'StrayWrite'
                 Method  = 'update_type_content'
                 Target  = $TypePath
+                Format  = $Format
                 Message = ("TIA Portal generated $count objects from the submitted source; " +
                     "expected 1. Inspect '$TypePath' and its PLC for objects this write was not " +
                     "addressed to.")
@@ -240,11 +271,22 @@ Assert-Check 'L1.6' 'format=xml round-trips' {
 
 # --- L1.7 restore and compile ------------------------------------------------------
 Assert-Check 'L1.7a' 'Original content is restored byte-identically' {
+    # This is the only restore in the run: L1.3 and L1.6 leave their writes in place. If it fails,
+    # the user's real project keeps the mutated type, so both failure paths must say so and say
+    # what to do about it.
     $result = Set-TypeSource -TypePath $NestedTypePath -Content $script:nestedOriginal
-    if (-not $result.success) { throw "restore failed: $($result.error)" }
+    if (-not $result.success) {
+        throw ("Restore of '$NestedTypePath' failed: $($result.error). THE PROJECT IS LEFT " +
+            "MODIFIED — L1.3 and L1.6 wrote to this type and nothing has undone them. Restore " +
+            "'$NestedTypePath' manually in TIA Portal before using this project.")
+    }
 
     $after = Get-TypeSource -TypePath $NestedTypePath
-    if ($after -ne $script:nestedOriginal) { throw 'Restored content differs from the original.' }
+    if ($after -ne $script:nestedOriginal) {
+        throw ("Restored content of '$NestedTypePath' differs from the original. THE PROJECT IS " +
+            "LEFT MODIFIED — restore '$NestedTypePath' manually in TIA Portal before using this " +
+            "project.")
+    }
 }
 
 Assert-Check 'L1.7b' 'Project compiles without errors' {
@@ -269,21 +311,37 @@ Assert-Check 'L1.7b' 'Project compiles without errors' {
 # reported as an error, so without this check they print in yellow and the run still exits 0 — a
 # green line that would then be quoted as proof the route is sound.
 #
-#   * "generated N objects; expected 1" — lifted from update_type_content's payload by
-#     Set-TypeSource. A count other than 1 is the only cheap signal that the write landed on a
-#     software scope it was not pointed at. Nothing else sees it: the type still compiles and
-#     still re-exports, and postcondition verification re-resolves through the original path and
-#     finds the original unchanged. This is the exact bug class the type route shipped.
+#   * Kind 'StrayWrite' — lifted from update_type_content's payload by Set-TypeSource. A count
+#     other than 1 is the only cheap signal that the write landed on a software scope it was not
+#     pointed at. Nothing else sees it: the type still compiles and still re-exports, and
+#     postcondition verification re-resolves through the original path and finds the original
+#     unchanged. This is the exact bug class the type route shipped.
 #   * "temporary external source node could not be removed" — a visible, persistent addition to
 #     the user's project that browse_project_tree structurally cannot see (see L1.4).
+#
+# The stray-write branch filters on the structural Kind, not on the message text. Both ends of
+# that record live in THIS file, so a regex would couple the detector to prose this same script
+# owns: rewording Set-TypeSource's message to "generated 3 object(s)" would silently turn this
+# branch into a check that cannot fail. The regex is retained as a second path so a genuine worker
+# warning carrying that wording is still caught.
 Assert-Check 'L1.8' 'No worker warning reports an unrequested change to the project' {
-    $strayWrites = @($script:Warnings | Where-Object { $_.Message -match 'generated \d+ objects' })
+    # An empty warning list is only meaningful if a write actually got far enough to be measured.
+    # Without this, a run where L1.1b failed and every later write errored would print a green
+    # L1.8 having swept nothing.
+    if ($script:VerifiedWrites -eq 0) {
+        throw ('No update_type_content call succeeded with a readable object count, so the ' +
+            'stray-write signal was never sampled and this check swept nothing. Fix the failures ' +
+            'above and re-run; do not read this as evidence the route is sound.')
+    }
+
+    $strayWrites = @($script:Warnings | Where-Object {
+        $_.Kind -eq 'StrayWrite' -or $_.Message -match 'generated \d+ objects'
+    })
     $residual = @($script:Warnings | Where-Object { $_.Message -match 'temporary external source node' })
 
     $problems = @()
     foreach ($entry in @($strayWrites) + @($residual)) {
-        $target = if ($entry.Target) { " on '$($entry.Target)'" } else { '' }
-        $problems += "[$($entry.Method)$target] $($entry.Message)"
+        $problems += "[$(Format-WarningOrigin $entry)] $($entry.Message)"
     }
 
     if ($problems.Count -gt 0) {
@@ -298,13 +356,15 @@ Write-Host ''
 if ($script:Warnings.Count -gt 0) {
     Write-Host "$($script:Warnings.Count) warning(s) were reported during the run:" -ForegroundColor Yellow
     foreach ($entry in $script:Warnings) {
-        $target = if ($entry.Target) { " on '$($entry.Target)'" } else { '' }
-        Write-Host "  - [$($entry.Method)$target] $($entry.Message)" -ForegroundColor Yellow
+        Write-Host "  - [$(Format-WarningOrigin $entry)] $($entry.Message)" -ForegroundColor Yellow
     }
     Write-Host '  A "generated N objects; expected 1" warning during a single-type round trip' -ForegroundColor Yellow
     Write-Host '  means the write touched something it was not addressed to. L1.8 fails the run on' -ForegroundColor Yellow
     Write-Host '  that warning and on a residual external source node; any other warning here is' -ForegroundColor Yellow
     Write-Host '  informational, but read it before treating this run as a pass.' -ForegroundColor Yellow
+    Write-Host '  "(derived from payload)" marks a record this script synthesized from the write''s' -ForegroundColor Yellow
+    Write-Host '  own result rather than something the worker warned about; "[format=...]" names' -ForegroundColor Yellow
+    Write-Host '  which write produced it, since the source and xml writes share a target type.' -ForegroundColor Yellow
     Write-Host ''
 }
 
