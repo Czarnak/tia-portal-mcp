@@ -166,24 +166,32 @@ function Set-BlockSource {
     return $response
 }
 
+# TWIN: the helper below is duplicated byte-for-byte in scripts/live-test-udt.ps1. The two
+# harnesses share no module, so the copies are kept identical on purpose — any difference between
+# them is a divergence, not a customization. Edit both or neither.
 <#
-Picks an integer initial value in $Source that L2.2c can mutate without leaving its declared type's
-range, and returns @{ Original; Mutant } — or $null when the fixture offers none.
+Picks an integer initial value in $Source that the caller's mutation check can safely rewrite, and
+returns @{ Original; Mutant } — or $null when the fixture offers none.
 
 Mutating DOWNWARD is what makes this safe. The pattern only matches a non-negative literal, so
-value-1 is never below 0 as long as value is at least 1, and every integer type a DB member can
-declare — SInt through ULInt, signed or unsigned — accepts every value from 0 upward. Mutating UP
-would be rejected by TIA for any member sitting at its type's maximum (:= 127 on an SInt, := 255 on
-a Byte, := 65535 on a Word), and that rejection would surface as "update_block_logic failed",
-blaming the round trip for what is really a fixture the check chose badly.
+value-1 is never below 0 as long as value is at least 1, and every integer type in play — SInt
+through ULInt, signed or unsigned — accepts every value from 0 upward. Mutating UP would be
+rejected by TIA for any member sitting at its type's maximum (:= 127 on an SInt, := 255 on a Byte,
+:= 65535 on a Word), and that rejection would surface as a failed write, blaming the round trip for
+what is really a fixture the check chose badly.
 
-A candidate whose predecessor already appears in the source is rejected too: L2.2c proves the write
-landed by finding the mutant on re-export, and it could not tell a real write from a no-op if the
-mutant token were in the document to begin with.
+The (?![#.\w]) guard is what keeps a hex or real literal out of the candidate set. Without it '16'
+is picked out of '16#0F' and '1' out of '1.5', and the rewrite then either corrupts the document or
+matches nothing at all — and a check that submitted the unmodified original reports the resulting
+"value is absent after re-export" as a round-trip failure.
+
+A candidate whose predecessor already appears in the source is rejected too: the caller proves the
+write landed by finding the mutant on re-export, and it could not tell a real write from a no-op if
+the mutant token were in the document to begin with.
 
 The first pass prefers an ordinary small member (2..127 — in range for every integer type, and
 unambiguously not a Bool written as 0 or 1) before the second pass falls back to any usable value.
-BigInteger, not [int], because a ULInt initial value can exceed Int32 and even Int64.
+BigInteger, not [int], because an initial value can exceed Int32 and even Int64.
 #>
 function Select-MutableInitialValue {
     param([string] $Source)

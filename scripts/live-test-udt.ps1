@@ -181,6 +181,57 @@ function Set-TypeSource {
     return $response
 }
 
+# TWIN: the helper below is duplicated byte-for-byte in scripts/live-test-db.ps1. The two
+# harnesses share no module, so the copies are kept identical on purpose — any difference between
+# them is a divergence, not a customization. Edit both or neither.
+<#
+Picks an integer initial value in $Source that the caller's mutation check can safely rewrite, and
+returns @{ Original; Mutant } — or $null when the fixture offers none.
+
+Mutating DOWNWARD is what makes this safe. The pattern only matches a non-negative literal, so
+value-1 is never below 0 as long as value is at least 1, and every integer type in play — SInt
+through ULInt, signed or unsigned — accepts every value from 0 upward. Mutating UP would be
+rejected by TIA for any member sitting at its type's maximum (:= 127 on an SInt, := 255 on a Byte,
+:= 65535 on a Word), and that rejection would surface as a failed write, blaming the round trip for
+what is really a fixture the check chose badly.
+
+The (?![#.\w]) guard is what keeps a hex or real literal out of the candidate set. Without it '16'
+is picked out of '16#0F' and '1' out of '1.5', and the rewrite then either corrupts the document or
+matches nothing at all — and a check that submitted the unmodified original reports the resulting
+"value is absent after re-export" as a round-trip failure.
+
+A candidate whose predecessor already appears in the source is rejected too: the caller proves the
+write landed by finding the mutant on re-export, and it could not tell a real write from a no-op if
+the mutant token were in the document to begin with.
+
+The first pass prefers an ordinary small member (2..127 — in range for every integer type, and
+unambiguously not a Bool written as 0 or 1) before the second pass falls back to any usable value.
+BigInteger, not [int], because an initial value can exceed Int32 and even Int64.
+#>
+function Select-MutableInitialValue {
+    param([string] $Source)
+
+    $candidates = @([regex]::Matches($Source, ':=\s*(\d+)(?![#.\w])') |
+        ForEach-Object { $_.Groups[1].Value } |
+        Select-Object -Unique)
+    if ($candidates.Count -eq 0) { return $null }
+
+    foreach ($preferSmall in @($true, $false)) {
+        foreach ($text in $candidates) {
+            $value = [bigint]::Parse($text)
+            if ($value -lt [bigint]1) { continue }
+            if ($preferSmall -and ($value -lt [bigint]2 -or $value -gt [bigint]127)) { continue }
+
+            $mutant = ($value - [bigint]1).ToString()
+            if ($Source -match ":=\s*$mutant(?![#.\w])") { continue }
+
+            return @{ Original = $text; Mutant = $mutant }
+        }
+    }
+
+    return $null
+}
+
 # --- L1.1 both group kinds export -------------------------------------------------
 $rootOriginal = $null
 $nestedOriginal = $null
@@ -205,20 +256,52 @@ Assert-Check 'L1.2' 'Unchanged round trip re-exports byte-identically' {
 
 # --- L1.3 a real edit applies ------------------------------------------------------
 Assert-Check 'L1.3' 'A modified initial value survives the round trip' {
-    if ($script:nestedOriginal -notmatch ':=\s*(\d+)') {
-        throw 'Fixture type has no numeric initial value to mutate. Pick a different NestedTypePath.'
+    if (-not $script:nestedOriginal) { throw 'No original source was captured in L1.1b.' }
+
+    # Which value is mutated, and in which direction, is Select-MutableInitialValue's job — see the
+    # comment there for why it always mutates downward and why hex and real literals are excluded.
+    #
+    # Both misses below are FIXTURE limitations, not round-trip failures. They say so, and they name
+    # the parameter to repoint, so neither can be read as a verdict on the source route.
+    $choice = Select-MutableInitialValue -Source $script:nestedOriginal
+    if (-not $choice) {
+        if ($script:nestedOriginal -notmatch ':=\s*(\d+)(?![#.\w])') {
+            throw ('Fixture type has no plain integer initial value to mutate — only hex, real or ' +
+                'non-numeric literals. This is a FIXTURE limitation, not a round-trip failure: ' +
+                'point -NestedTypePath at a UDT with an ordinary integer member.')
+        }
+        throw ('No integer initial value in this type can be mutated safely — every candidate is ' +
+            'either 0 or already has its predecessor present in the source, which would make the ' +
+            're-export assertion unable to tell a real write from a no-op. This is a FIXTURE ' +
+            'limitation, not a round-trip failure: point -NestedTypePath at a UDT with an ' +
+            'ordinary integer member (an Int somewhere in 2..127 is ideal).')
     }
-    $original = $Matches[1]
-    $mutant = [int]$original + 1
-    # (?![#.\w]) rather than \b: \b matches between the '6' and the '#' of a hex literal, so
-    # ':= 16#0F' would be rewritten to ':= 17#0F' and this check would submit a corrupt document.
+
+    $original = $choice.Original
+    $mutant = $choice.Mutant
+
+    # -replace is GLOBAL: every member sharing this initial value is rewritten, not just the first
+    # one found. That is deliberate and harmless — L1.7a restores the whole type from
+    # $script:nestedOriginal — and Select-MutableInitialValue already proved the mutant token is
+    # absent from the source, so finding it below still distinguishes a real write from a no-op.
     $edited = $script:nestedOriginal -replace ":=\s*$original(?![#.\w])", ":= $mutant"
+    if ($edited -eq $script:nestedOriginal) {
+        throw ("Rewriting ':= $original' to ':= $mutant' changed nothing, so this check would " +
+            'submit the unmodified original and prove nothing about the write.')
+    }
 
     $result = Set-TypeSource -TypePath $NestedTypePath -Content $edited
-    if (-not $result.success) { throw "update_type_content failed: $($result.error)" }
+    if (-not $result.success) {
+        throw ("update_type_content failed: $($result.error). The submitted edit only LOWERED " +
+            "':= $original' to ':= $mutant', which is in range for every integer type a member " +
+            'can declare, so a rejection here points at the round trip rather than at the value.')
+    }
 
     $after = Get-TypeSource -TypePath $NestedTypePath
-    if ($after -notmatch ":=\s*$mutant\b") { throw "Edited value $mutant is absent after re-export." }
+    if ($after -notmatch ":=\s*$mutant(?![#.\w])") {
+        throw ("Edited value $mutant is absent after re-export — the write reported success but " +
+            'did not change the type.')
+    }
 }
 
 # --- L1.4 no residual external source node ----------------------------------------
@@ -381,4 +464,7 @@ Write-Host ''
 Write-Host 'L1.1 and L1.8 are blocking. If either failed, do not start Phase 2.' -ForegroundColor Yellow
 Write-Host 'L1.8 is the check that can actually observe a stray write or a residual external' -ForegroundColor Yellow
 Write-Host 'source node; L1.4 tree scan alone proves neither (see the comment above it).' -ForegroundColor Yellow
+Write-Host 'L1.3 can also fail because the FIXTURE has no integer member it can safely mutate.' -ForegroundColor Yellow
+Write-Host 'If its message names -NestedTypePath, repoint the fixture and re-run: that is not a' -ForegroundColor Yellow
+Write-Host 'code defect and says nothing about the round trip.' -ForegroundColor Yellow
 exit 1
