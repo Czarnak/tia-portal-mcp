@@ -124,4 +124,7 @@ public sealed class BatchOperationRequest
 
     [Description("Document format. Valid values: source, xml. get_type_content and update_type_content default to source (.udt). get_block_content and update_block_logic default to xml and honor source for GlobalDB only.")]
     public string? Format { get; set; }
+
+    [Description("Include the object's dependency closure in the exported source. Optional for get_block_content and get_type_content, and only meaningful when format is source. Defaults to false, which returns exactly one object. A document read with true declares several objects and is context only: a write refuses it.")]
+    public bool? WithDependencies { get; set; }
 }

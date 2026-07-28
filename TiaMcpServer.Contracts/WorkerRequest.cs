@@ -75,6 +75,13 @@ public class WorkerRequest
     /// </summary>
     public string? Format { get; set; }
 
+    /// <summary>
+    /// Forwarded by: get_block_content, get_type_content. Selects GenerateOptions.WithDependencies
+    /// over GenerateOptions.None on the export. Never forwarded by a write: the safety token binds
+    /// to the single-object form of the object being written.
+    /// </summary>
+    public bool? WithDependencies { get; set; }
+
     #endregion
 
     #region PLC scoping, tag tables, tags, and user constants
