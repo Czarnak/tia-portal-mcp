@@ -46,7 +46,8 @@ internal static class PlcTypeImporter
         var targetName = target.Type.Name;
 
         // 3. Refuse if the submitted document declares a different object.
-        if (!PlcTypeSourcePreflight.TryReadDeclaredName(sourceContent, format, out var declaredName, out var preflightError))
+        if (!PlcTypeSourcePreflight.TryReadDeclaredName(
+                sourceContent, format, SourceObjectKind.Type, out var declaredName, out var preflightError))
         {
             throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError,
