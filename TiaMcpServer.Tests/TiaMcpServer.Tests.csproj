@@ -131,6 +131,8 @@
       Link="Linked\Openness\SourceDeclarationScanner.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceFormatEligibility.cs"
       Link="Linked\Openness\SourceFormatEligibility.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceReadWarnings.cs"
+      Link="Linked\Openness\SourceReadWarnings.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportRouting.cs"
       Link="Linked\Openness\BlockImportRouting.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceWriteWarnings.cs"
