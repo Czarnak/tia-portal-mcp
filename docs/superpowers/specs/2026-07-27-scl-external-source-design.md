@@ -72,16 +72,20 @@ equivalent switch: it creates whatever the file declares. The file is in charge 
 
 That asymmetry is why write strictness and read multiplicity have to be decided together.
 
-### The 2-arg `GenerateSource` default is unknown, and it is already shipped
+### The 2-arg `GenerateSource` default is `None` — measured, not assumed
 
 `BlockExporter.ExportSource` and `PlcTypeExporter` both call the two-argument overload and never
 pass `GenerateOptions`. Siemens documents the enum but not the default.
 
-If the default is `WithDependencies`, today's DB export can already emit a multi-object file — and
-`PlcTypeSourcePreflight` matches the **first** `TYPE|DATA_BLOCK` in the text, so it would read a
-dependency's name, compare it against the target, and refuse the write. That fails safe rather than
-corrupting, but it means a global DB whose members use UDTs may not round-trip today. Phase 3
-settles it by passing the option explicitly on every export path.
+The Task 1 spike settled it: **the default is `None`.** Against a real V21 FB with UDT- and
+DB-typed dependencies, the two-argument export is byte-identical to an explicit
+`GenerateOptions.None` export (1 declared object) and differs from `WithDependencies` (4 declared
+objects). See the spike findings under "Live-test gates" below.
+
+That closes the risk this section was written to flag: shipped Phase 1/2 exports have **not** been
+silently emitting dependency closures, so no already-released behavior needs correcting. Phase 3
+still passes the option explicitly on every export path — not to fix a defect, but so the value
+stops being an undocumented default that a future Openness release could change underneath us.
 
 ### `StateMachine.scl` is not Siemens output
 
@@ -240,6 +244,44 @@ Open questions the spike must answer:
 
 The spike is thrown away. Its findings are recorded in the implementation plan and this spec before
 any production code is written.
+
+#### Spike findings (2026-07-27)
+
+Measured against TIA Portal V21 (Openness `21.0.0.0`), project `SimpleProject.ap21`, using
+`PLC_1/Blocks/999_MISC/DamperAnalog` (SCL FB with UDT-typed and DB dependencies) and
+`PLC_1/Units/Test_SU/Blocks/HartCommandsRdWrInRun` (SCL FB inside a software unit).
+
+| | Question | Answer |
+| --- | --- | --- |
+| A | Instance DBs survive an interface-changing update? | **Yes.** Adding a static `VAR` member and regenerating left `DamperAnalog_DB` in place; the PLC compiled with 0 errors and 0 warnings. |
+| B | Block number / auto-number / header / know-how preserved? | **Yes — all six.** `Number` (9002), `AutoNumber` (False), `HeaderAuthor`, `HeaderFamily`, `HeaderVersion` (0.1) and `IsKnowHowProtected` (False) were all unchanged across the update. |
+| C | 2-arg `GenerateSource` default | **`None`.** The 2-arg export is byte-identical to explicit `GenerateOptions.None` (1 declared object) and differs from `WithDependencies` (4: `TYPE AnalogInputSettings`, `TYPE UDT_Settings`, `DATA_BLOCK HMI_Settings_DB`, `FUNCTION_BLOCK DamperAnalog`). Shipped Phase 1/2 exports have therefore never emitted dependency closures. |
+| D | `generated.Count` for a single-object `.scl` | **1.** `BlockSourceWriteWarnings` needs no change. |
+| E | Re-export byte-identical | **Yes, both ways.** The unmodified round trip re-exports byte-identically, and after a one-line `VAR` addition the re-export equals the submitted text exactly. |
+| F | Software-unit scope resolves | **Yes.** The unit-scoped block resolved through the unit's own `ExternalSourceGroup`; `GenerateBlocksFromSource` returned 1 on both the unmodified and the edited import, the PLC compiled clean, and **zero** blocks were added to the top-level PLC root. |
+| G | What an FB export emits | `VERSION : 0.1`; a block attribute line `{ S7_Optimized_Access := 'TRUE' }`; per-member inline attribute blocks `{ ExternalAccessible := 'False'; ... }`; `REGION` markers; and a nested anonymous `Settings : Struct ... END_STRUCT;` inside `VAR_IN_OUT`. No `//` or `(* *)` comments and no `TITLE =` in this sample. |
+
+Two API facts the spike confirmed by reflection, which Tasks 7 and 8 depend on:
+`GenerateSource(IEnumerable<IGenerateSource>, FileInfo, GenerateOptions)` exists, and `PlcBlock`
+implements `IGenerateSource` directly — no cast or wrapper is needed. Note also that the
+parameterless `GenerateBlocksFromSource()` returns `void` and so cannot report a generated count;
+only the `GenerateBlockOption` overloads can.
+
+**Two traps that produced false readings before the numbers above were trusted.** Both will bite
+`scripts/live-test-scl.ps1` in Task 9 the same way:
+
+- `GenerateBlocksFromSource` **destroys and recreates the block**, so any handle captured before an
+  import reads `$null` for every property afterwards. Snapshotting attributes through a stale handle
+  produces a convincing but entirely false "TIA reset every attribute" result for question B. Always
+  re-resolve the block after an import before comparing.
+- TIA **auto-renames a colliding member** to `<name>_1`. A fixed probe-member name collides with
+  whatever a previous run left in the block, and the rename then shows up as a byte-difference that
+  reads as a round-trip fidelity failure for question E. Use a per-run unique name, and measure the
+  unmodified round trip as well as the edited one — the edited comparison is uninterpretable until
+  the unmodified one is known clean.
+
+`G` describes a single FB. It is evidence that the scanner must tolerate `VERSION`, attribute
+blocks, `REGION` and nested anonymous `STRUCT`s; it is not evidence that comments never appear.
 
 ### `scripts/live-test-scl.ps1` — gates Phase 3 completion
 
