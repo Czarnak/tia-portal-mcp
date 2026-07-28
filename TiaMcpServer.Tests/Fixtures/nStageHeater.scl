@@ -1,0 +1,153 @@
+﻿FUNCTION_BLOCK "nStageHeater"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      I_Start { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      I_Service { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      I_SP { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      I_PV { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      I_HysteresisArray { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1.."heaterStages"] of Struct
+         ON { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+         OFF { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      END_STRUCT;
+      I_AlarmsArray { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1.."heaterStages"] of Bool;
+   END_VAR
+
+   VAR_OUTPUT 
+      OutArray { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1.."heaterStages"] of Bool;
+   END_VAR
+
+   VAR_IN_OUT 
+      Manual : Array[1.."heaterStages"] of Bool;
+      WorkCounters : Array[1.."heaterStages"] of "UDT_WORK_CNT";
+   END_VAR
+
+   VAR 
+      statON { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1.."heaterStages"] of Bool;
+      statWorkCNT { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : Array[1.."heaterStages"] of "TIME_COUNTER_FB";
+      statUsage { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1.."heaterStages"] of UInt;
+      StageDelayTimer {InstructionName := 'IEC_TIMER'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : Array[2..3] of IEC_TIMER;
+   END_VAR
+
+   VAR_TEMP 
+      i : UInt;
+      j : UInt;
+      tempHysON : Real;
+      tempHysOFF : Real;
+      tempON : Bool;
+      tempOFF : Bool;
+      tempSort : UInt;
+      tempCount : UInt;
+   END_VAR
+
+
+BEGIN
+	REGION Initialisation
+	    
+	    IF "FirstScan" THEN
+	        FOR #i := 1 TO "heaterStages" DO
+	            #statON[#i] := FALSE;
+	        END_FOR;
+	    END_IF;
+	    
+	    FOR #i := 2 TO "heaterStages" DO
+	        #StageDelayTimer[#i].TON(IN := #statON[#i-1],
+	                                 PT := T#5s);
+	    END_FOR;
+	END_REGION ;
+	
+	REGION Usage
+	    IF NOT #I_Start THEN
+	        FOR #i := 1 TO "heaterStages" DO
+	            #statUsage[#i] := #i;
+	        END_FOR;
+	        
+	        FOR #i := 1 TO "heaterStages" DO
+	            FOR #j := 1 TO "heaterStages" - #i DO
+	                IF #WorkCounters[#statUsage[#j]].H > #WorkCounters[#statUsage[#j + 1]].H THEN
+	                    #tempSort := #statUsage[#j];
+	                    #statUsage[#j] := #statUsage[#j + 1];
+	                    #statUsage[#j + 1] := #tempSort;
+	                END_IF;
+	            END_FOR;
+	        END_FOR;
+	    END_IF;
+	END_REGION ;
+	
+	                
+	        
+	
+	REGION HeatersLogic
+	    
+	    #tempCount := 0;
+	    
+	    FOR #i := 1 TO "heaterStages" DO
+	        
+	        #OutArray[#i] := FALSE;
+	        
+	        REGION HysteresisCalculation
+	            
+	            #tempHysON := #I_SP + #I_HysteresisArray[#i].ON;
+	            #tempHysOFF := #I_SP + #I_HysteresisArray[#i].OFF;
+	            
+	        END_REGION ;
+	        
+	        REGION AutoMode
+	            
+	            #tempON := (#tempHysON > #I_PV);
+	            #tempOFF := (#tempHysOFF < #I_PV);
+	            
+	            IF #i = 1 THEN
+	                #statON[#i] := ((#tempON OR #statON[#i]) AND
+	                NOT #tempOFF AND #I_Start);
+	            ELSE
+	                #statON[#i] := ((#tempON OR #statON[#i]) AND
+	                NOT #tempOFF AND #I_Start AND #StageDelayTimer[#i].Q);
+	            END_IF;
+	            
+	            IF #statON[#i] THEN
+	                #tempCount += 1;
+	            END_IF;
+	            
+	        END_REGION ;
+	        
+	        REGION ManualMode
+	            
+	            #Manual[#i] := (#I_Service AND #Manual[#i] AND NOT #I_AlarmsArray[#i]);
+	            
+	        END_REGION
+	        
+	        
+	    END_FOR;
+	    
+	END_REGION ;
+	
+	REGION Output
+	    #i := 1;
+	    #j := 1;
+	    
+	    
+	    FOR #i := 1 TO "heaterStages" DO
+	        
+	        IF #I_Start AND NOT #I_AlarmsArray[#statUsage[#i]] THEN
+	            #OutArray[#statUsage[#i]] := (#j <= #tempCount);
+	            #j += 1;
+	        ELSIF #I_Service THEN
+	            #OutArray[#i] := #Manual[#i];
+	        END_IF;
+	        
+	    END_FOR;
+	    
+	END_REGION
+	
+	REGION WorkCounting
+	    FOR #i := 1 TO "heaterStages" DO
+	        #statWorkCNT[#i](FI_START_COUNTING := #OutArray[#i],
+	                         FIQ_TIMER := #WorkCounters[#i]);
+	    END_FOR;
+	END_REGION
+	
+	
+	
+END_FUNCTION_BLOCK
+
