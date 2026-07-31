@@ -19,7 +19,7 @@ public class BatchOperationCatalogTests
     {
         var operations = new List<BatchOperationRequest>
         {
-            Op("a", "browse_project_tree"),
+            Op("a", "read_hardware_config"),
             Op("b", "get_block_content", r => r.BlockPath = "PLC_1/Main"),
             Op("c", "search_equipment_catalog", r => r.Query = "CPU"),
         };
@@ -52,7 +52,7 @@ public class BatchOperationCatalogTests
         var operations = new List<BatchOperationRequest>();
         for (var i = 0; i < BatchOperationCatalog.MaxBatchSize + 1; i++)
         {
-            operations.Add(Op($"id{i}", "browse_project_tree"));
+            operations.Add(Op($"id{i}", "read_hardware_config"));
         }
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
@@ -85,7 +85,7 @@ public class BatchOperationCatalogTests
     public void ValidateReadBatch_RejectsDuplicateOperationId()
     {
         var result = BatchOperationCatalog.ValidateReadBatch(
-            new[] { Op("dup", "browse_project_tree"), Op("dup", "read_hardware_config") });
+            new[] { Op("dup", "read_hardware_config"), Op("dup", "list_tag_tables") });
 
         Assert.False(result.IsValid);
         Assert.Contains("dup", result.Error);
@@ -94,7 +94,7 @@ public class BatchOperationCatalogTests
     [Fact]
     public void ValidateReadBatch_RejectsMissingOperationId()
     {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("", "browse_project_tree") });
+        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("", "read_hardware_config") });
 
         Assert.False(result.IsValid);
         Assert.Contains("operationId", result.Error);
@@ -220,8 +220,10 @@ public class BatchOperationCatalogTests
 
         Assert.False(result.IsValid);
         Assert.Contains("Valid read operations", result.Error);
-        Assert.Contains("browse_project_tree", result.Error);
-        Assert.Contains("get_block_content", result.Error);
+        Assert.Contains("get_type_content", result.Error);
+        Assert.DoesNotContain("get_project_status", result.Error);
+        Assert.DoesNotContain("browse_project_tree", result.Error);
+        Assert.DoesNotContain("compile_check", result.Error);
     }
 
     [Fact]
@@ -254,35 +256,17 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void Validate_RejectsDepthAndStartPathOnNonTreeOperations()
-    {
-        var operations = new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "list_tag_tables", Depth = 2 },
-            new BatchOperationRequest { OperationId = "b", Operation = "get_project_status", StartPath = "PLC_1" },
-        };
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
-
-        Assert.False(result.IsValid);
-        Assert.Contains("'depth' is not valid for list_tag_tables", result.Error);
-        Assert.Contains("'startPath' is not valid for get_project_status", result.Error);
-        Assert.Contains("operationId 'a'", result.Error);
-        Assert.Contains("operationId 'b'", result.Error);
-    }
-
-    [Fact]
     public void Validate_RejectsMaxResultsOnUnsupportedOperations()
     {
         var operations = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", MaxResults = 10 },
+            new BatchOperationRequest { OperationId = "a", Operation = "list_tag_tables", MaxResults = 10 },
         };
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
 
         Assert.False(result.IsValid);
-        Assert.Contains("'maxResults' is not valid for browse_project_tree", result.Error);
+        Assert.Contains("'maxResults' is not valid for list_tag_tables", result.Error);
     }
 
     [Fact]
@@ -290,14 +274,12 @@ public class BatchOperationCatalogTests
     {
         var operations = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", Depth = 0 },
-            new BatchOperationRequest { OperationId = "b", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 0 },
+            new BatchOperationRequest { OperationId = "a", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 0 },
         };
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
 
         Assert.False(result.IsValid);
-        Assert.Contains("'depth' must be 1 or greater", result.Error);
         Assert.Contains("'maxResults' must be 1 or greater", result.Error);
     }
 
@@ -306,9 +288,8 @@ public class BatchOperationCatalogTests
     {
         var operations = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", Depth = 2, StartPath = "PLC_1/Blocks" },
-            new BatchOperationRequest { OperationId = "b", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 10 },
-            new BatchOperationRequest { OperationId = "c", Operation = "read_cross_references", MaxResults = 100 },
+            new BatchOperationRequest { OperationId = "a", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 10 },
+            new BatchOperationRequest { OperationId = "b", Operation = "read_cross_references", MaxResults = 100 },
         };
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
@@ -319,8 +300,8 @@ public class BatchOperationCatalogTests
     [Fact]
     public void All_ExposesEverySpec()
     {
-        // 9 reads + 18 writes.
-        Assert.Equal(27, BatchOperationCatalog.All.Count);
+        // 6 reads + 18 writes.
+        Assert.Equal(24, BatchOperationCatalog.All.Count);
     }
 
     [Fact]
@@ -329,14 +310,11 @@ public class BatchOperationCatalogTests
         var none = Array.Empty<string>();
         var expected = new Dictionary<string, (BatchOperationCategory Category, IReadOnlyList<string> Required, IReadOnlyList<string> Optional)>
         {
-            ["browse_project_tree"] = (BatchOperationCategory.Read, none, new[] { "depth", "startPath" }),
             ["read_hardware_config"] = (BatchOperationCategory.Read, none, none),
             ["search_equipment_catalog"] = (BatchOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             ["read_cross_references"] = (BatchOperationCategory.Read, none, new[] { "plcName", "filter", "maxResults" }),
             ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format" }),
             ["list_tag_tables"] = (BatchOperationCategory.Read, none, new[] { "plcName" }),
-            ["compile_check"] = (BatchOperationCategory.Read, none, new[] { "blockPath", "plcName" }),
-            ["get_project_status"] = (BatchOperationCategory.Read, none, none),
             ["get_type_content"] = (BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format" }),
             ["update_block_logic"] = (BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, new[] { "format" }),
             ["create_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
@@ -521,36 +499,12 @@ public class BatchOperationCatalogTests
             new BatchOperationRequest
             {
                 OperationId = "a",
-                Operation = "get_project_status",
+                Operation = "read_hardware_config",
                 ProjectPath = "C:\\p.ap21"
             }
         });
 
         Assert.True(result.IsValid);
-    }
-
-    [Fact]
-    public void DepthOnANonTreeOperation_IsStillRejected()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_hardware_config", Depth = 2 }
-        });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("depth", result.Error);
-    }
-
-    [Fact]
-    public void DepthBelowOne_IsStillRejected()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "browse_project_tree", Depth = 0 }
-        });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("1 or greater", result.Error);
     }
 
     [Fact]

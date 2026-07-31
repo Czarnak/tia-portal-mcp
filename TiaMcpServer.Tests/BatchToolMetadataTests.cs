@@ -117,7 +117,7 @@ public class BatchToolMetadataTests
     {
         var description = PropertyDescription(nameof(BatchOperationRequest.PlcName));
         Assert.Contains("list_tag_tables", description);
-        Assert.Contains("compile_check", description);
+        Assert.DoesNotContain("compile_check", description);
     }
 
     [Fact]

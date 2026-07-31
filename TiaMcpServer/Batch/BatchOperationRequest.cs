@@ -26,23 +26,17 @@ public sealed class BatchOperationRequest
     [Description("Optional absolute project path (.ap21). When omitted, the active project is used; all write items in one batch must share the same project path.")]
     public string? ProjectPath { get; set; }
 
-    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, create_block, delete_block, create_block_group, delete_block_group. Optional for compile_check to compile only that block.")]
+    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, create_block, delete_block, create_block_group, and delete_block_group.")]
     public string? BlockPath { get; set; }
 
     [Description("SIMATIC SD document content for the block. Required by update_block_logic.")]
     public string? YamlContent { get; set; }
 
-    [Description("Optional PLC software name to scope the operation. Honored by list_tag_tables, read_cross_references, compile_check, start_plc, stop_plc, and the tag, tag-table, and user-constant operations.")]
+    [Description("Optional PLC software name to scope the operation. Honored by list_tag_tables, read_cross_references, start_plc, stop_plc, and the tag, tag-table, and user-constant operations.")]
     public string? PlcName { get; set; }
 
     [Description("Hardware catalog search query. Required by search_equipment_catalog.")]
     public string? Query { get; set; }
-
-    [Description("Optional maximum tree depth for browse_project_tree; 1 returns only top-level nodes and marks pruned nodes with a ChildrenOmitted count. Combine with startPath to narrow large projects.")]
-    public int? Depth { get; set; }
-
-    [Description("Optional subtree root for browse_project_tree, matching a node's Path detail exactly (case-insensitive), e.g. PLC_1/Blocks. Errors if no node matches.")]
-    public string? StartPath { get; set; }
 
     [Description("Optional result cap. Valid for search_equipment_catalog (default 50 when omitted) and read_cross_references (unlimited when omitted; a truncation message is added when the cap is hit).")]
     public int? MaxResults { get; set; }

@@ -467,7 +467,7 @@ public class ReadOnlyModeTests
         var ops = new[]
         {
             new BatchOperationRequest { OperationId = "a", Operation = "update_block_logic", BlockPath = "Main", YamlContent = "x" },
-            new BatchOperationRequest { OperationId = "b", Operation = "compile_check" },
+            new BatchOperationRequest { OperationId = "b", Operation = "read_hardware_config" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadWrite);
         Assert.Empty(errors);
@@ -487,25 +487,12 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void ValidateAccessMode_ReadOnly_DeniesCompileCheck()
-    {
-        var ops = new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "compile_check" },
-        };
-        var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadOnly);
-        Assert.Single(errors);
-        Assert.Contains("compile_check", errors[0]);
-    }
-
-    [Fact]
     public void ValidateAccessMode_ReadOnly_AllowsReadOperations()
     {
         var ops = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "get_project_status" },
-            new BatchOperationRequest { OperationId = "b", Operation = "browse_project_tree" },
-            new BatchOperationRequest { OperationId = "c", Operation = "get_block_content", BlockPath = "Main" },
+            new BatchOperationRequest { OperationId = "a", Operation = "read_hardware_config" },
+            new BatchOperationRequest { OperationId = "b", Operation = "get_block_content", BlockPath = "Main" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadOnly);
         Assert.Empty(errors);
@@ -516,7 +503,7 @@ public class ReadOnlyModeTests
     {
         var ops = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "get_project_status" },
+            new BatchOperationRequest { OperationId = "a", Operation = "read_hardware_config" },
             new BatchOperationRequest { OperationId = "b", Operation = "update_block_logic", BlockPath = "Main", YamlContent = "x" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadOnly);
@@ -554,10 +541,17 @@ public class ReadOnlyModeTests
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
             .Where(attribute => attribute is not null)
             .Select(attribute => attribute!.Name)
+            .OrderBy(name => name)
             .ToArray();
 
-        Assert.Equal(12, toolNames.Length);
-        Assert.Equal(12, toolNames.Distinct().Count());
+        Assert.Equal(
+            new[]
+            {
+                "apply_write_batch", "archive_project", "browse_project_tree", "close_project",
+                "compile_check", "create_project", "execute_read_batch", "get_project_status",
+                "open_project", "preview_write_batch", "save_project", "save_project_as"
+            },
+            toolNames);
     }
 
     [Fact]

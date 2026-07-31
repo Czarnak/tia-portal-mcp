@@ -8,7 +8,7 @@
 | `execute_read_batch` | `search_equipment_catalog` | Requires `query`; accepts bounded `maxResults`; returns catalog type identifiers for candidate devices. |
 | `preview_write_batch` → `apply_write_batch` | `add_network_device` | Requires an exact catalog `typeIdentifier` and `deviceName`; accepts optional `deviceItemName`. |
 | `preview_write_batch` → `apply_write_batch` | `configure_network_device` | Requires `deviceName`; accepts `ipAddress`, `subnetMask`, `pnDeviceName`, `subnetName`, and `ioSystemName`. |
-| `execute_read_batch` | `browse_project_tree` | Locates devices and other project objects; accepts optional `depth` and `startPath`. |
+| `browse_project_tree` | `browse_project_tree` | Locates devices and other project objects; accepts optional `projectPath`, `depth`, and `startPath`. |
 
 `add_network_device` and `configure_network_device` are data writes. Preview the complete ordered sequence and apply it with the returned token. The catalog identifier and device name are validated before the worker performs the change.
 

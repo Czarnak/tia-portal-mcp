@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using ModelContextProtocol.Server;
+using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -23,6 +24,12 @@ public class ProjectStandaloneToolTests
         Assert.False(string.IsNullOrWhiteSpace(payload));
         using var request = JsonDocument.Parse(payload!);
         return request.RootElement.Clone();
+    }
+
+    private static string PayloadFromEnvelope(string response)
+    {
+        using var envelope = JsonDocument.Parse(response);
+        return envelope.RootElement.GetProperty("payload").GetString()!;
     }
 
     [Fact]
@@ -76,6 +83,22 @@ public class ProjectStandaloneToolTests
     }
 
     [Fact]
+    public async Task BrowseProjectTree_OversizedSuccess_IsCappedAtMaxItemChars()
+    {
+        using var client = CreateClient(FakeWorkerLocator.Locate());
+
+        var response = await ProjectReadTools.BrowseProjectTree(
+            client,
+            projectPath: "echo",
+            startPath: new string('x', BatchPayloadBudget.MaxItemChars + 100));
+        var payload = PayloadFromEnvelope(response);
+
+        Assert.Equal(BatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Contains("[TRUNCATED", payload);
+        Assert.Contains("depth or a more specific startPath", payload);
+    }
+
+    [Fact]
     public void CompileCheck_HasEngineeringMcpMetadata()
     {
         var method = typeof(ProjectEngineeringTools).GetMethod(
@@ -107,5 +130,21 @@ public class ProjectStandaloneToolTests
         Assert.Equal("echo", request.GetProperty("projectPath").GetString());
         Assert.Equal("PLC_1", request.GetProperty("plcName").GetString());
         Assert.Equal("PLC_1/Blocks/Main", request.GetProperty("blockPath").GetString());
+    }
+
+    [Fact]
+    public async Task CompileCheck_OversizedSuccess_IsCappedAtMaxItemChars()
+    {
+        using var client = CreateClient(FakeWorkerLocator.Locate());
+
+        var response = await ProjectEngineeringTools.CompileCheck(
+            client,
+            projectPath: "echo",
+            blockPath: new string('x', BatchPayloadBudget.MaxItemChars + 100));
+        var payload = PayloadFromEnvelope(response);
+
+        Assert.Equal(BatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Contains("[TRUNCATED", payload);
+        Assert.Contains("plcName or blockPath", payload);
     }
 }

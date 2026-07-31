@@ -53,7 +53,7 @@ falling back to another mode.
 
 ### Read-write mode
 
-Read-write mode preserves the complete tool surface and the existing
+Read-write mode exposes the complete 12-tool surface and preserves the existing
 preview-then-apply safety-token model.
 
 ### Read-only mode
@@ -75,6 +75,7 @@ Tool registration is explicit and mode-dependent. The host always registers:
 
 It registers the following only in read-write mode:
 
+- `ProjectEngineeringTools`
 - `ProjectWriteTools`
 - `WriteBatchTools`
 
@@ -87,26 +88,23 @@ part of the active tool surface.
 | Tool | Purpose |
 |---|---|
 | `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
+| `browse_project_tree` | Return a bounded project subtree using optional `depth` and `startPath`. |
 | `execute_read_batch` | Execute up to 50 validated observation operations. |
 
 The read batch supports:
 
-- `browse_project_tree`
 - `read_hardware_config`
 - `search_equipment_catalog`
 - `read_cross_references`
 - `get_block_content`
 - `list_tag_tables`
-- `get_project_status`
-
-`compile_check` remains part of the read-batch catalog for read-write mode, but
-it is denied in read-only mode because the Siemens compilation API may modify
-internal project state.
+- `get_type_content`
 
 ### Additional read-write tools
 
 | Tool | Purpose |
 |---|---|
+| `compile_check` | Compile a PLC or selected block and return compiler messages. This engineering tool is read-write-only and does not use a safety token. |
 | `open_project` | Open and bind a project. |
 | `create_project` | Create and bind a project. |
 | `save_project` | Save the active project. |
@@ -199,9 +197,9 @@ remaining items from running.
 Write batches execute sequentially and stop on the first failure. Already
 completed writes are not rolled back.
 
-Access-mode validation runs before a read batch starts. This is why a
-`compile_check` item is rejected as a whole-batch validation error in read-only
-mode rather than being sent to the worker.
+`compile_check` is absent from read-only tool discovery. The underlying access
+policy also rejects internal compile requests in read-only mode before they are
+sent to the worker.
 
 ## 8. Write safety
 

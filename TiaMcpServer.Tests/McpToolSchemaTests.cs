@@ -100,10 +100,17 @@ public class McpToolSchemaTests
             .Select(m => m.GetCustomAttribute<McpServerToolAttribute>())
             .Where(a => a is not null)
             .Select(a => a!.Name)
+            .OrderBy(name => name)
             .ToArray();
-        Assert.Equal(12, toolNames.Length);
-        Assert.Equal(12, toolNames.Distinct().Count());
-        Assert.DoesNotContain("probe_project_status_for_lifecycle", toolNames);
+
+        Assert.Equal(
+            new[]
+            {
+                "apply_write_batch", "archive_project", "browse_project_tree", "close_project",
+                "compile_check", "create_project", "execute_read_batch", "get_project_status",
+                "open_project", "preview_write_batch", "save_project", "save_project_as"
+            },
+            toolNames);
     }
 
     [Fact]

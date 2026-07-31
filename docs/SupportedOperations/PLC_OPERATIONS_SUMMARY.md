@@ -2,16 +2,16 @@
 
 ## Supported read operations
 
-| Operation | Inputs | Behavior |
-|---|---|---|
-| `browse_project_tree` | Optional `depth`, `startPath` | Locates PLC software, blocks, groups, types, and other project objects. |
-| `get_block_content` | Required `blockPath`; optional `format` | Reads an existing block as XML/SimaticML or an eligible external source. See [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md). |
-| `get_type_content` | Required `typePath`; optional `format` | Reads an existing PLC type as `.udt` source or XML/SimaticML. |
-| `list_tag_tables` | Optional `plcName` | Lists PLC tag tables and the exposed tag and constant information. |
-| `read_cross_references` | Optional `plcName`, `filter`, `maxResults` | Reads cross-references. Filters are `AllObjects`, `ObjectsWithReferences`, `ObjectsWithoutReferences`, and `UnusedObjects`. |
-| `compile_check` | Optional `plcName`, `blockPath` | Compiles the PLC or selected block scope and returns compiler messages. |
+| Entry point | Operation | Inputs | Behavior |
+|---|---|---|---|
+| `browse_project_tree` | `browse_project_tree` | Optional `projectPath`, `depth`, `startPath` | Locates PLC software, blocks, groups, types, and other project objects. |
+| `execute_read_batch` | `get_block_content` | Required `blockPath`; optional `format` | Reads an existing block as XML/SimaticML or an eligible external source. See [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md). |
+| `execute_read_batch` | `get_type_content` | Required `typePath`; optional `format` | Reads an existing PLC type as `.udt` source or XML/SimaticML. |
+| `execute_read_batch` | `list_tag_tables` | Optional `plcName` | Lists PLC tag tables and the exposed tag and constant information. |
+| `execute_read_batch` | `read_cross_references` | Optional `plcName`, `filter`, `maxResults` | Reads cross-references. Filters are `AllObjects`, `ObjectsWithReferences`, `ObjectsWithoutReferences`, and `UnusedObjects`. |
+| `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, `blockPath` | Compiles the PLC or selected block scope and returns compiler messages. |
 
-`compile_check` is classified as a read operation for batch and safety purposes, but it performs a compile action in TIA Portal.
+Tree browsing and compilation are standalone tools. `compile_check` is a read-write-mode engineering operation and does not use a safety token.
 
 ## Supported write operations
 

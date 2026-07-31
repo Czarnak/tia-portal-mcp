@@ -55,4 +55,21 @@ public class StandaloneToolResultFormatterTests
             "keep this warning",
             root.GetProperty("warnings")[0].GetString());
     }
+
+    [Fact]
+    public void OversizedSuccess_WithOversizedHint_RemainsCapped()
+    {
+        var result = WorkerCallResult.Ok(
+            new string('x', BatchPayloadBudget.MaxItemChars + 100));
+
+        var text = StandaloneToolResultFormatter.Format(
+            result,
+            new string('h', BatchPayloadBudget.MaxItemChars * 2));
+
+        using var document = JsonDocument.Parse(text);
+        var payload = document.RootElement.GetProperty("payload").GetString()!;
+
+        Assert.Equal(BatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Contains("[TRUNCATED", payload);
+    }
 }

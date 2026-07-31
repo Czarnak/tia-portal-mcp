@@ -9,8 +9,16 @@ internal static class StandaloneToolResultFormatter
     {
         if (result.Success && result.Payload.Length > BatchPayloadBudget.MaxItemChars)
         {
-            var trailer = $"\n[TRUNCATED — payload exceeded "
-                + $"{BatchPayloadBudget.MaxItemChars} characters. {narrowingHint}]";
+            var trailerPrefix = $"\n[TRUNCATED — payload exceeded "
+                + $"{BatchPayloadBudget.MaxItemChars} characters. ";
+            const string trailerSuffix = "]";
+            var maxHintLength = Math.Max(
+                0,
+                BatchPayloadBudget.MaxItemChars - trailerPrefix.Length - trailerSuffix.Length);
+            var boundedHint = narrowingHint.Substring(
+                0,
+                Math.Min(narrowingHint.Length, maxHintLength));
+            var trailer = trailerPrefix + boundedHint + trailerSuffix;
             var retainedLength = Math.Max(
                 0,
                 BatchPayloadBudget.MaxItemChars - trailer.Length);

@@ -5,11 +5,10 @@
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
 | `get_project_status` | `get_project_status` | Optional `projectPath`; reads status and metadata without opening or switching projects. |
-| `execute_read_batch` | `get_project_status` | The same status read inside a read batch. |
-| `execute_read_batch` | `browse_project_tree` | Optional `depth` and `startPath`; returns bounded project-tree data. |
-| `execute_read_batch` | `compile_check` | Optional `plcName` and `blockPath`; compiles the selected scope and returns compiler messages. |
+| `browse_project_tree` | `browse_project_tree` | Optional `projectPath`, `depth`, and `startPath`; returns bounded project-tree data. |
+| `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, and `blockPath`; compiles the selected scope and returns compiler messages. Available only in read-write mode. |
 
-`compile_check` is a read-batch operation for safety classification, although compiling is an engineering action in TIA Portal.
+`compile_check` is a standalone engineering operation. It is not marked read-only, does not use a safety token, and is exposed only in read-write mode.
 
 ## Lifecycle operations
 
