@@ -84,12 +84,12 @@ public class McpToolSchemaTests
     /// ProjectLifecycleTools lives in - which, for TiaMcpServer.Tests, is the test assembly
     /// itself, since the host's tool source files are compiled directly into it (see
     /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
-    /// carrying [McpServerTool] and asserts the exact approved surface: 10 tools total, and the
+    /// carrying [McpServerTool] and asserts the exact approved surface: 12 tools total, and the
     /// internal lifecycle probe (probe_project_status_for_lifecycle, never [McpServerTool]-decorated)
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlyTenApprovedTools()
+    public void McpToolSurface_ExposesExactlyTwelveApprovedTools()
     {
         var toolTypes = typeof(ProjectLifecycleTools).Assembly
             .GetTypes()
@@ -100,11 +100,17 @@ public class McpToolSchemaTests
             .Select(m => m.GetCustomAttribute<McpServerToolAttribute>())
             .Where(a => a is not null)
             .Select(a => a!.Name)
+            .OrderBy(name => name)
             .ToArray();
 
-        Assert.Equal(10, toolNames.Length);
-        Assert.Equal(10, toolNames.Distinct().Count());
-        Assert.DoesNotContain("probe_project_status_for_lifecycle", toolNames);
+        Assert.Equal(
+            new[]
+            {
+                "apply_write_batch", "archive_project", "browse_project_tree", "close_project",
+                "compile_check", "create_project", "execute_read_batch", "get_project_status",
+                "open_project", "preview_write_batch", "save_project", "save_project_as"
+            },
+            toolNames);
     }
 
     [Fact]
@@ -164,5 +170,33 @@ public class McpToolSchemaTests
         }
 
         public bool IsService(Type serviceType) => _services.ContainsKey(serviceType);
+    }
+
+    [Fact]
+    public void BrowseProjectTree_SchemaExposesOnlyModelInputs()
+    {
+        var properties = SchemaPropertyNames(
+            typeof(ProjectReadTools),
+            nameof(ProjectReadTools.BrowseProjectTree));
+
+        Assert.Equal(
+            new[] { "depth", "projectPath", "startPath" },
+            properties.OrderBy(name => name).ToArray());
+        Assert.DoesNotContain("workerClient", properties);
+    }
+
+    [Fact]
+    public void CompileCheck_SchemaExposesOnlyModelInputs()
+    {
+        var properties = SchemaPropertyNames(
+            typeof(ProjectEngineeringTools),
+            nameof(ProjectEngineeringTools.CompileCheck));
+
+        Assert.Equal(
+            new[] { "blockPath", "plcName", "projectPath" },
+            properties.OrderBy(name => name).ToArray());
+        Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("confirm", properties);
+        Assert.DoesNotContain("safetyToken", properties);
     }
 }

@@ -22,7 +22,9 @@ Every batch item contains an `operationId`, an `operation` name, and the fields 
 
 `execute_read_batch` supports:
 
-`browse_project_tree`, `read_hardware_config`, `search_equipment_catalog`, `read_cross_references`, `get_block_content`, `list_tag_tables`, `compile_check`, `get_project_status`, and `get_type_content`.
+`read_hardware_config`, `search_equipment_catalog`, `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+
+Project status, project-tree browsing, and compilation are separate tools: `get_project_status`, `browse_project_tree`, and `compile_check`. The first two are available in both access modes; `compile_check` is available only in read-write mode.
 
 #### Write operations
 
@@ -43,7 +45,7 @@ The server also provides six single-purpose lifecycle tools:
 | `archive_project` | Archives a project to the requested location. |
 | `close_project` | Closes the active project and clears the session binding. |
 
-`get_project_status` is both a standalone read tool and a read-batch operation. It reads project metadata without opening or switching projects.
+`get_project_status`, `browse_project_tree`, and `compile_check` are standalone project tools rather than batch operations.
 
 ## Write safety
 

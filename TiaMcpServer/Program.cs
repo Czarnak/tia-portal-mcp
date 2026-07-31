@@ -70,7 +70,8 @@ namespace TiaMcpServer
 
             if (accessMode == McpAccessMode.ReadWrite)
             {
-                mcp.WithTools<ProjectWriteTools>()
+                mcp.WithTools<ProjectEngineeringTools>()
+                   .WithTools<ProjectWriteTools>()
                    .WithTools<WriteBatchTools>();
             }
 

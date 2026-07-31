@@ -267,11 +267,6 @@ public static class BatchOperationCatalog
 
     private static IEnumerable<string> ValidateBounds(BatchOperationRequest op)
     {
-        if (op.Depth is < 1)
-        {
-            yield return "'depth' must be 1 or greater.";
-        }
-
         if (op.MaxResults is < 1)
         {
             yield return "'maxResults' must be 1 or greater.";
@@ -286,14 +281,11 @@ public static class BatchOperationCatalog
         var specs = new[]
         {
             // Reads
-            new BatchOperationSpec("browse_project_tree", BatchOperationCategory.Read, None, new[] { "depth", "startPath" }),
             new BatchOperationSpec("read_hardware_config", BatchOperationCategory.Read, None, None),
             new BatchOperationSpec("search_equipment_catalog", BatchOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new BatchOperationSpec("read_cross_references", BatchOperationCategory.Read, None, new[] { "plcName", "filter", "maxResults" }),
             new BatchOperationSpec("get_block_content", BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format" }),
             new BatchOperationSpec("list_tag_tables", BatchOperationCategory.Read, None, new[] { "plcName" }),
-            new BatchOperationSpec("compile_check", BatchOperationCategory.Read, None, new[] { "blockPath", "plcName" }),
-            new BatchOperationSpec("get_project_status", BatchOperationCategory.Read, None, None),
             new BatchOperationSpec("get_type_content", BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format" }),
 
             // Data writes

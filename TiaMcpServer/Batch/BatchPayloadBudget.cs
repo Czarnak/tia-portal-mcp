@@ -220,12 +220,12 @@ public static class BatchPayloadBudget
     public static string TruncationTrailer(int maxItemChars)
     {
         var fullTrailer = $"\n[TRUNCATED — this item's payload exceeded {maxItemChars} characters. "
-            + "Narrow the read (plcName, filter, startPath, depth, maxResults) or split the batch.]";
+            + "Narrow the read (plcName, filter, maxResults) or split the batch.]";
         return LimitMarker(fullTrailer, maxItemChars, $"[TRUNCATED: exceeded {maxItemChars} chars]");
     }
 
     public static string OmissionMarker(int maxBatchChars)
         => $"[OMITTED — the combined batch response exceeded {maxBatchChars} characters. "
             + "Re-run this operationId in its own execute_read_batch call, narrowed with "
-            + "plcName/filter/startPath/depth/maxResults.]";
+            + "plcName/filter/maxResults.]";
 }

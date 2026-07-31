@@ -12,9 +12,9 @@ namespace TiaMcpServer.Batch;
 public class ReadBatchTools
 {
     [McpServerTool(Name = "execute_read_batch", ReadOnly = true, Destructive = false, OpenWorld = false)]
-    [Description("Run up to 50 read operations in one call. Each item is { operationId (unique), operation, ...that operation's parameters }; projectPath is optional on every item. Reads run independently, so a failing item does not stop the others. "
-        + "Valid operations (parentheses list required fields): browse_project_tree, read_hardware_config, read_cross_references, search_equipment_catalog (query), get_block_content (blockPath), list_tag_tables, get_project_status, and compile_check (read-write mode only). "
-        + "Large projects: bound payloads with depth/startPath (browse_project_tree) and maxResults (search_equipment_catalog, read_cross_references); oversized responses are truncated server-side with an explicit marker.")]
+    [Description("Run up to 50 non-project read operations in one call. Each item is { operationId (unique), operation, ...that operation's parameters }; projectPath is optional on every item. Reads run independently, so a failing item does not stop the others. "
+    + "Valid operations (parentheses list required fields): read_hardware_config, search_equipment_catalog (query), read_cross_references, get_block_content (blockPath), list_tag_tables, get_type_content (typePath). "
+    + "Large reads: bound search_equipment_catalog and read_cross_references with maxResults; oversized responses are truncated or omitted server-side with explicit markers.")]
     public static async Task<string> ExecuteReadBatch(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of read operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)
