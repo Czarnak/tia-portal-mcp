@@ -93,12 +93,12 @@ public class BatchToolMetadataTests
     }
 
     [Fact]
-    public void BlockPathDescription_CoversAllBlockOperationsAndCompileCheck()
+    public void BlockPathDescription_CoversBatchBlockOperations()
     {
         var description = PropertyDescription(nameof(BatchOperationRequest.BlockPath));
         Assert.Contains("create_block", description);
         Assert.Contains("delete_block", description);
-        Assert.Contains("compile_check", description);
+        Assert.DoesNotContain("compile_check", description);
     }
 
     [Fact]
@@ -118,6 +118,40 @@ public class BatchToolMetadataTests
         var description = PropertyDescription(nameof(BatchOperationRequest.PlcName));
         Assert.Contains("list_tag_tables", description);
         Assert.Contains("compile_check", description);
+    }
+
+    [Fact]
+    public void ExecuteReadBatchDescriptions_OmitStandaloneProjectOperations()
+    {
+        foreach (var toolType in new[] { typeof(BatchTools), typeof(ReadBatchTools) })
+        {
+            var description = MethodDescription(toolType, "ExecuteReadBatch");
+            foreach (var retained in BatchOperationCatalog.ReadOperationNames)
+            {
+                Assert.Contains(retained, description);
+            }
+
+            Assert.DoesNotContain("get_project_status", description);
+            Assert.DoesNotContain("browse_project_tree", description);
+            Assert.DoesNotContain("compile_check", description);
+        }
+    }
+
+    [Fact]
+    public void BatchRequestDescriptions_OmitStandaloneProjectOperations()
+    {
+        foreach (var propertyName in new[]
+        {
+            nameof(BatchOperationRequest.Operation),
+            nameof(BatchOperationRequest.BlockPath),
+            nameof(BatchOperationRequest.PlcName)
+        })
+        {
+            var description = PropertyDescription(propertyName);
+            Assert.DoesNotContain("get_project_status", description);
+            Assert.DoesNotContain("browse_project_tree", description);
+            Assert.DoesNotContain("compile_check", description);
+        }
     }
 
     [Theory]
@@ -140,5 +174,14 @@ public class BatchToolMetadataTests
         var description = property!.GetCustomAttribute<DescriptionAttribute>();
         Assert.NotNull(description);
         Assert.False(string.IsNullOrWhiteSpace(description!.Description));
+    }
+
+    private static string MethodDescription(Type toolType, string methodName)
+    {
+        var method = toolType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(method);
+        var description = method!.GetCustomAttribute<DescriptionAttribute>();
+        Assert.NotNull(description);
+        return description!.Description;
     }
 }

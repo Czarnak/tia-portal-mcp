@@ -210,4 +210,15 @@ public class BatchPayloadBudgetTests
         Assert.Contains("\"failed\":3", response);
         Assert.True(response.Length <= 3_000);
     }
+
+    [Fact]
+    public void BatchMarkers_DoNotRecommendStandaloneProjectFields()
+    {
+        var text = BatchPayloadBudget.TruncationTrailer(BatchPayloadBudget.MaxItemChars)
+            + BatchPayloadBudget.OmissionMarker(BatchPayloadBudget.MaxBatchChars);
+        var normalized = text.ToLowerInvariant();
+
+        Assert.DoesNotContain("startpath", normalized);
+        Assert.DoesNotContain("depth", normalized);
+    }
 }

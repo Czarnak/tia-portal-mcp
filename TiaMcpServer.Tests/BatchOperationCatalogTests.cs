@@ -571,6 +571,19 @@ public class BatchOperationCatalogTests
         Assert.True(result.IsValid, result.Error);
     }
 
+    [Theory]
+    [InlineData("get_project_status")]
+    [InlineData("browse_project_tree")]
+    [InlineData("compile_check")]
+    public void ValidateReadBatch_RejectsStandaloneProjectOperations(string operation)
+    {
+        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("a", operation) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains($"Unknown operation '{operation}'", result.Error);
+        Assert.DoesNotContain(operation, BatchOperationCatalog.ReadOperationNames);
+    }
+
     private static BatchOperationRequest FullyPopulated(string id, string operation)
     {
         Assert.True(BatchOperationCatalog.TryGetSpec(operation, out var spec));

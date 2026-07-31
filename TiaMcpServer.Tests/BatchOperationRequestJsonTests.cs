@@ -34,14 +34,30 @@ public class BatchOperationRequestJsonTests
     }
 
     [Fact]
-    public void Deserializes_BoundingFields()
+    public void DeserializesRetainedMaxResultsField()
     {
-        var json = """{"operationId":"a","operation":"browse_project_tree","depth":3,"startPath":"PLC_1/Blocks","maxResults":25}""";
+        var json = """{"operationId":"a","operation":"search_equipment_catalog","query":"CPU","maxResults":25}""";
 
         var request = JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions)!;
 
-        Assert.Equal(3, request.Depth);
-        Assert.Equal("PLC_1/Blocks", request.StartPath);
         Assert.Equal(25, request.MaxResults);
+    }
+
+    [Theory]
+    [InlineData("""{"operationId":"a","operation":"read_hardware_config","depth":3}""", "depth")]
+    [InlineData("""{"operationId":"a","operation":"read_hardware_config","startPath":"PLC_1/Blocks"}""", "startPath")]
+    public void RemovedProjectTreeFields_AreRejected(string json, string field)
+    {
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions));
+
+        Assert.Contains(field, exception.Message);
+    }
+
+    [Fact]
+    public void BatchRequestType_DoesNotExposeProjectTreeFields()
+    {
+        Assert.Null(typeof(BatchOperationRequest).GetProperty("Depth"));
+        Assert.Null(typeof(BatchOperationRequest).GetProperty("StartPath"));
     }
 }
