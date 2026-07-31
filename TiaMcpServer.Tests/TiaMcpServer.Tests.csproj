@@ -51,6 +51,8 @@
       Link="Host\ProjectLifecycleTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
       Link="Host\ProjectReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectEngineeringTools.cs"
+      Link="Host\ProjectEngineeringTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResultFormatter.cs"
       Link="Host\StandaloneToolResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectWriteTools.cs"

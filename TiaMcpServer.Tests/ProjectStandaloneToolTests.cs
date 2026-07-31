@@ -74,4 +74,38 @@ public class ProjectStandaloneToolTests
             root.GetProperty("failureCategory").GetString());
         Assert.Contains("depth", root.GetProperty("error").GetString());
     }
+
+    [Fact]
+    public void CompileCheck_HasEngineeringMcpMetadata()
+    {
+        var method = typeof(ProjectEngineeringTools).GetMethod(
+            nameof(ProjectEngineeringTools.CompileCheck),
+            BindingFlags.Public | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        var attribute = method!.GetCustomAttribute<McpServerToolAttribute>();
+        Assert.NotNull(attribute);
+        Assert.Equal("compile_check", attribute!.Name);
+        Assert.False(attribute.ReadOnly);
+        Assert.False(attribute.Destructive);
+        Assert.False(attribute.OpenWorld);
+    }
+
+    [Fact]
+    public async Task CompileCheck_ForwardsEveryArgument()
+    {
+        using var client = CreateClient(FakeWorkerLocator.Locate());
+
+        var response = await ProjectEngineeringTools.CompileCheck(
+            client,
+            projectPath: "echo",
+            plcName: "PLC_1",
+            blockPath: "PLC_1/Blocks/Main");
+        var request = WorkerRequestFromEnvelope(response);
+
+        Assert.Equal("compile_check", request.GetProperty("method").GetString());
+        Assert.Equal("echo", request.GetProperty("projectPath").GetString());
+        Assert.Equal("PLC_1", request.GetProperty("plcName").GetString());
+        Assert.Equal("PLC_1/Blocks/Main", request.GetProperty("blockPath").GetString());
+    }
 }

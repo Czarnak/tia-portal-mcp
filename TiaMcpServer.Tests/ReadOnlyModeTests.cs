@@ -529,21 +529,35 @@ public class ReadOnlyModeTests
     #region Tool Discovery Tests
 
     [Fact]
-    public void ReadWriteMode_HasAllTenTools()
+    public void ReadOnlyMode_HasExactlyThreeTools()
     {
-        // In read-write mode, all 10 tools should be discoverable via assembly scanning.
-        var toolTypes = typeof(ProjectLifecycleTools).Assembly
-            .GetTypes()
-            .Where(t => t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null);
-
-        var toolNames = toolTypes
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
-            .Select(m => m.GetCustomAttribute<McpServerToolAttribute>())
-            .Where(a => a is not null)
-            .Select(a => a!.Name)
+        var toolNames = new[] { typeof(ProjectReadTools), typeof(ReadBatchTools) }
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
+            .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
+            .Where(attribute => attribute is not null)
+            .Select(attribute => attribute!.Name)
+            .OrderBy(name => name)
             .ToArray();
 
-        Assert.Equal(10, toolNames.Length);
+        Assert.Equal(
+            new[] { "browse_project_tree", "execute_read_batch", "get_project_status" },
+            toolNames);
+    }
+
+    [Fact]
+    public void ReadWriteMode_HasExactlyTwelveDistinctTools()
+    {
+        var toolNames = typeof(ProjectLifecycleTools).Assembly
+            .GetTypes()
+            .Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
+            .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
+            .Where(attribute => attribute is not null)
+            .Select(attribute => attribute!.Name)
+            .ToArray();
+
+        Assert.Equal(12, toolNames.Length);
+        Assert.Equal(12, toolNames.Distinct().Count());
     }
 
     [Fact]
