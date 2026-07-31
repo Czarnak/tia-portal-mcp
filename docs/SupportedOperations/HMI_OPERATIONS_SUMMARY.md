@@ -1,27 +1,23 @@
 # TIA Portal HMI Operations
 
-## Scope
+## Supported capabilities
 
-This summary records which Classic WinCC and WinCC Unified Openness capabilities are exposed by `tia-portal-mcp`.
+The current MCP contract does not include an HMI-specific operation. Generic project-tree browsing and hardware reads can help locate an HMI device, but they do not return an HMI object-model handle or provide HMI object editing.
 
-## Exposed operations
+`compile_check` remains available for its generic PLC compile contract. It does not select an HMI target or compile HMI composition data.
 
-No HMI-specific public MCP operation was found.
+## Current limits
 
-The generic project tree and hardware read operations can expose enough project structure to locate an HMI device, but they do not provide an HMI object-model handle or HMI-specific read/write operation. `compile_check` is available as a generic compile operation, but the MCP contract does not expose a separate HMI target selector or HMI composition API.
+The following Classic WinCC and WinCC Unified areas are outside the current MCP surface:
 
-## Not exposed
-
-The following HMI areas are not represented in the MCP batch catalog or worker dispatch:
-
-- Classic WinCC `HmiTarget` initialization and compile-specific operations.
-- WinCC screens, screen templates, popups, slide-ins, permanent areas, faceplates, and screen items.
+- Classic WinCC `HmiTarget` initialization and HMI-specific compile operations.
+- Screens, screen templates, popups, slide-ins, permanent areas, faceplates, and screen items.
 - HMI tags and tag tables.
 - Alarms, alarm classes, recipes, reports, data logs, and logging tags.
 - VB scripts, cycles, connections, text lists, graphic lists, and themes.
 - WinCC Unified `HmiSoftware`, screens, groups, widgets, parts, dynamization, UI events, features, logging, runtime settings, plant model, JavaScript modules, and system services.
-- HMI import/export workflows.
+- HMI import and export workflows.
 
-## Static evidence
+## Related generic operations
 
-The public batch operation registry contains no HMI operation names, and the worker dispatch in `TiaMcpServer.OpennessWorker/Program.cs` contains no HMI handler. The available generic operations are documented in [README.md](README.md) and the project/device summaries.
+Use [README.md](README.md) for batch behavior and [DEVICES_OPERATIONS_SUMMARY.md](DEVICES_OPERATIONS_SUMMARY.md) for the hardware information available when an HMI is part of the project configuration.

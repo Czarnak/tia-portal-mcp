@@ -1,103 +1,69 @@
-# TIA Portal MCP Import/Export Options
+# TIA Portal PLC Import and Export
 
-## Scope
+## Operation surface
 
-`tia-portal-mcp` exposes a focused PLC round-trip surface rather than a generic proxy for every TIA Portal Openness `Import` and `Export` API.
+The MCP provides a focused PLC round-trip interface through four batch operations:
 
-Import/export behavior is available through four batch operations:
+| Operation | Direction | Default format | Purpose |
+|---|---|---|---|
+| `get_block_content` | Read | `xml` | Reads one existing PLC block. |
+| `update_block_logic` | Write | `xml` | Updates one existing PLC block from supplied document content. |
+| `get_type_content` | Read | `source` | Reads one existing PLC data type. |
+| `update_type_content` | Write | `source` | Updates one existing PLC data type from supplied document content. |
 
-- `get_block_content`
-- `update_block_logic`
-- `get_type_content`
-- `update_type_content`
+The `format` field accepts `xml` and `source`, case-insensitively. Block and type writes use the normal `preview_write_batch` → `apply_write_batch` workflow.
 
-Writes use the normal `preview_write_batch` → `apply_write_batch` safety flow. This summary describes implemented code paths. It is not a fresh live TIA Portal V21 certification.
-
-## Implemented formats
+## Supported formats
 
 ### PLC blocks
 
-- `format="xml"` is the default.
-- XML reads return a bundle containing sanitized SimaticML and SIMATIC SD `.s7dcl`/`.s7res` documents.
-- `format="source"` returns raw Siemens external-source text:
-  - `.db` for global data blocks.
-  - `.scl` for SCL-language FB, FC, and OB blocks.
-- Instance DBs, array DBs, LAD, FBD, GRAPH, and STL are not supported through the external-source route; they must use XML where applicable.
+- `format="xml"` is the default. Reads return a controlled bundle containing sanitized SimaticML and SIMATIC SD `.s7dcl`/`.s7res` documents.
+- `format="source"` returns Siemens external-source text for global DBs (`.db`).
+- Instance DBs, array DBs, FBs, FCs, OBs, LAD, FBD, GRAPH, and STL use the XML route; they are not eligible for the external-source route.
 
 ### PLC data types
 
 - `format="source"` is the default and returns `.udt` text.
 - `format="xml"` returns SimaticML.
 
-### Dependencies and updates
+## Update contract
 
-- `withDependencies=true` is supported on source-format reads.
-- Dependency-inclusive source may declare several objects and is read-only context; it cannot be submitted as an update.
-- Updates require an existing target and an exact match between the addressed object and the declaration in the submitted content.
-- Imports do not create, rename, delete, or upsert objects.
-- XML imports use `ImportOptions.Override`.
+Updates are strict updates to an existing object:
+
+- The target path must resolve to an existing block or data type.
+- The declaration in the submitted content must match the addressed object name.
+- Import does not create, rename, delete, or upsert objects.
+- XML block imports use `ImportOptions.Override`.
 - External-source generation uses `GenerateBlockOption.None`.
-- Root groups, user groups, and software-unit-owned external-source groups are resolved separately.
+- Root groups, user groups, and software-unit-owned external-source groups are resolved according to the addressed path.
 
-## Comparison with TIA Portal Openness
+For block updates, the worker validates the document, performs the import, compiles the affected scope, and checks the postcondition by re-exporting the block. External-source global DB updates compile the PLC because changing a DB declaration can affect dependent blocks.
 
-TIA Portal Openness supports a substantially broader import/export surface:
+## Format matrix
 
-- XML/SimaticML for many PLC, HMI, and project objects.
-- AML/CAx hardware exchange.
-- XLSX workflows for project texts, PLC alarm text lists, and ProDiag data.
-- PLC tag tables, tags, constants, technology objects, watch tables, and force tables.
-- HMI screens, templates, pop-ups, slide-ins, permanent areas, tags, connections, cycles, scripts, and lists.
-- Caller-selectable `ExportOptions`, `ImportOptions`, and PLC-specific `SWImportOptions`.
-
-`tia-portal-mcp` currently implements only the PLC block and PLC data-type subset of that surface.
-
-## Support matrix
-
-| Option | Supported |
+| Capability | Status |
 |---|---|
-| PLC block SimaticML/XML export | yes |
-| PLC block SimaticML/XML update/import | yes |
-| PLC block SIMATIC SD `.s7dcl`/`.s7res` round-trip | partially |
-| PLC block external-source `.db`/`.scl` exchange | partially |
-| LAD/FBD/GRAPH/STL external-source exchange | no |
-| PLC data type SimaticML/XML exchange | yes |
-| PLC data type `.udt` external-source exchange | yes |
-| Source export with dependency closure | yes |
-| Import of dependency-inclusive multi-object source | no |
-| Update an existing block or data type | yes |
-| Create, rename, delete, or upsert through import | no |
-| Root, user-group, and software-unit target routing | yes |
-| Selectable Openness `ExportOptions` | partially |
-| Selectable Openness `ImportOptions` | partially |
-| `SWImportOptions` for structural changes or missing references | no |
-| Know-how-protected block exchange | partially |
-| Failsafe block exchange | partially |
-| System-block exchange | no |
-| PLC tag tables, tags, and constants via import/export | no |
-| PLC technology objects | no |
-| PLC watch and force tables | no |
-| PLC alarm classes and alarm-text XLSX | no |
-| ProDiag supervision XLSX | no |
-| Hardware CAx/AutomationML exchange | no |
-| Project-text XLSX and project graphics | no |
-| HMI screens, templates, pop-ups, slide-ins, and permanent areas | no |
-| HMI tags, connections, cycles, scripts, and text/graphic lists | no |
-| Generic arbitrary-object XML import/export proxy | no |
+| PLC block SimaticML/XML read and update | Supported |
+| PLC block SIMATIC SD `.s7dcl`/`.s7res` bundle handling | Partial: supported as controlled bundle context |
+| PLC block external-source `.db` exchange | Partial: global DBs |
+| FB/FC/OB, LAD/FBD/GRAPH/STL external-source exchange | Not supported |
+| PLC data type SimaticML/XML exchange | Supported |
+| PLC data type `.udt` exchange | Supported |
+| Existing-object update | Supported |
+| Create, rename, delete, or upsert through import | Not supported |
+| Root, user-group, and software-unit target routing | Supported |
+| Caller-selected Openness `ExportOptions` | Partial: XML export uses `None` |
+| Caller-selected Openness `ImportOptions` | Partial: imports use `Override` |
+| `SWImportOptions` for structural changes or missing references | Not supported |
+| Know-how-protected block exchange | Partial: generic export may expose only the public interface or fail; protected import is unavailable |
+| Dedicated failsafe block exchange | Not supported; compatible consistent F-blocks may use the generic XML route |
+| System-block exchange | Not supported |
+| Tag tables, tags, and constants through import/export | Not supported; use PLC tag operations |
+| Technology objects, watch tables, and force tables | Not supported |
+| PLC alarm, ProDiag, hardware CAx, project-text, and graphics exchange | Not supported |
+| HMI import/export | Not supported; see [HMI_OPERATIONS_SUMMARY.md](HMI_OPERATIONS_SUMMARY.md) |
+| Generic arbitrary-object XML import/export | Not supported |
 
-## Partial-support explanations
+## Relationship to the Openness API
 
-- **SIMATIC SD documents:** Included as readable context and accepted through the controlled bundle importer, but not exposed as an unrestricted document-package API. SimaticML remains authoritative when present.
-- **PLC block external source:** Limited to global DBs and SCL-language FB/FC/OB blocks.
-- **`ExportOptions`:** XML export is fixed to `ExportOptions.None`; callers cannot request `WithDefaults` or `WithReadOnly`.
-- **`ImportOptions`:** Imports are fixed to `Override`; callers cannot select fail-if-existing or culture activation/skipping behavior.
-- **Know-how-protected blocks:** No `PlcBlockProtectionProvider` unlock/relock workflow is exposed. Generic export may return only the public interface or fail, and protected import is unavailable.
-- **Failsafe blocks:** Compatible consistent F-blocks may pass through the generic XML route, but there is no dedicated F-block handling, F-system blocks are excluded, and the route is not separately certified.
-
-## Main implementation files
-
-- `TiaMcpServer.OpennessWorker/Openness/BlockExporter.cs`
-- `TiaMcpServer.OpennessWorker/Openness/BlockImporter.cs`
-- `TiaMcpServer.OpennessWorker/Openness/PlcTypeExporter.cs`
-- `TiaMcpServer.OpennessWorker/Openness/PlcTypeImporter.cs`
-- `TiaMcpServer.OpennessWorker/Openness/SourceFormatEligibility.cs`
+TIA Portal Openness supports additional PLC, HMI, project, hardware, alarm, and text exchange APIs. This MCP surface intentionally exposes only the PLC block and PLC data-type routes described above. It does not provide a generic proxy for arbitrary `Import` and `Export` calls.

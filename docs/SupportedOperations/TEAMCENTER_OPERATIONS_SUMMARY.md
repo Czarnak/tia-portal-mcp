@@ -1,22 +1,16 @@
 # TIA Portal Teamcenter Operations
 
-## Scope
+## Support status
 
-This area covers Teamcenter storage access and managed-project service management.
+The current project lifecycle surface works with ordinary local project paths. It does not include Teamcenter service, storage, managed-project, or Teamcenter connection objects.
 
-## Exposed operations
+## Current limits
 
-No Teamcenter-specific public MCP operation was found.
+The current surface does not provide:
 
-The MCP can open, read, save, archive, and close ordinary project paths through its project lifecycle surface, but no operation exposes `TeamcenterService`, `TeamcenterStorage`, managed-project associations, or Teamcenter connection/permission handling.
-
-## Not exposed
-
-- Teamcenter service discovery and availability checks.
+- Teamcenter service discovery or availability checks.
 - Teamcenter storage enumeration or management.
-- Managed project association and Teamcenter-backed project lifecycle.
+- Managed-project association or Teamcenter-backed project lifecycle.
 - Teamcenter-specific connection, authentication, or exception workflows.
 
-## Static evidence
-
-No Teamcenter operation appears in `TiaMcpServer/Batch/BatchOperationCatalog.cs`, `TiaMcpServer.Contracts/WorkerRequest.cs`, or `TiaMcpServer.OpennessWorker/Program.cs`. The exposed project operations are listed in [PROJECT_OPERATIONS_SUMMARY.md](PROJECT_OPERATIONS_SUMMARY.md).
+For local project operations, see [PROJECT_OPERATIONS_SUMMARY.md](PROJECT_OPERATIONS_SUMMARY.md).

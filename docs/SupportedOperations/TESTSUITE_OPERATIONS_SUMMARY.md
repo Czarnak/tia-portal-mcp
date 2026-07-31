@@ -1,16 +1,14 @@
 # TIA Portal TestSuite Operations
 
-## Scope
+## Support status
 
-This area covers Application Tests, Style Guide rule sets, System Tests, and TestSuite result/execution state handling.
+The current MCP contract does not include TestSuite-specific operations.
 
-## Exposed operations
+`compile_check` returns compiler results for a PLC or selected block scope. It is a generic compile operation; it does not create or execute Application Tests, Style Guide checks, or System Tests.
 
-No TestSuite-specific public MCP operation was found.
+## Current limits
 
-`compile_check` returns compiler results for a PLC or selected block scope. It is not a TestSuite operation and does not create or execute application, style-guide, or system tests.
-
-## Not exposed
+The following TestSuite areas are outside the current surface:
 
 - `TestSuiteService` discovery.
 - Application test sets, groups, cases, and `TestCaseExecutor` execution.
@@ -18,6 +16,4 @@ No TestSuite-specific public MCP operation was found.
 - System Test groups, cases, OPC UA validation, and `SystemTestCaseExecutor` execution.
 - TestSuite result messages, execution states, and result interpretation.
 
-## Static evidence
-
-No TestSuite operation appears in the batch catalog or worker dispatch. The generic compile capability and its limits are described in [PROJECT_OPERATIONS_SUMMARY.md](PROJECT_OPERATIONS_SUMMARY.md) and [PLC_OPERATIONS_SUMMARY.md](PLC_OPERATIONS_SUMMARY.md).
+For generic compile behavior, see [PROJECT_OPERATIONS_SUMMARY.md](PROJECT_OPERATIONS_SUMMARY.md) and [PLC_OPERATIONS_SUMMARY.md](PLC_OPERATIONS_SUMMARY.md).

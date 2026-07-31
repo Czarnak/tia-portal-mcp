@@ -1,24 +1,18 @@
 # TIA Portal Multiuser Operations
 
-## Scope
+## Support status
 
-This area covers server projects, local sessions, update/check-in workflows, conflict handling, and multiuser commissioning.
+The current MCP session model is based on a local `.ap21` project path and one active project binding. It does not provide a Multiuser service or local-session object model.
 
-## Exposed operations
+## Current limits
 
-No Multiuser-specific public MCP operation was found.
+The current surface does not provide:
 
-The project lifecycle tools operate on a local `.ap21` path and a single MCP session binding. They do not expose `MultiuserService`, `LocalSession`, `ServerProject`, local-session update/check-in, `AccessOptions`, or `MultiuserCommissioningService`.
-
-## Not exposed
-
-- Locating or connecting to a project server.
-- Creating, opening, updating, or closing local sessions.
-- `Update()` synchronization and `CheckIn()` operations.
+- Project-server discovery or connection.
+- Creation, opening, updating, or closing of Multiuser local sessions.
+- `Update()` synchronization or `CheckIn()` operations.
 - Conflict resolution through `AccessOptions`.
-- Multiuser commissioning workflows and asynchronous commissioning states.
-- VCI/version-control operations, which are also outside the current MCP surface.
+- Multiuser commissioning workflows or asynchronous commissioning states.
+- VCI and version-control operations.
 
-## Static evidence
-
-No multiuser operation appears in the batch operation catalog, public tool descriptions, worker request dispatch, or worker Openness helper tree. See [PROJECT_OPERATIONS_SUMMARY.md](PROJECT_OPERATIONS_SUMMARY.md) for the local project lifecycle that is exposed.
+For local project lifecycle operations, see [PROJECT_OPERATIONS_SUMMARY.md](PROJECT_OPERATIONS_SUMMARY.md).

@@ -1,37 +1,65 @@
-# Supported TIA Openness Operations
+# Supported TIA Portal Operations
 
-This directory maps TIA Portal Openness operation areas to the functionality actually exposed by `tia-portal-mcp`.
+This directory is the reference for the public operation surface of `tia-portal-mcp`. It describes the MCP tools, batch operation names, supported data formats, safety rules, and current capability boundaries.
 
-## How to read these documents
+The MCP surface is intentionally narrower than the complete TIA Portal Openness V21 API. A capability listed as a current limit is outside the server contract; it is not a statement that the underlying Openness API cannot perform that action.
 
-The wider TIA Portal Openness V21 API is substantially broader than the MCP server's guarded surface. Each area summary therefore separates:
+## Operation model
 
-- **Exposed** — implemented as a public MCP tool or a batch operation dispatched to the .NET Framework Openness worker.
-- **Not exposed** — no corresponding public MCP operation was found in the repository.
-- **Static status** — conclusions are based on source and contract inspection. They are not live TIA Portal or hardware certification.
+### Batch tools
 
-## Public MCP tools
+Data operations run through one of three batch tools:
 
-The server exposes ten public tools:
-
-| Tool | Role |
+| Tool | Purpose |
 |---|---|
-| `execute_read_batch` | Up to 50 independent read operations. |
-| `preview_write_batch` | Preview up to 50 data-write operations and issue one safety token. |
-| `apply_write_batch` | Apply the unchanged previewed write batch sequentially. |
-| `get_project_status` | Read project status and metadata. |
-| `open_project` | Open and bind a project. |
-| `create_project` | Create and bind a project. |
-| `save_project` | Save the active project. |
-| `save_project_as` | Save a copy and rebind to the copy. |
-| `archive_project` | Archive the active project. |
-| `close_project` | Close the active project and clear the binding. |
+| `execute_read_batch` | Executes up to 50 independent read operations. A failed item does not stop the remaining items. |
+| `preview_write_batch` | Validates and previews up to 50 data-write operations, then returns one single-use `safetyToken`. |
+| `apply_write_batch` | Applies the exact previewed operation list in order after confirmation. |
 
-The six lifecycle writes use an internal preview/apply flow. Data writes use `preview_write_batch` followed by `apply_write_batch` with the exact same ordered operations and a single-use token. Batch execution is not transactional: apply stops on the first failure and does not roll back completed items.
+Every batch item contains an `operationId`, an `operation` name, and the fields for that operation. Read and write operation names are separate; project-lifecycle operations are not valid batch items.
 
-## Area summaries
+#### Read operations
 
-| Area | Summary |
+`execute_read_batch` supports:
+
+`browse_project_tree`, `read_hardware_config`, `search_equipment_catalog`, `read_cross_references`, `get_block_content`, `list_tag_tables`, `compile_check`, `get_project_status`, and `get_type_content`.
+
+#### Write operations
+
+`preview_write_batch` and `apply_write_batch` support:
+
+`update_block_logic`, `update_type_content`, `create_block`, `delete_block`, `create_block_group`, `delete_block_group`, `create_tag_table`, `delete_tag_table`, `create_tag`, `update_tag`, `delete_tag`, `create_user_constant`, `update_user_constant`, `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc`, and `stop_plc`.
+
+### Project lifecycle tools
+
+The server also provides six single-purpose lifecycle tools:
+
+| Tool | Behavior |
+|---|---|
+| `open_project` | Opens a project and binds the MCP session to it. |
+| `create_project` | Creates a project and binds the session to it. |
+| `save_project` | Saves the active project. |
+| `save_project_as` | Saves a copy and rebinds the session to the copy. |
+| `archive_project` | Archives a project to the requested location. |
+| `close_project` | Closes the active project and clears the session binding. |
+
+`get_project_status` is both a standalone read tool and a read-batch operation. It reads project metadata without opening or switching projects.
+
+## Write safety
+
+All writes use preview-then-apply confirmation.
+
+- Data writes receive a batch-level token from `preview_write_batch` and require the unchanged operation list, `confirm=true`, and that token in `apply_write_batch`.
+- Lifecycle tools preview themselves when called without a token. The same tool is called again with `confirm=true` and the returned token to apply the change.
+- Tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
+- A write batch is sequential rather than transactional. Application stops at the first failure; completed items remain applied and later items are marked `skipped`.
+- Successful write attempts produce audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
+
+Read responses may include `warnings` for partial or degraded data. Hardware reads also provide payload-level `messages` for unreadable members. Callers should treat these fields as part of the result contract rather than filling missing values locally.
+
+## Area reference
+
+| Area | Reference |
 |---|---|
 | Project and portal lifecycle | [PROJECT_OPERATIONS_SUMMARY.md](PROJECT_OPERATIONS_SUMMARY.md) |
 | Devices | [DEVICES_OPERATIONS_SUMMARY.md](DEVICES_OPERATIONS_SUMMARY.md) |
@@ -39,19 +67,13 @@ The six lifecycle writes use an internal preview/apply flow. Data writes use `pr
 | HMI | [HMI_OPERATIONS_SUMMARY.md](HMI_OPERATIONS_SUMMARY.md) |
 | Networks and topology | [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md) |
 | SIMATIC drives / Startdrive | [SIMATIC_DRIVES_OPERATIONS_SUMMARY.md](SIMATIC_DRIVES_OPERATIONS_SUMMARY.md) |
-| Import/export | [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md) |
+| PLC import/export formats | [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md) |
 | Multiuser | [MULTIUSER_OPERATIONS_SUMMARY.md](MULTIUSER_OPERATIONS_SUMMARY.md) |
 | Teamcenter | [TEAMCENTER_OPERATIONS_SUMMARY.md](TEAMCENTER_OPERATIONS_SUMMARY.md) |
 | TestSuite | [TESTSUITE_OPERATIONS_SUMMARY.md](TESTSUITE_OPERATIONS_SUMMARY.md) |
 
-## Evidence boundaries
+## Runtime requirements
 
-The primary implementation paths are:
+The Openness worker is the only process that loads Siemens assemblies. Using the server requires Windows, TIA Portal V21 with Openness enabled, membership in the Siemens TIA Openness user group, and the supported .NET runtimes. The worker communicates with the .NET 8 host over newline-delimited JSON and is supervised across timeouts and crashes.
 
-- `TiaMcpServer/Batch/BatchOperationCatalog.cs` — registered batch operation names and required/optional fields.
-- `TiaMcpServer/Batch/ReadBatchTools.cs` and `WriteBatchTools.cs` — public batch tools and safety boundary.
-- `TiaMcpServer/Tools/ProjectLifecycleTools.cs` — public lifecycle tools.
-- `TiaMcpServer.OpennessWorker/Program.cs` — worker dispatch and Openness handlers.
-- `TiaMcpServer.Contracts/WorkerRequest.cs` — shared request fields and operation forwarding.
-
-The worker is the only process that loads Siemens Openness assemblies. A successful static build or unit test does not prove runtime compatibility with a locally installed TIA Portal V21 project or hardware.
+This reference describes the software contract. A successful build or automated test does not replace validation against the target TIA Portal V21 installation, project, device configuration, or hardware.

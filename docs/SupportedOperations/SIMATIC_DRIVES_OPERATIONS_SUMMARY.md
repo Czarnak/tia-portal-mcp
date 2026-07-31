@@ -1,25 +1,19 @@
 # SIMATIC Drives and Startdrive Operations
 
-## Scope
+## Support status
 
-This area covers Startdrive, SINAMICS, SIMATIC Drive Controller, PROFIdrive properties, telegrams, commissioning, and drive-specific download/upload configuration.
+The current MCP contract does not include a drive-specific operation. Generic hardware browsing, hardware reads, equipment-catalog search, network-device provisioning, and compile checks can operate on a project containing a drive, but they do not expose the drive object model.
 
-## Exposed operations
+## Current limits
 
-No drive-specific public MCP operation was found.
-
-Generic hardware browsing, hardware configuration reads, equipment-catalog search, network-device creation/configuration, and generic compile checks may encounter a project containing a drive, but they do not expose `DriveObject`, drive parameters, telegrams, Drive Function Interface services, commissioning, or drive-specific transfer configuration.
-
-## Not exposed
+The following Startdrive, SINAMICS, SIMATIC Drive Controller, and PROFIdrive areas are outside the current surface:
 
 - Drive-object navigation and activation/type handling.
-- SINAMICS parameter reads/writes.
+- SINAMICS parameter reads and writes.
 - Telegram find, insert, erase, and size operations.
-- Drive Function Interface commissioning, motor/encoder configuration, or DFI operations.
-- Drive safety/security objects.
+- Drive Function Interface commissioning, motor/encoder configuration, and DFI operations.
+- Drive safety and security objects.
 - Startdrive-specific download and upload configuration.
-- PROFIdrive-specific engineering beyond the generic network fields listed in [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md).
+- PROFIdrive-specific engineering beyond the generic network fields in [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md).
 
-## Static evidence
-
-No drive operation appears in `TiaMcpServer/Batch/BatchOperationCatalog.cs` or the worker dispatch in `TiaMcpServer.OpennessWorker/Program.cs`. The public MCP tools and their limits are summarized in [README.md](README.md).
+For the generic device and network operations available around a drive, see [DEVICES_OPERATIONS_SUMMARY.md](DEVICES_OPERATIONS_SUMMARY.md) and [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md).
