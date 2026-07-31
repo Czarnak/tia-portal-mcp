@@ -165,4 +165,17 @@ public class McpToolSchemaTests
 
         public bool IsService(Type serviceType) => _services.ContainsKey(serviceType);
     }
+
+    [Fact]
+    public void BrowseProjectTree_SchemaExposesOnlyModelInputs()
+    {
+        var properties = SchemaPropertyNames(
+            typeof(ProjectReadTools),
+            nameof(ProjectReadTools.BrowseProjectTree));
+
+        Assert.Equal(
+            new[] { "depth", "projectPath", "startPath" },
+            properties.OrderBy(name => name).ToArray());
+        Assert.DoesNotContain("workerClient", properties);
+    }
 }
