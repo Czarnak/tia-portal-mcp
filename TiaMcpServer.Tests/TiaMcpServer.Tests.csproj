@@ -37,6 +37,7 @@
     <Compile Include="..\TiaMcpServer\Diagnostics\Checks\*.cs"
       Link="Host\Diagnostics\Checks\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Cli\*.cs" Link="Host\Cli\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Cli\Install\*.cs" Link="Host\Cli\Install\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Safety\OperationAccessPolicy.cs"
       Link="Host\OperationAccessPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"

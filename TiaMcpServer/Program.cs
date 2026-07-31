@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Cli;
+using TiaMcpServer.Cli.Install;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
@@ -15,6 +16,11 @@ namespace TiaMcpServer
     {
         private static async Task<int> Main(string[] args)
         {
+            if (args.Length > 0 && string.Equals(args[0], "install", StringComparison.OrdinalIgnoreCase))
+            {
+                return await InstallCommand.RunAsync(args[1..]);
+            }
+
             if (args.Length > 0 && string.Equals(args[0], "doctor", StringComparison.OrdinalIgnoreCase))
             {
                 return await DoctorCommand.RunAsync(args[1..]);

@@ -150,6 +150,50 @@ Options:
 
 Exit codes: `0` (no blocking failures), `1` (one or more checks failed), `2` (invalid arguments).
 
+### Register with an MCP client
+
+The `tia-mcp install` command registers the TIA Portal MCP server with a supported MCP client by invoking the client's native CLI. It does not edit configuration files directly.
+
+Supported clients: Claude Code, Codex, OpenCode, MiMoCode.
+
+```powershell
+tia-mcp install claude-code
+tia-mcp install codex
+tia-mcp install opencode
+tia-mcp install mimocode
+```
+
+Aliases: `claude` (Claude Code), `mimo` (MiMoCode).
+
+Options:
+
+- `--name <name>` - server registration name (default: `tia-portal`).
+- `--access-mode <mode>` - access mode: `read-only` or `read-write` (default: `read-only`).
+- `--tia-project <path>` - bind to a specific TIA Portal project.
+- `--server-path <path>` - explicit path to the `tia-mcp` executable.
+- `--dry-run` - print the install command without executing.
+- `--json` - emit JSON output (not supported with MiMoCode).
+
+Examples:
+
+```powershell
+# Register with Codex using read-write mode
+tia-mcp install codex --access-mode read-write
+
+# Register with Claude Code bound to a specific project
+tia-mcp install claude-code --tia-project C:\Projects\Line.ap21
+
+# Preview the install command without running it
+tia-mcp install codex --dry-run
+
+# JSON output for automation
+tia-mcp install codex --json
+```
+
+MiMoCode uses interactive mode and will prompt for values. The `--json` flag is not supported with MiMoCode.
+
+Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (unsupported client), `4` (client not found), `5` (tia-mcp executable not found), `6` (native command failed), `7` (verification failed), `8` (unsupported option combination).
+
 ### Access modes
 
 The server supports two access modes that control which operations are available:
