@@ -119,6 +119,18 @@ while ((line = Console.In.ReadLine()) is not null)
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
             break;
+        case "network-roundtrip":
+            Respond(ReadMethod(line) switch
+            {
+                // The request still advances seq, but its safety-bound state must remain stable
+                // between preview and apply; write responses below expose the request ordering.
+                "read_hardware_config" => """{"success":true,"payload":"{\"kind\":\"hardware\"}"}""",
+                "search_equipment_catalog" => $$"""{"success":true,"payload":"[{\"typeIdentifier\":\"OrderNumber:TEST\",\"seq\":{{seq}}}]"}""",
+                "add_network_device" => $$"""{"success":true,"payload":"{\"operation\":\"add\",\"seq\":{{seq}}}"}""",
+                "configure_network_device" => $$"""{"success":true,"payload":"{\"operation\":\"configure\",\"seq\":{{seq}}}"}""",
+                _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "type-content-roundtrip":
             // Used by TypeOperationFakeWorkerTests to drive a full get_type_content /
             // update_type_content round trip. A single scenario key must serve both methods:

@@ -53,8 +53,8 @@ falling back to another mode.
 
 ### Read-write mode
 
-Read-write mode exposes the complete 12-tool surface and preserves the existing
-preview-then-apply safety-token model.
+Read-write mode exposes 14 tools: the four read-only observation tools plus ten
+read-write-only tools. It preserves the preview-then-apply safety-token model.
 
 ### Read-only mode
 
@@ -62,6 +62,8 @@ Read-only mode exposes observation tools only. It never opens, creates, saves,
 archives, switches, or closes a project; never compiles; never controls a PLC;
 and never performs project-data mutations. It operates only on a project that
 is already open in the attached TIA Portal instance.
+
+The read-only surface contains exactly four tools.
 
 A supplied `projectPath` in read-only mode is an assertion. It must identify the
 currently open project; it is never used to open or switch projects.
@@ -72,12 +74,14 @@ Tool registration is explicit and mode-dependent. The host always registers:
 
 - `ProjectReadTools`
 - `ReadBatchTools`
+- `NetworkReadTools`
 
 It registers the following only in read-write mode:
 
 - `ProjectEngineeringTools`
 - `ProjectWriteTools`
 - `WriteBatchTools`
+- `NetworkWriteTools`
 
 This prevents write tools from appearing in MCP discovery when the server is
 read-only. Decorated tool classes that are not explicitly registered are not
@@ -90,15 +94,19 @@ part of the active tool surface.
 | `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
 | `browse_project_tree` | Return a bounded project subtree using optional `depth` and `startPath`. |
 | `execute_read_batch` | Execute up to 50 validated observation operations. |
+| `network_read` | Execute up to 50 validated network observation operations. |
 
 The read batch supports:
 
-- `read_hardware_config`
-- `search_equipment_catalog`
 - `read_cross_references`
 - `get_block_content`
 - `list_tag_tables`
 - `get_type_content`
+
+`network_read` owns the network-read catalog:
+
+- `read_hardware_config`
+- `search_equipment_catalog`
 
 ### Additional read-write tools
 
@@ -113,6 +121,7 @@ The read batch supports:
 | `close_project` | Close the active project and clear the binding. |
 | `preview_write_batch` | Validate writes, capture current state, and issue a safety token. |
 | `apply_write_batch` | Redeem the token and execute writes sequentially. |
+| `network_write` | Preview or apply an ordered dedicated-network write request. |
 
 ## 4. Defense-in-depth access enforcement
 
@@ -184,12 +193,20 @@ Openness implementations live under `TiaMcpServer.OpennessWorker/Openness/`.
 Temporary exports such as `get_block_content` use isolated temporary
 directories and remove them in `finally` blocks.
 
-## 7. Batch execution
+## 7. Batch and network execution
 
-`BatchOperationCatalog` is the batch source of truth for operation names,
-categories, required fields, optional fields, and the maximum batch size of 50.
-It rejects unknown operations, missing required fields, inapplicable fields,
-and invalid bounds before worker invocation.
+`BatchOperationCatalog` and `BatchWorkerInvoker` own only generic batch operations.
+`NetworkOperationCatalog` and `NetworkWorkerInvoker` own the four dedicated network
+operations. Each domain validates against its own request type and catalog before a worker
+invocation; a new worker method belongs to its owning domain catalog and is not implicitly
+a generic batch operation.
+
+`OperationBatches` provides request-agnostic shared execution, result formatting, and
+payload-budget infrastructure to both domains. Its network call sites use network-specific
+payload-budget hints, such as narrowing `query`/`maxResults` or splitting a network batch.
+
+Both catalogs enforce a maximum of 50 operations and reject unknown operations, missing
+required fields, inapplicable fields, and invalid bounds before worker invocation.
 
 Read batches execute items independently. One failed read does not prevent the
 remaining items from running.
@@ -197,18 +214,26 @@ remaining items from running.
 Write batches execute sequentially and stop on the first failure. Already
 completed writes are not rolled back.
 
+`network_write` is self-previewing. A call with `confirm:false` and no token snapshots the
+topology once and issues a token bound to the exact ordered request. A call with
+`confirm:true`, the unchanged operation list, and that token takes one fresh topology
+snapshot for validation, applies sequentially with no rollback, and appends an audit record.
+
 `compile_check` is absent from read-only tool discovery. The underlying access
 policy also rejects internal compile requests in read-only mode before they are
 sent to the worker.
 
 ## 8. Write safety
 
-Every write uses a two-step flow:
+Generic batch data writes use a two-tool flow; lifecycle and network writes are
+self-previewing:
 
-1. The preview call reads current state, produces a human-readable description,
+1. The preview call (`preview_write_batch`, or the same lifecycle/network tool with no
+   token and `confirm:false`) reads current state, produces a human-readable description,
    and creates a short-lived, single-use safety token bound to the tool,
    project, requested input, and current-state hashes.
-2. The apply call supplies `confirm=true` and the token. The server reads current
+2. The apply call (`apply_write_batch`, or the same lifecycle/network tool) supplies
+   `confirm=true` and the token. The server reads current
    state again and consumes the token only when every bound value still matches.
 
 Changed input, changed project state, wrong tool, wrong project, expiry, or token
@@ -228,8 +253,10 @@ to `TIA_MCP_ACCESS_MODE`.
 ## 10. Testing
 
 `TiaMcpServer.Tests` links selected host and worker source files directly into
-the test assembly, allowing policy, parsing, tool metadata, batch, diagnostics,
-and IPC behavior to be tested on .NET 8 without a live TIA Portal installation.
+the test assembly, allowing policy, parsing, tool metadata, generic-batch and network
+catalog/invoker behavior, diagnostics, and IPC behavior to be tested on .NET 8 without a
+live TIA Portal installation. `TiaMcpServer.FakeWorker` covers the linked-source network
+requests and forwarded worker methods without a live TIA Portal installation.
 
 `TiaMcpServer.FakeWorker` exercises persistent transport behavior. Fake service
 implementations isolate filesystem, registry, process, identity, and diagnostic

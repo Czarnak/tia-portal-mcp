@@ -110,7 +110,7 @@ public class TypeOperationFakeWorkerTests
     /// for a gap the review caught: BatchWorkerInvoker.NormalizeFormat throws ArgumentException
     /// (by design — TypeOperationInvokerTests.An_invalid_format_is_rejected_before_the_session_binds
     /// requires this), and that exception used to propagate straight out of
-    /// BatchExecutionEngine.ExecuteReadsAsync's plain foreach loop, crashing every other item in
+    /// OperationBatchExecutionEngine.ExecuteReadsAsync's plain foreach loop, crashing every other item in
     /// the same batch instead of just the offending one — breaking the documented
     /// "a failing item does not stop the others" contract (BatchTools.cs:20). Runs the real
     /// execute_read_batch pipeline (not just BuildRequest) so the fix in the invoke arms is what's

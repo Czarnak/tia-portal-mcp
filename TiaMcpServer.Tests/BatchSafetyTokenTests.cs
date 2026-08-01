@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Text.Json;
 using TiaMcpServer.Batch;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety;
 using Xunit;
 
@@ -26,7 +27,7 @@ public class BatchSafetyTokenTests
     {
         var targets = BatchSafetySnapshot.BuildTargets(ops);
         var combined = BatchSafetySnapshot.CombineCurrentState(
-            ops.Select((o, i) => new BatchCurrentState(o.OperationId, o.Operation, states[i])).ToList());
+            ops.Select((o, i) => new OperationBatchCurrentState(o.OperationId, o.Operation, states[i])).ToList());
         var project = BatchSafetySnapshot.ResolveProjectPath(ops);
         var json = service.CreatePreview(ApplyToolName, project, targets, "summary", ops, combined);
         return JsonDocument.Parse(json).RootElement.GetProperty("safetyToken").GetString()!;
@@ -41,7 +42,7 @@ public class BatchSafetyTokenTests
     {
         var targets = BatchSafetySnapshot.BuildTargets(ops);
         var combined = BatchSafetySnapshot.CombineCurrentState(
-            ops.Select((o, i) => new BatchCurrentState(o.OperationId, o.Operation, states[i])).ToList());
+            ops.Select((o, i) => new OperationBatchCurrentState(o.OperationId, o.Operation, states[i])).ToList());
         var project = BatchSafetySnapshot.ResolveProjectPath(ops);
         return service.ValidateAndConsume(token, toolName, project, targets, ops, combined);
     }

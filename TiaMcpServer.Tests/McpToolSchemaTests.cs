@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -62,6 +63,13 @@ public class McpToolSchemaTests
         return names;
     }
 
+    private static Type RequiredNetworkToolType(string name)
+    {
+        var type = typeof(NetworkOperationRequest).Assembly.GetType($"TiaMcpServer.Network.{name}");
+        Assert.NotNull(type);
+        return type!;
+    }
+
     [Theory]
     [InlineData(nameof(ProjectLifecycleTools.GetProjectStatus))]
     [InlineData(nameof(ProjectLifecycleTools.OpenProject))]
@@ -84,12 +92,12 @@ public class McpToolSchemaTests
     /// ProjectLifecycleTools lives in - which, for TiaMcpServer.Tests, is the test assembly
     /// itself, since the host's tool source files are compiled directly into it (see
     /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
-    /// carrying [McpServerTool] and asserts the exact approved surface: 12 tools total, and the
+    /// carrying [McpServerTool] and asserts the exact approved surface: 14 tools total, and the
     /// internal lifecycle probe (probe_project_status_for_lifecycle, never [McpServerTool]-decorated)
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlyTwelveApprovedTools()
+    public void McpToolSurface_ExposesExactlyFourteenApprovedTools()
     {
         var toolTypes = typeof(ProjectLifecycleTools).Assembly
             .GetTypes()
@@ -103,14 +111,25 @@ public class McpToolSchemaTests
             .OrderBy(name => name)
             .ToArray();
 
-        Assert.Equal(
-            new[]
-            {
-                "apply_write_batch", "archive_project", "browse_project_tree", "close_project",
-                "compile_check", "create_project", "execute_read_batch", "get_project_status",
-                "open_project", "preview_write_batch", "save_project", "save_project_as"
-            },
-            toolNames);
+        var expected = new[]
+        {
+            "get_project_status",
+            "browse_project_tree",
+            "execute_read_batch",
+            "compile_check",
+            "open_project",
+            "create_project",
+            "save_project",
+            "save_project_as",
+            "archive_project",
+            "close_project",
+            "preview_write_batch",
+            "apply_write_batch",
+            "network_read",
+            "network_write"
+        };
+
+        Assert.Equal(expected.OrderBy(name => name), toolNames);
     }
 
     [Fact]
@@ -136,6 +155,31 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("safety", properties);
         Assert.Contains("operations", properties);
+    }
+
+    [Fact]
+    public void NetworkRead_SchemaExposesOnlyOperations()
+    {
+        var properties = SchemaPropertyNames(
+            RequiredNetworkToolType("NetworkReadTools"),
+            "NetworkRead");
+
+        Assert.Equal(new[] { "operations" }, properties);
+        Assert.DoesNotContain("workerClient", properties);
+    }
+
+    [Fact]
+    public void NetworkWrite_SchemaNeverExposesInjectedServiceParameters()
+    {
+        var properties = SchemaPropertyNames(
+            RequiredNetworkToolType("NetworkWriteTools"),
+            "NetworkWrite");
+
+        Assert.Equal(
+            new[] { "confirm", "operations", "safetyToken" },
+            properties.OrderBy(name => name).ToArray());
+        Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("safety", properties);
     }
 
     /// <summary>

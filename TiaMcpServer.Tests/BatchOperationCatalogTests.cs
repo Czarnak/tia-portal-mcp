@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests;
@@ -19,9 +20,9 @@ public class BatchOperationCatalogTests
     {
         var operations = new List<BatchOperationRequest>
         {
-            Op("a", "read_hardware_config"),
+            Op("a", "read_cross_references"),
             Op("b", "get_block_content", r => r.BlockPath = "PLC_1/Main"),
-            Op("c", "search_equipment_catalog", r => r.Query = "CPU"),
+            Op("c", "list_tag_tables"),
         };
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
@@ -52,7 +53,7 @@ public class BatchOperationCatalogTests
         var operations = new List<BatchOperationRequest>();
         for (var i = 0; i < BatchOperationCatalog.MaxBatchSize + 1; i++)
         {
-            operations.Add(Op($"id{i}", "read_hardware_config"));
+            operations.Add(Op($"id{i}", "list_tag_tables"));
         }
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
@@ -85,7 +86,7 @@ public class BatchOperationCatalogTests
     public void ValidateReadBatch_RejectsDuplicateOperationId()
     {
         var result = BatchOperationCatalog.ValidateReadBatch(
-            new[] { Op("dup", "read_hardware_config"), Op("dup", "list_tag_tables") });
+            new[] { Op("dup", "read_cross_references"), Op("dup", "list_tag_tables") });
 
         Assert.False(result.IsValid);
         Assert.Contains("dup", result.Error);
@@ -94,7 +95,7 @@ public class BatchOperationCatalogTests
     [Fact]
     public void ValidateReadBatch_RejectsMissingOperationId()
     {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("", "read_hardware_config") });
+        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("", "list_tag_tables") });
 
         Assert.False(result.IsValid);
         Assert.Contains("operationId", result.Error);
@@ -116,7 +117,7 @@ public class BatchOperationCatalogTests
         {
             Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }),
             Op("b", "update_block_logic", r => { r.BlockPath = "Main"; r.YamlContent = "name: Main"; }),
-            Op("c", "configure_network_device", r => r.DeviceName = "PLC_1"),
+            Op("c", "create_block_group", r => r.BlockPath = "PLC_1/Blocks/Area"),
         };
 
         var result = BatchOperationCatalog.ValidateWriteBatch(operations);
@@ -274,7 +275,7 @@ public class BatchOperationCatalogTests
     {
         var operations = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 0 },
+            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references", MaxResults = 0 },
         };
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
@@ -288,8 +289,7 @@ public class BatchOperationCatalogTests
     {
         var operations = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "search_equipment_catalog", Query = "cpu", MaxResults = 10 },
-            new BatchOperationRequest { OperationId = "b", Operation = "read_cross_references", MaxResults = 100 },
+            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references", MaxResults = 10 },
         };
 
         var result = BatchOperationCatalog.ValidateReadBatch(operations);
@@ -300,8 +300,8 @@ public class BatchOperationCatalogTests
     [Fact]
     public void All_ExposesEverySpec()
     {
-        // 6 reads + 18 writes.
-        Assert.Equal(24, BatchOperationCatalog.All.Count);
+        // 4 reads + 16 writes.
+        Assert.Equal(20, BatchOperationCatalog.All.Count);
     }
 
     [Fact]
@@ -310,8 +310,6 @@ public class BatchOperationCatalogTests
         var none = Array.Empty<string>();
         var expected = new Dictionary<string, (BatchOperationCategory Category, IReadOnlyList<string> Required, IReadOnlyList<string> Optional)>
         {
-            ["read_hardware_config"] = (BatchOperationCategory.Read, none, none),
-            ["search_equipment_catalog"] = (BatchOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             ["read_cross_references"] = (BatchOperationCategory.Read, none, new[] { "plcName", "filter", "maxResults" }),
             ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format" }),
             ["list_tag_tables"] = (BatchOperationCategory.Read, none, new[] { "plcName" }),
@@ -325,8 +323,6 @@ public class BatchOperationCatalogTests
             ["create_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
             ["update_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
             ["delete_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
-            ["add_network_device"] = (BatchOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
-            ["configure_network_device"] = (BatchOperationCategory.Write, new[] { "deviceName" }, new[] { "ipAddress", "subnetMask", "pnDeviceName", "subnetName", "ioSystemName" }),
             ["create_block"] = (BatchOperationCategory.Write, new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
             ["delete_block"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
             ["create_block_group"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
@@ -345,27 +341,6 @@ public class BatchOperationCatalogTests
             Assert.Equal(expectedSpec.Required, actualSpec.RequiredFields);
             Assert.Equal(expectedSpec.Optional, actualSpec.OptionalFields);
         }
-    }
-
-    [Fact]
-    public void ConfigureNetworkDevice_DoesNotDeclareDeviceItemName()
-    {
-        Assert.True(BatchOperationCatalog.TryGetSpec("configure_network_device", out var spec));
-
-        Assert.DoesNotContain("deviceItemName", spec!.OptionalFields);
-        Assert.Contains("ipAddress", spec.OptionalFields);
-        Assert.Contains("subnetMask", spec.OptionalFields);
-        Assert.Contains("pnDeviceName", spec.OptionalFields);
-        Assert.Contains("subnetName", spec.OptionalFields);
-        Assert.Contains("ioSystemName", spec.OptionalFields);
-    }
-
-    [Fact]
-    public void AddNetworkDevice_DeclaresDeviceItemName()
-    {
-        Assert.True(BatchOperationCatalog.TryGetSpec("add_network_device", out var spec));
-
-        Assert.Contains("deviceItemName", spec!.OptionalFields);
     }
 
     [Fact]
@@ -409,26 +384,6 @@ public class BatchOperationCatalogTests
         {
             Assert.Empty(spec.RequiredFields.Intersect(spec.OptionalFields));
         }
-    }
-
-    [Fact]
-    public void DeviceItemNameOnConfigureNetworkDevice_IsRejected()
-    {
-        var result = BatchOperationCatalog.ValidateWriteBatch(new[]
-        {
-            new BatchOperationRequest
-            {
-                OperationId = "a",
-                Operation = "configure_network_device",
-                DeviceName = "PLC_1",
-                DeviceItemName = "PROFINET interface_1"
-            }
-        });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("deviceItemName", result.Error);
-        Assert.Contains("configure_network_device", result.Error);
-        Assert.Contains("ipAddress", result.Error);
     }
 
     [Fact]
@@ -499,7 +454,7 @@ public class BatchOperationCatalogTests
             new BatchOperationRequest
             {
                 OperationId = "a",
-                Operation = "read_hardware_config",
+                Operation = "list_tag_tables",
                 ProjectPath = "C:\\p.ap21"
             }
         });
@@ -538,6 +493,29 @@ public class BatchOperationCatalogTests
         Assert.DoesNotContain(operation, BatchOperationCatalog.ReadOperationNames);
     }
 
+    [Fact]
+    public void NetworkOperations_AreExposedOnlyByTheDedicatedCatalog()
+    {
+        Assert.Equal(
+            new[] { "read_hardware_config", "search_equipment_catalog" },
+            NetworkOperationCatalog.ReadOperationNames);
+        Assert.Equal(
+            new[] { "add_network_device", "configure_network_device" },
+            NetworkOperationCatalog.WriteOperationNames);
+
+        foreach (var operation in new[]
+        {
+            "read_hardware_config",
+            "search_equipment_catalog",
+            "add_network_device",
+            "configure_network_device"
+        })
+        {
+            Assert.DoesNotContain(operation, BatchOperationCatalog.ReadOperationNames);
+            Assert.DoesNotContain(operation, BatchOperationCatalog.WriteOperationNames);
+        }
+    }
+
     private static BatchOperationRequest FullyPopulated(string id, string operation)
     {
         Assert.True(BatchOperationCatalog.TryGetSpec(operation, out var spec));
@@ -550,13 +528,10 @@ public class BatchOperationCatalogTests
                 case "blockPath": request.BlockPath = "PLC_1/Main"; break;
                 case "yamlContent": request.YamlContent = "name: Main"; break;
                 case "blockType": request.BlockType = "FB"; break;
-                case "query": request.Query = "CPU"; break;
                 case "tableName": request.TableName = "Inputs"; break;
                 case "name": request.Name = "Item"; break;
                 case "dataType": request.DataType = "Bool"; break;
                 case "value": request.Value = "1"; break;
-                case "typeIdentifier": request.TypeIdentifier = "OrderNumber:X/V1.0"; break;
-                case "deviceName": request.DeviceName = "PLC_1"; break;
                 case "typePath": request.TypePath = "PLC_1/Types/AnalogInputSettings"; break;
                 case "sourceContent": request.SourceContent = "TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n"; break;
                 default: throw new InvalidOperationException($"No test value configured for required field '{field}'.");

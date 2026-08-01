@@ -62,6 +62,19 @@ public class BatchToolsTests
     }
 
     [Fact]
+    public async Task ExecuteReadBatch_RejectsDedicatedNetworkReadBeforeWorkerStartup()
+    {
+        var result = await BatchTools.ExecuteReadBatch(
+            workerClient: null!,
+            new[] { Op("a", "read_hardware_config") });
+
+        using var document = JsonDocument.Parse(result);
+        Assert.Contains(
+            "Unknown operation 'read_hardware_config'",
+            document.RootElement.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task PreviewWriteBatch_RejectsReadOperation()
     {
         using var audit = new TempAuditDirectory();
@@ -91,6 +104,22 @@ public class BatchToolsTests
         var root = JsonDocument.Parse(result).RootElement;
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Contains("close_project", root.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task PreviewWriteBatch_RejectsDedicatedNetworkWriteBeforeWorkerStartup()
+    {
+        using var audit = new TempAuditDirectory();
+
+        var result = await BatchTools.PreviewWriteBatch(
+            workerClient: null!,
+            audit.CreateSafety(),
+            new[] { Op("a", "add_network_device") });
+
+        using var document = JsonDocument.Parse(result);
+        Assert.Contains(
+            "Unknown operation 'add_network_device'",
+            document.RootElement.GetProperty("error").GetString());
     }
 
     [Fact]

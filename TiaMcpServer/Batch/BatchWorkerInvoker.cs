@@ -35,8 +35,6 @@ public static class BatchWorkerInvoker
             or "create_tag" or "update_tag" or "delete_tag"
             or "create_user_constant" or "update_user_constant" or "delete_user_constant"
             => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
-        "add_network_device" or "configure_network_device"
-            => client.ReadHardwareConfigAsync(op.ProjectPath),
         "create_block" or "create_block_group" or "delete_block_group"
             => client.BrowseProjectTreeAsync(op.ProjectPath),
         // delete_block declares no 'format' field (see BatchOperationCatalog), so there is no
@@ -54,8 +52,6 @@ public static class BatchWorkerInvoker
     public static Task<WorkerCallResult> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
     {
         // Reads
-        "read_hardware_config" => client.ReadHardwareConfigAsync(op.ProjectPath),
-        "search_equipment_catalog" => client.SearchEquipmentCatalogAsync(op.Query!, op.ProjectPath, op.MaxResults),
         "read_cross_references" => client.ReadCrossReferencesAsync(op.ProjectPath, op.PlcName, op.Filter, op.MaxResults),
         "get_block_content" => InvokeGetBlockContent(client, op),
         "list_tag_tables" => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
@@ -71,8 +67,6 @@ public static class BatchWorkerInvoker
         "create_user_constant" => client.CreateUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType!, op.Value!, op.ProjectPath),
         "update_user_constant" => client.UpdateUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType, op.Value, op.ProjectPath),
         "delete_user_constant" => client.DeleteUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath),
-        "add_network_device" => client.AddNetworkDeviceAsync(op.TypeIdentifier!, op.DeviceName!, ResolveDeviceItemName(op), op.ProjectPath),
-        "configure_network_device" => client.ConfigureNetworkDeviceAsync(op.DeviceName!, op.IpAddress, op.SubnetMask, op.PnDeviceName, op.SubnetName, op.IoSystemName, op.ProjectPath),
         "create_block" => client.CreateBlockAsync(op.BlockPath!, op.BlockType!, op.Language, op.ObEventClass, op.ProjectPath),
         "delete_block" => client.DeleteBlockAsync(op.BlockPath!, op.ProjectPath),
         "create_block_group" => client.CreateBlockGroupAsync(op.BlockPath!, op.ProjectPath),
@@ -188,6 +182,4 @@ public static class BatchWorkerInvoker
         return invoke(value);
     }
 
-    private static string ResolveDeviceItemName(BatchOperationRequest op)
-        => string.IsNullOrWhiteSpace(op.DeviceItemName) ? op.DeviceName! : op.DeviceItemName!;
 }

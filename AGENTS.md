@@ -1,6 +1,6 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 10 tools (batch reads/writes, project lifecycle, diagnostics) to MCP clients. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 14 tools in read-write mode and four read-only tools in read-only mode. Windows-only, requires TIA Portal V21 with Openness enabled.
 
 ## Two-process architecture (critical to understand)
 
@@ -47,7 +47,8 @@ dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\
 
 Every write goes through preview-then-apply. This is non-negotiable.
 
-- **Batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the token
+- **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
+- **Network writes**: call `network_write` with `confirm=false` and no token to preview, then call the same tool with `confirm=true`, the unchanged ordered operation list, and the returned token
 - **Project lifecycle writes** (`open_project`, `create_project`, etc.): self-previewing — call the tool without `safetyToken` to get a preview + token, then call again with `confirm=true` + the token
 - Safety tokens are single-use, expire in 10 minutes, bound to exact tool name + project path + requested input + current project state
 - Reordering, changing input, or project state changes invalidate the token
@@ -56,7 +57,7 @@ Every write goes through preview-then-apply. This is non-negotiable.
 ## Key conventions
 
 - **`global.json`** pins .NET SDK 8.0.400 with `rollForward: latestMajor` — use `dotnet` commands, not raw `dotnet8`
-- **Tests link host source files** via `<Compile Include>` — when editing files in `TiaMcpServer/Worker/`, `TiaMcpServer/Batch/`, `TiaMcpServer/Safety/`, `TiaMcpServer/Tools/`, `TiaMcpServer/Diagnostics/`, or `TiaMcpServer/Cli/`, the test project picks up changes automatically
-- **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression and register them in the batch catalog
+- **Tests link host source files** via `<Compile Include>` — when editing files in `TiaMcpServer/Worker/`, `TiaMcpServer/Batch/`, `TiaMcpServer/Network/`, `TiaMcpServer/OperationBatches/`, `TiaMcpServer/Safety/`, `TiaMcpServer/Tools/`, `TiaMcpServer/Diagnostics/`, or `TiaMcpServer/Cli/`, the test project picks up changes automatically
+- **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a generic batch operation; network operations use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
 - Siemens DLLs are **never committed** to the repo or the NuGet package

@@ -1,7 +1,6 @@
 # Network Operations Roadmap
 
-Status: approved high-level direction as of 2026-08-01. Implementation is intended
-for the current `feature/network-edit-operations` branch.
+Status: Phase 1 implementation and whole-plan review are complete. Phase 2 remains open.
 
 This document records the architectural direction and delivery sequence. It is not
 a detailed implementation plan. Task-level design, acceptance criteria, and file-by-file
@@ -13,7 +12,8 @@ Create a first-class, agent-friendly network engineering surface that:
 
 - separates network operations from the generic read and write batch tools;
 - preserves preview-before-apply safety for every write;
-- exposes structured JSON that agents can inspect and transform reliably; and
+- will expose structured JSON that agents can inspect and transform reliably after the
+  mandatory Phase 2 contract gate; and
 - expands from the current bounded device-configuration surface to subnet, IO-system,
   and generic network-attribute operations.
 
@@ -22,7 +22,7 @@ The current implemented surface remains documented in
 
 ## Approved Public Tool Direction
 
-Introduce two domain tools:
+The implemented domain tools are:
 
 - `network_read`: batch network reads, registered in both read-only and read-write modes.
 - `network_write`: a self-previewing batch write tool, registered only in read-write mode.
@@ -32,7 +32,7 @@ the same tool again with `confirm=true`, the unchanged operation list, and that 
 applies the batch. Existing token expiry, single-use behavior, project-state binding,
 auditing, and access-mode enforcement remain mandatory.
 
-The following existing operations move out of the generic batch surface:
+The following operations have moved out of the generic batch surface:
 
 - `read_hardware_config`
 - `search_equipment_catalog`
@@ -49,11 +49,10 @@ Immediately after tool separation, pause capability expansion and evaluate the a
 JSON seen by an MCP client. This gate must be completed before new subnet, IO-system, or
 generic attribute operations are added.
 
-The current hardware DTO hierarchy is readily serializable, but the generic batch result
-stores each worker payload as text. A serialized network object can therefore appear as
-escaped JSON inside an outer JSON envelope. The dedicated network tools should instead
-return structured objects and arrays in each operation result so an agent does not need
-to parse nested JSON strings.
+Phase 1 intentionally retains string-valued operation results. A serialized network object
+can therefore appear as escaped JSON inside an outer JSON envelope. Phase 2 is the mandatory
+single-layer JSON contract gate: it must replace this with structured objects and arrays in
+each operation result before additional topology capabilities or a frozen network contract.
 
 Contract evaluation will cover:
 
@@ -91,14 +90,15 @@ contract has proved safe and comfortable for agents.
 
 ### Phase 1: Separate the Public Tool Surface
 
-Add `network_read` and `network_write`, introduce a network-specific operation catalog
-and request envelope, move the four existing operations, and remove them from the generic
-batch schema, descriptions, dispatch, and tests. Preserve the existing worker handlers
-where their behavior remains suitable.
+Completed: added
+`network_read` and `network_write`, a network-specific operation catalog and request
+envelope, moved the four existing operations, and removed them from the generic batch
+schema, descriptions, dispatch, and tests. The existing worker handlers remain in use where
+their behavior is suitable.
 
 ### Phase 2: Stabilize the JSON Contract
 
-Run the agent-facing JSON contract gate above. Resolve nested JSON, collection/null
+Run the mandatory single-layer JSON contract gate above. Resolve nested JSON, collection/null
 semantics, selector ambiguity, typed values, and result-envelope consistency before
 freezing the network tool contract.
 
@@ -155,10 +155,10 @@ commissioning behavior.
 
 Start future implementation planning from these existing seams:
 
-- `TiaMcpServer/Batch/BatchOperationCatalog.cs`
-- `TiaMcpServer/Batch/ReadBatchTools.cs`
-- `TiaMcpServer/Batch/WriteBatchTools.cs`
-- `TiaMcpServer/Batch/BatchResultFormatter.cs`
+- `TiaMcpServer/Network/NetworkOperationCatalog.cs`
+- `TiaMcpServer/Network/NetworkReadTools.cs`
+- `TiaMcpServer/Network/NetworkWriteTools.cs`
+- `TiaMcpServer/OperationBatches/`
 - `TiaMcpServer/Worker/OpennessWorkerClient.cs`
 - `TiaMcpServer.Contracts/WorkerRequest.cs`
 - `TiaMcpServer.OpennessWorker/Program.cs`

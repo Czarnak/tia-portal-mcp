@@ -6,21 +6,21 @@ The MCP provides a bounded device and network-identity surface:
 
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
-| `execute_read_batch` | `read_hardware_config` | Reads devices and returned network DTOs, including interfaces, nodes, subnets, and IO systems where present. |
-| `execute_read_batch` | `search_equipment_catalog` | Searches the hardware catalog for a device type before creation. |
-| `preview_write_batch` → `apply_write_batch` | `add_network_device` | Creates a device from an exact catalog `typeIdentifier`; requires `deviceName` and accepts optional `deviceItemName`. |
-| `preview_write_batch` → `apply_write_batch` | `configure_network_device` | Configures a named device with optional `ipAddress`, `subnetMask`, `pnDeviceName`, `subnetName`, and `ioSystemName`. |
+| `network_read` | `read_hardware_config` | Reads devices and returned network DTOs, including interfaces, nodes, subnets, and IO systems where present. |
+| `network_read` | `search_equipment_catalog` | Searches the hardware catalog for a device type before creation. |
+| `network_write` | `add_network_device` | Creates a device from an exact catalog `typeIdentifier`; requires `deviceName` and accepts optional `deviceItemName`. |
+| `network_write` | `configure_network_device` | Configures a named device with optional `ipAddress`, `subnetMask`, `pnDeviceName`, `subnetName`, and `ioSystemName`. |
 
 `configure_network_device` is not a general network-editor proxy. Its writable contract is limited to the listed fields.
 
 ## Recommended workflow
 
-1. Use `search_equipment_catalog` to obtain the exact catalog `typeIdentifier`.
-2. Preview an ordered write batch containing `add_network_device` and, when required, `configure_network_device`.
-3. Apply the unchanged batch with `confirm=true` and the returned safety token.
-4. Read `read_hardware_config` after the write to inspect the resulting project configuration.
+1. Use `network_read` with `search_equipment_catalog` to obtain the exact catalog `typeIdentifier`.
+2. Call `network_write` with the ordered `add_network_device` and, when required, `configure_network_device` operations and `confirm:false` (or omit `confirm`) to receive a preview and safety token.
+3. Call the same `network_write` tool with `confirm:true`, the unchanged ordered operation list, and the returned token.
+4. Use `network_read` with `read_hardware_config` after the write to inspect the resulting project configuration.
 
-Network writes follow the common sequential batch semantics; completed operations are not rolled back when a later item fails.
+Network writes are sequential. Completed operations are not rolled back when a later item fails; later operations are skipped.
 
 ## Current limits
 

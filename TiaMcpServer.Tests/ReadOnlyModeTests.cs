@@ -4,6 +4,7 @@ using TiaMcpServer.Batch;
 using TiaMcpServer.Cli;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Diagnostics;
+using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -467,7 +468,7 @@ public class ReadOnlyModeTests
         var ops = new[]
         {
             new BatchOperationRequest { OperationId = "a", Operation = "update_block_logic", BlockPath = "Main", YamlContent = "x" },
-            new BatchOperationRequest { OperationId = "b", Operation = "read_hardware_config" },
+            new BatchOperationRequest { OperationId = "b", Operation = "list_tag_tables" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadWrite);
         Assert.Empty(errors);
@@ -491,7 +492,7 @@ public class ReadOnlyModeTests
     {
         var ops = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_hardware_config" },
+            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references" },
             new BatchOperationRequest { OperationId = "b", Operation = "get_block_content", BlockPath = "Main" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadOnly);
@@ -503,7 +504,7 @@ public class ReadOnlyModeTests
     {
         var ops = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_hardware_config" },
+            new BatchOperationRequest { OperationId = "a", Operation = "list_tag_tables" },
             new BatchOperationRequest { OperationId = "b", Operation = "update_block_logic", BlockPath = "Main", YamlContent = "x" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadOnly);
@@ -516,9 +517,11 @@ public class ReadOnlyModeTests
     #region Tool Discovery Tests
 
     [Fact]
-    public void ReadOnlyMode_HasExactlyThreeTools()
+    public void ReadOnlyMode_HasExactlyFourTools()
     {
-        var toolNames = new[] { typeof(ProjectReadTools), typeof(ReadBatchTools) }
+        var networkReadType = typeof(NetworkOperationRequest).Assembly.GetType("TiaMcpServer.Network.NetworkReadTools");
+        Assert.NotNull(networkReadType);
+        var toolNames = new[] { typeof(ProjectReadTools), typeof(ReadBatchTools), networkReadType! }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
             .Where(attribute => attribute is not null)
@@ -527,12 +530,12 @@ public class ReadOnlyModeTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "browse_project_tree", "execute_read_batch", "get_project_status" },
+            new[] { "browse_project_tree", "execute_read_batch", "get_project_status", "network_read" },
             toolNames);
     }
 
     [Fact]
-    public void ReadWriteMode_HasExactlyTwelveDistinctTools()
+    public void ReadWriteMode_HasExactlyFourteenDistinctTools()
     {
         var toolNames = typeof(ProjectLifecycleTools).Assembly
             .GetTypes()
@@ -549,7 +552,8 @@ public class ReadOnlyModeTests
             {
                 "apply_write_batch", "archive_project", "browse_project_tree", "close_project",
                 "compile_check", "create_project", "execute_read_batch", "get_project_status",
-                "open_project", "preview_write_batch", "save_project", "save_project_as"
+                "network_read", "network_write", "open_project", "preview_write_batch",
+                "save_project", "save_project_as"
             },
             toolNames);
     }
@@ -576,6 +580,20 @@ public class ReadOnlyModeTests
         var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
         Assert.NotNull(attr);
         Assert.Equal("execute_read_batch", attr.Name);
+        Assert.True(attr.ReadOnly);
+        Assert.False(attr.Destructive);
+    }
+
+    [Fact]
+    public void NetworkReadTools_HasNetworkRead()
+    {
+        var type = typeof(NetworkOperationRequest).Assembly.GetType("TiaMcpServer.Network.NetworkReadTools");
+        Assert.NotNull(type);
+        var method = type!.GetMethod("NetworkRead", BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(method);
+        var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
+        Assert.NotNull(attr);
+        Assert.Equal("network_read", attr!.Name);
         Assert.True(attr.ReadOnly);
         Assert.False(attr.Destructive);
     }

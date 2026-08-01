@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 
@@ -20,8 +21,8 @@ public static class BatchTools
     private const string ApplyToolName = "apply_write_batch";
 
     [Description("Run up to 50 non-project read operations in one call. Each item is { operationId (unique), operation, ...that operation's parameters }; projectPath is optional on every item. Reads run independently, so a failing item does not stop the others. "
-    + "Valid operations (parentheses list required fields): read_hardware_config, search_equipment_catalog (query), read_cross_references, get_block_content (blockPath), list_tag_tables, get_type_content (typePath). "
-    + "Large reads: bound search_equipment_catalog and read_cross_references with maxResults; oversized responses are truncated or omitted server-side with explicit markers.")]
+    + "Valid operations (parentheses list required fields): read_cross_references, get_block_content (blockPath), list_tag_tables, get_type_content (typePath). "
+    + "Large reads: narrow with plcName, filter, or maxResults; oversized responses are truncated or omitted server-side with explicit markers.")]
     public static async Task<string> ExecuteReadBatch(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of read operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)
@@ -29,18 +30,24 @@ public static class BatchTools
         var validation = BatchOperationCatalog.ValidateReadBatch(operations);
         if (!validation.IsValid)
         {
-            return BatchResultFormatter.Error("execute_read_batch", validation.Error);
+            return OperationBatchResultFormatter.Error("execute_read_batch", validation.Error);
         }
 
-        var results = await BatchExecutionEngine.ExecuteReadsAsync(
+        var results = await OperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
             op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
 
-        return BatchResultFormatter.ReadBatch(BatchPayloadBudget.Apply(results));
+        var budgeted = OperationBatchPayloadBudget.Apply(
+            results,
+            toolName: "execute_read_batch",
+            retryToolName: "execute_read_batch",
+            narrowingHint: "Use plcName, filter, or maxResults; or split the batch.");
+
+        return OperationBatchResultFormatter.Read("execute_read_batch", budgeted);
     }
 
     [Description("Preview up to 50 write operations and return one batch-level safetyToken bound to the exact ordered operation list and the combined current state. The token is single-use and expires after 10 minutes. Pass the token to apply_write_batch after reviewing the preview. All items must target the same project. "
-        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc, update_type_content (typePath, sourceContent).")]
+        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), start_plc, stop_plc, update_type_content (typePath, sourceContent).")]
     public static async Task<string> PreviewWriteBatch(
         OpennessWorkerClient workerClient,
         WriteSafetyService safety,
@@ -49,13 +56,13 @@ public static class BatchTools
         var validation = BatchOperationCatalog.ValidateWriteBatch(operations);
         if (!validation.IsValid)
         {
-            return BatchResultFormatter.Error(PreviewToolName, validation.Error);
+            return OperationBatchResultFormatter.Error(PreviewToolName, validation.Error);
         }
 
         var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
         if (snapshot.Error is not null)
         {
-            return BatchResultFormatter.Error(PreviewToolName, snapshot.Error);
+            return OperationBatchResultFormatter.Error(PreviewToolName, snapshot.Error);
         }
 
         var targets = BatchSafetySnapshot.BuildTargets(operations);
@@ -75,7 +82,7 @@ public static class BatchTools
     }
 
     [Description("Apply a previewed batch of write operations sequentially, stopping on the first failure (later items are skipped; no rollback). Requires confirm=true and a safetyToken from preview_write_batch; pass the identical operations list. "
-        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), add_network_device (typeIdentifier, deviceName), configure_network_device (deviceName), start_plc, stop_plc, update_type_content (typePath, sourceContent).")]
+        + "Valid operations (parentheses list required fields): update_block_logic (blockPath, yamlContent), create_block (blockPath, blockType), delete_block (blockPath), create_block_group (blockPath), delete_block_group (blockPath), create_tag_table (tableName), delete_tag_table (tableName), create_tag (tableName, name, dataType), update_tag (tableName, name), delete_tag (tableName, name), create_user_constant (tableName, name, dataType, value), update_user_constant (tableName, name), delete_user_constant (tableName, name), start_plc, stop_plc, update_type_content (typePath, sourceContent).")]
     public static async Task<string> ApplyWriteBatch(
         OpennessWorkerClient workerClient,
         WriteSafetyService safety,
@@ -85,7 +92,7 @@ public static class BatchTools
     {
         if (!confirm)
         {
-            return BatchResultFormatter.Error(
+            return OperationBatchResultFormatter.Error(
                 ApplyToolName,
                 "Operation not confirmed. Set confirm=true to proceed with applying the write batch.");
         }
@@ -93,12 +100,12 @@ public static class BatchTools
         var validation = BatchOperationCatalog.ValidateWriteBatch(operations);
         if (!validation.IsValid)
         {
-            return BatchResultFormatter.Error(ApplyToolName, validation.Error);
+            return OperationBatchResultFormatter.Error(ApplyToolName, validation.Error);
         }
 
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
-            return BatchResultFormatter.Error(
+            return OperationBatchResultFormatter.Error(
                 ApplyToolName,
                 $"Safety token required. Call {PreviewToolName} first, review the preview, then pass its safetyToken with confirm=true.");
         }
@@ -116,13 +123,13 @@ public static class BatchTools
             PreviewToolName);
         if (!envelope.IsValid)
         {
-            return BatchResultFormatter.Error(ApplyToolName, envelope.Error);
+            return OperationBatchResultFormatter.Error(ApplyToolName, envelope.Error);
         }
 
         var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
         if (snapshot.Error is not null)
         {
-            return BatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
+            return OperationBatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
         }
 
         var tokenValidation = safety.ValidateAndConsume(
@@ -135,14 +142,14 @@ public static class BatchTools
             PreviewToolName);
         if (!tokenValidation.IsValid)
         {
-            return BatchResultFormatter.Error(ApplyToolName, tokenValidation.Error);
+            return OperationBatchResultFormatter.Error(ApplyToolName, tokenValidation.Error);
         }
 
-        var results = await BatchExecutionEngine.ApplyWritesAsync(
+        var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
             operations,
             op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
 
-        var resultJson = BatchResultFormatter.ApplyBatch(results);
+        var resultJson = OperationBatchResultFormatter.Apply(ApplyToolName, results);
         safety.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);
         return resultJson;
     }
@@ -151,7 +158,7 @@ public static class BatchTools
         OpennessWorkerClient workerClient,
         BatchOperationRequest[] operations)
     {
-        var states = new List<BatchCurrentState>(operations.Length);
+        var states = new List<OperationBatchCurrentState>(operations.Length);
         foreach (var op in operations)
         {
             var state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
@@ -160,7 +167,7 @@ public static class BatchTools
                 return (string.Empty, $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). Error: {state.Error}");
             }
 
-            states.Add(new BatchCurrentState(op.OperationId, op.Operation, state.Payload));
+            states.Add(new OperationBatchCurrentState(op.OperationId, op.Operation, state.Payload));
         }
 
         return (BatchSafetySnapshot.CombineCurrentState(states), null);
