@@ -128,17 +128,10 @@ internal static class ExecutableResolver
             var lines = RunWhereAll(candidate);
             if (lines.Count == 0) continue;
 
-            // Filter to existing files and pick by priority
-            var existing = lines
-                .Where(File.Exists)
+            // where.exe returns existing paths; pick the preferred executable kind.
+            var best = lines
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (existing.Count == 0) continue;
-
-            // Sort by extension priority: .exe > .cmd > .bat > no extension
-            var best = existing
-                .OrderBy(f => ExtensionPriority(f))
+                .OrderBy(ExtensionPriority)
                 .First();
 
             return new ExecutableResolutionResult(true, command, best,
@@ -277,33 +270,16 @@ internal static class ExecutableResolver
             };
             psi.ArgumentList.Add(executable);
 
-            using var process = Process.Start(psi);
-            if (process is null)
-            {
-                return results;
-            }
-
+            using var process = Process.Start(psi)!;
             process.WaitForExit(5000);
             if (process.ExitCode != 0)
             {
                 return results;
             }
 
-            var stdout = process.StandardOutput.ReadToEnd();
-            if (string.IsNullOrWhiteSpace(stdout))
-            {
-                return results;
-            }
-
-            var lines = stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in lines)
-            {
-                var trimmed = line.Trim();
-                if (!string.IsNullOrEmpty(trimmed))
-                {
-                    results.Add(trimmed);
-                }
-            }
+            results.AddRange(process.StandardOutput.ReadToEnd().Split(
+                new[] { '\r', '\n' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         }
         catch
         {
