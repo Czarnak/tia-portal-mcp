@@ -27,22 +27,6 @@ jobs:
             - name: Run scoped coverage
               run: dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --configuration Release --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory TestResults
 
-            - name: Report uncovered install lines
-              shell: pwsh
-              run: |
-                  $report = @(Get-ChildItem -Path TestResults -Recurse -Filter coverage.cobertura.xml)[0]
-                  [xml]$coverage = Get-Content $report.FullName
-                  $targets = @("ExecutableResolver.cs", "InstallCommand.cs")
-                  foreach ($class in $coverage.coverage.packages.package.classes.class) {
-                      $fileName = [System.IO.Path]::GetFileName([string]$class.filename)
-                      if ($targets -contains $fileName) {
-                          $missed = @($class.lines.line | Where-Object { [int]$_.hits -eq 0 } | ForEach-Object { [string]$_.number })
-                          $partial = @($class.lines.line | Where-Object { $_.'condition-coverage' -and $_.'condition-coverage' -notlike '100%*' } | ForEach-Object { "$($_.number) [$($_.'condition-coverage')]" })
-                          Write-Host "$fileName uncovered lines: $($missed -join ', ')"
-                          Write-Host "$fileName partial branches: $($partial -join ', ')"
-                      }
-                  }
-
             - name: Enforce coverage threshold
               shell: pwsh
               run: |
