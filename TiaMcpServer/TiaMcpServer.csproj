@@ -5,6 +5,8 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>tia-mcp</ToolCommandName>
     <PackageId>TiaMcpServer</PackageId>
+    <Description>Model Context Protocol (MCP) server for Siemens SIMATIC TIA Portal V21. Enables MCP clients and AI agents to inspect, diagnose, and automate TIA Portal projects via Siemens Openness.</Description>
+    <PackageTags>mcp;model-context-protocol;tia-portal;siemens;automation;plc;openness</PackageTags>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageReadmeFile>README.md</PackageReadmeFile>
