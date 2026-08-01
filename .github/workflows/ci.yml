@@ -37,7 +37,9 @@ jobs:
                       $fileName = [System.IO.Path]::GetFileName([string]$class.filename)
                       if ($targets -contains $fileName) {
                           $missed = @($class.lines.line | Where-Object { [int]$_.hits -eq 0 } | ForEach-Object { [string]$_.number })
+                          $partial = @($class.lines.line | Where-Object { $_.'condition-coverage' -and $_.'condition-coverage' -notlike '100%*' } | ForEach-Object { "$($_.number) [$($_.'condition-coverage')]" })
                           Write-Host "$fileName uncovered lines: $($missed -join ', ')"
+                          Write-Host "$fileName partial branches: $($partial -join ', ')"
                       }
                   }
 
