@@ -4,22 +4,22 @@ internal sealed class CodexInstaller : IMcpClientInstaller
 {
     public ClientKind Client => ClientKind.Codex;
 
-    public async Task<ClientDetectionResult> DetectAsync(INativeProcessRunner runner, CancellationToken cancellationToken)
+    public Task<ClientDetectionResult> DetectAsync(
+        Func<string, ExecutableResolutionResult> resolveClientExe,
+        CancellationToken cancellationToken)
     {
-        var result = await runner.RunAsync(
-            new NativeCommand("where.exe", new[] { "codex" }, false),
-            cancellationToken);
-
-        if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.Stdout))
-        {
-            var path = result.Stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
-            return new ClientDetectionResult(true, path, null);
-        }
-
-        return new ClientDetectionResult(false, null, "Codex CLI not found. Install it from https://github.com/openai/codex");
+        var result = resolveClientExe("codex");
+        return Task.FromResult(new ClientDetectionResult(
+            result.Found,
+            result.ResolvedPath,
+            result.Kind,
+            result.Found ? null : "Codex CLI was not found.\n\nExpected command:\n  codex\n\nVerify the installation with:\n  codex --version\n\nAfter installing Codex, run:\n  tia-mcp install codex"));
     }
 
-    public NativeCommand BuildInstallCommand(InstallOptions options, McpLaunchSpec spec)
+    public NativeCommand BuildInstallCommand(
+        InstallOptions options,
+        McpLaunchSpec spec,
+        Func<string, ExecutableResolutionResult> resolveClientExe)
     {
         var args = new List<string> { "mcp", "add", spec.ServerName, "--" };
         args.Add(spec.ExecutablePath);

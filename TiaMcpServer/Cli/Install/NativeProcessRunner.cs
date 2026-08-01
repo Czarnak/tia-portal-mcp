@@ -6,9 +6,11 @@ internal sealed class NativeProcessRunner : INativeProcessRunner
 {
     public async Task<NativeCommandResult> RunAsync(NativeCommand command, CancellationToken cancellationToken)
     {
+        var (fileName, argumentList) = BuildProcessArgs(command);
+
         var psi = new ProcessStartInfo
         {
-            FileName = command.Executable,
+            FileName = fileName,
             UseShellExecute = false,
             CreateNoWindow = !command.Interactive,
             RedirectStandardOutput = !command.Interactive,
@@ -16,7 +18,7 @@ internal sealed class NativeProcessRunner : INativeProcessRunner
             RedirectStandardInput = !command.Interactive
         };
 
-        foreach (var arg in command.Arguments)
+        foreach (var arg in argumentList)
         {
             psi.ArgumentList.Add(arg);
         }
@@ -54,5 +56,26 @@ internal sealed class NativeProcessRunner : INativeProcessRunner
         {
             return new NativeCommandResult(-1, string.Empty, ex.Message);
         }
+    }
+
+    internal static (string FileName, IReadOnlyList<string> Arguments) BuildProcessArgs(NativeCommand command)
+    {
+        var resolvedPath = command.ResolvedPath ?? command.Executable;
+
+        if (command.Kind == ExecutableKind.CommandScript || command.Kind == ExecutableKind.BatchScript)
+        {
+            // .cmd and .bat must be executed through cmd.exe
+            var cmdExe = Environment.GetEnvironmentVariable("COMSPEC")
+                ?? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System),
+                    "cmd.exe");
+
+            var args = new List<string> { "/d", "/s", "/c", resolvedPath };
+            args.AddRange(command.Arguments);
+            return (cmdExe, args);
+        }
+
+        // Native .exe or bare command
+        return (resolvedPath, command.Arguments);
     }
 }

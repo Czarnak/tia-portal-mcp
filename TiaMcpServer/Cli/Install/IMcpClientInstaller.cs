@@ -4,9 +4,14 @@ internal interface IMcpClientInstaller
 {
     ClientKind Client { get; }
 
-    Task<ClientDetectionResult> DetectAsync(INativeProcessRunner runner, CancellationToken cancellationToken);
+    Task<ClientDetectionResult> DetectAsync(
+        Func<string, ExecutableResolutionResult> resolveClientExe,
+        CancellationToken cancellationToken);
 
-    NativeCommand BuildInstallCommand(InstallOptions options, McpLaunchSpec spec);
+    NativeCommand BuildInstallCommand(
+        InstallOptions options,
+        McpLaunchSpec spec,
+        Func<string, ExecutableResolutionResult> resolveClientExe);
 
     NativeCommand? BuildVerificationCommand(InstallOptions options, McpLaunchSpec spec);
 }
