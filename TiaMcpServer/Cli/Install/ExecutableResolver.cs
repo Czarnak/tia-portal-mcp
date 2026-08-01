@@ -256,6 +256,11 @@ internal static class ExecutableResolver
     }
 
     private static List<string> RunWhereAll(string executable)
+        => RunWhereAll(executable, Process.Start);
+
+    internal static List<string> RunWhereAll(
+        string executable,
+        Func<ProcessStartInfo, Process?> startProcess)
     {
         var results = new List<string>();
         try
@@ -270,7 +275,7 @@ internal static class ExecutableResolver
             };
             psi.ArgumentList.Add(executable);
 
-            using var process = Process.Start(psi)!;
+            using var process = startProcess(psi)!;
             process.WaitForExit(5000);
             if (process.ExitCode != 0)
             {
