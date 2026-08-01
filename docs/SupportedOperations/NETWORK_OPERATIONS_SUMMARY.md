@@ -37,3 +37,9 @@ The current surface does not provide:
 - Generic network interface, node, subnet, or connection attribute enumeration and writes.
 
 Hardware configuration results and compile results are engineering data. They do not by themselves certify a live hardware configuration or commissioning outcome.
+
+## Future roadmap
+
+The approved high-level direction for dedicated network tools, agent-facing JSON contracts,
+and expanded topology operations is documented in
+[NETWORK_OPERATIONS_ROADMAP.md](../NETWORK_OPERATIONS_ROADMAP.md).
