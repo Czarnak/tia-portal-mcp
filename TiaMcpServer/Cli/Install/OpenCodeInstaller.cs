@@ -4,22 +4,22 @@ internal sealed class OpenCodeInstaller : IMcpClientInstaller
 {
     public ClientKind Client => ClientKind.OpenCode;
 
-    public async Task<ClientDetectionResult> DetectAsync(INativeProcessRunner runner, CancellationToken cancellationToken)
+    public Task<ClientDetectionResult> DetectAsync(
+        Func<string, ExecutableResolutionResult> resolveClientExe,
+        CancellationToken cancellationToken)
     {
-        var result = await runner.RunAsync(
-            new NativeCommand("where.exe", new[] { "opencode" }, false),
-            cancellationToken);
-
-        if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.Stdout))
-        {
-            var path = result.Stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
-            return new ClientDetectionResult(true, path, null);
-        }
-
-        return new ClientDetectionResult(false, null, "OpenCode CLI not found. Install it from https://github.com/opencode-ai/opencode");
+        var result = resolveClientExe("opencode");
+        return Task.FromResult(new ClientDetectionResult(
+            result.Found,
+            result.ResolvedPath,
+            result.Kind,
+            result.Found ? null : "OpenCode CLI was not found.\n\nExpected command:\n  opencode\n\nVerify the installation with:\n  opencode --version\n\nAfter installing OpenCode, run:\n  tia-mcp install opencode"));
     }
 
-    public NativeCommand BuildInstallCommand(InstallOptions options, McpLaunchSpec spec)
+    public NativeCommand BuildInstallCommand(
+        InstallOptions options,
+        McpLaunchSpec spec,
+        Func<string, ExecutableResolutionResult> resolveClientExe)
     {
         var args = new List<string> { "mcp", "add", spec.ServerName, "--" };
         args.Add(spec.ExecutablePath);

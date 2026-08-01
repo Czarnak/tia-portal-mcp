@@ -23,7 +23,15 @@ public class InstallCommandTests
     }
 
     private static string? FakeResolveServerExe(string? path) => path ?? @"C:\tools\tia-mcp.exe";
-    private static string? FakeFindClientExe(string exe) => $@"C:\tools\{exe}.exe";
+
+    private static ExecutableResolutionResult FakeResolveClientExe(string exe)
+        => new(true, exe, $@"C:\tools\{exe}.exe", ExecutableKind.Native, null);
+
+    private static ExecutableResolutionResult FakeResolveClientExeAsCmd(string exe)
+        => new(true, exe, $@"C:\Users\user\AppData\Roaming\npm\{exe}.cmd", ExecutableKind.CommandScript, null);
+
+    private static ExecutableResolutionResult NotFoundClientExe(string exe)
+        => new(false, exe, null, ExecutableKind.Native, $"The executable '{exe}' was not found.");
 
     [Fact]
     public async Task RunAsync_Help_ReturnsZeroAndPrintsUsage()
@@ -33,7 +41,7 @@ public class InstallCommandTests
         var error = new StringWriter();
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "--help" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "--help" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("Usage: tia-mcp install", output.ToString());
@@ -47,7 +55,7 @@ public class InstallCommandTests
         var error = new StringWriter();
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "--help", "--json" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "--help", "--json" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("\"usage\"", output.ToString());
@@ -61,7 +69,7 @@ public class InstallCommandTests
         var error = new StringWriter();
 
         var exitCode = await InstallCommand.RunAsync(
-            System.Array.Empty<string>(), runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            System.Array.Empty<string>(), runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(2, exitCode);
         Assert.Contains("No MCP client specified", error.ToString());
@@ -75,7 +83,7 @@ public class InstallCommandTests
         var error = new StringWriter();
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "unknown-client" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "unknown-client" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(3, exitCode);
     }
@@ -89,7 +97,7 @@ public class InstallCommandTests
         string? NullResolver(string? _) => null;
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex" }, runner, output, error, NullResolver, FakeFindClientExe);
+            new[] { "codex" }, runner, output, error, NullResolver, FakeResolveClientExe);
 
         Assert.Equal(5, exitCode);
         Assert.Contains("tia-mcp executable not found", error.ToString());
@@ -101,15 +109,31 @@ public class InstallCommandTests
         var runner = new FakeProcessRunner();
         var output = new StringWriter();
         var error = new StringWriter();
-        string? NullFinder(string _) => null;
-
-        // Need to make DetectAsync fail: override with a runner that returns failure for where.exe
-        runner.Results.Enqueue(new NativeCommandResult(1, string.Empty, "not found"));
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex" }, runner, output, error, FakeResolveServerExe, NullFinder);
+            new[] { "codex" }, runner, output, error, FakeResolveServerExe, NotFoundClientExe);
 
         Assert.Equal(4, exitCode);
+    }
+
+    [Fact]
+    public async Task RunAsync_MiMoCode_UsesInteractiveMode()
+    {
+        var runner = new FakeProcessRunner();
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        // Install succeeds (interactive)
+        runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
+        // Verification succeeds
+        runner.Results.Enqueue(new NativeCommandResult(0, "3 server(s)", string.Empty));
+
+        var exitCode = await InstallCommand.RunAsync(
+            new[] { "mimo" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("mimo", runner.ExecutedCommands[0].Executable);
+        Assert.True(runner.ExecutedCommands[0].Interactive);
     }
 
     [Fact]
@@ -119,11 +143,8 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for mimo detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\mimo.exe", string.Empty));
-
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "mimo", "--json" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "mimo", "--json" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(8, exitCode);
         Assert.Contains("does not support --json", output.ToString());
@@ -136,14 +157,11 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
-
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex", "--dry-run" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "codex", "--dry-run" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("[dry-run]", output.ToString());
+        Assert.Contains("Dry run", output.ToString());
         Assert.Contains("codex", output.ToString());
     }
 
@@ -154,11 +172,8 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
-
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex", "--dry-run", "--json" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "codex", "--dry-run", "--json" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("\"dryRun\":true", output.ToString());
@@ -171,15 +186,13 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
         // Install succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
         // Verification succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, "{}", string.Empty));
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "codex" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("Successfully registered", output.ToString());
@@ -193,8 +206,6 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
         // Install succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
         // Verification succeeds
@@ -202,14 +213,14 @@ public class InstallCommandTests
 
         await InstallCommand.RunAsync(
             new[] { "codex", "--name", "my-tia", "--access-mode", "read-write" },
-            runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
-        // First command is where.exe, second is the install, third is verification
-        Assert.Equal(3, runner.ExecutedCommands.Count);
-        Assert.Equal("codex", runner.ExecutedCommands[1].Executable);
-        Assert.Contains("mcp", runner.ExecutedCommands[1].Arguments);
-        Assert.Contains("add", runner.ExecutedCommands[1].Arguments);
-        Assert.Contains("my-tia", runner.ExecutedCommands[1].Arguments);
+        // First command is install, second is verification
+        Assert.Equal(2, runner.ExecutedCommands.Count);
+        Assert.Equal("codex", runner.ExecutedCommands[0].Executable);
+        Assert.Contains("mcp", runner.ExecutedCommands[0].Arguments);
+        Assert.Contains("add", runner.ExecutedCommands[0].Arguments);
+        Assert.Contains("my-tia", runner.ExecutedCommands[0].Arguments);
     }
 
     [Fact]
@@ -219,13 +230,11 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
         // Install fails
         runner.Results.Enqueue(new NativeCommandResult(1, string.Empty, "Installation failed"));
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "codex" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(6, exitCode);
         Assert.Contains("Install command failed", error.ToString());
@@ -238,15 +247,13 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
         // Install succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
         // Verification fails
         runner.Results.Enqueue(new NativeCommandResult(1, string.Empty, "Verification error"));
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "codex" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(7, exitCode);
     }
@@ -258,15 +265,13 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
         // Install succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
         // Verification succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, "{}", string.Empty));
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex", "--json" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "codex", "--json" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
         Assert.Equal(0, exitCode);
         var jsonOutput = output.ToString();
@@ -274,6 +279,8 @@ public class InstallCommandTests
         Assert.Contains("\"client\":\"Codex\"", jsonOutput);
         Assert.Contains("\"serverName\":\"tia-portal\"", jsonOutput);
         Assert.Contains("\"accessMode\":\"read-only\"", jsonOutput);
+        Assert.Contains("\"resolvedClientPath\"", jsonOutput);
+        Assert.Contains("\"clientExecutableKind\"", jsonOutput);
     }
 
     [Fact]
@@ -285,10 +292,11 @@ public class InstallCommandTests
         string? NullResolver(string? _) => null;
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "codex", "--json" }, runner, output, error, NullResolver, FakeFindClientExe);
+            new[] { "codex", "--json" }, runner, output, error, NullResolver, FakeResolveClientExe);
 
         Assert.Equal(5, exitCode);
         Assert.Contains("\"success\":false", output.ToString());
+        Assert.Contains("\"tia_mcp_executable_not_found\"", output.ToString());
     }
 
     [Fact]
@@ -298,8 +306,6 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for codex detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\codex.exe", string.Empty));
         // Install succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
         // Verification succeeds
@@ -307,9 +313,9 @@ public class InstallCommandTests
 
         await InstallCommand.RunAsync(
             new[] { "codex", "--tia-project", @"C:\Projects\Line.ap21" },
-            runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
-        var installCmd = runner.ExecutedCommands[1];
+        var installCmd = runner.ExecutedCommands[0];
         Assert.Contains("--project", installCmd.Arguments);
         Assert.Contains(@"C:\Projects\Line.ap21", installCmd.Arguments);
     }
@@ -321,19 +327,17 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for claude detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\claude.exe", string.Empty));
         // Install succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
         // Verification succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, "{}", string.Empty));
 
         await InstallCommand.RunAsync(
-            new[] { "claude" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "claude" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
-        Assert.Equal("claude", runner.ExecutedCommands[1].Executable);
-        Assert.Contains("--scope", runner.ExecutedCommands[1].Arguments);
-        Assert.Contains("user", runner.ExecutedCommands[1].Arguments);
+        Assert.Equal("claude", runner.ExecutedCommands[0].Executable);
+        Assert.Contains("--scope", runner.ExecutedCommands[0].Arguments);
+        Assert.Contains("user", runner.ExecutedCommands[0].Arguments);
     }
 
     [Fact]
@@ -343,16 +347,86 @@ public class InstallCommandTests
         var output = new StringWriter();
         var error = new StringWriter();
 
-        // where.exe succeeds for opencode detection
-        runner.Results.Enqueue(new NativeCommandResult(0, @"C:\tools\opencode.exe", string.Empty));
         // Install succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
         // Verification succeeds
         runner.Results.Enqueue(new NativeCommandResult(0, "{}", string.Empty));
 
         await InstallCommand.RunAsync(
-            new[] { "opencode" }, runner, output, error, FakeResolveServerExe, FakeFindClientExe);
+            new[] { "opencode" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
 
-        Assert.Equal("opencode", runner.ExecutedCommands[1].Executable);
+        Assert.Equal("opencode", runner.ExecutedCommands[0].Executable);
+    }
+
+    [Fact]
+    public async Task RunAsync_CmdShim_PatchesResolvedPathAndKind()
+    {
+        var runner = new FakeProcessRunner();
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        // Install succeeds
+        runner.Results.Enqueue(new NativeCommandResult(0, string.Empty, string.Empty));
+        // Verification succeeds
+        runner.Results.Enqueue(new NativeCommandResult(0, "{}", string.Empty));
+
+        await InstallCommand.RunAsync(
+            new[] { "claude" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExeAsCmd);
+
+        var installCmd = runner.ExecutedCommands[0];
+        Assert.Equal(ExecutableKind.CommandScript, installCmd.Kind);
+        Assert.Equal(@"C:\Users\user\AppData\Roaming\npm\claude.cmd", installCmd.ResolvedPath);
+    }
+
+    [Fact]
+    public async Task RunAsync_ClientNotFound_JsonOutput_HasErrorCode()
+    {
+        var runner = new FakeProcessRunner();
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await InstallCommand.RunAsync(
+            new[] { "claude", "--json" }, runner, output, error, FakeResolveServerExe, NotFoundClientExe);
+
+        Assert.Equal(4, exitCode);
+        var jsonOutput = output.ToString();
+        Assert.Contains("\"client_not_found\"", jsonOutput);
+        Assert.Contains("\"success\":false", jsonOutput);
+    }
+
+    [Fact]
+    public async Task RunAsync_DryRun_CmdShim_ShowsExecutionMethod()
+    {
+        var runner = new FakeProcessRunner();
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await InstallCommand.RunAsync(
+            new[] { "claude", "--dry-run" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExeAsCmd);
+
+        Assert.Equal(0, exitCode);
+        var text = output.ToString();
+        Assert.Contains("Execution method:", text);
+        Assert.Contains("/d /s /c", text);
+        Assert.Contains("claude.cmd", text);
+    }
+
+    [Fact]
+    public async Task RunAsync_InstallFailed_Json_HasErrorCode()
+    {
+        var runner = new FakeProcessRunner();
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        // Install fails
+        runner.Results.Enqueue(new NativeCommandResult(1, string.Empty, "Installation failed"));
+
+        var exitCode = await InstallCommand.RunAsync(
+            new[] { "codex", "--json" }, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
+
+        Assert.Equal(6, exitCode);
+        var jsonOutput = output.ToString();
+        Assert.Contains("\"client_command_failed\"", jsonOutput);
+        Assert.Contains("\"success\":false", jsonOutput);
     }
 }
