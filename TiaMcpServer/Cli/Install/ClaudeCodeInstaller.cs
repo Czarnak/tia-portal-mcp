@@ -4,22 +4,22 @@ internal sealed class ClaudeCodeInstaller : IMcpClientInstaller
 {
     public ClientKind Client => ClientKind.ClaudeCode;
 
-    public async Task<ClientDetectionResult> DetectAsync(INativeProcessRunner runner, CancellationToken cancellationToken)
+    public Task<ClientDetectionResult> DetectAsync(
+        Func<string, ExecutableResolutionResult> resolveClientExe,
+        CancellationToken cancellationToken)
     {
-        var result = await runner.RunAsync(
-            new NativeCommand("where.exe", new[] { "claude" }, false),
-            cancellationToken);
-
-        if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.Stdout))
-        {
-            var path = result.Stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
-            return new ClientDetectionResult(true, path, null);
-        }
-
-        return new ClientDetectionResult(false, null, "Claude Code CLI not found. Install it from https://docs.anthropic.com/en/docs/claude-code");
+        var result = resolveClientExe("claude");
+        return Task.FromResult(new ClientDetectionResult(
+            result.Found,
+            result.ResolvedPath,
+            result.Kind,
+            result.Found ? null : "Claude Code was not found.\n\nExpected command:\n  claude\n\nVerify the installation with:\n  claude --version\n\nAfter installing Claude Code, run:\n  tia-mcp install claude-code"));
     }
 
-    public NativeCommand BuildInstallCommand(InstallOptions options, McpLaunchSpec spec)
+    public NativeCommand BuildInstallCommand(
+        InstallOptions options,
+        McpLaunchSpec spec,
+        Func<string, ExecutableResolutionResult> resolveClientExe)
     {
         var args = new List<string> { "mcp", "add", "--scope", "user", spec.ServerName, "--" };
         args.Add(spec.ExecutablePath);
