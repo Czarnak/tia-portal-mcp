@@ -7,6 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
@@ -44,6 +46,9 @@
       Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
+    <Compile Include="..\TiaMcpServer\Json\CanonicalJson.cs" Link="Host\Json\CanonicalJson.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
+      Link="Host\StructuredToolResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs"
       Link="Host\WriteSafetyService.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs"
@@ -70,6 +75,8 @@
     <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchStateComposer.cs" Link="Host\OperationBatches\OperationBatchStateComposer.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResultFormatter.cs" Link="Host\OperationBatches\OperationBatchResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchPayloadBudget.cs" Link="Host\OperationBatches\OperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs" Link="Host\OperationBatches\StructuredOperationBatch.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs" Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
       Link="Host\Batch\BatchWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchTools.cs" Link="Host\Batch\BatchTools.cs" />
@@ -83,6 +90,10 @@
       Link="Host\Network\NetworkWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkSafetySnapshot.cs"
       Link="Host\Network\NetworkSafetySnapshot.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkPayloadContract.cs"
+      Link="Host\Network\NetworkPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkToolResponses.cs"
+      Link="Host\Network\NetworkToolResponses.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkReadTools.cs"
       Link="Host\Network\NetworkReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWriteTools.cs"

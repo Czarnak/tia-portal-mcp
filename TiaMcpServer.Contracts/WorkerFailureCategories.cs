@@ -36,6 +36,13 @@ public static class WorkerFailureCategories
     /// <summary>The operation is not permitted in the current access mode (e.g. a write attempted in read-only mode).</summary>
     public const string AccessDenied = "access_denied";
 
+    /// <summary>
+    /// The worker reported success but its payload did not match the declared result contract for
+    /// the operation — malformed, unknown, incorrectly cased, incorrectly typed, or structurally
+    /// invalid. The operation may well have been performed; only the response is untrustworthy.
+    /// </summary>
+    public const string ProtocolError = "protocol_error";
+
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
         ValidationError,
@@ -45,7 +52,8 @@ public static class WorkerFailureCategories
         WorkerTimeout,
         WorkerCrashed,
         PostconditionFailed,
-        AccessDenied
+        AccessDenied,
+        ProtocolError
     };
 
     /// <summary>True when <paramref name="value"/> is exactly one of the approved category constants.</summary>

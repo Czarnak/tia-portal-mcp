@@ -9,8 +9,8 @@ namespace TiaMcpServer.Tests;
 
 /// <summary>
 /// End-to-end evidence that the dedicated network tools use a single hardware snapshot for
-/// each preview/apply attempt, bind tokens to the exact ordered request, and retain worker JSON
-/// payloads as string-valued operation results.
+/// each preview/apply attempt, bind tokens to the exact ordered request, and — for the migrated
+/// <c>network_read</c> — return each worker payload as declared JSON rather than a nested string.
 /// </summary>
 public class NetworkOperationFakeWorkerTests
 {
@@ -56,7 +56,7 @@ public class NetworkOperationFakeWorkerTests
     };
 
     [Fact]
-    public async Task NetworkRead_HardwareAndCatalogSucceedInRequestedOrderWithStringResults()
+    public async Task NetworkRead_HardwareAndCatalogSucceedInRequestedOrderWithDeclaredJsonResults()
     {
         using var client = CreateClient();
 
@@ -64,20 +64,21 @@ public class NetworkOperationFakeWorkerTests
             client,
             new[] { ReadHardware("hardware"), SearchCatalog("catalog") });
 
-        using var document = JsonDocument.Parse(result);
-        var operations = document.RootElement.GetProperty("operations");
+        Assert.False(result.IsError);
+        var root = Assert.IsType<JsonElement>(result.StructuredContent);
+        var operations = root.GetProperty("batch").GetProperty("operations");
 
-        Assert.True(document.RootElement.GetProperty("success").GetBoolean());
+        Assert.True(root.GetProperty("success").GetBoolean());
         Assert.Equal("hardware", operations[0].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", operations[0].GetProperty("status").GetString());
-        Assert.Equal(JsonValueKind.String, operations[0].GetProperty("result").ValueKind);
-        Assert.Equal("hardware", JsonDocument.Parse(operations[0].GetProperty("result").GetString()!)
-            .RootElement.GetProperty("kind").GetString());
+        Assert.Equal(
+            "PLC_1",
+            operations[0].GetProperty("result").GetProperty("devices")[0].GetProperty("name").GetString());
         Assert.Equal("catalog", operations[1].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", operations[1].GetProperty("status").GetString());
-        Assert.Equal(JsonValueKind.String, operations[1].GetProperty("result").ValueKind);
-        Assert.Equal("OrderNumber:TEST", JsonDocument.Parse(operations[1].GetProperty("result").GetString()!)
-            .RootElement[0].GetProperty("typeIdentifier").GetString());
+        Assert.Equal(
+            "OrderNumber:TEST",
+            operations[1].GetProperty("result")[0].GetProperty("typeIdentifier").GetString());
     }
 
     [Fact]

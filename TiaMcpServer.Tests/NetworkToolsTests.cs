@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
@@ -29,15 +30,21 @@ public class NetworkToolsTests
         return method!;
     }
 
-    private static async Task<string> NetworkRead(
+    private static async Task<CallToolResult> NetworkRead(
         OpennessWorkerClient? client,
         NetworkOperationRequest[] operations)
     {
         var task = RequiredToolMethod("NetworkReadTools", "NetworkRead")
-            .Invoke(null, new object?[] { client, operations }) as Task<string>;
+            .Invoke(null, new object?[] { client, operations }) as Task<CallToolResult>;
         Assert.NotNull(task);
         return await task!;
     }
+
+    private static string ReadText(CallToolResult result)
+        => Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+
+    private static JsonElement ReadStructured(CallToolResult result)
+        => Assert.IsType<JsonElement>(result.StructuredContent);
 
     private static async Task<string> NetworkWrite(
         OpennessWorkerClient? client,
@@ -141,7 +148,8 @@ public class NetworkToolsTests
     {
         var result = await NetworkRead(null, Array.Empty<NetworkOperationRequest>());
 
-        Assert.Contains("at least one", result);
+        Assert.True(result.IsError);
+        Assert.Contains("at least one", ReadText(result));
     }
 
     [Fact]
@@ -149,60 +157,62 @@ public class NetworkToolsTests
     {
         var result = await NetworkRead(null, new[] { AddDevice("w1") });
 
-        Assert.Contains("write operation", result);
+        Assert.True(result.IsError);
+        Assert.Contains("write operation", ReadText(result));
     }
 
     [Fact]
-    public async Task NetworkRead_PreservesJsonPayloadAsAStringAndCopiesWarnings()
+    public async Task NetworkRead_ReturnsDeclaredJsonResultAndCopiesWarnings()
     {
         using var client = CreateClient();
 
-        var result = await NetworkRead(client, new[] { ReadHardware("r1", StableScenario) });
+        var result = await NetworkRead(client, new[] { ReadHardware("r1", "network-read-warnings") });
 
-        using var document = JsonDocument.Parse(result);
-        var operation = document.RootElement.GetProperty("operations")[0];
-        Assert.Equal(JsonValueKind.String, operation.GetProperty("result").ValueKind);
-        using var payload = JsonDocument.Parse(operation.GetProperty("result").GetString()!);
-        Assert.True(payload.RootElement.GetProperty("hello").GetBoolean());
+        var operation = ReadStructured(result).GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("succeeded", operation.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Object, operation.GetProperty("result").ValueKind);
+        Assert.Equal(0, operation.GetProperty("result").GetProperty("devices").GetArrayLength());
         Assert.Equal(2, operation.GetProperty("warnings").GetArrayLength());
     }
 
     [Fact]
-    public async Task NetworkRead_OneFailureDoesNotStopALaterOperation()
+    public async Task NetworkRead_ContinuesAfterWorkerFailureAndAfterPayloadContractFailure()
     {
         using var client = CreateClient();
         var operations = new[]
         {
-            ReadHardware("bad", "worker-error"),
-            ReadHardware("good", "ok"),
+            ReadHardware("worker-failure", "worker-error"),
+
+            // The worker reports success, but its payload is not a HardwareConfigInfo: a
+            // contract violation must fail the item instead of publishing unusable data.
+            ReadHardware("contract-failure", "ok"),
+            ReadHardware("good", "network-roundtrip"),
         };
 
         var result = await NetworkRead(client, operations);
 
-        using var document = JsonDocument.Parse(result);
-        var items = document.RootElement.GetProperty("operations");
+        Assert.False(result.IsError);
+        var root = ReadStructured(result);
+        Assert.False(root.GetProperty("success").GetBoolean());
+
+        var items = root.GetProperty("batch").GetProperty("operations");
         Assert.Equal("failed", items[0].GetProperty("status").GetString());
-        Assert.Equal("succeeded", items[1].GetProperty("status").GetString());
-    }
+        Assert.Equal(
+            WorkerFailureCategories.WorkerOperationFailed,
+            items[0].GetProperty("failure").GetProperty("category").GetString());
 
-    [Fact]
-    public async Task NetworkRead_BudgetOmissionInstructsRetryThroughNetworkRead()
-    {
-        using var client = CreateClient();
-        var operations = Enumerable.Range(0, 4)
-            .Select(index => new NetworkOperationRequest
-            {
-                OperationId = $"search-{index}",
-                Operation = "search_equipment_catalog",
-                ProjectPath = "echo",
-                Query = new string((char)('a' + index), 50_000),
-            })
-            .ToArray();
+        Assert.Equal("failed", items[1].GetProperty("status").GetString());
+        Assert.Equal(
+            WorkerFailureCategories.ProtocolError,
+            items[1].GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(JsonValueKind.Null, items[1].GetProperty("result").ValueKind);
 
-        var result = await NetworkRead(client, operations);
+        // The rejected payload must never be echoed back; "seq" is the only field it contained.
+        Assert.DoesNotContain("seq", items[1].GetProperty("failure").GetProperty("message").GetString());
 
-        Assert.Contains("[OMITTED", result);
-        Assert.Contains("network_read", result);
+        Assert.Equal("succeeded", items[2].GetProperty("status").GetString());
+        Assert.Equal(2, root.GetProperty("batch").GetProperty("counts").GetProperty("failed").GetInt32());
+        Assert.Equal(1, root.GetProperty("batch").GetProperty("counts").GetProperty("succeeded").GetInt32());
     }
 
     [Theory]

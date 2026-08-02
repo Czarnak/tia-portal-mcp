@@ -119,13 +119,21 @@ while ((line = Console.In.ReadLine()) is not null)
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
             break;
+        case "network-read-warnings":
+            // A contract-valid hardware payload carried alongside worker warnings, so the network
+            // read path can be proven to copy warnings onto the item it decoded successfully.
+            Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
+            break;
         case "network-roundtrip":
             Respond(ReadMethod(line) switch
             {
                 // The request still advances seq, but its safety-bound state must remain stable
                 // between preview and apply; write responses below expose the request ordering.
-                "read_hardware_config" => """{"success":true,"payload":"{\"kind\":\"hardware\"}"}""",
-                "search_equipment_catalog" => $$"""{"success":true,"payload":"[{\"typeIdentifier\":\"OrderNumber:TEST\",\"seq\":{{seq}}}]"}""",
+                // Both read payloads must satisfy their declared Phase 2 result contracts
+                // (HardwareConfigInfo / CatalogEntryInfo[]); an unmapped member here would be
+                // rejected as protocol_error instead of decoding.
+                "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[]}],\"subnets\":[],\"messages\":[]}"}""",
+                "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"typeIdentifier\":\"OrderNumber:TEST\"}]"}""",
                 "add_network_device" => $$"""{"success":true,"payload":"{\"operation\":\"add\",\"seq\":{{seq}}}"}""",
                 "configure_network_device" => $$"""{"success":true,"payload":"{\"operation\":\"configure\",\"seq\":{{seq}}}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
