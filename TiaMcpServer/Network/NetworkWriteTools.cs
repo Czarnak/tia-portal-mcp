@@ -30,7 +30,7 @@ public class NetworkWriteTools
         OpenWorld = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(NetworkWriteResponse))]
-    [Description("Preview or apply up to 50 dedicated network write operations. Valid operations: add_network_device (typeIdentifier, deviceName) and configure_network_device (deviceName). Call without confirm or safetyToken to receive a preview, then call the same network_write tool with the identical ordered operations, confirm=true, and the returned safetyToken. The response is a discriminated envelope whose phase field is preview, apply, or error. Writes stop on first failure; later items are skipped and no rollback is performed.")]
+    [Description("Preview or apply up to 50 dedicated network write operations. Valid operations: add_network_device (typeIdentifier, deviceName) and configure_network_device (target, changes). configure_network_device names an existing node exactly — target.deviceName plus the target.nodeId reported by network_read — and requests at least one change; an omitted change member means leave it unchanged. Call without confirm or safetyToken to receive a preview, then call the same network_write tool with the identical ordered operations, confirm=true, and the returned safetyToken. The response is a discriminated envelope whose phase field is preview, apply, or error. Writes stop on first failure; later items are skipped and no rollback is performed.")]
     public static async Task<CallToolResult> NetworkWrite(
         OpennessWorkerClient workerClient,
         WriteSafetyService safety,

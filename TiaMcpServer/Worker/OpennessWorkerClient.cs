@@ -110,11 +110,13 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(
         string deviceName,
+        string nodeId,
         string? ipAddress,
         string? subnetMask,
         string? pnDeviceName,
-        string? subnetName,
-        string? ioSystemName,
+        string? subnetId,
+        string? ioSystemSubnetId,
+        int? ioSystemNumber,
         string? projectPath)
     {
         return SendBoundProjectRequestAsync(
@@ -123,11 +125,13 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.DeviceName = deviceName;
+                request.NodeId = nodeId;
                 request.IpAddress = ipAddress;
                 request.SubnetMask = subnetMask;
                 request.PnDeviceName = pnDeviceName;
-                request.SubnetName = subnetName;
-                request.IoSystemName = ioSystemName;
+                request.SubnetId = subnetId;
+                request.IoSystemSubnetId = ioSystemSubnetId;
+                request.IoSystemNumber = ioSystemNumber;
                 request.Confirm = true;
                 request.AllowTiaConfirmations = true;
             },

@@ -33,7 +33,8 @@ public static class NetworkSafetySnapshot
         => operations.Select(operation => new NetworkWriteTargetEvidence(
             operation.OperationId,
             operation.Operation,
-            operation.DeviceName ?? string.Empty,
+            // Creation names the device flatly; configuration names it inside the exact target.
+            operation.DeviceName ?? operation.Target?.DeviceName ?? string.Empty,
             operation.TypeIdentifier,
 
             // Device item paths and the node/subnet/IO-system identities below come from resolving

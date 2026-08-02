@@ -52,8 +52,8 @@ public class NetworkOperationFakeWorkerTests
         OperationId = operationId,
         Operation = "configure_network_device",
         ProjectPath = Scenario,
-        DeviceName = "PLC_1",
-        IpAddress = ipAddress,
+        Target = new NetworkDeviceTarget { DeviceName = "PLC_1", NodeId = "node-1" },
+        Changes = new NetworkDeviceChanges { IpAddress = ipAddress },
     };
 
     [Fact]

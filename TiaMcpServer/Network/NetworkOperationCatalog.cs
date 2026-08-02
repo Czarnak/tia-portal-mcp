@@ -41,13 +41,21 @@ public static class NetworkOperationCatalog
         "projectPath",
     };
 
+    /// <summary>
+    /// Every operation-scoped wire field and how to tell whether the caller supplied it. Declared
+    /// explicitly rather than reflected: the request now mixes flat creation fields with nested
+    /// configure selectors, and a reflected sweep cannot tell the two apart or name a nested member.
+    /// </summary>
     private static readonly (string Name, Func<NetworkOperationRequest, bool> IsSet)[] AllRequestFields =
-        typeof(NetworkOperationRequest)
-            .GetProperties()
-            .Select(property => (
-                Name: char.ToLowerInvariant(property.Name[0]) + property.Name.Substring(1),
-                IsSet: new Func<NetworkOperationRequest, bool>(operation => property.GetValue(operation) is not null)))
-            .ToArray();
+    {
+        ("query", operation => operation.Query is not null),
+        ("maxResults", operation => operation.MaxResults is not null),
+        ("typeIdentifier", operation => operation.TypeIdentifier is not null),
+        ("deviceName", operation => operation.DeviceName is not null),
+        ("deviceItemName", operation => operation.DeviceItemName is not null),
+        ("target", operation => operation.Target is not null),
+        ("changes", operation => operation.Changes is not null),
+    };
 
     public static IReadOnlyList<string> ReadOperationNames { get; } = NamesByCategory(NetworkOperationCategory.Read);
 
@@ -168,6 +176,11 @@ public static class NetworkOperationCatalog
             {
                 errors.Add($"Operation '{operation.Operation}' (operationId '{operation.OperationId}'): 'maxResults' must be 1 or greater.");
             }
+
+            if (spec.Name == "configure_network_device")
+            {
+                ValidateConfigureNetworkDevice(operation, errors);
+            }
         }
 
         if (expectedCategory == NetworkOperationCategory.Write)
@@ -193,8 +206,100 @@ public static class NetworkOperationCatalog
         "query" => !string.IsNullOrWhiteSpace(operation.Query),
         "typeIdentifier" => !string.IsNullOrWhiteSpace(operation.TypeIdentifier),
         "deviceName" => !string.IsNullOrWhiteSpace(operation.DeviceName),
+        "target" => operation.Target is not null,
+        "changes" => operation.Changes is not null,
         _ => false,
     };
+
+    /// <summary>
+    /// The rules that make a configure request name exactly one existing thing and ask for at
+    /// least one concrete change. Anything short of that is rejected here rather than resolved
+    /// by guesswork further down.
+    /// </summary>
+    private static void ValidateConfigureNetworkDevice(NetworkOperationRequest operation, List<string> errors)
+    {
+        var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
+
+        if (operation.Target is { } target)
+        {
+            if (string.IsNullOrWhiteSpace(target.DeviceName))
+            {
+                errors.Add($"{prefix} 'target.deviceName' must not be blank.");
+            }
+
+            if (string.IsNullOrWhiteSpace(target.NodeId))
+            {
+                errors.Add(
+                    $"{prefix} 'target.nodeId' must not be blank. Read the exact nodeId with network_read "
+                    + "(read_hardware_config); a device may expose several interfaces and nodes.");
+            }
+        }
+
+        if (operation.Changes is not { } changes)
+        {
+            return;
+        }
+
+        var requested = 0;
+        foreach (var (name, value) in new[]
+        {
+            ("ipAddress", changes.IpAddress),
+            ("subnetMask", changes.SubnetMask),
+            ("pnDeviceName", changes.PnDeviceName),
+        })
+        {
+            if (value is null)
+            {
+                continue;
+            }
+
+            requested++;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                errors.Add($"{prefix} 'changes.{name}' must not be blank. Omit it to leave the setting unchanged.");
+            }
+        }
+
+        var subnet = changes.Subnet;
+        if (subnet is not null)
+        {
+            requested++;
+            if (string.IsNullOrWhiteSpace(subnet.SubnetId))
+            {
+                errors.Add($"{prefix} 'changes.subnet.subnetId' is required when a subnet change is requested.");
+            }
+        }
+
+        if (changes.IoSystem is { } ioSystem)
+        {
+            requested++;
+            if (string.IsNullOrWhiteSpace(ioSystem.SubnetId))
+            {
+                errors.Add($"{prefix} 'changes.ioSystem.subnetId' is required when an IO-system change is requested.");
+            }
+
+            if (ioSystem.Number is null)
+            {
+                errors.Add($"{prefix} 'changes.ioSystem.number' is required when an IO-system change is requested.");
+            }
+
+            // A node connects to one subnet, so two selectors naming different subnets describe an
+            // outcome that cannot exist. Refuse it instead of letting write order decide.
+            if (subnet is not null
+                && !string.IsNullOrWhiteSpace(subnet.SubnetId)
+                && !string.IsNullOrWhiteSpace(ioSystem.SubnetId)
+                && !string.Equals(subnet.SubnetId, ioSystem.SubnetId, StringComparison.Ordinal))
+            {
+                errors.Add(
+                    $"{prefix} 'changes.subnet.subnetId' and 'changes.ioSystem.subnetId' must name the same subnet.");
+            }
+        }
+
+        if (requested == 0)
+        {
+            errors.Add($"{prefix} 'changes' must request at least one change.");
+        }
+    }
 
     private static IEnumerable<string> FindInapplicableFields(
         NetworkOperationRequest operation,
@@ -224,7 +329,7 @@ public static class NetworkOperationCatalog
             new NetworkOperationSpec("read_hardware_config", NetworkOperationCategory.Read, None, None),
             new NetworkOperationSpec("search_equipment_catalog", NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new NetworkOperationSpec("add_network_device", NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
-            new NetworkOperationSpec("configure_network_device", NetworkOperationCategory.Write, new[] { "deviceName" }, new[] { "ipAddress", "subnetMask", "pnDeviceName", "subnetName", "ioSystemName" }),
+            new NetworkOperationSpec("configure_network_device", NetworkOperationCategory.Write, new[] { "target", "changes" }, None),
         };
 
         return specs.ToDictionary(spec => spec.Name, StringComparer.Ordinal);

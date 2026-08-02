@@ -99,6 +99,77 @@ public class NetworkStructuredProtocolTests
         Assert.Equal("failed", root.GetProperty("batch").GetProperty("operations")[0].GetProperty("status").GetString());
     }
 
+    [Fact]
+    public async Task NetworkWrite_InputSchemaDoesNotAdvertiseLegacyFlatConfigureFields()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+
+        var tool = Assert.Single(
+            await harness.Client.ListToolsAsync(),
+            candidate => candidate.Name == "network_write");
+        var schema = tool.ProtocolTool.InputSchema.GetRawText();
+
+        // The legacy flat configure fields are gone from what an agent is told it may send...
+        foreach (var legacy in new[] { "\"subnetName\"", "\"ioSystemName\"" })
+        {
+            Assert.DoesNotContain(legacy, schema, StringComparison.Ordinal);
+        }
+
+        // ...and the surviving scalars are offered once each, inside changes only.
+        foreach (var scalar in new[] { "\"ipAddress\"", "\"subnetMask\"", "\"pnDeviceName\"" })
+        {
+            Assert.Equal(1, schema.Split(scalar).Length - 1);
+        }
+
+        // Finally, the nested selectors are advertised closed, so an unknown member is not merely
+        // rejected at runtime but never offered.
+        foreach (var member in new[] { "\"target\"", "\"changes\"", "\"nodeId\"", "\"subnet\"", "\"ioSystem\"" })
+        {
+            Assert.Contains(member, schema, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("\"additionalProperties\":false", schema, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Malformed nested input has to be refused where an agent actually sends it — through
+    /// <c>tools/call</c> — not merely where a test can construct the CLR type. A member that is
+    /// silently dropped here would turn "connect this subnet" into "change only the IP address"
+    /// and still hand back a safety token, so the assertion is that nothing was previewed.
+    /// </summary>
+    [Theory]
+    // An unknown nested member must be refused rather than silently dropped...
+    [InlineData("unknown-nested-member", """{"deviceName":"PLC_1","nodeId":"n1","interfaceName":"PROFINET"}""", null)]
+    // ...as must a legacy flat field an older caller might still send...
+    [InlineData("legacy-flat-field", null, """{"ipAddress":"192.168.0.10","subnetName":"PN/IE_1"}""")]
+    // ...and a nested value of the wrong JSON type.
+    [InlineData("mistyped-target", "\"PLC_1\"", null)]
+    [InlineData("mistyped-io-system-number", null, """{"ioSystem":{"subnetId":"S1","number":"first"}}""")]
+    public async Task NetworkWrite_RejectsMalformedNestedInputAtTheProtocolBoundary(
+        string _,
+        string? targetJson,
+        string? changesJson)
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+
+        var operation = new Dictionary<string, object?>
+        {
+            ["operationId"] = "configure",
+            ["operation"] = "configure_network_device",
+            ["projectPath"] = "network-roundtrip",
+            ["target"] = JsonSerializer.Deserialize<JsonElement>(targetJson ?? """{"deviceName":"PLC_1","nodeId":"n1"}"""),
+            ["changes"] = JsonSerializer.Deserialize<JsonElement>(changesJson ?? """{"ipAddress":"192.168.0.10"}"""),
+        };
+
+        var result = await CallWriteAsync(harness, new object[] { operation });
+
+        Assert.True(result.IsError);
+        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+        Assert.DoesNotContain("safetyToken", text, StringComparison.Ordinal);
+    }
+
     private static ValueTask<CallToolResult> CallWriteAsync(
         McpProtocolTestHarness harness,
         object operations,
@@ -134,8 +205,8 @@ public class NetworkStructuredProtocolTests
             operationId = "configure",
             operation = "configure_network_device",
             projectPath,
-            deviceName = "PLC_1",
-            ipAddress = "192.168.0.10"
+            target = new { deviceName = "PLC_1", nodeId = "node-1" },
+            changes = new { ipAddress = "192.168.0.10" }
         },
     };
 

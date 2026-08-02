@@ -160,6 +160,12 @@ public class WorkerRequest
     public string? DeviceName { get; set; }
 
     /// <summary>
+    /// Forwarded by: configure_network_device. Identifies exactly one node on the named device,
+    /// because a device may expose several interfaces and nodes.
+    /// </summary>
+    public string? NodeId { get; set; }
+
+    /// <summary>
     /// Forwarded by: add_network_device ONLY. configure_network_device does not forward it —
     /// setting it on that operation is silently dropped. The fallback to DeviceName when the
     /// caller omits it is applied by BatchWorkerInvoker.ResolveDeviceItemName before the call.
@@ -175,11 +181,18 @@ public class WorkerRequest
     /// <summary>Forwarded by: configure_network_device.</summary>
     public string? PnDeviceName { get; set; }
 
-    /// <summary>Forwarded by: configure_network_device.</summary>
-    public string? SubnetName { get; set; }
+    /// <summary>Forwarded by: configure_network_device. The subnet to connect the node to.</summary>
+    public string? SubnetId { get; set; }
 
-    /// <summary>Forwarded by: configure_network_device.</summary>
-    public string? IoSystemName { get; set; }
+    /// <summary>
+    /// Forwarded by: configure_network_device. The subnet that owns the requested IO system. Kept
+    /// separate from <see cref="SubnetId"/> so an IO-system change can be requested without also
+    /// requesting a subnet connection change.
+    /// </summary>
+    public string? IoSystemSubnetId { get; set; }
+
+    /// <summary>Forwarded by: configure_network_device. The IO system's number within its subnet.</summary>
+    public int? IoSystemNumber { get; set; }
 
     #endregion
 

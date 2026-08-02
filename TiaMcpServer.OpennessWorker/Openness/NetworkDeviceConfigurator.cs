@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
@@ -8,14 +9,21 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class NetworkDeviceConfigurator
 {
+    /// <param name="nodeId">
+    /// The exact node the caller selected. Exact node resolution — traversing every interface and
+    /// matching this ID — is not implemented here yet; until then the interface's single node is
+    /// used, which is only correct for a device that exposes one node.
+    /// </param>
     public static ConfigureNetworkDeviceResultInfo Configure(
         Project project,
         string deviceName,
+        string nodeId,
         string? ipAddress,
         string? subnetMask,
         string? pnDeviceName,
-        string? subnetName,
-        string? ioSystemName)
+        string? subnetId,
+        string? ioSystemSubnetId,
+        int? ioSystemNumber)
     {
         var result = new ConfigureNetworkDeviceResultInfo
         {
@@ -38,33 +46,33 @@ public static class NetworkDeviceConfigurator
         ApplyNodeAttribute(node, "SubnetMask", subnetMask, result);
         ApplyNodeAttribute(node, "PnDeviceName", pnDeviceName, result);
 
-        var subnetRequested = !string.IsNullOrWhiteSpace(subnetName);
+        var subnetRequested = !string.IsNullOrWhiteSpace(subnetId);
         object? connectedSubnet = null;
         if (subnetRequested)
         {
-            connectedSubnet = ConnectSubnet(project, node, subnetName!, result);
+            connectedSubnet = ConnectSubnet(project, node, subnetId!, result);
         }
 
-        if (!string.IsNullOrWhiteSpace(ioSystemName))
+        if (ioSystemNumber.HasValue)
         {
             if (connectedSubnet is null)
             {
                 if (subnetRequested)
                 {
-                    result.SkippedSettings["IoSystemName"] = "Requested subnet was not connected, so IO system lookup was skipped.";
+                    result.SkippedSettings["IoSystem"] = "Requested subnet was not connected, so IO system lookup was skipped.";
                     return FinalizeResult(result, deviceName);
                 }
 
-                connectedSubnet = ReadProperty(node, "ConnectedSubnet");
+                connectedSubnet = FindSubnet(project, ioSystemSubnetId);
             }
 
             if (connectedSubnet is null)
             {
-                result.SkippedSettings["IoSystemName"] = "No connected subnet is available for IO system lookup.";
+                result.SkippedSettings["IoSystem"] = $"Subnet '{ioSystemSubnetId}' was not found, so its IO systems could not be searched.";
             }
             else
             {
-                ConnectIoSystem(networkInterface, connectedSubnet, ioSystemName!, result);
+                ConnectIoSystem(networkInterface, connectedSubnet, ioSystemNumber.Value, result);
             }
         }
 
@@ -182,13 +190,13 @@ public static class NetworkDeviceConfigurator
     private static object? ConnectSubnet(
         Project project,
         Node node,
-        string subnetName,
+        string subnetId,
         ConfigureNetworkDeviceResultInfo result)
     {
-        var subnet = FindSubnet(project, subnetName);
+        var subnet = FindSubnet(project, subnetId);
         if (subnet is null)
         {
-            result.SkippedSettings["SubnetName"] = $"Subnet '{subnetName}' was not found.";
+            result.SkippedSettings["Subnet"] = $"Subnet '{subnetId}' was not found.";
             return null;
         }
 
@@ -196,30 +204,41 @@ public static class NetworkDeviceConfigurator
         {
             // UNVERIFIED SDK CALL: V21 subnet connection API may be Node.ConnectToSubnet(Subnet) or equivalent.
             InvokeFirstAvailable(node, new[] { "ConnectToSubnet", "Connect" }, subnet);
-            result.AppliedSettings["SubnetName"] = subnetName;
+            result.AppliedSettings["Subnet"] = subnetId;
             return subnet;
         }
         catch (EngineeringException ex)
         {
-            result.SkippedSettings["SubnetName"] = ex.Message;
+            result.SkippedSettings["Subnet"] = ex.Message;
         }
         catch (InvalidOperationException ex)
         {
-            result.SkippedSettings["SubnetName"] = ex.Message;
+            result.SkippedSettings["Subnet"] = ex.Message;
         }
         catch (TargetInvocationException ex) when (ex.InnerException is EngineeringException engineeringException)
         {
-            result.SkippedSettings["SubnetName"] = engineeringException.Message;
+            result.SkippedSettings["Subnet"] = engineeringException.Message;
         }
 
         return null;
     }
 
-    private static Subnet? FindSubnet(Project project, string subnetName)
+    /// <summary>
+    /// Matches a subnet by its own identity rather than its display name. A subnet whose identity
+    /// cannot be read matches nothing, so an unresolvable selector fails closed.
+    /// </summary>
+    private static Subnet? FindSubnet(Project project, string? subnetId)
     {
+        if (string.IsNullOrWhiteSpace(subnetId))
+        {
+            return null;
+        }
+
         foreach (Subnet subnet in project.Subnets)
         {
-            if (string.Equals(subnet.Name, subnetName, StringComparison.OrdinalIgnoreCase))
+            var candidateId = ReadProperty(subnet, "SubnetId")?.ToString();
+            if (!string.IsNullOrWhiteSpace(candidateId)
+                && string.Equals(candidateId, subnetId, StringComparison.Ordinal))
             {
                 return subnet;
             }
@@ -231,20 +250,20 @@ public static class NetworkDeviceConfigurator
     private static void ConnectIoSystem(
         NetworkInterface networkInterface,
         object connectedSubnet,
-        string ioSystemName,
+        int ioSystemNumber,
         ConfigureNetworkDeviceResultInfo result)
     {
-        var ioSystem = FindNamedItem(ReadEnumerableProperty(connectedSubnet, "IoSystems"), ioSystemName);
+        var ioSystem = FindNumberedItem(ReadEnumerableProperty(connectedSubnet, "IoSystems"), ioSystemNumber);
         if (ioSystem is null)
         {
-            result.SkippedSettings["IoSystemName"] = $"IO system '{ioSystemName}' was not found on the connected subnet.";
+            result.SkippedSettings["IoSystem"] = $"IO system number {ioSystemNumber} was not found on the connected subnet.";
             return;
         }
 
         var ioConnector = ReadEnumerableProperty(networkInterface, "IoConnectors").FirstOrDefault();
         if (ioConnector is null)
         {
-            result.SkippedSettings["IoSystemName"] = "The network interface does not expose an IO connector.";
+            result.SkippedSettings["IoSystem"] = "The network interface does not expose an IO connector.";
             return;
         }
 
@@ -252,28 +271,32 @@ public static class NetworkDeviceConfigurator
         {
             // UNVERIFIED SDK CALL: V21 IO connector attachment may be ConnectToIoSystem(IoSystem) or equivalent.
             InvokeFirstAvailable(ioConnector, new[] { "ConnectToIoSystem", "Connect" }, ioSystem);
-            result.AppliedSettings["IoSystemName"] = ioSystemName;
+            result.AppliedSettings["IoSystem"] = ioSystemNumber.ToString(CultureInfo.InvariantCulture);
         }
         catch (EngineeringException ex)
         {
-            result.SkippedSettings["IoSystemName"] = ex.Message;
+            result.SkippedSettings["IoSystem"] = ex.Message;
         }
         catch (InvalidOperationException ex)
         {
-            result.SkippedSettings["IoSystemName"] = ex.Message;
+            result.SkippedSettings["IoSystem"] = ex.Message;
         }
         catch (TargetInvocationException ex) when (ex.InnerException is EngineeringException engineeringException)
         {
-            result.SkippedSettings["IoSystemName"] = engineeringException.Message;
+            result.SkippedSettings["IoSystem"] = engineeringException.Message;
         }
     }
 
-    private static object? FindNamedItem(IEnumerable<object> items, string name)
+    /// <summary>
+    /// Matches an IO system by its modeled number within its subnet. An unreadable or
+    /// non-numeric number matches nothing, so an unresolvable selector fails closed.
+    /// </summary>
+    private static object? FindNumberedItem(IEnumerable<object> items, int number)
     {
         foreach (var item in items)
         {
-            var itemName = ReadProperty(item, "Name")?.ToString();
-            if (string.Equals(itemName, name, StringComparison.OrdinalIgnoreCase))
+            var candidate = ReadProperty(item, "Number");
+            if (candidate is int candidateNumber && candidateNumber == number)
             {
                 return item;
             }

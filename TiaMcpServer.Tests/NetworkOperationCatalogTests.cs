@@ -16,6 +16,24 @@ public class NetworkOperationCatalogTests
         return request;
     }
 
+    /// <summary>A minimal valid configure_network_device operation: exact target, one change.</summary>
+    private static NetworkOperationRequest Configure(
+        string id = "cfg",
+        string deviceName = "PLC_1",
+        string nodeId = "7",
+        Action<NetworkOperationRequest>? adjust = null)
+    {
+        var request = new NetworkOperationRequest
+        {
+            OperationId = id,
+            Operation = "configure_network_device",
+            Target = new NetworkDeviceTarget { DeviceName = deviceName, NodeId = nodeId },
+            Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.10" },
+        };
+        adjust?.Invoke(request);
+        return request;
+    }
+
     [Fact]
     public void All_MatchesTheDedicatedNetworkContract()
     {
@@ -24,7 +42,7 @@ public class NetworkOperationCatalogTests
             ["read_hardware_config"] = (NetworkOperationCategory.Read, Array.Empty<string>(), Array.Empty<string>()),
             ["search_equipment_catalog"] = (NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             ["add_network_device"] = (NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
-            ["configure_network_device"] = (NetworkOperationCategory.Write, new[] { "deviceName" }, new[] { "ipAddress", "subnetMask", "pnDeviceName", "subnetName", "ioSystemName" })
+            ["configure_network_device"] = (NetworkOperationCategory.Write, new[] { "target", "changes" }, Array.Empty<string>())
         };
 
         var actual = NetworkOperationCatalog.All.ToDictionary(spec => spec.Name, StringComparer.Ordinal);
@@ -103,16 +121,8 @@ public class NetworkOperationCatalogTests
     {
         var result = NetworkOperationCatalog.ValidateWrite(new[]
         {
-            Op("a", "configure_network_device", operation =>
-            {
-                operation.DeviceName = "PLC_1";
-                operation.ProjectPath = @"C:\\Projects\\One.ap21";
-            }),
-            Op("b", "configure_network_device", operation =>
-            {
-                operation.DeviceName = "PLC_2";
-                operation.ProjectPath = @"C:\\Projects\\Two.ap21";
-            }),
+            Configure("a", "PLC_1", adjust: operation => operation.ProjectPath = @"C:\\Projects\\One.ap21"),
+            Configure("b", "PLC_2", adjust: operation => operation.ProjectPath = @"C:\\Projects\\Two.ap21"),
         });
 
         Assert.False(result.IsValid);
@@ -120,11 +130,158 @@ public class NetworkOperationCatalogTests
     }
 
     [Fact]
-    public void ValidateWrite_AcceptsNoSettingsConfigureNetworkDevice()
+    public void ValidateWrite_AcceptsAnExactTargetWithOneChange()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[] { Configure() });
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RejectsConfigureWithoutTargetOrChanges()
     {
         var result = NetworkOperationCatalog.ValidateWrite(new[]
         {
-            Op("w1", "configure_network_device", operation => operation.DeviceName = "PLC_1"),
+            Op("w1", "configure_network_device"),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("target", result.Error);
+        Assert.Contains("changes", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RequiresTargetAndChangesOnlyForConfigure()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Op("add", "add_network_device", operation =>
+            {
+                operation.TypeIdentifier = "OrderNumber:6ES7";
+                operation.DeviceName = "PLC_1";
+            }),
+        });
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RejectsTargetAndChangesOnAddNetworkDevice()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Op("add", "add_network_device", operation =>
+            {
+                operation.TypeIdentifier = "OrderNumber:6ES7";
+                operation.DeviceName = "PLC_1";
+                operation.Target = new NetworkDeviceTarget { DeviceName = "PLC_1", NodeId = "7" };
+                operation.Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.10" };
+            }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'target' is not valid", result.Error);
+        Assert.Contains("'changes' is not valid", result.Error);
+    }
+
+    [Theory]
+    [InlineData(null, "7", "deviceName")]
+    [InlineData("   ", "7", "deviceName")]
+    [InlineData("PLC_1", null, "nodeId")]
+    [InlineData("PLC_1", "   ", "nodeId")]
+    public void ValidateWrite_RejectsBlankTargetIdentities(string? deviceName, string? nodeId, string expected)
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation =>
+                operation.Target = new NetworkDeviceTarget { DeviceName = deviceName, NodeId = nodeId }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(expected, result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RejectsChangesThatRequestNothing()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges()),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("at least one change", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RejectsBlankScalarChanges()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges { IpAddress = "  " }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("ipAddress", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RejectsSubnetSelectorWithoutSubnetId()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges
+            {
+                Subnet = new NetworkSubnetTarget { SubnetId = "  " },
+            }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("subnet.subnetId", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RejectsIoSystemSelectorMissingSubnetIdOrNumber()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges
+            {
+                IoSystem = new NetworkIoSystemTarget(),
+            }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("ioSystem.subnetId", result.Error);
+        Assert.Contains("ioSystem.number", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_RejectsIoSystemSubnetIdThatDisagreesWithTheSubnetChange()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges
+            {
+                Subnet = new NetworkSubnetTarget { SubnetId = "S1" },
+                IoSystem = new NetworkIoSystemTarget { SubnetId = "S2", Number = 100 },
+            }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("same subnet", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_AcceptsMatchingSubnetAndIoSystemSelectors()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges
+            {
+                Subnet = new NetworkSubnetTarget { SubnetId = "S1" },
+                IoSystem = new NetworkIoSystemTarget { SubnetId = "S1", Number = 100 },
+            }),
         });
 
         Assert.True(result.IsValid, result.Error);
@@ -136,7 +293,7 @@ public class NetworkOperationCatalogTests
         var errors = NetworkOperationCatalog.ValidateAccessMode(new[]
         {
             Op("read", "read_hardware_config"),
-            Op("write", "configure_network_device", operation => operation.DeviceName = "PLC_1"),
+            Configure("write"),
         }, McpAccessMode.ReadOnly);
 
         Assert.Single(errors);

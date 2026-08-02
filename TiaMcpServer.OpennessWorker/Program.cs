@@ -240,6 +240,11 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "DeviceName is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(request.NodeId))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NodeId is required.");
+        }
+
         if (!request.Confirm)
         {
             throw new WorkerOperationException(
@@ -250,11 +255,13 @@ internal static class Program
         return WithProject(request, project => Success(NetworkDeviceConfigurator.Configure(
             project,
             request.DeviceName!,
+            request.NodeId!,
             request.IpAddress,
             request.SubnetMask,
             request.PnDeviceName,
-            request.SubnetName,
-            request.IoSystemName)));
+            request.SubnetId,
+            request.IoSystemSubnetId,
+            request.IoSystemNumber)));
     }
 
     private static WorkerResponse ReadCrossReferences(WorkerRequest request)
