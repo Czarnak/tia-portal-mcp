@@ -134,9 +134,27 @@ while ((line = Console.In.ReadLine()) is not null)
                 // rejected as protocol_error instead of decoding.
                 "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[]}],\"subnets\":[],\"messages\":[]}"}""",
                 "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"typeIdentifier\":\"OrderNumber:TEST\"}]"}""",
-                "add_network_device" => $$"""{"success":true,"payload":"{\"operation\":\"add\",\"seq\":{{seq}}}"}""",
-                "configure_network_device" => $$"""{"success":true,"payload":"{\"operation\":\"configure\",\"seq\":{{seq}}}"}""",
+                // The write payloads must satisfy AddDeviceResultInfo / ConfigureNetworkDeviceResultInfo
+                // too. Their free-text members carry seq so request ordering stays observable
+                // without smuggling an unmapped member past the declared contract.
+                "add_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"rootItemName\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"warnings\":[\"seq:{{seq}}\"]}"}""",
+                "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"ipAddress\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "network-state-seq":
+            // A contract-valid HardwareConfigInfo that reports the request sequence in its own
+            // messages array, so a test can count how many worker requests a preview issued
+            // without the payload failing its declared contract.
+            Respond($$"""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[\"seq:{{seq}}\"]}"}""");
+            break;
+        case "network-write-item-failure":
+            // Stable hardware state (so preview/apply token binding holds) followed by a failing
+            // first write: the batch RAN, so the MCP call itself is not an error.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}"}""",
+                _ => """{"success":false,"error":"device could not be added"}"""
             });
             break;
         case "type-content-roundtrip":

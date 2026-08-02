@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
@@ -90,32 +91,29 @@ public class NetworkOperationFakeWorkerTests
         var operations = new[] { AddDevice("add"), ConfigureDevice("configure") };
 
         var preview = await NetworkWriteTools.NetworkWrite(client, safety, operations);
-        using var previewDocument = JsonDocument.Parse(preview);
-        var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
-        Assert.False(string.IsNullOrWhiteSpace(token));
+        var token = SafetyToken(preview);
 
         var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, confirm: true, safetyToken: token);
-        using (var appliedDocument = JsonDocument.Parse(applied))
-        {
-            var results = appliedDocument.RootElement.GetProperty("operations");
-            Assert.True(appliedDocument.RootElement.GetProperty("success").GetBoolean());
-            Assert.Equal("add", results[0].GetProperty("operationId").GetString());
-            Assert.Equal("succeeded", results[0].GetProperty("status").GetString());
-            Assert.Equal(JsonValueKind.String, results[0].GetProperty("result").ValueKind);
-            Assert.Contains("\"seq\":3", results[0].GetProperty("result").GetString());
-            Assert.Equal("configure", results[1].GetProperty("operationId").GetString());
-            Assert.Equal("succeeded", results[1].GetProperty("status").GetString());
-            Assert.Equal(JsonValueKind.String, results[1].GetProperty("result").ValueKind);
-            Assert.Contains("\"seq\":4", results[1].GetProperty("result").GetString());
-        }
+        var results = Structured(applied).GetProperty("batch").GetProperty("operations");
+        Assert.True(Structured(applied).GetProperty("success").GetBoolean());
+        Assert.Equal("add", results[0].GetProperty("operationId").GetString());
+        Assert.Equal("succeeded", results[0].GetProperty("status").GetString());
+
+        // Each result is the declared contract type as JSON, never a nested JSON string. The
+        // scenario stamps its request sequence into the contract's own free-text members, so the
+        // apply is still provably the third and fourth worker requests of this round trip.
+        Assert.Equal(JsonValueKind.Object, results[0].GetProperty("result").ValueKind);
+        Assert.Equal("seq:3", results[0].GetProperty("result").GetProperty("warnings")[0].GetString());
+        Assert.Equal("configure", results[1].GetProperty("operationId").GetString());
+        Assert.Equal("succeeded", results[1].GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Object, results[1].GetProperty("result").ValueKind);
+        Assert.Equal("seq:4", results[1].GetProperty("result").GetProperty("messages")[0].GetString());
 
         var replay = await NetworkWriteTools.NetworkWrite(client, safety, operations, confirm: true, safetyToken: token);
-        Assert.Contains("Safety token", replay);
+        Assert.True(replay.IsError);
+        Assert.Contains("Safety token", Text(replay));
 
-        var secondPreview = await NetworkWriteTools.NetworkWrite(client, safety, operations);
-        using var secondPreviewDocument = JsonDocument.Parse(secondPreview);
-        var secondToken = secondPreviewDocument.RootElement.GetProperty("safetyToken").GetString();
-        Assert.False(string.IsNullOrWhiteSpace(secondToken));
+        var secondToken = SafetyToken(await NetworkWriteTools.NetworkWrite(client, safety, operations));
 
         var changedInput = new[] { AddDevice("add"), ConfigureDevice("configure", ipAddress: "192.168.0.11") };
         var changedApply = await NetworkWriteTools.NetworkWrite(
@@ -125,6 +123,20 @@ public class NetworkOperationFakeWorkerTests
             confirm: true,
             safetyToken: secondToken);
 
-        Assert.Contains("input does not match", changedApply);
+        Assert.True(changedApply.IsError);
+        Assert.Contains("input does not match", Text(changedApply));
+    }
+
+    private static JsonElement Structured(CallToolResult result)
+        => Assert.IsType<JsonElement>(result.StructuredContent);
+
+    private static string Text(CallToolResult result)
+        => Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+
+    private static string SafetyToken(CallToolResult preview)
+    {
+        var token = Structured(preview).GetProperty("preview").GetProperty("safetyToken").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(token));
+        return token!;
     }
 }

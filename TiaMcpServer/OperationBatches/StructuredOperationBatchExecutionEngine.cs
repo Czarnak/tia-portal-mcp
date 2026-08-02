@@ -33,4 +33,48 @@ public static class StructuredOperationBatchExecutionEngine
 
         return StructuredOperationBatch.FromItems(items);
     }
+
+    /// <summary>
+    /// Executes writes sequentially and stops at the first operation that did not succeed. There
+    /// is no rollback: an earlier operation that already ran stays applied.
+    ///
+    /// <para>
+    /// The stop decision is made on the PROJECTED item, never on the raw worker outcome. A worker
+    /// that reports success but returns a payload failing its declared contract has a mutation of
+    /// unknown effect behind it, so that <c>protocol_error</c> must halt the batch exactly like an
+    /// outright worker failure — checking <c>WorkerCallResult.Success</c> alone would march on
+    /// into later writes on top of state nobody can describe.
+    /// </para>
+    /// </summary>
+    public static async Task<StructuredOperationBatch> ApplyWritesAsync<T>(
+        IReadOnlyList<T> operations,
+        Func<T, Task<WorkerCallResult>> invoke,
+        Func<T, WorkerCallResult, StructuredOperationItem> project)
+        where T : IOperationBatchItem
+    {
+        var items = new List<StructuredOperationItem>(operations.Count);
+        var stopped = false;
+        foreach (var operation in operations)
+        {
+            if (stopped)
+            {
+                items.Add(new StructuredOperationItem(
+                    operation.OperationId,
+                    operation.Operation,
+                    OperationBatchStatus.Skipped,
+                    Result: null,
+                    Failure: null,
+                    Omission: null,
+                    StructuredOperationSkipReasons.EarlierOperationFailed,
+                    Array.Empty<string>()));
+                continue;
+            }
+
+            var item = project(operation, await invoke(operation).ConfigureAwait(false));
+            stopped = !string.Equals(item.Status, OperationBatchStatus.Succeeded, StringComparison.Ordinal);
+            items.Add(item);
+        }
+
+        return StructuredOperationBatch.FromItems(items);
+    }
 }

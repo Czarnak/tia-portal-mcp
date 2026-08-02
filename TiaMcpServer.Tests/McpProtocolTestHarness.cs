@@ -62,8 +62,12 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
 
     public OpennessWorkerClient WorkerClient { get; }
 
-    /// <summary>Starts a server exposing <typeparamref name="TTools"/> and returns a connected client.</summary>
-    public static async Task<McpProtocolTestHarness> StartAsync<TTools>()
+    /// <summary>
+    /// Starts a server exposing <typeparamref name="TTools"/> and returns a connected client.
+    /// <paramref name="auditDirectory"/> redirects write-safety audit records away from the real
+    /// per-user audit location, so a protocol test that applies a write cannot pollute it.
+    /// </summary>
+    public static async Task<McpProtocolTestHarness> StartAsync<TTools>(string? auditDirectory = null)
         where TTools : class
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
@@ -86,7 +90,10 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(binding);
         collection.AddSingleton(accessPolicy);
         collection.AddSingleton(workerClient);
-        collection.AddSingleton(new WriteSafetyService());
+        collection.AddSingleton(new WriteSafetyService(
+            () => DateTimeOffset.UtcNow,
+            WriteSafetyService.DefaultTokenLifetime,
+            auditDirectory));
         collection.AddMcpServer().WithTools<TTools>();
         var services = collection.BuildServiceProvider();
 

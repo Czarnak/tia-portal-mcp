@@ -51,6 +51,8 @@
       Link="Host\StructuredToolResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs"
       Link="Host\WriteSafetyService.cs" />
+    <Compile Include="..\TiaMcpServer\Safety\CanonicalWriteSafety.cs"
+      Link="Host\CanonicalWriteSafety.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs"
       Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectLifecycleTools.cs"

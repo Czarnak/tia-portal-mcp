@@ -63,6 +63,14 @@ public static class NetworkPayloadContract
             warnings);
     }
 
+    /// <summary>
+    /// Decodes a <c>read_hardware_config</c> payload under the same contract the batch path uses,
+    /// returning the typed value. Callers that bind safety tokens to hardware state need the value
+    /// itself, not a batch item. Throws <see cref="JsonException"/> when the payload does not match.
+    /// </summary>
+    public static HardwareConfigInfo DecodeHardwareConfig(string payload)
+        => CanonicalJson.Normalize<HardwareConfigInfo>(payload, ValidateHardwareConfig).Value;
+
     private static JsonElement Decode(string operation, string payload) => operation switch
     {
         "read_hardware_config" => Decode<HardwareConfigInfo>(payload, ValidateHardwareConfig),

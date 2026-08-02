@@ -7,7 +7,18 @@ using TiaMcpServer.Json;
 
 namespace TiaMcpServer.Safety;
 
-public sealed class WriteSafetyService
+/// <summary>
+/// Issues, validates, consumes, and audits write-safety tokens.
+///
+/// <para>
+/// Two presentations share one set of private primitives. The methods on this file render and
+/// bind through the PRESENTATION serializer and are what generic batches, type writes, and
+/// lifecycle tools use. The opt-in canonical methods in <c>CanonicalWriteSafety.cs</c> bind
+/// through <see cref="Json.CanonicalJson"/> instead. Only the rendering differs — expiry,
+/// single use, tool/path/target/input/state binding, and audit behaviour are the same code.
+/// </para>
+/// </summary>
+public sealed partial class WriteSafetyService
 {
     public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
 
@@ -44,22 +55,12 @@ public sealed class WriteSafetyService
        string? diff = null,
        string? instructions = null)
     {
-        EvictExpiredTokens();
-
-        var token = CreateToken();
-        var targetJson = ToStableJson(target);
-        var requestedInputJson = ToStableJson(requestedInput);
-        var currentStateHash = HashText(currentState);
-        var requestedInputHash = HashText(requestedInputJson);
-        var expiresAtUtc = _getUtcNow().Add(_tokenLifetime);
-
-        _tokens[token] = new SafetyTokenEntry(
-            ToolName: toolName,
-            ProjectPath: NormalizeProjectPath(projectPath),
-            TargetJson: targetJson,
-            RequestedInputHash: requestedInputHash,
-            CurrentStateHash: currentStateHash,
-            ExpiresAtUtc: expiresAtUtc);
+        var issued = IssueToken(
+            toolName,
+            projectPath,
+            ToStableJson(target),
+            ToStableJson(requestedInput),
+            currentState);
 
         return JsonSerializer.Serialize(
             new
@@ -67,10 +68,10 @@ public sealed class WriteSafetyService
                 toolName,
                 target,
                 summary,
-                currentStateHash,
-                requestedInputHash,
-                expiresAtUtc,
-                safetyToken = token,
+                currentStateHash = issued.CurrentStateHash,
+                requestedInputHash = issued.RequestedInputHash,
+                expiresAtUtc = issued.ExpiresAtUtc,
+                safetyToken = issued.Token,
                 diff,
                 instructions
             },
@@ -91,6 +92,67 @@ public sealed class WriteSafetyService
         object target,
         object requestedInput,
         string? previewToolName = null)
+        => ValidateEnvelopeCore(
+            safetyToken,
+            toolName,
+            projectPath,
+            ToStableJson(target),
+            ToStableJson(requestedInput),
+            previewToolName);
+
+    public WriteSafetyValidationResult ValidateAndConsume(
+        string? safetyToken,
+        string toolName,
+        string? projectPath,
+        object target,
+        object requestedInput,
+        string currentState,
+        string? previewToolName = null)
+        => ValidateAndConsumeCore(
+            safetyToken,
+            toolName,
+            projectPath,
+            ToStableJson(target),
+            ToStableJson(requestedInput),
+            currentState,
+            previewToolName);
+
+    /// <summary>
+    /// Stores one token bound to already-rendered target/input/state text. Both presentations
+    /// route through here, so a token's binding rules cannot diverge between them.
+    /// </summary>
+    private IssuedToken IssueToken(
+        string toolName,
+        string? projectPath,
+        string targetJson,
+        string requestedInputJson,
+        string currentStateJson)
+    {
+        EvictExpiredTokens();
+
+        var token = CreateToken();
+        var requestedInputHash = HashText(requestedInputJson);
+        var currentStateHash = HashText(currentStateJson);
+        var expiresAtUtc = _getUtcNow().Add(_tokenLifetime);
+
+        _tokens[token] = new SafetyTokenEntry(
+            ToolName: toolName,
+            ProjectPath: NormalizeProjectPath(projectPath),
+            TargetJson: targetJson,
+            RequestedInputHash: requestedInputHash,
+            CurrentStateHash: currentStateHash,
+            ExpiresAtUtc: expiresAtUtc);
+
+        return new IssuedToken(token, requestedInputHash, currentStateHash, expiresAtUtc);
+    }
+
+    private WriteSafetyValidationResult ValidateEnvelopeCore(
+        string? safetyToken,
+        string toolName,
+        string? projectPath,
+        string targetJson,
+        string requestedInputJson,
+        string? previewToolName)
     {
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
@@ -102,54 +164,47 @@ public sealed class WriteSafetyService
             return Rejected("Safety token expired, consumed, or unknown.", previewToolName, WorkerFailureCategories.ValidationError);
         }
 
-        if (_getUtcNow() > entry.ExpiresAtUtc)
-        {
-            return Rejected("Safety token expired.", previewToolName, WorkerFailureCategories.ValidationError);
-        }
-
-        if (!string.Equals(entry.ToolName, toolName, StringComparison.Ordinal))
-        {
-            return Rejected("Safety token was issued for a different tool.", previewToolName, WorkerFailureCategories.ValidationError);
-        }
-
-        if (!string.Equals(entry.ProjectPath, NormalizeProjectPath(projectPath), StringComparison.OrdinalIgnoreCase))
-        {
-            return Rejected("Safety token was issued for a different project path.", previewToolName, WorkerFailureCategories.BindingConflict);
-        }
-
-        if (!string.Equals(entry.TargetJson, ToStableJson(target), StringComparison.Ordinal))
-        {
-            return Rejected("Safety token was issued for a different target.", previewToolName, WorkerFailureCategories.ValidationError);
-        }
-
-        var requestedInputHash = HashText(ToStableJson(requestedInput));
-        if (!string.Equals(entry.RequestedInputHash, requestedInputHash, StringComparison.Ordinal))
-        {
-            return Rejected("Safety token input does not match this write request.", previewToolName, WorkerFailureCategories.ValidationError);
-        }
-
-        return WriteSafetyValidationResult.Valid(requestedInputHash, entry.CurrentStateHash);
+        return MatchEntry(
+            entry, toolName, projectPath, targetJson, requestedInputJson, currentStateJson: null, previewToolName);
     }
 
-    public WriteSafetyValidationResult ValidateAndConsume(
+    private WriteSafetyValidationResult ValidateAndConsumeCore(
         string? safetyToken,
         string toolName,
         string? projectPath,
-        object target,
-        object requestedInput,
-        string currentState,
-        string? previewToolName = null)
+        string targetJson,
+        string requestedInputJson,
+        string currentStateJson,
+        string? previewToolName)
     {
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
             return Rejected("Safety token required.", previewToolName, WorkerFailureCategories.ValidationError);
         }
 
+        // Removed first: a token is spent by the attempt, not by the attempt succeeding.
         if (!_tokens.TryRemove(safetyToken, out var entry))
         {
             return Rejected("Safety token expired, consumed, or unknown.", previewToolName, WorkerFailureCategories.ValidationError);
         }
 
+        return MatchEntry(
+            entry, toolName, projectPath, targetJson, requestedInputJson, currentStateJson, previewToolName);
+    }
+
+    /// <summary>
+    /// Checks everything a token binds. <paramref name="currentStateJson"/> is null for the
+    /// envelope pre-check, which deliberately cannot see project state yet.
+    /// </summary>
+    private WriteSafetyValidationResult MatchEntry(
+        SafetyTokenEntry entry,
+        string toolName,
+        string? projectPath,
+        string targetJson,
+        string requestedInputJson,
+        string? currentStateJson,
+        string? previewToolName)
+    {
         if (_getUtcNow() > entry.ExpiresAtUtc)
         {
             return Rejected("Safety token expired.", previewToolName, WorkerFailureCategories.ValidationError);
@@ -165,18 +220,23 @@ public sealed class WriteSafetyService
             return Rejected("Safety token was issued for a different project path.", previewToolName, WorkerFailureCategories.BindingConflict);
         }
 
-        if (!string.Equals(entry.TargetJson, ToStableJson(target), StringComparison.Ordinal))
+        if (!string.Equals(entry.TargetJson, targetJson, StringComparison.Ordinal))
         {
             return Rejected("Safety token was issued for a different target.", previewToolName, WorkerFailureCategories.ValidationError);
         }
 
-        var requestedInputHash = HashText(ToStableJson(requestedInput));
+        var requestedInputHash = HashText(requestedInputJson);
         if (!string.Equals(entry.RequestedInputHash, requestedInputHash, StringComparison.Ordinal))
         {
             return Rejected("Safety token input does not match this write request.", previewToolName, WorkerFailureCategories.ValidationError);
         }
 
-        var currentStateHash = HashText(currentState);
+        if (currentStateJson is null)
+        {
+            return WriteSafetyValidationResult.Valid(requestedInputHash, entry.CurrentStateHash);
+        }
+
+        var currentStateHash = HashText(currentStateJson);
         if (!string.Equals(entry.CurrentStateHash, currentStateHash, StringComparison.Ordinal))
         {
             return Rejected("Safety token current state no longer matches the project.", previewToolName, WorkerFailureCategories.StateChanged);
@@ -220,6 +280,26 @@ public sealed class WriteSafetyService
         object requestedInput,
         string currentState,
         string result)
+        => AppendAuditRecord(toolName, timestamp => JsonSerializer.Serialize(
+            new
+            {
+                timestampUtc = timestamp,
+                toolName,
+                projectPath = NormalizeProjectPath(projectPath),
+                target,
+                requestedInputHash = HashText(ToStableJson(requestedInput)),
+                currentStateHash = HashText(currentState),
+                resultHash = HashText(result),
+                resultPreview = result.Length <= 2000 ? result : result[..2000]
+            },
+            TiaJson.Presentation));
+
+    /// <summary>
+    /// Appends one already-rendered JSONL record. <paramref name="render"/> receives the same
+    /// timestamp the file name is derived from, so a record can never claim a different day than
+    /// the file it lives in.
+    /// </summary>
+    private void AppendAuditRecord(string toolName, Func<DateTimeOffset, string> render)
     {
         try
         {
@@ -231,21 +311,7 @@ public sealed class WriteSafetyService
 
             var timestamp = _getUtcNow();
             var auditPath = Path.Combine(directory, $"{timestamp:yyyy-MM-dd}.jsonl");
-            var record = JsonSerializer.Serialize(
-                new
-                {
-                    timestampUtc = timestamp,
-                    toolName,
-                    projectPath = NormalizeProjectPath(projectPath),
-                    target,
-                    requestedInputHash = HashText(ToStableJson(requestedInput)),
-                    currentStateHash = HashText(currentState),
-                    resultHash = HashText(result),
-                    resultPreview = result.Length <= 2000 ? result : result[..2000]
-                },
-                TiaJson.Presentation);
-
-            File.AppendAllText(auditPath, record + Environment.NewLine, Encoding.UTF8);
+            File.AppendAllText(auditPath, render(timestamp) + Environment.NewLine, Encoding.UTF8);
         }
         catch (Exception ex)
         {
@@ -290,6 +356,13 @@ public sealed class WriteSafetyService
             .Replace('+', '-')
             .Replace('/', '_');
     }
+
+    /// <summary>A freshly issued token and the binding hashes a preview must report.</summary>
+    private sealed record IssuedToken(
+        string Token,
+        string RequestedInputHash,
+        string CurrentStateHash,
+        DateTimeOffset ExpiresAtUtc);
 
     private sealed record SafetyTokenEntry(
         string ToolName,
