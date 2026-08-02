@@ -101,6 +101,13 @@ Observations:
   CRLF line endings; the Read tooling used for this analysis initially misidentified it as a
   binary file purely because of the BOM. Any importer/exporter for this format has to treat BOM +
   CRLF handling as a first-class concern, not an afterthought.
+- **A `.scl` file routinely declares several objects of different kinds.** The 2026-07-27 samples
+  make this concrete: `DamperDigital.scl` declares one `FUNCTION_BLOCK`, `AnalogInput.scl` declares
+  a `TYPE` and a `FUNCTION_BLOCK`, and `DamperAnalog.scl` declares two `TYPE`s, a `DATA_BLOCK`, and
+  a `FUNCTION_BLOCK` — 8,395 bytes covering four objects. This is `GenerateOptions.WithDependencies`
+  behavior, and it is why reads let the caller choose multiplicity while writes accept exactly one:
+  `GenerateBlocksFromSource` creates everything the file declares and has no notion of the object
+  the caller addressed.
 
 ## Known constraints (found while reading the current implementation)
 
@@ -164,7 +171,7 @@ for that order, derived from the analysis above:
 | 0 — Spike | Confirm whether these sample files were produced by Siemens' native "generate/import external source" Openness API rather than `Block.Export`/`Import`. If so, prefer driving that API over hand-rolling a `.scl`/`.db`/`.udt` parser — changes the shape of every phase below. | — |
 | 1 — UDT | Add read/export/import support for PLC data types (delivered — `get_type_content`/`update_type_content`) with `.udt` as its format. | Phase 0 |
 | 2 — DB | Add `.db` as a selectable/default format for data blocks, alongside the existing SimaticML path (round trip delivered and proven live, see Phase 0 below; the selectable-format work itself is Phase 5). | Phase 1 (`ExternalSourceScope` and the declared-name preflight), Phase 0 |
-| 3 — SCL | Add `.scl` as a selectable/default format for SCL/STL-language blocks; replace the `BlockSourceGenerator` XML-only placeholder with real source generation. | Phase 1 (inline UDT dependencies), Phase 0 |
+| 3 — SCL | Add `.scl` as a selectable format for SCL-language FB/FC/OB via `format=source`, with a `withDependencies` read option (delivered — see `docs/superpowers/specs/2026-07-27-scl-external-source-design.md`). STL deferred: it needs `.awl` and has no fixture. `BlockSourceGenerator` deliberately untouched — its empty `<NetworkSource />` is schema-valid and `create_block` + `update_block_logic` already compose. | Phase 1 (inline UDT dependencies), Phase 0 |
 | 4 — LAD (SimaticSD) | Verify whether `ImportFromDocuments` can apply a real network-level change to a LAD block from an edited `.s7dcl`/`.s7res` pair; if confirmed, add SimaticSD as a selectable/default read (and, if verified, write) format for LAD. FBD only if it's confirmed to behave the same way; GRAPH explicitly out of scope. | Phase 0; independent of Phases 1-3 otherwise |
 | 5 — Rollout | Add the explicit format selector on `get_block_content`/`update_block_logic`, flip defaults per block language/type now that 1-4 exist, measure real token savings, keep `xml` permanently available everywhere as an explicit override. GRAPH (and FBD/LAD if Phase 4 finds import doesn't work) never leave `xml`. | Phases 1-4 |
 
@@ -190,12 +197,12 @@ It does **not** prove that the existing samples were produced by this pipeline, 
 that any exact `.udt`, `.db`, or `.scl` file round-trips on a target CPU. The API accepts a
 generic `FileInfo`/path rather than a type-specific extension selector.
 
-**Phase 0 partially closed (see `docs/superpowers/plans/2026-07-26-udt-db-external-source.md`).**
-The `GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip is proven live for
+**Phase 0 progress as of 2026-07-26 (see `docs/superpowers/plans/2026-07-26-udt-db-external-source.md`).**
+The `GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip was proven live for
 UDTs by `scripts/live-test-udt.ps1` and for global DBs by `scripts/live-test-db.ps1`. The DB leg's
 live coverage includes a global DB inside a software unit, resolved through the owning unit's
-`ExternalSourceGroup` rather than the top-level one, also via `scripts/live-test-db.ps1`. It
-remains unproven for SCL blocks; Phase 3 must close that itself.
+`ExternalSourceGroup` rather than the top-level one, also via `scripts/live-test-db.ps1`. The SCL
+leg was unproven at this point; see below for its closure.
 
 A non-optimized global DB's external-source export is **identical in shape** to an optimized one.
 There is no `Offset` column. The only difference is `S7_Optimized_Access := 'FALSE'` in the
@@ -203,10 +210,11 @@ header. Optimized and non-optimized global DBs therefore take **one identical co
 offset parsing, no stale-offset detection, and no optimized/non-optimized branching is needed.
 Both are covered by `scripts/live-test-db.ps1`.
 
-Phase 0 stays open **for SCL only**: the closing condition — a real V21 fixture proving
-`GenerateSource → CreateFromFile → GenerateBlocksFromSource`, followed by compile and re-export
-comparison — is now met for the UDT and DB legs; the SCL leg still needs that same fixture, for
-one representative SCL block.
+**Phase 0 is closed.** The `GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip
+is proven live for UDTs (`scripts/live-test-udt.ps1`), global DBs (`scripts/live-test-db.ps1`), and
+SCL-language blocks (`scripts/live-test-scl.ps1`), including a block inside a software unit in each
+case. `GenerateOptions` is now passed explicitly on every export path rather than relying on the
+two-argument overload's undocumented default.
 
 ## Non-goals
 

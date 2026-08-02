@@ -24,12 +24,19 @@
 .PARAMETER NestedTypePath
     A UDT inside a type folder, e.g. PLC_1/Types/Sensors/AnalogInputSettings.
     Exercises the PlcTypeUserGroup overload, which the root type does not.
+
+.PARAMETER DependentTypePath
+    A UDT that declares another UDT as a member, e.g. PLC_1/Types/UDT_Settings referencing
+    AnalogInputSettings. Exercises the withDependencies dependency-closure read (L1.9): the plain
+    read must still show exactly one TYPE, and the withDependencies=true read must show more than
+    one.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string] $ProjectPath,
     [Parameter(Mandatory)] [string] $RootTypePath,
     [Parameter(Mandatory)] [string] $NestedTypePath,
+    [Parameter(Mandatory)] [string] $DependentTypePath,
     [string] $WorkerPath = "TiaMcpServer/bin/Debug/net8.0/openness-worker/TiaMcpServer.OpennessWorker.exe"
 )
 
@@ -244,6 +251,36 @@ Assert-Check 'L1.1a' 'Export a type at the Types root' {
 Assert-Check 'L1.1b' 'Export a type in a nested type folder' {
     $script:nestedOriginal = Get-TypeSource -TypePath $NestedTypePath
     if ($script:nestedOriginal -notmatch '(?m)^\s*TYPE\b') { throw 'Payload is not a TYPE declaration.' }
+}
+
+# --- L1.9 dependency read declares more than one object ----------------------------
+# Placed here rather than appended at the end: this is a pure read with nothing to restore, so it
+# has no ordering constraint against the writes below, and grouping it with L1.1's other reads
+# keeps related checks together. L1.8 must still remain the run's LAST check — it sweeps the
+# complete warning list, including L1.7a's restore. Numeric ID order not matching file order has
+# precedent in scripts/live-test-db.ps1, where L2.8 runs before L2.7 for the same kind of reason.
+Assert-Check 'L1.9a' 'A UDT read without withDependencies still declares exactly one TYPE' {
+    $plain = Get-TypeSource -TypePath $DependentTypePath
+    $declared = [regex]::Matches($plain, '(?im)^[ \t]*TYPE[ \t]+')
+    if ($declared.Count -ne 1) {
+        throw "Expected exactly 1 TYPE declaration, found $($declared.Count)."
+    }
+}
+
+Assert-Check 'L1.9b' 'The same UDT read with withDependencies=true declares more than one TYPE' {
+    $response = Invoke-Worker @{
+        method           = 'get_type_content'
+        projectPath      = $ProjectPath
+        typePath         = $DependentTypePath
+        format           = 'source'
+        withDependencies = $true
+    }
+    if (-not $response.success) { throw "get_type_content failed: $($response.error)" }
+
+    $declared = [regex]::Matches($response.payload, '(?im)^[ \t]*TYPE[ \t]+')
+    if ($declared.Count -le 1) {
+        throw "Expected more than 1 TYPE declaration with withDependencies=true, found $($declared.Count)."
+    }
 }
 
 # --- L1.2 unchanged round trip is lossless ----------------------------------------

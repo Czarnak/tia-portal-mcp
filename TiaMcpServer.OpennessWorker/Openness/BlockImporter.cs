@@ -182,8 +182,9 @@ public static class BlockImporter
         var address = BlockWritePreflight.ParseAddress(blockPath);
         var target = BlockTargetResolver.ResolveForImport(project, address);
 
-        // 2/3. Refuse if the block does not exist, or is not a global data block. This is an
-        // update, never an upsert.
+        // 2/3. Refuse if the block does not exist, or is not one this format is defined for. This
+        // is an update, never an upsert. DecideSourceFormat throws the refusal itself and also
+        // yields the file extension and the declaration kind the submitted source must carry.
         if (target.Block is null)
         {
             throw new WorkerOperationException(
@@ -192,12 +193,17 @@ public static class BlockImporter
                 + "block that is already in the project; it never creates one.");
         }
 
-        BlockExporter.RequireGlobalDb(target.Block, address);
+        var decision = BlockExporter.DecideSourceFormat(target.Block, address);
         var targetName = target.Block.Name;
 
-        // 4. Refuse if the submitted document declares a different object.
+        // 4. Refuse if the submitted document declares more than one object, an object of the wrong
+        // kind, or a different name.
         if (!PlcTypeSourcePreflight.TryReadDeclaredName(
-                sourceContent, SourceFormatNames.Source, out var declaredName, out var preflightError))
+                sourceContent,
+                SourceFormatNames.Source,
+                decision.ExpectedKind,
+                out var declaredName,
+                out var preflightError))
         {
             throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError,
@@ -209,9 +215,9 @@ public static class BlockImporter
             throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError,
                 $"The submitted document declares '{declaredName}' but '{address.ToDisplayPath()}' "
-                + $"resolves to the data block '{targetName}'. update_block_logic never renames and "
-                + $"never creates: submit a document declaring '{targetName}', or address the block "
-                + "the document actually declares.");
+                + $"resolves to '{targetName}'. update_block_logic never renames and never creates: "
+                + $"submit a document declaring '{targetName}', or address the block the document "
+                + "actually declares.");
         }
 
         // 5. Apply the document through the Siemens external-source pipeline.
@@ -219,8 +225,10 @@ public static class BlockImporter
         // target.ExternalSourceGroup, not one re-derived from the block: for a block inside a
         // software unit this is the unit's own group, and registering under the top-level PLC
         // instead would generate a stray block there and leave the real one untouched.
+        // The extension comes from the resolved block, never from the caller — .db for a global
+        // data block, .scl for an SCL block.
         var scope = ExternalSourceScope.Create(
-            target.ExternalSourceGroup, targetName + ".db", sourceContent);
+            target.ExternalSourceGroup, targetName + decision.Extension, sourceContent);
 
         IList<IEngineeringObject>? generated;
 
@@ -273,7 +281,7 @@ public static class BlockImporter
     ///
     /// <para>
     /// The PLC is compiled as a whole rather than just the block — unlike the Simatic ML route —
-    /// because rewriting a global DB's declaration silently invalidates every block that reads its
+    /// because rewriting a block's declaration silently invalidates every block that reads its
     /// members, and the compiler is the only thing that knows which. This mirrors
     /// <see cref="PlcTypePostconditionVerifier"/>, which makes the same trade for the same reason.
     /// </para>
@@ -285,7 +293,7 @@ public static class BlockImporter
         IReadOnlyList<string> warnings)
     {
         var compileFailure = CompileAndBuildFailureEvidence(
-            project, address.PlcName, blockPath: null, "the data block update", warnings);
+            project, address.PlcName, blockPath: null, "the source-format block update", warnings);
 
         if (compileFailure is not null)
         {
@@ -302,7 +310,7 @@ public static class BlockImporter
                 reExportSucceeded: reExportSucceeded,
                 diagnosticMessage: reExportSucceeded
                     ? "Verified."
-                    : "Re-export produced an empty document after the data block update.",
+                    : "Re-export produced an empty document after the source-format block update.",
                 warnings: warnings);
         }
         catch (Exception exception)
@@ -310,7 +318,7 @@ public static class BlockImporter
             return new BlockPostconditionEvidence(
                 compileSucceeded: true,
                 reExportSucceeded: false,
-                diagnosticMessage: "Re-export could not complete after the data block update: " + exception.Message,
+                diagnosticMessage: "Re-export could not complete after the source-format block update: " + exception.Message,
                 warnings: warnings);
         }
     }
