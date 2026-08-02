@@ -213,7 +213,11 @@ function Add-BoolMember {
             'limitation, not a round-trip failure: rename the probe or point at a different block.')
     }
 
-    $pattern = '(?m)^(\s*VAR)\r?$'
+    # Real V21 exports append a trailing space after section keywords (confirmed against the
+    # committed fixtures, e.g. TiaMcpServer.Tests/Fixtures/DamperAnalog.scl:88 is "   VAR " with a
+    # trailing space before the line break) — [ \t]* absorbs it. It must NOT absorb past the line,
+    # or "VAR RETAIN" would be mistaken for a bare VAR section.
+    $pattern = '(?m)^(\s*VAR)[ \t]*\r?$'
     if ($Source -notmatch $pattern) {
         throw ('No bare VAR section (as opposed to VAR_INPUT/VAR_OUTPUT/VAR_IN_OUT/VAR_TEMP) was ' +
             'found to extend. This is a FIXTURE limitation, not a round-trip failure: point at a ' +
