@@ -44,12 +44,42 @@ public class NetworkReadTools
             NetworkPayloadContract.Project)
             .ConfigureAwait(false);
 
+        var bounded = ApplyBudget(batch);
+
         // A batch that ran is a successful MCP call even when items inside it failed: isError is
         // reserved for "the tool could not run", so the caller can tell those two cases apart.
-        return StructuredToolResult.Create(
-            new NetworkReadResponse(ToolName, batch.IsFullySuccessful, batch, Error: null),
-            isError: false);
+        return StructuredToolResult.Create(Compose(bounded), isError: false);
     }
+
+    /// <summary>
+    /// Bounds a batch against the exact <c>network_read</c> response document. Internal so tests can
+    /// drive the real wiring — retry tool, per-operation guidance, envelope — at small limits.
+    /// </summary>
+    internal static StructuredOperationBatch ApplyBudget(
+        StructuredOperationBatch batch,
+        int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
+        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        => StructuredOperationBatchPayloadBudget.Apply(
+            batch,
+            Compose,
+            ToolName,
+            RetryGuidance,
+            maxItemChars,
+            maxDocumentChars);
+
+    private static NetworkReadResponse Compose(StructuredOperationBatch batch)
+        => new(ToolName, batch.IsFullySuccessful, batch, Error: null);
+
+    private static string RetryGuidance(StructuredOperationItem item) => item.Operation switch
+    {
+        // A catalog search has its own narrowing knobs, so recommend those before a re-split.
+        "search_equipment_catalog" =>
+            "Narrow query or maxResults, or split the batch: re-run this operationId in its own "
+                + $"{ToolName} call.",
+
+        // A hardware read has no narrowing parameters; only a smaller batch helps.
+        _ => $"Split the batch: re-run this operationId in its own {ToolName} call.",
+    };
 
     private static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(

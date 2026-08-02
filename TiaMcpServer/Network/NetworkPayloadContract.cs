@@ -65,14 +65,75 @@ public static class NetworkPayloadContract
 
     private static JsonElement Decode(string operation, string payload) => operation switch
     {
-        "read_hardware_config" => Decode<HardwareConfigInfo>(payload),
-        "search_equipment_catalog" => Decode<CatalogEntryInfo[]>(payload),
-        "add_network_device" => Decode<AddDeviceResultInfo>(payload),
-        "configure_network_device" => Decode<ConfigureNetworkDeviceResultInfo>(payload),
+        "read_hardware_config" => Decode<HardwareConfigInfo>(payload, ValidateHardwareConfig),
+        "search_equipment_catalog" => Decode<CatalogEntryInfo[]>(payload, ValidateCatalogEntries),
+        "add_network_device" => Decode<AddDeviceResultInfo>(payload, ValidateAddDeviceResult),
+        "configure_network_device" =>
+            Decode<ConfigureNetworkDeviceResultInfo>(payload, ValidateConfigureResult),
         _ => throw new JsonException($"No declared result contract for network operation '{operation}'."),
     };
 
-    private static JsonElement Decode<T>(string payload) => CanonicalJson.Normalize<T>(payload).Element;
+    private static JsonElement Decode<T>(string payload, Action<T> validate)
+        => CanonicalJson.Normalize(payload, validate).Element;
+
+    // The contract types initialize their collections and their non-nullable strings, so CLR
+    // initialization already covers an ABSENT member. An EXPLICIT null does not go through the
+    // initializer, so these validators are what keep a declared non-nullable member non-null.
+
+    private static void ValidateHardwareConfig(HardwareConfigInfo value)
+    {
+        RequireNotNull(value.Devices, "devices");
+        RequireNotNull(value.Subnets, "subnets");
+        RequireNotNull(value.Messages, "messages");
+
+        foreach (var device in value.Devices)
+        {
+            RequireNotNull(device, "devices[]");
+            RequireNotNull(device.Items, "devices[].items");
+        }
+
+        foreach (var subnet in value.Subnets)
+        {
+            RequireNotNull(subnet, "subnets[]");
+            RequireNotNull(subnet.Name, "subnets[].name");
+            RequireNotNull(subnet.IoSystems, "subnets[].ioSystems");
+            RequireNotNull(subnet.ConnectedNodeNames, "subnets[].connectedNodeNames");
+        }
+    }
+
+    private static void ValidateCatalogEntries(CatalogEntryInfo[] value)
+    {
+        foreach (var entry in value)
+        {
+            RequireNotNull(entry, "[]");
+            RequireNotNull(entry.TypeName, "[].typeName");
+            RequireNotNull(entry.TypeIdentifier, "[].typeIdentifier");
+        }
+    }
+
+    private static void ValidateAddDeviceResult(AddDeviceResultInfo value)
+    {
+        RequireNotNull(value.DeviceName, "deviceName");
+        RequireNotNull(value.RootItemName, "rootItemName");
+        RequireNotNull(value.TypeIdentifier, "typeIdentifier");
+        RequireNotNull(value.Warnings, "warnings");
+    }
+
+    private static void ValidateConfigureResult(ConfigureNetworkDeviceResultInfo value)
+    {
+        RequireNotNull(value.DeviceName, "deviceName");
+        RequireNotNull(value.AppliedSettings, "appliedSettings");
+        RequireNotNull(value.SkippedSettings, "skippedSettings");
+        RequireNotNull(value.Messages, "messages");
+    }
+
+    private static void RequireNotNull(object? value, string member)
+    {
+        if (value is null)
+        {
+            throw new JsonException($"'{member}' is declared non-nullable but the payload was null.");
+        }
+    }
 
     private static StructuredOperationItem Failed(
         NetworkOperationRequest operation,

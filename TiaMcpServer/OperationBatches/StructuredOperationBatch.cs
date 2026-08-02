@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.OperationBatches;
 
@@ -72,7 +73,12 @@ public sealed record StructuredOperationBatch(
             items,
             truncation);
 
-    /// <summary>True only when every operation completed and delivered its result.</summary>
+    /// <summary>
+    /// True only when every operation completed and delivered its result. Host-side only: it is
+    /// derived from <see cref="Counts"/>, so publishing it would add a redundant member the
+    /// declared output schema does not describe.
+    /// </summary>
+    [JsonIgnore]
     public bool IsFullySuccessful
         => Counts.Failed == 0 && Counts.Omitted == 0 && Counts.Skipped == 0;
 

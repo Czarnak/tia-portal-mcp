@@ -73,10 +73,20 @@ public static class CanonicalJson
     /// Strictly parses <paramref name="json"/> as <typeparamref name="T"/> and returns the value
     /// together with its canonical text and a detached element of that same text — one round trip,
     /// three representations that cannot drift apart.
+    ///
+    /// <para>
+    /// <paramref name="validate"/> runs inside the same gate for rules the CLR type cannot express
+    /// — an explicit null defeating a non-null collection default, for example. It belongs to the
+    /// type's owning contract, not here: this class stays domain-free. A validator rejects by
+    /// throwing <see cref="JsonException"/>, so callers handle contract violations in one place.
+    /// </para>
     /// </summary>
-    public static (T Value, string Text, JsonElement Element) Normalize<T>(string json)
+    public static (T Value, string Text, JsonElement Element) Normalize<T>(
+        string json,
+        Action<T>? validate = null)
     {
         var value = Deserialize<T>(json);
+        validate?.Invoke(value);
         var text = Serialize(value);
         return (value, text, Detach(text));
     }
