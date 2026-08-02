@@ -27,9 +27,18 @@ The batch tools are the only path for data operations. Each `operation` name (e.
 
 Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker (e.g. members skipped while reading a protected device). A populated `warnings` array means the payload may be partial. `read_hardware_config` additionally reports unreadable members in a payload-level `messages` array; device/module name and type-identifier fields omit values that could not be read instead of returning `0`/empty-string placeholders (a few secondary name fields still fall back to an empty string, with the failure noted in `messages`).
 
-Available read operations (for `execute_read_batch`): `browse_project_tree`, `get_block_content`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, `search_equipment_catalog`, `compile_check`, `get_project_status`.
+Available read operations (for `execute_read_batch`): `browse_project_tree`, `get_block_content`, `get_type_content`, `list_tag_tables`, `read_hardware_config`, `read_cross_references`, `search_equipment_catalog`, `compile_check`, `get_project_status`.
 
-Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc` / `stop_plc`.
+Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc` / `stop_plc`.
+
+`get_block_content` / `update_block_logic` and `get_type_content` / `update_type_content` accept a
+`format` field. `format=source` is available for global data blocks, PLC data types, and
+SCL-language FB/FC/OB. Every other block language stays on `format=xml`.
+
+`withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency
+closure. The resulting document declares several objects and is **context only** — a write refuses
+any source declaring more than one object, and the read carries a warning saying so. Omit the field
+to get a document you can edit and submit back.
 
 ### Project tools
 
