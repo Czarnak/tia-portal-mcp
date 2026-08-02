@@ -1,3 +1,4 @@
+using System.Globalization;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -83,17 +84,10 @@ public static class HardwareConfigReader
             Address = ReadAttribute((IEngineeringObject)item, "Address", $"device item '{itemDescription}' address", messages)
         };
 
-        var networkInterfaces = ReadNetworkInterfaces(item, itemDescription, messages);
-        if (networkInterfaces.Count > 0)
-        {
-            itemInfo.NetworkInterfaces = networkInterfaces;
-        }
-
-        var children = ReadDeviceItems(item.DeviceItems, $"device item '{itemDescription}'", messages);
-        if (children.Count > 0)
-        {
-            itemInfo.Items = children;
-        }
+        // Always assigned, even when empty: a consumer resolving a write target walks this tree and
+        // must not have to tell "no interfaces" apart from "collection omitted".
+        itemInfo.NetworkInterfaces = ReadNetworkInterfaces(item, itemDescription, messages);
+        itemInfo.Items = ReadDeviceItems(item.DeviceItems, $"device item '{itemDescription}'", messages);
 
         return itemInfo;
     }
@@ -148,6 +142,8 @@ public static class HardwareConfigReader
         return new NodeInfo
         {
             Name = nodeName ?? string.Empty,
+            NodeId = ReadPropertyOrAttribute(node, "NodeId", $"node '{nodeDescription}' node id", messages) ?? string.Empty,
+            NodeType = ReadPropertyOrAttribute(node, "NodeType", $"node '{nodeDescription}' node type", messages),
             IpAddress = ReadAttribute((IEngineeringObject)node, "Address", $"node '{nodeDescription}' IP address", messages),
             SubnetMask = ReadAttribute((IEngineeringObject)node, "SubnetMask", $"node '{nodeDescription}' subnet mask", messages),
             PnDeviceName = ReadAttribute((IEngineeringObject)node, "PnDeviceName", $"node '{nodeDescription}' PROFINET device name", messages),
@@ -160,11 +156,14 @@ public static class HardwareConfigReader
     {
         var subnetName = ReadString(() => subnet.Name, "subnet name", messages);
         var subnetDescription = subnetName ?? "(unnamed)";
+        var networkType = ReadPropertyOrAttribute(subnet, "NetType", $"subnet '{subnetDescription}' network type", messages);
         var subnetInfo = new SubnetInfo
         {
             Name = subnetName ?? string.Empty,
+            SubnetId = ReadPropertyOrAttribute(subnet, "SubnetId", $"subnet '{subnetDescription}' subnet id", messages) ?? string.Empty,
+            NetworkType = networkType,
             TypeIdentifier = ReadAttribute((IEngineeringObject)subnet, "TypeIdentifier", $"subnet '{subnetDescription}' type identifier", messages) ??
-                ReadPropertyOrAttribute(subnet, "NetType", $"subnet '{subnetDescription}' network type", messages)
+                networkType
         };
 
         foreach (var node in ReadEnumerableProperty(subnet, "Nodes", $"subnet '{subnetDescription}' nodes"))
@@ -197,6 +196,7 @@ public static class HardwareConfigReader
         var ioSystemInfo = new IoSystemInfo
         {
             Name = ioSystemName,
+            Number = ReadIntPropertyOrAttribute(ioSystem, "Number", $"IO system '{ioSystemName}' number", messages),
             IoControllerName = FindParentDeviceName(ReadProperty(ioSystem, "IoController"), messages)
         };
 
@@ -298,6 +298,28 @@ public static class HardwareConfigReader
             messages.Add($"Could not read {description}: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Reads an integer identity. A value that is present but not an integer is reported as a
+    /// message and read as null: an identity is never guessed, because a guessed identity could
+    /// later satisfy a write selector that should not have matched.
+    /// </summary>
+    private static int? ReadIntPropertyOrAttribute(object instance, string name, string description, List<string> messages)
+    {
+        var value = ReadPropertyOrAttribute(instance, name, description, messages);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
+        {
+            return number;
+        }
+
+        messages.Add($"Could not read {description}: '{value}' is not an integer.");
+        return null;
     }
 
     private static string? ReadPropertyOrAttribute(object instance, string name, string description, List<string> messages)

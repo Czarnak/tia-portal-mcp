@@ -131,8 +131,10 @@ while ((line = Console.In.ReadLine()) is not null)
                 // between preview and apply; write responses below expose the request ordering.
                 // Both read payloads must satisfy their declared Phase 2 result contracts
                 // (HardwareConfigInfo / CatalogEntryInfo[]); an unmapped member here would be
-                // rejected as protocol_error instead of decoding.
-                "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[]}],\"subnets\":[],\"messages\":[]}"}""",
+                // rejected as protocol_error instead of decoding. The hardware payload models a
+                // PLC plus a multi-homed PC station so node, subnet and IO-system identities are
+                // observable end to end.
+                "read_hardware_config" => Success(HardwareConfigPayload()),
                 "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"typeIdentifier\":\"OrderNumber:TEST\"}]"}""",
                 // The write payloads must satisfy AddDeviceResultInfo / ConfigureNetworkDeviceResultInfo
                 // too. Their free-text members carry seq so request ordering stays observable
@@ -238,6 +240,131 @@ void Respond(string json)
     Console.Out.WriteLine(json);
     Console.Out.Flush();
 }
+
+// Wraps a payload document as a successful worker response. Serializing beats hand-escaping once a
+// payload is more than a few members: the escaping is what a hand-written literal gets wrong, and a
+// mis-escaped payload would fail the strict Network contract for the wrong reason.
+string Success(string payload) => JsonSerializer.Serialize(new { success = true, payload });
+
+// A complete HardwareConfigInfo: every collection is present, and members that are genuinely
+// unset are explicit nulls rather than omitted, so the payload exercises the strict registry the
+// way a real worker read does.
+string HardwareConfigPayload() => """
+    {
+      "devices": [
+        {
+          "name": "PLC_1",
+          "typeIdentifier": "OrderNumber:TEST",
+          "items": [
+            {
+              "name": "PROFINET interface_1",
+              "typeIdentifier": "OrderNumber:TEST",
+              "positionNumber": 1,
+              "address": null,
+              "networkInterfaces": [
+                {
+                  "name": "PROFINET interface_1",
+                  "nodes": [
+                    {
+                      "name": "X1",
+                      "nodeId": "0",
+                      "nodeType": "Ethernet",
+                      "ipAddress": "192.168.0.10",
+                      "subnetMask": "255.255.255.0",
+                      "pnDeviceName": "plc-1",
+                      "subnetName": "PN/IE_1",
+                      "ioSystemName": "IO system_1"
+                    }
+                  ]
+                }
+              ],
+              "items": []
+            }
+          ]
+        },
+        {
+          "name": "PC_System_1",
+          "typeIdentifier": "OrderNumber:PC-System",
+          "items": [
+            {
+              "name": "IE general_1",
+              "typeIdentifier": "OrderNumber:IE-General",
+              "positionNumber": 1,
+              "address": null,
+              "networkInterfaces": [
+                {
+                  "name": "PROFINET interface_1",
+                  "nodes": [
+                    {
+                      "name": "E1",
+                      "nodeId": "0",
+                      "nodeType": "Ethernet",
+                      "ipAddress": "192.168.0.20",
+                      "subnetMask": "255.255.255.0",
+                      "pnDeviceName": null,
+                      "subnetName": "PN/IE_1",
+                      "ioSystemName": null
+                    }
+                  ]
+                }
+              ],
+              "items": []
+            },
+            {
+              "name": "IE general_2",
+              "typeIdentifier": "OrderNumber:IE-General",
+              "positionNumber": 2,
+              "address": null,
+              "networkInterfaces": [
+                {
+                  "name": "PROFINET interface_2",
+                  "nodes": [
+                    {
+                      "name": "E2",
+                      "nodeId": "1",
+                      "nodeType": "Ethernet",
+                      "ipAddress": "10.0.0.20",
+                      "subnetMask": "255.255.255.0",
+                      "pnDeviceName": null,
+                      "subnetName": "PN/IE_2",
+                      "ioSystemName": null
+                    }
+                  ]
+                }
+              ],
+              "items": []
+            }
+          ]
+        }
+      ],
+      "subnets": [
+        {
+          "name": "PN/IE_1",
+          "subnetId": "subnet-1",
+          "networkType": "Ethernet",
+          "typeIdentifier": "Ethernet",
+          "ioSystems": [
+            {
+              "name": "IO system_1",
+              "number": 100,
+              "ioControllerName": "PLC_1",
+              "connectedDeviceNames": []
+            }
+          ],
+          "connectedNodeNames": ["PLC_1.X1", "PC_System_1.E1"]
+        },
+        {
+          "name": "PN/IE_2",
+          "subnetId": "subnet-2",
+          "networkType": "Ethernet",
+          "typeIdentifier": "Ethernet",
+          "ioSystems": [],
+          "connectedNodeNames": ["PC_System_1.E2"]
+        }
+      ],
+      "messages": []
+    }
+    """;
 
 string? ReadMethod(string requestLine) => ReadField(requestLine, "method");
 

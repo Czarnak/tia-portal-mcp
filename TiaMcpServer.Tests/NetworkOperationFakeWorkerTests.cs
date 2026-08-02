@@ -82,6 +82,44 @@ public class NetworkOperationFakeWorkerTests
             operations[1].GetProperty("result")[0].GetProperty("typeIdentifier").GetString());
     }
 
+    /// <summary>
+    /// The scenario's hardware payload models a multi-homed PC station: one station, two
+    /// interfaces, one node each. Both nodes must survive the strict contract with different node
+    /// ids so a later selector can address either interface without touching the other.
+    /// </summary>
+    [Fact]
+    public async Task NetworkRead_MultiHomedPcStationExposesBothNodesWithDistinctNodeIds()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(client, new[] { ReadHardware("hardware") });
+
+        Assert.False(result.IsError);
+        var hardware = Assert.IsType<JsonElement>(result.StructuredContent)
+            .GetProperty("batch")
+            .GetProperty("operations")[0]
+            .GetProperty("result");
+
+        var station = hardware.GetProperty("devices")[1];
+        Assert.Equal("PC_System_1", station.GetProperty("name").GetString());
+
+        var nodes = station.GetProperty("items")
+            .EnumerateArray()
+            .SelectMany(item => item.GetProperty("networkInterfaces").EnumerateArray())
+            .SelectMany(networkInterface => networkInterface.GetProperty("nodes").EnumerateArray())
+            .ToList();
+
+        Assert.Equal(2, nodes.Count);
+        Assert.Equal(new[] { "0", "1" }, nodes.Select(node => node.GetProperty("nodeId").GetString()));
+        Assert.Equal("192.168.0.20", nodes[0].GetProperty("ipAddress").GetString());
+        Assert.Equal("10.0.0.20", nodes[1].GetProperty("ipAddress").GetString());
+
+        var subnet = hardware.GetProperty("subnets")[0];
+        Assert.Equal("subnet-1", subnet.GetProperty("subnetId").GetString());
+        Assert.Equal("Ethernet", subnet.GetProperty("networkType").GetString());
+        Assert.Equal(100, subnet.GetProperty("ioSystems")[0].GetProperty("number").GetInt32());
+    }
+
     [Fact]
     public async Task NetworkWrite_UsesOneSnapshotPerAttemptAndEnforcesTokenLifecycle()
     {

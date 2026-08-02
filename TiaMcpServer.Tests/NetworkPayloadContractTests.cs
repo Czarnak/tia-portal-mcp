@@ -51,8 +51,99 @@ public class NetworkPayloadContractTests
         Assert.Equal(expectedKind, item.Result!.Value.ValueKind);
     }
 
+    /// <summary>
+    /// The identity members Task 6 selectors consume must survive the contract under their exact
+    /// declared JSON names, in a fully populated hardware tree rather than an empty one.
+    /// </summary>
+    [Fact]
+    public void Project_DecodesNetworkIdentitiesUnderTheirDeclaredJsonNames()
+    {
+        var item = Project("read_hardware_config", HardwareConfigWithIdentities);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Null(item.Failure);
+
+        var node = item.Result!.Value
+            .GetProperty("devices")[0]
+            .GetProperty("items")[0]
+            .GetProperty("networkInterfaces")[0]
+            .GetProperty("nodes")[0];
+        var subnet = item.Result!.Value.GetProperty("subnets")[0];
+
+        Assert.Equal("0", node.GetProperty("nodeId").GetString());
+        Assert.Equal("Ethernet", node.GetProperty("nodeType").GetString());
+        Assert.Equal("subnet-1", subnet.GetProperty("subnetId").GetString());
+        Assert.Equal("Ethernet", subnet.GetProperty("networkType").GetString());
+        Assert.Equal(100, subnet.GetProperty("ioSystems")[0].GetProperty("number").GetInt32());
+    }
+
+    private const string HardwareConfigWithIdentities = """
+        {
+          "devices": [
+            {
+              "name": "PLC_1",
+              "typeIdentifier": "OrderNumber:TEST",
+              "items": [
+                {
+                  "name": "PROFINET interface_1",
+                  "typeIdentifier": "OrderNumber:TEST",
+                  "positionNumber": 1,
+                  "address": null,
+                  "networkInterfaces": [
+                    {
+                      "name": "PROFINET interface_1",
+                      "nodes": [
+                        {
+                          "name": "X1",
+                          "nodeId": "0",
+                          "nodeType": "Ethernet",
+                          "ipAddress": "192.168.0.10",
+                          "subnetMask": "255.255.255.0",
+                          "pnDeviceName": "plc-1",
+                          "subnetName": "PN/IE_1",
+                          "ioSystemName": "IO system_1"
+                        }
+                      ]
+                    }
+                  ],
+                  "items": []
+                }
+              ]
+            }
+          ],
+          "subnets": [
+            {
+              "name": "PN/IE_1",
+              "subnetId": "subnet-1",
+              "networkType": "Ethernet",
+              "typeIdentifier": "Ethernet",
+              "ioSystems": [
+                {
+                  "name": "IO system_1",
+                  "number": 100,
+                  "ioControllerName": "PLC_1",
+                  "connectedDeviceNames": ["ET200SP_1"]
+                }
+              ],
+              "connectedNodeNames": ["PLC_1.X1"]
+            }
+          ],
+          "messages": []
+        }
+        """;
+
     public static TheoryData<string, string> InvalidSuccessfulPayloads() => new()
     {
+        // Wrong casing on an identity member: the strict registry treats it as unmapped rather
+        // than tolerating it, so a selector can never bind an identity the worker mis-spelled.
+        { "read_hardware_config", $$"""{"devices":[],"subnets":[{"name":"PN/IE_1","subnetID":"{{LeakToken}}","ioSystems":[],"connectedNodeNames":[]}],"messages":[]}""" },
+
+        // Wrong member type for an identity: a numeric node id is not the declared string.
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"networkInterfaces":[{"name":"PROFINET interface_1","nodes":[{"name":"X1","nodeId":0}]}],"items":[]}]}],"subnets":[],"messages":[]}""" },
+
+        // Wrong member type for the IO-system number: a stringified number is not an integer.
+        { "read_hardware_config", $$"""{"devices":[],"subnets":[{"name":"{{LeakToken}}","ioSystems":[{"name":"IO system_1","number":"100","connectedDeviceNames":[]}],"connectedNodeNames":[]}],"messages":[]}""" },
+
         // Unmapped member.
         { "read_hardware_config", $$"""{"devices":[],"subnets":[],"messages":[],"x":"{{LeakToken}}"}""" },
 
