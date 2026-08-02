@@ -26,9 +26,9 @@ public class WriteToolSafetyTokenTests
     }
 
     [Fact]
-    public void LifecycleSurfaceIsExactlySevenTools()
+    public void ProjectReadAndLifecycleSurfaceIsExactlyEightTools()
     {
-        // Tools have been split into ProjectReadTools (1 tool) and ProjectWriteTools (6 tools).
+        // ProjectReadTools exposes two reads; ProjectWriteTools exposes six lifecycle writes.
         var readToolNames = typeof(ProjectReadTools)
             .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
             .Select(m => m.GetCustomAttribute<McpServerToolAttribute>()?.Name)
@@ -46,7 +46,7 @@ public class WriteToolSafetyTokenTests
         Assert.Equal(
             new[]
             {
-                "archive_project", "close_project", "create_project", "get_project_status",
+                "archive_project", "browse_project_tree", "close_project", "create_project", "get_project_status",
                 "open_project", "save_project", "save_project_as"
             },
             allToolNames);

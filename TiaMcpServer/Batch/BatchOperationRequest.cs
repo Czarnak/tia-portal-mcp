@@ -18,7 +18,7 @@ public sealed class BatchOperationRequest
     [Description("Client-supplied unique identifier for this item within the batch; the result is keyed by it.")]
     public string OperationId { get; set; } = string.Empty;
 
-    [Description("The operation to run for this item. Read operations: browse_project_tree, read_hardware_config, read_cross_references, search_equipment_catalog, get_block_content, list_tag_tables, compile_check, get_project_status, get_type_content. "
+    [Description("The operation to run for this item. Read operations: read_hardware_config, read_cross_references, search_equipment_catalog, get_block_content, list_tag_tables, get_type_content. "
         + "Write operations: update_block_logic, create_block, delete_block, create_block_group, delete_block_group, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, add_network_device, configure_network_device, start_plc, stop_plc, update_type_content. "
         + "Use reads only in execute_read_batch and writes only in preview_write_batch/apply_write_batch.")]
     public string Operation { get; set; } = string.Empty;
@@ -26,23 +26,17 @@ public sealed class BatchOperationRequest
     [Description("Optional absolute project path (.ap21). When omitted, the active project is used; all write items in one batch must share the same project path.")]
     public string? ProjectPath { get; set; }
 
-    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, create_block, delete_block, create_block_group, delete_block_group. Optional for compile_check to compile only that block.")]
+    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, create_block, delete_block, create_block_group, and delete_block_group.")]
     public string? BlockPath { get; set; }
 
     [Description("SIMATIC SD document content for the block. Required by update_block_logic.")]
     public string? YamlContent { get; set; }
 
-    [Description("Optional PLC software name to scope the operation. Honored by list_tag_tables, read_cross_references, compile_check, start_plc, stop_plc, and the tag, tag-table, and user-constant operations.")]
+    [Description("Optional PLC software name to scope the operation. Honored by list_tag_tables, read_cross_references, start_plc, stop_plc, and the tag, tag-table, and user-constant operations.")]
     public string? PlcName { get; set; }
 
     [Description("Hardware catalog search query. Required by search_equipment_catalog.")]
     public string? Query { get; set; }
-
-    [Description("Optional maximum tree depth for browse_project_tree; 1 returns only top-level nodes and marks pruned nodes with a ChildrenOmitted count. Combine with startPath to narrow large projects.")]
-    public int? Depth { get; set; }
-
-    [Description("Optional subtree root for browse_project_tree, matching a node's Path detail exactly (case-insensitive), e.g. PLC_1/Blocks. Errors if no node matches.")]
-    public string? StartPath { get; set; }
 
     [Description("Optional result cap. Valid for search_equipment_catalog (default 50 when omitted) and read_cross_references (unlimited when omitted; a truncation message is added when the cap is hit).")]
     public int? MaxResults { get; set; }

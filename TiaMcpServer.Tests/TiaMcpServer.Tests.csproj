@@ -37,6 +37,7 @@
     <Compile Include="..\TiaMcpServer\Diagnostics\Checks\*.cs"
       Link="Host\Diagnostics\Checks\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Cli\*.cs" Link="Host\Cli\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Cli\Install\*.cs" Link="Host\Cli\Install\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Safety\OperationAccessPolicy.cs"
       Link="Host\OperationAccessPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
@@ -51,6 +52,10 @@
       Link="Host\ProjectLifecycleTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
       Link="Host\ProjectReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectEngineeringTools.cs"
+      Link="Host\ProjectEngineeringTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResultFormatter.cs"
+      Link="Host\StandaloneToolResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectWriteTools.cs"
       Link="Host\ProjectWriteTools.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchOperationRequest.cs"
