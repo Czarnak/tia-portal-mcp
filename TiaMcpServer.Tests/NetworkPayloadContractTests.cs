@@ -177,6 +177,23 @@ public class NetworkPayloadContractTests
 
         // No declared result contract for this operation.
         { "read_something_undeclared", $$"""{"value":"{{LeakToken}}"}""" },
+
+        // Null entry nested inside devices[].items[]: not checked by the top-level devices[]/
+        // subnets[] null guard, so a resolver walking this tree must never see it as a real item.
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[null]}],"subnets":[],"messages":[]}""" },
+
+        // Null entry nested inside devices[].items[].networkInterfaces[].
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"networkInterfaces":[null],"items":[]}]}],"subnets":[],"messages":[]}""" },
+
+        // Null entry nested inside devices[].items[].networkInterfaces[].nodes[] — the exact shape
+        // NetworkIdentityResolver walks to match a configure_network_device target.
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"networkInterfaces":[{"name":"if1","nodes":[null]}],"items":[]}]}],"subnets":[],"messages":[]}""" },
+
+        // Null entry nested inside devices[].items[].items[] (a nested device item, not a leaf).
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"networkInterfaces":[],"items":[null]}]}],"subnets":[],"messages":[]}""" },
+
+        // Null entry nested inside subnets[].ioSystems[].
+        { "read_hardware_config", $$"""{"devices":[],"subnets":[{"name":"{{LeakToken}}","ioSystems":[null],"connectedNodeNames":[]}],"messages":[]}""" },
     };
 
     [Theory]

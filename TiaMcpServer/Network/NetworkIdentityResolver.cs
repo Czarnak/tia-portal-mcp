@@ -29,8 +29,9 @@ public sealed record NetworkIdentityResolution(
 ///
 /// <para>
 /// Nested device-item and network-interface collections are walked defensively: a null collection
-/// (which the strict decode contract should prevent, but does not yet validate recursively) is
-/// treated as empty rather than dereferenced.
+/// or null element (which <see cref="NetworkPayloadContract"/>'s strict decode contract rejects as
+/// <c>protocol_error</c> before this type ever runs) is treated as empty rather than dereferenced,
+/// so this stays safe even if that guarantee is ever loosened.
 /// </para>
 /// </summary>
 public static class NetworkIdentityResolver
@@ -238,11 +239,11 @@ public static class NetworkIdentityResolver
 
     /// <summary>
     /// Substitutes an empty sequence for a null collection. The Contracts DTOs declare these
-    /// collections non-nullable, but nullable reference annotations are not runtime-enforced: a
-    /// lenient JSON decode can still assign null to one, and the strict contract does not yet
-    /// validate every nested collection recursively. The parameter is declared nullable so the
-    /// null-coalesce below is a normal (not a "never null") operation regardless of the caller's
-    /// static type — a defensive read must not assume the annotation held.
+    /// collections non-nullable, but nullable reference annotations are not runtime-enforced, and
+    /// this resolver is exercised directly in tests with hand-built state as well as through the
+    /// validated worker path. The parameter is declared nullable so the null-coalesce below is a
+    /// normal (not a "never null") operation regardless of the caller's static type — a defensive
+    /// read must not assume the annotation held.
     /// </summary>
     private static IEnumerable<T> OrEmpty<T>(List<T>? source) => source ?? Enumerable.Empty<T>();
 

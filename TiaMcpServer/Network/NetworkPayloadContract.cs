@@ -98,6 +98,10 @@ public static class NetworkPayloadContract
         {
             RequireNotNull(device, "devices[]");
             RequireNotNull(device.Items, "devices[].items");
+            foreach (var item in device.Items)
+            {
+                ValidateDeviceItem(item, "devices[].items[]");
+            }
         }
 
         foreach (var subnet in value.Subnets)
@@ -106,6 +110,38 @@ public static class NetworkPayloadContract
             RequireNotNull(subnet.Name, "subnets[].name");
             RequireNotNull(subnet.IoSystems, "subnets[].ioSystems");
             RequireNotNull(subnet.ConnectedNodeNames, "subnets[].connectedNodeNames");
+            foreach (var ioSystem in subnet.IoSystems)
+            {
+                RequireNotNull(ioSystem, "subnets[].ioSystems[]");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Recurses into a device item's nested network interfaces, nodes, and child items — the exact
+    /// tree <see cref="NetworkIdentityResolver"/> walks to match a configure_network_device target.
+    /// A null element anywhere in that walk must fail the contract here rather than reach the
+    /// resolver, which would otherwise dereference it.
+    /// </summary>
+    private static void ValidateDeviceItem(DeviceItemInfo? item, string path)
+    {
+        RequireNotNull(item, path);
+        RequireNotNull(item!.NetworkInterfaces, $"{path}.networkInterfaces");
+        RequireNotNull(item.Items, $"{path}.items");
+
+        foreach (var networkInterface in item.NetworkInterfaces)
+        {
+            RequireNotNull(networkInterface, $"{path}.networkInterfaces[]");
+            RequireNotNull(networkInterface!.Nodes, $"{path}.networkInterfaces[].nodes");
+            foreach (var node in networkInterface.Nodes)
+            {
+                RequireNotNull(node, $"{path}.networkInterfaces[].nodes[]");
+            }
+        }
+
+        foreach (var child in item.Items)
+        {
+            ValidateDeviceItem(child, $"{path}.items[]");
         }
     }
 
