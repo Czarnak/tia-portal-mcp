@@ -67,8 +67,24 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
     /// <paramref name="auditDirectory"/> redirects write-safety audit records away from the real
     /// per-user audit location, so a protocol test that applies a write cannot pollute it.
     /// </summary>
-    public static async Task<McpProtocolTestHarness> StartAsync<TTools>(string? auditDirectory = null)
+    public static Task<McpProtocolTestHarness> StartAsync<TTools>(string? auditDirectory = null)
         where TTools : class
+        => StartAsync(auditDirectory, builder => builder.WithTools<TTools>());
+
+    /// <summary>
+    /// Starts a server exposing BOTH <typeparamref name="TTools1"/> and <typeparamref name="TTools2"/>
+    /// on one session - and therefore one FakeWorker process - so a test can drive a read, a write,
+    /// and a follow-up read against the same process-local scripted worker state (e.g. proving a
+    /// multi-homed configure through network_write and observing it through network_read).
+    /// </summary>
+    public static Task<McpProtocolTestHarness> StartAsync<TTools1, TTools2>(string? auditDirectory = null)
+        where TTools1 : class
+        where TTools2 : class
+        => StartAsync(auditDirectory, builder => builder.WithTools<TTools1>().WithTools<TTools2>());
+
+    private static async Task<McpProtocolTestHarness> StartAsync(
+        string? auditDirectory,
+        Action<IMcpServerBuilder> registerTools)
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
         var serverReads = new AnonymousPipeClientStream(
@@ -94,7 +110,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             () => DateTimeOffset.UtcNow,
             WriteSafetyService.DefaultTokenLifetime,
             auditDirectory));
-        collection.AddMcpServer().WithTools<TTools>();
+        registerTools(collection.AddMcpServer());
         var services = collection.BuildServiceProvider();
 
         var server = McpServer.Create(

@@ -165,6 +165,118 @@ public class NetworkOperationFakeWorkerTests
         Assert.Contains("input does not match", Text(changedApply));
     }
 
+    /// <summary>
+    /// The multi-homed device (Task 7) has two REAL, existing nodes - node-plc and node-db - not a
+    /// missing one and not an ambiguous one. A preview resolved against node-plc binds target
+    /// evidence (device item path, interface, node name/id) specific to that node; retargeting the
+    /// SAME operationId at apply time to the other, equally real node must still be rejected as a
+    /// different target, since the safety token binds exactly which node was matched, not merely
+    /// that some node exists.
+    /// </summary>
+    [Fact]
+    public async Task NetworkWrite_ChangedNodeIdBetweenPreviewAndApplyIsRejectedAsADifferentTarget()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+        const string scenario = "multi-homed-network";
+
+        static NetworkOperationRequest[] Operations(string scenario, string nodeId) => new[]
+        {
+            new NetworkOperationRequest
+            {
+                OperationId = "configure",
+                Operation = "configure_network_device",
+                ProjectPath = scenario,
+                Target = new NetworkDeviceTarget { DeviceName = "PC_1", NodeId = nodeId },
+                Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.55" },
+            },
+        };
+
+        var preview = await NetworkWriteTools.NetworkWrite(client, safety, Operations(scenario, "node-plc"));
+        var token = SafetyToken(preview);
+
+        var applied = await NetworkWriteTools.NetworkWrite(
+            client, safety, Operations(scenario, "node-db"), confirm: true, safetyToken: token);
+
+        Assert.True(applied.IsError);
+        Assert.Contains("different target", Text(applied));
+    }
+
+    /// <summary>
+    /// Two nodes on the SAME device reporting the SAME nodeId: NetworkIdentityResolver's
+    /// ambiguous-match rule must fail the preview closed (postcondition_failed) and issue no token,
+    /// proven here through the actual NetworkWriteTools/FakeWorker wiring rather than only the pure
+    /// resolver unit tests.
+    /// </summary>
+    [Fact]
+    public async Task NetworkWrite_AmbiguousNodeIdFailsClosedWithNoTokenIssued()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+
+        var result = await NetworkWriteTools.NetworkWrite(
+            client,
+            safety,
+            new[]
+            {
+                new NetworkOperationRequest
+                {
+                    OperationId = "configure",
+                    Operation = "configure_network_device",
+                    ProjectPath = "network-ambiguous-node",
+                    Target = new NetworkDeviceTarget { DeviceName = "PC_1", NodeId = "dup-node" },
+                    Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.55" },
+                },
+            });
+
+        var root = Structured(result);
+        Assert.True(result.IsError);
+        Assert.Equal("error", root.GetProperty("phase").GetString());
+        Assert.Equal(
+            WorkerFailureCategories.PostconditionFailed,
+            root.GetProperty("error").GetProperty("category").GetString());
+        Assert.Equal(0, safety.ActiveTokenCount);
+    }
+
+    /// <summary>
+    /// changes.subnet and changes.ioSystem naming different subnets describes an outcome that
+    /// cannot exist (a node connects to one subnet). NetworkOperationCatalog rejects this before
+    /// the request ever resolves a target or reaches the worker - proven here through the actual
+    /// NetworkWriteTools entry point, not only the catalog validator in isolation.
+    /// </summary>
+    [Fact]
+    public async Task NetworkWrite_MismatchedSubnetAndIoSystemPairingIsRejectedBeforeAnyWorkerCall()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+
+        var result = await NetworkWriteTools.NetworkWrite(
+            client,
+            safety,
+            new[]
+            {
+                new NetworkOperationRequest
+                {
+                    OperationId = "configure",
+                    Operation = "configure_network_device",
+                    ProjectPath = Scenario,
+                    Target = new NetworkDeviceTarget { DeviceName = "PLC_1", NodeId = "node-1" },
+                    Changes = new NetworkDeviceChanges
+                    {
+                        Subnet = new NetworkSubnetTarget { SubnetId = "subnet-a" },
+                        IoSystem = new NetworkIoSystemTarget { SubnetId = "subnet-b", Number = 100 },
+                    },
+                },
+            });
+
+        Assert.True(result.IsError);
+        Assert.Contains("must name the same subnet", Text(result));
+        Assert.Equal(0, safety.ActiveTokenCount);
+    }
+
     private static JsonElement Structured(CallToolResult result)
         => Assert.IsType<JsonElement>(result.StructuredContent);
 

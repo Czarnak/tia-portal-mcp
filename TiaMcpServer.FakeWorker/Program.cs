@@ -1,9 +1,19 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
 // stdin closes. The test encodes the scenario in the request's projectPath field.
 var seq = 0;
+
+// Process-local, mutable hardware state for the "multi-homed-network" scenario (see below): a
+// single PC station exposing two ports on separate interfaces. Declared once per FakeWorker
+// process so a configure_network_device call mutates it and a later read_hardware_config call in
+// the SAME process observes the mutation - proving a real read -> select -> preview -> apply ->
+// read round trip, not just a static fixture.
+var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-plc", IpAddress = "192.168.0.20" };
+var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
+
 string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {
@@ -168,6 +178,42 @@ while ((line = Console.In.ReadLine()) is not null)
             {
                 "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[{\"name\":\"if_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"positionNumber\":1,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_1\",\"nodes\":[{\"name\":\"n1\",\"nodeId\":\"node-1\",\"nodeType\":\"Ethernet\",\"ipAddress\":null,\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]}]}],\"subnets\":[],\"messages\":[]}"}""",
                 _ => """{"success":false,"error":"device could not be added"}"""
+            });
+            break;
+        case "multi-homed-network":
+            // Stateful proof fixture (Task 7): one PC station ("PC_1") with two ports on separate
+            // interfaces, node-plc and node-db. read_hardware_config always reports the CURRENT
+            // mutable state; configure_network_device parses the forwarded nodeId and mutates only
+            // the matching node object, so a later read in the same process observes the change on
+            // exactly that port and byte-for-byte identical data on the other one.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(
+                    MultiHomedHardwareConfig(multiHomedPlcNode, multiHomedDbNode))),
+                "configure_network_device" => ConfigureMultiHomedNode(line, multiHomedPlcNode, multiHomedDbNode),
+                _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}' for multi-homed-network"}"""
+            });
+            break;
+        case "network-ambiguous-node":
+            // A contract-valid HardwareConfigInfo where ONE device exposes TWO nodes reporting the
+            // SAME nodeId across its two interfaces: proves NetworkIdentityResolver's ambiguous-match
+            // fail-closed path (postcondition_failed, no token issued) through the actual worker/tool
+            // wiring, not only the pure resolver unit tests.
+            Respond("""{"success":true,"payload":"{\"devices\":[{\"name\":\"PC_1\",\"typeIdentifier\":\"OrderNumber:PC-System\",\"items\":[{\"name\":\"IE general_1\",\"typeIdentifier\":\"OrderNumber:IE-General\",\"positionNumber\":1,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_1\",\"nodes\":[{\"name\":\"Port A\",\"nodeId\":\"dup-node\",\"nodeType\":\"Ethernet\",\"ipAddress\":\"192.168.0.20\",\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]},{\"name\":\"IE general_2\",\"typeIdentifier\":\"OrderNumber:IE-General\",\"positionNumber\":2,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_2\",\"nodes\":[{\"name\":\"Port B\",\"nodeId\":\"dup-node\",\"nodeType\":\"Ethernet\",\"ipAddress\":\"10.20.30.40\",\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]}]}],\"subnets\":[],\"messages\":[]}"}""");
+            break;
+        case "invalid-network-success-payload":
+            // The worker reports SUCCESS for every method, but search_equipment_catalog and
+            // add_network_device both return a payload that cannot decode as their declared result
+            // contract (CatalogEntryInfo[] / AddDeviceResultInfo). read_hardware_config always
+            // returns a valid, contract-shaped (if empty) HardwareConfigInfo: a write batch must be
+            // able to complete its mandatory current-state read even though this scenario's whole
+            // point is a DIFFERENT operation's payload being rejected as protocol_error.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo())),
+                "search_equipment_catalog" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
+                "add_network_device" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
+                _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}' for invalid-network-success-payload"}"""
             });
             break;
         case "type-content-roundtrip":
@@ -396,4 +442,167 @@ string? ReadField(string requestLine, string propertyName)
     {
         return null;
     }
+}
+
+// Renders a real Contracts DTO as camelCase JSON. Used by scenarios that must serialize through
+// complete contract-shaped objects (HardwareConfigInfo, ConfigureNetworkDeviceResultInfo) rather
+// than hand-maintained escaped JSON string fragments: the CLR type is the source of truth for
+// which members exist, so a contract change here is a compile error, not a silently stale literal.
+string ToCamelCaseJson<T>(T value)
+    => JsonSerializer.Serialize(value, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+// Builds the current HardwareConfigInfo for the "multi-homed-network" scenario from the live
+// mutable node state, so a read after a configure_network_device call observes the mutation.
+HardwareConfigInfo MultiHomedHardwareConfig(MultiHomedNode plc, MultiHomedNode db) => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = "PC_1",
+            TypeIdentifier = "OrderNumber:PC-System",
+            Items = new List<DeviceItemInfo>
+            {
+                new()
+                {
+                    Name = "IE general_1",
+                    TypeIdentifier = "OrderNumber:IE-General",
+                    PositionNumber = 1,
+                    NetworkInterfaces = new List<NetworkInterfaceInfo>
+                    {
+                        new()
+                        {
+                            Name = "PROFINET interface_1",
+                            Nodes = new List<NodeInfo>
+                            {
+                                new()
+                                {
+                                    Name = plc.Name,
+                                    NodeId = plc.NodeId,
+                                    NodeType = "Ethernet",
+                                    IpAddress = plc.IpAddress,
+                                    SubnetMask = plc.SubnetMask,
+                                    PnDeviceName = plc.PnDeviceName,
+                                    SubnetName = "PN/IE_1",
+                                },
+                            },
+                        },
+                    },
+                    Items = new List<DeviceItemInfo>(),
+                },
+                new()
+                {
+                    Name = "IE general_2",
+                    TypeIdentifier = "OrderNumber:IE-General",
+                    PositionNumber = 2,
+                    NetworkInterfaces = new List<NetworkInterfaceInfo>
+                    {
+                        new()
+                        {
+                            Name = "PROFINET interface_2",
+                            Nodes = new List<NodeInfo>
+                            {
+                                new()
+                                {
+                                    Name = db.Name,
+                                    NodeId = db.NodeId,
+                                    NodeType = "Ethernet",
+                                    IpAddress = db.IpAddress,
+                                    SubnetMask = db.SubnetMask,
+                                    PnDeviceName = db.PnDeviceName,
+                                    SubnetName = "PN/IE_2",
+                                },
+                            },
+                        },
+                    },
+                    Items = new List<DeviceItemInfo>(),
+                },
+            },
+        },
+    },
+    Subnets = new List<SubnetInfo>
+    {
+        new()
+        {
+            Name = "PN/IE_1",
+            SubnetId = "subnet-plc",
+            NetworkType = "Ethernet",
+            ConnectedNodeNames = new List<string> { $"PC_1.{plc.Name}" },
+        },
+        new()
+        {
+            Name = "PN/IE_2",
+            SubnetId = "subnet-db",
+            NetworkType = "Ethernet",
+            ConnectedNodeNames = new List<string> { $"PC_1.{db.Name}" },
+        },
+    },
+    Messages = new List<string>(),
+};
+
+// Parses the forwarded nodeId and mutates ONLY the matching node's live state, so the OTHER node
+// stays byte-for-byte identical on a later read. Real Openness would resolve this same nodeId to a
+// specific Node object before applying any of these settings; this fixture mirrors that by keying
+// off the same exact identifier the host already resolved before ever sending this request.
+string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHomedNode db)
+{
+    var nodeId = ReadField(requestLine, "nodeId");
+    var target = nodeId switch
+    {
+        "node-plc" => plc,
+        "node-db" => db,
+        _ => null,
+    };
+
+    if (target is null)
+    {
+        return $$"""{"success":false,"error":"multi-homed-network has no node with nodeId '{{nodeId}}'"}""";
+    }
+
+    var applied = new Dictionary<string, string>();
+
+    var ipAddress = ReadField(requestLine, "ipAddress");
+    if (ipAddress is not null)
+    {
+        target.IpAddress = ipAddress;
+        applied["ipAddress"] = ipAddress;
+    }
+
+    var subnetMask = ReadField(requestLine, "subnetMask");
+    if (subnetMask is not null)
+    {
+        target.SubnetMask = subnetMask;
+        applied["subnetMask"] = subnetMask;
+    }
+
+    var pnDeviceName = ReadField(requestLine, "pnDeviceName");
+    if (pnDeviceName is not null)
+    {
+        target.PnDeviceName = pnDeviceName;
+        applied["pnDeviceName"] = pnDeviceName;
+    }
+
+    var result = new ConfigureNetworkDeviceResultInfo
+    {
+        DeviceName = "PC_1",
+        AppliedSettings = applied,
+        SkippedSettings = new Dictionary<string, string>(),
+        Messages = new List<string> { $"configured nodeId '{nodeId}'" },
+    };
+
+    return Success(ToCamelCaseJson(result));
+}
+
+/// <summary>Mutable process-local state for one node of the "multi-homed-network" scenario.</summary>
+sealed class MultiHomedNode
+{
+    public required string Name { get; init; }
+
+    public required string NodeId { get; init; }
+
+    public string IpAddress { get; set; } = string.Empty;
+
+    public string? SubnetMask { get; set; }
+
+    public string? PnDeviceName { get; set; }
 }

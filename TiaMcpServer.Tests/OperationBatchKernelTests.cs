@@ -85,7 +85,7 @@ public class OperationBatchKernelTests
     public void ReadFormatter_UsesCallerSuppliedToolAndKeepsResultAsString()
     {
         var json = OperationBatchResultFormatter.Read(
-            "network_read",
+            "execute_read_batch",
             new[]
             {
                 new OperationBatchResult(
@@ -96,7 +96,7 @@ public class OperationBatchKernelTests
             });
 
         using var document = JsonDocument.Parse(json);
-        Assert.Equal("network_read", document.RootElement.GetProperty("tool").GetString());
+        Assert.Equal("execute_read_batch", document.RootElement.GetProperty("tool").GetString());
         Assert.Equal(
             JsonValueKind.String,
             document.RootElement.GetProperty("operations")[0].GetProperty("result").ValueKind);
@@ -168,9 +168,9 @@ public class OperationBatchKernelTests
     [Fact]
     public void ErrorFormatter_ProducesUnsuccessfulEnvelopeWithMessage()
     {
-        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Error("network_read", "boom"));
+        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Error("execute_read_batch", "boom"));
 
-        Assert.Equal("network_read", document.RootElement.GetProperty("tool").GetString());
+        Assert.Equal("execute_read_batch", document.RootElement.GetProperty("tool").GetString());
         Assert.False(document.RootElement.GetProperty("success").GetBoolean());
         Assert.Equal("boom", document.RootElement.GetProperty("error").GetString());
     }
@@ -184,7 +184,7 @@ public class OperationBatchKernelTests
             new OperationBatchResult("b", "second", OperationBatchStatus.Omitted, "[OMITTED]")
         };
 
-        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Read("network_read", results));
+        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Read("execute_read_batch", results));
         var root = document.RootElement;
 
         Assert.False(root.GetProperty("success").GetBoolean());
@@ -197,7 +197,7 @@ public class OperationBatchKernelTests
     public void ReadFormatter_FailureClearsSuccess()
     {
         using var document = JsonDocument.Parse(OperationBatchResultFormatter.Read(
-            "network_read",
+            "execute_read_batch",
             new[]
             {
                 new OperationBatchResult("a", "first", OperationBatchStatus.Succeeded, "x"),
@@ -212,7 +212,7 @@ public class OperationBatchKernelTests
     public void ApplyFormatter_CountsSucceededFailedAndSkipped()
     {
         using var document = JsonDocument.Parse(OperationBatchResultFormatter.Apply(
-            "network_apply",
+            "apply_write_batch",
             new[]
             {
                 new OperationBatchResult("a", "first", OperationBatchStatus.Succeeded, "ok"),
@@ -222,7 +222,7 @@ public class OperationBatchKernelTests
 
         var root = document.RootElement;
         Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal("network_apply", root.GetProperty("tool").GetString());
+        Assert.Equal("apply_write_batch", root.GetProperty("tool").GetString());
         Assert.Equal(1, root.GetProperty("succeeded").GetInt32());
         Assert.Equal(1, root.GetProperty("failed").GetInt32());
         Assert.Equal(1, root.GetProperty("skipped").GetInt32());

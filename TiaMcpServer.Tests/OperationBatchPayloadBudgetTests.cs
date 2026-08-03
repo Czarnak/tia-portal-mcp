@@ -5,7 +5,11 @@ namespace TiaMcpServer.Tests;
 
 public class OperationBatchPayloadBudgetTests
 {
-    private const string ToolName = "network_read";
+    // The legacy generic budget engine tested here is not what Network uses (Network went through
+    // StructuredOperationBatchPayloadBudget in Phase 2); this is still exercised by execute_read_batch
+    // and friends, so the tool name is a real generic one rather than a Network name that would
+    // wrongly imply Network's results are still string-valued.
+    private const string ToolName = "execute_read_batch";
     private const string Hint = "Use query/maxResults or split the batch.";
 
     private static OperationBatchResult Ok(string id, string payload, IReadOnlyList<string>? warnings = null)
