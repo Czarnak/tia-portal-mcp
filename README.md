@@ -33,10 +33,16 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 
 ### Network operations
 
+`network_read` and `network_write` both declare an MCP output schema and return one canonical JSON document identically as the `content` text block and as `structuredContent` — never a nested JSON string inside an outer envelope. This is the Phase 2 JSON contract; see [docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md) for the exact envelopes.
+
 - `network_read` - run up to 50 dedicated network reads: `read_hardware_config` and `search_equipment_catalog`. Reads run independently. Bound catalog searches with `query` and `maxResults`; when a network response is truncated, use the returned network-specific hint to narrow or split the request.
-- `network_write` - preview or apply up to 50 dedicated network writes: `add_network_device` and `configure_network_device`. Call with `confirm:false` and no token for a preview, then call the same tool with `confirm:true`, the unchanged ordered list, and the returned `safetyToken`. Apply is sequential, stops on the first failure, marks later items skipped, and does not roll back completed writes.
+- `network_write` - preview or apply up to 50 dedicated network writes: `add_network_device` (flat `typeIdentifier`/`deviceName`, since it names something that does not exist yet) and `configure_network_device` (nested `target: { deviceName, nodeId }` plus `changes: { ipAddress?, subnetMask?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }` — a null `changes` member means leave that setting unchanged). Call with `confirm:false` and no token for a preview, then call the same tool with `confirm:true`, the unchanged ordered list, and the returned `safetyToken`. Apply is sequential, stops on the first failure, marks later items skipped, and does not roll back completed writes: `network_write` attaches an explicit warning to the failed item that this operation and any earlier operation in the same call may already have changed TIA state, and that you should re-read with `network_read` before retrying rather than blindly re-running the batch.
+
+`configure_network_device` targets one exact existing node: `target.deviceName` (case-insensitive) plus the exact `target.nodeId` reported by a prior `network_read` — never the first interface or first node on a device. `changes.subnet.subnetId` and `changes.ioSystem.subnetId`/`changes.ioSystem.number` are similarly exact, subnet-scoped selectors. Selector resolution is fail-closed: a selector that matches zero, more than one, or an unreadable candidate always fails with `postcondition_failed` rather than falling back to a guess. This is what makes it safe to target one port on a multi-homed device (a PC station with several network interfaces, for example) — configuring one node's exact `nodeId` changes only that node; every other node on the device is left byte-for-byte unchanged. Always follow a `network_write` apply with a `network_read` (`read_hardware_config`) post-read to confirm the outcome — the response never echoes back a re-read of the written value.
 
 `read_hardware_config` additionally reports unreadable members in a payload-level `messages` array; device/module name and type-identifier fields omit values that could not be read instead of returning `0`/empty-string placeholders (a few secondary name fields still fall back to an empty string, with the failure noted in `messages`). Hardware configuration data is engineering evidence, not certification that a physical installation has been commissioned.
+
+A separately authorized, PowerShell 7 live-TIA acceptance harness for this contract lives at `scripts/live-test-network-phase2.ps1`. It is never run by any automated test; see the script's own comment-based help for its `Read`/`Preview`/`Apply` modes and required confirmation gates.
 
 ### Project tools
 
@@ -395,7 +401,7 @@ Large projects can return large JSON from cross-reference diagnostics; narrow ea
 }
 ```
 
-For network writes, preview first with self-previewing `network_write`. Do not provide a token during preview; use `confirm:false` and an ordered device-add plus network-configuration list:
+For network writes, preview first with self-previewing `network_write`. Do not provide a token during preview; use `confirm:false`. Target resolution (device, node, subnet, IO system) is always resolved against a single hardware snapshot taken before any operation in the batch runs, so a `configure_network_device` cannot target a node created earlier in the *same* batch — add a device first, `network_read` to discover its exact `nodeId`, then configure it in a separate `network_write` call:
 
 ```json
 {
@@ -407,46 +413,67 @@ For network writes, preview first with self-previewing `network_write`. Do not p
       "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
       "deviceName": "PLC_1",
       "deviceItemName": "PLC_1"
-    },
-    {
-      "operationId": "configure",
-      "operation": "configure_network_device",
-      "deviceName": "PLC_1",
-      "ipAddress": "192.168.0.10",
-      "subnetMask": "255.255.255.0",
-      "pnDeviceName": "plc-1",
-      "subnetName": "PN/IE_1"
     }
   ]
 }
 ```
 
-Then call `network_write` again with the same `operations` array unchanged, `confirm:true`, and the returned token (apply runs sequentially and stops on the first failure):
+Call `network_write` again with the same `operations` array unchanged, `confirm:true`, and the returned token to create the device, then call `network_read` (`read_hardware_config`) to read back its exact `nodeId`:
+
+```json
+{
+  "operations": [
+    { "operationId": "hardware", "operation": "read_hardware_config", "projectPath": "C:\\Projects\\Sandbox\\Line.ap21" }
+  ]
+}
+```
+
+With that `nodeId` in hand, preview a `configure_network_device` write against the exact `target`, then apply it the same way:
+
+```json
+{
+  "confirm": false,
+  "operations": [
+    {
+      "operationId": "configure",
+      "operation": "configure_network_device",
+      "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
+      "target": { "deviceName": "PLC_1", "nodeId": "<nodeId from read_hardware_config>" },
+      "changes": {
+        "ipAddress": "192.168.0.10",
+        "subnetMask": "255.255.255.0",
+        "pnDeviceName": "plc-1",
+        "subnet": { "subnetId": "<subnetId from read_hardware_config>" }
+      }
+    }
+  ]
+}
+```
+
+Then call `network_write` again with the same `operations` array unchanged, `confirm:true`, and the returned token to apply it:
 
 ```json
 {
   "operations": [
     {
-      "operationId": "add",
-      "operation": "add_network_device",
-      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
-      "deviceName": "PLC_1",
-      "deviceItemName": "PLC_1"
-    },
-    {
       "operationId": "configure",
       "operation": "configure_network_device",
-      "deviceName": "PLC_1",
-      "ipAddress": "192.168.0.10",
-      "subnetMask": "255.255.255.0",
-      "pnDeviceName": "plc-1",
-      "subnetName": "PN/IE_1"
+      "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
+      "target": { "deviceName": "PLC_1", "nodeId": "<nodeId from read_hardware_config>" },
+      "changes": {
+        "ipAddress": "192.168.0.10",
+        "subnetMask": "255.255.255.0",
+        "pnDeviceName": "plc-1",
+        "subnet": { "subnetId": "<subnetId from read_hardware_config>" }
+      }
     }
   ],
   "confirm": true,
   "safetyToken": "<token from network_write preview>"
 }
 ```
+
+A `changes` member left out (for example, omitting `ioSystem`) means "leave that setting unchanged" — there is no flat legacy alias and no compatibility converter. Always follow the apply with another `network_read` (`read_hardware_config`) to confirm the outcome; the write response does not echo back a re-read of the written value.
 
 A tag write is the same flow with a one-item batch, e.g. `preview_write_batch` then `apply_write_batch` over:
 

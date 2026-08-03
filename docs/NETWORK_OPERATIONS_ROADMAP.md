@@ -1,6 +1,19 @@
 # Network Operations Roadmap
 
-Status: Phase 1 implementation and whole-plan review are complete. Phase 2 remains open.
+Status: Phase 1 and Phase 2 are complete. Phase 3 (network object identity and introspection
+expansion) and later phases remain open and are separate, not-yet-scheduled work.
+
+Phase 2 completion is scoped narrowly: Tasks 1-7 of
+`docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md` are implemented and
+their automated gates pass — the stub build, `dotnet test TiaMcpServer.Tests`, the FakeWorker
+protocol tests (including the multi-homed read-select-preview-apply-read proof and the
+protocol-error stop proof), and the schema/catalog/access-mode tests. It is **not** based on any
+live TIA Portal V21 acceptance run: per the plan's Global Constraints, "a compile, stub build,
+FakeWorker run, or contract test is not evidence of live TIA behavior." The separately authorized
+live harness at `scripts/live-test-network-phase2.ps1` (Task 8) is available to run under that
+separate authorization gate whenever live evidence is wanted, but its absence does not block this
+Phase 2 completion mark, and its presence does not itself constitute live-verified evidence until
+someone actually runs it against real TIA Portal V21 and records the result.
 
 This document records the architectural direction and delivery sequence. It is not
 a detailed implementation plan. Task-level design, acceptance criteria, and file-by-file
@@ -12,10 +25,10 @@ Create a first-class, agent-friendly network engineering surface that:
 
 - separates network operations from the generic read and write batch tools;
 - preserves preview-before-apply safety for every write;
-- will expose structured JSON that agents can inspect and transform reliably after the
-  mandatory Phase 2 contract gate; and
-- expands from the current bounded device-configuration surface to subnet, IO-system,
-  and generic network-attribute operations.
+- exposes structured JSON that agents can inspect and transform reliably, per the completed
+  Phase 2 contract gate below; and
+- expands (Phase 3 onward, not yet scheduled) from the current bounded device-configuration
+  surface to subnet, IO-system, and generic network-attribute operations.
 
 The current implemented surface remains documented in
 [SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
@@ -96,11 +109,26 @@ envelope, moved the four existing operations, and removed them from the generic 
 schema, descriptions, dispatch, and tests. The existing worker handlers remain in use where
 their behavior is suitable.
 
-### Phase 2: Stabilize the JSON Contract
+### Phase 2: Stabilize the JSON Contract — Complete
 
-Run the mandatory single-layer JSON contract gate above. Resolve nested JSON, collection/null
-semantics, selector ambiguity, typed values, and result-envelope consistency before
-freezing the network tool contract.
+Completed: `network_read` and `network_write` both declare an MCP output schema and return one
+canonical JSON document identically in `content` and `structuredContent` — no nested JSON string
+anywhere in the response. `network_write` is a discriminated `preview | apply | error` envelope.
+Configure operations use nested `target: { deviceName, nodeId }` and
+`changes: { ipAddress?, subnetMask?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }`
+with no flat legacy alias. Selector resolution (device, node, subnet, IO system) is exact and
+fail-closed: zero, multiple, or unreadable matches always fail rather than falling back to a
+first-match, first-node, or name-only guess. A worker success payload that does not decode as its
+declared result type becomes a failed item with category `protocol_error`, never echoing the
+rejected payload. Results are bounded against the exact response document: an oversized result is
+omitted whole (never substringed) with retry guidance, and the whole document is capped with a
+`batch.truncation` record of what was affected. The exact envelopes, all four typed payload result
+types, and the multi-homed proof are documented in
+[SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
+
+This mark reflects Tasks 1-7 and their automated gates (stub build, `dotnet test
+TiaMcpServer.Tests`, FakeWorker protocol tests) passing — not a live TIA Portal V21 acceptance
+run. See the Status note above.
 
 ### Phase 3: Establish Network Object Identity and Introspection
 

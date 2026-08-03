@@ -223,6 +223,72 @@ snapshot for validation, applies sequentially with no rollback, and appends an a
 policy also rejects internal compile requests in read-only mode before they are
 sent to the worker.
 
+## 7a. The opt-in canonical JSON seam and the Network Phase 2 structured contract
+
+`network_read` and `network_write` are the first (and, as of this writing, only) tools to opt
+into a reusable canonical-JSON gate. This is deliberately additive: every other tool keeps its
+existing text contract unchanged.
+
+- `TiaMcpServer/Json/CanonicalJson.cs` provides strict typed parsing (rejects duplicate
+  properties, unmapped members, and case-mismatched names) and a repository-defined canonical
+  serialization (recursive ordinal property ordering, preserved array order, explicit nulls,
+  compact UTF-8). It is *not* an RFC 8785 claim — see the plan's Global Constraints.
+- `TiaMcpServer/Tools/StructuredToolResult.cs` renders one canonical JSON document and returns it
+  as both the `content` text block and a detached `structuredContent` `JsonElement`, from a single
+  `CanonicalJson.Serialize` call, so the two representations cannot drift apart.
+- `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs` provides the shared
+  item/failure/omission/count/truncation batch model and a read/write execution engine whose
+  stop decision covers `protocol_error` alongside ordinary worker failures.
+- `TiaMcpServer/Safety/CanonicalWriteSafety.cs` adds canonical, typed counterparts
+  (`CreateCanonicalPreview`, `ValidateCanonicalEnvelope`, `ValidateAndConsumeCanonical`,
+  `AppendCanonicalAudit`) to `WriteSafetyService`. Binding still happens through
+  `CanonicalJson.Serialize`, so a token survives pure JSON-property reordering while still
+  rejecting a changed value, type, or array order.
+
+Any future tool that wants a single-layer structured JSON contract reuses this same seam rather
+than inventing a parallel one.
+
+### Typed Network payload registry
+
+`TiaMcpServer/Network/NetworkPayloadContract.cs` is the only decoder of Network worker success
+payloads. It maps each of the four network operations to exactly one declared CLR result type
+(`HardwareConfigInfo`, `CatalogEntryInfo[]`, `AddDeviceResultInfo`,
+`ConfigureNetworkDeviceResultInfo`) and rejects anything that does not match — a malformed,
+unknown, wrongly cased, or wrongly typed payload becomes a failed item with category
+`protocol_error` rather than being forwarded under a schema that does not describe it. The
+rejected payload is never echoed back to the caller.
+
+### Canonical safety flow (network writes)
+
+`network_write` is self-previewing and binds three canonical representations through
+`CanonicalWriteSafety`: the resolved `NetworkWriteTargetEvidence[]` (what will be acted on), the
+caller's `NetworkOperationRequest[]` (what was asked), and the `HardwareConfigInfo` current state
+(what exists right now). Preview issues a token bound to all three; apply re-reads state, re-resolves
+targets against that fresh read, and only then validates and consumes the token — so a state change
+between preview and apply (a rename, a deletion, a newly ambiguous selector) invalidates it. The
+audit record appended by `AppendCanonicalAudit` stores the exact response document the caller
+received as structured JSON, not a re-rendering of it.
+
+### Exact host-to-worker selector boundary
+
+Selector resolution happens **twice, independently, on both sides of the process boundary** —
+this is defense-in-depth, the same pattern used for read-only access enforcement (§4):
+
+- **Host side** (`TiaMcpServer/Network/NetworkIdentityResolver.cs`): resolves device, node,
+  subnet, and IO-system identity from a `HardwareConfigInfo` snapshot the host itself just read.
+  This resolution produces the `NetworkWriteTargetEvidence` the safety token binds to and the
+  preview response reports — it never touches Siemens Openness.
+- **Worker side** (`TiaMcpServer.OpennessWorker/Openness/NetworkDeviceConfigurator.cs`):
+  independently matches the same `deviceName`/`nodeId` selector against live Openness objects at
+  the moment of the actual write, walking every nested device item and network interface.
+
+Both sides apply the identical rule: a selector that matches zero, more than one, or a candidate
+whose own identity could not be read all fail closed (`postcondition_failed`) rather than
+resolving to a first match, a first node, or a name-only guess. The host never forwards a
+pre-resolved object reference to the worker — only the caller's own `deviceName`/`nodeId` (and,
+where applicable, `subnetId`/IO-system `number`) cross the process boundary, so the worker's
+independent resolution is a real second check, not a formality.
+
 ## 8. Write safety
 
 Generic batch data writes use a two-tool flow; lifecycle and network writes are
@@ -276,6 +342,15 @@ The read-only test suite covers:
 Manual integration testing with a live TIA Portal remains necessary to validate
 Siemens-specific attachment, confirmation, project-path, packaging, and worker
 launch behavior.
+
+`scripts/live-test-network-phase2.ps1` is a separately authorized PowerShell 7 harness that
+launches the real MCP host and drives the actual `initialize`/`tools/list`/`tools/call` sequence
+against `network_read`/`network_write` — proving the public protocol against real TIA Portal V21,
+not direct worker IPC as `live-test-db.ps1`/`live-test-udt.ps1` do. It is never run by any
+automated test or CI gate; `TiaMcpServer.Tests/NetworkLiveHarnessContractTests.cs` proves this,
+and every other harness invariant (PowerShell-7 requirement, non-mutating default mode, Preview's
+inability to reach a confirming apply call, Apply's explicit-switch-plus-identity gate), by
+reading the script's own source text rather than executing it.
 
 ## 11. Keeping this document current
 
