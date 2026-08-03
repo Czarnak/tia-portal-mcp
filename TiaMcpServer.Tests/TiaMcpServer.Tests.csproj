@@ -93,6 +93,8 @@
       Link="Host\Network\NetworkWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkSafetySnapshot.cs"
       Link="Host\Network\NetworkSafetySnapshot.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkIdentityResolver.cs"
+      Link="Host\Network\NetworkIdentityResolver.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkPayloadContract.cs"
       Link="Host\Network\NetworkPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkToolResponses.cs"

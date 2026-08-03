@@ -270,10 +270,40 @@ public class NetworkToolsTests
         Assert.Equal("configure_network_device", target[1].GetProperty("operation").GetString());
         Assert.Equal("PLC_2", target[1].GetProperty("deviceName").GetString());
 
+        // The configure target's hardware-identity members are NetworkIdentityResolver's resolved
+        // evidence against this same read, not an echo of the request: node-1 is the exact nodeId
+        // the "network-state-seq" fixture models for PLC_2's node.
+        Assert.Equal("node-1", target[1].GetProperty("nodeId").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(target[1].GetProperty("nodeName").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(target[1].GetProperty("networkInterfaceName").GetString()));
+        Assert.NotEmpty(target[1].GetProperty("deviceItemPath").EnumerateArray());
+
         // The scenario stamps its request sequence into the hardware payload, so the third request
         // proves the preview issued exactly one state read.
         var nextRead = await client.ReadHardwareConfigAsync("network-state-seq");
         Assert.Contains("seq:2", nextRead.Payload);
+    }
+
+    [Fact]
+    public async Task NetworkWrite_PreviewFailsClosedWhenConfigureTargetCannotBeResolvedAndIssuesNoToken()
+    {
+        using var audit = new TempAuditDirectory();
+        using var client = CreateClient();
+        var safety = audit.CreateSafety();
+
+        var result = await NetworkWrite(
+            client,
+            safety,
+            new[] { ConfigureDevice("configure", "network-unresolvable-target") });
+
+        var root = ReadStructured(result);
+        Assert.True(result.IsError);
+        Assert.Equal("error", root.GetProperty("phase").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(
+            WorkerFailureCategories.PostconditionFailed,
+            root.GetProperty("error").GetProperty("category").GetString());
+        Assert.Equal(0, safety.ActiveTokenCount);
     }
 
     [Fact]

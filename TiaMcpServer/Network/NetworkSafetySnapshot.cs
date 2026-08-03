@@ -21,34 +21,64 @@ public sealed record NetworkStateSnapshot(
         => new(false, null, failureCategory, error);
 }
 
+/// <summary>
+/// Outcome of resolving an entire ordered operation list into target evidence. A single operation's
+/// resolution failure fails the whole batch — there is no partial preview or partial apply target.
+/// </summary>
+public sealed record NetworkTargetResolution(
+    bool Success,
+    IReadOnlyList<NetworkWriteTargetEvidence>? Targets,
+    string? FailureCategory,
+    string? Error)
+{
+    public static NetworkTargetResolution Ok(IReadOnlyList<NetworkWriteTargetEvidence> targets) => new(true, targets, null, null);
+
+    public static NetworkTargetResolution Fail(string failureCategory, string error) => new(false, null, failureCategory, error);
+}
+
 /// <summary>Stable preview targets and current-state acquisition for dedicated network writes.</summary>
 public static class NetworkSafetySnapshot
 {
     /// <summary>
-    /// Describes what each requested operation acts on, in request order. Ordering is data: the
-    /// safety token binds this list, so reordering the operations is a different target.
+    /// Resolves what each requested operation acts on, in request order, against
+    /// <paramref name="state"/>. Ordering is data: the safety token binds this list, so reordering
+    /// the operations is a different target.
+    ///
+    /// <para>
+    /// Creation operations (<c>add_network_device</c>) never need <paramref name="state"/> — they
+    /// name something that does not exist yet, so <paramref name="state"/> may be <see langword="null"/>
+    /// when a batch contains only creation operations (see <see cref="RequiresHardwareState"/>).
+    /// Any <c>configure_network_device</c> operation requires a non-null <paramref name="state"/>;
+    /// resolution fails closed (<see cref="WorkerFailureCategories.PostconditionFailed"/>) rather than
+    /// guess if it is ever asked to resolve one without state.
+    /// </para>
     /// </summary>
-    public static IReadOnlyList<NetworkWriteTargetEvidence> BuildTargets(
-        IReadOnlyList<NetworkOperationRequest> operations)
-        => operations.Select(operation => new NetworkWriteTargetEvidence(
-            operation.OperationId,
-            operation.Operation,
-            // Creation names the device flatly; configuration names it inside the exact target.
-            operation.DeviceName ?? operation.Target?.DeviceName ?? string.Empty,
-            operation.TypeIdentifier,
+    public static NetworkTargetResolution BuildTargets(
+        IReadOnlyList<NetworkOperationRequest> operations,
+        HardwareConfigInfo? state)
+    {
+        var targets = new List<NetworkWriteTargetEvidence>(operations.Count);
+        foreach (var operation in operations)
+        {
+            var resolution = NetworkIdentityResolver.Resolve(operation, state);
+            if (!resolution.Success)
+            {
+                return NetworkTargetResolution.Fail(resolution.FailureCategory!, resolution.Error!);
+            }
 
-            // Device item paths and the node/subnet/IO-system identities below come from resolving
-            // the hardware configuration, which nothing does yet. Echoing request fields into them
-            // would present caller input as resolved evidence, so they stay empty until something
-            // actually resolves them.
-            Array.Empty<string>(),
-            NetworkInterfaceName: null,
-            NodeName: null,
-            NodeId: null,
-            SubnetName: null,
-            SubnetId: null,
-            IoSystemName: null,
-            IoSystemNumber: null)).ToArray();
+            targets.Add(resolution.Evidence!);
+        }
+
+        return NetworkTargetResolution.Ok(targets);
+    }
+
+    /// <summary>
+    /// True when resolving this batch's targets needs a hardware snapshot — i.e. it contains at
+    /// least one <c>configure_network_device</c> operation. A purely creation batch can be resolved
+    /// (and its safety-token envelope cheaply checked) without paying for a state read first.
+    /// </summary>
+    public static bool RequiresHardwareState(IReadOnlyList<NetworkOperationRequest> operations)
+        => operations.Any(operation => string.Equals(operation.Operation, "configure_network_device", StringComparison.Ordinal));
 
     public static string? ResolveProjectPath(IReadOnlyList<NetworkOperationRequest> operations)
         => operations.FirstOrDefault(operation => !string.IsNullOrWhiteSpace(operation.ProjectPath))?.ProjectPath;

@@ -66,12 +66,11 @@ public class NetworkWriteTools
         }
 
         var projectPath = NetworkSafetySnapshot.ResolveProjectPath(operations);
-        var targets = NetworkSafetySnapshot.BuildTargets(operations);
 
         return confirm
-            ? await ApplyAsync(workerClient, safety, operations, safetyToken, projectPath, targets)
+            ? await ApplyAsync(workerClient, safety, operations, safetyToken, projectPath)
                 .ConfigureAwait(false)
-            : await PreviewAsync(workerClient, safety, operations, projectPath, targets)
+            : await PreviewAsync(workerClient, safety, operations, projectPath)
                 .ConfigureAwait(false);
     }
 
@@ -79,8 +78,7 @@ public class NetworkWriteTools
         OpennessWorkerClient workerClient,
         WriteSafetyService safety,
         NetworkOperationRequest[] operations,
-        string? projectPath,
-        IReadOnlyList<NetworkWriteTargetEvidence> targets)
+        string? projectPath)
     {
         var state = await NetworkSafetySnapshot.ReadCurrentStateAsync(workerClient, projectPath)
             .ConfigureAwait(false);
@@ -91,10 +89,18 @@ public class NetworkWriteTools
                 $"Could not read current hardware state before preview. Error: {state.Error}");
         }
 
+        // Resolved against THIS snapshot: node/subnet/IO-system identities are exact matches against
+        // the hardware configuration just read, never a first-match or name-only guess.
+        var resolution = NetworkSafetySnapshot.BuildTargets(operations, state.State);
+        if (!resolution.Success)
+        {
+            return Error(resolution.FailureCategory!, resolution.Error!);
+        }
+
         var canonical = safety.CreateCanonicalPreview(
             ToolName,
             projectPath,
-            targets,
+            resolution.Targets!,
             $"Apply {operations.Length} network write operation(s) sequentially; stops on first failure (no rollback).",
             operations,
             state.State!,
@@ -124,15 +130,27 @@ public class NetworkWriteTools
         WriteSafetyService safety,
         NetworkOperationRequest[] operations,
         string? safetyToken,
-        string? projectPath,
-        IReadOnlyList<NetworkWriteTargetEvidence> targets)
+        string? projectPath)
     {
-        // Cheap pre-check first: a dead token must be rejected before the expensive state read.
-        var envelope = safety.ValidateCanonicalEnvelope(
-            safetyToken, ToolName, projectPath, targets, operations, ToolName);
-        if (!envelope.IsValid)
+        // Cheap pre-check first, when it is possible: a batch of creation operations resolves its
+        // target evidence from the request alone, so a dead token is rejected before the expensive
+        // state read. A batch containing configure_network_device cannot resolve its evidence
+        // without a hardware snapshot (the identities live in it), so it skips straight to the
+        // fresh-state read below and is checked in one step by ValidateAndConsumeCanonical instead.
+        if (!NetworkSafetySnapshot.RequiresHardwareState(operations))
         {
-            return Error(envelope.FailureCategory ?? WorkerFailureCategories.ValidationError, envelope.Error);
+            var staticResolution = NetworkSafetySnapshot.BuildTargets(operations, state: null);
+            if (!staticResolution.Success)
+            {
+                return Error(staticResolution.FailureCategory!, staticResolution.Error!);
+            }
+
+            var envelope = safety.ValidateCanonicalEnvelope(
+                safetyToken, ToolName, projectPath, staticResolution.Targets!, operations, ToolName);
+            if (!envelope.IsValid)
+            {
+                return Error(envelope.FailureCategory ?? WorkerFailureCategories.ValidationError, envelope.Error);
+            }
         }
 
         var freshState = await NetworkSafetySnapshot.ReadCurrentStateAsync(workerClient, projectPath)
@@ -144,8 +162,17 @@ public class NetworkWriteTools
                 $"Could not read current hardware state before write. Error: {freshState.Error}");
         }
 
+        // Resolved again here, against the FRESH snapshot, right before the token is consumed: if
+        // the project changed since preview in a way that breaks this operation's selector (renamed,
+        // removed, now ambiguous), resolution fails closed instead of writing to whatever matches now.
+        var resolution = NetworkSafetySnapshot.BuildTargets(operations, freshState.State);
+        if (!resolution.Success)
+        {
+            return Error(resolution.FailureCategory!, resolution.Error!);
+        }
+
         var tokenValidation = safety.ValidateAndConsumeCanonical(
-            safetyToken, ToolName, projectPath, targets, operations, freshState.State!, ToolName);
+            safetyToken, ToolName, projectPath, resolution.Targets!, operations, freshState.State!, ToolName);
         if (!tokenValidation.IsValid)
         {
             return Error(
@@ -162,7 +189,7 @@ public class NetworkWriteTools
         var response = Compose(ApplyBudget(WarnAboutPartialWrite(batch)));
 
         // The audit entry carries the exact document the caller received — not a re-rendering of it.
-        safety.AppendCanonicalAudit(ToolName, projectPath, targets, operations, freshState.State!, response);
+        safety.AppendCanonicalAudit(ToolName, projectPath, resolution.Targets!, operations, freshState.State!, response);
 
         // The batch RAN, so this is a successful MCP call even when an item inside it failed:
         // isError stays reserved for "the tool could not run".

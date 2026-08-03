@@ -147,15 +147,26 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-state-seq":
             // A contract-valid HardwareConfigInfo that reports the request sequence in its own
             // messages array, so a test can count how many worker requests a preview issued
-            // without the payload failing its declared contract.
-            Respond($$"""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[\"seq:{{seq}}\"]}"}""");
+            // without the payload failing its declared contract. Also resolvable: it models a
+            // "PLC_2" device with a "node-1" node, so a configure_network_device target in the
+            // same batch can be resolved by NetworkIdentityResolver against this same read.
+            Respond($$"""{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_2\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[{\"name\":\"if_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"positionNumber\":1,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_1\",\"nodes\":[{\"name\":\"n1\",\"nodeId\":\"node-1\",\"nodeType\":\"Ethernet\",\"ipAddress\":null,\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]}]}],\"subnets\":[],\"messages\":[\"seq:{{seq}}\"]}"}""");
+            break;
+        case "network-unresolvable-target":
+            // A contract-valid, empty HardwareConfigInfo: no device can ever match a
+            // configure_network_device target here, so a preview against this scenario proves
+            // NetworkIdentityResolver's fail-closed path issues no safety token.
+            Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}"}""");
             break;
         case "network-write-item-failure":
             // Stable hardware state (so preview/apply token binding holds) followed by a failing
-            // first write: the batch RAN, so the MCP call itself is not an error.
+            // first write: the batch RAN, so the MCP call itself is not an error. The read models a
+            // resolvable "PLC_1"/"node-1" target so the configure_network_device operation in the
+            // batch can resolve against it at both preview and apply, before its own write call
+            // fails structurally like every other method in this scenario.
             Respond(ReadMethod(line) switch
             {
-                "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}"}""",
+                "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[{\"name\":\"if_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"positionNumber\":1,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_1\",\"nodes\":[{\"name\":\"n1\",\"nodeId\":\"node-1\",\"nodeType\":\"Ethernet\",\"ipAddress\":null,\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]}]}],\"subnets\":[],\"messages\":[]}"}""",
                 _ => """{"success":false,"error":"device could not be added"}"""
             });
             break;
@@ -267,7 +278,7 @@ string HardwareConfigPayload() => """
                   "nodes": [
                     {
                       "name": "X1",
-                      "nodeId": "0",
+                      "nodeId": "node-1",
                       "nodeType": "Ethernet",
                       "ipAddress": "192.168.0.10",
                       "subnetMask": "255.255.255.0",

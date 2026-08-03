@@ -40,10 +40,14 @@ public sealed record NetworkReadResponse(
 ///
 /// <para>
 /// The hardware-identity members (<see cref="NetworkInterfaceName"/> through
-/// <see cref="IoSystemNumber"/>) describe objects resolved against the hardware configuration
-/// rather than anything the caller typed. Nothing resolves them yet, so they are currently null;
-/// the members the caller does select — operation, device, and catalog type — are populated and
-/// are what the safety token binds as this operation's target.
+/// <see cref="IoSystemNumber"/>) describe objects resolved against the hardware configuration by
+/// <see cref="NetworkIdentityResolver"/> — never anything the caller typed verbatim. For
+/// <c>add_network_device</c> (creation, which names something that does not exist yet) they stay
+/// null and only <see cref="DeviceName"/>/<see cref="DeviceTypeIdentifier"/> are populated from the
+/// request. For <c>configure_network_device</c> they are the canonical matched location: exactly
+/// one device, exactly one node (by ordinal <c>nodeId</c>, scoped to that device), and — when
+/// requested — exactly one subnet and/or IO system. Presentation names here are evidence only; the
+/// safety token binds this whole record, so a caller cannot satisfy it by echoing back the names.
 /// </para>
 /// </summary>
 public sealed record NetworkWriteTargetEvidence(
