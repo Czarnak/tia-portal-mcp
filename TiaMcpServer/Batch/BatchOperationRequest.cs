@@ -116,6 +116,9 @@ public sealed class BatchOperationRequest
     [Description("Siemens external-source text for the object. Required by update_type_content: a .udt declaration when format is source, or a Simatic ML document when format is xml.")]
     public string? SourceContent { get; set; }
 
-    [Description("Document format. Valid values: source, xml. get_type_content and update_type_content default to source (.udt). get_block_content and update_block_logic default to xml and honor source for GlobalDB only.")]
+    [Description("Document format. Valid values: source, xml. get_type_content and update_type_content default to source (.udt). get_block_content and update_block_logic default to xml and honor source for global data blocks and SCL-language FB/FC/OB.")]
     public string? Format { get; set; }
+
+    [Description("Include the object's dependency closure in the exported source. Optional for get_block_content and get_type_content, and only meaningful when format is source. Defaults to false, which returns exactly one object. A document read with true declares several objects and is context only: a write refuses it.")]
+    public bool? WithDependencies { get; set; }
 }

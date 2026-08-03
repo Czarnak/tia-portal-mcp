@@ -1,0 +1,92 @@
+﻿TYPE "AnalogInputSettings"
+VERSION : 0.1
+   STRUCT
+      Scaling : Struct
+         "Type" : Bool := TRUE;   // 0- multiply, 1 - scale
+         regMin : Int := 0;
+         regMax : Int := 27648;
+         valueMin : Real;
+         valueMax : Real;
+         Multiplier : Real;
+      END_STRUCT;
+      Limits : Struct
+         regMin : Int := -500;
+         regMax : Int := 30000;
+         regAlarmDelay : Time := T#1s;
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+
+FUNCTION_BLOCK "AnalogInput"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      simulation { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_HiddenAssignment := 'HideIfNoParamAssigned'} : Bool;   // Enable simulation input (analog value)
+      Reset { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      analogValue { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Int;   // Input value from sensor (analog signal)
+      simulatedAnalogValue { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_HiddenAssignment := 'HideIfNoParamAssigned'} : Int;   // Simulated analog input value
+      Settings { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : "AnalogInputSettings";
+   END_VAR
+
+   VAR_OUTPUT 
+      processValue { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      wiringAlarm { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+   END_VAR
+
+   VAR 
+      statAlarm { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      TON_notOK {InstructionName := 'TON_TIME'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : TON_TIME;
+      TON_OK {InstructionName := 'TON_TIME'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : TON_TIME;
+   END_VAR
+
+   VAR_TEMP 
+      tempRegValue : Int;
+   END_VAR
+
+
+BEGIN
+	REGION Choose input
+	    
+	    #tempRegValue := #analogValue;
+	    IF #simulation THEN
+	        #tempRegValue := #simulatedAnalogValue;
+	    END_IF;
+	    
+	END_REGION
+	
+	REGION Alarm
+	    #TON_notOK(IN := #Settings.Limits.regMin > #tempRegValue OR #tempRegValue > #Settings.Limits.regMax,
+	               PT := #Settings.Limits.regAlarmDelay);
+	    
+	    #TON_OK(IN := #Settings.Limits.regMin < #tempRegValue AND #tempRegValue < #Settings.Limits.regMax AND NOT #TON_notOK.Q,
+	            PT := #Settings.Limits.regAlarmDelay);
+	    
+	    IF #TON_notOK.Q THEN
+	        #statAlarm := TRUE;
+	    ELSIF #TON_OK.Q AND #Reset AND #statAlarm THEN
+	        #statAlarm := FALSE;
+	    END_IF;
+	    
+	    #wiringAlarm := #statAlarm;
+	    
+	END_REGION
+	
+	REGION Processing
+	    
+	    IF NOT #Settings.Scaling.Type THEN
+	        #processValue := #Settings.Scaling.Multiplier * INT_TO_REAL(IN := #tempRegValue);
+	    ELSE
+	        #processValue := SCALE_X_REAL(MIN := #Settings.Scaling.valueMin, MAX := #Settings.Scaling.valueMax, VALUE := NORM_X(MIN := #Settings.Scaling.regMin, VALUE := #tempRegValue, MAX := #Settings.Scaling.regMax));
+	        
+	        IF NOT #wiringAlarm THEN
+	            #processValue := LIMIT_REAL(MN := #Settings.Scaling.valueMin, IN := #processValue, MX := #Settings.Scaling.valueMax);
+	        END_IF;
+	    END_IF;
+	    
+	END_REGION
+	
+	
+	
+END_FUNCTION_BLOCK
+
