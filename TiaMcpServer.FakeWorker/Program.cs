@@ -704,6 +704,7 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         },
     },
     TotalCount = 6,
+    ReturnedCount = 6,
     NextCursor = null,
     Messages = new List<string>(),
 };
@@ -840,6 +841,7 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
     {
         Items = items,
         TotalCount = 100,
+        ReturnedCount = items.Count,
         NextCursor = "large-list-page-2",
         Messages = new List<string>(),
     };

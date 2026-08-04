@@ -135,7 +135,7 @@ public class NetworkPayloadContractTests
     [Theory]
     [InlineData(
         "list_network_objects",
-        """{"items":[],"totalCount":0,"nextCursor":null,"messages":[]}""",
+        """{"items":[],"totalCount":0,"returnedCount":0,"nextCursor":null,"messages":[]}""",
         JsonValueKind.Object)]
     [InlineData(
         "inspect_network_object",
@@ -168,6 +168,7 @@ public class NetworkPayloadContractTests
                 {"kind":"communicationConnection","displayName":"S7 connection","selector":null}
               ],
               "totalCount": 6,
+              "returnedCount": 6,
               "nextCursor": null,
               "messages": []
             }
@@ -179,6 +180,7 @@ public class NetworkPayloadContractTests
         Assert.NotNull(item.Result);
         var items = item.Result!.Value.GetProperty("items");
         Assert.Equal(6, items.GetArrayLength());
+        Assert.Equal(6, item.Result!.Value.GetProperty("returnedCount").GetInt32());
         Assert.Equal("deviceItem", items[0].GetProperty("kind").GetString());
         Assert.Equal("communicationConnection", items[5].GetProperty("kind").GetString());
         Assert.Equal(JsonValueKind.Null, items[5].GetProperty("selector").ValueKind);
@@ -229,6 +231,15 @@ public class NetworkPayloadContractTests
 
         // list_network_objects: negative totalCount.
         { "list_network_objects", $$$"""{"items":[],"totalCount":-1,"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: negative returnedCount.
+        { "list_network_objects", $$$"""{"items":[],"totalCount":0,"returnedCount":-1,"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: returnedCount does not match the returned items.
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selector":null}],"totalCount":1,"returnedCount":0,"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: returnedCount exceeds totalCount.
+        { "list_network_objects", $$$"""{"items":[],"totalCount":1,"returnedCount":2,"messages":["{{{LeakToken}}}"]}""" },
 
         // list_network_objects: items.Count > totalCount.
         { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selector":null}],"totalCount":0,"messages":["{{{LeakToken}}}"]}""" },

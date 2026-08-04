@@ -43,6 +43,18 @@ public static class WorkerFailureCategories
     /// </summary>
     public const string ProtocolError = "protocol_error";
 
+    /// <summary>The supplied cursor was missing, malformed, or could not be decoded.</summary>
+    public const string InvalidCursor = "invalid_cursor";
+
+    /// <summary>The cursor was issued for a different set of list filters.</summary>
+    public const string CursorFilterMismatch = "cursor_filter_mismatch";
+
+    /// <summary>The cursor was issued against a different project snapshot.</summary>
+    public const string CursorSnapshotMismatch = "cursor_snapshot_mismatch";
+
+    /// <summary>The cursor points beyond the available result range.</summary>
+    public const string CursorOutOfRange = "cursor_out_of_range";
+
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
         ValidationError,
@@ -53,7 +65,11 @@ public static class WorkerFailureCategories
         WorkerCrashed,
         PostconditionFailed,
         AccessDenied,
-        ProtocolError
+        ProtocolError,
+        InvalidCursor,
+        CursorFilterMismatch,
+        CursorSnapshotMismatch,
+        CursorOutOfRange
     };
 
     /// <summary>True when <paramref name="value"/> is exactly one of the approved category constants.</summary>

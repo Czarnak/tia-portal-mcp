@@ -189,10 +189,21 @@ public static class NetworkPayloadContract
             throw new JsonException("'totalCount' must not be negative.");
         }
 
-        if (value.TotalCount is { } total && value.Items!.Count > total)
+        if (value.ReturnedCount < 0)
+        {
+            throw new JsonException("'returnedCount' must not be negative.");
+        }
+
+        if (value.Items!.Count != value.ReturnedCount)
         {
             throw new JsonException(
-                $"'items' count ({value.Items.Count}) exceeds 'totalCount' ({total}).");
+                $"'returnedCount' ({value.ReturnedCount}) does not match 'items' count ({value.Items.Count}).");
+        }
+
+        if (value.TotalCount is { } totalCount && value.ReturnedCount > totalCount)
+        {
+            throw new JsonException(
+                $"'returnedCount' ({value.ReturnedCount}) exceeds 'totalCount' ({totalCount}).");
         }
 
         foreach (var item in value.Items!)

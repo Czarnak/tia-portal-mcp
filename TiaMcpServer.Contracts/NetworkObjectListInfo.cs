@@ -16,6 +16,9 @@ public class NetworkObjectListInfo
     /// </summary>
     public int? TotalCount { get; set; }
 
+    /// <summary>Number of objects returned in this page. Must equal <see cref="Items"/> count.</summary>
+    public int ReturnedCount { get; set; }
+
     /// <summary>
     /// Opaque cursor value to supply in the next <c>list_network_objects</c> call to retrieve
     /// the following page. Null when this is the last (or only) page.
