@@ -78,6 +78,8 @@ public static class NetworkPayloadContract
         "add_network_device" => Decode<AddDeviceResultInfo>(payload, ValidateAddDeviceResult),
         "configure_network_device" =>
             Decode<ConfigureNetworkDeviceResultInfo>(payload, ValidateConfigureResult),
+        "list_network_objects" => Decode<NetworkObjectListInfo>(payload, ValidateObjectList),
+        "inspect_network_object" => Decode<NetworkObjectInspectionInfo>(payload, ValidateObjectInspection),
         _ => throw new JsonException($"No declared result contract for network operation '{operation}'."),
     };
 
@@ -169,6 +171,67 @@ public static class NetworkPayloadContract
         RequireNotNull(value.AppliedSettings, "appliedSettings");
         RequireNotNull(value.SkippedSettings, "skippedSettings");
         RequireNotNull(value.Messages, "messages");
+    }
+
+    private static void ValidateObjectList(NetworkObjectListInfo value)
+    {
+        RequireNotNull(value.Items, "items");
+        RequireNotNull(value.Messages, "messages");
+
+        if (value.TotalCount is < 0)
+        {
+            throw new JsonException("'totalCount' must not be negative.");
+        }
+
+        if (value.TotalCount is { } total && value.Items!.Count > total)
+        {
+            throw new JsonException(
+                $"'items' count ({value.Items.Count}) exceeds 'totalCount' ({total}).");
+        }
+
+        foreach (var item in value.Items!)
+        {
+            RequireNotNull(item, "items[]");
+            ValidateObjectSummary(item!);
+        }
+    }
+
+    private static void ValidateObjectSummary(NetworkObjectSummaryInfo item)
+    {
+        if (item.Kind is not null && !NetworkObjectKinds.All.Contains(item.Kind))
+        {
+            throw new JsonException($"'items[].kind' value '{item.Kind}' is not a recognised network object kind.");
+        }
+
+        // When a selector is present the embedded kind must agree with the summary kind.
+        if (item.Selector is { Kind: not null } selector && item.Kind is not null
+            && !string.Equals(selector.Kind, item.Kind, StringComparison.Ordinal))
+        {
+            throw new JsonException(
+                $"'items[].selector.kind' value '{selector.Kind}' does not match 'items[].kind' value '{item.Kind}'.");
+        }
+    }
+
+    private static void ValidateObjectInspection(NetworkObjectInspectionInfo value)
+    {
+        RequireNotNull(value.Attributes, "attributes");
+        RequireNotNull(value.Messages, "messages");
+
+        if (value.Kind is not null && !NetworkObjectKinds.All.Contains(value.Kind))
+        {
+            throw new JsonException($"'kind' value '{value.Kind}' is not a recognised network object kind.");
+        }
+
+        // Duplicate attribute names are a protocol error: the worker must return each name at most once.
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var attr in value.Attributes!)
+        {
+            RequireNotNull(attr, "attributes[]");
+            if (attr!.Name is not null && !seenNames.Add(attr.Name))
+            {
+                throw new JsonException($"Duplicate attribute name '{attr.Name}' in 'attributes'.");
+            }
+        }
     }
 
     private static void RequireNotNull(object? value, string member)

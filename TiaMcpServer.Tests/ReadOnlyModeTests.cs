@@ -167,6 +167,8 @@ public class ReadOnlyModeTests
     [InlineData("read_cross_references")]
     [InlineData("list_tag_tables")]
     [InlineData("get_block_content")]
+    [InlineData("list_network_objects")]
+    [InlineData("inspect_network_object")]
     public void ReadOnlyMode_AllowsApprovedOperations(string operation)
     {
         Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));

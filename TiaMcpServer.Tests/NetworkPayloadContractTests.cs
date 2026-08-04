@@ -132,6 +132,139 @@ public class NetworkPayloadContractTests
         }
         """;
 
+    [Theory]
+    [InlineData(
+        "list_network_objects",
+        """{"items":[],"totalCount":0,"nextCursor":null,"messages":[]}""",
+        JsonValueKind.Object)]
+    [InlineData(
+        "inspect_network_object",
+        """{"kind":"node","displayName":"X1","evidence":null,"attributes":[],"messages":[]}""",
+        JsonValueKind.Object)]
+    public void Project_DecodesPhase3OperationsIntoTheirResultTypes(
+        string operation,
+        string payload,
+        JsonValueKind expectedKind)
+    {
+        var item = Project(operation, payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Null(item.Failure);
+        Assert.NotNull(item.Result);
+        Assert.Equal(expectedKind, item.Result!.Value.ValueKind);
+    }
+
+    [Fact]
+    public void Project_DecodesListNetworkObjectsWithAllSixKinds()
+    {
+        var payload = """
+            {
+              "items": [
+                {"kind":"deviceItem","displayName":"if_1","selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"positionNumber":1}]}},
+                {"kind":"networkInterface","displayName":"PROFINET interface_1","selector":{"kind":"networkInterface","deviceName":"PLC_1","interfaceName":"PROFINET interface_1"}},
+                {"kind":"node","displayName":"X1","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"}},
+                {"kind":"subnet","displayName":"PN/IE_1","selector":{"kind":"subnet","subnetId":"subnet-1"}},
+                {"kind":"ioSystem","displayName":"IO system_1","selector":{"kind":"ioSystem","subnetId":"subnet-1","number":100}},
+                {"kind":"communicationConnection","displayName":"S7 connection","selector":null}
+              ],
+              "totalCount": 6,
+              "nextCursor": null,
+              "messages": []
+            }
+            """;
+
+        var item = Project("list_network_objects", payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.NotNull(item.Result);
+        var items = item.Result!.Value.GetProperty("items");
+        Assert.Equal(6, items.GetArrayLength());
+        Assert.Equal("deviceItem", items[0].GetProperty("kind").GetString());
+        Assert.Equal("communicationConnection", items[5].GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, items[5].GetProperty("selector").ValueKind);
+    }
+
+    [Fact]
+    public void Project_DecodesInspectNetworkObjectWithAllAttributeKinds()
+    {
+        var payload = """
+            {
+              "kind": "node",
+              "displayName": "X1",
+              "evidence": {"kind":"node","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"messages":[]},
+              "attributes": [
+                {"name":"nullAttribute","value":null},
+                {"name":"stringAttribute","value":"192.168.0.10"},
+                {"name":"booleanAttribute","value":"True"},
+                {"name":"integerAttribute","value":"1500"},
+                {"name":"numberAttribute","value":"3.14"},
+                {"name":"enumAttribute","value":"Ethernet"},
+                {"name":"unknownAttribute","value":null},
+                {"name":"readFailed","value":null},
+                {"name":"unrepresentable","value":null}
+              ],
+              "messages": []
+            }
+            """;
+
+        var item = Project("inspect_network_object", payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.NotNull(item.Result);
+        var attrs = item.Result!.Value.GetProperty("attributes");
+        Assert.Equal(9, attrs.GetArrayLength());
+        Assert.Equal("nullAttribute", attrs[0].GetProperty("name").GetString());
+        Assert.Equal(JsonValueKind.Null, attrs[0].GetProperty("value").ValueKind);
+        Assert.Equal("192.168.0.10", attrs[1].GetProperty("value").GetString());
+    }
+
+    public static TheoryData<string, string> Phase3InvalidSuccessfulPayloads() => new()
+    {
+        // list_network_objects: null items collection.
+        { "list_network_objects", $$$"""{"items":null,"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: unknown kind in items[].
+        { "list_network_objects", $$$"""{"items":[{"kind":"{{{LeakToken}}}","displayName":"x","selector":null}],"messages":[]}""" },
+
+        // list_network_objects: negative totalCount.
+        { "list_network_objects", $$$"""{"items":[],"totalCount":-1,"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: items.Count > totalCount.
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selector":null}],"totalCount":0,"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: selector.kind disagrees with summary kind.
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selector":{"kind":"{{{LeakToken}}}","deviceName":"PLC","nodeId":"n1"}}],"messages":[]}""" },
+
+        // inspect_network_object: unknown kind.
+        { "inspect_network_object", $$$"""{"kind":"{{{LeakToken}}}","displayName":"X1","attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: duplicate attribute name.
+        { "inspect_network_object", $$$"""{"kind":"node","displayName":"X1","attributes":[{"name":"IpAddress","value":"1.2.3.4"},{"name":"IpAddress","value":"{{{LeakToken}}}"}],"messages":[]}""" },
+
+        // inspect_network_object: null attributes collection.
+        { "inspect_network_object", $$$"""{"kind":"node","displayName":"{{{LeakToken}}}","attributes":null,"messages":[]}""" },
+
+        // Wrong root kind for list_network_objects (array instead of object).
+        { "list_network_objects", $$$"""["{{{LeakToken}}}"]""" },
+
+        // Wrong root kind for inspect_network_object (array instead of object).
+        { "inspect_network_object", $$$"""["{{{LeakToken}}}"]""" },
+    };
+
+    [Theory]
+    [MemberData(nameof(Phase3InvalidSuccessfulPayloads))]
+    public void Project_RejectsPhase3InvalidPayloadsWithoutLeakingThem(string operation, string payload)
+    {
+        var item = Project(operation, payload);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Null(item.Result);
+        Assert.NotNull(item.Failure);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+        Assert.DoesNotContain(LeakToken, item.Failure.Message, StringComparison.Ordinal);
+        Assert.Contains(operation, item.Failure.Message, StringComparison.Ordinal);
+    }
+
     public static TheoryData<string, string> InvalidSuccessfulPayloads() => new()
     {
         // Wrong casing on an identity member: the strict registry treats it as unmapped rather

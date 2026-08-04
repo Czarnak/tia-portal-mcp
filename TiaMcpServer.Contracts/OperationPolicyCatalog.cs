@@ -57,6 +57,8 @@ public static class OperationPolicyCatalog
             ["search_equipment_catalog"] = OperationCapability.Observe,
             ["read_cross_references"] = OperationCapability.Observe,
             ["list_tag_tables"] = OperationCapability.Observe,
+            ["list_network_objects"] = OperationCapability.Observe,
+            ["inspect_network_object"] = OperationCapability.Observe,
 
             // TemporaryExport (read-only safe, temporary files with cleanup)
             ["get_block_content"] = OperationCapability.TemporaryExport,

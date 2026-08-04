@@ -277,6 +277,156 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal(0, safety.ActiveTokenCount);
     }
 
+    // --- Phase 3 read round-trips -----------------------------------------------
+
+    [Fact]
+    public async Task ListNetworkObjects_RoundTripReturnsSixItemsWithCommunicationConnectionUnselectable()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[]
+            {
+                new NetworkOperationRequest
+                {
+                    OperationId = "list-1",
+                    Operation = "list_network_objects",
+                    ProjectPath = "list-network-objects-success",
+                    ObjectKinds = new[] { "node", "communicationConnection" },
+                },
+            });
+
+        Assert.False(result.IsError);
+        var operation = Structured(result)
+            .GetProperty("batch")
+            .GetProperty("operations")[0];
+
+        Assert.Equal("succeeded", operation.GetProperty("status").GetString());
+
+        // Result is declared JSON, not a nested JSON string.
+        var resultElement = operation.GetProperty("result");
+        Assert.Equal(JsonValueKind.Object, resultElement.ValueKind);
+
+        var items = resultElement.GetProperty("items");
+        Assert.Equal(6, items.GetArrayLength());
+        Assert.Equal(6, resultElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, resultElement.GetProperty("nextCursor").ValueKind);
+
+        // communicationConnection (index 5) has null selector — it's unselectable.
+        var connection = items[5];
+        Assert.Equal("communicationConnection", connection.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, connection.GetProperty("selector").ValueKind);
+    }
+
+    [Fact]
+    public async Task InspectNetworkObject_RoundTripReturnsNineAttributesAndEvidence()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[]
+            {
+                new NetworkOperationRequest
+                {
+                    OperationId = "inspect-1",
+                    Operation = "inspect_network_object",
+                    ProjectPath = "inspect-network-object-success",
+                    Target = new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" },
+                },
+            });
+
+        Assert.False(result.IsError);
+        var operation = Structured(result)
+            .GetProperty("batch")
+            .GetProperty("operations")[0];
+
+        Assert.Equal("succeeded", operation.GetProperty("status").GetString());
+
+        var resultElement = operation.GetProperty("result");
+        Assert.Equal(JsonValueKind.Object, resultElement.ValueKind);
+        Assert.Equal("node", resultElement.GetProperty("kind").GetString());
+
+        // Evidence is a real object (not null, not a nested string).
+        Assert.Equal(JsonValueKind.Object, resultElement.GetProperty("evidence").ValueKind);
+
+        var attrs = resultElement.GetProperty("attributes");
+        Assert.Equal(9, attrs.GetArrayLength());
+
+        // Spot-check known attributes.
+        var stringAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "stringAttribute");
+        Assert.Equal("192.168.0.10", stringAttr.GetProperty("value").GetString());
+
+        var nullAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "nullAttribute");
+        Assert.Equal(JsonValueKind.Null, nullAttr.GetProperty("value").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("list_network_objects", "list-network-objects-malformed")]
+    [InlineData("inspect_network_object", "inspect-network-object-malformed")]
+    public async Task Phase3Read_MalformedWorkerPayloadBecomesProtocolError(
+        string operationName,
+        string scenario)
+    {
+        using var client = CreateClient();
+        var target = operationName == "inspect_network_object"
+            ? new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" }
+            : null;
+        var objectKinds = operationName == "list_network_objects"
+            ? new[] { "node" }
+            : null;
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[]
+            {
+                new NetworkOperationRequest
+                {
+                    OperationId = "malformed-1",
+                    Operation = operationName,
+                    ProjectPath = scenario,
+                    Target = target,
+                    ObjectKinds = objectKinds,
+                },
+            });
+
+        // The batch ran (tool call succeeded), but the item failed.
+        Assert.False(result.IsError);
+        var operation = Structured(result).GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("failed", operation.GetProperty("status").GetString());
+        Assert.Equal("protocol_error", operation.GetProperty("failure").GetProperty("category").GetString());
+    }
+
+    [Fact]
+    public async Task ListNetworkObjects_LargeListScenarioReturnsCursorWithTwentyItems()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[]
+            {
+                new NetworkOperationRequest
+                {
+                    OperationId = "large-1",
+                    Operation = "list_network_objects",
+                    ProjectPath = "list-network-objects-large",
+                    ObjectKinds = new[] { "node" },
+                    PageSize = 20,
+                },
+            });
+
+        Assert.False(result.IsError);
+        var operation = Structured(result).GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("succeeded", operation.GetProperty("status").GetString());
+
+        var resultElement = operation.GetProperty("result");
+        Assert.Equal(20, resultElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(100, resultElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal("large-list-page-2", resultElement.GetProperty("nextCursor").GetString());
+    }
+
     private static JsonElement Structured(CallToolResult result)
         => Assert.IsType<JsonElement>(result.StructuredContent);
 

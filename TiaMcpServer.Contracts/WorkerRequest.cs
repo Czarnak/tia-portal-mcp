@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
@@ -193,6 +195,38 @@ public class WorkerRequest
 
     /// <summary>Forwarded by: configure_network_device. The IO system's number within its subnet.</summary>
     public int? IoSystemNumber { get; set; }
+
+    #endregion
+
+    #region Network object discovery and inspection (Phase 3)
+
+    /// <summary>
+    /// Forwarded by: list_network_objects. Contains only valid kind strings (validated by the host
+    /// catalog before sending). Prefixed to avoid collision with the existing flat DeviceName field.
+    /// </summary>
+    public List<string>? NetworkObjectKinds { get; set; }
+
+    /// <summary>
+    /// Forwarded by: list_network_objects (optional device filter). Prefixed to avoid collision
+    /// with the existing flat DeviceName field used by add_network_device / configure_network_device.
+    /// </summary>
+    public string? NetworkObjectDeviceName { get; set; }
+
+    /// <summary>Forwarded by: list_network_objects. Validated to the range [1, 200] by the host.</summary>
+    public int? NetworkObjectPageSize { get; set; }
+
+    /// <summary>Forwarded by: list_network_objects. Opaque cursor from a previous paged response.</summary>
+    public string? NetworkObjectCursor { get; set; }
+
+    /// <summary>
+    /// Forwarded by: inspect_network_object. Mapped from the host's <c>NetworkObjectTarget</c>
+    /// to a fresh <see cref="NetworkObjectSelectorInfo"/>; item-path segments are deep-copied so
+    /// the worker never holds a reference to the caller's mutable list.
+    /// </summary>
+    public NetworkObjectSelectorInfo? NetworkObjectTarget { get; set; }
+
+    /// <summary>Forwarded by: inspect_network_object (optional). Validated to [1, 200] unique names by the host.</summary>
+    public List<string>? NetworkAttributeNames { get; set; }
 
     #endregion
 

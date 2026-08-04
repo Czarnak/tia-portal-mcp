@@ -88,6 +88,52 @@ public class OpennessWorkerClient : IDisposable
             "[]");
     }
 
+    /// <summary>
+    /// Sends a <c>list_network_objects</c> request to the worker. <paramref name="objectKinds"/>
+    /// is deep-copied into a new list so the worker-bound request never holds a reference to the
+    /// caller's mutable collection.
+    /// </summary>
+    public Task<WorkerCallResult> ListNetworkObjectsAsync(
+        IReadOnlyList<string> objectKinds,
+        string? deviceName,
+        int? pageSize,
+        string? cursor,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "list_network_objects",
+            projectPath,
+            request =>
+            {
+                request.NetworkObjectKinds = new List<string>(objectKinds);
+                request.NetworkObjectDeviceName = deviceName;
+                request.NetworkObjectPageSize = pageSize;
+                request.NetworkObjectCursor = cursor;
+            },
+            "{}");
+    }
+
+    /// <summary>
+    /// Sends an <c>inspect_network_object</c> request to the worker. The caller must supply a
+    /// <see cref="NetworkObjectSelectorInfo"/> that was mapped from the host's
+    /// <c>NetworkObjectTarget</c> (item-path segments deep-copied, caller list discarded).
+    /// </summary>
+    public Task<WorkerCallResult> InspectNetworkObjectAsync(
+        NetworkObjectSelectorInfo target,
+        IReadOnlyList<string>? attributeNames,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "inspect_network_object",
+            projectPath,
+            request =>
+            {
+                request.NetworkObjectTarget = target;
+                request.NetworkAttributeNames = attributeNames is null ? null : new List<string>(attributeNames);
+            },
+            "{}");
+    }
+
     public Task<WorkerCallResult> AddNetworkDeviceAsync(
         string typeIdentifier,
         string deviceName,

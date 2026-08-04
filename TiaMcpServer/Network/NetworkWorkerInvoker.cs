@@ -13,9 +13,46 @@ public static class NetworkWorkerInvoker
             "read_hardware_config" => client.ReadHardwareConfigAsync(operation.ProjectPath),
             "search_equipment_catalog" => client.SearchEquipmentCatalogAsync(
                 operation.Query!, operation.ProjectPath, operation.MaxResults),
+            "list_network_objects" => client.ListNetworkObjectsAsync(
+                operation.ObjectKinds!,
+                operation.DeviceName,
+                operation.PageSize,
+                operation.Cursor,
+                operation.ProjectPath),
+            "inspect_network_object" => client.InspectNetworkObjectAsync(
+                MapSelector(operation.Target!),
+                operation.AttributeNames,
+                operation.ProjectPath),
             _ => Task.FromResult(WorkerCallResult.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"Unsupported network read operation '{operation.Operation}'.")),
+        };
+
+    /// <summary>
+    /// Maps the host's JSON-decorated <see cref="NetworkObjectTarget"/> to a fresh
+    /// <see cref="NetworkObjectSelectorInfo"/> for the worker protocol. Every item-path segment
+    /// is deep-copied so the worker request never holds a reference to the caller's mutable list.
+    /// </summary>
+    private static NetworkObjectSelectorInfo MapSelector(NetworkObjectTarget target) =>
+        new NetworkObjectSelectorInfo
+        {
+            Kind = target.Kind,
+            DeviceName = target.DeviceName,
+            ItemPath = target.ItemPath is null
+                ? null
+                : target.ItemPath
+                    .Select(segment => new NetworkDeviceItemPathSegmentInfo { PositionNumber = segment.PositionNumber })
+                    .ToList(),
+            InterfaceName = target.InterfaceName,
+            InterfaceType = target.InterfaceType,
+            InterfaceOperatingMode = target.InterfaceOperatingMode,
+            NodeId = target.NodeId,
+            SubnetId = target.SubnetId,
+            Number = target.Number,
+            ConnectionIndex = target.ConnectionIndex,
+            ConnectionType = target.ConnectionType,
+            LocalConnectionName = target.LocalConnectionName,
+            LocalConnectionId = target.LocalConnectionId,
         };
 
     public static Task<WorkerCallResult> InvokeWriteAsync(

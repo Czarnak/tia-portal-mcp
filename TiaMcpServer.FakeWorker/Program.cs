@@ -286,6 +286,45 @@ while ((line = Console.In.ReadLine()) is not null)
             // project path to classify the caller's archiveDirectory against.
             Respond("""{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\Projects\\SimpleProject\\SimpleProject.ap21"}""");
             break;
+
+        // ---------------------------------------------------------------------------
+        // Phase 3: list_network_objects and inspect_network_object fixtures
+        // ---------------------------------------------------------------------------
+
+        case "list-network-objects-success":
+            // One object of every kind (6 total), including one unselectable summary (no selector).
+            // Dispatches on method so both methods can share this project path if needed in future.
+            Respond(ReadMethod(line) == "list_network_objects"
+                ? Success(ToCamelCaseJson(ListNetworkObjectsFixture()))
+                : $$"""{"success":false,"error":"expected list_network_objects, got '{{ReadMethod(line)}}'"}""");
+            break;
+
+        case "inspect-network-object-success":
+            // Full set of attribute value kinds plus three special-case attribute names.
+            Respond(ReadMethod(line) == "inspect_network_object"
+                ? Success(ToCamelCaseJson(InspectNetworkObjectFixture()))
+                : $$"""{"success":false,"error":"expected inspect_network_object, got '{{ReadMethod(line)}}'"}""");
+            break;
+
+        case "list-network-objects-malformed":
+            // Worker reports SUCCESS but the payload fails the declared result contract.
+            Respond("""{"success":true,"payload":"{\"unexpectedShape\":true}"}""");
+            break;
+
+        case "inspect-network-object-malformed":
+            // Worker reports SUCCESS but the payload fails the declared result contract.
+            Respond("""{"success":true,"payload":"{\"unexpectedShape\":true}"}""");
+            break;
+
+        case "list-network-objects-large":
+            // Deterministic large-list scenario for budget tests: 20 items (all node kind), a
+            // scripted nextCursor, and a totalCount that matches. No real pagination logic — the
+            // same fixture is returned on every call; the cursor is for binding tests only.
+            Respond(ReadMethod(line) == "list_network_objects"
+                ? Success(ToCamelCaseJson(LargeListNetworkObjectsFixture()))
+                : $$"""{"success":false,"error":"expected list_network_objects, got '{{ReadMethod(line)}}'"}""");
+            break;
+
         default:
             Respond($$"""{"success":false,"error":"unknown scenario '{{scenario}}'"}""");
             break;
@@ -591,6 +630,146 @@ string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHome
     };
 
     return Success(ToCamelCaseJson(result));
+}
+
+// Builds the Phase 3 list_network_objects fixture: one object of every kind (6 total), with the
+// communicationConnection entry unselectable (selector is null) because its connection index cannot
+// always be determined at list time. TotalCount matches Items.Count (no hidden items on this page).
+NetworkObjectListInfo ListNetworkObjectsFixture() => new()
+{
+    Items = new List<NetworkObjectSummaryInfo>
+    {
+        new()
+        {
+            Kind = NetworkObjectKinds.DeviceItem,
+            DisplayName = "PROFINET interface_1",
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.DeviceItem,
+                DeviceName = "PLC_1",
+                ItemPath = new List<NetworkDeviceItemPathSegmentInfo>
+                {
+                    new() { PositionNumber = 1 },
+                },
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.NetworkInterface,
+            DisplayName = "PROFINET interface_1",
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.NetworkInterface,
+                DeviceName = "PLC_1",
+                InterfaceName = "PROFINET interface_1",
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.Node,
+            DisplayName = "X1",
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.Node,
+                DeviceName = "PLC_1",
+                NodeId = "node-1",
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.Subnet,
+            DisplayName = "PN/IE_1",
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.Subnet,
+                SubnetId = "subnet-1",
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.IoSystem,
+            DisplayName = "IO system_1",
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.IoSystem,
+                SubnetId = "subnet-1",
+                Number = 100,
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.CommunicationConnection,
+            DisplayName = "S7 connection_1 (unselectable)",
+            Selector = null, // connection index not always determinable at list time
+        },
+    },
+    TotalCount = 6,
+    NextCursor = null,
+    Messages = new List<string>(),
+};
+
+// Builds the Phase 3 inspect_network_object fixture: attributes covering the full value
+// vocabulary. `Value` is a nullable string on NetworkAttributeInfo, so boolean/integer/number/enum
+// values arrive as their string representations; `null` Value signals a present-but-valueless
+// attribute. The special names unknownAttribute, readFailed, and unrepresentable are included so
+// later normalization tasks can assert that callers can name any attribute and receive a stable
+// entry back (even when the worker cannot resolve or represent the value).
+NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
+{
+    Kind = NetworkObjectKinds.Node,
+    DisplayName = "X1",
+    Evidence = new NetworkObjectEvidenceInfo
+    {
+        Kind = NetworkObjectKinds.Node,
+        Selector = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.Node,
+            DeviceName = "PLC_1",
+            NodeId = "node-1",
+        },
+        Messages = new List<string>(),
+    },
+    Attributes = new List<NetworkAttributeInfo>
+    {
+        new() { Name = "nullAttribute", Value = null },
+        new() { Name = "stringAttribute", Value = "192.168.0.10" },
+        new() { Name = "booleanAttribute", Value = "True" },
+        new() { Name = "integerAttribute", Value = "1500" },
+        new() { Name = "numberAttribute", Value = "3.14" },
+        new() { Name = "enumAttribute", Value = "Ethernet" },
+        new() { Name = "unknownAttribute", Value = null },
+        new() { Name = "readFailed", Value = null },
+        new() { Name = "unrepresentable", Value = null },
+    },
+    Messages = new List<string>(),
+};
+
+// Deterministic large-list scenario: 20 node entries with distinct nodeIds, a scripted next-page
+// cursor, and a totalCount larger than Items.Count to indicate more pages exist. No real pagination
+// is implemented; the cursor value is stable so budget tests can verify it is forwarded correctly.
+NetworkObjectListInfo LargeListNetworkObjectsFixture()
+{
+    var items = Enumerable.Range(1, 20)
+        .Select(i => new NetworkObjectSummaryInfo
+        {
+            Kind = NetworkObjectKinds.Node,
+            DisplayName = $"Port_{i:D2}",
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.Node,
+                DeviceName = "LargeSwitch",
+                NodeId = $"node-{i:D3}",
+            },
+        })
+        .ToList();
+
+    return new NetworkObjectListInfo
+    {
+        Items = items,
+        TotalCount = 100,
+        NextCursor = "large-list-page-2",
+        Messages = new List<string>(),
+    };
 }
 
 /// <summary>Mutable process-local state for one node of the "multi-homed-network" scenario.</summary>
