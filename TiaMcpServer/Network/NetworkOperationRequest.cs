@@ -125,12 +125,27 @@ public sealed class NetworkObjectTarget
 /// <summary>
 /// One segment of the path through a device's item hierarchy. Strict — unknown fields
 /// are rejected to prevent silent misidentification.
+///
+/// <para>
+/// Carries the same four evidence fields as <see cref="TiaMcpServer.Contracts.DeviceItemPathSegmentInfo"/>
+/// so a selector embedded in a <c>read_hardware_config</c> result can be forwarded directly into an
+/// inspect request without field transformation.
+/// </para>
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class NetworkDeviceItemPathSegment
 {
+    [Description("Zero-based sibling index within the parent device item composition.")]
+    public int Index { get; set; }
+
+    [Description("Name of the module at this level of the device hierarchy.")]
+    public string Name { get; set; } = string.Empty;
+
     [Description("Position number of the module at this level of the device hierarchy.")]
     public int? PositionNumber { get; set; }
+
+    [Description("Type identifier of the module at this level of the device hierarchy.")]
+    public string TypeIdentifier { get; set; } = string.Empty;
 }
 
 /// <summary>What to set on the targeted node. Every member is optional; null means no change.</summary>

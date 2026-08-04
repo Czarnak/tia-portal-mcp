@@ -365,4 +365,139 @@ public class NetworkPayloadContractTests
         Assert.Equal(WorkerFailureCategories.WorkerTimeout, item.Failure!.Category);
         Assert.Equal("no response", item.Failure.Message);
     }
+
+    /// <summary>
+    /// A read_hardware_config payload that includes selector metadata (Task 3 addition) must be
+    /// accepted by the contract: the new fields are mapped members, not unmapped strangers.
+    /// </summary>
+    [Fact]
+    public void Project_AcceptsHardwarePayloadWithSelectorMetadata()
+    {
+        var payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "typeIdentifier": "OrderNumber:CPU",
+                  "items": [
+                    {
+                      "name": "PROFINET interface_1",
+                      "typeIdentifier": "OrderNumber:IF",
+                      "positionNumber": 0,
+                      "address": null,
+                      "selectable": true,
+                      "selector": {
+                        "kind": "deviceItem",
+                        "deviceName": "PLC_1",
+                        "itemPath": [
+                          {"index": 0, "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": "OrderNumber:IF"}
+                        ]
+                      },
+                      "selectorDiagnostics": [],
+                      "networkInterfaces": [
+                        {
+                          "name": "PROFINET interface_1",
+                          "selectable": true,
+                          "selector": {
+                            "kind": "networkInterface",
+                            "deviceName": "PLC_1",
+                            "interfaceName": "PROFINET interface_1"
+                          },
+                          "selectorDiagnostics": [],
+                          "nodes": [
+                            {
+                              "name": "X1",
+                              "nodeId": "node-1",
+                              "nodeType": "Ethernet",
+                              "ipAddress": "192.168.0.10",
+                              "selectable": true,
+                              "selector": {"kind": "node", "deviceName": "PLC_1", "nodeId": "node-1"},
+                              "selectorDiagnostics": []
+                            }
+                          ]
+                        }
+                      ],
+                      "items": []
+                    }
+                  ]
+                }
+              ],
+              "subnets": [
+                {
+                  "name": "PN/IE_1",
+                  "subnetId": "subnet-1",
+                  "networkType": "Ethernet",
+                  "typeIdentifier": "Ethernet",
+                  "selectable": true,
+                  "selector": {"kind": "subnet", "subnetId": "subnet-1"},
+                  "selectorDiagnostics": [],
+                  "ioSystems": [
+                    {
+                      "name": "IO system_1",
+                      "number": 100,
+                      "ioControllerName": "PLC_1",
+                      "selectable": true,
+                      "selector": {"kind": "ioSystem", "subnetId": "subnet-1", "number": 100},
+                      "selectorDiagnostics": [],
+                      "connectedDeviceNames": []
+                    }
+                  ],
+                  "connectedNodeNames": []
+                }
+              ],
+              "messages": []
+            }
+            """;
+
+        var item = Project("read_hardware_config", payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Null(item.Failure);
+
+        var device = item.Result!.Value.GetProperty("devices")[0];
+        var deviceItem = device.GetProperty("items")[0];
+        Assert.True(deviceItem.GetProperty("selectable").GetBoolean());
+        Assert.Equal("deviceItem", deviceItem.GetProperty("selector").GetProperty("kind").GetString());
+
+        var subnet = item.Result.Value.GetProperty("subnets")[0];
+        Assert.True(subnet.GetProperty("selectable").GetBoolean());
+        Assert.Equal("subnet", subnet.GetProperty("selector").GetProperty("kind").GetString());
+
+        var ioSystem = subnet.GetProperty("ioSystems")[0];
+        Assert.True(ioSystem.GetProperty("selectable").GetBoolean());
+        Assert.Equal("ioSystem", ioSystem.GetProperty("selector").GetProperty("kind").GetString());
+    }
+
+    /// <summary>
+    /// An explicit null for selectorDiagnostics (a declared non-null list) must be rejected.
+    /// </summary>
+    [Fact]
+    public void Project_RejectsExplicitNullSelectorDiagnostics_OnDeviceItem()
+    {
+        var payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": null
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project("read_hardware_config", payload);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
 }

@@ -418,7 +418,7 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
-            ItemPath = new List<NetworkDeviceItemPathSegmentInfo> { new() { PositionNumber = 1 } },
+            ItemPath = new List<DeviceItemPathSegmentInfo> { new() { PositionNumber = 1 } },
         },
         NetworkObjectKinds.NetworkInterface => new NetworkObjectSelectorInfo
         {

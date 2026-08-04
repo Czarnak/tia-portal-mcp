@@ -5,6 +5,26 @@ namespace TiaMcpServer.Contracts;
 /// <summary>
 /// One segment of a path through a device's item hierarchy.
 /// Used in <see cref="NetworkObjectSelectorInfo.ItemPath"/> when targeting a device item.
+/// Carries four pieces of evidence so a resolver can locate the item by position, name, or type.
+/// </summary>
+public class DeviceItemPathSegmentInfo
+{
+    /// <summary>Zero-based sibling index within the parent device item composition.</summary>
+    public int Index { get; set; }
+
+    /// <summary>Name of the module at this level of the device hierarchy.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Position number of the module at this level of the device hierarchy.</summary>
+    public int? PositionNumber { get; set; }
+
+    /// <summary>Type identifier of the module at this level of the device hierarchy.</summary>
+    public string TypeIdentifier { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// One segment of a path through a device's item hierarchy (legacy, position-number-only form).
+/// Kept for backward compatibility; prefer <see cref="DeviceItemPathSegmentInfo"/>.
 /// </summary>
 public class NetworkDeviceItemPathSegmentInfo
 {
@@ -31,7 +51,7 @@ public class NetworkObjectSelectorInfo
     public string? DeviceName { get; set; }
 
     /// <summary>Path through the device item hierarchy. Required for deviceItem kind.</summary>
-    public List<NetworkDeviceItemPathSegmentInfo>? ItemPath { get; set; }
+    public List<DeviceItemPathSegmentInfo>? ItemPath { get; set; }
 
     /// <summary>Interface name. Required for networkInterface kind.</summary>
     public string? InterfaceName { get; set; }

@@ -367,6 +367,178 @@ public class HardwareConfigInfoTests
         Assert.Null(item.PositionNumber);
     }
 
+    // -------------------------------------------------------------------------
+    // Selector metadata on hardware DTOs (Task 3)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Each selector-aware DTO initialises <see cref="DeviceItemInfo.SelectorDiagnostics"/> and
+    /// friends to non-null empty lists so a walker never has to distinguish "no diagnostics" from
+    /// "collection was omitted".
+    /// </summary>
+    [Fact]
+    public void SelectorDiagnostics_DefaultsToEmptyListOnAllDtos()
+    {
+        Assert.NotNull(new DeviceItemInfo().SelectorDiagnostics);
+        Assert.Empty(new DeviceItemInfo().SelectorDiagnostics);
+        Assert.NotNull(new NetworkInterfaceInfo().SelectorDiagnostics);
+        Assert.Empty(new NetworkInterfaceInfo().SelectorDiagnostics);
+        Assert.NotNull(new NodeInfo().SelectorDiagnostics);
+        Assert.Empty(new NodeInfo().SelectorDiagnostics);
+        Assert.NotNull(new SubnetInfo().SelectorDiagnostics);
+        Assert.Empty(new SubnetInfo().SelectorDiagnostics);
+        Assert.NotNull(new IoSystemInfo().SelectorDiagnostics);
+        Assert.Empty(new IoSystemInfo().SelectorDiagnostics);
+    }
+
+    /// <summary>
+    /// Selectable defaults to false and Selector to null: an unpopulated DTO should never
+    /// appear selectable.
+    /// </summary>
+    [Fact]
+    public void Selectable_DefaultsFalse_SelectorDefaultsNull()
+    {
+        var item = new DeviceItemInfo();
+
+        Assert.False(item.Selectable);
+        Assert.Null(item.Selector);
+    }
+
+    /// <summary>
+    /// The selector metadata survives a JSON round-trip so callers reading from the network layer
+    /// can copy a selector out of the hardware config payload and forward it to an inspect call.
+    /// </summary>
+    [Fact]
+    public void SelectorMetadata_RoundTripsViaJson()
+    {
+        var selector = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.DeviceItem,
+            DeviceName = "PLC_1",
+            ItemPath = new List<DeviceItemPathSegmentInfo>
+            {
+                new() { Index = 0, Name = "Rack_0", PositionNumber = 0, TypeIdentifier = "Rack" },
+            }
+        };
+
+        var item = new DeviceItemInfo
+        {
+            Name = "Rack_0",
+            Selectable = true,
+            Selector = selector,
+            SelectorDiagnostics = new List<string>(),
+        };
+
+        var json = JsonSerializer.Serialize(item, JsonOptions);
+        var roundTripped = JsonSerializer.Deserialize<DeviceItemInfo>(json, JsonOptions)!;
+
+        Assert.True(roundTripped.Selectable);
+        Assert.NotNull(roundTripped.Selector);
+        Assert.Equal(NetworkObjectKinds.DeviceItem, roundTripped.Selector!.Kind);
+        Assert.Equal("PLC_1", roundTripped.Selector.DeviceName);
+        Assert.NotNull(roundTripped.Selector.ItemPath);
+        var seg = Assert.Single(roundTripped.Selector.ItemPath!);
+        Assert.Equal(0, seg.Index);
+        Assert.Equal("Rack_0", seg.Name);
+        Assert.Equal(0, seg.PositionNumber);
+        Assert.Equal("Rack", seg.TypeIdentifier);
+    }
+
+    [Fact]
+    public void UnselectableItem_SerializesDiagnosticMessage()
+    {
+        var item = new DeviceItemInfo
+        {
+            Name = null,
+            Selectable = false,
+            Selector = null,
+            SelectorDiagnostics = { "Device name could not be read; selector not available." },
+        };
+
+        var json = JsonSerializer.Serialize(item, JsonOptions);
+        var roundTripped = JsonSerializer.Deserialize<DeviceItemInfo>(json, JsonOptions)!;
+
+        Assert.False(roundTripped.Selectable);
+        Assert.Null(roundTripped.Selector);
+        Assert.Equal(
+            "Device name could not be read; selector not available.",
+            Assert.Single(roundTripped.SelectorDiagnostics));
+    }
+
+    /// <summary>
+    /// DeviceItemPathSegmentInfo carries all four evidence fields: zero-based sibling index,
+    /// name, position number, and type identifier. Each must round-trip.
+    /// </summary>
+    [Fact]
+    public void DeviceItemPathSegmentInfo_RoundTripsAllFourFields()
+    {
+        var seg = new DeviceItemPathSegmentInfo
+        {
+            Index = 2,
+            Name = "CPU_Slot",
+            PositionNumber = 3,
+            TypeIdentifier = "OrderNumber:CPU",
+        };
+
+        var json = JsonSerializer.Serialize(seg, JsonOptions);
+        var roundTripped = JsonSerializer.Deserialize<DeviceItemPathSegmentInfo>(json, JsonOptions)!;
+
+        Assert.Equal(2, roundTripped.Index);
+        Assert.Equal("CPU_Slot", roundTripped.Name);
+        Assert.Equal(3, roundTripped.PositionNumber);
+        Assert.Equal("OrderNumber:CPU", roundTripped.TypeIdentifier);
+    }
+
+    /// <summary>
+    /// Subnets and IO systems also carry selector metadata.
+    /// </summary>
+    [Fact]
+    public void SubnetAndIoSystem_SelectableAndSelectorSurviveRoundTrip()
+    {
+        var config = new HardwareConfigInfo
+        {
+            Subnets =
+            {
+                new SubnetInfo
+                {
+                    Name = "PN/IE_1",
+                    SubnetId = "subnet-1",
+                    Selectable = true,
+                    Selector = new NetworkObjectSelectorInfo
+                    {
+                        Kind = NetworkObjectKinds.Subnet,
+                        SubnetId = "subnet-1",
+                    },
+                    IoSystems =
+                    {
+                        new IoSystemInfo
+                        {
+                            Name = "IO system_1",
+                            Number = 100,
+                            Selectable = true,
+                            Selector = new NetworkObjectSelectorInfo
+                            {
+                                Kind = NetworkObjectKinds.IoSystem,
+                                SubnetId = "subnet-1",
+                                Number = 100,
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        var roundTripped = RoundTrip(config);
+        var subnet = Assert.Single(roundTripped.Subnets);
+        var ioSystem = Assert.Single(subnet.IoSystems);
+
+        Assert.True(subnet.Selectable);
+        Assert.Equal(NetworkObjectKinds.Subnet, subnet.Selector!.Kind);
+        Assert.True(ioSystem.Selectable);
+        Assert.Equal(NetworkObjectKinds.IoSystem, ioSystem.Selector!.Kind);
+        Assert.Equal(100, ioSystem.Selector.Number);
+    }
+
     private static HardwareConfigInfo RoundTrip(HardwareConfigInfo config)
     {
         var json = JsonSerializer.Serialize(config, JsonOptions);

@@ -647,7 +647,7 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
             {
                 Kind = NetworkObjectKinds.DeviceItem,
                 DeviceName = "PLC_1",
-                ItemPath = new List<NetworkDeviceItemPathSegmentInfo>
+                ItemPath = new List<DeviceItemPathSegmentInfo>
                 {
                     new() { PositionNumber = 1 },
                 },

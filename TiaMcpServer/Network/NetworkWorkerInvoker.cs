@@ -41,7 +41,13 @@ public static class NetworkWorkerInvoker
             ItemPath = target.ItemPath is null
                 ? null
                 : target.ItemPath
-                    .Select(segment => new NetworkDeviceItemPathSegmentInfo { PositionNumber = segment.PositionNumber })
+                    .Select(segment => new DeviceItemPathSegmentInfo
+                    {
+                        Index = segment.Index,
+                        Name = segment.Name,
+                        PositionNumber = segment.PositionNumber,
+                        TypeIdentifier = segment.TypeIdentifier,
+                    })
                     .ToList(),
             InterfaceName = target.InterfaceName,
             InterfaceType = target.InterfaceType,

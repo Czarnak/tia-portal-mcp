@@ -246,7 +246,7 @@ public class NetworkFieldForwardingTests
 
     /// <summary>
     /// inspect_network_object maps NetworkObjectTarget.ItemPath segments to fresh
-    /// NetworkDeviceItemPathSegmentInfo instances, proving item-path deep-copy.
+    /// DeviceItemPathSegmentInfo instances, proving item-path deep-copy.
     /// </summary>
     [Fact]
     public async Task InspectNetworkObject_DeepCopiesItemPathSegments()

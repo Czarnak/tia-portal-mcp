@@ -112,9 +112,12 @@ public static class NetworkPayloadContract
             RequireNotNull(subnet.Name, "subnets[].name");
             RequireNotNull(subnet.IoSystems, "subnets[].ioSystems");
             RequireNotNull(subnet.ConnectedNodeNames, "subnets[].connectedNodeNames");
+            RequireNotNull(subnet.SelectorDiagnostics, "subnets[].selectorDiagnostics");
             foreach (var ioSystem in subnet.IoSystems)
             {
                 RequireNotNull(ioSystem, "subnets[].ioSystems[]");
+                RequireNotNull(ioSystem!.SelectorDiagnostics, "subnets[].ioSystems[].selectorDiagnostics");
+                RequireNotNull(ioSystem.ConnectedDeviceNames, "subnets[].ioSystems[].connectedDeviceNames");
             }
         }
     }
@@ -130,14 +133,17 @@ public static class NetworkPayloadContract
         RequireNotNull(item, path);
         RequireNotNull(item!.NetworkInterfaces, $"{path}.networkInterfaces");
         RequireNotNull(item.Items, $"{path}.items");
+        RequireNotNull(item.SelectorDiagnostics, $"{path}.selectorDiagnostics");
 
         foreach (var networkInterface in item.NetworkInterfaces)
         {
             RequireNotNull(networkInterface, $"{path}.networkInterfaces[]");
             RequireNotNull(networkInterface!.Nodes, $"{path}.networkInterfaces[].nodes");
+            RequireNotNull(networkInterface.SelectorDiagnostics, $"{path}.networkInterfaces[].selectorDiagnostics");
             foreach (var node in networkInterface.Nodes)
             {
                 RequireNotNull(node, $"{path}.networkInterfaces[].nodes[]");
+                RequireNotNull(node!.SelectorDiagnostics, $"{path}.networkInterfaces[].nodes[].selectorDiagnostics");
             }
         }
 
