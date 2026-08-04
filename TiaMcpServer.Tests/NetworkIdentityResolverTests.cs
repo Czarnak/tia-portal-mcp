@@ -22,7 +22,7 @@ public class NetworkIdentityResolverTests
     {
         OperationId = operationId,
         Operation = "configure_network_device",
-        Target = new NetworkDeviceTarget { DeviceName = deviceName, NodeId = nodeId },
+        Target = new NetworkObjectTarget { DeviceName = deviceName, NodeId = nodeId },
         Changes = new NetworkDeviceChanges
         {
             IpAddress = "192.168.0.99",

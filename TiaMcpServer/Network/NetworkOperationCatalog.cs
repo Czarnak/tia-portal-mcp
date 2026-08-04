@@ -29,6 +29,8 @@ public sealed record NetworkValidationResult(bool IsValid, string Error)
 public static class NetworkOperationCatalog
 {
     public const int MaxBatchSize = 50;
+    public const int MaxPageSize = 200;
+    public const int MaxAttributeNames = 200;
 
     private static readonly IReadOnlyList<string> None = Array.Empty<string>();
 
@@ -55,7 +57,53 @@ public static class NetworkOperationCatalog
         ("deviceItemName", operation => operation.DeviceItemName is not null),
         ("target", operation => operation.Target is not null),
         ("changes", operation => operation.Changes is not null),
+        ("objectKinds", operation => operation.ObjectKinds is not null),
+        ("pageSize", operation => operation.PageSize is not null),
+        ("cursor", operation => operation.Cursor is not null),
+        ("attributeNames", operation => operation.AttributeNames is not null),
     };
+
+    // ---------------------------------------------------------------------------
+    // Selector shapes: required and applicable fields per kind.
+    // Applicable = required ∪ optional; inapplicable = present but outside applicable.
+    // ---------------------------------------------------------------------------
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> SelectorRequiredFields =
+        new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
+        {
+            [NetworkObjectKinds.DeviceItem] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "itemPath" },
+            [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "interfaceName" },
+            [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "nodeId" },
+            [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal) { "subnetId" },
+            [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal) { "subnetId", "number" },
+            [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "connectionIndex" },
+        };
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> SelectorApplicableFields =
+        new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
+        {
+            [NetworkObjectKinds.DeviceItem] = new HashSet<string>(StringComparer.Ordinal)
+                { "kind", "deviceName", "itemPath" },
+            [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal)
+                { "kind", "deviceName", "interfaceName", "interfaceType", "interfaceOperatingMode" },
+            [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal)
+                { "kind", "deviceName", "nodeId" },
+            [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal)
+                { "kind", "subnetId" },
+            [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal)
+                { "kind", "subnetId", "number" },
+            [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal)
+                { "kind", "deviceName", "connectionIndex", "connectionType", "localConnectionName", "localConnectionId" },
+        };
+
+    /// <summary>All target fields that are inapplicable to configure_network_device (Phase 3 additions only).</summary>
+    private static readonly IReadOnlySet<string> ConfigureInapplicableSelectorFields =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode",
+            "subnetId", "number", "connectionIndex", "connectionType",
+            "localConnectionName", "localConnectionId",
+        };
 
     public static IReadOnlyList<string> ReadOperationNames { get; } = NamesByCategory(NetworkOperationCategory.Read);
 
@@ -157,13 +205,7 @@ public static class NetworkOperationCatalog
                 continue;
             }
 
-            var missing = spec.RequiredFields.Where(field => !IsFieldPresent(operation, field)).ToArray();
-            if (missing.Length > 0)
-            {
-                errors.Add(
-                    $"Operation '{operation.Operation}' (operationId '{operation.OperationId}') is missing required field(s): {string.Join(", ", missing)}.");
-            }
-
+            // Deterministic order: inapplicable fields → required fields → cardinality → selector shape.
             foreach (var field in FindInapplicableFields(operation, spec))
             {
                 var valid = spec.OptionalFields.Count > 0 ? string.Join(", ", spec.OptionalFields) : "(none)";
@@ -172,9 +214,27 @@ public static class NetworkOperationCatalog
                     + $"{operation.Operation}. Valid optional fields: {valid}.");
             }
 
+            var missing = spec.RequiredFields.Where(field => !IsFieldPresent(operation, field)).ToArray();
+            if (missing.Length > 0)
+            {
+                errors.Add(
+                    $"Operation '{operation.Operation}' (operationId '{operation.OperationId}') is missing required field(s): {string.Join(", ", missing)}.");
+            }
+
+            // Cardinality and bounds checks.
             if (operation.MaxResults is < 1)
             {
                 errors.Add($"Operation '{operation.Operation}' (operationId '{operation.OperationId}'): 'maxResults' must be 1 or greater.");
+            }
+
+            if (spec.Name == "list_network_objects")
+            {
+                ValidateListNetworkObjects(operation, errors);
+            }
+
+            if (spec.Name == "inspect_network_object")
+            {
+                ValidateInspectNetworkObject(operation, errors);
             }
 
             if (spec.Name == "configure_network_device")
@@ -208,6 +268,168 @@ public static class NetworkOperationCatalog
         "deviceName" => !string.IsNullOrWhiteSpace(operation.DeviceName),
         "target" => operation.Target is not null,
         "changes" => operation.Changes is not null,
+        "objectKinds" => operation.ObjectKinds is not null,
+        "attributeNames" => operation.AttributeNames is not null,
+        _ => false,
+    };
+
+    // ---------------------------------------------------------------------------
+    // Operation-specific validation
+    // ---------------------------------------------------------------------------
+
+    private static void ValidateListNetworkObjects(NetworkOperationRequest operation, List<string> errors)
+    {
+        var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
+
+        if (operation.ObjectKinds is { } kinds)
+        {
+            if (kinds.Count == 0)
+            {
+                errors.Add($"{prefix} 'objectKinds' must not be empty.");
+            }
+            else
+            {
+                var seenKinds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var kind in kinds)
+                {
+                    if (!seenKinds.Add(kind))
+                    {
+                        errors.Add($"{prefix} 'objectKinds' contains duplicate value '{kind}'.");
+                    }
+                    else if (!NetworkObjectKinds.All.Contains(kind))
+                    {
+                        errors.Add(
+                            $"{prefix} 'objectKinds' contains unknown kind '{kind}'. "
+                            + $"Valid kinds: {string.Join(", ", NetworkObjectKinds.All)}.");
+                    }
+                }
+            }
+        }
+
+        if (operation.DeviceName is not null && string.IsNullOrWhiteSpace(operation.DeviceName))
+        {
+            errors.Add($"{prefix} 'deviceName' must not be blank when supplied.");
+        }
+
+        if (operation.PageSize is { } pageSize)
+        {
+            if (pageSize < 1 || pageSize > MaxPageSize)
+            {
+                errors.Add($"{prefix} 'pageSize' must be between 1 and {MaxPageSize} (received {pageSize}).");
+            }
+        }
+    }
+
+    private static void ValidateInspectNetworkObject(NetworkOperationRequest operation, List<string> errors)
+    {
+        var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
+
+        if (operation.AttributeNames is { } names)
+        {
+            if (names.Count == 0)
+            {
+                errors.Add($"{prefix} 'attributeNames' must not be empty when supplied.");
+            }
+            else if (names.Count > MaxAttributeNames)
+            {
+                errors.Add($"{prefix} 'attributeNames' must not exceed {MaxAttributeNames} entries (received {names.Count}).");
+            }
+            else
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var name in names)
+                {
+                    if (!seen.Add(name))
+                    {
+                        errors.Add($"{prefix} 'attributeNames' contains duplicate value '{name}'.");
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (operation.Target is { } target)
+        {
+            ValidateSelectorShape(operation.Operation, operation.OperationId, target, errors);
+        }
+    }
+
+    private static void ValidateSelectorShape(
+        string operationName,
+        string operationId,
+        NetworkObjectTarget target,
+        List<string> errors)
+    {
+        var prefix = $"Operation '{operationName}' (operationId '{operationId}'):";
+
+        if (string.IsNullOrWhiteSpace(target.Kind))
+        {
+            errors.Add($"{prefix} 'target.kind' is required.");
+            return;
+        }
+
+        if (!SelectorRequiredFields.TryGetValue(target.Kind, out var required))
+        {
+            errors.Add(
+                $"{prefix} 'target.kind' value '{target.Kind}' is not a recognised network object kind. "
+                + $"Valid kinds: {string.Join(", ", NetworkObjectKinds.All)}.");
+            return;
+        }
+
+        var applicable = SelectorApplicableFields[target.Kind];
+
+        // Missing required selector fields.
+        foreach (var field in required)
+        {
+            if (!IsSelectorFieldPresent(target, field))
+            {
+                errors.Add($"{prefix} 'target.{field}' is required for kind '{target.Kind}'.");
+            }
+        }
+
+        // Inapplicable selector fields.
+        foreach (var (name, isSet) in AllSelectorFields)
+        {
+            if (name == "kind" || applicable.Contains(name) || !isSet(target))
+            {
+                continue;
+            }
+
+            errors.Add($"{prefix} 'target.{name}' is not applicable for kind '{target.Kind}'.");
+        }
+    }
+
+    private static readonly (string Name, Func<NetworkObjectTarget, bool> IsSet)[] AllSelectorFields =
+    {
+        ("kind", t => !string.IsNullOrWhiteSpace(t.Kind)),
+        ("deviceName", t => !string.IsNullOrWhiteSpace(t.DeviceName)),
+        ("itemPath", t => t.ItemPath is not null),
+        ("interfaceName", t => !string.IsNullOrWhiteSpace(t.InterfaceName)),
+        ("interfaceType", t => !string.IsNullOrWhiteSpace(t.InterfaceType)),
+        ("interfaceOperatingMode", t => !string.IsNullOrWhiteSpace(t.InterfaceOperatingMode)),
+        ("nodeId", t => !string.IsNullOrWhiteSpace(t.NodeId)),
+        ("subnetId", t => !string.IsNullOrWhiteSpace(t.SubnetId)),
+        ("number", t => t.Number is not null),
+        ("connectionIndex", t => t.ConnectionIndex is not null),
+        ("connectionType", t => !string.IsNullOrWhiteSpace(t.ConnectionType)),
+        ("localConnectionName", t => !string.IsNullOrWhiteSpace(t.LocalConnectionName)),
+        ("localConnectionId", t => !string.IsNullOrWhiteSpace(t.LocalConnectionId)),
+    };
+
+    private static bool IsSelectorFieldPresent(NetworkObjectTarget target, string field) => field switch
+    {
+        "deviceName" => !string.IsNullOrWhiteSpace(target.DeviceName),
+        "itemPath" => target.ItemPath is not null,
+        "interfaceName" => !string.IsNullOrWhiteSpace(target.InterfaceName),
+        "interfaceType" => !string.IsNullOrWhiteSpace(target.InterfaceType),
+        "interfaceOperatingMode" => !string.IsNullOrWhiteSpace(target.InterfaceOperatingMode),
+        "nodeId" => !string.IsNullOrWhiteSpace(target.NodeId),
+        "subnetId" => !string.IsNullOrWhiteSpace(target.SubnetId),
+        "number" => target.Number is not null,
+        "connectionIndex" => target.ConnectionIndex is not null,
+        "connectionType" => !string.IsNullOrWhiteSpace(target.ConnectionType),
+        "localConnectionName" => !string.IsNullOrWhiteSpace(target.LocalConnectionName),
+        "localConnectionId" => !string.IsNullOrWhiteSpace(target.LocalConnectionId),
         _ => false,
     };
 
@@ -222,6 +444,23 @@ public static class NetworkOperationCatalog
 
         if (operation.Target is { } target)
         {
+            // Phase 3: kind is accepted only when absent or exactly 'node'.
+            if (target.Kind is not null && !string.Equals(target.Kind, NetworkObjectKinds.Node, StringComparison.Ordinal))
+            {
+                errors.Add(
+                    $"{prefix} 'target.kind' must be '{NetworkObjectKinds.Node}' or absent for configure_network_device "
+                    + $"(received '{target.Kind}').");
+            }
+
+            // Phase 3: new selector fields are not applicable to configure.
+            foreach (var field in ConfigureInapplicableSelectorFields)
+            {
+                if (IsSelectorFieldPresent(target, field))
+                {
+                    errors.Add($"{prefix} 'target.{field}' is not applicable for configure_network_device.");
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(target.DeviceName))
             {
                 errors.Add($"{prefix} 'target.deviceName' must not be blank.");
@@ -330,6 +569,8 @@ public static class NetworkOperationCatalog
             new NetworkOperationSpec("search_equipment_catalog", NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new NetworkOperationSpec("add_network_device", NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
             new NetworkOperationSpec("configure_network_device", NetworkOperationCategory.Write, new[] { "target", "changes" }, None),
+            new NetworkOperationSpec("list_network_objects", NetworkOperationCategory.Read, new[] { "objectKinds" }, new[] { "deviceName", "pageSize", "cursor" }),
+            new NetworkOperationSpec("inspect_network_object", NetworkOperationCategory.Read, new[] { "target" }, new[] { "attributeNames" }),
         };
 
         return specs.ToDictionary(spec => spec.Name, StringComparer.Ordinal);

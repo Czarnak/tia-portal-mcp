@@ -104,7 +104,7 @@ public class NetworkFieldForwardingTests
             OperationId = "cfg-1",
             Operation = "configure_network_device",
             ProjectPath = "echo",
-            Target = new NetworkDeviceTarget { DeviceName = "PLC_1", NodeId = "node-7" },
+            Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-7" },
             Changes = new NetworkDeviceChanges
             {
                 IpAddress = "192.168.0.10",

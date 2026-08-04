@@ -20,7 +20,7 @@ public class NetworkReadTools
         OpenWorld = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(NetworkReadResponse))]
-    [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config and search_equipment_catalog (query). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls.")]
+    [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config, search_equipment_catalog (query), list_network_objects (objectKinds), and inspect_network_object (target). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls.")]
     public static async Task<CallToolResult> NetworkRead(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of dedicated network read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] NetworkOperationRequest[] operations)

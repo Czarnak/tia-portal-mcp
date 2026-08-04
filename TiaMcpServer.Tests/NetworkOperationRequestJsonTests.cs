@@ -67,15 +67,16 @@ public class NetworkOperationRequestJsonTests
     [Fact]
     public void UnknownNestedTargetField_IsRejected()
     {
+        // "xUnknownField" is not a property on NetworkObjectTarget and must be rejected.
         const string json = """
             {"operationId":"op1","operation":"configure_network_device",
-             "target":{"deviceName":"IO_Device_1","nodeId":"7","interfaceName":"PROFINET"}}
+             "target":{"deviceName":"IO_Device_1","nodeId":"7","xUnknownField":"PROFINET"}}
             """;
 
         var exception = Assert.Throws<JsonException>(
             () => JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions));
 
-        Assert.Contains("interfaceName", exception.Message);
+        Assert.Contains("xUnknownField", exception.Message);
     }
 
     [Theory]

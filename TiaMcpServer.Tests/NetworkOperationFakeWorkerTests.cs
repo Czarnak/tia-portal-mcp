@@ -52,7 +52,7 @@ public class NetworkOperationFakeWorkerTests
         OperationId = operationId,
         Operation = "configure_network_device",
         ProjectPath = Scenario,
-        Target = new NetworkDeviceTarget { DeviceName = "PLC_1", NodeId = "node-1" },
+        Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
         Changes = new NetworkDeviceChanges { IpAddress = ipAddress },
     };
 
@@ -188,7 +188,7 @@ public class NetworkOperationFakeWorkerTests
                 OperationId = "configure",
                 Operation = "configure_network_device",
                 ProjectPath = scenario,
-                Target = new NetworkDeviceTarget { DeviceName = "PC_1", NodeId = nodeId },
+                Target = new NetworkObjectTarget { DeviceName = "PC_1", NodeId = nodeId },
                 Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.55" },
             },
         };
@@ -226,7 +226,7 @@ public class NetworkOperationFakeWorkerTests
                     OperationId = "configure",
                     Operation = "configure_network_device",
                     ProjectPath = "network-ambiguous-node",
-                    Target = new NetworkDeviceTarget { DeviceName = "PC_1", NodeId = "dup-node" },
+                    Target = new NetworkObjectTarget { DeviceName = "PC_1", NodeId = "dup-node" },
                     Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.55" },
                 },
             });
@@ -263,7 +263,7 @@ public class NetworkOperationFakeWorkerTests
                     OperationId = "configure",
                     Operation = "configure_network_device",
                     ProjectPath = Scenario,
-                    Target = new NetworkDeviceTarget { DeviceName = "PLC_1", NodeId = "node-1" },
+                    Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
                     Changes = new NetworkDeviceChanges
                     {
                         Subnet = new NetworkSubnetTarget { SubnetId = "subnet-a" },

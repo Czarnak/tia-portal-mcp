@@ -98,7 +98,7 @@ public class NetworkToolsTests
         OperationId = id,
         Operation = "configure_network_device",
         ProjectPath = projectPath,
-        Target = new NetworkDeviceTarget { DeviceName = deviceName, NodeId = "node-1" },
+        Target = new NetworkObjectTarget { DeviceName = deviceName, NodeId = "node-1" },
         Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.10" },
     };
 

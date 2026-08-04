@@ -497,7 +497,7 @@ public class BatchOperationCatalogTests
     public void NetworkOperations_AreExposedOnlyByTheDedicatedCatalog()
     {
         Assert.Equal(
-            new[] { "read_hardware_config", "search_equipment_catalog" },
+            new[] { "read_hardware_config", "search_equipment_catalog", "list_network_objects", "inspect_network_object" },
             NetworkOperationCatalog.ReadOperationNames);
         Assert.Equal(
             new[] { "add_network_device", "configure_network_device" },
@@ -507,6 +507,8 @@ public class BatchOperationCatalogTests
         {
             "read_hardware_config",
             "search_equipment_catalog",
+            "list_network_objects",
+            "inspect_network_object",
             "add_network_device",
             "configure_network_device"
         })

@@ -19,15 +19,15 @@ public class NetworkOperationCatalogTests
     /// <summary>A minimal valid configure_network_device operation: exact target, one change.</summary>
     private static NetworkOperationRequest Configure(
         string id = "cfg",
-        string deviceName = "PLC_1",
-        string nodeId = "7",
+        string? deviceName = "PLC_1",
+        string? nodeId = "7",
         Action<NetworkOperationRequest>? adjust = null)
     {
         var request = new NetworkOperationRequest
         {
             OperationId = id,
             Operation = "configure_network_device",
-            Target = new NetworkDeviceTarget { DeviceName = deviceName, NodeId = nodeId },
+            Target = new NetworkObjectTarget { DeviceName = deviceName, NodeId = nodeId },
             Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.10" },
         };
         adjust?.Invoke(request);
@@ -42,7 +42,9 @@ public class NetworkOperationCatalogTests
             ["read_hardware_config"] = (NetworkOperationCategory.Read, Array.Empty<string>(), Array.Empty<string>()),
             ["search_equipment_catalog"] = (NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             ["add_network_device"] = (NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
-            ["configure_network_device"] = (NetworkOperationCategory.Write, new[] { "target", "changes" }, Array.Empty<string>())
+            ["configure_network_device"] = (NetworkOperationCategory.Write, new[] { "target", "changes" }, Array.Empty<string>()),
+            ["list_network_objects"] = (NetworkOperationCategory.Read, new[] { "objectKinds" }, new[] { "deviceName", "pageSize", "cursor" }),
+            ["inspect_network_object"] = (NetworkOperationCategory.Read, new[] { "target" }, new[] { "attributeNames" }),
         };
 
         var actual = NetworkOperationCatalog.All.ToDictionary(spec => spec.Name, StringComparer.Ordinal);
@@ -174,7 +176,7 @@ public class NetworkOperationCatalogTests
             {
                 operation.TypeIdentifier = "OrderNumber:6ES7";
                 operation.DeviceName = "PLC_1";
-                operation.Target = new NetworkDeviceTarget { DeviceName = "PLC_1", NodeId = "7" };
+                operation.Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "7" };
                 operation.Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.10" };
             }),
         });
@@ -194,7 +196,7 @@ public class NetworkOperationCatalogTests
         var result = NetworkOperationCatalog.ValidateWrite(new[]
         {
             Configure(adjust: operation =>
-                operation.Target = new NetworkDeviceTarget { DeviceName = deviceName, NodeId = nodeId }),
+                operation.Target = new NetworkObjectTarget { DeviceName = deviceName, NodeId = nodeId }),
         });
 
         Assert.False(result.IsValid);
