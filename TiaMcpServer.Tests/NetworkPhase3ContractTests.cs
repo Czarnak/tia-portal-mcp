@@ -289,14 +289,17 @@ public class NetworkPhase3ContractTests
     [InlineData("deviceItem", "deviceName")]
     [InlineData("deviceItem", "itemPath")]
     [InlineData("networkInterface", "deviceName")]
-    [InlineData("networkInterface", "interfaceName")]
+    [InlineData("networkInterface", "itemPath")]
     [InlineData("node", "deviceName")]
     [InlineData("node", "nodeId")]
     [InlineData("subnet", "subnetId")]
     [InlineData("ioSystem", "subnetId")]
     [InlineData("ioSystem", "number")]
     [InlineData("communicationConnection", "deviceName")]
+    [InlineData("communicationConnection", "itemPath")]
     [InlineData("communicationConnection", "connectionIndex")]
+    [InlineData("communicationConnection", "connectionType")]
+    [InlineData("communicationConnection", "localConnectionName")]
     public void InspectNetworkObject_MissingRequiredSelectorField_IsRejected(string kind, string missingField)
     {
         var target = Phase3Fixtures.ValidTarget(kind);
@@ -424,6 +427,7 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
+            ItemPath = new List<DeviceItemPathSegmentInfo> { new() { PositionNumber = 1 } },
             InterfaceName = "PROFINET interface_1",
         },
         NetworkObjectKinds.Node => new NetworkObjectSelectorInfo
@@ -447,7 +451,10 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
+            ItemPath = new List<DeviceItemPathSegmentInfo> { new() { PositionNumber = 1 } },
             ConnectionIndex = 0,
+            ConnectionType = "S7",
+            LocalConnectionName = "Connection_1",
         },
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
@@ -465,6 +472,7 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
+            ItemPath = new[] { new NetworkDeviceItemPathSegment { PositionNumber = 1 } },
             InterfaceName = "PROFINET interface_1",
         },
         NetworkObjectKinds.Node => new NetworkObjectTarget
@@ -488,7 +496,10 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
+            ItemPath = new[] { new NetworkDeviceItemPathSegment { PositionNumber = 1 } },
             ConnectionIndex = 0,
+            ConnectionType = "S7",
+            LocalConnectionName = "Connection_1",
         },
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };

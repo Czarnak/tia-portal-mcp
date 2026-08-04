@@ -72,11 +72,12 @@ public static class NetworkOperationCatalog
         new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
         {
             [NetworkObjectKinds.DeviceItem] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "itemPath" },
-            [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "interfaceName" },
+            [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "itemPath" },
             [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "nodeId" },
             [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal) { "subnetId" },
             [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal) { "subnetId", "number" },
-            [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "connectionIndex" },
+            [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal)
+                { "deviceName", "itemPath", "connectionIndex", "connectionType", "localConnectionName" },
         };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> SelectorApplicableFields =
@@ -85,7 +86,7 @@ public static class NetworkOperationCatalog
             [NetworkObjectKinds.DeviceItem] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "deviceName", "itemPath" },
             [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "interfaceName", "interfaceType", "interfaceOperatingMode" },
+                { "kind", "deviceName", "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode" },
             [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "deviceName", "nodeId" },
             [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal)
@@ -93,7 +94,7 @@ public static class NetworkOperationCatalog
             [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "subnetId", "number" },
             [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "connectionIndex", "connectionType", "localConnectionName", "localConnectionId" },
+                { "kind", "deviceName", "itemPath", "connectionIndex", "connectionType", "localConnectionName", "localConnectionId" },
         };
 
     /// <summary>All target fields that are inapplicable to configure_network_device (Phase 3 additions only).</summary>

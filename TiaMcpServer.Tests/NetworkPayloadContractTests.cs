@@ -193,15 +193,15 @@ public class NetworkPayloadContractTests
               "displayName": "X1",
               "evidence": {"kind":"node","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"messages":[]},
               "attributes": [
-                {"name":"nullAttribute","value":null},
-                {"name":"stringAttribute","value":"192.168.0.10"},
-                {"name":"booleanAttribute","value":"True"},
-                {"name":"integerAttribute","value":"1500"},
-                {"name":"numberAttribute","value":"3.14"},
-                {"name":"enumAttribute","value":"Ethernet"},
-                {"name":"unknownAttribute","value":null},
-                {"name":"readFailed","value":null},
-                {"name":"unrepresentable","value":null}
+                {"name":"nullAttribute","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":null},
+                {"name":"stringAttribute","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"192.168.0.10"}},
+                {"name":"booleanAttribute","source":"modeled","access":"readOnly","supportedTypes":["boolean"],"availability":"available","value":{"kind":"boolean","value":true}},
+                {"name":"integerAttribute","source":"modeled","access":"readOnly","supportedTypes":["integer"],"availability":"available","value":{"kind":"integer","value":1500}},
+                {"name":"numberAttribute","source":"modeled","access":"readOnly","supportedTypes":["number"],"availability":"available","value":{"kind":"number","value":3.14}},
+                {"name":"enumAttribute","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Siemens.TransferMode","symbol":"Ethernet","numericValue":1}}},
+                {"name":"unknownAttribute","source":null,"access":"unknown","supportedTypes":[],"availability":"unknownAttribute"},
+                {"name":"readFailed","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"readFailed","diagnostic":{"category":"read_error","message":"read failed"}},
+                {"name":"unrepresentable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"unrepresentable","diagnostic":{"category":"type_error","message":"cannot represent value"}}
               ],
               "messages": []
             }
@@ -215,7 +215,8 @@ public class NetworkPayloadContractTests
         Assert.Equal(9, attrs.GetArrayLength());
         Assert.Equal("nullAttribute", attrs[0].GetProperty("name").GetString());
         Assert.Equal(JsonValueKind.Null, attrs[0].GetProperty("value").ValueKind);
-        Assert.Equal("192.168.0.10", attrs[1].GetProperty("value").GetString());
+        // value is now a typed object {kind, value}; navigate into it to get the raw value.
+        Assert.Equal("192.168.0.10", attrs[1].GetProperty("value").GetProperty("value").GetString());
     }
 
     public static TheoryData<string, string> Phase3InvalidSuccessfulPayloads() => new()

@@ -354,9 +354,9 @@ public class NetworkOperationFakeWorkerTests
         var attrs = resultElement.GetProperty("attributes");
         Assert.Equal(9, attrs.GetArrayLength());
 
-        // Spot-check known attributes.
+        // Spot-check known attributes. value is a typed object {kind, value}; navigate into it.
         var stringAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "stringAttribute");
-        Assert.Equal("192.168.0.10", stringAttr.GetProperty("value").GetString());
+        Assert.Equal("192.168.0.10", stringAttr.GetProperty("value").GetProperty("value").GetString());
 
         var nullAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "nullAttribute");
         Assert.Equal(JsonValueKind.Null, nullAttr.GetProperty("value").ValueKind);

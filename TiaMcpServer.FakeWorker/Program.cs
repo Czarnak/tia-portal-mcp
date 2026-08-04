@@ -708,12 +708,10 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
     Messages = new List<string>(),
 };
 
-// Builds the Phase 3 inspect_network_object fixture: attributes covering the full value
-// vocabulary. `Value` is a nullable string on NetworkAttributeInfo, so boolean/integer/number/enum
-// values arrive as their string representations; `null` Value signals a present-but-valueless
-// attribute. The special names unknownAttribute, readFailed, and unrepresentable are included so
-// later normalization tasks can assert that callers can name any attribute and receive a stable
-// entry back (even when the worker cannot resolve or represent the value).
+// Builds the Phase 3 inspect_network_object fixture: attributes covering the full typed value
+// vocabulary. Each attribute carries source provenance, access classification, supportedTypes, and
+// availability. The special names unknownAttribute, readFailed, and unrepresentable exercise the
+// three non-available availability states so round-trip tests can assert all lifecycle paths.
 NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
 {
     Kind = NetworkObjectKinds.Node,
@@ -731,15 +729,90 @@ NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
     },
     Attributes = new List<NetworkAttributeInfo>
     {
-        new() { Name = "nullAttribute", Value = null },
-        new() { Name = "stringAttribute", Value = "192.168.0.10" },
-        new() { Name = "booleanAttribute", Value = "True" },
-        new() { Name = "integerAttribute", Value = "1500" },
-        new() { Name = "numberAttribute", Value = "3.14" },
-        new() { Name = "enumAttribute", Value = "Ethernet" },
-        new() { Name = "unknownAttribute", Value = null },
-        new() { Name = "readFailed", Value = null },
-        new() { Name = "unrepresentable", Value = null },
+        new()
+        {
+            Name = "nullAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string>(),
+            Availability = "available",
+            Value = null,
+        },
+        new()
+        {
+            Name = "stringAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "string" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "string", Value = "192.168.0.10" },
+        },
+        new()
+        {
+            Name = "booleanAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "boolean" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "boolean", Value = true },
+        },
+        new()
+        {
+            Name = "integerAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "integer" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "integer", Value = 1500L },
+        },
+        new()
+        {
+            Name = "numberAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "number" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "number", Value = 3.14 },
+        },
+        new()
+        {
+            Name = "enumAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "enum" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo
+            {
+                Kind = "enum",
+                Value = new NetworkEnumValueInfo { TypeName = "MediaType", Symbol = "Ethernet", NumericValue = 1 },
+            },
+        },
+        new()
+        {
+            Name = "unknownAttribute",
+            Source = null,
+            Access = "unknown",
+            SupportedTypes = new List<string>(),
+            Availability = "unknownAttribute",
+        },
+        new()
+        {
+            Name = "readFailed",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string>(),
+            Availability = "readFailed",
+            Diagnostic = new NetworkAttributeDiagnosticInfo { Category = "read_error", Message = "read failed" },
+        },
+        new()
+        {
+            Name = "unrepresentable",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string>(),
+            Availability = "unrepresentable",
+            Diagnostic = new NetworkAttributeDiagnosticInfo { Category = "type_error", Message = "cannot represent value" },
+        },
     },
     Messages = new List<string>(),
 };

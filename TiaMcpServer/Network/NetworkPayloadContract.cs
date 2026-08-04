@@ -218,6 +218,22 @@ public static class NetworkPayloadContract
         }
     }
 
+    private static readonly IReadOnlySet<string> ValidAttributeAccess =
+        new HashSet<string>(StringComparer.Ordinal)
+            { "none", "readOnly", "writeOnly", "readWrite", "unknown" };
+
+    private static readonly IReadOnlySet<string> ValidAttributeAvailability =
+        new HashSet<string>(StringComparer.Ordinal)
+            { "available", "notApplicable", "unsupported", "unreadable", "readFailed", "unrepresentable", "unknownAttribute" };
+
+    private static readonly IReadOnlySet<string> ValidAttributeSource =
+        new HashSet<string>(StringComparer.Ordinal)
+            { "modeled", "dynamic", "modeledAndDynamic" };
+
+    private static readonly IReadOnlySet<string> ValidAttributeValueKind =
+        new HashSet<string>(StringComparer.Ordinal)
+            { "string", "boolean", "integer", "number", "enum" };
+
     private static void ValidateObjectInspection(NetworkObjectInspectionInfo value)
     {
         RequireNotNull(value.Attributes, "attributes");
@@ -233,10 +249,56 @@ public static class NetworkPayloadContract
         foreach (var attr in value.Attributes!)
         {
             RequireNotNull(attr, "attributes[]");
-            if (attr!.Name is not null && !seenNames.Add(attr.Name))
+            ValidateAttribute(attr!);
+            if (attr.Name is not null && !seenNames.Add(attr.Name))
             {
                 throw new JsonException($"Duplicate attribute name '{attr.Name}' in 'attributes'.");
             }
+        }
+    }
+
+    private static void ValidateAttribute(NetworkAttributeInfo attr)
+    {
+        var prefix = attr.Name is not null ? $"attributes['{attr.Name}']" : "attributes[]";
+
+        if (!ValidAttributeAccess.Contains(attr.Access))
+        {
+            throw new JsonException(
+                $"'{prefix}.access' value '{attr.Access}' is not valid. "
+                + $"Valid values: {string.Join(", ", ValidAttributeAccess)}.");
+        }
+
+        if (!ValidAttributeAvailability.Contains(attr.Availability))
+        {
+            throw new JsonException(
+                $"'{prefix}.availability' value '{attr.Availability}' is not valid. "
+                + $"Valid values: {string.Join(", ", ValidAttributeAvailability)}.");
+        }
+
+        var isUnknownAttribute = string.Equals(attr.Availability, "unknownAttribute", StringComparison.Ordinal);
+        if (isUnknownAttribute)
+        {
+            if (attr.Source is not null)
+            {
+                throw new JsonException(
+                    $"'{prefix}.source' must be null when availability is 'unknownAttribute' (received '{attr.Source}').");
+            }
+        }
+        else
+        {
+            if (attr.Source is null || !ValidAttributeSource.Contains(attr.Source))
+            {
+                throw new JsonException(
+                    $"'{prefix}.source' value '{attr.Source ?? "null"}' is not valid when availability is '{attr.Availability}'. "
+                    + $"Valid values: {string.Join(", ", ValidAttributeSource)}.");
+            }
+        }
+
+        if (attr.Value is { Kind: var kind } && !ValidAttributeValueKind.Contains(kind))
+        {
+            throw new JsonException(
+                $"'{prefix}.value.kind' value '{kind}' is not valid. "
+                + $"Valid values: {string.Join(", ", ValidAttributeValueKind)}.");
         }
     }
 
