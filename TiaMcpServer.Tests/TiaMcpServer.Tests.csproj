@@ -160,5 +160,9 @@
       Link="Linked\Openness\BlockSourceWriteWarnings.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkSelectorFactory.cs"
       Link="Network\NetworkSelectorFactory.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectCursorCodec.cs"
+      Link="Network\NetworkObjectCursorCodec.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectPageBuilder.cs"
+      Link="Network\NetworkObjectPageBuilder.cs" />
   </ItemGroup>
 </Project>

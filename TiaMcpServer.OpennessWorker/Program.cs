@@ -109,6 +109,7 @@ internal static class Program
             {
                 "browse_project_tree" => BrowseProjectTree(request),
                 "read_hardware_config" => ReadHardwareConfig(request),
+                "list_network_objects" => ListNetworkObjects(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
                 "configure_network_device" => ConfigureNetworkDevice(request),
@@ -150,6 +151,10 @@ internal static class Program
         {
             return Failure(WorkerFailureCategories.ValidationError, $"Worker request was invalid JSON: {ex.Message}");
         }
+        catch (NetworkCursorException ex)
+        {
+            return Failure(ex.Category, ex.Message);
+        }
         catch (WorkerOperationException ex)
         {
             return Failure(ex.FailureCategory, ex.Message, ex.Warnings);
@@ -175,6 +180,50 @@ internal static class Program
     private static WorkerResponse ReadHardwareConfig(WorkerRequest request)
     {
         return WithProject(request, project => Success(HardwareConfigReader.Read(project)));
+    }
+
+    private static WorkerResponse ListNetworkObjects(WorkerRequest request)
+    {
+        if (request.NetworkObjectKinds is null || request.NetworkObjectKinds.Count == 0)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectKinds is required.");
+        }
+
+        if (request.NetworkObjectKinds.Any(kind => !NetworkObjectKinds.All.Contains(kind))
+            || request.NetworkObjectKinds.Distinct(StringComparer.Ordinal).Count() != request.NetworkObjectKinds.Count)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectKinds is invalid.");
+        }
+
+        if (request.NetworkObjectDeviceName is not null && string.IsNullOrWhiteSpace(request.NetworkObjectDeviceName))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectDeviceName must not be blank.");
+        }
+
+        int pageSize;
+        try
+        {
+            pageSize = NetworkObjectPageBuilder.ResolvePageSize(request.NetworkObjectPageSize);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectPageSize must be between 1 and 200.");
+        }
+
+        return WithProject(request, project =>
+        {
+            var orderedItems = NetworkObjectIndexReader.Read(project, request.NetworkObjectKinds, request.NetworkObjectDeviceName);
+            var queryHash = NetworkObjectCursorCodec.CreateQueryHash(request.NetworkObjectKinds, request.NetworkObjectDeviceName);
+            var snapshotHash = NetworkObjectCursorCodec.CreateSnapshotHash(orderedItems);
+            var offset = request.NetworkObjectCursor is null
+                ? 0
+                : NetworkObjectCursorCodec.Decode(
+                    request.NetworkObjectCursor,
+                    queryHash,
+                    snapshotHash,
+                    orderedItems.Count).Offset;
+            return Success(NetworkObjectPageBuilder.Build(orderedItems, pageSize, offset, queryHash, snapshotHash));
+        });
     }
 
     private static WorkerResponse SearchEquipmentCatalog(WorkerRequest request)
