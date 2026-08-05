@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
@@ -139,7 +140,7 @@ public class NetworkPayloadContractTests
         JsonValueKind.Object)]
     [InlineData(
         "inspect_network_object",
-        """{"kind":"node","displayName":"X1","evidence":null,"attributes":[],"messages":[]}""",
+        """{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"nodeName":"X1","nodeType":"Ethernet","deviceItemPath":[]},"attributes":[],"messages":[]}""",
         JsonValueKind.Object)]
     public void Project_DecodesPhase3OperationsIntoTheirResultTypes(
         string operation,
@@ -191,9 +192,28 @@ public class NetworkPayloadContractTests
     {
         var payload = """
             {
-              "kind": "node",
-              "displayName": "X1",
-              "evidence": {"kind":"node","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"messages":[]},
+              "target": {"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},
+              "evidence": {
+                "name": "X1",
+                "typeIdentifier": "OrderNumber:TEST",
+                "positionNumber": 1,
+                "address": "192.168.0.10",
+                "deviceItemPath": ["PLC_1", "X1"],
+                "interfaceName": "PROFINET interface_1",
+                "interfaceType": "PROFINET",
+                "interfaceOperatingMode": "IoController",
+                "nodeName": "X1",
+                "nodeType": "Ethernet",
+                "subnetName": "PN/IE_1",
+                "networkType": "Ethernet",
+                "ioSystemName": "IO system_1",
+                "ioControllerName": "PLC_1",
+                "connectionIsValid": true,
+                "localEndpointName": "PLC_1.X1",
+                "partnerEndpointName": "ET200SP_1.X1",
+                "localSubnetName": "PN/IE_1",
+                "partnerSubnetName": "PN/IE_1"
+              },
               "attributes": [
                 {"name":"nullAttribute","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":null},
                 {"name":"stringAttribute","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"192.168.0.10"}},
@@ -201,7 +221,7 @@ public class NetworkPayloadContractTests
                 {"name":"integerAttribute","source":"modeled","access":"readOnly","supportedTypes":["integer"],"availability":"available","value":{"kind":"integer","value":1500}},
                 {"name":"numberAttribute","source":"modeled","access":"readOnly","supportedTypes":["number"],"availability":"available","value":{"kind":"number","value":3.14}},
                 {"name":"enumAttribute","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Siemens.TransferMode","symbol":"Ethernet","numericValue":1}}},
-                {"name":"unknownAttribute","source":null,"access":"unknown","supportedTypes":[],"availability":"unknownAttribute"},
+                {"name":"unknownAttribute","source":null,"access":"unknown","supportedTypes":[],"availability":"unknownAttribute","diagnostic":{"category":"unknown_attribute","message":"Attribute was not recognized."}},
                 {"name":"readFailed","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"readFailed","diagnostic":{"category":"read_error","message":"read failed"}},
                 {"name":"unrepresentable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"unrepresentable","diagnostic":{"category":"type_error","message":"cannot represent value"}}
               ],
@@ -213,7 +233,10 @@ public class NetworkPayloadContractTests
 
         Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
         Assert.NotNull(item.Result);
-        var attrs = item.Result!.Value.GetProperty("attributes");
+        Assert.Equal("node", item.Result!.Value.GetProperty("target").GetProperty("kind").GetString());
+        Assert.Equal("X1", item.Result.Value.GetProperty("evidence").GetProperty("nodeName").GetString());
+        Assert.True(item.Result.Value.GetProperty("evidence").GetProperty("connectionIsValid").GetBoolean());
+        var attrs = item.Result.Value.GetProperty("attributes");
         Assert.Equal(9, attrs.GetArrayLength());
         Assert.Equal("nullAttribute", attrs[0].GetProperty("name").GetString());
         Assert.Equal(JsonValueKind.Null, attrs[0].GetProperty("value").ValueKind);
@@ -247,14 +270,41 @@ public class NetworkPayloadContractTests
         // list_network_objects: selector.kind disagrees with summary kind.
         { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selector":{"kind":"{{{LeakToken}}}","deviceName":"PLC","nodeId":"n1"}}],"messages":[]}""" },
 
-        // inspect_network_object: unknown kind.
-        { "inspect_network_object", $$$"""{"kind":"{{{LeakToken}}}","displayName":"X1","attributes":[],"messages":[]}""" },
+        // inspect_network_object: the alternate public shape is not retained as an alias.
+        { "inspect_network_object", $$$"""{"kind":"node","displayName":"{{{LeakToken}}}","evidence":{"kind":"node","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"messages":[]},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: unknown target kind.
+        { "inspect_network_object", $$$"""{"target":{"kind":"{{{LeakToken}}}"},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: target is missing a field required by its selector kind.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"{{{LeakToken}}}"},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: target carries a selector field forbidden for its kind.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1","subnetId":"{{{LeakToken}}}"},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: explicit null defeats the typed evidence collection default.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"name":"{{{LeakToken}}}","deviceItemPath":null},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: a typed evidence boolean cannot be string-shaped.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[],"connectionIsValid":"{{{LeakToken}}}"},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: typed evidence paths cannot contain null entries.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"name":"{{{LeakToken}}}","deviceItemPath":[null]},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: value discriminator and primitive shape disagree.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"flag","source":"modeled","access":"readOnly","supportedTypes":["boolean"],"availability":"available","value":{"kind":"boolean","value":"{{{LeakToken}}}"}}],"messages":[]}""" },
+
+        // inspect_network_object: enum payload must have the exact typed enum shape.
+        { "inspect_network_object", """{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"mode","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Mode","symbol":"payload-leak-canary","numericValue":"1"}}}],"messages":[]}""" },
+
+        // inspect_network_object: unknown attributes require their exact fail-closed tuple.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"{{{LeakToken}}}","source":null,"access":"unknown","supportedTypes":[],"availability":"unknownAttribute"}],"messages":[]}""" },
 
         // inspect_network_object: duplicate attribute name.
-        { "inspect_network_object", $$$"""{"kind":"node","displayName":"X1","attributes":[{"name":"IpAddress","value":"1.2.3.4"},{"name":"IpAddress","value":"{{{LeakToken}}}"}],"messages":[]}""" },
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"IpAddress","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"1.2.3.4"}},{"name":"IpAddress","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"{{{LeakToken}}}"}}],"messages":[]}""" },
 
         // inspect_network_object: null attributes collection.
-        { "inspect_network_object", $$$"""{"kind":"node","displayName":"{{{LeakToken}}}","attributes":null,"messages":[]}""" },
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"name":"{{{LeakToken}}}","deviceItemPath":[]},"attributes":null,"messages":[]}""" },
 
         // Wrong root kind for list_network_objects (array instead of object).
         { "list_network_objects", $$$"""["{{{LeakToken}}}"]""" },
@@ -274,6 +324,7 @@ public class NetworkPayloadContractTests
         Assert.NotNull(item.Failure);
         Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
         Assert.DoesNotContain(LeakToken, item.Failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(LeakToken, CanonicalJson.Serialize(item), StringComparison.Ordinal);
         Assert.Contains(operation, item.Failure.Message, StringComparison.Ordinal);
     }
 

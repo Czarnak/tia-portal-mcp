@@ -55,6 +55,58 @@ public class NetworkPhase3ContractTests
         return req;
     }
 
+    [Fact]
+    public void InspectionResultDtos_MatchLockedPublicContract()
+    {
+        Assert.True(typeof(NetworkObjectInspectionInfo).IsSealed);
+        Assert.Equal(
+            new[] { "Attributes", "Evidence", "Messages", "Target" },
+            typeof(NetworkObjectInspectionInfo)
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+
+        Assert.Equal(typeof(NetworkObjectSelectorInfo),
+            typeof(NetworkObjectInspectionInfo).GetProperty("Target")!.PropertyType);
+        Assert.Equal(typeof(NetworkObjectEvidenceInfo),
+            typeof(NetworkObjectInspectionInfo).GetProperty("Evidence")!.PropertyType);
+
+        Assert.True(typeof(NetworkObjectEvidenceInfo).IsSealed);
+        Assert.Equal(
+            new[]
+            {
+                "Address",
+                "ConnectionIsValid",
+                "DeviceItemPath",
+                "InterfaceName",
+                "InterfaceOperatingMode",
+                "InterfaceType",
+                "IoControllerName",
+                "IoSystemName",
+                "LocalEndpointName",
+                "LocalSubnetName",
+                "Name",
+                "NetworkType",
+                "NodeName",
+                "NodeType",
+                "PartnerEndpointName",
+                "PartnerSubnetName",
+                "PositionNumber",
+                "SubnetName",
+                "TypeIdentifier",
+            },
+            typeof(NetworkObjectEvidenceInfo)
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(typeof(int?),
+            typeof(NetworkObjectEvidenceInfo).GetProperty("PositionNumber")!.PropertyType);
+        Assert.Equal(typeof(bool?),
+            typeof(NetworkObjectEvidenceInfo).GetProperty("ConnectionIsValid")!.PropertyType);
+        Assert.Equal(typeof(List<string>),
+            typeof(NetworkObjectEvidenceInfo).GetProperty("DeviceItemPath")!.PropertyType);
+    }
+
     // ---------------------------------------------------------------------------
     // Selector round-trip: every kind serialises to JSON that NetworkObjectTarget
     // accepts without unmapped-member rejection.

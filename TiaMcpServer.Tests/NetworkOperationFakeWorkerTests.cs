@@ -346,10 +346,17 @@ public class NetworkOperationFakeWorkerTests
 
         var resultElement = operation.GetProperty("result");
         Assert.Equal(JsonValueKind.Object, resultElement.ValueKind);
-        Assert.Equal("node", resultElement.GetProperty("kind").GetString());
+        var target = resultElement.GetProperty("target");
+        Assert.Equal("node", target.GetProperty("kind").GetString());
+        Assert.Equal("PLC_1", target.GetProperty("deviceName").GetString());
+        Assert.Equal("node-1", target.GetProperty("nodeId").GetString());
 
         // Evidence is a real object (not null, not a nested string).
-        Assert.Equal(JsonValueKind.Object, resultElement.GetProperty("evidence").ValueKind);
+        var evidence = resultElement.GetProperty("evidence");
+        Assert.Equal(JsonValueKind.Object, evidence.ValueKind);
+        Assert.Equal("X1", evidence.GetProperty("nodeName").GetString());
+        Assert.Equal("Ethernet", evidence.GetProperty("nodeType").GetString());
+        Assert.Equal(JsonValueKind.Array, evidence.GetProperty("deviceItemPath").ValueKind);
 
         var attrs = resultElement.GetProperty("attributes");
         Assert.Equal(9, attrs.GetArrayLength());
@@ -360,6 +367,11 @@ public class NetworkOperationFakeWorkerTests
 
         var nullAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "nullAttribute");
         Assert.Equal(JsonValueKind.Null, nullAttr.GetProperty("value").ValueKind);
+
+        var unknownAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "unknownAttribute");
+        Assert.Equal(
+            "unknown_attribute",
+            unknownAttr.GetProperty("diagnostic").GetProperty("category").GetString());
     }
 
     [Theory]

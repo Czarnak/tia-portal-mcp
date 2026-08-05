@@ -715,18 +715,33 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
 // three non-available availability states so round-trip tests can assert all lifecycle paths.
 NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
 {
-    Kind = NetworkObjectKinds.Node,
-    DisplayName = "X1",
-    Evidence = new NetworkObjectEvidenceInfo
+    Target = new NetworkObjectSelectorInfo
     {
         Kind = NetworkObjectKinds.Node,
-        Selector = new NetworkObjectSelectorInfo
-        {
-            Kind = NetworkObjectKinds.Node,
-            DeviceName = "PLC_1",
-            NodeId = "node-1",
-        },
-        Messages = new List<string>(),
+        DeviceName = "PLC_1",
+        NodeId = "node-1",
+    },
+    Evidence = new NetworkObjectEvidenceInfo
+    {
+        Name = "X1",
+        TypeIdentifier = "OrderNumber:TEST",
+        PositionNumber = 1,
+        Address = "192.168.0.10",
+        DeviceItemPath = new List<string> { "PLC_1", "X1" },
+        InterfaceName = "PROFINET interface_1",
+        InterfaceType = "PROFINET",
+        InterfaceOperatingMode = "IoController",
+        NodeName = "X1",
+        NodeType = "Ethernet",
+        SubnetName = "PN/IE_1",
+        NetworkType = "Ethernet",
+        IoSystemName = "IO system_1",
+        IoControllerName = "PLC_1",
+        ConnectionIsValid = true,
+        LocalEndpointName = "PLC_1.X1",
+        PartnerEndpointName = "ET200SP_1.X1",
+        LocalSubnetName = "PN/IE_1",
+        PartnerSubnetName = "PN/IE_1",
     },
     Attributes = new List<NetworkAttributeInfo>
     {
@@ -795,6 +810,11 @@ NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
             Access = "unknown",
             SupportedTypes = new List<string>(),
             Availability = "unknownAttribute",
+            Diagnostic = new NetworkAttributeDiagnosticInfo
+            {
+                Category = "unknown_attribute",
+                Message = "Attribute was not recognized.",
+            },
         },
         new()
         {

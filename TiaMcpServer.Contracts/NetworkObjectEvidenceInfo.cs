@@ -6,16 +6,25 @@ namespace TiaMcpServer.Contracts;
 /// Evidence about a network object, captured at read time so callers can correlate the result
 /// with the selector that produced it without re-reading the hardware configuration.
 /// </summary>
-public class NetworkObjectEvidenceInfo
+public sealed class NetworkObjectEvidenceInfo
 {
-    /// <summary>Kind of the resolved network object (one of <see cref="NetworkObjectKinds"/>).</summary>
-    public string? Kind { get; set; }
-
-    /// <summary>Selector that was used to locate this object.</summary>
-    public NetworkObjectSelectorInfo? Selector { get; set; }
-
-    /// <summary>
-    /// Non-fatal notes captured while reading this object (e.g. properties that could not be resolved).
-    /// </summary>
-    public List<string> Messages { get; set; } = new List<string>();
+    public string? Name { get; set; }
+    public string? TypeIdentifier { get; set; }
+    public int? PositionNumber { get; set; }
+    public string? Address { get; set; }
+    public List<string> DeviceItemPath { get; set; } = new List<string>();
+    public string? InterfaceName { get; set; }
+    public string? InterfaceType { get; set; }
+    public string? InterfaceOperatingMode { get; set; }
+    public string? NodeName { get; set; }
+    public string? NodeType { get; set; }
+    public string? SubnetName { get; set; }
+    public string? NetworkType { get; set; }
+    public string? IoSystemName { get; set; }
+    public string? IoControllerName { get; set; }
+    public bool? ConnectionIsValid { get; set; }
+    public string? LocalEndpointName { get; set; }
+    public string? PartnerEndpointName { get; set; }
+    public string? LocalSubnetName { get; set; }
+    public string? PartnerSubnetName { get; set; }
 }
