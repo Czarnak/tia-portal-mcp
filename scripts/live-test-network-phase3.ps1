@@ -41,13 +41,13 @@ $script:ObjectKinds = @(
 )
 
 if ($null -eq $HostArguments -or $HostArguments.Count -eq 0) {
-    $hostProject = Join-Path $script:RepositoryRoot 'TiaMcpServer'
+    $hostDll = Join-Path $script:RepositoryRoot 'TiaMcpServer'
+    $hostDll = Join-Path $hostDll 'bin'
+    $hostDll = Join-Path $hostDll 'Debug'
+    $hostDll = Join-Path $hostDll 'net8.0'
+    $hostDll = Join-Path $hostDll 'TiaMcpServer.dll'
     $HostArguments = @(
-        'run',
-        '--no-build',
-        '--project',
-        $hostProject,
-        '--',
+        $hostDll,
         '--access-mode',
         'read-only'
     )
@@ -308,6 +308,61 @@ function Compare-CanonicalText {
     }
 }
 
+function Resolve-ExactFilePath {
+    param([string] $Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not [IO.Path]::IsPathFullyQualified($Path)) {
+        return $null
+    }
+    try {
+        $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+        if ($resolved.Provider.Name -ne 'FileSystem' -or -not (Test-Path -LiteralPath $resolved.ProviderPath -PathType Leaf)) {
+            return $null
+        }
+        $resolved.ProviderPath
+    }
+    catch {
+        $null
+    }
+}
+
+function Resolve-LaunchedHostArtifact {
+    param(
+        [Parameter(Mandatory)] [string] $Executable,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $Arguments
+    )
+
+    $executableName = [IO.Path]::GetFileName($Executable)
+    if (-not [string]::Equals($executableName, 'dotnet', [StringComparison]::OrdinalIgnoreCase) `
+        -and -not [string]::Equals($executableName, 'dotnet.exe', [StringComparison]::OrdinalIgnoreCase)) {
+        return $null
+    }
+    if ($Arguments.Count -lt 1) {
+        return $null
+    }
+    $candidate = [string] $Arguments[0]
+    if (-not [string]::Equals(
+            [IO.Path]::GetFileName($candidate),
+            'TiaMcpServer.dll',
+            [StringComparison]::OrdinalIgnoreCase)) {
+        return $null
+    }
+    Resolve-ExactFilePath -Path $candidate
+}
+
+function Test-ExactArtifactBinding {
+    param(
+        [string] $Expected,
+        [string] $Actual
+    )
+
+    $expectedPath = Resolve-ExactFilePath -Path $Expected
+    $actualPath = Resolve-ExactFilePath -Path $Actual
+    -not [string]::IsNullOrWhiteSpace($expectedPath) `
+        -and -not [string]::IsNullOrWhiteSpace($actualPath) `
+        -and [string]::Equals($expectedPath, $actualPath, [StringComparison]::OrdinalIgnoreCase)
+}
+
 function Get-AssemblySourceRevision {
     param([string] $Path)
 
@@ -336,30 +391,46 @@ function Get-ExecutionProvenance {
         $sourceTreeClean = $false
     }
 
-    $hostArtifact = Join-Path $script:RepositoryRoot 'TiaMcpServer'
-    $hostArtifact = Join-Path $hostArtifact 'bin'
-    $hostArtifact = Join-Path $hostArtifact 'Debug'
-    $hostArtifact = Join-Path $hostArtifact 'net8.0'
-    $hostArtifact = Join-Path $hostArtifact 'TiaMcpServer.dll'
-    $hostExecutableSha256 = if (Test-Path -LiteralPath $hostArtifact) {
+    $hostArtifact = Resolve-LaunchedHostArtifact `
+        -Executable $HostExecutable `
+        -Arguments $HostArguments
+    $expectedWorkerExecutable = if ([string]::IsNullOrWhiteSpace($hostArtifact)) {
+        $null
+    }
+    else {
+        $workerDirectory = Join-Path (Split-Path -Parent $hostArtifact) 'openness-worker'
+        Join-Path $workerDirectory 'TiaMcpServer.OpennessWorker.exe'
+    }
+    $resolvedWorkerExecutable = Resolve-ExactFilePath -Path $WorkerExecutable
+    $workerBindingVerified = Test-ExactArtifactBinding `
+        -Expected $expectedWorkerExecutable `
+        -Actual $WorkerExecutable
+    $hostExecutableSha256 = if (-not [string]::IsNullOrWhiteSpace($hostArtifact)) {
         (Get-FileHash -LiteralPath $hostArtifact -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     else { $null }
-    $workerExecutableSha256 = if (Test-Path -LiteralPath $WorkerExecutable) {
-        (Get-FileHash -LiteralPath $WorkerExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
+    $workerExecutableSha256 = if (-not [string]::IsNullOrWhiteSpace($resolvedWorkerExecutable)) {
+        (Get-FileHash -LiteralPath $resolvedWorkerExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     else { $null }
     $hostSourceRevision = Get-AssemblySourceRevision -Path $hostArtifact
-    $workerSourceRevision = Get-AssemblySourceRevision -Path $WorkerExecutable
+    $workerSourceRevision = Get-AssemblySourceRevision -Path $resolvedWorkerExecutable
     $binariesMatchSource = -not [string]::IsNullOrWhiteSpace($sourceRevision) `
+        -and -not [string]::IsNullOrWhiteSpace($hostArtifact) `
+        -and $workerBindingVerified `
         -and $hostSourceRevision -eq $sourceRevision `
         -and $workerSourceRevision -eq $sourceRevision
 
     [ordered]@{
         sourceRevision = $sourceRevision
         sourceTreeClean = $sourceTreeClean
+        hostLaunchExecutable = $HostExecutable
+        hostLaunchArguments = $HostArguments
         hostArtifact = $hostArtifact
-        workerExecutable = $WorkerExecutable
+        hostArtifactMapped = (-not [string]::IsNullOrWhiteSpace($hostArtifact))
+        expectedWorkerExecutable = $expectedWorkerExecutable
+        workerExecutable = $resolvedWorkerExecutable
+        workerBindingVerified = $workerBindingVerified
         hostExecutableSha256 = $hostExecutableSha256
         workerExecutableSha256 = $workerExecutableSha256
         hostSourceRevision = $hostSourceRevision

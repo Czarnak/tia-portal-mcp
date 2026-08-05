@@ -166,6 +166,10 @@ public class NetworkPhase3LiveHarnessContractTests
             "executionProvenance",
             "sourceRevision",
             "sourceTreeClean",
+            "Resolve-LaunchedHostArtifact",
+            "hostArtifactMapped",
+            "expectedWorkerExecutable",
+            "workerBindingVerified",
             "hostExecutableSha256",
             "workerExecutableSha256",
             "hostSourceRevision",
@@ -178,6 +182,47 @@ public class NetworkPhase3LiveHarnessContractTests
         }
 
         Assert.DoesNotContain("LastWriteTime", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HostArtifactResolver_MapsOnlyExactDotnetDllLaunchAndWorkerBinding()
+    {
+        var fixtureRoot = Path.Combine(
+            Path.GetTempPath(),
+            $"network-live-harness-provenance-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(fixtureRoot);
+        var hostDll = Path.Combine(fixtureRoot, "TiaMcpServer.dll");
+        var workerDirectory = Path.Combine(fixtureRoot, "openness-worker");
+        Directory.CreateDirectory(workerDirectory);
+        var workerExecutable = Path.Combine(workerDirectory, "TiaMcpServer.OpennessWorker.exe");
+        var differentWorker = Path.Combine(fixtureRoot, "different-worker.exe");
+        File.WriteAllBytes(hostDll, Array.Empty<byte>());
+        File.WriteAllBytes(workerExecutable, Array.Empty<byte>());
+        File.WriteAllBytes(differentWorker, Array.Empty<byte>());
+
+        try
+        {
+            var result = RunHostArtifactResolverSmokeTest(hostDll, workerExecutable, differentWorker);
+
+            Assert.True(
+                result.ExitCode == 0,
+                $"Host artifact resolver failed with exit code {result.ExitCode}.{Environment.NewLine}" +
+                $"stdout:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}" +
+                $"stderr:{Environment.NewLine}{result.StandardError}");
+            using var document = JsonDocument.Parse(result.StandardOutput);
+            var root = document.RootElement;
+            Assert.Equal(hostDll, root.GetProperty("dotnetDll").GetString());
+            Assert.Equal(JsonValueKind.Null, root.GetProperty("dotnetRun").ValueKind);
+            Assert.Equal(JsonValueKind.Null, root.GetProperty("ambiguousHostArguments").ValueKind);
+            Assert.Equal(JsonValueKind.Null, root.GetProperty("customLauncher").ValueKind);
+            Assert.True(root.GetProperty("matchingWorkerBinding").GetBoolean());
+            Assert.False(root.GetProperty("differentWorkerBinding").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, root.GetProperty("relativeWorker").ValueKind);
+        }
+        finally
+        {
+            Directory.Delete(fixtureRoot, recursive: true);
+        }
     }
 
     [Fact]
@@ -446,6 +491,59 @@ public class NetworkPhase3LiveHarnessContractTests
         }
     }
 
+    private static ScriptResult RunHostArtifactResolverSmokeTest(
+        string hostDll,
+        string workerExecutable,
+        string differentWorker)
+    {
+        var smokeScriptPath = Path.Combine(
+            Path.GetTempPath(),
+            $"network-live-harness-provenance-{Guid.NewGuid():N}.ps1");
+        File.WriteAllText(smokeScriptPath, HostArtifactResolverSmokeScript, new UTF8Encoding(false));
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(smokeScriptPath);
+            startInfo.ArgumentList.Add("-HarnessPath");
+            startInfo.ArgumentList.Add(ScriptPath);
+            startInfo.ArgumentList.Add("-HostDll");
+            startInfo.ArgumentList.Add(hostDll);
+            startInfo.ArgumentList.Add("-WorkerExecutable");
+            startInfo.ArgumentList.Add(workerExecutable);
+            startInfo.ArgumentList.Add("-DifferentWorker");
+            startInfo.ArgumentList.Add(differentWorker);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start pwsh process.");
+            var standardOutput = process.StandardOutput.ReadToEndAsync();
+            var standardError = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill(entireProcessTree: true);
+                throw new TimeoutException("PowerShell host artifact resolver smoke test did not exit.");
+            }
+
+            return new ScriptResult(
+                process.ExitCode,
+                standardOutput.GetAwaiter().GetResult(),
+                standardError.GetAwaiter().GetResult());
+        }
+        finally
+        {
+            File.Delete(smokeScriptPath);
+        }
+    }
+
     private static string ReadRepositoryFile(params string[] segments)
     {
         var path = segments.Aggregate(RepositoryRoot, Path.Combine);
@@ -549,6 +647,66 @@ public class NetworkPhase3LiveHarnessContractTests
 
         Compare-CanonicalText -First '{"a":1}' -Second '{"a":2}' |
             ConvertTo-Json -Compress -Depth 20
+        """;
+
+    private const string HostArtifactResolverSmokeScript = """
+        param(
+            [Parameter(Mandatory)] [string] $HarnessPath,
+            [Parameter(Mandatory)] [string] $HostDll,
+            [Parameter(Mandatory)] [string] $WorkerExecutable,
+            [Parameter(Mandatory)] [string] $DifferentWorker
+        )
+
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $HarnessPath,
+            [ref] $tokens,
+            [ref] $parseErrors)
+        if ($parseErrors.Count -ne 0) {
+            throw "Harness parsing failed: $($parseErrors[0].Message)"
+        }
+
+        foreach ($functionName in @(
+                'Resolve-ExactFilePath',
+                'Resolve-LaunchedHostArtifact',
+                'Test-ExactArtifactBinding')) {
+            $functionAst = $ast.Find({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] `
+                        -and $node.Name -eq $functionName
+                }, $true)
+            if ($null -eq $functionAst) {
+                throw "Function '$functionName' was not found in '$HarnessPath'."
+            }
+            Invoke-Expression $functionAst.Extent.Text
+        }
+
+        [ordered]@{
+            dotnetDll = Resolve-LaunchedHostArtifact `
+                -Executable 'dotnet' `
+                -Arguments @($HostDll, '--access-mode', 'read-only')
+            dotnetRun = Resolve-LaunchedHostArtifact `
+                -Executable 'dotnet' `
+                -Arguments @('run', '--no-build', '--project', (Split-Path -Parent $HostDll))
+            ambiguousHostArguments = Resolve-LaunchedHostArtifact `
+                -Executable 'dotnet' `
+                -Arguments @('exec', '--runtimeconfig', 'runtimeconfig.json', $HostDll)
+            customLauncher = Resolve-LaunchedHostArtifact `
+                -Executable $WorkerExecutable `
+                -Arguments @($HostDll)
+            matchingWorkerBinding = Test-ExactArtifactBinding `
+                -Expected $WorkerExecutable `
+                -Actual $WorkerExecutable
+            differentWorkerBinding = Test-ExactArtifactBinding `
+                -Expected $WorkerExecutable `
+                -Actual $DifferentWorker
+            relativeWorker = Resolve-ExactFilePath `
+                -Path ([IO.Path]::GetFileName($WorkerExecutable))
+        } | ConvertTo-Json -Compress -Depth 20
         """;
 
     private sealed record ScriptResult(int ExitCode, string StandardOutput, string StandardError);
