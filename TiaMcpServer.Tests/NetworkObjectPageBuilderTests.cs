@@ -15,6 +15,14 @@ public class NetworkObjectPageBuilderTests
         Assert.Equal(expected, NetworkObjectPageBuilder.ResolvePageSize(requested));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(201)]
+    public void ResolvePageSize_RejectsValuesOutsideAcceptedBounds(int requested)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => NetworkObjectPageBuilder.ResolvePageSize(requested));
+    }
+
     [Fact]
     public void Build_PreservesStableInputOrderAndReportsExactCounts()
     {
