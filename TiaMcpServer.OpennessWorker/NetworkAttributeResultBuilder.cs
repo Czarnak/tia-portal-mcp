@@ -53,6 +53,10 @@ public static class NetworkAttributeResultBuilder
                 Name = name,
                 Access = "unknown",
                 Availability = "unknownAttribute",
+                Diagnostic = Diagnostic(
+                    "unknown_attribute",
+                    $"Attribute '{name}' was not recognized by the modeled or dynamic metadata surface.",
+                    null),
             };
         }
 

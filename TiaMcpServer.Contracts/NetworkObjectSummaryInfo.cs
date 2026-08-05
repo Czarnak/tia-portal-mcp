@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
@@ -12,6 +14,12 @@ public class NetworkObjectSummaryInfo
     /// <summary>Human-readable display name for the object.</summary>
     public string? DisplayName { get; set; }
 
+    /// <summary>Whether the summary contains a complete selector that can be inspected.</summary>
+    public bool Selectable { get; set; }
+
     /// <summary>Selector that uniquely identifies this object for an <c>inspect_network_object</c> call.</summary>
     public NetworkObjectSelectorInfo? Selector { get; set; }
+
+    /// <summary>Deterministic diagnostics explaining why a selector could not be emitted.</summary>
+    public List<string> SelectorDiagnostics { get; set; } = new List<string>();
 }

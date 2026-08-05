@@ -648,13 +648,20 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         {
             Kind = NetworkObjectKinds.DeviceItem,
             DisplayName = "PROFINET interface_1",
+            Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.DeviceItem,
                 DeviceName = "PLC_1",
                 ItemPath = new List<DeviceItemPathSegmentInfo>
                 {
-                    new() { PositionNumber = 1 },
+                    new()
+                    {
+                        Index = 0,
+                        Name = "PROFINET interface_1",
+                        PositionNumber = 1,
+                        TypeIdentifier = "OrderNumber:TEST",
+                    },
                 },
             },
         },
@@ -662,10 +669,21 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         {
             Kind = NetworkObjectKinds.NetworkInterface,
             DisplayName = "PROFINET interface_1",
+            Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.NetworkInterface,
                 DeviceName = "PLC_1",
+                ItemPath = new List<DeviceItemPathSegmentInfo>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Name = "PROFINET interface_1",
+                        PositionNumber = 1,
+                        TypeIdentifier = "OrderNumber:TEST",
+                    },
+                },
                 InterfaceName = "PROFINET interface_1",
             },
         },
@@ -673,6 +691,7 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         {
             Kind = NetworkObjectKinds.Node,
             DisplayName = "X1",
+            Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.Node,
@@ -684,6 +703,7 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         {
             Kind = NetworkObjectKinds.Subnet,
             DisplayName = "PN/IE_1",
+            Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.Subnet,
@@ -694,6 +714,7 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         {
             Kind = NetworkObjectKinds.IoSystem,
             DisplayName = "IO system_1",
+            Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.IoSystem,
@@ -705,7 +726,12 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         {
             Kind = NetworkObjectKinds.CommunicationConnection,
             DisplayName = "S7 connection_1 (unselectable)",
+            Selectable = false,
             Selector = null, // connection index not always determinable at list time
+            SelectorDiagnostics = new List<string>
+            {
+                "Connection identity could not be read; selector not available.",
+            },
         },
     },
     TotalCount = 6,

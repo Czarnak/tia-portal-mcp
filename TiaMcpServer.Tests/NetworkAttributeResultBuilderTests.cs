@@ -47,6 +47,9 @@ public sealed class NetworkAttributeResultBuilderTests
                 Assert.Equal("unknown", missing.Access);
                 Assert.Equal("unknownAttribute", missing.Availability);
                 Assert.Null(missing.Value);
+                Assert.NotNull(missing.Diagnostic);
+                Assert.Equal("unknown_attribute", missing.Diagnostic!.Category);
+                Assert.Contains("missing", missing.Diagnostic.Message, StringComparison.Ordinal);
             },
             known => Assert.Equal("known", known.Name));
     }

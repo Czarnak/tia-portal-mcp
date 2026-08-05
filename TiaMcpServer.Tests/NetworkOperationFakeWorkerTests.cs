@@ -316,7 +316,9 @@ public class NetworkOperationFakeWorkerTests
         // communicationConnection (index 5) has null selector — it's unselectable.
         var connection = items[5];
         Assert.Equal("communicationConnection", connection.GetProperty("kind").GetString());
+        Assert.False(connection.GetProperty("selectable").GetBoolean());
         Assert.Equal(JsonValueKind.Null, connection.GetProperty("selector").ValueKind);
+        Assert.Single(connection.GetProperty("selectorDiagnostics").EnumerateArray());
     }
 
     [Fact]

@@ -78,13 +78,25 @@ public static class NetworkPayloadContract
         "add_network_device" => Decode<AddDeviceResultInfo>(payload, ValidateAddDeviceResult),
         "configure_network_device" =>
             Decode<ConfigureNetworkDeviceResultInfo>(payload, ValidateConfigureResult),
-        "list_network_objects" => Decode<NetworkObjectListInfo>(payload, ValidateObjectList),
-        "inspect_network_object" => Decode<NetworkObjectInspectionInfo>(payload, ValidateObjectInspection),
+        "list_network_objects" => DecodeObjectList(payload),
+        "inspect_network_object" => DecodeObjectInspection(payload),
         _ => throw new JsonException($"No declared result contract for network operation '{operation}'."),
     };
 
     private static JsonElement Decode<T>(string payload, Action<T> validate)
         => CanonicalJson.Normalize(payload, validate).Element;
+
+    private static JsonElement DecodeObjectList(string payload)
+    {
+        ValidateRequiredPathIndexMembers(payload, listPayload: true);
+        return Decode<NetworkObjectListInfo>(payload, ValidateObjectList);
+    }
+
+    private static JsonElement DecodeObjectInspection(string payload)
+    {
+        ValidateRequiredPathIndexMembers(payload, listPayload: false);
+        return Decode<NetworkObjectInspectionInfo>(payload, ValidateObjectInspection);
+    }
 
     // The contract types initialize their collections and their non-nullable strings, so CLR
     // initialization already covers an ABSENT member. An EXPLICIT null does not go through the
@@ -215,17 +227,21 @@ public static class NetworkPayloadContract
 
     private static void ValidateObjectSummary(NetworkObjectSummaryInfo item)
     {
-        if (item.Kind is not null && !NetworkObjectKinds.All.Contains(item.Kind))
-        {
-            throw new JsonException($"'items[].kind' value '{item.Kind}' is not a recognised network object kind.");
-        }
-
-        // When a selector is present the embedded kind must agree with the summary kind.
-        if (item.Selector is { Kind: not null } selector && item.Kind is not null
-            && !string.Equals(selector.Kind, item.Kind, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(item.Kind) || !NetworkObjectKinds.All.Contains(item.Kind))
         {
             throw new JsonException(
-                $"'items[].selector.kind' value '{selector.Kind}' does not match 'items[].kind' value '{item.Kind}'.");
+                $"'items[].kind' value '{item.Kind ?? "null"}' is not a recognised network object kind.");
+        }
+
+        RequireNotNull(item.SelectorDiagnostics, "items[].selectorDiagnostics");
+        foreach (var diagnostic in item.SelectorDiagnostics)
+        {
+            RequireNotNull(diagnostic, "items[].selectorDiagnostics[]");
+        }
+
+        if (item.Selector is not null)
+        {
+            ValidateSelector(item.Selector, "items[].selector", item.Kind);
         }
     }
 
@@ -257,7 +273,7 @@ public static class NetworkPayloadContract
 
         RequireNotNull(value.Attributes, "attributes");
         RequireNotNull(value.Messages, "messages");
-        ValidateInspectionTarget(value.Target);
+        ValidateSelector(value.Target, "target");
 
         // Duplicate attribute names are a protocol error: the worker must return each name at most once.
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
@@ -351,87 +367,110 @@ public static class NetworkPayloadContract
         }
     }
 
-    private static void ValidateInspectionTarget(NetworkObjectSelectorInfo target)
+    private static void ValidateSelector(
+        NetworkObjectSelectorInfo target,
+        string prefix,
+        string? expectedKind = null)
     {
         if (string.IsNullOrWhiteSpace(target.Kind) || !NetworkObjectKinds.All.Contains(target.Kind))
         {
             throw new JsonException(
-                $"'target.kind' value '{target.Kind ?? "null"}' is not a recognised network object kind.");
+                $"'{prefix}.kind' value '{target.Kind ?? "null"}' is not a recognised network object kind.");
+        }
+
+        if (expectedKind is not null && !string.Equals(target.Kind, expectedKind, StringComparison.Ordinal))
+        {
+            throw new JsonException(
+                $"'{prefix}.kind' value '{target.Kind}' does not match summary kind '{expectedKind}'.");
         }
 
         switch (target.Kind)
         {
             case NetworkObjectKinds.DeviceItem:
-                RequireSelectorText(target.DeviceName, "target.deviceName", target.Kind);
-                RequireSelectorPath(target, target.Kind);
-                RejectSelectorFields(target, target.Kind,
+                RequireSelectorText(target.DeviceName, $"{prefix}.deviceName", target.Kind);
+                RequireSelectorPath(target, prefix, target.Kind);
+                RejectSelectorFields(target, prefix, target.Kind,
                     interfaceFields: true, nodeField: true, subnetField: true,
                     numberField: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.NetworkInterface:
-                RequireSelectorText(target.DeviceName, "target.deviceName", target.Kind);
-                RequireSelectorPath(target, target.Kind);
-                RejectSelectorFields(target, target.Kind,
+                RequireSelectorText(target.DeviceName, $"{prefix}.deviceName", target.Kind);
+                RequireSelectorPath(target, prefix, target.Kind);
+                RequireOptionalSelectorText(target.InterfaceName, $"{prefix}.interfaceName", target.Kind);
+                RequireOptionalSelectorText(target.InterfaceType, $"{prefix}.interfaceType", target.Kind);
+                RequireOptionalSelectorText(target.InterfaceOperatingMode, $"{prefix}.interfaceOperatingMode", target.Kind);
+                RejectSelectorFields(target, prefix, target.Kind,
                     nodeField: true, subnetField: true, numberField: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.Node:
-                RequireSelectorText(target.DeviceName, "target.deviceName", target.Kind);
-                RequireSelectorText(target.NodeId, "target.nodeId", target.Kind);
-                RejectSelectorFields(target, target.Kind,
+                RequireSelectorText(target.DeviceName, $"{prefix}.deviceName", target.Kind);
+                RequireSelectorText(target.NodeId, $"{prefix}.nodeId", target.Kind);
+                RejectSelectorFields(target, prefix, target.Kind,
                     itemPathField: true, interfaceFields: true, subnetField: true,
                     numberField: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.Subnet:
-                RequireSelectorText(target.SubnetId, "target.subnetId", target.Kind);
-                RejectSelectorFields(target, target.Kind,
+                RequireSelectorText(target.SubnetId, $"{prefix}.subnetId", target.Kind);
+                RejectSelectorFields(target, prefix, target.Kind,
                     deviceField: true, itemPathField: true, interfaceFields: true,
                     nodeField: true, numberField: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.IoSystem:
-                RequireSelectorText(target.SubnetId, "target.subnetId", target.Kind);
+                RequireSelectorText(target.SubnetId, $"{prefix}.subnetId", target.Kind);
                 if (target.Number is null)
                 {
-                    throw new JsonException($"'target.number' is required for kind '{target.Kind}'.");
+                    throw new JsonException($"'{prefix}.number' is required for kind '{target.Kind}'.");
                 }
 
-                RejectSelectorFields(target, target.Kind,
+                RejectSelectorFields(target, prefix, target.Kind,
                     deviceField: true, itemPathField: true, interfaceFields: true,
                     nodeField: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.CommunicationConnection:
-                RequireSelectorText(target.DeviceName, "target.deviceName", target.Kind);
-                RequireSelectorPath(target, target.Kind);
+                RequireSelectorText(target.DeviceName, $"{prefix}.deviceName", target.Kind);
+                RequireSelectorPath(target, prefix, target.Kind);
                 if (target.ConnectionIndex is null)
                 {
                     throw new JsonException(
-                        $"'target.connectionIndex' is required for kind '{target.Kind}'.");
+                        $"'{prefix}.connectionIndex' is required for kind '{target.Kind}'.");
                 }
 
-                RequireSelectorText(target.ConnectionType, "target.connectionType", target.Kind);
-                RequireSelectorText(target.LocalConnectionName, "target.localConnectionName", target.Kind);
-                RejectSelectorFields(target, target.Kind,
+                RequireSelectorText(target.ConnectionType, $"{prefix}.connectionType", target.Kind);
+                RequireSelectorText(target.LocalConnectionName, $"{prefix}.localConnectionName", target.Kind);
+                RequireOptionalSelectorText(target.LocalConnectionId, $"{prefix}.localConnectionId", target.Kind);
+                RejectSelectorFields(target, prefix, target.Kind,
                     interfaceFields: true, nodeField: true, subnetField: true, numberField: true);
                 break;
         }
     }
 
-    private static void RequireSelectorPath(NetworkObjectSelectorInfo target, string kind)
+    private static void RequireSelectorPath(NetworkObjectSelectorInfo target, string prefix, string kind)
     {
         if (target.ItemPath is null || target.ItemPath.Count == 0)
         {
-            throw new JsonException($"'target.itemPath' must be non-empty for kind '{kind}'.");
+            throw new JsonException($"'{prefix}.itemPath' must be non-empty for kind '{kind}'.");
         }
 
         foreach (var segment in target.ItemPath)
         {
-            RequireNotNull(segment, "target.itemPath[]");
-            RequireNotNull(segment!.Name, "target.itemPath[].name");
-            RequireNotNull(segment.TypeIdentifier, "target.itemPath[].typeIdentifier");
+            RequireNotNull(segment, $"{prefix}.itemPath[]");
+            if (segment!.Index < 0)
+            {
+                throw new JsonException($"'{prefix}.itemPath[].index' must not be negative.");
+            }
+
+            RequireSelectorText(segment.Name, $"{prefix}.itemPath[].name", kind);
+            if (segment.PositionNumber is null)
+            {
+                throw new JsonException($"'{prefix}.itemPath[].positionNumber' is required for kind '{kind}'.");
+            }
+
+            RequireSelectorText(segment.TypeIdentifier, $"{prefix}.itemPath[].typeIdentifier", kind);
         }
     }
 
@@ -443,8 +482,17 @@ public static class NetworkPayloadContract
         }
     }
 
+    private static void RequireOptionalSelectorText(string? value, string member, string kind)
+    {
+        if (value is not null && string.IsNullOrWhiteSpace(value))
+        {
+            throw new JsonException($"'{member}' must be nonblank when supplied for kind '{kind}'.");
+        }
+    }
+
     private static void RejectSelectorFields(
         NetworkObjectSelectorInfo target,
+        string prefix,
         string kind,
         bool deviceField = false,
         bool itemPathField = false,
@@ -454,25 +502,78 @@ public static class NetworkPayloadContract
         bool numberField = false,
         bool connectionFields = false)
     {
-        RejectSelectorField(deviceField && !string.IsNullOrWhiteSpace(target.DeviceName), "deviceName", kind);
-        RejectSelectorField(itemPathField && target.ItemPath is not null, "itemPath", kind);
-        RejectSelectorField(interfaceFields && !string.IsNullOrWhiteSpace(target.InterfaceName), "interfaceName", kind);
-        RejectSelectorField(interfaceFields && !string.IsNullOrWhiteSpace(target.InterfaceType), "interfaceType", kind);
-        RejectSelectorField(interfaceFields && !string.IsNullOrWhiteSpace(target.InterfaceOperatingMode), "interfaceOperatingMode", kind);
-        RejectSelectorField(nodeField && !string.IsNullOrWhiteSpace(target.NodeId), "nodeId", kind);
-        RejectSelectorField(subnetField && !string.IsNullOrWhiteSpace(target.SubnetId), "subnetId", kind);
-        RejectSelectorField(numberField && target.Number is not null, "number", kind);
-        RejectSelectorField(connectionFields && target.ConnectionIndex is not null, "connectionIndex", kind);
-        RejectSelectorField(connectionFields && !string.IsNullOrWhiteSpace(target.ConnectionType), "connectionType", kind);
-        RejectSelectorField(connectionFields && !string.IsNullOrWhiteSpace(target.LocalConnectionName), "localConnectionName", kind);
-        RejectSelectorField(connectionFields && !string.IsNullOrWhiteSpace(target.LocalConnectionId), "localConnectionId", kind);
+        RejectSelectorField(deviceField && target.DeviceName is not null, prefix, "deviceName", kind);
+        RejectSelectorField(itemPathField && target.ItemPath is not null, prefix, "itemPath", kind);
+        RejectSelectorField(interfaceFields && target.InterfaceName is not null, prefix, "interfaceName", kind);
+        RejectSelectorField(interfaceFields && target.InterfaceType is not null, prefix, "interfaceType", kind);
+        RejectSelectorField(interfaceFields && target.InterfaceOperatingMode is not null, prefix, "interfaceOperatingMode", kind);
+        RejectSelectorField(nodeField && target.NodeId is not null, prefix, "nodeId", kind);
+        RejectSelectorField(subnetField && target.SubnetId is not null, prefix, "subnetId", kind);
+        RejectSelectorField(numberField && target.Number is not null, prefix, "number", kind);
+        RejectSelectorField(connectionFields && target.ConnectionIndex is not null, prefix, "connectionIndex", kind);
+        RejectSelectorField(connectionFields && target.ConnectionType is not null, prefix, "connectionType", kind);
+        RejectSelectorField(connectionFields && target.LocalConnectionName is not null, prefix, "localConnectionName", kind);
+        RejectSelectorField(connectionFields && target.LocalConnectionId is not null, prefix, "localConnectionId", kind);
     }
 
-    private static void RejectSelectorField(bool isPresent, string member, string kind)
+    private static void RejectSelectorField(bool isPresent, string prefix, string member, string kind)
     {
         if (isPresent)
         {
-            throw new JsonException($"'target.{member}' is not applicable for kind '{kind}'.");
+            throw new JsonException($"'{prefix}.{member}' is not applicable for kind '{kind}'.");
+        }
+    }
+
+    private static void ValidateRequiredPathIndexMembers(string payload, bool listPayload)
+    {
+        using var document = JsonDocument.Parse(payload);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        if (listPayload)
+        {
+            if (!document.RootElement.TryGetProperty("items", out var items)
+                || items.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
+
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Object
+                    && item.TryGetProperty("selector", out var selector)
+                    && selector.ValueKind == JsonValueKind.Object)
+                {
+                    ValidateRequiredPathIndexMembers(selector, "items[].selector");
+                }
+            }
+
+            return;
+        }
+
+        if (document.RootElement.TryGetProperty("target", out var target)
+            && target.ValueKind == JsonValueKind.Object)
+        {
+            ValidateRequiredPathIndexMembers(target, "target");
+        }
+    }
+
+    private static void ValidateRequiredPathIndexMembers(JsonElement selector, string prefix)
+    {
+        if (!selector.TryGetProperty("itemPath", out var itemPath)
+            || itemPath.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var segment in itemPath.EnumerateArray())
+        {
+            if (segment.ValueKind == JsonValueKind.Object && !segment.TryGetProperty("index", out _))
+            {
+                throw new JsonException($"'{prefix}.itemPath[].index' is required.");
+            }
         }
     }
 

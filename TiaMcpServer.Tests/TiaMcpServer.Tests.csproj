@@ -164,6 +164,8 @@
       Link="Network\NetworkObjectCursorCodec.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectPageBuilder.cs"
       Link="Network\NetworkObjectPageBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectDiscoveryEvidence.cs"
+      Link="Network\NetworkObjectDiscoveryEvidence.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeValueNormalizer.cs"
       Link="Network\NetworkAttributeValueNormalizer.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeResultBuilder.cs"

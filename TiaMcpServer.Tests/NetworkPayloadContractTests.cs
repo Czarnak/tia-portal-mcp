@@ -161,12 +161,12 @@ public class NetworkPayloadContractTests
         var payload = """
             {
               "items": [
-                {"kind":"deviceItem","displayName":"if_1","selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"positionNumber":1}]}},
-                {"kind":"networkInterface","displayName":"PROFINET interface_1","selector":{"kind":"networkInterface","deviceName":"PLC_1","interfaceName":"PROFINET interface_1"}},
-                {"kind":"node","displayName":"X1","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"}},
-                {"kind":"subnet","displayName":"PN/IE_1","selector":{"kind":"subnet","subnetId":"subnet-1"}},
-                {"kind":"ioSystem","displayName":"IO system_1","selector":{"kind":"ioSystem","subnetId":"subnet-1","number":100}},
-                {"kind":"communicationConnection","displayName":"S7 connection","selector":null}
+                {"kind":"deviceItem","displayName":"if_1","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}]},"selectorDiagnostics":[]},
+                {"kind":"networkInterface","displayName":"PROFINET interface_1","selectable":true,"selector":{"kind":"networkInterface","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}],"interfaceName":"PROFINET interface_1"},"selectorDiagnostics":[]},
+                {"kind":"node","displayName":"X1","selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"selectorDiagnostics":[]},
+                {"kind":"subnet","displayName":"PN/IE_1","selectable":true,"selector":{"kind":"subnet","subnetId":"subnet-1"},"selectorDiagnostics":[]},
+                {"kind":"ioSystem","displayName":"IO system_1","selectable":true,"selector":{"kind":"ioSystem","subnetId":"subnet-1","number":100},"selectorDiagnostics":[]},
+                {"kind":"communicationConnection","displayName":"S7 connection","selectable":false,"selector":null,"selectorDiagnostics":["Connection identity unavailable."]}
               ],
               "totalCount": 6,
               "returnedCount": 6,
@@ -185,6 +185,35 @@ public class NetworkPayloadContractTests
         Assert.Equal("deviceItem", items[0].GetProperty("kind").GetString());
         Assert.Equal("communicationConnection", items[5].GetProperty("kind").GetString());
         Assert.Equal(JsonValueKind.Null, items[5].GetProperty("selector").ValueKind);
+    }
+
+    [Fact]
+    public void Project_DecodesListSummarySelectabilityAndDiagnostics()
+    {
+        var payload = """
+            {
+              "items": [
+                {
+                  "kind":"node",
+                  "displayName":"X1",
+                  "selectable":false,
+                  "selector":null,
+                  "selectorDiagnostics":["Node identity could not be read; selector not available."]
+                }
+              ],
+              "totalCount":1,
+              "returnedCount":1,
+              "nextCursor":null,
+              "messages":[]
+            }
+            """;
+
+        var item = Project("list_network_objects", payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        var summary = item.Result!.Value.GetProperty("items")[0];
+        Assert.False(summary.GetProperty("selectable").GetBoolean());
+        Assert.Single(summary.GetProperty("selectorDiagnostics").EnumerateArray());
     }
 
     [Fact]
@@ -294,6 +323,25 @@ public class NetworkPayloadContractTests
         // list_network_objects: selector.kind disagrees with summary kind.
         { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selector":{"kind":"{{{LeakToken}}}","deviceName":"PLC","nodeId":"n1"}}],"messages":[]}""" },
 
+        // list_network_objects: summary kind is required and nonblank.
+        { "list_network_objects", $$$"""{"items":[{"displayName":"{{{LeakToken}}}","selector":null}],"messages":[]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":" ","displayName":"x","selector":null}],"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: a present selector requires its own nonblank kind.
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"x","selector":{"deviceName":"PLC","nodeId":"n1"}}],"messages":["{{{LeakToken}}}"]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"x","selector":{"kind":null,"deviceName":"PLC","nodeId":"n1"}}],"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: device item paths require every evidence member.
+        { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","displayName":"x","selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"name":"x","positionNumber":1,"typeIdentifier":"T"}]}}],"messages":["{{{LeakToken}}}"]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","displayName":"x","selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"name":"","positionNumber":1,"typeIdentifier":"T"}]}}],"messages":["{{{LeakToken}}}"]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","displayName":"x","selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"name":"x","positionNumber":null,"typeIdentifier":"T"}]}}],"messages":["{{{LeakToken}}}"]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","displayName":"x","selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"name":"x","positionNumber":1,"typeIdentifier":""}]}}],"messages":["{{{LeakToken}}}"]}""" },
+
+        // list_network_objects: exact per-kind selector shape is required.
+        { "list_network_objects", $$$"""{"items":[{"kind":"networkInterface","displayName":"x","selector":{"kind":"networkInterface","deviceName":"PLC"}}],"messages":["{{{LeakToken}}}"]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"x","selector":{"kind":"node","deviceName":"PLC","nodeId":"n1","subnetId":"{{{LeakToken}}}"}}],"messages":[]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"x","selector":{"kind":"node","deviceName":"PLC","nodeId":"n1","interfaceName":" "}}],"messages":["{{{LeakToken}}}"]}""" },
+
         // inspect_network_object: the alternate public shape is not retained as an alias.
         { "inspect_network_object", $$$"""{"kind":"node","displayName":"{{{LeakToken}}}","evidence":{"kind":"node","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"messages":[]},"attributes":[],"messages":[]}""" },
 
@@ -305,6 +353,9 @@ public class NetworkPayloadContractTests
 
         // inspect_network_object: target carries a selector field forbidden for its kind.
         { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1","subnetId":"{{{LeakToken}}}"},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+
+        // inspect_network_object: blank still means a forbidden field was supplied.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1","subnetId":" "},"evidence":{"name":"{{{LeakToken}}}","deviceItemPath":[]},"attributes":[],"messages":[]}""" },
 
         // inspect_network_object: explicit null defeats the typed evidence collection default.
         { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"name":"{{{LeakToken}}}","deviceItemPath":null},"attributes":[],"messages":[]}""" },

@@ -52,6 +52,94 @@ public class NetworkObjectCursorCodecTests
             NetworkObjectCursorCodec.Decode(Cursor(offset: -1), queryHash, snapshotHash, totalCount: 3));
     }
 
+    [Theory]
+    [InlineData("{\"offset\":0,\"queryHash\":\"{Q}\",\"snapshotHash\":\"{S}\"}")]
+    [InlineData("{\"version\":1,\"queryHash\":\"{Q}\",\"snapshotHash\":\"{S}\"}")]
+    [InlineData("{\"version\":1,\"offset\":0,\"snapshotHash\":\"{S}\"}")]
+    [InlineData("{\"version\":1,\"offset\":0,\"queryHash\":\"{Q}\"}")]
+    [InlineData("{\"version\":1,\"offset\":0,\"queryHash\":\"{Q}\",\"snapshotHash\":\"{S}\",\"extra\":true}")]
+    [InlineData("{\"version\":1,\"version\":1,\"offset\":0,\"queryHash\":\"{Q}\",\"snapshotHash\":\"{S}\"}")]
+    public void Decode_RejectsMissingUnknownAndDuplicateMembers(string json)
+    {
+        var queryHash = Hash('a');
+        var snapshotHash = Hash('b');
+        var cursor = RawCursor(json.Replace("{Q}", queryHash).Replace("{S}", snapshotHash));
+
+        AssertCategory(WorkerFailureCategories.InvalidCursor, () =>
+            NetworkObjectCursorCodec.Decode(cursor, queryHash, snapshotHash, totalCount: 3));
+    }
+
+    [Fact]
+    public void Decode_RejectsPaddingAndStandardBase64Alphabet()
+    {
+        var queryHash = Hash('a');
+        var snapshotHash = Hash('b');
+        var encoded = NetworkObjectCursorCodec.Encode(0, queryHash, snapshotHash);
+        var standard = StandardBase64Cursor(queryHash, snapshotHash);
+
+        AssertCategory(WorkerFailureCategories.InvalidCursor, () =>
+            NetworkObjectCursorCodec.Decode(encoded + "=", queryHash, snapshotHash, totalCount: 3));
+        Assert.True(standard.Contains('+') || standard.Contains('/'));
+        AssertCategory(WorkerFailureCategories.InvalidCursor, () =>
+            NetworkObjectCursorCodec.Decode(standard, queryHash, snapshotHash, totalCount: 3));
+    }
+
+    [Fact]
+    public void SnapshotHash_BindsUnselectableEvidenceAndOrderButIgnoresAttributeValues()
+    {
+        var original = new[]
+        {
+            Unselectable("first", "attribute-a"),
+            Unselectable("second", "attribute-b"),
+        };
+        var changedAttributeValues = new[]
+        {
+            Unselectable("first", "changed-a"),
+            Unselectable("second", "changed-b"),
+        };
+        var reordered = new[]
+        {
+            Unselectable("second", "attribute-b"),
+            Unselectable("first", "attribute-a"),
+        };
+        var changedIdentity = new[]
+        {
+            Unselectable("replacement", "attribute-a"),
+            Unselectable("second", "attribute-b"),
+        };
+
+        var hash = NetworkObjectCursorCodec.CreateSnapshotHash(original);
+
+        Assert.Equal(hash, NetworkObjectCursorCodec.CreateSnapshotHash(changedAttributeValues));
+        Assert.NotEqual(hash, NetworkObjectCursorCodec.CreateSnapshotHash(reordered));
+        Assert.NotEqual(hash, NetworkObjectCursorCodec.CreateSnapshotHash(changedIdentity));
+    }
+
+    [Fact]
+    public void SnapshotHash_BindsInternalEvidenceForOtherwiseIndistinguishableUnselectableSummaries()
+    {
+        var first = new[]
+        {
+            IndexedUnselectable("device/0/node/0"),
+            IndexedUnselectable("device/0/node/1"),
+        };
+        var reorderedEvidence = new[]
+        {
+            IndexedUnselectable("device/0/node/1"),
+            IndexedUnselectable("device/0/node/0"),
+        };
+        var replacementEvidence = new[]
+        {
+            IndexedUnselectable("device/0/node/replacement"),
+            IndexedUnselectable("device/0/node/1"),
+        };
+
+        var hash = NetworkObjectCursorCodec.CreateSnapshotHash(first);
+
+        Assert.NotEqual(hash, NetworkObjectCursorCodec.CreateSnapshotHash(reorderedEvidence));
+        Assert.NotEqual(hash, NetworkObjectCursorCodec.CreateSnapshotHash(replacementEvidence));
+    }
+
     [Fact]
     public void Decode_RejectsFilterSnapshotAndOutOfRangeCursors()
     {
@@ -87,6 +175,36 @@ public class NetworkObjectCursorCodecTests
 
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload)))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    private static string RawCursor(string json)
+        => Convert.ToBase64String(Encoding.UTF8.GetBytes(json))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static string StandardBase64Cursor(string queryHash, string snapshotHash)
+    {
+        var json = $"{{\"version\":1,\"offset\":0,\"queryHash\":\"{queryHash}\",\"snapshotHash\":\"{snapshotHash}\",\"noise\":\"\U0001003e\"}}";
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(json)).TrimEnd('=');
+    }
+
+    private static SummaryWithAttributeValue Unselectable(string displayName, string attributeValue)
+        => new()
+        {
+            Kind = NetworkObjectKinds.Node,
+            DisplayName = displayName,
+            AttributeValue = attributeValue,
+        };
+
+    private static NetworkObjectIndexedSummaryInfo IndexedUnselectable(string snapshotEvidenceKey)
+        => new()
+        {
+            Kind = NetworkObjectKinds.Node,
+            SnapshotEvidenceKey = snapshotEvidenceKey,
+        };
+
+    private sealed class SummaryWithAttributeValue : NetworkObjectSummaryInfo
+    {
+        public string? AttributeValue { get; set; }
     }
 
     private static string Hash(char value) => new(value, 64);

@@ -55,6 +55,31 @@ public class NetworkPhase3WorkerDispatchTests
     }
 
     [Fact]
+    public void DiscoveryReader_UsesTypedV21TraversalAndExactDynamicStringReads()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+
+        Assert.Contains("device.Name", source, StringComparison.Ordinal);
+        Assert.Contains("item.Name", source, StringComparison.Ordinal);
+        Assert.Contains("item.PositionNumber", source, StringComparison.Ordinal);
+        Assert.Contains("item.TypeIdentifier", source, StringComparison.Ordinal);
+        Assert.Contains("node.Name", source, StringComparison.Ordinal);
+        Assert.Contains("node.NodeId", source, StringComparison.Ordinal);
+        Assert.Contains("subnet.Name", source, StringComparison.Ordinal);
+        Assert.Contains("foreach (IoSystem ioSystem in subnet.IoSystems)", source, StringComparison.Ordinal);
+        Assert.Contains("ioSystem.Name", source, StringComparison.Ordinal);
+        Assert.Contains("ioSystem.Number", source, StringComparison.Ordinal);
+        Assert.Contains("GetAttribute(\"Name\")", source, StringComparison.Ordinal);
+        Assert.Contains("GetAttribute(\"SubnetId\")", source, StringComparison.Ordinal);
+        Assert.Contains("NetworkObjectDiscoveryEvidence.ReadString", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("OpennessReflection", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReadEnumerableProperty", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToString(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.Reflection", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EngineeringAttributeInspector_UsesReadOnlyDynamicMetadataSurface()
     {
         var source = File.ReadAllText(FindRepositoryFile(

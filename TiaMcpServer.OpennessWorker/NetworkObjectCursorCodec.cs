@@ -29,6 +29,7 @@ public static class NetworkObjectCursorCodec
 {
     private const string OrderingVersion = "network-object-order-v1";
     private static readonly Regex LowercaseSha256 = new("^[0-9a-f]{64}$", RegexOptions.CultureInvariant);
+    private static readonly Regex UnpaddedBase64Url = new("^[A-Za-z0-9_-]+$", RegexOptions.CultureInvariant);
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public static string CreateQueryHash(IReadOnlyList<string> objectKinds, string? deviceName)
@@ -50,6 +51,13 @@ public static class NetworkObjectCursorCodec
         {
             Append(evidence, item.Kind);
             Append(evidence, item.Selector is not null ? "selectable" : "unselectable");
+            Append(evidence, item.DisplayName);
+            Append(evidence, (item as NetworkObjectIndexedSummaryInfo)?.SnapshotEvidenceKey);
+            foreach (var diagnostic in item.SelectorDiagnostics)
+            {
+                Append(evidence, diagnostic);
+            }
+
             var selector = item.Selector;
             if (selector is null)
             {
@@ -101,9 +109,22 @@ public static class NetworkObjectCursorCodec
         NetworkObjectCursorPayload? payload;
         try
         {
+            if (string.IsNullOrEmpty(cursor)
+                || !UnpaddedBase64Url.IsMatch(cursor)
+                || cursor.Length % 4 == 1)
+            {
+                throw new FormatException();
+            }
+
             var normalized = cursor.Replace('-', '+').Replace('_', '/');
             normalized = normalized.PadRight(normalized.Length + ((4 - normalized.Length % 4) % 4), '=');
-            payload = JsonSerializer.Deserialize<NetworkObjectCursorPayload>(Encoding.UTF8.GetString(Convert.FromBase64String(normalized)), JsonOptions);
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(normalized));
+            using (var document = JsonDocument.Parse(json))
+            {
+                ValidateExactPayload(document.RootElement);
+            }
+
+            payload = JsonSerializer.Deserialize<NetworkObjectCursorPayload>(json, JsonOptions);
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or JsonException)
         {
@@ -132,6 +153,35 @@ public static class NetworkObjectCursorCodec
         }
 
         return payload;
+    }
+
+    private static void ValidateExactPayload(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("Cursor payload must be an object.");
+        }
+
+        var required = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "version",
+            "offset",
+            "queryHash",
+            "snapshotHash",
+        };
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!required.Contains(property.Name) || !seen.Add(property.Name))
+            {
+                throw new JsonException("Cursor payload members are invalid.");
+            }
+        }
+
+        if (seen.Count != required.Count)
+        {
+            throw new JsonException("Cursor payload members are incomplete.");
+        }
     }
 
     private static bool IsHash(string? value) => value is not null && LowercaseSha256.IsMatch(value);

@@ -45,16 +45,6 @@ public static class NetworkObjectInspector
 
         var dynamic = EngineeringAttributeInspector.Inspect(resolved.EngineeringObject, attributeNames);
         var attributes = NetworkAttributeResultBuilder.Build(modeled, dynamic, attributeNames).ToList();
-        foreach (var attribute in attributes.Where(attribute =>
-            string.Equals(attribute.Availability, "unknownAttribute", StringComparison.Ordinal)
-            && attribute.Diagnostic is null))
-        {
-            attribute.Diagnostic = new NetworkAttributeDiagnosticInfo
-            {
-                Category = "unknown_attribute",
-                Message = $"Attribute '{attribute.Name}' was not recognized by the modeled or dynamic metadata surface.",
-            };
-        }
 
         return new NetworkObjectInspectionInfo
         {
