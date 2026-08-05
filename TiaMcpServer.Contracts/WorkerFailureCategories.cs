@@ -21,6 +21,18 @@ public static class WorkerFailureCategories
     /// <summary>The current project state no longer matches what a safety token was issued against.</summary>
     public const string StateChanged = "state_changed";
 
+    /// <summary>The requested target could not be resolved from the supplied selector.</summary>
+    public const string TargetNotFound = "target_not_found";
+
+    /// <summary>The supplied selector resolved to more than one target.</summary>
+    public const string TargetAmbiguous = "target_ambiguous";
+
+    /// <summary>The supplied target evidence no longer matches the resolved target.</summary>
+    public const string TargetEvidenceMismatch = "target_evidence_mismatch";
+
+    /// <summary>The selected target kind is not supported by the requested operation.</summary>
+    public const string TargetKindUnsupported = "target_kind_unsupported";
+
     /// <summary>The worker responded, but the operation itself failed for a reason not covered by another category.</summary>
     public const string WorkerOperationFailed = "worker_operation_failed";
 
@@ -60,6 +72,10 @@ public static class WorkerFailureCategories
         ValidationError,
         BindingConflict,
         StateChanged,
+        TargetNotFound,
+        TargetAmbiguous,
+        TargetEvidenceMismatch,
+        TargetKindUnsupported,
         WorkerOperationFailed,
         WorkerTimeout,
         WorkerCrashed,

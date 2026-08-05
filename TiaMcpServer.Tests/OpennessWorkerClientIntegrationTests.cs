@@ -281,8 +281,8 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.GetProjectStatusAsync("worker-error-with-category");
 
         Assert.False(result.Success);
-        Assert.Equal("invalid value", result.Error);
-        Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
+        Assert.Equal("target not found", result.Error);
+        Assert.Equal("target_not_found", result.FailureCategory);
     }
 
     [Fact]

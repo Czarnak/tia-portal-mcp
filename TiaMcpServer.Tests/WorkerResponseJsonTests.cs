@@ -94,6 +94,16 @@ public class WorkerResponseJsonTests
         Assert.True(WorkerFailureCategories.IsKnown(category));
     }
 
+    [Theory]
+    [InlineData("target_not_found")]
+    [InlineData("target_ambiguous")]
+    [InlineData("target_evidence_mismatch")]
+    [InlineData("target_kind_unsupported")]
+    public void WorkerFailureCategories_RecognizesTargetSelectionFailureCategories(string category)
+    {
+        Assert.True(WorkerFailureCategories.IsKnown(category));
+    }
+
     [Fact]
     public void FailureCategory_DefaultsToNull()
     {

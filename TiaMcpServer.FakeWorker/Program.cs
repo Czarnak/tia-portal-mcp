@@ -101,7 +101,7 @@ while ((line = Console.In.ReadLine()) is not null)
         case "worker-error-with-category":
             // Proves OpennessWorkerClient.InvokeWorkerAsync preserves an approved
             // worker-reported category instead of overwriting it with worker_operation_failed.
-            Respond("""{"success":false,"error":"invalid value","failureCategory":"validation_error"}""");
+            Respond("""{"success":false,"error":"target not found","failureCategory":"target_not_found"}""");
             break;
         case "update-block-postcondition-failed":
             Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block update verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
