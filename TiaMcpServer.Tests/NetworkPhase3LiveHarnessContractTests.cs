@@ -177,6 +177,28 @@ public class NetworkPhase3LiveHarnessContractTests
     }
 
     [Fact]
+    public void Script_RepeatabilitySeparatesPayloadStabilityFromEnvelopeWarnings()
+    {
+        var source = ReadScript();
+        foreach (var token in new[]
+        {
+            "discoveryPayloadComparison",
+            "discoveryPayloadCanonicalBytesEqual",
+            "discoveryEnvelopeCanonicalBytesEqual",
+            "repeatabilityPassed",
+        })
+        {
+            Assert.Contains(token, source, StringComparison.Ordinal);
+        }
+
+        Assert.Matches(
+            new Regex(
+                @"repeatabilityPassed\s*=\s*\(\$discoveryPayloadComparison\.bytesEqual\s+-and\s+\$inspectionBytesEqual\)",
+                RegexOptions.CultureInvariant),
+            source);
+    }
+
+    [Fact]
     public void Script_RecordsSourceAndExecutableProvenanceWithoutInferringFromTimestamps()
     {
         var source = ReadScript();

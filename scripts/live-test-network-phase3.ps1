@@ -867,6 +867,23 @@ function Invoke-Repeatability {
     $discoveryResultComparison = Compare-CanonicalText `
         -First $firstDiscoveryResultText `
         -Second $secondDiscoveryResultText
+    $firstDiscoveryPayloadText = ($firstDiscovery.Pages | ForEach-Object {
+            ConvertTo-Json -InputObject ([ordered]@{
+                    result = $_.Result
+                    omission = $_.Omission
+                    truncation = $_.Truncation
+                }) -Compress -Depth 100
+        }) -join "`n"
+    $secondDiscoveryPayloadText = ($secondDiscovery.Pages | ForEach-Object {
+            ConvertTo-Json -InputObject ([ordered]@{
+                    result = $_.Result
+                    omission = $_.Omission
+                    truncation = $_.Truncation
+                }) -Compress -Depth 100
+        }) -join "`n"
+    $discoveryPayloadComparison = Compare-CanonicalText `
+        -First $firstDiscoveryPayloadText `
+        -Second $secondDiscoveryPayloadText
     $firstDiscoveryPageWarnings = @()
     for ($index = 0; $index -lt $firstDiscovery.Pages.Count; $index++) {
         $firstDiscoveryPageWarnings += [ordered]@{
@@ -908,10 +925,14 @@ function Invoke-Repeatability {
     [ordered]@{
         mode = 'Repeatability'
         canonicalBytesEqual = ($discoveryComparison.bytesEqual -and $inspectionBytesEqual)
+        repeatabilityPassed = ($discoveryPayloadComparison.bytesEqual -and $inspectionBytesEqual)
         discoveryCanonicalBytesEqual = $discoveryComparison.bytesEqual
+        discoveryEnvelopeCanonicalBytesEqual = $discoveryComparison.bytesEqual
+        discoveryPayloadCanonicalBytesEqual = $discoveryPayloadComparison.bytesEqual
         inspectionCanonicalBytesEqual = $inspectionBytesEqual
         discoveryComparison = $discoveryComparison
         discoveryResultComparison = $discoveryResultComparison
+        discoveryPayloadComparison = $discoveryPayloadComparison
         firstDiscoveryPageWarnings = $firstDiscoveryPageWarnings
         secondDiscoveryPageWarnings = $secondDiscoveryPageWarnings
         fixtureComparisons = $fixtureComparisons
