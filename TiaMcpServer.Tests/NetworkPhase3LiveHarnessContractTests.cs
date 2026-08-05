@@ -131,6 +131,22 @@ public class NetworkPhase3LiveHarnessContractTests
     }
 
     [Fact]
+    public void Script_RepresentativeDeviceQueryUsesOnlyDeviceScopedKinds()
+    {
+        var source = ReadScript();
+        Assert.Matches(
+            new Regex(
+                @"\$script:DeviceScopedObjectKinds\s*=\s*@\(\s*'deviceItem',\s*'networkInterface',\s*'node',\s*'communicationConnection'\s*\)",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant),
+            source);
+        Assert.Matches(
+            new Regex(
+                @"Get-CompleteDiscovery\s*`\s*-DeviceName\s+\$representativeDeviceName\s*`\s*-ObjectKinds\s+\$script:DeviceScopedObjectKinds",
+                RegexOptions.CultureInvariant),
+            source);
+    }
+
+    [Fact]
     public void Script_RepeatabilityCoversEveryRequiredFixtureAndPreservesDifferenceEvidence()
     {
         var source = ReadScript();

@@ -39,6 +39,12 @@ $script:ObjectKinds = @(
     'ioSystem',
     'communicationConnection'
 )
+$script:DeviceScopedObjectKinds = @(
+    'deviceItem',
+    'networkInterface',
+    'node',
+    'communicationConnection'
+)
 
 if ($null -eq $HostArguments -or $HostArguments.Count -eq 0) {
     $hostDll = Join-Path $script:RepositoryRoot 'TiaMcpServer'
@@ -911,7 +917,9 @@ function Invoke-MeasureListValue {
         Sort-Object -Property @{ Expression = 'Count'; Descending = $true }, @{ Expression = 'Name'; Descending = $false })
     if ($deviceGroups.Count -gt 0) {
         $representativeDeviceName = [string] $deviceGroups[0].Name
-        $targetedDiscovery = Get-CompleteDiscovery -DeviceName $representativeDeviceName
+        $targetedDiscovery = Get-CompleteDiscovery `
+            -DeviceName $representativeDeviceName `
+            -ObjectKinds $script:DeviceScopedObjectKinds
         $fullMatchingItems = @($discovery.Items | Where-Object {
                 $null -ne $_.selector `
                     -and [string]::Equals(
