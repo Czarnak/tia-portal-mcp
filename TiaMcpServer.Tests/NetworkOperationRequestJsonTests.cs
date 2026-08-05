@@ -136,4 +136,20 @@ public class NetworkOperationRequestJsonTests
         Assert.Equal("PLC_1", operation.DeviceName);
         Assert.Equal("PLC_1", operation.DeviceItemName);
     }
+
+    [Fact]
+    public void MissingItemPathIndex_RemainsDetectableForStrictValidation()
+    {
+        const string json = """
+            {"operationId":"inspect","operation":"inspect_network_object",
+             "target":{"kind":"deviceItem","deviceName":"PLC_1",
+                       "itemPath":[{"name":"CPU","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]}}
+            """;
+
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions);
+        var result = NetworkOperationCatalog.ValidateRead(new[] { operation! });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("index", result.Error);
+    }
 }

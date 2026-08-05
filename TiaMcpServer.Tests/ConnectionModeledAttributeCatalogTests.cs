@@ -104,6 +104,25 @@ public sealed class ConnectionModeledAttributeCatalogTests
     }
 
     [Theory]
+    [InlineData("S7Connection", true)]
+    [InlineData("FdlConnection", true)]
+    [InlineData("IsoConnection", true)]
+    [InlineData("IsoOnTcpConnection", true)]
+    [InlineData("PtpConnection", true)]
+    [InlineData("TcpConnection", true)]
+    [InlineData("UdpConnection", true)]
+    [InlineData("HmiConnection", false)]
+    [InlineData("UnknownConnection", false)]
+    public void RequiresLocalConnectionId_MatchesConcreteV21TypeContract(
+        string connectionType,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            ConnectionModeledAttributeCatalog.RequiresLocalConnectionId(connectionType));
+    }
+
+    [Theory]
     [MemberData(nameof(ConnectionTypes))]
     public void ForConnectionType_IsOrdinallySortedAndHasOneReaderPerName(string connectionType)
     {

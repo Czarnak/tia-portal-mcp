@@ -186,6 +186,36 @@ internal static class Program
 
     private static WorkerResponse ListNetworkObjects(WorkerRequest request)
     {
+        ValidateListNetworkObjectsRequest(request);
+
+        int pageSize;
+        try
+        {
+            pageSize = NetworkObjectPageBuilder.ResolvePageSize(request.NetworkObjectPageSize);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectPageSize must be between 1 and 200.");
+        }
+
+        return WithProject(request, project =>
+        {
+            var orderedItems = NetworkObjectIndexReader.Read(project, request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
+            var queryHash = NetworkObjectCursorCodec.CreateQueryHash(request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
+            var snapshotHash = NetworkObjectCursorCodec.CreateSnapshotHash(orderedItems);
+            var offset = request.NetworkObjectCursor is null
+                ? 0
+                : NetworkObjectCursorCodec.Decode(
+                    request.NetworkObjectCursor,
+                    queryHash,
+                    snapshotHash,
+                    orderedItems.Count).Offset;
+            return Success(NetworkObjectPageBuilder.Build(orderedItems, pageSize, offset, queryHash, snapshotHash));
+        });
+    }
+
+    private static void ValidateListNetworkObjectsRequest(WorkerRequest request)
+    {
         if (request.NetworkObjectKinds is null || request.NetworkObjectKinds.Count == 0)
         {
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectKinds is required.");
@@ -202,30 +232,14 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectDeviceName must not be blank.");
         }
 
-        int pageSize;
-        try
+        if (request.NetworkObjectDeviceName is not null
+            && (request.NetworkObjectKinds.Contains(NetworkObjectKinds.Subnet)
+                || request.NetworkObjectKinds.Contains(NetworkObjectKinds.IoSystem)))
         {
-            pageSize = NetworkObjectPageBuilder.ResolvePageSize(request.NetworkObjectPageSize);
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkObjectDeviceName is not applicable to subnet or ioSystem discovery.");
         }
-        catch (ArgumentOutOfRangeException)
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectPageSize must be between 1 and 200.");
-        }
-
-        return WithProject(request, project =>
-        {
-            var orderedItems = NetworkObjectIndexReader.Read(project, request.NetworkObjectKinds, request.NetworkObjectDeviceName);
-            var queryHash = NetworkObjectCursorCodec.CreateQueryHash(request.NetworkObjectKinds, request.NetworkObjectDeviceName);
-            var snapshotHash = NetworkObjectCursorCodec.CreateSnapshotHash(orderedItems);
-            var offset = request.NetworkObjectCursor is null
-                ? 0
-                : NetworkObjectCursorCodec.Decode(
-                    request.NetworkObjectCursor,
-                    queryHash,
-                    snapshotHash,
-                    orderedItems.Count).Offset;
-            return Success(NetworkObjectPageBuilder.Build(orderedItems, pageSize, offset, queryHash, snapshotHash));
-        });
     }
 
     private static WorkerResponse InspectNetworkObject(WorkerRequest request)

@@ -28,6 +28,7 @@ public static class CommunicationConnectionSelectorFactory
             connectionIndex,
             connectionType,
             localConnectionName,
+            localConnectionId,
             identityDiagnostics);
         var effectiveLocalConnectionId = string.Equals(
             connectionType,
@@ -70,6 +71,7 @@ public static class CommunicationConnectionSelectorFactory
         int connectionIndex,
         string? connectionType,
         string? localConnectionName,
+        string? localConnectionId,
         IEnumerable<string>? identityDiagnostics)
     {
         var diagnostics = identityDiagnostics?
@@ -93,7 +95,7 @@ public static class CommunicationConnectionSelectorFactory
                 var segment = itemPath[index];
                 if (segment.Index < 0
                     || string.IsNullOrWhiteSpace(segment.Name)
-                    || segment.PositionNumber is null
+                    || segment.PositionNumber < 0
                     || string.IsNullOrWhiteSpace(segment.TypeIdentifier))
                 {
                     diagnostics.Add(
@@ -122,6 +124,23 @@ public static class CommunicationConnectionSelectorFactory
         if (string.IsNullOrWhiteSpace(localConnectionName))
         {
             diagnostics.Add("Local connection name is missing; communicationConnection selector not available.");
+        }
+
+        if (ConnectionModeledAttributeCatalog.RequiresLocalConnectionId(connectionType))
+        {
+            if (string.IsNullOrWhiteSpace(localConnectionId))
+            {
+                diagnostics.Add(
+                    "Required local connection ID is missing; "
+                        + "communicationConnection selector not available.");
+            }
+        }
+        else if (string.Equals(connectionType, "HmiConnection", StringComparison.Ordinal)
+            && localConnectionId is not null)
+        {
+            diagnostics.Add(
+                "HmiConnection does not expose local connection ID evidence; "
+                    + "communicationConnection selector not available.");
         }
 
         return diagnostics;

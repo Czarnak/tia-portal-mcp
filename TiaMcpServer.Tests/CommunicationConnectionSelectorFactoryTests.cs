@@ -64,6 +64,61 @@ public sealed class CommunicationConnectionSelectorFactoryTests
         Assert.Null(summary.Selector!.LocalConnectionId);
     }
 
+    public static TheoryData<string> NonHmiConnectionTypes() => new()
+    {
+        "S7Connection",
+        "FdlConnection",
+        "IsoConnection",
+        "IsoOnTcpConnection",
+        "PtpConnection",
+        "TcpConnection",
+        "UdpConnection",
+    };
+
+    [Theory]
+    [MemberData(nameof(NonHmiConnectionTypes))]
+    public void Create_EveryNonHmiTypeRequiresNonblankLocalConnectionId(string connectionType)
+    {
+        foreach (var localConnectionId in new string?[] { null, string.Empty, " " })
+        {
+            var summary = CommunicationConnectionSelectorFactory.Create(
+                "PLC_1",
+                OwnerPath,
+                connectionIndex: 0,
+                connectionType,
+                localConnectionName: "Connection_1",
+                localConnectionId,
+                partnerName: null,
+                isValid: true);
+
+            Assert.False(summary.Selectable);
+            Assert.Null(summary.Selector);
+            Assert.Contains(
+                summary.SelectorDiagnostics,
+                diagnostic => diagnostic.Contains("local connection ID", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    [Fact]
+    public void Create_HmiTypeRejectsSuppliedLocalConnectionId()
+    {
+        var summary = CommunicationConnectionSelectorFactory.Create(
+            "HMI_1",
+            OwnerPath,
+            connectionIndex: 0,
+            connectionType: "HmiConnection",
+            localConnectionName: "HMI_Connection_1",
+            localConnectionId: "not-applicable",
+            partnerName: null,
+            isValid: true);
+
+        Assert.False(summary.Selectable);
+        Assert.Null(summary.Selector);
+        Assert.Contains(
+            summary.SelectorDiagnostics,
+            diagnostic => diagnostic.Contains("does not expose", StringComparison.OrdinalIgnoreCase));
+    }
+
     public static TheoryData<string> InstalledConnectionTypes() => new()
     {
         "S7Connection",

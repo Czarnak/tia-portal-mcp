@@ -2,65 +2,42 @@ using Siemens.Engineering;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 
-/// <summary>Reads only dynamic attribute metadata and values; it never invokes a write API.</summary>
+/// <summary>Adapts the read-only Siemens metadata surface to the fault-isolated pure processor.</summary>
 public static class EngineeringAttributeInspector
 {
-    public static IReadOnlyList<NetworkAttributeObservation> Inspect(
+    public static NetworkAttributeMetadataProcessingResult Inspect(
         IEngineeringObject engineeringObject,
         IReadOnlyList<string>? attributeNames)
+        => NetworkAttributeMetadataProcessor.Process(
+            () => engineeringObject.GetAttributeInfos().Select(info =>
+                new NetworkAttributeMetadataEntry
+                {
+                    ReadName = () => info.Name,
+                    ReadAccess = () => Access(info.AccessMode),
+                    ReadSupportedTypes = () => info.SupportedTypes.Select(type =>
+                        new NetworkAttributeSupportedTypeMetadata
+                        {
+                            ReadName = () => type.FullName ?? type.Name,
+                        }),
+                    ReadValue = () => engineeringObject.GetAttribute(info.Name),
+                }),
+            attributeNames);
+
+    private static NetworkAttributeAccessMetadata Access(
+        EngineeringAttributeAccessMode accessMode)
     {
-        var selectedNames = attributeNames is null
-            ? null
-            : new HashSet<string>(attributeNames, StringComparer.Ordinal);
-        var metadata = engineeringObject.GetAttributeInfos()
-            .Where(info => !string.IsNullOrEmpty(info.Name))
-            .Where(info => selectedNames is null || selectedNames.Contains(info.Name))
-            .OrderBy(info => info.Name, StringComparer.Ordinal)
-            .ToArray();
-        var observations = new List<NetworkAttributeObservation>(metadata.Length);
-
-        foreach (var info in metadata)
+        var access = accessMode switch
         {
-            var (canRead, canWrite) = Access(info.AccessMode);
-            Func<object?>? readValue = null;
-            if (canRead == true)
-            {
-                try
-                {
-                    var value = engineeringObject.GetAttribute(info.Name);
-                    readValue = () => value;
-                }
-                catch (Exception exception)
-                {
-                    var failure = exception;
-                    readValue = () => throw failure;
-                }
-            }
-
-            observations.Add(new NetworkAttributeObservation
-            {
-                Name = info.Name,
-                ReadValue = readValue,
-                CanRead = canRead,
-                CanWrite = canWrite,
-                SupportedTypes = info.SupportedTypes
-                    .Select(type => type.FullName ?? type.Name)
-                    .OrderBy(typeName => typeName, StringComparer.Ordinal)
-                    .ToArray(),
-                Availability = canRead == true ? "available" : "unreadable",
-            });
-        }
-
-        return observations;
-    }
-
-    private static (bool? CanRead, bool? CanWrite) Access(EngineeringAttributeAccessMode accessMode)
-        => accessMode switch
-        {
-            EngineeringAttributeAccessMode.None => (false, false),
-            EngineeringAttributeAccessMode.Read => (true, false),
-            EngineeringAttributeAccessMode.Write => (false, true),
-            EngineeringAttributeAccessMode.ReadWrite => (true, true),
-            _ => (null, null),
+            EngineeringAttributeAccessMode.None => (CanRead: (bool?)false, CanWrite: (bool?)false),
+            EngineeringAttributeAccessMode.Read => (CanRead: (bool?)true, CanWrite: (bool?)false),
+            EngineeringAttributeAccessMode.Write => (CanRead: (bool?)false, CanWrite: (bool?)true),
+            EngineeringAttributeAccessMode.ReadWrite => (CanRead: (bool?)true, CanWrite: (bool?)true),
+            _ => (CanRead: (bool?)null, CanWrite: (bool?)null),
         };
+        return new NetworkAttributeAccessMetadata
+        {
+            CanRead = access.CanRead,
+            CanWrite = access.CanWrite,
+        };
+    }
 }

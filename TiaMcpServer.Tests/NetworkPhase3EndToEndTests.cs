@@ -73,11 +73,10 @@ public class NetworkPhase3EndToEndTests
         Assert.Equal(WorkerFailureCategories.CursorSnapshotMismatch, exception.Category);
     }
 
-    private static NetworkObjectIndexedSummaryInfo IndexedNode(string snapshotEvidence)
+    private static NetworkObjectSummaryInfo IndexedNode(string snapshotEvidence)
         => new()
         {
             Kind = NetworkObjectKinds.Node,
-            DisplayName = "X1",
             Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
@@ -85,7 +84,12 @@ public class NetworkPhase3EndToEndTests
                 DeviceName = "PLC_2",
                 NodeId = "node-1",
             },
-            SnapshotEvidenceKey = snapshotEvidence,
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "X1",
+                NodeName = "X1",
+                Address = snapshotEvidence,
+            },
         };
 
     private static async Task<string> ReadStateMarkerAsync(McpProtocolTestHarness harness)

@@ -260,7 +260,16 @@ public class NetworkFieldForwardingTests
             {
                 Kind = NetworkObjectKinds.DeviceItem,
                 DeviceName = "PLC_1",
-                ItemPath = new[] { new NetworkDeviceItemPathSegment { PositionNumber = 3 } },
+                ItemPath = new[]
+                {
+                    new NetworkDeviceItemPathSegment
+                    {
+                        Index = 0,
+                        Name = "Module_1",
+                        PositionNumber = 3,
+                        TypeIdentifier = "OrderNumber:TEST",
+                    },
+                },
             },
         };
 
@@ -272,7 +281,12 @@ public class NetworkFieldForwardingTests
         var root = document.RootElement;
 
         var target = root.GetProperty("networkObjectTarget");
+        Assert.Equal(0, target.GetProperty("itemPath")[0].GetProperty("index").GetInt32());
+        Assert.Equal("Module_1", target.GetProperty("itemPath")[0].GetProperty("name").GetString());
         Assert.Equal(3, target.GetProperty("itemPath")[0].GetProperty("positionNumber").GetInt32());
+        Assert.Equal(
+            "OrderNumber:TEST",
+            target.GetProperty("itemPath")[0].GetProperty("typeIdentifier").GetString());
     }
 
     private static string ToPropertyName(string fieldName)

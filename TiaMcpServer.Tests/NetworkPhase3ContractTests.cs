@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
@@ -107,6 +108,67 @@ public class NetworkPhase3ContractTests
             typeof(NetworkObjectEvidenceInfo).GetProperty("DeviceItemPath")!.PropertyType);
     }
 
+    [Fact]
+    public void DiscoveryResultDtos_MatchLockedPublicContractExactly()
+    {
+        Assert.Equal(
+            new[] { "Diagnostics", "Evidence", "Kind", "Selectable", "Selector" },
+            typeof(NetworkObjectSummaryInfo)
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(typeof(NetworkObjectEvidenceInfo),
+            typeof(NetworkObjectSummaryInfo).GetProperty("Evidence")!.PropertyType);
+        Assert.Equal(typeof(List<string>),
+            typeof(NetworkObjectSummaryInfo).GetProperty("Diagnostics")!.PropertyType);
+
+        Assert.Equal(
+            new[] { "Items", "NextCursor", "ReturnedCount", "TotalCount" },
+            typeof(NetworkObjectListInfo)
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(typeof(int),
+            typeof(NetworkObjectListInfo).GetProperty("TotalCount")!.PropertyType);
+
+        Assert.Equal(
+            new[] { "Index", "Name", "PositionNumber", "TypeIdentifier" },
+            typeof(DeviceItemPathSegmentInfo)
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(typeof(int),
+            typeof(DeviceItemPathSegmentInfo).GetProperty("PositionNumber")!.PropertyType);
+
+        Assert.Null(typeof(NetworkObjectSelectorInfo).Assembly.GetType(
+            "TiaMcpServer.Contracts.NetworkDeviceItemPathSegmentInfo",
+            throwOnError: false,
+            ignoreCase: false));
+    }
+
+    [Fact]
+    public void DiscoveryResultJson_UsesOnlyLockedCamelCaseProperties()
+    {
+        var summary = new NetworkObjectSummaryInfo();
+        using var summaryDocument = JsonDocument.Parse(CanonicalJson.Serialize(summary));
+        Assert.Equal(
+            new[] { "diagnostics", "evidence", "kind", "selectable", "selector" },
+            summaryDocument.RootElement
+                .EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+
+        var list = new NetworkObjectListInfo();
+        using var listDocument = JsonDocument.Parse(CanonicalJson.Serialize(list));
+        Assert.Equal(
+            new[] { "items", "nextCursor", "returnedCount", "totalCount" },
+            listDocument.RootElement
+                .EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(JsonValueKind.Number, listDocument.RootElement.GetProperty("totalCount").ValueKind);
+    }
+
     // ---------------------------------------------------------------------------
     // Selector round-trip: every kind serialises to JSON that NetworkObjectTarget
     // accepts without unmapped-member rejection.
@@ -191,6 +253,66 @@ public class NetworkPhase3ContractTests
 
         Assert.False(result.IsValid);
         Assert.Contains("deviceName", result.Error);
+    }
+
+    [Theory]
+    [InlineData(NetworkObjectKinds.Subnet)]
+    [InlineData(NetworkObjectKinds.IoSystem)]
+    public void ListNetworkObjects_GlobalKindWithDeviceName_IsRejected(string globalKind)
+    {
+        var result = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            ListOp(kinds: new[] { globalKind }, adjust: request => request.DeviceName = "PLC_1"),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("deviceName", result.Error);
+        Assert.Contains(globalKind, result.Error);
+    }
+
+    [Fact]
+    public void ListNetworkObjects_MixedDeviceAndGlobalKindsWithDeviceName_IsRejected()
+    {
+        var result = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            ListOp(
+                kinds: new[] { NetworkObjectKinds.Node, NetworkObjectKinds.Subnet },
+                adjust: request => request.DeviceName = "PLC_1"),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("deviceName", result.Error);
+        Assert.Contains(NetworkObjectKinds.Subnet, result.Error);
+    }
+
+    [Fact]
+    public void ListNetworkObjects_AllDeviceScopedKindsWithDeviceName_IsAccepted()
+    {
+        var result = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            ListOp(
+                kinds: new[]
+                {
+                    NetworkObjectKinds.DeviceItem,
+                    NetworkObjectKinds.NetworkInterface,
+                    NetworkObjectKinds.Node,
+                    NetworkObjectKinds.CommunicationConnection,
+                },
+                adjust: request => request.DeviceName = "PLC_1"),
+        });
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
+    [Fact]
+    public void ListNetworkObjects_GlobalKindsWithoutDeviceName_AreAccepted()
+    {
+        var result = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            ListOp(kinds: new[] { NetworkObjectKinds.Subnet, NetworkObjectKinds.IoSystem }),
+        });
+
+        Assert.True(result.IsValid, result.Error);
     }
 
     [Fact]
@@ -333,6 +455,170 @@ public class NetworkPhase3ContractTests
         Assert.True(result.IsValid, result.Error);
     }
 
+    [Theory]
+    [InlineData(NetworkObjectKinds.DeviceItem)]
+    [InlineData(NetworkObjectKinds.NetworkInterface)]
+    [InlineData(NetworkObjectKinds.CommunicationConnection)]
+    public void InspectNetworkObject_EmptyItemPath_IsRejected(string kind)
+    {
+        var target = Phase3Fixtures.ValidTarget(kind);
+        target.ItemPath = Array.Empty<NetworkDeviceItemPathSegment>();
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("itemPath", result.Error);
+    }
+
+    [Theory]
+    [InlineData("index", -1)]
+    [InlineData("positionNumber", -1)]
+    public void InspectNetworkObject_NegativeItemPathNumber_IsRejected(string field, int value)
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.DeviceItem);
+        var segment = Assert.Single(target.ItemPath!);
+        if (field == "index")
+        {
+            segment.Index = value;
+        }
+        else
+        {
+            segment.PositionNumber = value;
+        }
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(field, result.Error);
+    }
+
+    [Theory]
+    [InlineData("name")]
+    [InlineData("typeIdentifier")]
+    public void InspectNetworkObject_BlankItemPathText_IsRejected(string field)
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.DeviceItem);
+        var segment = Assert.Single(target.ItemPath!);
+        if (field == "name")
+        {
+            segment.Name = "   ";
+        }
+        else
+        {
+            segment.TypeIdentifier = "   ";
+        }
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(field, result.Error);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_MissingItemPathPosition_IsRejected()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.DeviceItem);
+        Assert.Single(target.ItemPath!).PositionNumber = null;
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("positionNumber", result.Error);
+    }
+
+    [Theory]
+    [InlineData(NetworkObjectKinds.IoSystem, "number")]
+    [InlineData(NetworkObjectKinds.CommunicationConnection, "connectionIndex")]
+    public void InspectNetworkObject_NegativeSelectorNumber_IsRejected(string kind, string field)
+    {
+        var target = Phase3Fixtures.ValidTarget(kind);
+        if (field == "number")
+        {
+            target.Number = -1;
+        }
+        else
+        {
+            target.ConnectionIndex = -1;
+        }
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(field, result.Error);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_BlankOptionalInterfaceEvidence_IsRejected()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.NetworkInterface);
+        target.InterfaceType = "   ";
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("interfaceType", result.Error);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_BlankInapplicableField_IsStillRejected()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.Node);
+        target.SubnetId = "   ";
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("subnetId", result.Error);
+    }
+
+    [Theory]
+    [InlineData("S7Connection")]
+    [InlineData("FdlConnection")]
+    [InlineData("IsoConnection")]
+    [InlineData("IsoOnTcpConnection")]
+    [InlineData("PtpConnection")]
+    [InlineData("TcpConnection")]
+    [InlineData("UdpConnection")]
+    public void InspectNetworkObject_NonHmiConnectionRequiresLocalConnectionId(string connectionType)
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.CommunicationConnection);
+        target.ConnectionType = connectionType;
+        target.LocalConnectionId = null;
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("localConnectionId", result.Error);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_HmiConnectionForbidsLocalConnectionId()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.CommunicationConnection);
+        target.ConnectionType = "HmiConnection";
+        target.LocalConnectionId = "not-applicable";
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("localConnectionId", result.Error);
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("s7connection")]
+    [InlineData("S7")]
+    public void InspectNetworkObject_UnsupportedConnectionType_IsRejected(string connectionType)
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.CommunicationConnection);
+        target.ConnectionType = connectionType;
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("connectionType", result.Error);
+    }
+
     // ---------------------------------------------------------------------------
     // inspect_network_object — missing required selector fields
     // ---------------------------------------------------------------------------
@@ -473,13 +759,13 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
-            ItemPath = new List<DeviceItemPathSegmentInfo> { new() { PositionNumber = 1 } },
+            ItemPath = new List<DeviceItemPathSegmentInfo> { ValidSelectorPathSegment() },
         },
         NetworkObjectKinds.NetworkInterface => new NetworkObjectSelectorInfo
         {
             Kind = kind,
             DeviceName = "PLC_1",
-            ItemPath = new List<DeviceItemPathSegmentInfo> { new() { PositionNumber = 1 } },
+            ItemPath = new List<DeviceItemPathSegmentInfo> { ValidSelectorPathSegment() },
             InterfaceName = "PROFINET interface_1",
         },
         NetworkObjectKinds.Node => new NetworkObjectSelectorInfo
@@ -503,10 +789,11 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
-            ItemPath = new List<DeviceItemPathSegmentInfo> { new() { PositionNumber = 1 } },
+            ItemPath = new List<DeviceItemPathSegmentInfo> { ValidSelectorPathSegment() },
             ConnectionIndex = 0,
-            ConnectionType = "S7",
+            ConnectionType = "S7Connection",
             LocalConnectionName = "Connection_1",
+            LocalConnectionId = "1",
         },
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
@@ -518,13 +805,13 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
-            ItemPath = new[] { new NetworkDeviceItemPathSegment { PositionNumber = 1 } },
+            ItemPath = new[] { ValidRequestPathSegment() },
         },
         NetworkObjectKinds.NetworkInterface => new NetworkObjectTarget
         {
             Kind = kind,
             DeviceName = "PLC_1",
-            ItemPath = new[] { new NetworkDeviceItemPathSegment { PositionNumber = 1 } },
+            ItemPath = new[] { ValidRequestPathSegment() },
             InterfaceName = "PROFINET interface_1",
         },
         NetworkObjectKinds.Node => new NetworkObjectTarget
@@ -548,12 +835,29 @@ internal static class Phase3Fixtures
         {
             Kind = kind,
             DeviceName = "PLC_1",
-            ItemPath = new[] { new NetworkDeviceItemPathSegment { PositionNumber = 1 } },
+            ItemPath = new[] { ValidRequestPathSegment() },
             ConnectionIndex = 0,
-            ConnectionType = "S7",
+            ConnectionType = "S7Connection",
             LocalConnectionName = "Connection_1",
+            LocalConnectionId = "1",
         },
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+    };
+
+    private static DeviceItemPathSegmentInfo ValidSelectorPathSegment() => new()
+    {
+        Index = 0,
+        Name = "CPU",
+        PositionNumber = 1,
+        TypeIdentifier = "OrderNumber:CPU",
+    };
+
+    private static NetworkDeviceItemPathSegment ValidRequestPathSegment() => new()
+    {
+        Index = 0,
+        Name = "CPU",
+        PositionNumber = 1,
+        TypeIdentifier = "OrderNumber:CPU",
     };
 
     /// <summary>Clears a named selector field on the target (sets it to null / default).</summary>

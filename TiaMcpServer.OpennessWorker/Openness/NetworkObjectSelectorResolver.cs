@@ -341,33 +341,33 @@ public static class NetworkObjectSelectorResolver
 
         var messages = new List<string>();
         string? localConnectionId = null;
-        var hasLocalId = ConnectionModeledAttributeCatalog
-            .ForConnectionType(connectionType!)
-            .Any(descriptor => string.Equals(
-                descriptor.Name,
-                "LocalConnectionId",
-                StringComparison.Ordinal));
-        if (hasLocalId)
+        var requiresLocalConnectionId =
+            ConnectionModeledAttributeCatalog.RequiresLocalConnectionId(connectionType!);
+        if (requiresLocalConnectionId)
         {
+            if (string.IsNullOrWhiteSpace(target.LocalConnectionId))
+            {
+                return EvidenceMismatch(
+                    "The selected communication connection type requires local-ID evidence.");
+            }
+
             var idRead = CommunicationConnectionReader.TryReadIdentityString(
                 connection,
                 connectionType!,
                 "LocalConnectionId",
                 out localConnectionId,
                 out var idDiagnostic);
-            if (target.LocalConnectionId is not null
-                && (!idRead
-                    || !string.Equals(
-                        localConnectionId,
-                        target.LocalConnectionId,
-                        StringComparison.Ordinal)))
+            if (!idRead
+                || !string.Equals(
+                    localConnectionId,
+                    target.LocalConnectionId,
+                    StringComparison.Ordinal))
             {
                 return EvidenceMismatch(
                     idDiagnostic
                     ?? "The communication connection at the recorded index no longer matches its local-ID evidence.");
             }
 
-            AddReadMessage(messages, "local connection ID", idDiagnostic);
         }
         else if (target.LocalConnectionId is not null)
         {

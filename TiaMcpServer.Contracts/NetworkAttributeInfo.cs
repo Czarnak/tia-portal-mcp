@@ -33,8 +33,8 @@ public sealed class NetworkAttributeInfo
     public string Availability { get; set; } = string.Empty;
 
     /// <summary>
-    /// Typed value. Null when <see cref="Availability"/> is not <c>available</c>
-    /// or when the attribute is present but has no value.
+    /// Typed value. Null only when <see cref="Availability"/> is not <c>available</c>.
+    /// A successfully read CLR null uses a typed value with kind <c>null</c>.
     /// </summary>
     public NetworkAttributeValueInfo? Value { get; set; }
 
@@ -50,8 +50,8 @@ public sealed class NetworkAttributeInfo
 public sealed class NetworkAttributeValueInfo
 {
     /// <summary>
-    /// Value kind discriminator. One of <c>string</c>, <c>boolean</c>, <c>integer</c>,
-    /// <c>number</c>, or <c>enum</c>.
+    /// Value kind discriminator. One of <c>null</c>, <c>string</c>, <c>boolean</c>,
+    /// <c>integer</c>, <c>number</c>, or <c>enum</c>.
     /// </summary>
     public string Kind { get; set; } = string.Empty;
 

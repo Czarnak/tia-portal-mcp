@@ -16,7 +16,16 @@ public static class NetworkAttributeValueNormalizer
     {
         if (input is null)
         {
-            return new NetworkAttributeNormalizationResult { IsRepresentable = true };
+            return new NetworkAttributeNormalizationResult
+            {
+                IsRepresentable = true,
+                Value = new NetworkAttributeValueInfo
+                {
+                    Kind = "null",
+                    Value = null,
+                    TypeName = null,
+                },
+            };
         }
 
         var typeName = input.GetType().FullName;

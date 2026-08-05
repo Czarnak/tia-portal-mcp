@@ -165,7 +165,8 @@ while ((line = Console.In.ReadLine()) is not null)
             // without the payload failing its declared contract. Also resolvable: it models a
             // "PLC_2" device with a "node-1" node, so a configure_network_device target in the
             // same batch can be resolved by NetworkIdentityResolver against this same read.
-            Respond($$"""{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_2\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[{\"name\":\"if_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"positionNumber\":1,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_1\",\"nodes\":[{\"name\":\"n1\",\"nodeId\":\"node-1\",\"nodeType\":\"Ethernet\",\"ipAddress\":null,\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]}]}],\"subnets\":[],\"messages\":[\"seq:{{seq}}\"]}"}""");
+            Respond(Success(ToCamelCaseJson(SingleNodeHardwareConfig(
+                "PLC_2", "if_1", "if_1", "n1", "node-1", messages: new[] { $"seq:{seq}" }))));
             break;
         case "network-unresolvable-target":
             // A contract-valid, empty HardwareConfigInfo: no device can ever match a
@@ -181,7 +182,8 @@ while ((line = Console.In.ReadLine()) is not null)
             // fails structurally like every other method in this scenario.
             Respond(ReadMethod(line) switch
             {
-                "read_hardware_config" => """{"success":true,"payload":"{\"devices\":[{\"name\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"items\":[{\"name\":\"if_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"positionNumber\":1,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_1\",\"nodes\":[{\"name\":\"n1\",\"nodeId\":\"node-1\",\"nodeType\":\"Ethernet\",\"ipAddress\":null,\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]}]}],\"subnets\":[],\"messages\":[]}"}""",
+                "read_hardware_config" => Success(ToCamelCaseJson(SingleNodeHardwareConfig(
+                    "PLC_1", "if_1", "if_1", "n1", "node-1"))),
                 _ => """{"success":false,"error":"device could not be added"}"""
             });
             break;
@@ -204,7 +206,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // SAME nodeId across its two interfaces: proves NetworkIdentityResolver's ambiguous-match
             // fail-closed path (postcondition_failed, no token issued) through the actual worker/tool
             // wiring, not only the pure resolver unit tests.
-            Respond("""{"success":true,"payload":"{\"devices\":[{\"name\":\"PC_1\",\"typeIdentifier\":\"OrderNumber:PC-System\",\"items\":[{\"name\":\"IE general_1\",\"typeIdentifier\":\"OrderNumber:IE-General\",\"positionNumber\":1,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_1\",\"nodes\":[{\"name\":\"Port A\",\"nodeId\":\"dup-node\",\"nodeType\":\"Ethernet\",\"ipAddress\":\"192.168.0.20\",\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]},{\"name\":\"IE general_2\",\"typeIdentifier\":\"OrderNumber:IE-General\",\"positionNumber\":2,\"address\":null,\"networkInterfaces\":[{\"name\":\"if_2\",\"nodes\":[{\"name\":\"Port B\",\"nodeId\":\"dup-node\",\"nodeType\":\"Ethernet\",\"ipAddress\":\"10.20.30.40\",\"subnetMask\":null,\"pnDeviceName\":null,\"subnetName\":null,\"ioSystemName\":null}]}],\"items\":[]}]}],\"subnets\":[],\"messages\":[]}"}""");
+            Respond(Success(ToCamelCaseJson(AmbiguousNodeHardwareConfig())));
             break;
         case "invalid-network-success-payload":
             // The worker reports SUCCESS for every method, but search_equipment_catalog and
@@ -350,122 +352,7 @@ string Success(string payload) => JsonSerializer.Serialize(new { success = true,
 // A complete HardwareConfigInfo: every collection is present, and members that are genuinely
 // unset are explicit nulls rather than omitted, so the payload exercises the strict registry the
 // way a real worker read does.
-string HardwareConfigPayload() => """
-    {
-      "devices": [
-        {
-          "name": "PLC_1",
-          "typeIdentifier": "OrderNumber:TEST",
-          "items": [
-            {
-              "name": "PROFINET interface_1",
-              "typeIdentifier": "OrderNumber:TEST",
-              "positionNumber": 1,
-              "address": null,
-              "networkInterfaces": [
-                {
-                  "name": "PROFINET interface_1",
-                  "nodes": [
-                    {
-                      "name": "X1",
-                      "nodeId": "node-1",
-                      "nodeType": "Ethernet",
-                      "ipAddress": "192.168.0.10",
-                      "subnetMask": "255.255.255.0",
-                      "pnDeviceName": "plc-1",
-                      "subnetName": "PN/IE_1",
-                      "ioSystemName": "IO system_1"
-                    }
-                  ]
-                }
-              ],
-              "items": []
-            }
-          ]
-        },
-        {
-          "name": "PC_System_1",
-          "typeIdentifier": "OrderNumber:PC-System",
-          "items": [
-            {
-              "name": "IE general_1",
-              "typeIdentifier": "OrderNumber:IE-General",
-              "positionNumber": 1,
-              "address": null,
-              "networkInterfaces": [
-                {
-                  "name": "PROFINET interface_1",
-                  "nodes": [
-                    {
-                      "name": "E1",
-                      "nodeId": "0",
-                      "nodeType": "Ethernet",
-                      "ipAddress": "192.168.0.20",
-                      "subnetMask": "255.255.255.0",
-                      "pnDeviceName": null,
-                      "subnetName": "PN/IE_1",
-                      "ioSystemName": null
-                    }
-                  ]
-                }
-              ],
-              "items": []
-            },
-            {
-              "name": "IE general_2",
-              "typeIdentifier": "OrderNumber:IE-General",
-              "positionNumber": 2,
-              "address": null,
-              "networkInterfaces": [
-                {
-                  "name": "PROFINET interface_2",
-                  "nodes": [
-                    {
-                      "name": "E2",
-                      "nodeId": "1",
-                      "nodeType": "Ethernet",
-                      "ipAddress": "10.0.0.20",
-                      "subnetMask": "255.255.255.0",
-                      "pnDeviceName": null,
-                      "subnetName": "PN/IE_2",
-                      "ioSystemName": null
-                    }
-                  ]
-                }
-              ],
-              "items": []
-            }
-          ]
-        }
-      ],
-      "subnets": [
-        {
-          "name": "PN/IE_1",
-          "subnetId": "subnet-1",
-          "networkType": "Ethernet",
-          "typeIdentifier": "Ethernet",
-          "ioSystems": [
-            {
-              "name": "IO system_1",
-              "number": 100,
-              "ioControllerName": "PLC_1",
-              "connectedDeviceNames": []
-            }
-          ],
-          "connectedNodeNames": ["PLC_1.X1", "PC_System_1.E1"]
-        },
-        {
-          "name": "PN/IE_2",
-          "subnetId": "subnet-2",
-          "networkType": "Ethernet",
-          "typeIdentifier": "Ethernet",
-          "ioSystems": [],
-          "connectedNodeNames": ["PC_System_1.E2"]
-        }
-      ],
-      "messages": []
-    }
-    """;
+string HardwareConfigPayload() => ToCamelCaseJson(RoundTripHardwareConfig());
 
 string? ReadMethod(string requestLine) => ReadField(requestLine, "method");
 
@@ -495,6 +382,219 @@ string? ReadField(string requestLine, string propertyName)
 string ToCamelCaseJson<T>(T value)
     => JsonSerializer.Serialize(value, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
+// Hardware fixtures are serialized from the shared Contracts DTOs and carry the same deterministic
+// selectors the real worker now emits. Keeping this construction in one place means a future
+// selector-contract change fails the FakeWorker build instead of silently invalidating every
+// preview/apply scenario with stale hand-written JSON.
+HardwareConfigInfo RoundTripHardwareConfig() => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = "PLC_1",
+            TypeIdentifier = "OrderNumber:TEST",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    "PLC_1", 0, "PROFINET interface_1", "OrderNumber:TEST", 1,
+                    "PROFINET interface_1",
+                    SelectableNode(
+                        "PLC_1", "X1", "node-1", "Ethernet", "192.168.0.10",
+                        "255.255.255.0", "plc-1", "PN/IE_1", "IO system_1")),
+            },
+        },
+        new()
+        {
+            Name = "PC_System_1",
+            TypeIdentifier = "OrderNumber:PC-System",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    "PC_System_1", 0, "IE general_1", "OrderNumber:IE-General", 1,
+                    "PROFINET interface_1",
+                    SelectableNode(
+                        "PC_System_1", "E1", "0", "Ethernet", "192.168.0.20",
+                        "255.255.255.0", null, "PN/IE_1", null)),
+                SelectableDeviceItem(
+                    "PC_System_1", 1, "IE general_2", "OrderNumber:IE-General", 2,
+                    "PROFINET interface_2",
+                    SelectableNode(
+                        "PC_System_1", "E2", "1", "Ethernet", "10.0.0.20",
+                        "255.255.255.0", null, "PN/IE_2", null)),
+            },
+        },
+    },
+    Subnets = new List<SubnetInfo>
+    {
+        SelectableSubnet(
+            "PN/IE_1", "subnet-1", "Ethernet", "Ethernet",
+            new[] { SelectableIoSystem("subnet-1", "IO system_1", 100, "PLC_1") },
+            new[] { "PLC_1.X1", "PC_System_1.E1" }),
+        SelectableSubnet(
+            "PN/IE_2", "subnet-2", "Ethernet", "Ethernet",
+            Array.Empty<IoSystemInfo>(),
+            new[] { "PC_System_1.E2" }),
+    },
+};
+
+HardwareConfigInfo SingleNodeHardwareConfig(
+    string deviceName,
+    string itemName,
+    string interfaceName,
+    string nodeName,
+    string nodeId,
+    IEnumerable<string>? messages = null) => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = deviceName,
+            TypeIdentifier = "OrderNumber:TEST",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    deviceName, 0, itemName, "OrderNumber:TEST", 1, interfaceName,
+                    SelectableNode(deviceName, nodeName, nodeId, "Ethernet")),
+            },
+        },
+    },
+    Messages = messages?.ToList() ?? new List<string>(),
+};
+
+HardwareConfigInfo AmbiguousNodeHardwareConfig() => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = "PC_1",
+            TypeIdentifier = "OrderNumber:PC-System",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    "PC_1", 0, "IE general_1", "OrderNumber:IE-General", 1, "if_1",
+                    SelectableNode("PC_1", "Port A", "dup-node", "Ethernet", "192.168.0.20")),
+                SelectableDeviceItem(
+                    "PC_1", 1, "IE general_2", "OrderNumber:IE-General", 2, "if_2",
+                    SelectableNode("PC_1", "Port B", "dup-node", "Ethernet", "10.20.30.40")),
+            },
+        },
+    },
+};
+
+DeviceItemInfo SelectableDeviceItem(
+    string deviceName,
+    int index,
+    string itemName,
+    string typeIdentifier,
+    int positionNumber,
+    string interfaceName,
+    params NodeInfo[] nodes)
+{
+    var path = new List<DeviceItemPathSegmentInfo>
+    {
+        new()
+        {
+            Index = index,
+            Name = itemName,
+            PositionNumber = positionNumber,
+            TypeIdentifier = typeIdentifier,
+        },
+    };
+
+    return new DeviceItemInfo
+    {
+        Name = itemName,
+        TypeIdentifier = typeIdentifier,
+        PositionNumber = positionNumber,
+        Selectable = true,
+        Selector = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.DeviceItem,
+            DeviceName = deviceName,
+            ItemPath = path,
+        },
+        NetworkInterfaces = new List<NetworkInterfaceInfo>
+        {
+            new()
+            {
+                Name = interfaceName,
+                Selectable = true,
+                Selector = new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.NetworkInterface,
+                    DeviceName = deviceName,
+                    ItemPath = path,
+                    InterfaceName = interfaceName,
+                },
+                Nodes = nodes.ToList(),
+            },
+        },
+    };
+}
+
+NodeInfo SelectableNode(
+    string deviceName,
+    string name,
+    string nodeId,
+    string? nodeType = null,
+    string? ipAddress = null,
+    string? subnetMask = null,
+    string? pnDeviceName = null,
+    string? subnetName = null,
+    string? ioSystemName = null) => new()
+{
+    Name = name,
+    NodeId = nodeId,
+    NodeType = nodeType,
+    IpAddress = ipAddress,
+    SubnetMask = subnetMask,
+    PnDeviceName = pnDeviceName,
+    SubnetName = subnetName,
+    IoSystemName = ioSystemName,
+    Selectable = true,
+    Selector = new NetworkObjectSelectorInfo
+    {
+        Kind = NetworkObjectKinds.Node,
+        DeviceName = deviceName,
+        NodeId = nodeId,
+    },
+};
+
+SubnetInfo SelectableSubnet(
+    string name,
+    string subnetId,
+    string? networkType,
+    string? typeIdentifier,
+    IEnumerable<IoSystemInfo> ioSystems,
+    IEnumerable<string> connectedNodeNames) => new()
+{
+    Name = name,
+    SubnetId = subnetId,
+    NetworkType = networkType,
+    TypeIdentifier = typeIdentifier,
+    Selectable = true,
+    Selector = new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Subnet, SubnetId = subnetId },
+    IoSystems = ioSystems.ToList(),
+    ConnectedNodeNames = connectedNodeNames.ToList(),
+};
+
+IoSystemInfo SelectableIoSystem(string subnetId, string name, int number, string? controllerName) => new()
+{
+    Name = name,
+    Number = number,
+    IoControllerName = controllerName,
+    Selectable = true,
+    Selector = new NetworkObjectSelectorInfo
+    {
+        Kind = NetworkObjectKinds.IoSystem,
+        SubnetId = subnetId,
+        Number = number,
+    },
+};
+
 // Builds the current HardwareConfigInfo for the "multi-homed-network" scenario from the live
 // mutable node state, so a read after a configure_network_device call observes the mutation.
 HardwareConfigInfo MultiHomedHardwareConfig(MultiHomedNode plc, MultiHomedNode db) => new()
@@ -507,79 +607,29 @@ HardwareConfigInfo MultiHomedHardwareConfig(MultiHomedNode plc, MultiHomedNode d
             TypeIdentifier = "OrderNumber:PC-System",
             Items = new List<DeviceItemInfo>
             {
-                new()
-                {
-                    Name = "IE general_1",
-                    TypeIdentifier = "OrderNumber:IE-General",
-                    PositionNumber = 1,
-                    NetworkInterfaces = new List<NetworkInterfaceInfo>
-                    {
-                        new()
-                        {
-                            Name = "PROFINET interface_1",
-                            Nodes = new List<NodeInfo>
-                            {
-                                new()
-                                {
-                                    Name = plc.Name,
-                                    NodeId = plc.NodeId,
-                                    NodeType = "Ethernet",
-                                    IpAddress = plc.IpAddress,
-                                    SubnetMask = plc.SubnetMask,
-                                    PnDeviceName = plc.PnDeviceName,
-                                    SubnetName = "PN/IE_1",
-                                },
-                            },
-                        },
-                    },
-                    Items = new List<DeviceItemInfo>(),
-                },
-                new()
-                {
-                    Name = "IE general_2",
-                    TypeIdentifier = "OrderNumber:IE-General",
-                    PositionNumber = 2,
-                    NetworkInterfaces = new List<NetworkInterfaceInfo>
-                    {
-                        new()
-                        {
-                            Name = "PROFINET interface_2",
-                            Nodes = new List<NodeInfo>
-                            {
-                                new()
-                                {
-                                    Name = db.Name,
-                                    NodeId = db.NodeId,
-                                    NodeType = "Ethernet",
-                                    IpAddress = db.IpAddress,
-                                    SubnetMask = db.SubnetMask,
-                                    PnDeviceName = db.PnDeviceName,
-                                    SubnetName = "PN/IE_2",
-                                },
-                            },
-                        },
-                    },
-                    Items = new List<DeviceItemInfo>(),
-                },
+                SelectableDeviceItem(
+                    "PC_1", 0, "IE general_1", "OrderNumber:IE-General", 1,
+                    "PROFINET interface_1",
+                    SelectableNode(
+                        "PC_1", plc.Name, plc.NodeId, "Ethernet", plc.IpAddress, plc.SubnetMask,
+                        plc.PnDeviceName, "PN/IE_1")),
+                SelectableDeviceItem(
+                    "PC_1", 1, "IE general_2", "OrderNumber:IE-General", 2,
+                    "PROFINET interface_2",
+                    SelectableNode(
+                        "PC_1", db.Name, db.NodeId, "Ethernet", db.IpAddress, db.SubnetMask,
+                        db.PnDeviceName, "PN/IE_2")),
             },
         },
     },
     Subnets = new List<SubnetInfo>
     {
-        new()
-        {
-            Name = "PN/IE_1",
-            SubnetId = "subnet-plc",
-            NetworkType = "Ethernet",
-            ConnectedNodeNames = new List<string> { $"PC_1.{plc.Name}" },
-        },
-        new()
-        {
-            Name = "PN/IE_2",
-            SubnetId = "subnet-db",
-            NetworkType = "Ethernet",
-            ConnectedNodeNames = new List<string> { $"PC_1.{db.Name}" },
-        },
+        SelectableSubnet(
+            "PN/IE_1", "subnet-plc", "Ethernet", null,
+            Array.Empty<IoSystemInfo>(), new[] { $"PC_1.{plc.Name}" }),
+        SelectableSubnet(
+            "PN/IE_2", "subnet-db", "Ethernet", null,
+            Array.Empty<IoSystemInfo>(), new[] { $"PC_1.{db.Name}" }),
     },
     Messages = new List<string>(),
 };
@@ -647,7 +697,6 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
         new()
         {
             Kind = NetworkObjectKinds.DeviceItem,
-            DisplayName = "PROFINET interface_1",
             Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
@@ -664,11 +713,17 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
                     },
                 },
             },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "PROFINET interface_1",
+                TypeIdentifier = "OrderNumber:TEST",
+                PositionNumber = 1,
+                DeviceItemPath = new List<string> { "PROFINET interface_1" },
+            },
         },
         new()
         {
             Kind = NetworkObjectKinds.NetworkInterface,
-            DisplayName = "PROFINET interface_1",
             Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
@@ -686,11 +741,16 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
                 },
                 InterfaceName = "PROFINET interface_1",
             },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "PROFINET interface_1",
+                DeviceItemPath = new List<string> { "PROFINET interface_1" },
+                InterfaceName = "PROFINET interface_1",
+            },
         },
         new()
         {
             Kind = NetworkObjectKinds.Node,
-            DisplayName = "X1",
             Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
@@ -698,22 +758,22 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
                 DeviceName = "PLC_1",
                 NodeId = "node-1",
             },
+            Evidence = new NetworkObjectEvidenceInfo { Name = "X1", NodeName = "X1" },
         },
         new()
         {
             Kind = NetworkObjectKinds.Subnet,
-            DisplayName = "PN/IE_1",
             Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.Subnet,
                 SubnetId = "subnet-1",
             },
+            Evidence = new NetworkObjectEvidenceInfo { Name = "PN/IE_1", SubnetName = "PN/IE_1" },
         },
         new()
         {
             Kind = NetworkObjectKinds.IoSystem,
-            DisplayName = "IO system_1",
             Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
@@ -721,14 +781,25 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
                 SubnetId = "subnet-1",
                 Number = 100,
             },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "IO system_1",
+                SubnetName = "PN/IE_1",
+                IoSystemName = "IO system_1",
+            },
         },
         new()
         {
             Kind = NetworkObjectKinds.CommunicationConnection,
-            DisplayName = "S7 connection_1 (unselectable)",
             Selectable = false,
             Selector = null, // connection index not always determinable at list time
-            SelectorDiagnostics = new List<string>
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "S7 connection_1",
+                TypeIdentifier = "S7",
+                ConnectionIsValid = false,
+            },
+            Diagnostics = new List<string>
             {
                 "Connection identity could not be read; selector not available.",
             },
@@ -737,7 +808,6 @@ NetworkObjectListInfo ListNetworkObjectsFixture() => new()
     TotalCount = 6,
     ReturnedCount = 6,
     NextCursor = null,
-    Messages = new List<string>(),
 };
 
 // Builds the Phase 3 inspect_network_object fixture: attributes covering the full typed value
@@ -783,7 +853,7 @@ NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
             Access = "readOnly",
             SupportedTypes = new List<string>(),
             Availability = "available",
-            Value = null,
+            Value = new NetworkAttributeValueInfo { Kind = "null", Value = null },
         },
         new()
         {
@@ -878,13 +948,17 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
         .Select(i => new NetworkObjectSummaryInfo
         {
             Kind = NetworkObjectKinds.Node,
-            DisplayName = $"Port_{i:D2}",
             Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.Node,
                 DeviceName = "LargeSwitch",
                 NodeId = $"node-{i:D3}",
+            },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = $"Port_{i:D2}",
+                NodeName = $"Port_{i:D2}",
             },
         })
         .ToList();
@@ -895,7 +969,6 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
         TotalCount = 100,
         ReturnedCount = items.Count,
         NextCursor = "large-list-page-2",
-        Messages = new List<string>(),
     };
 }
 

@@ -12,6 +12,9 @@ public class NetworkPhase3WorkerDispatchTests
         Assert.Contains("\"list_network_objects\" => ListNetworkObjects(request)", source);
         Assert.Contains("private static WorkerResponse ListNetworkObjects(WorkerRequest request)", source);
         Assert.Contains("NetworkObjectIndexReader", source);
+        Assert.Contains("ValidateListNetworkObjectsRequest(request)", source);
+        Assert.Contains("NetworkObjectKinds.Subnet", source);
+        Assert.Contains("NetworkObjectKinds.IoSystem", source);
     }
 
     [Fact]
@@ -80,6 +83,36 @@ public class NetworkPhase3WorkerDispatchTests
     }
 
     [Fact]
+    public void DiscoveryReader_OptionalNamesDoNotGateOtherwiseCompleteSelectors()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+
+        Assert.DoesNotContain("interfaceName.Diagnostic", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("nodeName.Diagnostic", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("subnetName.Diagnostic", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ioSystemName.Diagnostic", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HardwareReader_UsesTypedIdentityReadsWithoutReflectionOrStringCoercion()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+
+        Assert.Contains("item.Name", source, StringComparison.Ordinal);
+        Assert.Contains("item.PositionNumber", source, StringComparison.Ordinal);
+        Assert.Contains("item.TypeIdentifier", source, StringComparison.Ordinal);
+        Assert.Contains("node.NodeId", source, StringComparison.Ordinal);
+        Assert.Contains("ioSystem.Number", source, StringComparison.Ordinal);
+        Assert.Contains("ReadExactStringAttribute", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReadPropertyOrAttribute", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReadEnumerableProperty", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("OpennessReflection", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("value.ToString()", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EngineeringAttributeInspector_UsesReadOnlyDynamicMetadataSurface()
     {
         var source = File.ReadAllText(FindRepositoryFile(
@@ -87,10 +120,37 @@ public class NetworkPhase3WorkerDispatchTests
 
         Assert.Equal(1, CountOccurrences(source, "GetAttributeInfos()"));
         Assert.Contains("GetAttribute(", source);
-        Assert.Contains("StringComparer.Ordinal", source);
+        Assert.Contains("NetworkAttributeMetadataProcessor.Process", source, StringComparison.Ordinal);
+        Assert.Contains("ReadName = () => info.Name", source, StringComparison.Ordinal);
+        Assert.Contains("ReadAccess = () => Access(info.AccessMode)", source, StringComparison.Ordinal);
+        Assert.Contains("ReadSupportedTypes", source, StringComparison.Ordinal);
         Assert.DoesNotContain("SetAttribute(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("SetAttributes(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("System.Reflection", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConnectionReader_RoutesLocalIdReadFailureIntoSelectorIdentityDiagnostics()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "CommunicationConnectionReader.cs"));
+
+        Assert.Contains("RequiresLocalConnectionId(connectionType)", source, StringComparison.Ordinal);
+        Assert.Contains("AddDiagnostic(identityDiagnostics, idDiagnostic)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddMessage(messages, idDiagnostic)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SelectorResolver_RequiresAndVerifiesNonHmiLocalConnectionIdEvidence()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs"));
+
+        Assert.Contains("RequiresLocalConnectionId(connectionType!)", source, StringComparison.Ordinal);
+        Assert.Contains("string.IsNullOrWhiteSpace(target.LocalConnectionId)", source, StringComparison.Ordinal);
+        Assert.Contains("localConnectionId,", source, StringComparison.Ordinal);
+        Assert.Contains("target.LocalConnectionId,", source, StringComparison.Ordinal);
+        Assert.Contains("does not expose local-ID evidence", source, StringComparison.Ordinal);
     }
 
     private static int CountOccurrences(string source, string value)

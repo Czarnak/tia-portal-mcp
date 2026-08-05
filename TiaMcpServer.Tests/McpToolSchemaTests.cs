@@ -206,6 +206,21 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("safety", properties);
     }
 
+    [Fact]
+    public void NetworkSelectorDescriptions_StateTheLockedRequiredAndOptionalRules()
+    {
+        static string DescriptionOf(string propertyName)
+            => typeof(NetworkObjectTarget).GetProperty(propertyName)!
+                .GetCustomAttribute<System.ComponentModel.DescriptionAttribute>()!.Description;
+
+        Assert.Contains("deviceItem, networkInterface, and communicationConnection", DescriptionOf("ItemPath"));
+        Assert.Contains("Optional captured evidence", DescriptionOf("InterfaceName"));
+        Assert.Contains("Required for communicationConnection", DescriptionOf("ConnectionType"));
+        Assert.Contains("Required for communicationConnection", DescriptionOf("LocalConnectionName"));
+        Assert.Contains("Required for S7Connection", DescriptionOf("LocalConnectionId"));
+        Assert.Contains("not applicable to HmiConnection", DescriptionOf("LocalConnectionId"));
+    }
+
     /// <summary>
     /// Minimal hand-rolled IServiceProvider (rather than pulling in Microsoft.Extensions.DependencyInjection
     /// for a ServiceCollection) - the schema generator only needs GetService(type) to resolve for

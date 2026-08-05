@@ -43,9 +43,13 @@ public static class NetworkWorkerInvoker
                 : target.ItemPath
                     .Select(segment => new DeviceItemPathSegmentInfo
                     {
-                        Index = segment.Index,
+                        Index = segment.Index
+                            ?? throw new InvalidOperationException(
+                                "Validated network selector path segment is missing index."),
                         Name = segment.Name,
-                        PositionNumber = segment.PositionNumber,
+                        PositionNumber = segment.PositionNumber
+                            ?? throw new InvalidOperationException(
+                                "Validated network selector path segment is missing positionNumber."),
                         TypeIdentifier = segment.TypeIdentifier,
                     })
                     .ToList(),

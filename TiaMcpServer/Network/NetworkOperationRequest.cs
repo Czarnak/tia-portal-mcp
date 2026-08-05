@@ -45,7 +45,7 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
     [Description("Exact equipment catalog type identifier. Required by add_network_device.")]
     public string? TypeIdentifier { get; set; }
 
-    [Description("Name for the new network device or filter for list_network_objects. Required by add_network_device; optional filter for list_network_objects.")]
+    [Description("Name for the new network device or device-scoped filter for list_network_objects. Required by add_network_device; for list_network_objects it is allowed only when every requested kind is deviceItem, networkInterface, node, or communicationConnection.")]
     public string? DeviceName { get; set; }
 
     [Description("Optional device item name for add_network_device; defaults to deviceName when omitted.")]
@@ -88,10 +88,10 @@ public sealed class NetworkObjectTarget
     [Description("Exact device name. Required for deviceItem, networkInterface, node, and communicationConnection kinds.")]
     public string? DeviceName { get; set; }
 
-    [Description("Path through the device item hierarchy. Required for deviceItem kind.")]
+    [Description("Path through the device item hierarchy. Required and non-empty for deviceItem, networkInterface, and communicationConnection kinds; every segment requires a non-negative index and positionNumber plus nonblank name and typeIdentifier.")]
     public IReadOnlyList<NetworkDeviceItemPathSegment>? ItemPath { get; set; }
 
-    [Description("Network interface name. Required for networkInterface kind.")]
+    [Description("Optional captured evidence for networkInterface kind; must be nonblank when supplied.")]
     public string? InterfaceName { get; set; }
 
     [Description("Network interface type (e.g. PROFINET, PROFIBUS). Optional for networkInterface kind.")]
@@ -106,19 +106,19 @@ public sealed class NetworkObjectTarget
     [Description("Exact subnetId reported by read_hardware_config. Required for subnet and ioSystem kinds.")]
     public string? SubnetId { get; set; }
 
-    [Description("IO system number within its subnet. Required for ioSystem kind.")]
+    [Description("Non-negative IO system number within its subnet. Required for ioSystem kind.")]
     public int? Number { get; set; }
 
-    [Description("Connection index within the device. Required for communicationConnection kind.")]
+    [Description("Non-negative connection index within the owning device item composition. Required for communicationConnection kind.")]
     public int? ConnectionIndex { get; set; }
 
-    [Description("Connection type. Optional for communicationConnection kind.")]
+    [Description("Connection type. Required for communicationConnection. Valid values: S7Connection, FdlConnection, IsoConnection, IsoOnTcpConnection, PtpConnection, TcpConnection, UdpConnection, HmiConnection.")]
     public string? ConnectionType { get; set; }
 
-    [Description("Local connection name. Optional for communicationConnection kind.")]
+    [Description("Local connection name. Required for communicationConnection and must be nonblank.")]
     public string? LocalConnectionName { get; set; }
 
-    [Description("Local connection identifier. Optional for communicationConnection kind.")]
+    [Description("Local connection identifier. Required for S7Connection, FdlConnection, IsoConnection, IsoOnTcpConnection, PtpConnection, TcpConnection, and UdpConnection; not applicable to HmiConnection.")]
     public string? LocalConnectionId { get; set; }
 }
 
@@ -136,7 +136,7 @@ public sealed class NetworkObjectTarget
 public sealed class NetworkDeviceItemPathSegment
 {
     [Description("Zero-based sibling index within the parent device item composition.")]
-    public int Index { get; set; }
+    public int? Index { get; set; }
 
     [Description("Name of the module at this level of the device hierarchy.")]
     public string Name { get; set; } = string.Empty;

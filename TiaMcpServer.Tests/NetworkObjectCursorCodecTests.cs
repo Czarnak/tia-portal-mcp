@@ -85,53 +85,47 @@ public class NetworkObjectCursorCodecTests
     }
 
     [Fact]
-    public void SnapshotHash_BindsUnselectableEvidenceAndOrderButIgnoresAttributeValues()
+    public void SnapshotHash_BindsUnselectableEvidenceAndOrder()
     {
         var original = new[]
         {
-            Unselectable("first", "attribute-a"),
-            Unselectable("second", "attribute-b"),
-        };
-        var changedAttributeValues = new[]
-        {
-            Unselectable("first", "changed-a"),
-            Unselectable("second", "changed-b"),
+            Unselectable("first"),
+            Unselectable("second"),
         };
         var reordered = new[]
         {
-            Unselectable("second", "attribute-b"),
-            Unselectable("first", "attribute-a"),
+            Unselectable("second"),
+            Unselectable("first"),
         };
         var changedIdentity = new[]
         {
-            Unselectable("replacement", "attribute-a"),
-            Unselectable("second", "attribute-b"),
+            Unselectable("replacement"),
+            Unselectable("second"),
         };
 
         var hash = NetworkObjectCursorCodec.CreateSnapshotHash(original);
 
-        Assert.Equal(hash, NetworkObjectCursorCodec.CreateSnapshotHash(changedAttributeValues));
         Assert.NotEqual(hash, NetworkObjectCursorCodec.CreateSnapshotHash(reordered));
         Assert.NotEqual(hash, NetworkObjectCursorCodec.CreateSnapshotHash(changedIdentity));
     }
 
     [Fact]
-    public void SnapshotHash_BindsInternalEvidenceForOtherwiseIndistinguishableUnselectableSummaries()
+    public void SnapshotHash_BindsPublicPathEvidenceForOtherwiseIndistinguishableUnselectableSummaries()
     {
         var first = new[]
         {
-            IndexedUnselectable("device/0/node/0"),
-            IndexedUnselectable("device/0/node/1"),
+            UnselectableWithPath("device/0/node/0"),
+            UnselectableWithPath("device/0/node/1"),
         };
         var reorderedEvidence = new[]
         {
-            IndexedUnselectable("device/0/node/1"),
-            IndexedUnselectable("device/0/node/0"),
+            UnselectableWithPath("device/0/node/1"),
+            UnselectableWithPath("device/0/node/0"),
         };
         var replacementEvidence = new[]
         {
-            IndexedUnselectable("device/0/node/replacement"),
-            IndexedUnselectable("device/0/node/1"),
+            UnselectableWithPath("device/0/node/replacement"),
+            UnselectableWithPath("device/0/node/1"),
         };
 
         var hash = NetworkObjectCursorCodec.CreateSnapshotHash(first);
@@ -187,25 +181,24 @@ public class NetworkObjectCursorCodecTests
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(json)).TrimEnd('=');
     }
 
-    private static SummaryWithAttributeValue Unselectable(string displayName, string attributeValue)
+    private static NetworkObjectSummaryInfo Unselectable(string name)
         => new()
         {
             Kind = NetworkObjectKinds.Node,
-            DisplayName = displayName,
-            AttributeValue = attributeValue,
+            Evidence = new NetworkObjectEvidenceInfo { Name = name },
+            Diagnostics = new List<string> { "Node identity unavailable." },
         };
 
-    private static NetworkObjectIndexedSummaryInfo IndexedUnselectable(string snapshotEvidenceKey)
+    private static NetworkObjectSummaryInfo UnselectableWithPath(string pathEvidence)
         => new()
         {
             Kind = NetworkObjectKinds.Node,
-            SnapshotEvidenceKey = snapshotEvidenceKey,
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                DeviceItemPath = new List<string> { pathEvidence },
+            },
+            Diagnostics = new List<string> { "Node identity unavailable." },
         };
-
-    private sealed class SummaryWithAttributeValue : NetworkObjectSummaryInfo
-    {
-        public string? AttributeValue { get; set; }
-    }
 
     private static string Hash(char value) => new(value, 64);
 }

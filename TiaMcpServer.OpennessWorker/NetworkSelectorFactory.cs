@@ -15,9 +15,9 @@ namespace TiaMcpServer.OpennessWorker;
 /// </para>
 ///
 /// <para>
-/// Rejection rules: a blank (null/whitespace) required string or a negative index causes an
-/// <see cref="ArgumentException"/>. An empty item-path list is also rejected because an empty
-/// path provides no evidence for device-item resolution.
+/// Rejection rules: a blank (null/whitespace) required string or incomplete/negative path
+/// evidence causes an <see cref="ArgumentException"/>. An empty item-path list is also rejected
+/// because an empty path provides no evidence for device-item resolution.
 /// </para>
 /// </summary>
 public static class NetworkSelectorFactory
@@ -29,7 +29,8 @@ public static class NetworkSelectorFactory
     /// <param name="deviceName">Exact device name. Must be non-blank.</param>
     /// <param name="itemPath">
     /// Ordered segments from the root of the device item composition to the target item.
-    /// Must be non-empty; each segment's <see cref="DeviceItemPathSegmentInfo.Index"/> must be ≥ 0.
+    /// Must be non-empty; every segment must contain a non-negative index and position plus
+    /// non-blank name and type-identifier evidence.
     /// </param>
     public static NetworkObjectSelectorInfo DeviceItem(
         string deviceName,
@@ -37,7 +38,7 @@ public static class NetworkSelectorFactory
     {
         RequireNonBlank(deviceName, nameof(deviceName));
         RequireNonEmptyPath(itemPath);
-        ValidateSegmentIndices(itemPath);
+        ValidateSegments(itemPath);
 
         return new NetworkObjectSelectorInfo
         {
@@ -60,7 +61,7 @@ public static class NetworkSelectorFactory
     {
         RequireNonBlank(deviceName, nameof(deviceName));
         RequireNonEmptyPath(itemPath);
-        ValidateSegmentIndices(itemPath);
+        ValidateSegments(itemPath);
 
         return new NetworkObjectSelectorInfo
         {
@@ -157,15 +158,45 @@ public static class NetworkSelectorFactory
         }
     }
 
-    private static void ValidateSegmentIndices(IReadOnlyList<DeviceItemPathSegmentInfo> itemPath)
+    private static void ValidateSegments(IReadOnlyList<DeviceItemPathSegmentInfo> itemPath)
     {
         for (int i = 0; i < itemPath.Count; i++)
         {
-            if (itemPath[i].Index < 0)
+            var segment = itemPath[i];
+            if (segment is null)
             {
                 throw new ArgumentException(
-                    $"Segment at position {i} has a negative Index ({itemPath[i].Index}), "
+                    $"Segment at position {i} must not be null.",
+                    nameof(itemPath));
+            }
+
+            if (segment.Index < 0)
+            {
+                throw new ArgumentException(
+                    $"Segment at position {i} has a negative Index ({segment.Index}), "
                         + "which is not a valid zero-based sibling index.",
+                    nameof(itemPath));
+            }
+
+            if (string.IsNullOrWhiteSpace(segment.Name))
+            {
+                throw new ArgumentException(
+                    $"Segment at position {i} must contain a non-blank Name.",
+                    nameof(itemPath));
+            }
+
+            if (segment.PositionNumber < 0)
+            {
+                throw new ArgumentException(
+                    $"Segment at position {i} has a negative PositionNumber "
+                        + $"({segment.PositionNumber}).",
+                    nameof(itemPath));
+            }
+
+            if (string.IsNullOrWhiteSpace(segment.TypeIdentifier))
+            {
+                throw new ArgumentException(
+                    $"Segment at position {i} must contain a non-blank TypeIdentifier.",
                     nameof(itemPath));
             }
         }

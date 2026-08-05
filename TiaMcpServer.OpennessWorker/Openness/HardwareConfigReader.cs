@@ -1,4 +1,6 @@
-using System.Globalization;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -18,9 +20,10 @@ public static class HardwareConfigReader
             {
                 result.Devices.Add(ReadDevice(device, result.Messages));
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException exception)
             {
-                result.Messages.Add($"Skipped a device while reading hardware configuration: {ex.Message}");
+                result.Messages.Add(
+                    $"Skipped a device while reading hardware configuration: {exception.Message}");
             }
         }
 
@@ -30,18 +33,18 @@ public static class HardwareConfigReader
             {
                 result.Subnets.Add(ReadSubnet(subnet, result.Messages));
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException exception)
             {
-                result.Messages.Add($"Skipped a subnet while reading hardware configuration: {ex.Message}");
+                result.Messages.Add(
+                    $"Skipped a subnet while reading hardware configuration: {exception.Message}");
             }
         }
 
-        // Stable ordering: devices by name, subnets by subnet-id.
         result.Devices = result.Devices
-            .OrderBy(d => d.Name, StringComparer.Ordinal)
+            .OrderBy(device => device.Name, StringComparer.Ordinal)
             .ToList();
         result.Subnets = result.Subnets
-            .OrderBy(s => s.SubnetId, StringComparer.Ordinal)
+            .OrderBy(subnet => subnet.SubnetId, StringComparer.Ordinal)
             .ToList();
 
         return result;
@@ -49,37 +52,35 @@ public static class HardwareConfigReader
 
     private static DeviceInfo ReadDevice(Device device, List<string> messages)
     {
+        var deviceName = ReadTypedIdentityString(() => device.Name, "Device name");
+        AddReadMessage(messages, deviceName, "device name");
+        var deviceDescription = deviceName.IsUsable ? deviceName.Value : "(unnamed)";
+        var typeIdentifier = ReadOptionalString(
+            () => device.TypeIdentifier,
+            $"device '{deviceDescription}' type identifier",
+            messages);
         var deviceInfo = new DeviceInfo
         {
-            Name = ReadString(() => device.Name, "device name", messages)
+            Name = deviceName.IsUsable ? deviceName.Value : null,
+            TypeIdentifier = typeIdentifier,
         };
-        var deviceDescription = deviceInfo.Name ?? "(unnamed)";
-        deviceInfo.TypeIdentifier = ReadString(
-            () => device.TypeIdentifier, $"device '{deviceDescription}' type identifier", messages);
-
-        // Device name is used when building selectors in the item tree. Pass an empty string
-        // when the name is unreadable so the selector builder can detect the gap and mark items
-        // as unselectable rather than inventing a placeholder identity.
-        var deviceName = deviceInfo.Name ?? string.Empty;
         deviceInfo.Items = ReadDeviceItems(
-            device.DeviceItems, $"device '{deviceDescription}'", messages,
-            deviceName, new List<DeviceItemPathSegmentInfo>());
-
+            device.DeviceItems,
+            $"device '{deviceDescription}'",
+            messages,
+            deviceName,
+            Array.Empty<DeviceItemPathSegmentInfo>(),
+            Array.Empty<string>());
         return deviceInfo;
     }
 
-    /// <summary>
-    /// Enumerates the composition with a zero-based sibling index. The index is stable for the
-    /// lifetime of the project and is used to distinguish identically-named siblings. The
-    /// composition order is NOT changed here — the index is only meaningful relative to this
-    /// enumeration order.
-    /// </summary>
     private static List<DeviceItemInfo> ReadDeviceItems(
         DeviceItemComposition items,
         string ownerDescription,
         List<string> messages,
-        string deviceName,
-        IReadOnlyList<DeviceItemPathSegmentInfo> parentPath)
+        NetworkObjectDiscoveryEvidenceValue<string> deviceName,
+        IReadOnlyList<DeviceItemPathSegmentInfo> parentPath,
+        IReadOnlyList<string> parentPathDiagnostics)
     {
         var result = new List<DeviceItemInfo>();
         var siblingIndex = 0;
@@ -88,11 +89,18 @@ public static class HardwareConfigReader
         {
             try
             {
-                result.Add(ReadDeviceItem(item, messages, deviceName, parentPath, siblingIndex));
+                result.Add(ReadDeviceItem(
+                    item,
+                    messages,
+                    deviceName,
+                    parentPath,
+                    parentPathDiagnostics,
+                    siblingIndex));
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException exception)
             {
-                messages.Add($"Skipped a device item while reading {ownerDescription}: {ex.Message}");
+                messages.Add(
+                    $"Skipped a device item while reading {ownerDescription}: {exception.Message}");
             }
 
             siblingIndex++;
@@ -104,60 +112,74 @@ public static class HardwareConfigReader
     private static DeviceItemInfo ReadDeviceItem(
         DeviceItem item,
         List<string> messages,
-        string deviceName,
+        NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> parentPath,
+        IReadOnlyList<string> parentPathDiagnostics,
         int siblingIndex)
     {
-        var itemName = ReadString(() => item.Name, "device item name", messages);
-        var itemDescription = itemName ?? "(unnamed)";
-        var typeIdentifier = ReadString(
-            () => item.TypeIdentifier, $"device item '{itemDescription}' type identifier", messages);
-        var positionNumber = ReadInt(
-            () => item.PositionNumber, $"device item '{itemDescription}' position number", messages);
+        var itemName = ReadTypedIdentityString(() => item.Name, "Device item name");
+        var itemDescription = itemName.IsUsable ? itemName.Value : "(unnamed)";
+        var typeIdentifier = ReadTypedIdentityString(
+            () => item.TypeIdentifier,
+            $"Device item '{itemDescription}' type identifier");
+        var positionNumber = ReadTypedIdentityInt(
+            () => item.PositionNumber,
+            $"Device item '{itemDescription}' position number");
+        AddReadMessage(messages, itemName, "device item name");
+        AddReadMessage(messages, typeIdentifier, $"device item '{itemDescription}' type identifier");
+        AddReadMessage(messages, positionNumber, $"device item '{itemDescription}' position number");
 
-        // Build the path segment for this item and the full path from the device root.
         var segment = new DeviceItemPathSegmentInfo
         {
             Index = siblingIndex,
-            Name = itemName ?? string.Empty,
-            PositionNumber = positionNumber,
-            TypeIdentifier = typeIdentifier ?? string.Empty,
+            Name = itemName.IsUsable ? itemName.Value : string.Empty,
+            PositionNumber = positionNumber.IsUsable ? positionNumber.Value : -1,
+            TypeIdentifier = typeIdentifier.IsUsable ? typeIdentifier.Value : string.Empty,
         };
-        var itemPath = new List<DeviceItemPathSegmentInfo>(parentPath) { segment };
+        var itemPath = parentPath.Concat(new[] { segment }).ToList();
+        var pathDiagnostics = CombineDiagnostics(
+            parentPathDiagnostics,
+            itemName.Diagnostic,
+            positionNumber.Diagnostic,
+            typeIdentifier.Diagnostic);
+        var selectorDiagnostics = CombineDiagnostics(pathDiagnostics, deviceName.Diagnostic);
 
         var itemInfo = new DeviceItemInfo
         {
-            Name = itemName,
-            TypeIdentifier = typeIdentifier,
-            PositionNumber = positionNumber,
-            Address = ReadAttribute(
-                (IEngineeringObject)item, "Address",
-                $"device item '{itemDescription}' address", messages)
+            Name = itemName.IsUsable ? itemName.Value : null,
+            TypeIdentifier = typeIdentifier.IsUsable ? typeIdentifier.Value : null,
+            PositionNumber = positionNumber.IsUsable ? positionNumber.Value : null,
+            Address = ReadExactStringAttribute(
+                (IEngineeringObject)item,
+                "Address",
+                $"device item '{itemDescription}' address",
+                messages),
+            Selectable = selectorDiagnostics.Count == 0,
+            SelectorDiagnostics = selectorDiagnostics,
         };
-
-        // Build the deviceItem selector when the device name is known.
-        if (string.IsNullOrWhiteSpace(deviceName))
+        if (itemInfo.Selectable)
         {
-            itemInfo.Selectable = false;
-            itemInfo.SelectorDiagnostics.Add(
-                "Device name could not be read; deviceItem selector not available.");
-        }
-        else
-        {
-            itemInfo.Selectable = true;
-            itemInfo.Selector = NetworkSelectorFactory.DeviceItem(deviceName, itemPath);
+            itemInfo.Selector = NetworkSelectorFactory.DeviceItem(deviceName.Value, itemPath);
         }
 
-        // Always assigned, even when empty: a consumer resolving a write target walks this tree and
-        // must not have to tell "no interfaces" apart from "collection omitted".
         itemInfo.CommunicationConnections = CommunicationConnectionReader
-            .Read(item, deviceName, itemPath, messages)
-            .Select(result => result.Summary)
+            .Read(item, deviceName.IsUsable ? deviceName.Value : null, itemPath, messages)
+            .Select(readResult => readResult.Summary)
             .ToList();
-        itemInfo.NetworkInterfaces =
-            ReadNetworkInterfaces(item, itemDescription, messages, deviceName, itemPath);
+        itemInfo.NetworkInterfaces = ReadNetworkInterfaces(
+            item,
+            itemDescription,
+            messages,
+            deviceName,
+            itemPath,
+            pathDiagnostics);
         itemInfo.Items = ReadDeviceItems(
-            item.DeviceItems, $"device item '{itemDescription}'", messages, deviceName, itemPath);
+            item.DeviceItems,
+            $"device item '{itemDescription}'",
+            messages,
+            deviceName,
+            itemPath,
+            pathDiagnostics);
 
         return itemInfo;
     }
@@ -166,8 +188,9 @@ public static class HardwareConfigReader
         DeviceItem item,
         string itemDescription,
         List<string> messages,
-        string deviceName,
-        IReadOnlyList<DeviceItemPathSegmentInfo> itemPath)
+        NetworkObjectDiscoveryEvidenceValue<string> deviceName,
+        IReadOnlyList<DeviceItemPathSegmentInfo> itemPath,
+        IReadOnlyList<string> itemPathDiagnostics)
     {
         var result = new List<NetworkInterfaceInfo>();
 
@@ -176,13 +199,19 @@ public static class HardwareConfigReader
             var networkInterface = ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
             if (networkInterface is not null)
             {
-                result.Add(ReadNetworkInterface(networkInterface, messages, deviceName, itemPath));
+                result.Add(ReadNetworkInterface(
+                    networkInterface,
+                    messages,
+                    deviceName,
+                    itemPath,
+                    itemPathDiagnostics));
             }
         }
-        catch (EngineeringException ex)
+        catch (EngineeringException exception)
         {
             messages.Add(
-                $"Could not read network interface while reading device item '{itemDescription}': {ex.Message}");
+                $"Could not read network interface while reading device item "
+                    + $"'{itemDescription}': {exception.Message}");
         }
 
         return result;
@@ -191,30 +220,28 @@ public static class HardwareConfigReader
     private static NetworkInterfaceInfo ReadNetworkInterface(
         NetworkInterface networkInterface,
         List<string> messages,
-        string deviceName,
-        IReadOnlyList<DeviceItemPathSegmentInfo> itemPath)
+        NetworkObjectDiscoveryEvidenceValue<string> deviceName,
+        IReadOnlyList<DeviceItemPathSegmentInfo> itemPath,
+        IReadOnlyList<string> itemPathDiagnostics)
     {
-        var interfaceName =
-            ReadPropertyOrAttribute(networkInterface, "Name", "network interface name", messages)
-            ?? string.Empty;
+        var interfaceName = ReadExactStringAttribute(
+            (IEngineeringObject)networkInterface,
+            "Name",
+            "network interface name",
+            messages);
+        var selectorDiagnostics = CombineDiagnostics(itemPathDiagnostics, deviceName.Diagnostic);
         var interfaceInfo = new NetworkInterfaceInfo
         {
-            Name = interfaceName
+            Name = interfaceName ?? string.Empty,
+            Selectable = selectorDiagnostics.Count == 0,
+            SelectorDiagnostics = selectorDiagnostics,
         };
-
-        // Build the networkInterface selector when the device name is known.
-        if (string.IsNullOrWhiteSpace(deviceName))
+        if (interfaceInfo.Selectable)
         {
-            interfaceInfo.Selectable = false;
-            interfaceInfo.SelectorDiagnostics.Add(
-                "Device name could not be read; networkInterface selector not available.");
-        }
-        else
-        {
-            interfaceInfo.Selectable = true;
             interfaceInfo.Selector = NetworkSelectorFactory.NetworkInterface(
-                deviceName, itemPath,
-                interfaceName.Length > 0 ? interfaceName : null,
+                deviceName.Value,
+                itemPath,
+                interfaceName,
                 interfaceType: null,
                 interfaceOperatingMode: null);
         }
@@ -225,18 +252,17 @@ public static class HardwareConfigReader
             {
                 interfaceInfo.Nodes.Add(ReadNode(node, networkInterface, messages, deviceName));
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException exception)
             {
                 messages.Add(
-                    $"Skipped a node while reading network interface '{interfaceName}': {ex.Message}");
+                    $"Skipped a node while reading network interface "
+                        + $"'{interfaceInfo.Name}': {exception.Message}");
             }
         }
 
-        // Stable ordering: nodes by node-id ordinal.
         interfaceInfo.Nodes = interfaceInfo.Nodes
-            .OrderBy(n => n.NodeId, StringComparer.Ordinal)
+            .OrderBy(node => node.NodeId, StringComparer.Ordinal)
             .ToList();
-
         return interfaceInfo;
     }
 
@@ -244,49 +270,49 @@ public static class HardwareConfigReader
         Node node,
         NetworkInterface networkInterface,
         List<string> messages,
-        string deviceName)
+        NetworkObjectDiscoveryEvidenceValue<string> deviceName)
     {
-        var nodeName = ReadString(() => node.Name, "node name", messages);
+        var nodeName = ReadOptionalString(() => node.Name, "node name", messages);
         var nodeDescription = nodeName ?? "(unnamed)";
-        var nodeId = ReadPropertyOrAttribute(
-            node, "NodeId", $"node '{nodeDescription}' node id", messages) ?? string.Empty;
-
+        var nodeId = ReadTypedIdentityString(
+            () => node.NodeId,
+            $"Node '{nodeDescription}' identity");
+        AddReadMessage(messages, nodeId, $"node '{nodeDescription}' identity");
+        var selectorDiagnostics = CombineDiagnostics(
+            Array.Empty<string>(),
+            deviceName.Diagnostic,
+            nodeId.Diagnostic);
         var nodeInfo = new NodeInfo
         {
             Name = nodeName ?? string.Empty,
-            NodeId = nodeId,
-            NodeType = ReadPropertyOrAttribute(
-                node, "NodeType", $"node '{nodeDescription}' node type", messages),
-            IpAddress = ReadAttribute(
-                (IEngineeringObject)node, "Address",
-                $"node '{nodeDescription}' IP address", messages),
-            SubnetMask = ReadAttribute(
-                (IEngineeringObject)node, "SubnetMask",
-                $"node '{nodeDescription}' subnet mask", messages),
-            PnDeviceName = ReadAttribute(
-                (IEngineeringObject)node, "PnDeviceName",
-                $"node '{nodeDescription}' PROFINET device name", messages),
+            NodeId = nodeId.IsUsable ? nodeId.Value : string.Empty,
+            NodeType = ReadOptionalEnumName(
+                () => node.NodeType,
+                $"node '{nodeDescription}' node type",
+                messages),
+            IpAddress = ReadExactStringAttribute(
+                (IEngineeringObject)node,
+                "Address",
+                $"node '{nodeDescription}' IP address",
+                messages),
+            SubnetMask = ReadExactStringAttribute(
+                (IEngineeringObject)node,
+                "SubnetMask",
+                $"node '{nodeDescription}' subnet mask",
+                messages),
+            PnDeviceName = ReadExactStringAttribute(
+                (IEngineeringObject)node,
+                "PnDeviceName",
+                $"node '{nodeDescription}' PROFINET device name",
+                messages),
             SubnetName = ReadConnectedSubnetName(node, nodeDescription, messages),
-            IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, messages)
+            IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, messages),
+            Selectable = selectorDiagnostics.Count == 0,
+            SelectorDiagnostics = selectorDiagnostics,
         };
-
-        // Build the node selector when device name and node id are both known.
-        if (string.IsNullOrWhiteSpace(deviceName))
+        if (nodeInfo.Selectable)
         {
-            nodeInfo.Selectable = false;
-            nodeInfo.SelectorDiagnostics.Add(
-                "Device name could not be read; node selector not available.");
-        }
-        else if (string.IsNullOrWhiteSpace(nodeId))
-        {
-            nodeInfo.Selectable = false;
-            nodeInfo.SelectorDiagnostics.Add(
-                "Node identity could not be read; node selector not available.");
-        }
-        else
-        {
-            nodeInfo.Selectable = true;
-            nodeInfo.Selector = NetworkSelectorFactory.Node(deviceName, nodeId);
+            nodeInfo.Selector = NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value);
         }
 
         return nodeInfo;
@@ -294,114 +320,99 @@ public static class HardwareConfigReader
 
     private static SubnetInfo ReadSubnet(Subnet subnet, List<string> messages)
     {
-        var subnetName = ReadString(() => subnet.Name, "subnet name", messages);
+        var subnetName = ReadOptionalString(() => subnet.Name, "subnet name", messages);
         var subnetDescription = subnetName ?? "(unnamed)";
-        var networkType = ReadPropertyOrAttribute(
-            subnet, "NetType", $"subnet '{subnetDescription}' network type", messages);
-        var subnetId = ReadPropertyOrAttribute(
-            subnet, "SubnetId", $"subnet '{subnetDescription}' subnet id", messages) ?? string.Empty;
-
+        var subnetId = ReadExactStringIdentityAttribute(
+            (IEngineeringObject)subnet,
+            "SubnetId",
+            $"Subnet '{subnetDescription}' identity");
+        AddReadMessage(messages, subnetId, $"subnet '{subnetDescription}' identity");
+        var selectorDiagnostics = CombineDiagnostics(
+            Array.Empty<string>(),
+            subnetId.Diagnostic);
         var subnetInfo = new SubnetInfo
         {
             Name = subnetName ?? string.Empty,
-            SubnetId = subnetId,
-            NetworkType = networkType,
-            TypeIdentifier =
-                ReadAttribute(
-                    (IEngineeringObject)subnet, "TypeIdentifier",
-                    $"subnet '{subnetDescription}' type identifier", messages)
-                ?? networkType
+            SubnetId = subnetId.IsUsable ? subnetId.Value : string.Empty,
+            NetworkType = ReadOptionalEnumName(
+                () => subnet.NetType,
+                $"subnet '{subnetDescription}' network type",
+                messages),
+            TypeIdentifier = ReadOptionalString(
+                () => subnet.TypeIdentifier,
+                $"subnet '{subnetDescription}' type identifier",
+                messages),
+            Selectable = selectorDiagnostics.Count == 0,
+            SelectorDiagnostics = selectorDiagnostics,
         };
-
-        // Build the subnet selector when the subnet id is known.
-        if (string.IsNullOrWhiteSpace(subnetId))
+        if (subnetInfo.Selectable)
         {
-            subnetInfo.Selectable = false;
-            subnetInfo.SelectorDiagnostics.Add(
-                "Subnet identity could not be read; subnet selector not available.");
-        }
-        else
-        {
-            subnetInfo.Selectable = true;
-            subnetInfo.Selector = NetworkSelectorFactory.Subnet(subnetId);
+            subnetInfo.Selector = NetworkSelectorFactory.Subnet(subnetId.Value);
         }
 
-        foreach (var node in ReadEnumerableProperty(
-            subnet, "Nodes", $"subnet '{subnetDescription}' nodes"))
+        foreach (Node node in subnet.Nodes)
         {
-            var connectedNodeName = ReadPropertyOrAttribute(
-                node, "Name", $"subnet '{subnetDescription}' connected node", messages);
+            var connectedNodeName = ReadOptionalString(
+                () => node.Name,
+                $"subnet '{subnetDescription}' connected node name",
+                messages);
             if (!string.IsNullOrWhiteSpace(connectedNodeName))
             {
                 subnetInfo.ConnectedNodeNames.Add(connectedNodeName!);
             }
         }
 
-        foreach (var ioSystem in ReadEnumerableProperty(
-            subnet, "IoSystems", $"subnet '{subnetDescription}' IO systems"))
+        foreach (IoSystem ioSystem in subnet.IoSystems)
         {
             try
             {
                 subnetInfo.IoSystems.Add(ReadIoSystem(ioSystem, subnetId, messages));
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException exception)
             {
                 messages.Add(
-                    $"Skipped an IO system while reading subnet '{subnetDescription}': {ex.Message}");
+                    $"Skipped an IO system while reading subnet "
+                        + $"'{subnetDescription}': {exception.Message}");
             }
         }
 
-        // Stable ordering: IO systems by number then name.
         subnetInfo.IoSystems = subnetInfo.IoSystems
-            .OrderBy(io => io.Number)
-            .ThenBy(io => io.Name, StringComparer.Ordinal)
+            .OrderBy(ioSystem => ioSystem.Number)
+            .ThenBy(ioSystem => ioSystem.Name, StringComparer.Ordinal)
             .ToList();
-
         return subnetInfo;
     }
 
     private static IoSystemInfo ReadIoSystem(
-        object ioSystem, string subnetId, List<string> messages)
+        IoSystem ioSystem,
+        NetworkObjectDiscoveryEvidenceValue<string> subnetId,
+        List<string> messages)
     {
-        var ioSystemName =
-            ReadPropertyOrAttribute(ioSystem, "Name", "IO system name", messages) ?? string.Empty;
-        var number = ReadIntPropertyOrAttribute(
-            ioSystem, "Number", $"IO system '{ioSystemName}' number", messages);
-
+        var ioSystemName = ReadOptionalString(() => ioSystem.Name, "IO system name", messages);
+        var number = ReadTypedIdentityInt(
+            () => ioSystem.Number,
+            $"IO system '{ioSystemName ?? "(unnamed)"}' number");
+        AddReadMessage(messages, number, $"IO system '{ioSystemName ?? "(unnamed)"}' number");
+        var selectorDiagnostics = CombineDiagnostics(
+            Array.Empty<string>(),
+            subnetId.Diagnostic,
+            number.Diagnostic);
         var ioSystemInfo = new IoSystemInfo
         {
-            Name = ioSystemName,
-            Number = number,
-            IoControllerName = FindParentDeviceName(ReadProperty(ioSystem, "IoController"), messages)
+            Name = ioSystemName ?? string.Empty,
+            Number = number.IsUsable ? number.Value : null,
+            IoControllerName = FindParentDeviceName(ioSystem.Parent, messages),
+            Selectable = selectorDiagnostics.Count == 0,
+            SelectorDiagnostics = selectorDiagnostics,
         };
-
-        // Build the IO system selector when both subnet id and number are known.
-        if (string.IsNullOrWhiteSpace(subnetId))
+        if (ioSystemInfo.Selectable)
         {
-            ioSystemInfo.Selectable = false;
-            ioSystemInfo.SelectorDiagnostics.Add(
-                "Subnet identity could not be read; ioSystem selector not available.");
-        }
-        else if (number is null)
-        {
-            ioSystemInfo.Selectable = false;
-            ioSystemInfo.SelectorDiagnostics.Add(
-                "IO system number could not be read; ioSystem selector not available.");
-        }
-        else
-        {
-            ioSystemInfo.Selectable = true;
-            ioSystemInfo.Selector = NetworkSelectorFactory.IoSystem(subnetId, number.Value);
+            ioSystemInfo.Selector = NetworkSelectorFactory.IoSystem(subnetId.Value, number.Value);
         }
 
-        foreach (var connectedDevice in ReadEnumerableProperty(
-            ioSystem, "ConnectedIoDevices", $"IO system '{ioSystemName}' connected IO devices"))
+        foreach (IoConnector connectedDevice in ioSystem.ConnectedIoDevices)
         {
-            var connectedDeviceName =
-                FindParentDeviceName(connectedDevice, messages)
-                ?? ReadPropertyOrAttribute(
-                    connectedDevice, "Name",
-                    $"IO system '{ioSystemName}' connected IO device", messages);
+            var connectedDeviceName = FindParentDeviceName(connectedDevice, messages);
             if (!string.IsNullOrWhiteSpace(connectedDeviceName))
             {
                 ioSystemInfo.ConnectedDeviceNames.Add(connectedDeviceName!);
@@ -412,86 +423,189 @@ public static class HardwareConfigReader
     }
 
     private static string? ReadConnectedSubnetName(
-        Node node, string nodeDescription, List<string> messages)
+        Node node,
+        string nodeDescription,
+        List<string> messages)
     {
-        var connectedSubnet = ReadProperty(node, "ConnectedSubnet");
-        return connectedSubnet is null
-            ? null
-            : ReadPropertyOrAttribute(
-                connectedSubnet, "Name",
-                $"node '{nodeDescription}' connected subnet", messages);
+        try
+        {
+            var connectedSubnet = node.ConnectedSubnet;
+            return connectedSubnet is null
+                ? null
+                : ReadOptionalString(
+                    () => connectedSubnet.Name,
+                    $"node '{nodeDescription}' connected subnet name",
+                    messages);
+        }
+        catch (EngineeringException exception)
+        {
+            messages.Add(
+                $"Could not read node '{nodeDescription}' connected subnet: {exception.Message}");
+            return null;
+        }
     }
 
     private static string? ReadIoSystemName(
-        NetworkInterface networkInterface, string nodeDescription, List<string> messages)
+        NetworkInterface networkInterface,
+        string nodeDescription,
+        List<string> messages)
     {
-        foreach (var ownerProperty in new[] { "IoControllers", "IoConnectors" })
+        try
         {
-            foreach (var item in ReadEnumerableProperty(
-                networkInterface, ownerProperty, $"node '{nodeDescription}' {ownerProperty}"))
+            foreach (IoController ioController in networkInterface.IoControllers)
             {
-                var ioSystem = ReadProperty(item, "IoSystem") ?? item;
-                var name = ReadPropertyOrAttribute(
-                    ioSystem, "Name", $"node '{nodeDescription}' IO system", messages);
+                var ioSystem = ioController.IoSystem;
+                if (ioSystem is null)
+                {
+                    continue;
+                }
+
+                var name = ReadOptionalString(
+                    () => ioSystem.Name,
+                    $"node '{nodeDescription}' IO system name",
+                    messages);
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    return name;
+                }
+            }
+
+            foreach (IoConnector ioConnector in networkInterface.IoConnectors)
+            {
+                var ioSystem = ioConnector.ConnectedToIoSystem;
+                if (ioSystem is null)
+                {
+                    continue;
+                }
+
+                var name = ReadOptionalString(
+                    () => ioSystem.Name,
+                    $"node '{nodeDescription}' IO system name",
+                    messages);
                 if (!string.IsNullOrWhiteSpace(name))
                 {
                     return name;
                 }
             }
         }
+        catch (EngineeringException exception)
+        {
+            messages.Add($"Could not read node '{nodeDescription}' IO system: {exception.Message}");
+        }
 
         return null;
     }
 
-    private static string? FindParentDeviceName(object? candidate, List<string> messages)
+    private static string? FindParentDeviceName(
+        IEngineeringObject? candidate,
+        List<string> messages)
     {
         var current = candidate;
         while (current is not null)
         {
             if (current is Device device)
             {
-                return ReadString(() => device.Name, "device name", messages);
+                return ReadOptionalString(() => device.Name, "device name", messages);
             }
 
-            var name = ReadPropertyOrAttribute(current, "DeviceName", "parent device name", messages);
-            if (!string.IsNullOrWhiteSpace(name))
+            try
             {
-                return name;
+                current = current.Parent;
             }
-
-            current = ReadProperty(current, "Parent");
+            catch (EngineeringException exception)
+            {
+                messages.Add($"Could not read parent device: {exception.Message}");
+                return null;
+            }
         }
 
         return null;
     }
 
-    private static string? ReadString(Func<string> read, string description, List<string> messages)
+    private static NetworkObjectDiscoveryEvidenceValue<string> ReadTypedIdentityString(
+        Func<string?> read,
+        string field)
+    {
+        try
+        {
+            return NetworkObjectDiscoveryEvidence.ReadString(read(), field);
+        }
+        catch (EngineeringException)
+        {
+            return NetworkObjectDiscoveryEvidence.UnreadableString(field);
+        }
+    }
+
+    private static NetworkObjectDiscoveryEvidenceValue<int> ReadTypedIdentityInt(
+        Func<int> read,
+        string field)
+    {
+        try
+        {
+            var value = NetworkObjectDiscoveryEvidence.ReadInt(read(), field);
+            return value.IsUsable && value.Value < 0
+                ? NetworkObjectDiscoveryEvidenceValue<int>.Unusable(
+                    $"{field} was negative; selector not available.",
+                    "negative")
+                : value;
+        }
+        catch (EngineeringException)
+        {
+            return NetworkObjectDiscoveryEvidence.UnreadableInt(field);
+        }
+    }
+
+    private static NetworkObjectDiscoveryEvidenceValue<string> ReadExactStringIdentityAttribute(
+        IEngineeringObject engineeringObject,
+        string attributeName,
+        string field)
+    {
+        try
+        {
+            return NetworkObjectDiscoveryEvidence.ReadString(
+                engineeringObject.GetAttribute(attributeName),
+                field);
+        }
+        catch (EngineeringException)
+        {
+            return NetworkObjectDiscoveryEvidence.UnreadableString(field);
+        }
+    }
+
+    private static string? ReadOptionalString(
+        Func<string?> read,
+        string description,
+        List<string> messages)
     {
         try
         {
             return read();
         }
-        catch (EngineeringException ex)
+        catch (EngineeringException exception)
         {
-            messages.Add($"Could not read {description}: {ex.Message}");
+            messages.Add($"Could not read {description}: {exception.Message}");
             return null;
         }
     }
 
-    private static int? ReadInt(Func<int> read, string description, List<string> messages)
+    private static string? ReadOptionalEnumName<TEnum>(
+        Func<TEnum> read,
+        string description,
+        List<string> messages)
+        where TEnum : struct, Enum
     {
         try
         {
-            return read();
+            return Enum.Format(typeof(TEnum), read(), "G");
         }
-        catch (EngineeringException ex)
+        catch (Exception exception)
         {
-            messages.Add($"Could not read {description}: {ex.Message}");
+            messages.Add($"Could not read {description}: {exception.Message}");
             return null;
         }
     }
 
-    private static string? ReadAttribute(
+    private static string? ReadExactStringAttribute(
         IEngineeringObject engineeringObject,
         string attributeName,
         string description,
@@ -499,60 +613,44 @@ public static class HardwareConfigReader
     {
         try
         {
-            return engineeringObject.GetAttribute(attributeName)?.ToString();
+            var value = engineeringObject.GetAttribute(attributeName);
+            if (value is null)
+            {
+                return null;
+            }
+
+            if (value is string text)
+            {
+                return text;
+            }
+
+            messages.Add(
+                $"Could not read {description}: attribute '{attributeName}' had an unexpected CLR type.");
+            return null;
         }
-        catch (EngineeringException ex)
+        catch (EngineeringException exception)
         {
-            messages.Add($"Could not read {description}: {ex.Message}");
+            messages.Add($"Could not read {description}: {exception.Message}");
             return null;
         }
     }
 
-    /// <summary>
-    /// Reads an integer identity. A value that is present but not an integer is reported as a
-    /// message and read as null: an identity is never guessed, because a guessed identity could
-    /// later satisfy a write selector that should not have matched.
-    /// </summary>
-    private static int? ReadIntPropertyOrAttribute(
-        object instance, string name, string description, List<string> messages)
+    private static List<string> CombineDiagnostics(
+        IEnumerable<string> inherited,
+        params string[] diagnostics)
+        => inherited.Concat(diagnostics)
+            .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+    private static void AddReadMessage<T>(
+        List<string> messages,
+        NetworkObjectDiscoveryEvidenceValue<T> evidence,
+        string description)
     {
-        var value = ReadPropertyOrAttribute(instance, name, description, messages);
-        if (string.IsNullOrWhiteSpace(value))
+        if (!evidence.IsUsable)
         {
-            return null;
+            messages.Add($"Could not read {description}: {evidence.Diagnostic}");
         }
-
-        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
-        {
-            return number;
-        }
-
-        messages.Add($"Could not read {description}: '{value}' is not an integer.");
-        return null;
-    }
-
-    private static string? ReadPropertyOrAttribute(
-        object instance, string name, string description, List<string> messages)
-    {
-        var value = ReadProperty(instance, name);
-        if (value is not null)
-        {
-            return value.ToString();
-        }
-
-        return instance is IEngineeringObject engineeringObject
-            ? ReadAttribute(engineeringObject, name, description, messages)
-            : null;
-    }
-
-    private static object? ReadProperty(object? instance, string propertyName)
-    {
-        return OpennessReflection.ReadProperty(instance, propertyName);
-    }
-
-    private static IEnumerable<object> ReadEnumerableProperty(
-        object instance, string propertyName, string description)
-    {
-        return OpennessReflection.ReadEnumerableProperty(instance, propertyName, description);
     }
 }

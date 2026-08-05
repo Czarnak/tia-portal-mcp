@@ -63,15 +63,24 @@ public static class NetworkObjectInspector
             }
         }
 
-        var dynamic = EngineeringAttributeInspector.Inspect(resolved.EngineeringObject, attributeNames);
-        var attributes = NetworkAttributeResultBuilder.Build(modeled, dynamic, attributeNames).ToList();
+        var dynamic = EngineeringAttributeInspector.Inspect(
+            resolved.EngineeringObject,
+            attributeNames);
+        var attributes = NetworkAttributeResultBuilder.Build(
+            modeled,
+            dynamic.Observations,
+            attributeNames).ToList();
+        var messages = resolved.Messages
+            .Concat(dynamic.Diagnostics)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
         return new NetworkObjectInspectionInfo
         {
             Target = resolved.Target,
             Evidence = resolved.Evidence,
             Attributes = attributes,
-            Messages = resolved.Messages.ToList(),
+            Messages = messages,
         };
     }
 }

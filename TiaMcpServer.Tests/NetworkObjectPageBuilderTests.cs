@@ -45,7 +45,12 @@ public class NetworkObjectPageBuilderTests
         var page = NetworkObjectPageBuilder.Build(
             new[]
             {
-                new NetworkObjectSummaryInfo { Kind = NetworkObjectKinds.Node, DisplayName = "unselectable" },
+                new NetworkObjectSummaryInfo
+                {
+                    Kind = NetworkObjectKinds.Node,
+                    Evidence = new NetworkObjectEvidenceInfo { Name = "unselectable" },
+                    Diagnostics = new List<string> { "Node identity unavailable." },
+                },
                 Item(NetworkObjectKinds.Subnet, "selectable"),
             },
             pageSize: 1,
@@ -53,7 +58,7 @@ public class NetworkObjectPageBuilderTests
             Hash('a'),
             Hash('b'));
 
-        Assert.Equal("selectable", page.Items[0].DisplayName);
+        Assert.Equal("selectable", page.Items[0].Evidence.Name);
         Assert.Equal(2, page.TotalCount);
         Assert.Equal(1, page.ReturnedCount);
         Assert.Null(page.NextCursor);
@@ -88,14 +93,14 @@ public class NetworkObjectPageBuilderTests
     private static NetworkObjectSummaryInfo Item(string kind, string name) => new()
     {
         Kind = kind,
-        DisplayName = name,
+        Selectable = true,
         Selector = new NetworkObjectSelectorInfo { Kind = kind },
+        Evidence = new NetworkObjectEvidenceInfo { Name = name },
     };
 
     private static NetworkObjectSummaryInfo Connection(string ownerName, int ownerIndex, int connectionIndex) => new()
     {
         Kind = NetworkObjectKinds.CommunicationConnection,
-        DisplayName = "S7_Connection_1",
         Selectable = true,
         Selector = new NetworkObjectSelectorInfo
         {
@@ -114,8 +119,14 @@ public class NetworkObjectPageBuilderTests
             ConnectionIndex = connectionIndex,
             ConnectionType = "S7Connection",
             LocalConnectionName = "S7_Connection_1",
+            LocalConnectionId = "1",
         },
-        SelectorDiagnostics = new List<string>(),
+        Evidence = new NetworkObjectEvidenceInfo
+        {
+            Name = "S7_Connection_1",
+            TypeIdentifier = "S7Connection",
+            ConnectionIsValid = true,
+        },
     };
 
     private static string Hash(char value) => new(value, 64);

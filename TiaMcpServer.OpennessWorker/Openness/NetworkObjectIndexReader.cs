@@ -60,7 +60,7 @@ public static class NetworkObjectIndexReader
         return entries
             .OrderBy(entry => entry.Summary.Kind, StringComparer.Ordinal)
             .ThenBy(entry => entry.OrderingKey, StringComparer.Ordinal)
-            .Select(entry => (NetworkObjectSummaryInfo)entry.Summary)
+            .Select(entry => entry.Summary)
             .ToList();
     }
 
@@ -82,7 +82,7 @@ public static class NetworkObjectIndexReader
             {
                 Index = siblingIndex,
                 Name = itemName.IsUsable ? itemName.Value : string.Empty,
-                PositionNumber = positionNumber.IsUsable ? positionNumber.Value : null,
+                PositionNumber = positionNumber.IsUsable ? positionNumber.Value : -1,
                 TypeIdentifier = typeIdentifier.IsUsable ? typeIdentifier.Value : string.Empty,
             };
             var itemPath = parentPath.Concat(new[] { segment }).ToList();
@@ -102,16 +102,15 @@ public static class NetworkObjectIndexReader
                 entries.Add(new Entry(
                     Summary(
                         NetworkObjectKinds.DeviceItem,
-                        itemName.IsUsable ? itemName.Value : null,
                         selector,
-                        diagnostics,
-                        EvidenceKey(
-                            "deviceItem",
-                            itemKey,
-                            deviceName.SnapshotToken,
-                            itemName.SnapshotToken,
-                            positionNumber.SnapshotToken,
-                            typeIdentifier.SnapshotToken)),
+                        new NetworkObjectEvidenceInfo
+                        {
+                            Name = itemName.IsUsable ? itemName.Value : null,
+                            TypeIdentifier = typeIdentifier.IsUsable ? typeIdentifier.Value : null,
+                            PositionNumber = positionNumber.IsUsable ? positionNumber.Value : null,
+                            DeviceItemPath = itemPath.Select(pathSegment => pathSegment.Name).ToList(),
+                        },
+                        diagnostics),
                     itemKey));
             }
 
@@ -187,27 +186,26 @@ public static class NetworkObjectIndexReader
         {
             var diagnostics = CombineDiagnostics(
                 itemPathDiagnostics,
-                deviceName.Diagnostic,
-                interfaceName.Diagnostic);
+                deviceName.Diagnostic);
             var selector = diagnostics.Count == 0
                 ? NetworkSelectorFactory.NetworkInterface(
                     deviceName.Value,
                     itemPath,
-                    interfaceName.Value,
+                    interfaceName.IsUsable ? interfaceName.Value : null,
                     interfaceType: null,
                     interfaceOperatingMode: null)
                 : null;
             entries.Add(new Entry(
                 Summary(
                     NetworkObjectKinds.NetworkInterface,
-                    interfaceName.IsUsable ? interfaceName.Value : null,
                     selector,
-                    diagnostics,
-                    EvidenceKey(
-                        "networkInterface",
-                        itemKey,
-                        deviceName.SnapshotToken,
-                        interfaceName.SnapshotToken)),
+                    new NetworkObjectEvidenceInfo
+                    {
+                        Name = interfaceName.IsUsable ? interfaceName.Value : null,
+                        DeviceItemPath = itemPath.Select(pathSegment => pathSegment.Name).ToList(),
+                        InterfaceName = interfaceName.IsUsable ? interfaceName.Value : null,
+                    },
+                    diagnostics),
                 itemKey));
         }
 
@@ -224,7 +222,6 @@ public static class NetworkObjectIndexReader
             var diagnostics = CombineDiagnostics(
                 Array.Empty<string>(),
                 deviceName.Diagnostic,
-                nodeName.Diagnostic,
                 nodeId.Diagnostic);
             var selector = diagnostics.Count == 0
                 ? NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value)
@@ -235,16 +232,14 @@ public static class NetworkObjectIndexReader
             entries.Add(new Entry(
                 Summary(
                     NetworkObjectKinds.Node,
-                    nodeName.IsUsable ? nodeName.Value : null,
                     selector,
-                    diagnostics,
-                    EvidenceKey(
-                        "node",
-                        itemKey,
-                        string.Format(CultureInfo.InvariantCulture, "{0:D10}", nodeIndex),
-                        deviceName.SnapshotToken,
-                        nodeName.SnapshotToken,
-                        nodeId.SnapshotToken)),
+                    new NetworkObjectEvidenceInfo
+                    {
+                        Name = nodeName.IsUsable ? nodeName.Value : null,
+                        DeviceItemPath = itemPath.Select(pathSegment => pathSegment.Name).ToList(),
+                        NodeName = nodeName.IsUsable ? nodeName.Value : null,
+                    },
+                    diagnostics),
                 orderingKey));
             nodeIndex++;
         }
@@ -265,7 +260,6 @@ public static class NetworkObjectIndexReader
             {
                 var diagnostics = CombineDiagnostics(
                     Array.Empty<string>(),
-                    subnetName.Diagnostic,
                     subnetId.Diagnostic);
                 var selector = diagnostics.Count == 0
                     ? NetworkSelectorFactory.Subnet(subnetId.Value)
@@ -273,14 +267,13 @@ public static class NetworkObjectIndexReader
                 entries.Add(new Entry(
                     Summary(
                         NetworkObjectKinds.Subnet,
-                        subnetName.IsUsable ? subnetName.Value : null,
                         selector,
-                        diagnostics,
-                        EvidenceKey(
-                            "subnet",
-                            string.Format(CultureInfo.InvariantCulture, "{0:D10}", subnetIndex),
-                            subnetName.SnapshotToken,
-                            subnetId.SnapshotToken)),
+                        new NetworkObjectEvidenceInfo
+                        {
+                            Name = subnetName.IsUsable ? subnetName.Value : null,
+                            SubnetName = subnetName.IsUsable ? subnetName.Value : null,
+                        },
+                        diagnostics),
                     subnetOrderingKey));
             }
 
@@ -294,7 +287,6 @@ public static class NetworkObjectIndexReader
                     var diagnostics = CombineDiagnostics(
                         Array.Empty<string>(),
                         subnetId.Diagnostic,
-                        ioSystemName.Diagnostic,
                         number.Diagnostic);
                     var selector = diagnostics.Count == 0
                         ? NetworkSelectorFactory.IoSystem(subnetId.Value, number.Value)
@@ -307,16 +299,14 @@ public static class NetworkObjectIndexReader
                     entries.Add(new Entry(
                         Summary(
                             NetworkObjectKinds.IoSystem,
-                            ioSystemName.IsUsable ? ioSystemName.Value : null,
                             selector,
-                            diagnostics,
-                            EvidenceKey(
-                                "ioSystem",
-                                string.Format(CultureInfo.InvariantCulture, "{0:D10}", subnetIndex),
-                                string.Format(CultureInfo.InvariantCulture, "{0:D10}", ioSystemIndex),
-                                subnetId.SnapshotToken,
-                                ioSystemName.SnapshotToken,
-                                number.SnapshotToken)),
+                            new NetworkObjectEvidenceInfo
+                            {
+                                Name = ioSystemName.IsUsable ? ioSystemName.Value : null,
+                                SubnetName = subnetName.IsUsable ? subnetName.Value : null,
+                                IoSystemName = ioSystemName.IsUsable ? ioSystemName.Value : null,
+                            },
+                            diagnostics),
                         orderingKey));
                     ioSystemIndex++;
                 }
@@ -357,21 +347,18 @@ public static class NetworkObjectIndexReader
             entries.Add(new Entry(
                 Summary(
                     NetworkObjectKinds.CommunicationConnection,
-                    string.IsNullOrWhiteSpace(connection.LocalConnectionName)
-                        ? null
-                        : connection.LocalConnectionName,
                     selector,
-                    diagnostics,
-                    EvidenceKey(
-                        "communicationConnection",
-                        itemKey,
-                        indexText,
-                        connection.ConnectionType,
-                        connection.LocalConnectionName,
-                        connection.LocalConnectionId,
-                        connection.PartnerName,
-                        connection.IsValid ? "true" : "false",
-                        string.Join("\u001e", diagnostics))),
+                    new NetworkObjectEvidenceInfo
+                    {
+                        Name = string.IsNullOrWhiteSpace(connection.LocalConnectionName)
+                            ? null
+                            : connection.LocalConnectionName,
+                        TypeIdentifier = connection.ConnectionType,
+                        DeviceItemPath = itemPath.Select(pathSegment => pathSegment.Name).ToList(),
+                        ConnectionIsValid = connection.IsValid,
+                        PartnerEndpointName = connection.PartnerName,
+                    },
+                    diagnostics),
                 itemKey + "\u001f" + indexText));
         }
     }
@@ -433,20 +420,18 @@ public static class NetworkObjectIndexReader
         }
     }
 
-    private static NetworkObjectIndexedSummaryInfo Summary(
+    private static NetworkObjectSummaryInfo Summary(
         string kind,
-        string? displayName,
         NetworkObjectSelectorInfo? selector,
-        IReadOnlyList<string> diagnostics,
-        string snapshotEvidenceKey)
+        NetworkObjectEvidenceInfo evidence,
+        IReadOnlyList<string> diagnostics)
         => new()
         {
             Kind = kind,
-            DisplayName = displayName,
             Selectable = selector is not null,
             Selector = selector,
-            SelectorDiagnostics = diagnostics.ToList(),
-            SnapshotEvidenceKey = snapshotEvidenceKey,
+            Evidence = evidence,
+            Diagnostics = diagnostics.ToList(),
         };
 
     private static List<string> CombineDiagnostics(
@@ -469,22 +454,15 @@ public static class NetworkObjectIndexReader
                     "{0:D10}",
                     segment.Index)));
 
-    private static string EvidenceKey(params string?[] values)
-        => string.Concat(values.Select(value =>
-        {
-            var text = value ?? string.Empty;
-            return text.Length + ":" + text + ";";
-        }));
-
     private sealed class Entry
     {
-        public Entry(NetworkObjectIndexedSummaryInfo summary, string orderingKey)
+        public Entry(NetworkObjectSummaryInfo summary, string orderingKey)
         {
             Summary = summary;
             OrderingKey = orderingKey;
         }
 
-        public NetworkObjectIndexedSummaryInfo Summary { get; }
+        public NetworkObjectSummaryInfo Summary { get; }
         public string OrderingKey { get; }
     }
 }

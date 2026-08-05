@@ -106,6 +106,19 @@ public static class NetworkOperationCatalog
             "localConnectionName", "localConnectionId",
         };
 
+    private static readonly IReadOnlySet<string> SupportedConnectionTypes =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "S7Connection",
+            "FdlConnection",
+            "IsoConnection",
+            "IsoOnTcpConnection",
+            "PtpConnection",
+            "TcpConnection",
+            "UdpConnection",
+            "HmiConnection",
+        };
+
     public static IReadOnlyList<string> ReadOperationNames { get; } = NamesByCategory(NetworkOperationCategory.Read);
 
     public static IReadOnlyList<string> WriteOperationNames { get; } = NamesByCategory(NetworkOperationCategory.Write);
@@ -304,6 +317,21 @@ public static class NetworkOperationCatalog
                             + $"Valid kinds: {string.Join(", ", NetworkObjectKinds.All)}.");
                     }
                 }
+
+                if (!string.IsNullOrWhiteSpace(operation.DeviceName))
+                {
+                    var globalKinds = kinds
+                        .Where(kind => string.Equals(kind, NetworkObjectKinds.Subnet, StringComparison.Ordinal)
+                            || string.Equals(kind, NetworkObjectKinds.IoSystem, StringComparison.Ordinal))
+                        .Distinct(StringComparer.Ordinal)
+                        .ToArray();
+                    if (globalKinds.Length > 0)
+                    {
+                        errors.Add(
+                            $"{prefix} 'deviceName' is not applicable when 'objectKinds' contains global kind(s): "
+                            + $"{string.Join(", ", globalKinds)}.");
+                    }
+                }
             }
         }
 
@@ -388,6 +416,8 @@ public static class NetworkOperationCatalog
             }
         }
 
+        ValidateSelectorValues(target, prefix, errors);
+
         // Inapplicable selector fields.
         foreach (var (name, isSet) in AllSelectorFields)
         {
@@ -402,25 +432,25 @@ public static class NetworkOperationCatalog
 
     private static readonly (string Name, Func<NetworkObjectTarget, bool> IsSet)[] AllSelectorFields =
     {
-        ("kind", t => !string.IsNullOrWhiteSpace(t.Kind)),
-        ("deviceName", t => !string.IsNullOrWhiteSpace(t.DeviceName)),
+        ("kind", t => t.Kind is not null),
+        ("deviceName", t => t.DeviceName is not null),
         ("itemPath", t => t.ItemPath is not null),
-        ("interfaceName", t => !string.IsNullOrWhiteSpace(t.InterfaceName)),
-        ("interfaceType", t => !string.IsNullOrWhiteSpace(t.InterfaceType)),
-        ("interfaceOperatingMode", t => !string.IsNullOrWhiteSpace(t.InterfaceOperatingMode)),
-        ("nodeId", t => !string.IsNullOrWhiteSpace(t.NodeId)),
-        ("subnetId", t => !string.IsNullOrWhiteSpace(t.SubnetId)),
+        ("interfaceName", t => t.InterfaceName is not null),
+        ("interfaceType", t => t.InterfaceType is not null),
+        ("interfaceOperatingMode", t => t.InterfaceOperatingMode is not null),
+        ("nodeId", t => t.NodeId is not null),
+        ("subnetId", t => t.SubnetId is not null),
         ("number", t => t.Number is not null),
         ("connectionIndex", t => t.ConnectionIndex is not null),
-        ("connectionType", t => !string.IsNullOrWhiteSpace(t.ConnectionType)),
-        ("localConnectionName", t => !string.IsNullOrWhiteSpace(t.LocalConnectionName)),
-        ("localConnectionId", t => !string.IsNullOrWhiteSpace(t.LocalConnectionId)),
+        ("connectionType", t => t.ConnectionType is not null),
+        ("localConnectionName", t => t.LocalConnectionName is not null),
+        ("localConnectionId", t => t.LocalConnectionId is not null),
     };
 
     private static bool IsSelectorFieldPresent(NetworkObjectTarget target, string field) => field switch
     {
         "deviceName" => !string.IsNullOrWhiteSpace(target.DeviceName),
-        "itemPath" => target.ItemPath is not null,
+        "itemPath" => target.ItemPath is { Count: > 0 },
         "interfaceName" => !string.IsNullOrWhiteSpace(target.InterfaceName),
         "interfaceType" => !string.IsNullOrWhiteSpace(target.InterfaceType),
         "interfaceOperatingMode" => !string.IsNullOrWhiteSpace(target.InterfaceOperatingMode),
@@ -433,6 +463,110 @@ public static class NetworkOperationCatalog
         "localConnectionId" => !string.IsNullOrWhiteSpace(target.LocalConnectionId),
         _ => false,
     };
+
+    private static void ValidateSelectorValues(
+        NetworkObjectTarget target,
+        string prefix,
+        List<string> errors)
+    {
+        if (target.ItemPath is { } itemPath)
+        {
+            if (itemPath.Count == 0)
+            {
+                errors.Add($"{prefix} 'target.itemPath' must be non-empty for kind '{target.Kind}'.");
+            }
+
+            for (var segmentIndex = 0; segmentIndex < itemPath.Count; segmentIndex++)
+            {
+                var segment = itemPath[segmentIndex];
+                var segmentPrefix = $"{prefix} 'target.itemPath[{segmentIndex}]";
+                if (segment is null)
+                {
+                    errors.Add($"{segmentPrefix}' must not be null.");
+                    continue;
+                }
+
+                if (segment.Index is null)
+                {
+                    errors.Add($"{segmentPrefix}.index' is required.");
+                }
+                else if (segment.Index < 0)
+                {
+                    errors.Add($"{segmentPrefix}.index' must not be negative.");
+                }
+
+                if (string.IsNullOrWhiteSpace(segment.Name))
+                {
+                    errors.Add($"{segmentPrefix}.name' is required and must be nonblank.");
+                }
+
+                if (segment.PositionNumber is null)
+                {
+                    errors.Add($"{segmentPrefix}.positionNumber' is required.");
+                }
+                else if (segment.PositionNumber < 0)
+                {
+                    errors.Add($"{segmentPrefix}.positionNumber' must not be negative.");
+                }
+
+                if (string.IsNullOrWhiteSpace(segment.TypeIdentifier))
+                {
+                    errors.Add($"{segmentPrefix}.typeIdentifier' is required and must be nonblank.");
+                }
+            }
+        }
+
+        foreach (var (name, value) in new[]
+        {
+            ("interfaceName", target.InterfaceName),
+            ("interfaceType", target.InterfaceType),
+            ("interfaceOperatingMode", target.InterfaceOperatingMode),
+        })
+        {
+            if (value is not null && string.IsNullOrWhiteSpace(value))
+            {
+                errors.Add($"{prefix} 'target.{name}' must be nonblank when supplied.");
+            }
+        }
+
+        if (target.Number is < 0)
+        {
+            errors.Add($"{prefix} 'target.number' must not be negative.");
+        }
+
+        if (target.ConnectionIndex is < 0)
+        {
+            errors.Add($"{prefix} 'target.connectionIndex' must not be negative.");
+        }
+
+        if (!string.Equals(target.Kind, NetworkObjectKinds.CommunicationConnection, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(target.ConnectionType))
+        {
+            return;
+        }
+
+        if (!SupportedConnectionTypes.Contains(target.ConnectionType))
+        {
+            errors.Add(
+                $"{prefix} 'target.connectionType' value '{target.ConnectionType}' is not supported. "
+                + $"Valid values: {string.Join(", ", SupportedConnectionTypes)}.");
+            return;
+        }
+
+        if (string.Equals(target.ConnectionType, "HmiConnection", StringComparison.Ordinal))
+        {
+            if (target.LocalConnectionId is not null)
+            {
+                errors.Add(
+                    $"{prefix} 'target.localConnectionId' is not applicable for connection type 'HmiConnection'.");
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(target.LocalConnectionId))
+        {
+            errors.Add(
+                $"{prefix} 'target.localConnectionId' is required for connection type '{target.ConnectionType}'.");
+        }
+    }
 
     /// <summary>
     /// The rules that make a configure request name exactly one existing thing and ask for at

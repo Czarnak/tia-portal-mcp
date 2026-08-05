@@ -68,6 +68,47 @@ public sealed class NetworkAttributeResultBuilderTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Build_NullFromEitherSurface_EmitsExactAvailableNullValue(bool modeled)
+    {
+        var attribute = Assert.Single(NetworkAttributeResultBuilder.Build(
+            modeled ? new[] { Modeled("nullable", () => null) } : Array.Empty<NetworkAttributeObservation>(),
+            modeled ? Array.Empty<NetworkAttributeObservation>() : new[] { Dynamic("nullable", () => null) }));
+
+        Assert.Equal("available", attribute.Availability);
+        Assert.Equal(modeled ? "modeled" : "dynamic", attribute.Source);
+        Assert.Equal("null", attribute.Value!.Kind);
+        Assert.Null(attribute.Value.Value);
+        Assert.Null(attribute.Diagnostic);
+    }
+
+    [Fact]
+    public void Build_ModeledAndDynamicNullsAgreeWithoutDiagnostic()
+    {
+        var attribute = Assert.Single(NetworkAttributeResultBuilder.Build(
+            new[] { Modeled("nullable", () => null) },
+            new[] { Dynamic("nullable", () => null) }));
+
+        Assert.Equal("modeledAndDynamic", attribute.Source);
+        Assert.Equal("null", attribute.Value!.Kind);
+        Assert.Null(attribute.Value.Value);
+        Assert.Null(attribute.Diagnostic);
+    }
+
+    [Fact]
+    public void Build_ModeledNullWinsOverDynamicValueAndReportsDisagreement()
+    {
+        var attribute = Assert.Single(NetworkAttributeResultBuilder.Build(
+            new[] { Modeled("nullable", () => null) },
+            new[] { Dynamic("nullable", () => "dynamic") }));
+
+        Assert.Equal("null", attribute.Value!.Kind);
+        Assert.Null(attribute.Value.Value);
+        Assert.Equal("source_disagreement", attribute.Diagnostic!.Category);
+    }
+
+    [Theory]
     [InlineData(false, false, "none")]
     [InlineData(true, false, "readOnly")]
     [InlineData(false, true, "writeOnly")]

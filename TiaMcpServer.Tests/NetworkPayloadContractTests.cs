@@ -97,6 +97,15 @@ public class NetworkPayloadContractTests
                   "typeIdentifier": "OrderNumber:TEST",
                   "positionNumber": 1,
                   "address": null,
+                  "selectable": true,
+                  "selector": {
+                    "kind": "deviceItem",
+                    "deviceName": "PLC_1",
+                    "itemPath": [
+                      {"index":0,"name":"PROFINET interface_1","positionNumber":1,"typeIdentifier":"OrderNumber:TEST"}
+                    ]
+                  },
+                  "selectorDiagnostics": [],
                   "communicationConnections": [
                     {
                       "connectionType": "S7Connection",
@@ -122,6 +131,16 @@ public class NetworkPayloadContractTests
                   "networkInterfaces": [
                     {
                       "name": "PROFINET interface_1",
+                      "selectable": true,
+                      "selector": {
+                        "kind": "networkInterface",
+                        "deviceName": "PLC_1",
+                        "itemPath": [
+                          {"index":0,"name":"PROFINET interface_1","positionNumber":1,"typeIdentifier":"OrderNumber:TEST"}
+                        ],
+                        "interfaceName": "PROFINET interface_1"
+                      },
+                      "selectorDiagnostics": [],
                       "nodes": [
                         {
                           "name": "X1",
@@ -131,7 +150,10 @@ public class NetworkPayloadContractTests
                           "subnetMask": "255.255.255.0",
                           "pnDeviceName": "plc-1",
                           "subnetName": "PN/IE_1",
-                          "ioSystemName": "IO system_1"
+                          "ioSystemName": "IO system_1",
+                          "selectable": true,
+                          "selector": {"kind":"node","deviceName":"PLC_1","nodeId":"0"},
+                          "selectorDiagnostics": []
                         }
                       ]
                     }
@@ -147,11 +169,17 @@ public class NetworkPayloadContractTests
               "subnetId": "subnet-1",
               "networkType": "Ethernet",
               "typeIdentifier": "Ethernet",
+              "selectable": true,
+              "selector": {"kind":"subnet","subnetId":"subnet-1"},
+              "selectorDiagnostics": [],
               "ioSystems": [
                 {
                   "name": "IO system_1",
                   "number": 100,
                   "ioControllerName": "PLC_1",
+                  "selectable": true,
+                  "selector": {"kind":"ioSystem","subnetId":"subnet-1","number":100},
+                  "selectorDiagnostics": [],
                   "connectedDeviceNames": ["ET200SP_1"]
                 }
               ],
@@ -165,7 +193,7 @@ public class NetworkPayloadContractTests
     [Theory]
     [InlineData(
         "list_network_objects",
-        """{"items":[],"totalCount":0,"returnedCount":0,"nextCursor":null,"messages":[]}""",
+        """{"items":[],"totalCount":0,"returnedCount":0,"nextCursor":null}""",
         JsonValueKind.Object)]
     [InlineData(
         "inspect_network_object",
@@ -236,17 +264,16 @@ public class NetworkPayloadContractTests
         var payload = """
             {
               "items": [
-                {"kind":"deviceItem","displayName":"if_1","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}]},"selectorDiagnostics":[]},
-                {"kind":"networkInterface","displayName":"PROFINET interface_1","selectable":true,"selector":{"kind":"networkInterface","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}],"interfaceName":"PROFINET interface_1"},"selectorDiagnostics":[]},
-                {"kind":"node","displayName":"X1","selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"selectorDiagnostics":[]},
-                {"kind":"subnet","displayName":"PN/IE_1","selectable":true,"selector":{"kind":"subnet","subnetId":"subnet-1"},"selectorDiagnostics":[]},
-                {"kind":"ioSystem","displayName":"IO system_1","selectable":true,"selector":{"kind":"ioSystem","subnetId":"subnet-1","number":100},"selectorDiagnostics":[]},
-                {"kind":"communicationConnection","displayName":"S7 connection","selectable":false,"selector":null,"selectorDiagnostics":["Connection identity unavailable."]}
+                {"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}]},"evidence":{"name":"if_1"},"diagnostics":[]},
+                {"kind":"networkInterface","selectable":true,"selector":{"kind":"networkInterface","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}],"interfaceName":"PROFINET interface_1"},"evidence":{"interfaceName":"PROFINET interface_1"},"diagnostics":[]},
+                {"kind":"node","selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"nodeName":"X1"},"diagnostics":[]},
+                {"kind":"subnet","selectable":true,"selector":{"kind":"subnet","subnetId":"subnet-1"},"evidence":{"subnetName":"PN/IE_1"},"diagnostics":[]},
+                {"kind":"ioSystem","selectable":true,"selector":{"kind":"ioSystem","subnetId":"subnet-1","number":100},"evidence":{"ioSystemName":"IO system_1"},"diagnostics":[]},
+                {"kind":"communicationConnection","selectable":false,"selector":null,"evidence":{"localEndpointName":"S7 connection"},"diagnostics":["Connection identity unavailable."]}
               ],
               "totalCount": 6,
               "returnedCount": 6,
-              "nextCursor": null,
-              "messages": []
+              "nextCursor": null
             }
             """;
 
@@ -270,16 +297,15 @@ public class NetworkPayloadContractTests
               "items": [
                 {
                   "kind":"node",
-                  "displayName":"X1",
                   "selectable":false,
                   "selector":null,
-                  "selectorDiagnostics":["Node identity could not be read; selector not available."]
+                  "evidence":{"nodeName":"X1"},
+                  "diagnostics":["Node identity could not be read; selector not available."]
                 }
               ],
               "totalCount":1,
               "returnedCount":1,
-              "nextCursor":null,
-              "messages":[]
+              "nextCursor":null
             }
             """;
 
@@ -288,7 +314,7 @@ public class NetworkPayloadContractTests
         Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
         var summary = item.Result!.Value.GetProperty("items")[0];
         Assert.False(summary.GetProperty("selectable").GetBoolean());
-        Assert.Single(summary.GetProperty("selectorDiagnostics").EnumerateArray());
+        Assert.Single(summary.GetProperty("diagnostics").EnumerateArray());
     }
 
     [Fact]
@@ -319,7 +345,7 @@ public class NetworkPayloadContractTests
                 "partnerSubnetName": "PN/IE_1"
               },
               "attributes": [
-                {"name":"nullAttribute","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":null},
+                {"name":"nullAttribute","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"kind":"null","value":null}},
                 {"name":"stringAttribute","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"192.168.0.10"}},
                 {"name":"booleanAttribute","source":"modeled","access":"readOnly","supportedTypes":["boolean"],"availability":"available","value":{"kind":"boolean","value":true}},
                 {"name":"integerAttribute","source":"modeled","access":"readOnly","supportedTypes":["integer"],"availability":"available","value":{"kind":"integer","value":1500}},
@@ -343,7 +369,8 @@ public class NetworkPayloadContractTests
         var attrs = item.Result.Value.GetProperty("attributes");
         Assert.Equal(9, attrs.GetArrayLength());
         Assert.Equal("nullAttribute", attrs[0].GetProperty("name").GetString());
-        Assert.Equal(JsonValueKind.Null, attrs[0].GetProperty("value").ValueKind);
+        Assert.Equal("null", attrs[0].GetProperty("value").GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, attrs[0].GetProperty("value").GetProperty("value").ValueKind);
         // value is now a typed object {kind, value}; navigate into it to get the raw value.
         Assert.Equal("192.168.0.10", attrs[1].GetProperty("value").GetProperty("value").GetString());
     }
@@ -454,6 +481,18 @@ public class NetworkPayloadContractTests
         // inspect_network_object: value discriminator and primitive shape disagree.
         { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"flag","source":"modeled","access":"readOnly","supportedTypes":["boolean"],"availability":"available","value":{"kind":"boolean","value":"{{{LeakToken}}}"}}],"messages":[]}""" },
 
+        // inspect_network_object: the null discriminator requires an exact JSON null value.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"nullable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"kind":"null","value":"{{{LeakToken}}}"}}],"messages":[]}""" },
+
+        // inspect_network_object: JSON null is valid only with the null discriminator.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"nullable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"kind":"string","value":null,"typeName":"{{{LeakToken}}}"}}],"messages":[]}""" },
+
+        // inspect_network_object: available values may not use the old bare-null shape.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"nullable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":null}],"messages":["{{{LeakToken}}}"]}""" },
+
+        // inspect_network_object: the typed null object must include its value member explicitly.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"nullable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"kind":"null","typeName":"{{{LeakToken}}}"}}],"messages":[]}""" },
+
         // inspect_network_object: enum payload must have the exact typed enum shape.
         { "inspect_network_object", """{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"mode","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Mode","symbol":"payload-leak-canary","numericValue":"1"}}}],"messages":[]}""" },
 
@@ -550,6 +589,18 @@ public class NetworkPayloadContractTests
 
         // Null entry nested inside subnets[].ioSystems[].
         { "read_hardware_config", $$"""{"devices":[],"subnets":[{"name":"{{LeakToken}}","ioSystems":[null],"connectedNodeNames":[]}],"messages":[]}""" },
+
+        // Selector coherence is fail-closed for the hardware identity index.
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":null,"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":false,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"CPU","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":["unavailable"],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
+
+        // A selectable hardware item must carry a complete, kind-correct selector.
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","nodeId":"n1"},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
+        // Required value-type path evidence must be present in raw hardware JSON. Deserialization
+        // must not silently invent zero for an absent index or positionNumber.
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"name":"CPU","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"CPU","typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
     };
 
     [Theory]
@@ -645,6 +696,9 @@ public class NetworkPayloadContractTests
                           "selector": {
                             "kind": "networkInterface",
                             "deviceName": "PLC_1",
+                            "itemPath": [
+                              {"index": 0, "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": "OrderNumber:IF"}
+                            ],
                             "interfaceName": "PROFINET interface_1"
                           },
                           "selectorDiagnostics": [],

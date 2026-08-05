@@ -318,7 +318,7 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal("communicationConnection", connection.GetProperty("kind").GetString());
         Assert.False(connection.GetProperty("selectable").GetBoolean());
         Assert.Equal(JsonValueKind.Null, connection.GetProperty("selector").ValueKind);
-        Assert.Single(connection.GetProperty("selectorDiagnostics").EnumerateArray());
+        Assert.Single(connection.GetProperty("diagnostics").EnumerateArray());
     }
 
     [Fact]
@@ -368,7 +368,10 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal("192.168.0.10", stringAttr.GetProperty("value").GetProperty("value").GetString());
 
         var nullAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "nullAttribute");
-        Assert.Equal(JsonValueKind.Null, nullAttr.GetProperty("value").ValueKind);
+        var nullValue = nullAttr.GetProperty("value");
+        Assert.Equal(JsonValueKind.Object, nullValue.ValueKind);
+        Assert.Equal("null", nullValue.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, nullValue.GetProperty("value").ValueKind);
 
         var unknownAttr = attrs.EnumerateArray().First(a => a.GetProperty("name").GetString() == "unknownAttribute");
         Assert.Equal(

@@ -102,6 +102,18 @@ public static class ConnectionModeledAttributeCatalog
     public static bool IsSupportedConnectionType(string? connectionType)
         => connectionType is not null && TypeSpecificDescriptors.ContainsKey(connectionType);
 
+    /// <summary>
+    /// True for every installed concrete connection type whose typed V21 contract exposes
+    /// LocalConnectionId. HMI connections intentionally have no local-ID evidence.
+    /// </summary>
+    public static bool RequiresLocalConnectionId(string? connectionType)
+        => connectionType is not null
+            && TypeSpecificDescriptors.TryGetValue(connectionType, out var descriptors)
+            && descriptors.Any(descriptor => string.Equals(
+                descriptor.Name,
+                "LocalConnectionId",
+                StringComparison.Ordinal));
+
     private static NetworkModeledAttributeDescriptor Descriptor(
         string name,
         string expectedClrTypeName,

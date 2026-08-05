@@ -7,7 +7,7 @@ namespace TiaMcpServer.Contracts;
 /// Used in <see cref="NetworkObjectSelectorInfo.ItemPath"/> when targeting a device item.
 /// Carries four pieces of evidence so a resolver can locate the item by position, name, or type.
 /// </summary>
-public class DeviceItemPathSegmentInfo
+public sealed class DeviceItemPathSegmentInfo
 {
     /// <summary>Zero-based sibling index within the parent device item composition.</summary>
     public int Index { get; set; }
@@ -16,20 +16,10 @@ public class DeviceItemPathSegmentInfo
     public string Name { get; set; } = string.Empty;
 
     /// <summary>Position number of the module at this level of the device hierarchy.</summary>
-    public int? PositionNumber { get; set; }
+    public int PositionNumber { get; set; }
 
     /// <summary>Type identifier of the module at this level of the device hierarchy.</summary>
     public string TypeIdentifier { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// One segment of a path through a device's item hierarchy (legacy, position-number-only form).
-/// Kept for backward compatibility; prefer <see cref="DeviceItemPathSegmentInfo"/>.
-/// </summary>
-public class NetworkDeviceItemPathSegmentInfo
-{
-    /// <summary>Position number of the module at this level of the device hierarchy.</summary>
-    public int? PositionNumber { get; set; }
 }
 
 /// <summary>
@@ -42,7 +32,7 @@ public class NetworkDeviceItemPathSegmentInfo
 /// forwarded directly into an inspect request without transformation.
 /// </para>
 /// </summary>
-public class NetworkObjectSelectorInfo
+public sealed class NetworkObjectSelectorInfo
 {
     /// <summary>One of the values declared in <see cref="NetworkObjectKinds"/>.</summary>
     public string? Kind { get; set; }
@@ -50,10 +40,10 @@ public class NetworkObjectSelectorInfo
     /// <summary>Exact device name. Required for deviceItem, networkInterface, node, and communicationConnection kinds.</summary>
     public string? DeviceName { get; set; }
 
-    /// <summary>Path through the device item hierarchy. Required for deviceItem kind.</summary>
+    /// <summary>Path through the device item hierarchy. Required for deviceItem, networkInterface, and communicationConnection kinds.</summary>
     public List<DeviceItemPathSegmentInfo>? ItemPath { get; set; }
 
-    /// <summary>Interface name. Required for networkInterface kind.</summary>
+    /// <summary>Optional captured interface-name evidence for networkInterface kind.</summary>
     public string? InterfaceName { get; set; }
 
     /// <summary>Interface type (e.g., PROFINET, PROFIBUS). Optional for networkInterface kind.</summary>
@@ -74,10 +64,10 @@ public class NetworkObjectSelectorInfo
     /// <summary>Connection index within the device. Required for communicationConnection kind.</summary>
     public int? ConnectionIndex { get; set; }
 
-    /// <summary>Connection type. Optional for communicationConnection kind.</summary>
+    /// <summary>Connection type. Required for communicationConnection kind.</summary>
     public string? ConnectionType { get; set; }
 
-    /// <summary>Local connection name. Optional for communicationConnection kind.</summary>
+    /// <summary>Local connection name. Required for communicationConnection kind.</summary>
     public string? LocalConnectionName { get; set; }
 
     /// <summary>Local connection identifier. Optional for communicationConnection kind.</summary>

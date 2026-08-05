@@ -51,9 +51,8 @@ public static class NetworkObjectCursorCodec
         {
             Append(evidence, item.Kind);
             Append(evidence, item.Selector is not null ? "selectable" : "unselectable");
-            Append(evidence, item.DisplayName);
-            Append(evidence, (item as NetworkObjectIndexedSummaryInfo)?.SnapshotEvidenceKey);
-            foreach (var diagnostic in item.SelectorDiagnostics)
+            AppendObjectEvidence(evidence, item.Evidence);
+            foreach (var diagnostic in item.Diagnostics)
             {
                 Append(evidence, diagnostic);
             }
@@ -80,7 +79,7 @@ public static class NetworkObjectCursorCodec
             {
                 Append(evidence, segment.Index.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 Append(evidence, segment.Name);
-                Append(evidence, segment.PositionNumber?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                Append(evidence, segment.PositionNumber.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 Append(evidence, segment.TypeIdentifier);
             }
         }
@@ -200,6 +199,35 @@ public static class NetworkObjectCursorCodec
     {
         var text = value ?? string.Empty;
         builder.Append(text.Length).Append(':').Append(text).Append(';');
+    }
+
+    private static void AppendObjectEvidence(
+        StringBuilder builder,
+        NetworkObjectEvidenceInfo value)
+    {
+        Append(builder, value.Name);
+        Append(builder, value.TypeIdentifier);
+        Append(builder, value.PositionNumber?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Append(builder, value.Address);
+        foreach (var segment in value.DeviceItemPath)
+        {
+            Append(builder, segment);
+        }
+
+        Append(builder, value.InterfaceName);
+        Append(builder, value.InterfaceType);
+        Append(builder, value.InterfaceOperatingMode);
+        Append(builder, value.NodeName);
+        Append(builder, value.NodeType);
+        Append(builder, value.SubnetName);
+        Append(builder, value.NetworkType);
+        Append(builder, value.IoSystemName);
+        Append(builder, value.IoControllerName);
+        Append(builder, value.ConnectionIsValid?.ToString());
+        Append(builder, value.LocalEndpointName);
+        Append(builder, value.PartnerEndpointName);
+        Append(builder, value.LocalSubnetName);
+        Append(builder, value.PartnerSubnetName);
     }
 
     private sealed class CursorQuery

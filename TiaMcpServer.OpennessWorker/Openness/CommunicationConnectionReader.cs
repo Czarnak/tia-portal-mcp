@@ -152,12 +152,7 @@ public static class CommunicationConnectionReader
                 out var nameDiagnostic);
             AddDiagnostic(identityDiagnostics, nameDiagnostic);
 
-            if (ConnectionModeledAttributeCatalog
-                .ForConnectionType(connectionType)
-                .Any(descriptor => string.Equals(
-                    descriptor.Name,
-                    "LocalConnectionId",
-                    StringComparison.Ordinal)))
+            if (ConnectionModeledAttributeCatalog.RequiresLocalConnectionId(connectionType))
             {
                 TryReadIdentityString(
                     connection,
@@ -165,7 +160,7 @@ public static class CommunicationConnectionReader
                     "LocalConnectionId",
                     out localConnectionId,
                     out var idDiagnostic);
-                AddMessage(messages, idDiagnostic);
+                AddDiagnostic(identityDiagnostics, idDiagnostic);
             }
         }
 

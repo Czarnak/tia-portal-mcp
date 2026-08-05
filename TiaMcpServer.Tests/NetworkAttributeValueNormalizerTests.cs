@@ -18,12 +18,15 @@ public sealed class NetworkAttributeValueNormalizerTests
     }
 
     [Fact]
-    public void Normalize_Null_IsRepresentableWithoutAPublicValue()
+    public void Normalize_Null_UsesExactNullKindAndValue()
     {
         var result = NetworkAttributeValueNormalizer.Normalize(null);
 
         Assert.True(result.IsRepresentable);
-        Assert.Null(result.Value);
+        Assert.NotNull(result.Value);
+        Assert.Equal("null", result.Value!.Kind);
+        Assert.Null(result.Value.Value);
+        Assert.Null(result.Value.TypeName);
         Assert.Null(result.ClrTypeName);
     }
 

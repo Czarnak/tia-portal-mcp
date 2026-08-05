@@ -69,11 +69,14 @@ public static class NetworkPayloadContract
     /// itself, not a batch item. Throws <see cref="JsonException"/> when the payload does not match.
     /// </summary>
     public static HardwareConfigInfo DecodeHardwareConfig(string payload)
-        => CanonicalJson.Normalize<HardwareConfigInfo>(payload, ValidateHardwareConfig).Value;
+    {
+        ValidateRequiredHardwarePathMembers(payload);
+        return CanonicalJson.Normalize<HardwareConfigInfo>(payload, ValidateHardwareConfig).Value;
+    }
 
     private static JsonElement Decode(string operation, string payload) => operation switch
     {
-        "read_hardware_config" => Decode<HardwareConfigInfo>(payload, ValidateHardwareConfig),
+        "read_hardware_config" => DecodeHardwareConfigElement(payload),
         "search_equipment_catalog" => Decode<CatalogEntryInfo[]>(payload, ValidateCatalogEntries),
         "add_network_device" => Decode<AddDeviceResultInfo>(payload, ValidateAddDeviceResult),
         "configure_network_device" =>
@@ -86,8 +89,15 @@ public static class NetworkPayloadContract
     private static JsonElement Decode<T>(string payload, Action<T> validate)
         => CanonicalJson.Normalize(payload, validate).Element;
 
+    private static JsonElement DecodeHardwareConfigElement(string payload)
+    {
+        ValidateRequiredHardwarePathMembers(payload);
+        return Decode<HardwareConfigInfo>(payload, ValidateHardwareConfig);
+    }
+
     private static JsonElement DecodeObjectList(string payload)
     {
+        ValidateRequiredListMembers(payload);
         ValidateRequiredPathIndexMembers(payload, listPayload: true);
         return Decode<NetworkObjectListInfo>(payload, ValidateObjectList);
     }
@@ -95,6 +105,7 @@ public static class NetworkPayloadContract
     private static JsonElement DecodeObjectInspection(string payload)
     {
         ValidateRequiredPathIndexMembers(payload, listPayload: false);
+        ValidateRequiredAttributeValueMembers(payload);
         return Decode<NetworkObjectInspectionInfo>(payload, ValidateObjectInspection);
     }
 
@@ -124,12 +135,22 @@ public static class NetworkPayloadContract
             RequireNotNull(subnet.Name, "subnets[].name");
             RequireNotNull(subnet.IoSystems, "subnets[].ioSystems");
             RequireNotNull(subnet.ConnectedNodeNames, "subnets[].connectedNodeNames");
-            RequireNotNull(subnet.SelectorDiagnostics, "subnets[].selectorDiagnostics");
+            ValidateHardwareSelector(
+                subnet.Selectable,
+                subnet.Selector,
+                subnet.SelectorDiagnostics,
+                "subnets[]",
+                NetworkObjectKinds.Subnet);
             foreach (var ioSystem in subnet.IoSystems)
             {
                 RequireNotNull(ioSystem, "subnets[].ioSystems[]");
-                RequireNotNull(ioSystem!.SelectorDiagnostics, "subnets[].ioSystems[].selectorDiagnostics");
                 RequireNotNull(ioSystem.ConnectedDeviceNames, "subnets[].ioSystems[].connectedDeviceNames");
+                ValidateHardwareSelector(
+                    ioSystem.Selectable,
+                    ioSystem.Selector,
+                    ioSystem.SelectorDiagnostics,
+                    "subnets[].ioSystems[]",
+                    NetworkObjectKinds.IoSystem);
             }
         }
     }
@@ -145,23 +166,96 @@ public static class NetworkPayloadContract
         RequireNotNull(item, path);
         RequireNotNull(item!.NetworkInterfaces, $"{path}.networkInterfaces");
         RequireNotNull(item.Items, $"{path}.items");
-        RequireNotNull(item.SelectorDiagnostics, $"{path}.selectorDiagnostics");
+        RequireNotNull(item.CommunicationConnections, $"{path}.communicationConnections");
+        ValidateHardwareSelector(
+            item.Selectable,
+            item.Selector,
+            item.SelectorDiagnostics,
+            path,
+            NetworkObjectKinds.DeviceItem);
+
+        foreach (var connection in item.CommunicationConnections)
+        {
+            RequireNotNull(connection, $"{path}.communicationConnections[]");
+            RequireNotNull(connection.ConnectionType, $"{path}.communicationConnections[].connectionType");
+            RequireNotNull(
+                connection.LocalConnectionName,
+                $"{path}.communicationConnections[].localConnectionName");
+            ValidateHardwareSelector(
+                connection.Selectable,
+                connection.Selector,
+                connection.SelectorDiagnostics,
+                $"{path}.communicationConnections[]",
+                NetworkObjectKinds.CommunicationConnection);
+        }
 
         foreach (var networkInterface in item.NetworkInterfaces)
         {
             RequireNotNull(networkInterface, $"{path}.networkInterfaces[]");
             RequireNotNull(networkInterface!.Nodes, $"{path}.networkInterfaces[].nodes");
-            RequireNotNull(networkInterface.SelectorDiagnostics, $"{path}.networkInterfaces[].selectorDiagnostics");
+            ValidateHardwareSelector(
+                networkInterface.Selectable,
+                networkInterface.Selector,
+                networkInterface.SelectorDiagnostics,
+                $"{path}.networkInterfaces[]",
+                NetworkObjectKinds.NetworkInterface);
             foreach (var node in networkInterface.Nodes)
             {
                 RequireNotNull(node, $"{path}.networkInterfaces[].nodes[]");
-                RequireNotNull(node!.SelectorDiagnostics, $"{path}.networkInterfaces[].nodes[].selectorDiagnostics");
+                ValidateHardwareSelector(
+                    node!.Selectable,
+                    node.Selector,
+                    node.SelectorDiagnostics,
+                    $"{path}.networkInterfaces[].nodes[]",
+                    NetworkObjectKinds.Node);
             }
         }
 
         foreach (var child in item.Items)
         {
             ValidateDeviceItem(child, $"{path}.items[]");
+        }
+    }
+
+    private static void ValidateHardwareSelector(
+        bool selectable,
+        NetworkObjectSelectorInfo? selector,
+        List<string>? diagnostics,
+        string path,
+        string expectedKind)
+    {
+        RequireNotNull(diagnostics, $"{path}.selectorDiagnostics");
+        foreach (var diagnostic in diagnostics!)
+        {
+            if (string.IsNullOrWhiteSpace(diagnostic))
+            {
+                throw new JsonException(
+                    $"'{path}.selectorDiagnostics[]' must contain only non-blank strings.");
+            }
+        }
+
+        if (selectable != (selector is not null))
+        {
+            throw new JsonException(
+                $"'{path}.selectable' must agree exactly with '{path}.selector' presence.");
+        }
+
+        if (selectable)
+        {
+            if (diagnostics.Count != 0)
+            {
+                throw new JsonException(
+                    $"'{path}.selectorDiagnostics' must be empty when the object is selectable.");
+            }
+
+            ValidateSelector(selector!, $"{path}.selector", expectedKind);
+            return;
+        }
+
+        if (diagnostics.Count == 0)
+        {
+            throw new JsonException(
+                $"'{path}.selectorDiagnostics' must explain why the object is unselectable.");
         }
     }
 
@@ -194,9 +288,8 @@ public static class NetworkPayloadContract
     private static void ValidateObjectList(NetworkObjectListInfo value)
     {
         RequireNotNull(value.Items, "items");
-        RequireNotNull(value.Messages, "messages");
 
-        if (value.TotalCount is < 0)
+        if (value.TotalCount < 0)
         {
             throw new JsonException("'totalCount' must not be negative.");
         }
@@ -212,10 +305,10 @@ public static class NetworkPayloadContract
                 $"'returnedCount' ({value.ReturnedCount}) does not match 'items' count ({value.Items.Count}).");
         }
 
-        if (value.TotalCount is { } totalCount && value.ReturnedCount > totalCount)
+        if (value.ReturnedCount > value.TotalCount)
         {
             throw new JsonException(
-                $"'returnedCount' ({value.ReturnedCount}) exceeds 'totalCount' ({totalCount}).");
+                $"'returnedCount' ({value.ReturnedCount}) exceeds 'totalCount' ({value.TotalCount}).");
         }
 
         foreach (var item in value.Items!)
@@ -233,10 +326,17 @@ public static class NetworkPayloadContract
                 $"'items[].kind' value '{item.Kind ?? "null"}' is not a recognised network object kind.");
         }
 
-        RequireNotNull(item.SelectorDiagnostics, "items[].selectorDiagnostics");
-        foreach (var diagnostic in item.SelectorDiagnostics)
+        RequireNotNull(item.Evidence, "items[].evidence");
+        RequireNotNull(item.Evidence.DeviceItemPath, "items[].evidence.deviceItemPath");
+        foreach (var segment in item.Evidence.DeviceItemPath)
         {
-            RequireNotNull(diagnostic, "items[].selectorDiagnostics[]");
+            RequireNotNull(segment, "items[].evidence.deviceItemPath[]");
+        }
+
+        RequireNotNull(item.Diagnostics, "items[].diagnostics");
+        foreach (var diagnostic in item.Diagnostics)
+        {
+            RequireNotNull(diagnostic, "items[].diagnostics[]");
         }
 
         if (item.Selectable != (item.Selector is not null))
@@ -246,7 +346,7 @@ public static class NetworkPayloadContract
         }
 
         if (!item.Selectable
-            && !item.SelectorDiagnostics.Any(diagnostic => !string.IsNullOrWhiteSpace(diagnostic)))
+            && !item.Diagnostics.Any(diagnostic => !string.IsNullOrWhiteSpace(diagnostic)))
         {
             throw new JsonException(
                 "An unselectable item requires at least one nonblank selector diagnostic.");
@@ -270,9 +370,22 @@ public static class NetworkPayloadContract
         new HashSet<string>(StringComparer.Ordinal)
             { "modeled", "dynamic", "modeledAndDynamic" };
 
+    private static readonly IReadOnlySet<string> SupportedConnectionTypes =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "S7Connection",
+            "FdlConnection",
+            "IsoConnection",
+            "IsoOnTcpConnection",
+            "PtpConnection",
+            "TcpConnection",
+            "UdpConnection",
+            "HmiConnection",
+        };
+
     private static readonly IReadOnlySet<string> ValidAttributeValueKind =
         new HashSet<string>(StringComparer.Ordinal)
-            { "string", "boolean", "integer", "number", "enum" };
+            { "null", "string", "boolean", "integer", "number", "enum" };
 
     private static void ValidateObjectInspection(NetworkObjectInspectionInfo value)
     {
@@ -353,6 +466,13 @@ public static class NetworkPayloadContract
                     $"'{prefix}.source' value '{attr.Source ?? "null"}' is not valid when availability is '{attr.Availability}'. "
                     + $"Valid values: {string.Join(", ", ValidAttributeSource)}.");
             }
+        }
+
+        if (string.Equals(attr.Availability, "available", StringComparison.Ordinal)
+            && attr.Value is null)
+        {
+            throw new JsonException(
+                $"'{prefix}.value' must use a typed value object when availability is 'available'.");
         }
 
         if (attr.Value is { Kind: var kind } value)
@@ -438,6 +558,10 @@ public static class NetworkPayloadContract
                 {
                     throw new JsonException($"'{prefix}.number' is required for kind '{target.Kind}'.");
                 }
+                if (target.Number < 0)
+                {
+                    throw new JsonException($"'{prefix}.number' must not be negative.");
+                }
 
                 RejectSelectorFields(target, prefix, target.Kind,
                     deviceField: true, itemPathField: true, interfaceFields: true,
@@ -452,10 +576,30 @@ public static class NetworkPayloadContract
                     throw new JsonException(
                         $"'{prefix}.connectionIndex' is required for kind '{target.Kind}'.");
                 }
+                if (target.ConnectionIndex < 0)
+                {
+                    throw new JsonException($"'{prefix}.connectionIndex' must not be negative.");
+                }
 
                 RequireSelectorText(target.ConnectionType, $"{prefix}.connectionType", target.Kind);
+                if (!SupportedConnectionTypes.Contains(target.ConnectionType!))
+                {
+                    throw new JsonException(
+                        $"'{prefix}.connectionType' value '{target.ConnectionType}' is not supported.");
+                }
                 RequireSelectorText(target.LocalConnectionName, $"{prefix}.localConnectionName", target.Kind);
-                RequireOptionalSelectorText(target.LocalConnectionId, $"{prefix}.localConnectionId", target.Kind);
+                if (string.Equals(target.ConnectionType, "HmiConnection", StringComparison.Ordinal))
+                {
+                    if (target.LocalConnectionId is not null)
+                    {
+                        throw new JsonException(
+                            $"'{prefix}.localConnectionId' is not applicable for connection type 'HmiConnection'.");
+                    }
+                }
+                else
+                {
+                    RequireSelectorText(target.LocalConnectionId, $"{prefix}.localConnectionId", target.Kind);
+                }
                 RejectSelectorFields(target, prefix, target.Kind,
                     interfaceFields: true, nodeField: true, subnetField: true, numberField: true);
                 break;
@@ -478,9 +622,9 @@ public static class NetworkPayloadContract
             }
 
             RequireSelectorText(segment.Name, $"{prefix}.itemPath[].name", kind);
-            if (segment.PositionNumber is null)
+            if (segment.PositionNumber < 0)
             {
-                throw new JsonException($"'{prefix}.itemPath[].positionNumber' is required for kind '{kind}'.");
+                throw new JsonException($"'{prefix}.itemPath[].positionNumber' must not be negative.");
             }
 
             RequireSelectorText(segment.TypeIdentifier, $"{prefix}.itemPath[].typeIdentifier", kind);
@@ -573,6 +717,96 @@ public static class NetworkPayloadContract
         }
     }
 
+    private static void ValidateRequiredListMembers(string payload)
+    {
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        RequireJsonMembers(
+            root,
+            "list_network_objects",
+            "items",
+            "totalCount",
+            "returnedCount",
+            "nextCursor");
+
+        if (!root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object)
+            {
+                RequireJsonMembers(
+                    item,
+                    "items[]",
+                    "kind",
+                    "selectable",
+                    "selector",
+                    "evidence",
+                    "diagnostics");
+            }
+        }
+    }
+
+    private static void ValidateRequiredHardwarePathMembers(string payload)
+    {
+        using var document = JsonDocument.Parse(payload);
+        ValidateRequiredHardwarePathMembers(document.RootElement, "read_hardware_config");
+    }
+
+    private static void ValidateRequiredHardwarePathMembers(JsonElement value, string prefix)
+    {
+        if (value.ValueKind == JsonValueKind.Array)
+        {
+            var index = 0;
+            foreach (var item in value.EnumerateArray())
+            {
+                ValidateRequiredHardwarePathMembers(item, $"{prefix}[{index}]");
+                index++;
+            }
+
+            return;
+        }
+
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var property in value.EnumerateObject())
+        {
+            var propertyPrefix = $"{prefix}.{property.Name}";
+            if (property.NameEquals("selector")
+                && property.Value.ValueKind == JsonValueKind.Object)
+            {
+                ValidateRequiredPathIndexMembers(property.Value, propertyPrefix);
+            }
+
+            ValidateRequiredHardwarePathMembers(property.Value, propertyPrefix);
+        }
+    }
+
+    private static void RequireJsonMembers(
+        JsonElement value,
+        string prefix,
+        params string[] members)
+    {
+        foreach (var member in members)
+        {
+            if (!value.TryGetProperty(member, out _))
+            {
+                throw new JsonException($"'{prefix}.{member}' is required.");
+            }
+        }
+    }
+
     private static void ValidateRequiredPathIndexMembers(JsonElement selector, string prefix)
     {
         if (!selector.TryGetProperty("itemPath", out var itemPath)
@@ -583,15 +817,35 @@ public static class NetworkPayloadContract
 
         foreach (var segment in itemPath.EnumerateArray())
         {
-            if (segment.ValueKind == JsonValueKind.Object && !segment.TryGetProperty("index", out _))
+            if (segment.ValueKind != JsonValueKind.Object)
             {
-                throw new JsonException($"'{prefix}.itemPath[].index' is required.");
+                continue;
+            }
+
+            foreach (var member in new[] { "index", "name", "positionNumber", "typeIdentifier" })
+            {
+                if (!segment.TryGetProperty(member, out _))
+                {
+                    throw new JsonException($"'{prefix}.itemPath[].{member}' is required.");
+                }
             }
         }
     }
 
     private static void ValidateAttributeValue(NetworkAttributeValueInfo value, string prefix)
     {
+        if (string.Equals(value.Kind, "null", StringComparison.Ordinal))
+        {
+            if (value.Value is null
+                || value.Value is JsonElement { ValueKind: JsonValueKind.Null })
+            {
+                return;
+            }
+
+            throw new JsonException(
+                $"'{prefix}.value.value' does not match kind 'null'.");
+        }
+
         if (value.Value is not JsonElement element)
         {
             throw new JsonException($"'{prefix}.value.value' is not a JSON value.");
@@ -611,6 +865,44 @@ public static class NetworkPayloadContract
         {
             throw new JsonException(
                 $"'{prefix}.value.value' does not match kind '{value.Kind}'.");
+        }
+    }
+
+    private static void ValidateRequiredAttributeValueMembers(string payload)
+    {
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("attributes", out var attributes)
+            || attributes.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var attribute in attributes.EnumerateArray())
+        {
+            if (attribute.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var isAvailable = attribute.TryGetProperty("availability", out var availability)
+                && availability.ValueKind == JsonValueKind.String
+                && string.Equals(availability.GetString(), "available", StringComparison.Ordinal);
+            if (!attribute.TryGetProperty("value", out var value))
+            {
+                if (isAvailable)
+                {
+                    throw new JsonException("'attributes[].value' is required when availability is 'available'.");
+                }
+
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.Object)
+            {
+                RequireJsonMembers(value, "attributes[].value", "kind", "value");
+            }
         }
     }
 

@@ -42,7 +42,7 @@ public class NetworkSelectorFactoryTests
     {
         var path = new List<DeviceItemPathSegmentInfo>
         {
-            new() { Index = 0, Name = "Rack_0" },
+            ValidSegment(0, "Rack_0"),
         };
 
         var selector = NetworkSelectorFactory.DeviceItem("PLC_1", path);
@@ -58,7 +58,7 @@ public class NetworkSelectorFactoryTests
     [InlineData("\t")]
     public void DeviceItem_RejectsBlankDeviceName(string deviceName)
     {
-        var path = new List<DeviceItemPathSegmentInfo> { new() { Index = 0 } };
+        var path = new List<DeviceItemPathSegmentInfo> { ValidSegment(0, "Rack_0") };
 
         Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.DeviceItem(deviceName, path));
     }
@@ -75,10 +75,43 @@ public class NetworkSelectorFactoryTests
     {
         var path = new List<DeviceItemPathSegmentInfo>
         {
-            new() { Index = -1, Name = "Bad" },
+            ValidSegment(-1, "Bad"),
         };
 
         Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.DeviceItem("PLC_1", path));
+    }
+
+    [Theory]
+    [InlineData("name")]
+    [InlineData("positionNumber")]
+    [InlineData("typeIdentifier")]
+    public void DeviceItem_RejectsIncompleteOrNegativePathEvidence(string field)
+    {
+        var segment = new DeviceItemPathSegmentInfo
+        {
+            Index = 0,
+            Name = "CPU",
+            PositionNumber = 1,
+            TypeIdentifier = "OrderNumber:CPU",
+        };
+        switch (field)
+        {
+            case "name": segment.Name = "   "; break;
+            case "positionNumber": segment.PositionNumber = -1; break;
+            case "typeIdentifier": segment.TypeIdentifier = "   "; break;
+        }
+
+        Assert.Throws<ArgumentException>(
+            () => NetworkSelectorFactory.DeviceItem("PLC_1", new[] { segment }));
+    }
+
+    [Fact]
+    public void DeviceItem_RejectsNullPathSegment()
+    {
+        Assert.Throws<ArgumentException>(
+            () => NetworkSelectorFactory.DeviceItem(
+                "PLC_1",
+                new DeviceItemPathSegmentInfo[] { null! }));
     }
 
     // -------------------------------------------------------------------------
@@ -108,7 +141,7 @@ public class NetworkSelectorFactoryTests
     [Fact]
     public void NetworkInterface_AllowsNullOptionals()
     {
-        var path = new List<DeviceItemPathSegmentInfo> { new() { Index = 0 } };
+        var path = new List<DeviceItemPathSegmentInfo> { ValidSegment(0, "Interface_Slot") };
 
         var selector = NetworkSelectorFactory.NetworkInterface(
             "PLC_1", path, null, null, null);
@@ -124,7 +157,7 @@ public class NetworkSelectorFactoryTests
     [InlineData("  ")]
     public void NetworkInterface_RejectsBlankDeviceName(string deviceName)
     {
-        var path = new List<DeviceItemPathSegmentInfo> { new() { Index = 0 } };
+        var path = new List<DeviceItemPathSegmentInfo> { ValidSegment(0, "Interface_Slot") };
 
         Assert.Throws<ArgumentException>(
             () => NetworkSelectorFactory.NetworkInterface(deviceName, path, null, null, null));
@@ -232,8 +265,8 @@ public class NetworkSelectorFactoryTests
     [Fact]
     public void DeviceItem_DuplicateNamed_SiblingsHaveDifferentIndices()
     {
-        var seg0 = new DeviceItemPathSegmentInfo { Index = 0, Name = "Slot" };
-        var seg1 = new DeviceItemPathSegmentInfo { Index = 1, Name = "Slot" };
+        var seg0 = ValidSegment(0, "Slot");
+        var seg1 = ValidSegment(1, "Slot");
 
         var selector0 = NetworkSelectorFactory.DeviceItem("PLC_1", new[] { seg0 });
         var selector1 = NetworkSelectorFactory.DeviceItem("PLC_1", new[] { seg1 });
@@ -241,4 +274,12 @@ public class NetworkSelectorFactoryTests
         Assert.Equal(0, selector0.ItemPath![0].Index);
         Assert.Equal(1, selector1.ItemPath![0].Index);
     }
+
+    private static DeviceItemPathSegmentInfo ValidSegment(int index, string name) => new()
+    {
+        Index = index,
+        Name = name,
+        PositionNumber = index < 0 ? 0 : index,
+        TypeIdentifier = "OrderNumber:Fixture",
+    };
 }

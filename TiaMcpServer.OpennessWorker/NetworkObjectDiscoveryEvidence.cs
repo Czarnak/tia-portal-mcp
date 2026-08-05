@@ -88,8 +88,3 @@ internal static class NetworkObjectDiscoveryEvidence
             $"{field} could not be read; selector not available.",
             "readFailed");
 }
-
-internal sealed class NetworkObjectIndexedSummaryInfo : NetworkObjectSummaryInfo
-{
-    internal string SnapshotEvidenceKey { get; set; } = string.Empty;
-}

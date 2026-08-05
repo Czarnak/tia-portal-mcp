@@ -172,6 +172,8 @@
       Link="Network\NetworkAttributeValueNormalizer.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeResultBuilder.cs"
       Link="Network\NetworkAttributeResultBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeMetadataProcessor.cs"
+      Link="Network\NetworkAttributeMetadataProcessor.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkModeledAttributeCatalog.cs"
       Link="Network\NetworkModeledAttributeCatalog.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\ConnectionModeledAttributeCatalog.cs"
