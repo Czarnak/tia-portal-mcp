@@ -275,10 +275,10 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task WorkerReportedErrorWithApprovedCategory_PreservesIt()
+    public async Task WorkerReportedTargetNotFoundCategory_PreservesIt()
     {
         using var client = CreateClient();
-        var result = await client.GetProjectStatusAsync("worker-error-with-category");
+        var result = await client.GetProjectStatusAsync("worker-error-with-target-not-found-category");
 
         Assert.False(result.Success);
         Assert.Equal("target not found", result.Error);

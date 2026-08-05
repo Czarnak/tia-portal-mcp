@@ -101,6 +101,11 @@ while ((line = Console.In.ReadLine()) is not null)
         case "worker-error-with-category":
             // Proves OpennessWorkerClient.InvokeWorkerAsync preserves an approved
             // worker-reported category instead of overwriting it with worker_operation_failed.
+            Respond("""{"success":false,"error":"invalid value","failureCategory":"validation_error"}""");
+            break;
+        case "worker-error-with-target-not-found-category":
+            // Isolates the target_not_found approved-category contract without changing
+            // the long-standing validation_error behavior of the shared scenario above.
             Respond("""{"success":false,"error":"target not found","failureCategory":"target_not_found"}""");
             break;
         case "update-block-postcondition-failed":
