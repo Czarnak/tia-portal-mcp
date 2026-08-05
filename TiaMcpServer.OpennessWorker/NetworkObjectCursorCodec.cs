@@ -66,8 +66,11 @@ public static class NetworkObjectCursorCodec
             Append(evidence, selector.Kind);
             Append(evidence, selector.DeviceName);
             Append(evidence, selector.NodeId);
+            Append(evidence, selector.NodeIndex?.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Append(evidence, selector.SubnetId);
             Append(evidence, selector.Number?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Append(evidence, selector.IoSystemIndex?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Append(evidence, selector.IoSystemName);
             Append(evidence, selector.InterfaceName);
             Append(evidence, selector.InterfaceType);
             Append(evidence, selector.InterfaceOperatingMode);

@@ -135,6 +135,65 @@ public class NetworkObjectCursorCodecTests
     }
 
     [Fact]
+    public void SnapshotHash_BindsNodeAndIoSystemDisambiguationFields()
+    {
+        var node = Selectable(new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.Node,
+            DeviceName = "PLC_1",
+            NodeId = "node-1",
+            NodeIndex = 0,
+        });
+        var ioSystem = Selectable(new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.IoSystem,
+            SubnetId = "subnet-1",
+            Number = 100,
+            IoSystemIndex = 0,
+            IoSystemName = "PNIO_1",
+        });
+
+        Assert.NotEqual(
+            NetworkObjectCursorCodec.CreateSnapshotHash(new[] { node }),
+            NetworkObjectCursorCodec.CreateSnapshotHash(new[]
+            {
+                Selectable(new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.Node,
+                    DeviceName = "PLC_1",
+                    NodeId = "node-1",
+                    NodeIndex = 1,
+                }),
+            }));
+        Assert.NotEqual(
+            NetworkObjectCursorCodec.CreateSnapshotHash(new[] { ioSystem }),
+            NetworkObjectCursorCodec.CreateSnapshotHash(new[]
+            {
+                Selectable(new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.IoSystem,
+                    SubnetId = "subnet-1",
+                    Number = 100,
+                    IoSystemIndex = 1,
+                    IoSystemName = "PNIO_1",
+                }),
+            }));
+        Assert.NotEqual(
+            NetworkObjectCursorCodec.CreateSnapshotHash(new[] { ioSystem }),
+            NetworkObjectCursorCodec.CreateSnapshotHash(new[]
+            {
+                Selectable(new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.IoSystem,
+                    SubnetId = "subnet-1",
+                    Number = 100,
+                    IoSystemIndex = 0,
+                    IoSystemName = "PNIO_2",
+                }),
+            }));
+    }
+
+    [Fact]
     public void Decode_RejectsFilterSnapshotAndOutOfRangeCursors()
     {
         var queryHash = Hash('a');
@@ -198,6 +257,15 @@ public class NetworkObjectCursorCodecTests
                 DeviceItemPath = new List<string> { pathEvidence },
             },
             Diagnostics = new List<string> { "Node identity unavailable." },
+        };
+
+    private static NetworkObjectSummaryInfo Selectable(NetworkObjectSelectorInfo selector)
+        => new()
+        {
+            Kind = selector.Kind!,
+            Selectable = true,
+            Selector = selector,
+            Evidence = new NetworkObjectEvidenceInfo(),
         };
 
     private static string Hash(char value) => new(value, 64);
