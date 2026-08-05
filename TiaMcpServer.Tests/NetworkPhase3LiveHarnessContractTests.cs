@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -83,7 +84,8 @@ public class NetworkPhase3LiveHarnessContractTests
             "canonicalByteCount",
             "elapsedMilliseconds",
             "selectorCount",
-            "selectorsComplete",
+            "selectableEntriesCarrySelectors",
+            "unselectableItemCount",
             "omissions",
             "truncation",
             "requestCount",
@@ -92,6 +94,120 @@ public class NetworkPhase3LiveHarnessContractTests
         {
             Assert.Contains(token, source, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void Script_MeasuresTheThreeLockedListRetentionConditionsDirectly()
+    {
+        var source = ReadScript();
+        foreach (var token in new[]
+        {
+            "Invoke-HardwareConfig",
+            "hardwareBudgetCoverage",
+            "readHardwareConfigExceededPerItemBudget",
+            "readHardwareConfigOriginalChars",
+            "discoverySelectorsComplete",
+            "discoveryFixtureObserved",
+            "representativeDeviceQuery",
+            "representativeDeviceName",
+            "matchingSelectorsPreserved",
+            "canonicalByteReductionPercent",
+            "atLeastFiftyPercentSmaller",
+            "connectionOnlyQuery",
+            "allConnectionSelectorsPreserved",
+            "connectionFixtureObserved",
+            "underPerItemBudget",
+            "fullTreeCallsAvoided",
+            "retentionConditionMet",
+            "selectableEntriesCarrySelectors",
+            "unselectableItemCount",
+            "AllowEmptyCollection",
+        })
+        {
+            Assert.Contains(token, source, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("selectorsComplete", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Script_RepeatabilityCoversEveryRequiredFixtureAndPreservesDifferenceEvidence()
+    {
+        var source = ReadScript();
+        foreach (var token in new[]
+        {
+            "Compare-CanonicalText",
+            "firstSha256",
+            "secondSha256",
+            "firstDifferenceByteOffset",
+            "firstDifferenceFirstByte",
+            "firstDifferenceSecondByte",
+            "discoveryComparison",
+            "fixtureComparisons",
+            "fixturesComplete",
+            "nestedDeviceItem",
+            "networkInterface",
+            "ethernetNode",
+            "ethernetSubnet",
+            "profinetIoSystem",
+            "communicationConnection",
+        })
+        {
+            Assert.Contains(token, source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Script_RecordsSourceAndExecutableProvenanceWithoutInferringFromTimestamps()
+    {
+        var source = ReadScript();
+        foreach (var token in new[]
+        {
+            "executionProvenance",
+            "sourceRevision",
+            "sourceTreeClean",
+            "hostExecutableSha256",
+            "workerExecutableSha256",
+            "hostSourceRevision",
+            "workerSourceRevision",
+            "finalCommittedCodeExercised",
+            "ProductVersion",
+        })
+        {
+            Assert.Contains(token, source, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("LastWriteTime", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Script_RawProbeCoversEveryRequiredObservedFixtureKind()
+    {
+        var source = ReadScript();
+        Assert.Contains("probesByFixture", source, StringComparison.Ordinal);
+        Assert.Contains("probeComplete", source, StringComparison.Ordinal);
+        Assert.Contains("missingFixtures", source, StringComparison.Ordinal);
+        Assert.Contains("Get-RequiredMatrixFixtureTargets", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CanonicalComparisonHelper_RecordsStableHashesAndFirstDifference()
+    {
+        var result = RunCanonicalComparisonSmokeTest();
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"Comparison helper failed with exit code {result.ExitCode}.{Environment.NewLine}" +
+            $"stdout:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}" +
+            $"stderr:{Environment.NewLine}{result.StandardError}");
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var root = document.RootElement;
+        Assert.False(root.GetProperty("bytesEqual").GetBoolean());
+        Assert.Matches("^[0-9a-f]{64}$", root.GetProperty("firstSha256").GetString());
+        Assert.Matches("^[0-9a-f]{64}$", root.GetProperty("secondSha256").GetString());
+        Assert.Equal(5, root.GetProperty("firstDifferenceByteOffset").GetInt32());
+        Assert.Equal((byte)'1', root.GetProperty("firstDifferenceFirstByte").GetByte());
+        Assert.Equal((byte)'2', root.GetProperty("firstDifferenceSecondByte").GetByte());
     }
 
     [Fact]
@@ -286,6 +402,50 @@ public class NetworkPhase3LiveHarnessContractTests
         }
     }
 
+    private static ScriptResult RunCanonicalComparisonSmokeTest()
+    {
+        var smokeScriptPath = Path.Combine(
+            Path.GetTempPath(),
+            $"network-live-harness-comparison-{Guid.NewGuid():N}.ps1");
+        File.WriteAllText(smokeScriptPath, CanonicalComparisonSmokeScript, new UTF8Encoding(false));
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(smokeScriptPath);
+            startInfo.ArgumentList.Add("-HarnessPath");
+            startInfo.ArgumentList.Add(ScriptPath);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start pwsh process.");
+            var standardOutput = process.StandardOutput.ReadToEndAsync();
+            var standardError = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill(entireProcessTree: true);
+                throw new TimeoutException("PowerShell comparison smoke test did not exit.");
+            }
+
+            return new ScriptResult(
+                process.ExitCode,
+                standardOutput.GetAwaiter().GetResult(),
+                standardError.GetAwaiter().GetResult());
+        }
+        finally
+        {
+            File.Delete(smokeScriptPath);
+        }
+    }
+
     private static string ReadRepositoryFile(params string[] segments)
     {
         var path = segments.Aggregate(RepositoryRoot, Path.Combine);
@@ -359,6 +519,36 @@ public class NetworkPhase3LiveHarnessContractTests
             throw "Unexpected child stdout: '$standardOutput'."
         }
         [Console]::Out.WriteLine($standardOutput)
+        """;
+
+    private const string CanonicalComparisonSmokeScript = """
+        param([Parameter(Mandatory)] [string] $HarnessPath)
+
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $HarnessPath,
+            [ref] $tokens,
+            [ref] $parseErrors)
+        if ($parseErrors.Count -ne 0) {
+            throw "Harness parsing failed: $($parseErrors[0].Message)"
+        }
+
+        $functionAst = $ast.Find({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] `
+                    -and $node.Name -eq 'Compare-CanonicalText'
+            }, $true)
+        if ($null -eq $functionAst) {
+            throw "Function 'Compare-CanonicalText' was not found in '$HarnessPath'."
+        }
+        Invoke-Expression $functionAst.Extent.Text
+
+        Compare-CanonicalText -First '{"a":1}' -Second '{"a":2}' |
+            ConvertTo-Json -Compress -Depth 20
         """;
 
     private sealed record ScriptResult(int ExitCode, string StandardOutput, string StandardError);
