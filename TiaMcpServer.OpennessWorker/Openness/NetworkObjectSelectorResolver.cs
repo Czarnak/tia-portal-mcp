@@ -1,5 +1,6 @@
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
+using Siemens.Engineering.HW.CommunicationConnections;
 using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts;
 
@@ -16,6 +17,7 @@ public static class NetworkObjectSelectorResolver
             NetworkObjectKinds.Node => ResolveNode(project, target),
             NetworkObjectKinds.Subnet => ResolveSubnet(project, target),
             NetworkObjectKinds.IoSystem => ResolveIoSystem(project, target),
+            NetworkObjectKinds.CommunicationConnection => ResolveCommunicationConnection(project, target),
             _ => NetworkObjectSelectionResult.Fail(
                 WorkerFailureCategories.TargetKindUnsupported,
                 $"Network object kind '{target.Kind ?? "(null)"}' is not supported by this inspector."),
@@ -265,6 +267,164 @@ public static class NetworkObjectSelectorResolver
             messages));
     }
 
+    private static NetworkObjectSelectionResult ResolveCommunicationConnection(
+        Project project,
+        NetworkObjectSelectorInfo target)
+    {
+        var itemMatch = MatchDeviceItem(project, target);
+        if (!itemMatch.Success)
+        {
+            return itemMatch.Failure!;
+        }
+
+        CommunicationManagement? communicationManagement;
+        try
+        {
+            communicationManagement = ((IEngineeringServiceProvider)itemMatch.Item!)
+                .GetService<CommunicationManagement>();
+        }
+        catch (EngineeringException exception)
+        {
+            return EvidenceMismatch(
+                $"Could not resolve communication connections on the selected device item: {exception.Message}");
+        }
+
+        if (communicationManagement is null)
+        {
+            return NotFound("The selected device item does not expose communication connections.");
+        }
+
+        Connection? connection;
+        try
+        {
+            connection = ConnectionAt(
+                communicationManagement.Connections,
+                target.ConnectionIndex ?? -1);
+        }
+        catch (EngineeringException exception)
+        {
+            return EvidenceMismatch(
+                $"Could not resolve the recorded communication connection index: {exception.Message}");
+        }
+        if (connection is null)
+        {
+            return NotFound(
+                $"The selected device item has no communication connection at index {target.ConnectionIndex}.");
+        }
+
+        if (!CommunicationConnectionReader.TryReadConnectionType(
+                connection,
+                out var connectionType,
+                out var typeDiagnostic)
+            || !string.Equals(connectionType, target.ConnectionType, StringComparison.Ordinal))
+        {
+            return EvidenceMismatch(
+                typeDiagnostic
+                ?? "The communication connection at the recorded index no longer matches its type evidence.");
+        }
+
+        if (!CommunicationConnectionReader.TryReadIdentityString(
+                connection,
+                connectionType!,
+                "LocalConnectionName",
+                out var localConnectionName,
+                out var nameDiagnostic)
+            || !string.Equals(
+                localConnectionName,
+                target.LocalConnectionName,
+                StringComparison.Ordinal))
+        {
+            return EvidenceMismatch(
+                nameDiagnostic
+                ?? "The communication connection at the recorded index no longer matches its local-name evidence.");
+        }
+
+        var messages = new List<string>();
+        string? localConnectionId = null;
+        var hasLocalId = ConnectionModeledAttributeCatalog
+            .ForConnectionType(connectionType!)
+            .Any(descriptor => string.Equals(
+                descriptor.Name,
+                "LocalConnectionId",
+                StringComparison.Ordinal));
+        if (hasLocalId)
+        {
+            var idRead = CommunicationConnectionReader.TryReadIdentityString(
+                connection,
+                connectionType!,
+                "LocalConnectionId",
+                out localConnectionId,
+                out var idDiagnostic);
+            if (target.LocalConnectionId is not null
+                && (!idRead
+                    || !string.Equals(
+                        localConnectionId,
+                        target.LocalConnectionId,
+                        StringComparison.Ordinal)))
+            {
+                return EvidenceMismatch(
+                    idDiagnostic
+                    ?? "The communication connection at the recorded index no longer matches its local-ID evidence.");
+            }
+
+            AddReadMessage(messages, "local connection ID", idDiagnostic);
+        }
+        else if (target.LocalConnectionId is not null)
+        {
+            return EvidenceMismatch(
+                "The resolved communication connection type does not expose local-ID evidence.");
+        }
+
+        var isValid = ReadOptionalBool(() => connection.IsValid, "connection validity", messages);
+        var partnerName = ReadOptionalString(
+            () => connection.PartnerTarget?.Name,
+            "connection partner target name",
+            messages);
+        var summary = CommunicationConnectionSelectorFactory.Create(
+            itemMatch.DeviceName,
+            itemMatch.VerifiedPath,
+            target.ConnectionIndex!.Value,
+            connectionType,
+            localConnectionName,
+            localConnectionId,
+            partnerName,
+            isValid ?? false);
+        if (!summary.Selectable || summary.Selector is null)
+        {
+            return EvidenceMismatch(
+                "The resolved communication connection no longer provides complete selector evidence.");
+        }
+
+        var evidence = new NetworkObjectEvidenceInfo
+        {
+            DeviceItemPath = itemMatch.VerifiedPath!.Select(segment => segment.Name).ToList(),
+            ConnectionIsValid = isValid,
+            LocalEndpointName = ReadOptionalString(
+                () => connection.LocalInterface?.Name,
+                "connection local endpoint name",
+                messages),
+            PartnerEndpointName = ReadOptionalString(
+                () => connection.PartnerInterface?.Name,
+                "connection partner endpoint name",
+                messages),
+            LocalSubnetName = ReadOptionalString(
+                () => connection.LocalSubnetName,
+                "connection local subnet name",
+                messages),
+            PartnerSubnetName = ReadOptionalString(
+                () => connection.PartnerSubnetName,
+                "connection partner subnet name",
+                messages),
+        };
+
+        return NetworkObjectSelectionResult.Ok(new ResolvedNetworkObject(
+            NetworkObjectKinds.CommunicationConnection,
+            connection,
+            summary.Selector,
+            evidence,
+            messages));
+    }
+
     private static DeviceItemMatch MatchDeviceItem(Project project, NetworkObjectSelectorInfo target)
     {
         var deviceMatch = MatchDevice(project, target.DeviceName);
@@ -405,6 +565,27 @@ public static class NetworkObjectSelectorResolver
         return null;
     }
 
+    private static Connection? ConnectionAt(ConnectionComposition connections, int index)
+    {
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var current = 0;
+        foreach (Connection connection in connections)
+        {
+            if (current == index)
+            {
+                return connection;
+            }
+
+            current++;
+        }
+
+        return null;
+    }
+
     private static IEnumerable<NodeCandidate> EnumerateNodes(Device device)
     {
         var result = new List<NodeCandidate>();
@@ -483,7 +664,23 @@ public static class NetworkObjectSelectorResolver
     }
 
     private static string? ReadOptionalString(
-        Func<string> reader,
+        Func<string?> reader,
+        string description,
+        List<string> messages)
+    {
+        try
+        {
+            return reader();
+        }
+        catch (Exception exception)
+        {
+            AddReadMessage(messages, description, exception.Message);
+            return null;
+        }
+    }
+
+    private static bool? ReadOptionalBool(
+        Func<bool> reader,
         string description,
         List<string> messages)
     {

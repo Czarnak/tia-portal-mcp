@@ -21,7 +21,8 @@ public static class NetworkObjectIndexReader
         var entries = new List<Entry>();
         var wantsDeviceTree = requestedKinds.Contains(NetworkObjectKinds.DeviceItem)
             || requestedKinds.Contains(NetworkObjectKinds.NetworkInterface)
-            || requestedKinds.Contains(NetworkObjectKinds.Node);
+            || requestedKinds.Contains(NetworkObjectKinds.Node)
+            || requestedKinds.Contains(NetworkObjectKinds.CommunicationConnection);
 
         if (wantsDeviceTree)
         {
@@ -56,7 +57,6 @@ public static class NetworkObjectIndexReader
             ReadSubnets(project, requestedKinds, entries);
         }
 
-        // communicationConnection deliberately has no branch in this task. Task 7 adds it.
         return entries
             .OrderBy(entry => entry.Summary.Kind, StringComparer.Ordinal)
             .ThenBy(entry => entry.OrderingKey, StringComparer.Ordinal)
@@ -116,6 +116,15 @@ public static class NetworkObjectIndexReader
             }
 
             ReadInterfaceAndNodes(
+                item,
+                deviceName,
+                itemPath,
+                pathDiagnostics,
+                itemKey,
+                requestedKinds,
+                entries);
+
+            ReadCommunicationConnections(
                 item,
                 deviceName,
                 itemPath,
@@ -314,6 +323,56 @@ public static class NetworkObjectIndexReader
             }
 
             subnetIndex++;
+        }
+    }
+
+    private static void ReadCommunicationConnections(
+        DeviceItem item,
+        NetworkObjectDiscoveryEvidenceValue<string> deviceName,
+        IReadOnlyList<DeviceItemPathSegmentInfo> itemPath,
+        IReadOnlyList<string> itemPathDiagnostics,
+        string itemKey,
+        ISet<string> requestedKinds,
+        List<Entry> entries)
+    {
+        if (!requestedKinds.Contains(NetworkObjectKinds.CommunicationConnection))
+        {
+            return;
+        }
+
+        foreach (var result in CommunicationConnectionReader.Read(
+            item,
+            deviceName.IsUsable ? deviceName.Value : null,
+            itemPath))
+        {
+            var connection = result.Summary;
+            var diagnostics = CombineDiagnostics(
+                itemPathDiagnostics.Concat(connection.SelectorDiagnostics),
+                deviceName.Diagnostic);
+            var selector = diagnostics.Count == 0 ? connection.Selector : null;
+            var indexText = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0:D10}",
+                result.ConnectionIndex);
+            entries.Add(new Entry(
+                Summary(
+                    NetworkObjectKinds.CommunicationConnection,
+                    string.IsNullOrWhiteSpace(connection.LocalConnectionName)
+                        ? null
+                        : connection.LocalConnectionName,
+                    selector,
+                    diagnostics,
+                    EvidenceKey(
+                        "communicationConnection",
+                        itemKey,
+                        indexText,
+                        connection.ConnectionType,
+                        connection.LocalConnectionName,
+                        connection.LocalConnectionId,
+                        connection.PartnerName,
+                        connection.IsValid ? "true" : "false",
+                        string.Join("\u001e", diagnostics))),
+                itemKey + "\u001f" + indexText));
         }
     }
 

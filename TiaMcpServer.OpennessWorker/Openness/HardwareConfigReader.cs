@@ -150,6 +150,10 @@ public static class HardwareConfigReader
 
         // Always assigned, even when empty: a consumer resolving a write target walks this tree and
         // must not have to tell "no interfaces" apart from "collection omitted".
+        itemInfo.CommunicationConnections = CommunicationConnectionReader
+            .Read(item, deviceName, itemPath, messages)
+            .Select(result => result.Summary)
+            .ToList();
         itemInfo.NetworkInterfaces =
             ReadNetworkInterfaces(item, itemDescription, messages, deviceName, itemPath);
         itemInfo.Items = ReadDeviceItems(

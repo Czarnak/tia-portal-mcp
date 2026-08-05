@@ -31,6 +31,13 @@ public class DeviceItemInfo
     public List<string> SelectorDiagnostics { get; set; } = new();
 
     /// <summary>
+    /// Communication connections owned by this device item, in their composition order.
+    /// Always present; a device item without connections reports an empty list.
+    /// </summary>
+    public List<CommunicationConnectionInfo> CommunicationConnections { get; set; } =
+        new List<CommunicationConnectionInfo>();
+
+    /// <summary>
     /// Always present. An item without network interfaces reports an empty list, so a consumer
     /// walking the hardware tree never has to distinguish "none" from "not modelled".
     /// </summary>

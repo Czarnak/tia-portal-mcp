@@ -12,14 +12,34 @@ public static class NetworkObjectInspector
             ? null
             : new HashSet<string>(attributeNames, StringComparer.Ordinal);
         var modeled = new List<NetworkAttributeObservation>();
-        foreach (var descriptor in NetworkModeledAttributeCatalog.ForKind(resolved.Kind))
+        var descriptors = string.Equals(
+            resolved.Kind,
+            NetworkObjectKinds.CommunicationConnection,
+            StringComparison.Ordinal)
+                ? ConnectionModeledAttributeCatalog.ForConnectionType(
+                    resolved.Target.ConnectionType ?? string.Empty)
+                : NetworkModeledAttributeCatalog.ForKind(resolved.Kind);
+        foreach (var descriptor in descriptors)
         {
             if (selectedNames is not null && !selectedNames.Contains(descriptor.Name))
             {
                 continue;
             }
 
-            if (NetworkModeledAttributeAdapters.TryCreateReader(resolved, descriptor.AdapterKey, out var reader))
+            Func<object?>? reader;
+            var hasReader = string.Equals(
+                resolved.Kind,
+                NetworkObjectKinds.CommunicationConnection,
+                StringComparison.Ordinal)
+                    ? ConnectionModeledAttributeAdapters.TryCreateReader(
+                        resolved,
+                        descriptor.AdapterKey,
+                        out reader)
+                    : NetworkModeledAttributeAdapters.TryCreateReader(
+                        resolved,
+                        descriptor.AdapterKey,
+                        out reader);
+            if (hasReader)
             {
                 modeled.Add(new NetworkAttributeObservation
                 {

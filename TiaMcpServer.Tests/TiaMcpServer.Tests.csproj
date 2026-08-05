@@ -160,6 +160,8 @@
       Link="Linked\Openness\BlockSourceWriteWarnings.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkSelectorFactory.cs"
       Link="Network\NetworkSelectorFactory.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\CommunicationConnectionSelectorFactory.cs"
+      Link="Network\CommunicationConnectionSelectorFactory.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectCursorCodec.cs"
       Link="Network\NetworkObjectCursorCodec.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectPageBuilder.cs"
@@ -172,5 +174,7 @@
       Link="Network\NetworkAttributeResultBuilder.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkModeledAttributeCatalog.cs"
       Link="Network\NetworkModeledAttributeCatalog.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\ConnectionModeledAttributeCatalog.cs"
+      Link="Network\ConnectionModeledAttributeCatalog.cs" />
   </ItemGroup>
 </Project>

@@ -73,6 +73,13 @@ public class NetworkPayloadContractTests
 
         Assert.Equal("0", node.GetProperty("nodeId").GetString());
         Assert.Equal("Ethernet", node.GetProperty("nodeType").GetString());
+        var connection = item.Result.Value
+            .GetProperty("devices")[0]
+            .GetProperty("items")[0]
+            .GetProperty("communicationConnections")[0];
+        Assert.Equal("S7Connection", connection.GetProperty("connectionType").GetString());
+        Assert.Equal("16#1001", connection.GetProperty("localConnectionId").GetString());
+        Assert.Equal(0, connection.GetProperty("selector").GetProperty("connectionIndex").GetInt32());
         Assert.Equal("subnet-1", subnet.GetProperty("subnetId").GetString());
         Assert.Equal("Ethernet", subnet.GetProperty("networkType").GetString());
         Assert.Equal(100, subnet.GetProperty("ioSystems")[0].GetProperty("number").GetInt32());
@@ -90,6 +97,28 @@ public class NetworkPayloadContractTests
                   "typeIdentifier": "OrderNumber:TEST",
                   "positionNumber": 1,
                   "address": null,
+                  "communicationConnections": [
+                    {
+                      "connectionType": "S7Connection",
+                      "localConnectionName": "S7_Connection_1",
+                      "localConnectionId": "16#1001",
+                      "partnerName": "PLC_2",
+                      "isValid": true,
+                      "selectable": true,
+                      "selector": {
+                        "kind": "communicationConnection",
+                        "deviceName": "PLC_1",
+                        "itemPath": [
+                          {"index":0,"name":"PROFINET interface_1","positionNumber":1,"typeIdentifier":"OrderNumber:TEST"}
+                        ],
+                        "connectionIndex": 0,
+                        "connectionType": "S7Connection",
+                        "localConnectionName": "S7_Connection_1",
+                        "localConnectionId": "16#1001"
+                      },
+                      "selectorDiagnostics": []
+                    }
+                  ],
                   "networkInterfaces": [
                     {
                       "name": "PROFINET interface_1",
@@ -153,6 +182,52 @@ public class NetworkPayloadContractTests
         Assert.Null(item.Failure);
         Assert.NotNull(item.Result);
         Assert.Equal(expectedKind, item.Result!.Value.ValueKind);
+    }
+
+    [Fact]
+    public void Project_DecodesCommunicationConnectionInspectionWithTypedEvidenceAndAttributes()
+    {
+        var payload = """
+            {
+              "target": {
+                "kind": "communicationConnection",
+                "deviceName": "PLC_1",
+                "itemPath": [
+                  {"index":0,"name":"CPU_1","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}
+                ],
+                "connectionIndex": 0,
+                "connectionType": "S7Connection",
+                "localConnectionName": "S7_Connection_1",
+                "localConnectionId": "16#1001"
+              },
+              "evidence": {
+                "deviceItemPath": ["CPU_1"],
+                "connectionIsValid": true,
+                "localEndpointName": "X1",
+                "partnerEndpointName": "X1",
+                "localSubnetName": "PN/IE_1",
+                "partnerSubnetName": "PN/IE_1"
+              },
+              "attributes": [
+                {
+                  "name": "LocalConnectionId",
+                  "source": "modeled",
+                  "access": "readOnly",
+                  "supportedTypes": ["System.String"],
+                  "availability": "available",
+                  "value": {"kind":"string","value":"16#1001","typeName":"System.String"}
+                }
+              ],
+              "messages": []
+            }
+            """;
+
+        var item = Project("inspect_network_object", payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Equal("S7Connection", item.Result!.Value.GetProperty("target").GetProperty("connectionType").GetString());
+        Assert.Equal("X1", item.Result.Value.GetProperty("evidence").GetProperty("localEndpointName").GetString());
+        Assert.Equal("16#1001", item.Result.Value.GetProperty("attributes")[0].GetProperty("value").GetProperty("value").GetString());
     }
 
     [Fact]
@@ -542,6 +617,27 @@ public class NetworkPayloadContractTests
                         ]
                       },
                       "selectorDiagnostics": [],
+                      "communicationConnections": [
+                        {
+                          "connectionType": "HmiConnection",
+                          "localConnectionName": "HMI_Connection_1",
+                          "localConnectionId": null,
+                          "partnerName": "PLC_1",
+                          "isValid": true,
+                          "selectable": true,
+                          "selector": {
+                            "kind": "communicationConnection",
+                            "deviceName": "HMI_1",
+                            "itemPath": [
+                              {"index": 0, "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": "OrderNumber:IF"}
+                            ],
+                            "connectionIndex": 0,
+                            "connectionType": "HmiConnection",
+                            "localConnectionName": "HMI_Connection_1"
+                          },
+                          "selectorDiagnostics": []
+                        }
+                      ],
                       "networkInterfaces": [
                         {
                           "name": "PROFINET interface_1",
@@ -606,6 +702,11 @@ public class NetworkPayloadContractTests
         var deviceItem = device.GetProperty("items")[0];
         Assert.True(deviceItem.GetProperty("selectable").GetBoolean());
         Assert.Equal("deviceItem", deviceItem.GetProperty("selector").GetProperty("kind").GetString());
+        var connection = deviceItem.GetProperty("communicationConnections")[0];
+        Assert.Equal("HmiConnection", connection.GetProperty("connectionType").GetString());
+        Assert.Equal(
+            JsonValueKind.Null,
+            connection.GetProperty("selector").GetProperty("localConnectionId").ValueKind);
 
         var subnet = item.Result.Value.GetProperty("subnets")[0];
         Assert.True(subnet.GetProperty("selectable").GetBoolean());

@@ -60,6 +60,23 @@ public class NetworkObjectPageBuilderTests
     }
 
     [Fact]
+    public void Build_PagesCommunicationConnectionsInOwnerPathThenCompositionIndexOrder()
+    {
+        var items = new[]
+        {
+            Connection("CPU_1", ownerIndex: 0, connectionIndex: 0),
+            Connection("CPU_1", ownerIndex: 0, connectionIndex: 1),
+            Connection("CPU_2", ownerIndex: 1, connectionIndex: 0),
+        };
+
+        var page = NetworkObjectPageBuilder.Build(items, pageSize: 2, offset: 0, Hash('a'), Hash('b'));
+
+        Assert.Equal(new int?[] { 0, 1 }, page.Items.Select(item => item.Selector!.ConnectionIndex));
+        Assert.Equal(new[] { "CPU_1", "CPU_1" }, page.Items.Select(item => item.Selector!.ItemPath![0].Name));
+        Assert.NotNull(page.NextCursor);
+    }
+
+    [Fact]
     public void Build_RejectsOffsetPastEnd()
     {
         var exception = Assert.Throws<NetworkCursorException>(() =>
@@ -73,6 +90,32 @@ public class NetworkObjectPageBuilderTests
         Kind = kind,
         DisplayName = name,
         Selector = new NetworkObjectSelectorInfo { Kind = kind },
+    };
+
+    private static NetworkObjectSummaryInfo Connection(string ownerName, int ownerIndex, int connectionIndex) => new()
+    {
+        Kind = NetworkObjectKinds.CommunicationConnection,
+        DisplayName = "S7_Connection_1",
+        Selectable = true,
+        Selector = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.CommunicationConnection,
+            DeviceName = "PLC_1",
+            ItemPath = new List<DeviceItemPathSegmentInfo>
+            {
+                new()
+                {
+                    Index = ownerIndex,
+                    Name = ownerName,
+                    PositionNumber = ownerIndex,
+                    TypeIdentifier = "OrderNumber:CPU",
+                },
+            },
+            ConnectionIndex = connectionIndex,
+            ConnectionType = "S7Connection",
+            LocalConnectionName = "S7_Connection_1",
+        },
+        SelectorDiagnostics = new List<string>(),
     };
 
     private static string Hash(char value) => new(value, 64);

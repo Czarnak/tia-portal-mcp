@@ -171,8 +171,10 @@ public class HardwareConfigInfoTests
     {
         var item = new DeviceItemInfo();
 
+        Assert.NotNull(item.CommunicationConnections);
         Assert.NotNull(item.NetworkInterfaces);
         Assert.NotNull(item.Items);
+        Assert.Empty(item.CommunicationConnections);
         Assert.Empty(item.NetworkInterfaces);
         Assert.Empty(item.Items);
         Assert.NotNull(new DeviceInfo().Items);
@@ -182,6 +184,7 @@ public class HardwareConfigInfoTests
         Assert.NotNull(new IoSystemInfo().ConnectedDeviceNames);
 
         var json = JsonSerializer.Serialize(item, JsonOptions);
+        Assert.Contains("\"communicationConnections\":[]", json);
         Assert.Contains("\"networkInterfaces\":[]", json);
         Assert.Contains("\"items\":[]", json);
     }
@@ -389,6 +392,8 @@ public class HardwareConfigInfoTests
         Assert.Empty(new SubnetInfo().SelectorDiagnostics);
         Assert.NotNull(new IoSystemInfo().SelectorDiagnostics);
         Assert.Empty(new IoSystemInfo().SelectorDiagnostics);
+        Assert.NotNull(new CommunicationConnectionInfo().SelectorDiagnostics);
+        Assert.Empty(new CommunicationConnectionInfo().SelectorDiagnostics);
     }
 
     /// <summary>
@@ -537,6 +542,86 @@ public class HardwareConfigInfoTests
         Assert.True(ioSystem.Selectable);
         Assert.Equal(NetworkObjectKinds.IoSystem, ioSystem.Selector!.Kind);
         Assert.Equal(100, ioSystem.Selector.Number);
+    }
+
+    [Fact]
+    public void CommunicationConnectionSummaries_RoundTripUnderOwningDeviceItem()
+    {
+        var item = new DeviceItemInfo
+        {
+            Name = "CPU_1",
+            CommunicationConnections =
+            {
+                new CommunicationConnectionInfo
+                {
+                    ConnectionType = "S7Connection",
+                    LocalConnectionName = "S7_Connection_1",
+                    LocalConnectionId = "16#1001",
+                    PartnerName = "PLC_2",
+                    IsValid = true,
+                    Selectable = true,
+                    Selector = new NetworkObjectSelectorInfo
+                    {
+                        Kind = NetworkObjectKinds.CommunicationConnection,
+                        DeviceName = "PLC_1",
+                        ItemPath = new List<DeviceItemPathSegmentInfo>
+                        {
+                            new()
+                            {
+                                Index = 0,
+                                Name = "CPU_1",
+                                PositionNumber = 1,
+                                TypeIdentifier = "OrderNumber:CPU",
+                            },
+                        },
+                        ConnectionIndex = 0,
+                        ConnectionType = "S7Connection",
+                        LocalConnectionName = "S7_Connection_1",
+                        LocalConnectionId = "16#1001",
+                    },
+                },
+                new CommunicationConnectionInfo
+                {
+                    ConnectionType = "HmiConnection",
+                    LocalConnectionName = "HMI_Connection_1",
+                    LocalConnectionId = null,
+                    PartnerName = "PLC_1",
+                    IsValid = true,
+                    Selectable = true,
+                    Selector = new NetworkObjectSelectorInfo
+                    {
+                        Kind = NetworkObjectKinds.CommunicationConnection,
+                        DeviceName = "HMI_1",
+                        ItemPath = new List<DeviceItemPathSegmentInfo>
+                        {
+                            new()
+                            {
+                                Index = 0,
+                                Name = "HMI_1",
+                                PositionNumber = 0,
+                                TypeIdentifier = "OrderNumber:HMI",
+                            },
+                        },
+                        ConnectionIndex = 1,
+                        ConnectionType = "HmiConnection",
+                        LocalConnectionName = "HMI_Connection_1",
+                    },
+                },
+            },
+        };
+
+        var json = JsonSerializer.Serialize(item, JsonOptions);
+        var roundTripped = JsonSerializer.Deserialize<DeviceItemInfo>(json, JsonOptions)!;
+
+        Assert.Equal(2, roundTripped.CommunicationConnections.Count);
+        var s7 = roundTripped.CommunicationConnections[0];
+        var hmi = roundTripped.CommunicationConnections[1];
+        Assert.Equal("16#1001", s7.LocalConnectionId);
+        Assert.Equal(0, s7.Selector!.ConnectionIndex);
+        Assert.Equal("PLC_2", s7.PartnerName);
+        Assert.Null(hmi.LocalConnectionId);
+        Assert.Null(hmi.Selector!.LocalConnectionId);
+        Assert.Equal(1, hmi.Selector.ConnectionIndex);
     }
 
     private static HardwareConfigInfo RoundTrip(HardwareConfigInfo config)
