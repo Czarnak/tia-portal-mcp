@@ -110,6 +110,7 @@ internal static class Program
                 "browse_project_tree" => BrowseProjectTree(request),
                 "read_hardware_config" => ReadHardwareConfig(request),
                 "list_network_objects" => ListNetworkObjects(request),
+                "inspect_network_object" => InspectNetworkObject(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
                 "configure_network_device" => ConfigureNetworkDevice(request),
@@ -223,6 +224,31 @@ internal static class Program
                     snapshotHash,
                     orderedItems.Count).Offset;
             return Success(NetworkObjectPageBuilder.Build(orderedItems, pageSize, offset, queryHash, snapshotHash));
+        });
+    }
+
+    private static WorkerResponse InspectNetworkObject(WorkerRequest request)
+    {
+        if (request.NetworkObjectTarget is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkObjectTarget is required.");
+        }
+
+        return WithProject(request, project =>
+        {
+            var resolution = NetworkObjectSelectorResolver.Resolve(project, request.NetworkObjectTarget);
+            if (!resolution.Success)
+            {
+                return Failure(
+                    resolution.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                    resolution.Error ?? "The network object target could not be resolved.");
+            }
+
+            return Success(NetworkObjectInspector.Inspect(
+                resolution.Resolved!,
+                request.NetworkAttributeNames));
         });
     }
 

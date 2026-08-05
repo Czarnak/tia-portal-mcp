@@ -168,5 +168,7 @@
       Link="Network\NetworkAttributeValueNormalizer.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeResultBuilder.cs"
       Link="Network\NetworkAttributeResultBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkModeledAttributeCatalog.cs"
+      Link="Network\NetworkModeledAttributeCatalog.cs" />
   </ItemGroup>
 </Project>

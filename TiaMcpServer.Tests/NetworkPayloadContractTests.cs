@@ -244,6 +244,30 @@ public class NetworkPayloadContractTests
         Assert.Equal("192.168.0.10", attrs[1].GetProperty("value").GetProperty("value").GetString());
     }
 
+    [Fact]
+    public void Project_PreservesLaterInspectionAttributesAfterOneReadFails()
+    {
+        var payload = """
+            {
+              "target": {"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},
+              "evidence": {"nodeName":"X1","nodeType":"Ethernet","deviceItemPath":[]},
+              "attributes": [
+                {"name":"First","source":"dynamic","access":"readOnly","supportedTypes":["System.String"],"availability":"readFailed","diagnostic":{"category":"read_error","message":"first failed"}},
+                {"name":"Later","source":"dynamic","access":"readOnly","supportedTypes":["System.String"],"availability":"available","value":{"kind":"string","value":"still present","typeName":"System.String"}}
+              ],
+              "messages": []
+            }
+            """;
+
+        var item = Project("inspect_network_object", payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        var attributes = item.Result!.Value.GetProperty("attributes");
+        Assert.Equal("readFailed", attributes[0].GetProperty("availability").GetString());
+        Assert.Equal("Later", attributes[1].GetProperty("name").GetString());
+        Assert.Equal("still present", attributes[1].GetProperty("value").GetProperty("value").GetString());
+    }
+
     public static TheoryData<string, string> Phase3InvalidSuccessfulPayloads() => new()
     {
         // list_network_objects: null items collection.
