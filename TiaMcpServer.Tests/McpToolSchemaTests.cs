@@ -29,6 +29,7 @@ namespace TiaMcpServer.Tests;
 /// This is why it has to inspect McpServerTool.Create(...).ProtocolTool.InputSchema - the actual
 /// generated JSON schema - rather than attributes.
 /// </summary>
+[Collection("Mcp protocol serial")]
 public class McpToolSchemaTests
 {
     private static readonly IServiceProvider Services = BuildServices();
@@ -130,6 +131,29 @@ public class McpToolSchemaTests
         };
 
         Assert.Equal(expected.OrderBy(name => name), toolNames);
+        Assert.DoesNotContain("probe_network_object_attributes", toolNames);
+    }
+
+    [Fact]
+    public void McpReadOnlySurface_RemainsExactlyFourApprovedTools()
+    {
+        var toolNames = new[]
+        {
+            typeof(ProjectReadTools),
+            typeof(ReadBatchTools),
+            RequiredNetworkToolType("NetworkReadTools"),
+        }
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
+            .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
+            .Where(attribute => attribute is not null)
+            .Select(attribute => attribute!.Name)
+            .OrderBy(name => name)
+            .ToArray();
+
+        Assert.Equal(
+            new[] { "browse_project_tree", "execute_read_batch", "get_project_status", "network_read" },
+            toolNames);
+        Assert.DoesNotContain("probe_network_object_attributes", toolNames);
     }
 
     [Fact]
@@ -244,3 +268,6 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("safetyToken", properties);
     }
 }
+
+[CollectionDefinition("Mcp protocol serial", DisableParallelization = true)]
+public sealed class McpProtocolSerialCollection;

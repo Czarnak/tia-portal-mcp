@@ -77,7 +77,14 @@ public class NetworkReadTools
             "Narrow query or maxResults, or split the batch: re-run this operationId in its own "
                 + $"{ToolName} call.",
 
-        // A hardware read has no narrowing parameters; only a smaller batch helps.
+        "read_hardware_config" =>
+            "Use list_network_objects with narrower objectKinds and deviceName filters, or split "
+                + $"the batch: re-run this operationId in its own {ToolName} call.",
+
+        "inspect_network_object" =>
+            "Request fewer attributeNames, or split the batch: re-run this operationId in its own "
+                + $"{ToolName} call.",
+
         _ => $"Split the batch: re-run this operationId in its own {ToolName} call.",
     };
 

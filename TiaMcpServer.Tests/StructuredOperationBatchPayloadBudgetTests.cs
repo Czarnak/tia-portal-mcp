@@ -356,11 +356,87 @@ public class StructuredOperationBatchPayloadBudgetTests
 
         var hardware = bounded.Operations[0].Omission!.Guidance;
         var catalog = bounded.Operations[1].Omission!.Guidance;
-        Assert.Contains("split the batch", hardware, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("list_network_objects", hardware, StringComparison.Ordinal);
+        Assert.Contains("objectKinds", hardware, StringComparison.Ordinal);
+        Assert.Contains("deviceName", hardware, StringComparison.Ordinal);
         Assert.Contains("network_read", hardware, StringComparison.Ordinal);
         Assert.Contains("query", catalog, StringComparison.Ordinal);
         Assert.Contains("maxResults", catalog, StringComparison.Ordinal);
         Assert.Contains("split the batch", catalog, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NetworkReadBudget_OversizedInspectionDropsTheWholeValueAndSuggestsFewerAttributes()
+    {
+        const int OriginalChars = StructuredOperationBatchPayloadBudget.MaxItemChars + 1;
+        var batch = Batch(Succeeded(
+            "inspection",
+            Result(OriginalChars),
+            "inspect_network_object"));
+
+        var bounded = NetworkReadTools.ApplyBudget(batch);
+
+        var item = Assert.Single(bounded.Operations);
+        Assert.Equal(OperationBatchStatus.Omitted, item.Status);
+        Assert.Null(item.Result);
+        Assert.Equal(OriginalChars, item.Omission!.OriginalChars);
+        Assert.Contains("fewer attributeNames", item.Omission.Guidance, StringComparison.Ordinal);
+
+        var toolResult = StructuredToolResult.Create(
+            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null),
+            isError: false);
+        var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content)).Text;
+        using var parsed = JsonDocument.Parse(text);
+        Assert.True(JsonElement.DeepEquals(
+            parsed.RootElement,
+            Assert.IsType<JsonElement>(toolResult.StructuredContent)));
+    }
+
+    [Fact]
+    public void NetworkReadBudget_AggregateLimitRemainsOneHundredEightyThousandCharacters()
+    {
+        var batch = NetworkReadBatchWithDocumentChars(
+            StructuredOperationBatchPayloadBudget.MaxDocumentChars + 1);
+
+        var bounded = NetworkReadTools.ApplyBudget(batch);
+        var presented = CanonicalJson.Serialize(
+            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null));
+
+        Assert.Equal(180_000, StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        Assert.True(presented.Length <= 180_000, $"The bounded document was {presented.Length} characters.");
+        var omission = Assert.Single(bounded.Operations, item => item.Status == OperationBatchStatus.Omitted).Omission!;
+        Assert.Equal(StructuredOperationBatchPayloadBudget.DocumentLimitReason, omission.Reason);
+        Assert.Equal("network_read", omission.RetryTool);
+        Assert.Contains("list_network_objects", omission.Guidance, StringComparison.Ordinal);
+    }
+
+    private static StructuredOperationBatch NetworkReadBatchWithDocumentChars(int target)
+    {
+        const int Count = 4;
+        const int Probe = 1_000;
+
+        static StructuredOperationBatch Build(IReadOnlyList<int> resultChars)
+            => Batch(resultChars
+                .Select((chars, index) => Succeeded(
+                    $"hardware-{index}",
+                    Result(chars),
+                    "read_hardware_config"))
+                .ToArray());
+
+        static int Chars(StructuredOperationBatch value)
+            => CanonicalJson.Serialize(
+                new NetworkReadResponse("network_read", value.IsFullySuccessful, value, Error: null)).Length;
+
+        var sizes = Enumerable.Repeat(Probe, Count).ToArray();
+        var delta = target - Chars(Build(sizes));
+        for (var index = 0; index < Count; index++)
+        {
+            sizes[index] += (delta / Count) + (index < delta % Count ? 1 : 0);
+        }
+
+        var solved = Build(sizes);
+        Assert.Equal(target, Chars(solved));
+        return solved;
     }
 
     [Fact]

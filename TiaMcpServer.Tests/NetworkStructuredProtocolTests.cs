@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using Xunit;
@@ -13,6 +14,7 @@ namespace TiaMcpServer.Tests;
 /// the advertised output schema, and one canonical JSON document delivered identically as the
 /// text block and as <c>structuredContent</c>.
 /// </summary>
+[Collection("Mcp protocol serial")]
 public class NetworkStructuredProtocolTests
 {
     [Fact]
@@ -46,6 +48,54 @@ public class NetworkStructuredProtocolTests
             structured.GetProperty("batch")
                 .GetProperty("operations")[0]
                 .GetProperty("result").ValueKind);
+    }
+
+    [Fact]
+    public async Task NetworkRead_MixesPhase2AndPhase3ReadsInRequestOrder()
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+
+        var result = await harness.Client.CallToolAsync(
+            "network_read",
+            new Dictionary<string, object?>
+            {
+                ["operations"] = new object[]
+                {
+                    new
+                    {
+                        operationId = "phase2-hardware",
+                        operation = "read_hardware_config",
+                        projectPath = "network-roundtrip",
+                    },
+                    new
+                    {
+                        operationId = "phase3-list",
+                        operation = "list_network_objects",
+                        projectPath = "list-network-objects-success",
+                        objectKinds = new[] { "node" },
+                        pageSize = 20,
+                    },
+                    new
+                    {
+                        operationId = "phase3-inspect",
+                        operation = "inspect_network_object",
+                        projectPath = "inspect-network-object-success",
+                        target = new { kind = "node", deviceName = "PLC_1", nodeId = "node-1" },
+                        attributeNames = new[] { "stringAttribute" },
+                    },
+                },
+            });
+
+        var root = AssertOneCanonicalDocument(result);
+        Assert.False(result.IsError);
+        var items = root.GetProperty("batch").GetProperty("operations");
+        Assert.Equal(
+            new[] { "phase2-hardware", "phase3-list", "phase3-inspect" },
+            items.EnumerateArray().Select(item => item.GetProperty("operationId").GetString()).ToArray());
+        Assert.All(items.EnumerateArray(), item => Assert.Equal("succeeded", item.GetProperty("status").GetString()));
+        Assert.Equal(JsonValueKind.Array, items[0].GetProperty("result").GetProperty("devices").ValueKind);
+        Assert.Equal(JsonValueKind.Array, items[1].GetProperty("result").GetProperty("items").ValueKind);
+        Assert.Equal(JsonValueKind.Array, items[2].GetProperty("result").GetProperty("attributes").ValueKind);
     }
 
     [Fact]
@@ -471,6 +521,7 @@ public class NetworkStructuredProtocolTests
     {
         var structured = Assert.IsType<JsonElement>(result.StructuredContent);
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+        Assert.Equal(CanonicalJson.Serialize(structured), text);
         using var textDocument = JsonDocument.Parse(text);
         Assert.True(JsonElement.DeepEquals(structured, textDocument.RootElement));
         return structured;

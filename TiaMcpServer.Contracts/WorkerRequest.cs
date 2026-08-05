@@ -219,13 +219,18 @@ public class WorkerRequest
     public string? NetworkObjectCursor { get; set; }
 
     /// <summary>
-    /// Forwarded by: inspect_network_object. Mapped from the host's <c>NetworkObjectTarget</c>
+    /// Forwarded by: inspect_network_object, probe_network_object_attributes. Mapped from the
+    /// host's <c>NetworkObjectTarget</c>
     /// to a fresh <see cref="NetworkObjectSelectorInfo"/>; item-path segments are deep-copied so
     /// the worker never holds a reference to the caller's mutable list.
     /// </summary>
     public NetworkObjectSelectorInfo? NetworkObjectTarget { get; set; }
 
-    /// <summary>Forwarded by: inspect_network_object (optional). Validated to [1, 200] unique names by the host.</summary>
+    /// <summary>
+    /// Forwarded by: inspect_network_object, probe_network_object_attributes (optional). The
+    /// public inspection path validates [1, 200] unique names; the internal probe repeats that
+    /// validation because it is called directly by the read-only live harness.
+    /// </summary>
     public List<string>? NetworkAttributeNames { get; set; }
 
     #endregion

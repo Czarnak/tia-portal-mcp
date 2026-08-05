@@ -111,6 +111,7 @@ internal static class Program
                 "read_hardware_config" => ReadHardwareConfig(request),
                 "list_network_objects" => ListNetworkObjects(request),
                 "inspect_network_object" => InspectNetworkObject(request),
+                "probe_network_object_attributes" => ProbeNetworkObjectAttributes(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
                 "configure_network_device" => ConfigureNetworkDevice(request),
@@ -251,6 +252,98 @@ internal static class Program
                 request.NetworkAttributeNames));
         });
     }
+
+    private static WorkerResponse ProbeNetworkObjectAttributes(WorkerRequest request)
+    {
+        if (request.NetworkObjectTarget is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkObjectTarget is required.");
+        }
+
+        if (request.NetworkAttributeNames is { Count: 0 }
+            || request.NetworkAttributeNames is { Count: > 200 }
+            || (request.NetworkAttributeNames is not null
+                && (request.NetworkAttributeNames.Any(string.IsNullOrWhiteSpace)
+                    || request.NetworkAttributeNames.Distinct(StringComparer.Ordinal).Count()
+                        != request.NetworkAttributeNames.Count)))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkAttributeNames must contain between 1 and 200 unique, nonblank names when supplied.");
+        }
+
+        return WithProject(request, project =>
+        {
+            var resolution = NetworkObjectSelectorResolver.Resolve(project, request.NetworkObjectTarget);
+            if (!resolution.Success)
+            {
+                return Failure(
+                    resolution.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                    resolution.Error ?? "The network object target could not be resolved.");
+            }
+
+            var selectedNames = request.NetworkAttributeNames is null
+                ? null
+                : new HashSet<string>(request.NetworkAttributeNames, StringComparer.Ordinal);
+            var attributes = resolution.Resolved!.EngineeringObject.GetAttributeInfos()
+                .Where(info => selectedNames is null || selectedNames.Contains(info.Name))
+                .OrderBy(info => info.Name, StringComparer.Ordinal)
+                .Select(info => ProbeNetworkAttribute(resolution.Resolved.EngineeringObject, info))
+                .ToList();
+
+            return Success(new NetworkAttributeProbeInfo
+            {
+                Target = resolution.Resolved.Target,
+                Attributes = attributes,
+                Messages = resolution.Resolved.Messages.ToList(),
+            });
+        });
+    }
+
+    private static NetworkAttributeProbeEntryInfo ProbeNetworkAttribute(
+        IEngineeringObject engineeringObject,
+        EngineeringAttributeInfo info)
+    {
+        string? observedClrValueType = null;
+        string? exceptionCategory = null;
+        if (info.AccessMode is EngineeringAttributeAccessMode.Read or EngineeringAttributeAccessMode.ReadWrite)
+        {
+            try
+            {
+                var value = engineeringObject.GetAttribute(info.Name);
+                observedClrValueType = value?.GetType().FullName;
+            }
+            catch (Exception exception)
+            {
+                exceptionCategory = ProbeExceptionCategory(exception);
+            }
+        }
+
+        return new NetworkAttributeProbeEntryInfo
+        {
+            Name = info.Name,
+            AccessMode = Enum.GetName(typeof(EngineeringAttributeAccessMode), info.AccessMode) ?? "Unknown",
+            SupportedClrTypeNames = info.SupportedTypes
+                .Select(type => type.FullName ?? type.Name)
+                .OrderBy(typeName => typeName, StringComparer.Ordinal)
+                .ToList(),
+            ObservedClrValueType = observedClrValueType,
+            ExceptionCategory = exceptionCategory,
+        };
+    }
+
+    private static string ProbeExceptionCategory(Exception exception)
+        => exception switch
+        {
+            EngineeringSecurityException => "accessDenied",
+            EngineeringNotSupportedException => "notSupported",
+            EngineeringObjectDisposedException => "objectDisposed",
+            EngineeringException => "engineeringError",
+            NonRecoverableException => "nonRecoverable",
+            _ => "unexpectedError",
+        };
 
     private static WorkerResponse SearchEquipmentCatalog(WorkerRequest request)
     {
