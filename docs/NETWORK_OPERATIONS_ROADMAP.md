@@ -1,7 +1,14 @@
 # Network Operations Roadmap
 
-Status: Phase 1 and Phase 2 are complete. Phase 3 (network object identity and introspection
-expansion) and later phases remain open and are separate, not-yet-scheduled work.
+Status: Phases 1 and 2 are complete. Phase 3 implementation and its separately authorized,
+read-only TIA Portal V21 evidence run are complete, but final stabilization is pending design
+review because only three of eight observed communication connections had complete selectors.
+The measured representative-device query was 66.34% smaller than the full discovery result while
+preserving every matching selector, so the separate `list_network_objects` retention gate passed
+and the operation is retained. See
+[SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md](SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md)
+for the evidence and explicit coverage gaps. Phases 4 and later remain open and are separate,
+not-yet-scheduled work.
 
 Phase 2 completion is scoped narrowly: Tasks 1-7 of
 `docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md` are implemented and
@@ -27,8 +34,9 @@ Create a first-class, agent-friendly network engineering surface that:
 - preserves preview-before-apply safety for every write;
 - exposes structured JSON that agents can inspect and transform reliably, per the completed
   Phase 2 contract gate below; and
-- expands (Phase 3 onward, not yet scheduled) from the current bounded device-configuration
-  surface to subnet, IO-system, and generic network-attribute operations.
+- exposes the completed Phase 3 snapshot-scoped discovery and typed read-only inspection surface
+  for device items, interfaces, nodes, subnets, IO systems, and communication connections; and
+- leaves subnet lifecycle, IO-system editing, and generic network-attribute writes to later phases.
 
 The current implemented surface remains documented in
 [SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
@@ -122,20 +130,33 @@ first-match, first-node, or name-only guess. A worker success payload that does 
 declared result type becomes a failed item with category `protocol_error`, never echoing the
 rejected payload. Results are bounded against the exact response document: an oversized result is
 omitted whole (never substringed) with retry guidance, and the whole document is capped with a
-`batch.truncation` record of what was affected. The exact envelopes, all four typed payload result
-types, and the multi-homed proof are documented in
+`batch.truncation` record of what was affected. The exact envelopes, all four Phase 2 typed payload
+result types, and the multi-homed proof are documented in
 [SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
 
 This mark reflects Tasks 1-7 and their automated gates (stub build, `dotnet test
 TiaMcpServer.Tests`, FakeWorker protocol tests) passing — not a live TIA Portal V21 acceptance
 run. See the Status note above.
 
-### Phase 3: Establish Network Object Identity and Introspection
+### Phase 3: Establish Network Object Identity and Introspection — Stabilization Pending
 
-Introduce deterministic selectors for device items, interfaces, nodes, subnets,
-IO systems, and communication connections. Do not rely on an implicit first interface
-or first node. Add attribute metadata needed to distinguish modeled, dynamic, readable,
-writable, and unsupported members.
+Completed: `read_hardware_config` now carries snapshot-scoped selectors alongside its modeled
+hardware summaries, and `network_read` adds the bounded `list_network_objects` and
+`inspect_network_object` operations without adding another public MCP tool. Discovery covers
+device items, network interfaces, nodes, subnets, IO systems, and communication connections;
+incomplete identity is returned explicitly as `selectable:false` with diagnostics instead of an
+invented selector. Inspection verifies the selector against the current object graph, merges
+per-kind modeled attributes with generic `IEngineeringObject` metadata, and returns closed typed
+values plus independent source, access, availability, and diagnostic fields.
+
+The read-only TIA Portal V21 matrix, payload-repeatability run, value measurement, and raw metadata
+probe completed on the prepared fixture. The targeted-list value gate passed, so
+`list_network_objects` remains supported. Final stabilization is pending a reviewed resolution of
+the original acceptance rule that required identity to distinguish every observed connection:
+five of eight observed connections lacked sufficient identity for a selector. The fixture also
+did not cover PROFIBUS/DP or non-HMI communication-connection classes. These are explicit coverage
+and selectability limits, not evidence that the corresponding Siemens capabilities are absent.
+This phase does not certify commissioning or live hardware behavior.
 
 ### Phase 4: Add First-Class Subnet Lifecycle Operations
 
@@ -181,7 +202,7 @@ commissioning behavior.
 
 ## Implementation Anchors
 
-Start future implementation planning from these existing seams:
+Start later-phase implementation planning from these existing seams:
 
 - `TiaMcpServer/Network/NetworkOperationCatalog.cs`
 - `TiaMcpServer/Network/NetworkReadTools.cs`
@@ -207,6 +228,6 @@ Unless separately approved, this roadmap does not yet include:
 
 ## Decisions Reserved for Detailed Design
 
-The later detailed design must settle the exact selector schema, operation names,
-attribute-value encoding, transaction and partial-failure rules, postcondition envelope,
-and the boundary between typed operations and generic scalar attribute writes.
+Later detailed design must preserve the stabilized Phase 3 selector and attribute-read contracts
+while settling write-specific transaction and partial-failure rules, postcondition envelopes, and
+the boundary between typed operations and generic scalar attribute writes.

@@ -107,6 +107,8 @@ The read batch supports:
 
 - `read_hardware_config`
 - `search_equipment_catalog`
+- `list_network_objects`
+- `inspect_network_object`
 
 ### Additional read-write tools
 
@@ -196,7 +198,7 @@ directories and remove them in `finally` blocks.
 ## 7. Batch and network execution
 
 `BatchOperationCatalog` and `BatchWorkerInvoker` own only generic batch operations.
-`NetworkOperationCatalog` and `NetworkWorkerInvoker` own the four dedicated network
+`NetworkOperationCatalog` and `NetworkWorkerInvoker` own the six dedicated network
 operations. Each domain validates against its own request type and catalog before a worker
 invocation; a new worker method belongs to its owning domain catalog and is not implicitly
 a generic batch operation.
@@ -223,7 +225,7 @@ snapshot for validation, applies sequentially with no rollback, and appends an a
 policy also rejects internal compile requests in read-only mode before they are
 sent to the worker.
 
-## 7a. The opt-in canonical JSON seam and the Network Phase 2 structured contract
+## 7a. The opt-in canonical JSON seam and the Network Phase 2/3 structured contract
 
 `network_read` and `network_write` are the first (and, as of this writing, only) tools to opt
 into a reusable canonical-JSON gate. This is deliberately additive: every other tool keeps its
@@ -251,9 +253,10 @@ than inventing a parallel one.
 ### Typed Network payload registry
 
 `TiaMcpServer/Network/NetworkPayloadContract.cs` is the only decoder of Network worker success
-payloads. It maps each of the four network operations to exactly one declared CLR result type
+payloads. It maps each of the six network operations to exactly one declared CLR result type
 (`HardwareConfigInfo`, `CatalogEntryInfo[]`, `AddDeviceResultInfo`,
-`ConfigureNetworkDeviceResultInfo`) and rejects anything that does not match — a malformed,
+`ConfigureNetworkDeviceResultInfo`, `NetworkObjectListInfo`, and
+`NetworkObjectInspectionInfo`) and rejects anything that does not match — a malformed,
 unknown, wrongly cased, or wrongly typed payload becomes a failed item with category
 `protocol_error` rather than being forwarded under a schema that does not describe it. The
 rejected payload is never echoed back to the caller.
@@ -288,6 +291,45 @@ resolving to a first match, a first node, or a name-only guess. The host never f
 pre-resolved object reference to the worker — only the caller's own `deviceName`/`nodeId` (and,
 where applicable, `subnetId`/IO-system `number`) cross the process boundary, so the worker's
 independent resolution is a real second check, not a formality.
+
+### Phase 3 read identity and introspection seam
+
+Phase 3 extends the same typed boundary without moving Siemens objects into the host:
+
+```text
+public NetworkObjectSelectorInfo
+        -> NetworkWorkerInvoker / WorkerRequest
+        -> NetworkObjectSelectorResolver
+        -> ResolvedNetworkObject
+        -> per-kind modeled adapter + generic attribute inspector
+        -> NetworkObjectInspectionInfo
+```
+
+`NetworkObjectIndexReader` traverses the live object graph in deterministic order and emits
+`NetworkObjectSummaryInfo` records. A complete identity includes a selector; incomplete or
+unreadable identity remains in the list as `selectable:false`, `selector:null`, and deterministic
+diagnostics. Device-item paths use recorded zero-based sibling indices and then verify name,
+position number, and type identifier. Nodes, IO systems, and communication connections may carry
+additional sibling-index and name/type evidence. The resolver follows the recorded locator and
+then verifies every supplied evidence field; it never searches for a more convenient match after
+evidence drift.
+
+`NetworkObjectCursorCodec` treats pagination state as opaque. A cursor binds the normalized
+filter, stable ordered item fingerprint, and current snapshot; invalid encoding, filter mismatch,
+snapshot mismatch, or an out-of-range offset fails explicitly rather than returning a different
+page. Selectors and cursors are therefore snapshot-scoped evidence, not persistent identities.
+
+`NetworkModeledAttributeAdapters` and `ConnectionModeledAttributeAdapters` expose typed,
+kind-specific fields. `NetworkObjectInspector` supplements them with
+`IEngineeringObject.GetAttributeInfos()` and guarded reads. `NetworkAttributeResultBuilder`
+merges modeled and dynamic metadata while keeping source, access, availability, value, and
+diagnostic independent for every requested name. Public values use only `null`, `string`,
+`boolean`, `integer`, `number`, or `enum`; unsupported CLR objects become `unrepresentable` and
+are never serialized through arbitrary `ToString()` output.
+
+The worker-only `probe_network_object_attributes` method exists solely for the explicitly
+authorized Phase 3 raw-metadata acceptance mode. It is read-only and absent from
+`NetworkOperationCatalog`, the public MCP schema, and host dispatch.
 
 ## 8. Write safety
 
@@ -351,6 +393,15 @@ automated test or CI gate; `TiaMcpServer.Tests/NetworkLiveHarnessContractTests.c
 and every other harness invariant (PowerShell-7 requirement, non-mutating default mode, Preview's
 inability to reach a confirming apply call, Apply's explicit-switch-plus-identity gate), by
 reading the script's own source text rather than executing it.
+
+`scripts/live-test-network-phase3.ps1` is a separate, read-only acceptance harness for the
+Phase 3 identity/introspection seam. Its public-protocol `Matrix`, `Repeatability`, and
+`MeasureListValue` modes launch the real MCP host; its internal `RawProbe` mode launches the
+worker only to compare returned attribute metadata with raw Openness metadata. No mode invokes a
+network write, save, compile, download, or commissioning action, and no automated test or CI gate
+runs the script. `TiaMcpServer.Tests/NetworkPhase3LiveHarnessContractTests.cs` enforces those
+source-level invariants. The completed evidence and remaining live-coverage gaps are recorded in
+`docs/SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md`.
 
 ## 11. Keeping this document current
 
