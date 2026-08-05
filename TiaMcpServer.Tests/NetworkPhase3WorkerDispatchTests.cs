@@ -76,6 +76,7 @@ public class NetworkPhase3WorkerDispatchTests
         Assert.Contains("GetAttribute(\"Name\")", source, StringComparison.Ordinal);
         Assert.Contains("GetAttribute(\"SubnetId\")", source, StringComparison.Ordinal);
         Assert.Contains("NetworkObjectDiscoveryEvidence.ReadString", source, StringComparison.Ordinal);
+        Assert.Contains("NetworkObjectDiscoveryEvidence.ReadInt", source, StringComparison.Ordinal);
         Assert.DoesNotContain("OpennessReflection", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ReadEnumerableProperty", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ToString(", source, StringComparison.Ordinal);

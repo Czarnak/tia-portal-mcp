@@ -73,6 +73,13 @@ internal static class NetworkObjectDiscoveryEvidence
                 "wrongType");
         }
 
+        if (number < 0)
+        {
+            return NetworkObjectDiscoveryEvidenceValue<int>.Unusable(
+                $"{field} was negative; selector not available.",
+                "negative");
+        }
+
         return NetworkObjectDiscoveryEvidenceValue<int>.Usable(
             number,
             "value:" + number.ToString(CultureInfo.InvariantCulture));

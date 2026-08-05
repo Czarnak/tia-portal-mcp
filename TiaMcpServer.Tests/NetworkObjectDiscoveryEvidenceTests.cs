@@ -44,6 +44,47 @@ public sealed class NetworkObjectDiscoveryEvidenceTests
         Assert.Equal("wrongType", wrongType.SnapshotToken);
     }
 
+    [Fact]
+    public void ReadInt_NegativeRootAndNestedDeviceItemPositionsAreUnusable_AndLaterPositionRemainsUsable()
+    {
+        var root = NetworkObjectDiscoveryEvidence.ReadInt(-1, "Device item position number");
+        var nested = NetworkObjectDiscoveryEvidence.ReadInt(-2, "Device item position number");
+        var later = NetworkObjectDiscoveryEvidence.ReadInt(7, "Device item position number");
+
+        Assert.False(root.IsUsable);
+        Assert.Equal("negative", root.SnapshotToken);
+        Assert.Equal(
+            "Device item position number was negative; selector not available.",
+            root.Diagnostic);
+
+        Assert.False(nested.IsUsable);
+        Assert.Equal("negative", nested.SnapshotToken);
+        Assert.Equal(root.Diagnostic, nested.Diagnostic);
+
+        Assert.True(later.IsUsable);
+        Assert.Equal(7, later.Value);
+        Assert.Equal("value:7", later.SnapshotToken);
+        Assert.Empty(later.Diagnostic);
+    }
+
+    [Fact]
+    public void ReadInt_NegativeIoSystemNumberIsUnusable_AndLaterNumberRemainsUsable()
+    {
+        var invalid = NetworkObjectDiscoveryEvidence.ReadInt(-1, "IO system number");
+        var later = NetworkObjectDiscoveryEvidence.ReadInt(3, "IO system number");
+
+        Assert.False(invalid.IsUsable);
+        Assert.Equal("negative", invalid.SnapshotToken);
+        Assert.Equal(
+            "IO system number was negative; selector not available.",
+            invalid.Diagnostic);
+
+        Assert.True(later.IsUsable);
+        Assert.Equal(3, later.Value);
+        Assert.Equal("value:3", later.SnapshotToken);
+        Assert.Empty(later.Diagnostic);
+    }
+
     private sealed class ThrowsOnToString
     {
         public const string LeakToken = "discovery-tostring-leak-canary";
