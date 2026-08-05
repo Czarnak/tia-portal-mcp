@@ -165,6 +165,19 @@ in previews, explicit destructive-operation safeguards, and post-write reads. Us
 Openness transaction where V21 supports the complete operation; otherwise expose partial
 application semantics explicitly.
 
+Before adding any public tool operation or contract, run two PowerShell probes against disposable
+TIA Portal V21 project copies:
+
+- a read-only subnet metadata probe that records Ethernet and PROFIBUS attribute names, types,
+  access modes, current values, selector identity, and relationships; and
+- an explicitly enabled mutation probe that creates and edits isolated Ethernet and PROFIBUS
+  subnets, deletes both empty and connected subnets, records Openness validation and transaction
+  behavior, and post-reads the project to confirm that subnet deletion does not delete devices.
+
+Write timestamped JSON evidence under the ignored artifact directory. Review that evidence before
+settling the writable attributes, validation rules, transaction boundary, deletion guardrails, or
+postcondition contract. Ordinary tests and CI must never invoke these live probes.
+
 ### Phase 5: Add IO-System Attribute Editing
 
 Support relevant PROFINET IO-system and DP master-system modeled and dynamic attributes.
