@@ -564,6 +564,7 @@ function Invoke-DiscoveryPage {
     [pscustomobject]@{
         Result = $resultValue
         CanonicalText = $call.CanonicalText
+        Warnings = @($item.warnings)
         Omission = $item.omission
         Truncation = $call.Envelope.batch.truncation
     }
@@ -847,6 +848,39 @@ function Invoke-Repeatability {
     $firstDiscoveryText = ($firstDiscovery.Pages | ForEach-Object { $_.CanonicalText }) -join "`n"
     $secondDiscoveryText = ($secondDiscovery.Pages | ForEach-Object { $_.CanonicalText }) -join "`n"
     $discoveryComparison = Compare-CanonicalText -First $firstDiscoveryText -Second $secondDiscoveryText
+    $firstDiscoveryResultText = ($firstDiscovery.Pages | ForEach-Object {
+            if ($null -eq $_.Result) {
+                'null'
+            }
+            else {
+                ConvertTo-Json -InputObject $_.Result -Compress -Depth 100
+            }
+        }) -join "`n"
+    $secondDiscoveryResultText = ($secondDiscovery.Pages | ForEach-Object {
+            if ($null -eq $_.Result) {
+                'null'
+            }
+            else {
+                ConvertTo-Json -InputObject $_.Result -Compress -Depth 100
+            }
+        }) -join "`n"
+    $discoveryResultComparison = Compare-CanonicalText `
+        -First $firstDiscoveryResultText `
+        -Second $secondDiscoveryResultText
+    $firstDiscoveryPageWarnings = @()
+    for ($index = 0; $index -lt $firstDiscovery.Pages.Count; $index++) {
+        $firstDiscoveryPageWarnings += [ordered]@{
+            pageNumber = $index + 1
+            warnings = @($firstDiscovery.Pages[$index].Warnings)
+        }
+    }
+    $secondDiscoveryPageWarnings = @()
+    for ($index = 0; $index -lt $secondDiscovery.Pages.Count; $index++) {
+        $secondDiscoveryPageWarnings += [ordered]@{
+            pageNumber = $index + 1
+            warnings = @($secondDiscovery.Pages[$index].Warnings)
+        }
+    }
     $targets = Get-RequiredMatrixFixtureTargets -Items $firstDiscovery.Items
     $missingFixtures = Get-MissingFixtureNames -Targets $targets
     $fixtureComparisons = [ordered]@{}
@@ -877,6 +911,9 @@ function Invoke-Repeatability {
         discoveryCanonicalBytesEqual = $discoveryComparison.bytesEqual
         inspectionCanonicalBytesEqual = $inspectionBytesEqual
         discoveryComparison = $discoveryComparison
+        discoveryResultComparison = $discoveryResultComparison
+        firstDiscoveryPageWarnings = $firstDiscoveryPageWarnings
+        secondDiscoveryPageWarnings = $secondDiscoveryPageWarnings
         fixtureComparisons = $fixtureComparisons
         fixturesComplete = $fixturesComplete
         missingFixtures = $missingFixtures
