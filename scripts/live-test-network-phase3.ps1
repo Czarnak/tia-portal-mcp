@@ -18,9 +18,9 @@ param(
     [string] $HostExecutable = 'dotnet',
     [string[]] $HostArguments,
     [string] $WorkerExecutable,
-    [int] $TimeoutSeconds = 60,
+    [int] $TimeoutSeconds = 240,
     [ValidateRange(1, 200)]
-    [int] $PageSize = 100
+    [int] $PageSize = 10
 )
 
 Set-StrictMode -Version Latest
@@ -76,20 +76,14 @@ function Start-JsonLineProcess {
     }
     $startInfo.RedirectStandardInput = $true
     $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
+    $startInfo.RedirectStandardError = $false
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
-    $process.add_ErrorDataReceived({
-            param($sender, $eventArgs)
-            if ($null -ne $eventArgs -and $null -ne $eventArgs.Data) {
-                [Console]::Error.WriteLine("[$Label] $($eventArgs.Data)")
-            }
-        })
+    # Inherit stderr so child logs remain visible without a PowerShell callback on a thread-pool thread.
     [void] $process.Start()
-    $process.BeginErrorReadLine()
     $process
 }
 

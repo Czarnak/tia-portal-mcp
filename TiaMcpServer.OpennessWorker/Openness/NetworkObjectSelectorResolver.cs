@@ -125,6 +125,11 @@ public static class NetworkObjectSelectorResolver
 
     private static NetworkObjectSelectionResult ResolveNode(Project project, NetworkObjectSelectorInfo target)
     {
+        if (target.ItemPath is not null && target.NodeIndex is not null)
+        {
+            return ResolveIndexedNode(project, target);
+        }
+
         var deviceMatch = MatchDevice(project, target.DeviceName);
         if (!deviceMatch.Success)
         {
@@ -189,6 +194,87 @@ public static class NetworkObjectSelectorResolver
             messages));
     }
 
+    private static NetworkObjectSelectionResult ResolveIndexedNode(
+        Project project,
+        NetworkObjectSelectorInfo target)
+    {
+        if (target.NodeIndex is not int nodeIndex)
+        {
+            return NotFound("The node selector has no node index.");
+        }
+
+        var itemMatch = MatchDeviceItem(project, target);
+        if (!itemMatch.Success)
+        {
+            return itemMatch.Failure!;
+        }
+
+        NetworkInterface? networkInterface;
+        try
+        {
+            networkInterface = ((IEngineeringServiceProvider)itemMatch.Item!).GetService<NetworkInterface>();
+        }
+        catch (EngineeringException exception)
+        {
+            return EvidenceMismatch($"Could not resolve the selected item's network interface: {exception.Message}");
+        }
+
+        if (networkInterface is null)
+        {
+            return NotFound("The selected device item does not expose a network interface.");
+        }
+
+        var node = NodeAt(networkInterface, nodeIndex);
+        if (node is null)
+        {
+            return NotFound($"The selected network interface has no node at index {target.NodeIndex}.");
+        }
+
+        string nodeId;
+        try
+        {
+            nodeId = node.NodeId;
+        }
+        catch (EngineeringException exception)
+        {
+            return EvidenceMismatch($"Could not verify the selected node identity: {exception.Message}");
+        }
+
+        if (!string.Equals(nodeId, target.NodeId, StringComparison.Ordinal))
+        {
+            return EvidenceMismatch("The resolved node identity does not match the selector evidence.");
+        }
+
+        var messages = new List<string>();
+        var nodeName = ReadOptionalString(() => node.Name, "node name", messages);
+        var nodeType = ReadOptionalEnumName(() => node.NodeType, "node type", messages);
+        var interfaceName = ReadOptionalStringAttribute((IEngineeringObject)networkInterface, "Name", messages);
+        var interfaceType = ReadOptionalEnumName(
+            () => networkInterface.InterfaceType, "network interface type", messages);
+        var interfaceMode = ReadOptionalEnumName(
+            () => networkInterface.InterfaceOperatingMode, "network interface operating mode", messages);
+        var evidence = new NetworkObjectEvidenceInfo
+        {
+            DeviceItemPath = itemMatch.VerifiedPath!.Select(segment => segment.Name).ToList(),
+            InterfaceName = interfaceName,
+            InterfaceType = interfaceType,
+            InterfaceOperatingMode = interfaceMode,
+            NodeName = nodeName,
+            NodeType = nodeType,
+        };
+
+        return NetworkObjectSelectionResult.Ok(new ResolvedNetworkObject(
+            NetworkObjectKinds.Node,
+            node,
+            NetworkSelectorFactory.Node(
+                itemMatch.DeviceName!,
+                nodeId,
+                itemMatch.VerifiedPath!,
+                nodeIndex),
+            evidence,
+            messages));
+    }
+
     private static NetworkObjectSelectionResult ResolveSubnet(Project project, NetworkObjectSelectorInfo target)
     {
         var subnetMatch = MatchSubnet(project, target.SubnetId);
@@ -222,16 +308,31 @@ public static class NetworkObjectSelectorResolver
             return subnetMatch.Failure!;
         }
 
-        var candidates = new List<(IoSystem IoSystem, int Number)>();
+        var candidates = new List<(IoSystem IoSystem, int Number, int Index)>();
+        var candidateIndex = 0;
         foreach (IoSystem candidate in subnetMatch.Value!.IoSystems)
         {
+            var currentIndex = candidateIndex++;
             try
             {
-                var number = candidate.Number;
-                if (number == target.Number)
+                if (target.IoSystemIndex is not null && currentIndex != target.IoSystemIndex)
                 {
-                    candidates.Add((candidate, number));
+                    continue;
                 }
+
+                var number = candidate.Number;
+                if (number != target.Number)
+                {
+                    continue;
+                }
+
+                if (target.IoSystemName is not null
+                    && !string.Equals(candidate.Name, target.IoSystemName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                candidates.Add((candidate, number, currentIndex));
             }
             catch (EngineeringException)
             {
@@ -251,6 +352,7 @@ public static class NetworkObjectSelectorResolver
 
         var ioSystem = candidates[0].IoSystem;
         var ioSystemNumber = candidates[0].Number;
+        var ioSystemIndex = candidates[0].Index;
         var messages = new List<string>();
         var evidence = new NetworkObjectEvidenceInfo
         {
@@ -262,7 +364,11 @@ public static class NetworkObjectSelectorResolver
         return NetworkObjectSelectionResult.Ok(new ResolvedNetworkObject(
             NetworkObjectKinds.IoSystem,
             ioSystem,
-            NetworkSelectorFactory.IoSystem(subnetMatch.Identity!, ioSystemNumber),
+            NetworkSelectorFactory.IoSystem(
+                subnetMatch.Identity!,
+                ioSystemNumber,
+                ioSystemIndex,
+                target.IoSystemName ?? evidence.IoSystemName),
             evidence,
             messages));
     }
@@ -557,6 +663,27 @@ public static class NetworkObjectSelectorResolver
             if (current == index)
             {
                 return item;
+            }
+
+            current++;
+        }
+
+        return null;
+    }
+
+    private static Node? NodeAt(NetworkInterface networkInterface, int index)
+    {
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var current = 0;
+        foreach (Node node in networkInterface.Nodes)
+        {
+            if (current == index)
+            {
+                return node;
             }
 
             current++;

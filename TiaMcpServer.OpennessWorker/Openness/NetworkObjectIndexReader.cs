@@ -220,11 +220,11 @@ public static class NetworkObjectIndexReader
             var nodeName = ReadTypedString(() => node.Name, "Node name");
             var nodeId = ReadTypedString(() => node.NodeId, "Node identity");
             var diagnostics = CombineDiagnostics(
-                Array.Empty<string>(),
+                itemPathDiagnostics,
                 deviceName.Diagnostic,
                 nodeId.Diagnostic);
             var selector = diagnostics.Count == 0
-                ? NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value)
+                ? NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value, itemPath, nodeIndex)
                 : null;
             var orderingKey = nodeId.IsUsable
                 ? (deviceName.IsUsable ? deviceName.Value : string.Empty) + "\u001f" + nodeId.Value
@@ -289,7 +289,11 @@ public static class NetworkObjectIndexReader
                         subnetId.Diagnostic,
                         number.Diagnostic);
                     var selector = diagnostics.Count == 0
-                        ? NetworkSelectorFactory.IoSystem(subnetId.Value, number.Value)
+                        ? NetworkSelectorFactory.IoSystem(
+                            subnetId.Value,
+                            number.Value,
+                            ioSystemIndex,
+                            ioSystemName.IsUsable ? ioSystemName.Value : null)
                         : null;
                     var orderingKey = subnetOrderingKey
                         + "\u001f"

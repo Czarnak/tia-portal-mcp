@@ -455,6 +455,67 @@ public class NetworkPhase3ContractTests
         Assert.True(result.IsValid, result.Error);
     }
 
+    [Fact]
+    public void InspectNetworkObject_IoSystemNameEvidence_IsAccepted()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.IoSystem);
+        target.IoSystemIndex = 1;
+        target.IoSystemName = "IO system_1";
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_NodePathAndIndexEvidence_IsAccepted()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.DeviceItem);
+        target.Kind = NetworkObjectKinds.Node;
+        target.NodeId = "IE1";
+        target.NodeIndex = 1;
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_NodeIndexWithoutPath_IsRejected()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.Node);
+        target.NodeIndex = 1;
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("itemPath", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_BlankIoSystemNameEvidence_IsRejected()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.IoSystem);
+        target.IoSystemName = "   ";
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("ioSystemName", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InspectNetworkObject_NegativeIoSystemIndexEvidence_IsRejected()
+    {
+        var target = Phase3Fixtures.ValidTarget(NetworkObjectKinds.IoSystem);
+        target.IoSystemIndex = -1;
+
+        var result = NetworkOperationCatalog.ValidateRead(new[] { InspectOp(target: target) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("ioSystemIndex", result.Error, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(NetworkObjectKinds.DeviceItem)]
     [InlineData(NetworkObjectKinds.NetworkInterface)]

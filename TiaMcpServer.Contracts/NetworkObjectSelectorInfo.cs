@@ -55,11 +55,20 @@ public sealed class NetworkObjectSelectorInfo
     /// <summary>Exact node identifier reported by read_hardware_config. Required for node kind.</summary>
     public string? NodeId { get; set; }
 
+    /// <summary>Optional zero-based sibling index within the selected network interface's node collection.</summary>
+    public int? NodeIndex { get; set; }
+
     /// <summary>Exact subnet identifier reported by read_hardware_config. Required for subnet and ioSystem kinds.</summary>
     public string? SubnetId { get; set; }
 
     /// <summary>IO system number within its subnet. Required for ioSystem kind.</summary>
     public int? Number { get; set; }
+
+    /// <summary>Optional zero-based sibling index within the subnet's IO-system collection.</summary>
+    public int? IoSystemIndex { get; set; }
+
+    /// <summary>Optional captured IO system name evidence used to disambiguate duplicate numbers.</summary>
+    public string? IoSystemName { get; set; }
 
     /// <summary>Connection index within the device. Required for communicationConnection kind.</summary>
     public int? ConnectionIndex { get; set; }

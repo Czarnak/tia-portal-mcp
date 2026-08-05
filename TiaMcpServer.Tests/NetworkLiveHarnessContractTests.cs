@@ -193,10 +193,12 @@ public class NetworkLiveHarnessContractTests
     {
         var testDirectory = Path.Combine(GetRepositoryRoot(), "TiaMcpServer.Tests");
         var thisFile = Path.Combine(testDirectory, "NetworkLiveHarnessContractTests.cs");
+        var phase3ContractFile = Path.Combine(testDirectory, "NetworkPhase3LiveHarnessContractTests.cs");
 
         var offendingFiles = Directory
             .EnumerateFiles(testDirectory, "*.cs", SearchOption.AllDirectories)
             .Where(path => !string.Equals(Path.GetFullPath(path), Path.GetFullPath(thisFile), StringComparison.OrdinalIgnoreCase))
+            .Where(path => !string.Equals(Path.GetFullPath(path), Path.GetFullPath(phase3ContractFile), StringComparison.OrdinalIgnoreCase))
             .Where(path => File.ReadAllText(path).Contains(
                 "live-test-network-phase2.ps1", StringComparison.Ordinal))
             .ToArray();

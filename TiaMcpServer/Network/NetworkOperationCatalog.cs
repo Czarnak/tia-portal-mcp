@@ -88,11 +88,11 @@ public static class NetworkOperationCatalog
             [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "deviceName", "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode" },
             [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "nodeId" },
+                { "kind", "deviceName", "itemPath", "nodeId", "nodeIndex" },
             [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "subnetId" },
             [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "subnetId", "number" },
+                { "kind", "subnetId", "number", "ioSystemIndex", "ioSystemName" },
             [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "deviceName", "itemPath", "connectionIndex", "connectionType", "localConnectionName", "localConnectionId" },
         };
@@ -101,8 +101,8 @@ public static class NetworkOperationCatalog
     private static readonly IReadOnlySet<string> ConfigureInapplicableSelectorFields =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode",
-            "subnetId", "number", "connectionIndex", "connectionType",
+            "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode", "nodeIndex",
+            "subnetId", "number", "ioSystemIndex", "ioSystemName", "connectionIndex", "connectionType",
             "localConnectionName", "localConnectionId",
         };
 
@@ -439,8 +439,11 @@ public static class NetworkOperationCatalog
         ("interfaceType", t => t.InterfaceType is not null),
         ("interfaceOperatingMode", t => t.InterfaceOperatingMode is not null),
         ("nodeId", t => t.NodeId is not null),
+        ("nodeIndex", t => t.NodeIndex is not null),
         ("subnetId", t => t.SubnetId is not null),
         ("number", t => t.Number is not null),
+        ("ioSystemIndex", t => t.IoSystemIndex is not null),
+        ("ioSystemName", t => t.IoSystemName is not null),
         ("connectionIndex", t => t.ConnectionIndex is not null),
         ("connectionType", t => t.ConnectionType is not null),
         ("localConnectionName", t => t.LocalConnectionName is not null),
@@ -455,8 +458,11 @@ public static class NetworkOperationCatalog
         "interfaceType" => !string.IsNullOrWhiteSpace(target.InterfaceType),
         "interfaceOperatingMode" => !string.IsNullOrWhiteSpace(target.InterfaceOperatingMode),
         "nodeId" => !string.IsNullOrWhiteSpace(target.NodeId),
+        "nodeIndex" => target.NodeIndex is not null,
         "subnetId" => !string.IsNullOrWhiteSpace(target.SubnetId),
         "number" => target.Number is not null,
+        "ioSystemIndex" => target.IoSystemIndex is not null,
+        "ioSystemName" => !string.IsNullOrWhiteSpace(target.IoSystemName),
         "connectionIndex" => target.ConnectionIndex is not null,
         "connectionType" => !string.IsNullOrWhiteSpace(target.ConnectionType),
         "localConnectionName" => !string.IsNullOrWhiteSpace(target.LocalConnectionName),
@@ -521,6 +527,7 @@ public static class NetworkOperationCatalog
             ("interfaceName", target.InterfaceName),
             ("interfaceType", target.InterfaceType),
             ("interfaceOperatingMode", target.InterfaceOperatingMode),
+            ("ioSystemName", target.IoSystemName),
         })
         {
             if (value is not null && string.IsNullOrWhiteSpace(value))
@@ -532,6 +539,22 @@ public static class NetworkOperationCatalog
         if (target.Number is < 0)
         {
             errors.Add($"{prefix} 'target.number' must not be negative.");
+        }
+
+        if (string.Equals(target.Kind, NetworkObjectKinds.Node, StringComparison.Ordinal)
+            && (target.ItemPath is null) != (target.NodeIndex is null))
+        {
+            errors.Add($"{prefix} 'target.itemPath' and 'target.nodeIndex' must be supplied together for kind '{target.Kind}'.");
+        }
+
+        if (target.NodeIndex is < 0)
+        {
+            errors.Add($"{prefix} 'target.nodeIndex' must not be negative.");
+        }
+
+        if (target.IoSystemIndex is < 0)
+        {
+            errors.Add($"{prefix} 'target.ioSystemIndex' must not be negative.");
         }
 
         if (target.ConnectionIndex is < 0)

@@ -178,11 +178,14 @@ public class NetworkSelectorFactoryTests
     [Fact]
     public void Node_CreatesCorrectSelector()
     {
-        var selector = NetworkSelectorFactory.Node("PLC_1", "node-42");
+        var path = new[] { ValidSegment(0, "Interface_1") };
+        var selector = NetworkSelectorFactory.Node("PLC_1", "node-42", path, 1);
 
         Assert.Equal(NetworkObjectKinds.Node, selector.Kind);
         Assert.Equal("PLC_1", selector.DeviceName);
         Assert.Equal("node-42", selector.NodeId);
+        Assert.Equal(1, selector.NodeIndex);
+        Assert.Equal("Interface_1", Assert.Single(selector.ItemPath!).Name);
     }
 
     [Theory]
@@ -229,11 +232,13 @@ public class NetworkSelectorFactoryTests
     [Fact]
     public void IoSystem_CreatesCorrectSelector()
     {
-        var selector = NetworkSelectorFactory.IoSystem("subnet-3", 100);
+        var selector = NetworkSelectorFactory.IoSystem("subnet-3", 100, 1, "IO system_1");
 
         Assert.Equal(NetworkObjectKinds.IoSystem, selector.Kind);
         Assert.Equal("subnet-3", selector.SubnetId);
         Assert.Equal(100, selector.Number);
+        Assert.Equal(1, selector.IoSystemIndex);
+        Assert.Equal("IO system_1", selector.IoSystemName);
     }
 
     [Theory]

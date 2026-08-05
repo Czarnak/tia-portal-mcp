@@ -527,6 +527,41 @@ public class NetworkPayloadContractTests
         Assert.Contains(operation, item.Failure.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Project_LogsBoundedContractLocationWithoutLeakingRejectedPayload()
+    {
+        var payload = $$$"""
+            {
+              "items": [
+                {
+                  "kind": "{{{LeakToken}}}",
+                  "selectable": false,
+                  "selector": null,
+                  "evidence": { "deviceItemPath": [] },
+                  "diagnostics": ["selector unavailable"]
+                }
+              ],
+              "totalCount": 1,
+              "returnedCount": 1,
+              "nextCursor": null
+            }
+            """;
+        var diagnostics = new List<string>();
+
+        var item = NetworkPayloadContract.Project(
+            new NetworkOperationRequest { OperationId = "op-1", Operation = "list_network_objects" },
+            WorkerCallResult.Ok(payload),
+            diagnostics.Add);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Contains("operation=list_network_objects", diagnostic, StringComparison.Ordinal);
+        Assert.Contains("ValidateObjectSummary", diagnostic, StringComparison.Ordinal);
+        Assert.DoesNotContain(LeakToken, diagnostic, StringComparison.Ordinal);
+        Assert.InRange(diagnostic.Length, 1, 512);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure?.Category);
+        Assert.DoesNotContain(LeakToken, item.Failure?.Message, StringComparison.Ordinal);
+    }
+
     public static TheoryData<string, string> InvalidSuccessfulPayloads() => new()
     {
         // Wrong casing on an identity member: the strict registry treats it as unmapped rather

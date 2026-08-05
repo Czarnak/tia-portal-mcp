@@ -194,22 +194,15 @@ function Start-McpHost {
     foreach ($arg in $HostArguments) { [void]$psi.ArgumentList.Add($arg) }
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
+    $psi.RedirectStandardError = $false
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $psi
 
-    # Drain stderr asynchronously -- the host logs there (see Program.cs's `LogToStandardErrorThreshold`),
-    # and an undrained pipe can deadlock the child process once its OS buffer fills.
-    $process.add_ErrorDataReceived({
-            param($sender, $e)
-            if ($e.Data) { Write-Host "[host] $($e.Data)" -ForegroundColor DarkGray }
-        })
-
+    # Inherit stderr so host logs remain visible without a PowerShell callback on a thread-pool thread.
     [void]$process.Start()
-    $process.BeginErrorReadLine()
     $script:HostProcess = $process
     return $process
 }

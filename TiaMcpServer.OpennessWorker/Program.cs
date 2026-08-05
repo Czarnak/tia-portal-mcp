@@ -16,6 +16,13 @@ internal static class Program
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly JsonSerializerOptions NetworkObjectListJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never
+    };
+
     // TIA Portal 권한 요청 다이얼로그는 Attach() 호출마다 뜬다.
     // 세션을 프로세스 수명 동안 재사용해 Attach()를 최초 1회만 호출한다.
     private static readonly WorkerTiaPortalSession _sharedSession = new(allowTiaConfirmations: true);
@@ -1048,10 +1055,13 @@ internal static class Program
 
     private static WorkerResponse Success<T>(T payload)
     {
+        var payloadOptions = payload is NetworkObjectListInfo
+            ? NetworkObjectListJsonOptions
+            : JsonOptions;
         return new WorkerResponse
         {
             Success = true,
-            Payload = JsonSerializer.Serialize(payload, JsonOptions)
+            Payload = JsonSerializer.Serialize(payload, payloadOptions)
         };
     }
 

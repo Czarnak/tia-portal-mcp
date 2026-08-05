@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Xunit;
@@ -28,6 +29,15 @@ public class NetworkPhase3LiveHarnessContractTests
                 @"\[ValidateSet\('Matrix', 'Repeatability', 'MeasureListValue', 'RawProbe'\)\]\s*\r?\n\s*\[string\] \$Mode = 'Matrix'",
                 RegexOptions.CultureInvariant),
             source);
+    }
+
+    [Fact]
+    public void Script_DefaultsFitLargeLiveProjectsWithoutOversizingStructuredPages()
+    {
+        var source = ReadScript();
+
+        Assert.Matches(@"\[int\] \$TimeoutSeconds = 240", source);
+        Assert.Matches(@"\[int\] \$PageSize = 10", source);
     }
 
     [Fact]
@@ -190,6 +200,25 @@ public class NetworkPhase3LiveHarnessContractTests
         }
     }
 
+    [Theory]
+    [InlineData("live-test-network-phase2.ps1", "Start-McpHost")]
+    [InlineData("live-test-network-phase3.ps1", "Start-JsonLineProcess")]
+    public void ProcessStarter_DoesNotCrashWhenTheChildWritesToStandardError(
+        string scriptName,
+        string functionName)
+    {
+        var result = RunProcessStarterSmokeTest(scriptName, functionName);
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"Process starter failed with exit code {result.ExitCode}.{Environment.NewLine}" +
+            $"stdout:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}" +
+            $"stderr:{Environment.NewLine}{result.StandardError}");
+        Assert.Contains("stdout-probe", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("stderr-probe", result.StandardError, StringComparison.Ordinal);
+        Assert.DoesNotContain("There is no Runspace available", result.StandardError, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void NoOrdinaryTestInvokesTheLiveHarness()
     {
@@ -211,6 +240,52 @@ public class NetworkPhase3LiveHarnessContractTests
         return File.ReadAllText(ScriptPath);
     }
 
+    private static ScriptResult RunProcessStarterSmokeTest(string scriptName, string functionName)
+    {
+        var smokeScriptPath = Path.Combine(
+            Path.GetTempPath(),
+            $"network-live-harness-process-{Guid.NewGuid():N}.ps1");
+        File.WriteAllText(smokeScriptPath, ProcessStarterSmokeScript, new UTF8Encoding(false));
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(smokeScriptPath);
+            startInfo.ArgumentList.Add("-HarnessPath");
+            startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, "scripts", scriptName));
+            startInfo.ArgumentList.Add("-FunctionName");
+            startInfo.ArgumentList.Add(functionName);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start pwsh process.");
+            var standardOutput = process.StandardOutput.ReadToEndAsync();
+            var standardError = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill(entireProcessTree: true);
+                throw new TimeoutException($"PowerShell smoke test for {scriptName} did not exit.");
+            }
+
+            return new ScriptResult(
+                process.ExitCode,
+                standardOutput.GetAwaiter().GetResult(),
+                standardError.GetAwaiter().GetResult());
+        }
+        finally
+        {
+            File.Delete(smokeScriptPath);
+        }
+    }
+
     private static string ReadRepositoryFile(params string[] segments)
     {
         var path = segments.Aggregate(RepositoryRoot, Path.Combine);
@@ -229,4 +304,62 @@ public class NetworkPhase3LiveHarnessContractTests
         Assert.NotNull(directory);
         return directory!.FullName;
     }
+
+    private const string ProcessStarterSmokeScript = """
+        param(
+            [Parameter(Mandatory)] [string] $HarnessPath,
+            [Parameter(Mandatory)] [string] $FunctionName
+        )
+
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $HarnessPath,
+            [ref] $tokens,
+            [ref] $parseErrors)
+        if ($parseErrors.Count -ne 0) {
+            throw "Harness parsing failed: $($parseErrors[0].Message)"
+        }
+
+        $functionAst = $ast.Find({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] `
+                    -and $node.Name -eq $FunctionName
+            }, $true)
+        if ($null -eq $functionAst) {
+            throw "Function '$FunctionName' was not found in '$HarnessPath'."
+        }
+        Invoke-Expression $functionAst.Extent.Text
+
+        $pwshPath = (Get-Command pwsh).Source
+        $childCommand = "[Console]::Error.WriteLine('stderr-probe'); [Console]::Out.WriteLine('stdout-probe')"
+        if ($FunctionName -eq 'Start-McpHost') {
+            $script:HostExecutable = $pwshPath
+            $script:HostArguments = @('-NoProfile', '-Command', $childCommand)
+            $process = Start-McpHost
+        }
+        else {
+            $process = Start-JsonLineProcess `
+                -Executable $pwshPath `
+                -Arguments @('-NoProfile', '-Command', $childCommand) `
+                -Label 'process-smoke-test'
+        }
+
+        $standardOutput = $process.StandardOutput.ReadLine()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+        $process.Dispose()
+        if ($exitCode -ne 0) {
+            throw "Child process exited with code $exitCode."
+        }
+        if ($standardOutput -ne 'stdout-probe') {
+            throw "Unexpected child stdout: '$standardOutput'."
+        }
+        [Console]::Out.WriteLine($standardOutput)
+        """;
+
+    private sealed record ScriptResult(int ExitCode, string StandardOutput, string StandardError);
 }

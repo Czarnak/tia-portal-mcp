@@ -103,11 +103,20 @@ public sealed class NetworkObjectTarget
     [Description("Exact nodeId reported by read_hardware_config. Required for node kind and configure_network_device.")]
     public string? NodeId { get; set; }
 
+    [Description("Optional zero-based sibling index within the network interface selected by itemPath. For node kind, nodeIndex and itemPath must be supplied together.")]
+    public int? NodeIndex { get; set; }
+
     [Description("Exact subnetId reported by read_hardware_config. Required for subnet and ioSystem kinds.")]
     public string? SubnetId { get; set; }
 
     [Description("Non-negative IO system number within its subnet. Required for ioSystem kind.")]
     public int? Number { get; set; }
+
+    [Description("Optional zero-based sibling index captured from the owning subnet's IO-system collection; used to disambiguate duplicate numbers and must be non-negative when supplied.")]
+    public int? IoSystemIndex { get; set; }
+
+    [Description("Optional captured IO system name evidence for ioSystem kind; used to disambiguate duplicate numbers and must be nonblank when supplied.")]
+    public string? IoSystemName { get; set; }
 
     [Description("Non-negative connection index within the owning device item composition. Required for communicationConnection kind.")]
     public int? ConnectionIndex { get; set; }

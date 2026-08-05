@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
@@ -25,7 +26,14 @@ public static class NetworkPayloadContract
     public static StructuredOperationItem Project(
         NetworkOperationRequest operation,
         WorkerCallResult workerResult)
+        => Project(operation, workerResult, Console.Error.WriteLine);
+
+    internal static StructuredOperationItem Project(
+        NetworkOperationRequest operation,
+        WorkerCallResult workerResult,
+        Action<string> writeProtocolDiagnostic)
     {
+        ArgumentNullException.ThrowIfNull(writeProtocolDiagnostic);
         var warnings = workerResult.Warnings ?? Array.Empty<string>();
 
         if (!workerResult.Success)
@@ -42,8 +50,9 @@ public static class NetworkPayloadContract
         {
             result = Decode(operation.Operation, workerResult.Payload);
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
+            TryWriteProtocolDiagnostic(writeProtocolDiagnostic, operation.Operation, exception);
             return Failed(
                 operation,
                 WorkerFailureCategories.ProtocolError,
@@ -60,7 +69,36 @@ public static class NetworkPayloadContract
             Failure: null,
             Omission: null,
             SkipReason: null,
-            warnings);
+        warnings);
+    }
+
+    private static void TryWriteProtocolDiagnostic(
+        Action<string> writeProtocolDiagnostic,
+        string operation,
+        JsonException exception)
+    {
+        try
+        {
+            var validators = new StackTrace(exception, fNeedFileInfo: false)
+                .GetFrames()
+                .Select(frame => frame.GetMethod())
+                .Where(method => method?.DeclaringType == typeof(NetworkPayloadContract))
+                .Select(method => method!.Name)
+                .Where(name => !string.Equals(name, nameof(Project), StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .Take(6)
+                .ToArray();
+            var validatorChain = validators.Length == 0
+                ? "unavailable"
+                : string.Join(">", validators);
+            var diagnostic = "TiaMcpServer: worker payload contract rejection: "
+                + $"operation={operation}; validators={validatorChain}.";
+            writeProtocolDiagnostic(diagnostic.Length <= 512 ? diagnostic : diagnostic[..512]);
+        }
+        catch
+        {
+            // Diagnostics must never replace the stable fail-closed protocol_error response.
+        }
     }
 
     /// <summary>
@@ -524,7 +562,7 @@ public static class NetworkPayloadContract
                 RequireSelectorPath(target, prefix, target.Kind);
                 RejectSelectorFields(target, prefix, target.Kind,
                     interfaceFields: true, nodeField: true, subnetField: true,
-                    numberField: true, connectionFields: true);
+                    numberField: true, ioSystemFields: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.NetworkInterface:
@@ -540,16 +578,29 @@ public static class NetworkPayloadContract
             case NetworkObjectKinds.Node:
                 RequireSelectorText(target.DeviceName, $"{prefix}.deviceName", target.Kind);
                 RequireSelectorText(target.NodeId, $"{prefix}.nodeId", target.Kind);
+                if ((target.ItemPath is null) != (target.NodeIndex is null))
+                {
+                    throw new JsonException(
+                        $"'{prefix}.itemPath' and '{prefix}.nodeIndex' must be supplied together for kind '{target.Kind}'.");
+                }
+                if (target.ItemPath is not null)
+                {
+                    RequireSelectorPath(target, prefix, target.Kind);
+                }
+                if (target.NodeIndex < 0)
+                {
+                    throw new JsonException($"'{prefix}.nodeIndex' must not be negative.");
+                }
                 RejectSelectorFields(target, prefix, target.Kind,
-                    itemPathField: true, interfaceFields: true, subnetField: true,
-                    numberField: true, connectionFields: true);
+                    interfaceFields: true, subnetField: true,
+                    numberField: true, ioSystemFields: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.Subnet:
                 RequireSelectorText(target.SubnetId, $"{prefix}.subnetId", target.Kind);
                 RejectSelectorFields(target, prefix, target.Kind,
                     deviceField: true, itemPathField: true, interfaceFields: true,
-                    nodeField: true, numberField: true, connectionFields: true);
+                    nodeField: true, numberField: true, ioSystemFields: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.IoSystem:
@@ -562,6 +613,11 @@ public static class NetworkPayloadContract
                 {
                     throw new JsonException($"'{prefix}.number' must not be negative.");
                 }
+                if (target.IoSystemIndex < 0)
+                {
+                    throw new JsonException($"'{prefix}.ioSystemIndex' must not be negative.");
+                }
+                RequireOptionalSelectorText(target.IoSystemName, $"{prefix}.ioSystemName", target.Kind);
 
                 RejectSelectorFields(target, prefix, target.Kind,
                     deviceField: true, itemPathField: true, interfaceFields: true,
@@ -601,7 +657,8 @@ public static class NetworkPayloadContract
                     RequireSelectorText(target.LocalConnectionId, $"{prefix}.localConnectionId", target.Kind);
                 }
                 RejectSelectorFields(target, prefix, target.Kind,
-                    interfaceFields: true, nodeField: true, subnetField: true, numberField: true);
+                    interfaceFields: true, nodeField: true, subnetField: true,
+                    numberField: true, ioSystemFields: true);
                 break;
         }
     }
@@ -657,6 +714,7 @@ public static class NetworkPayloadContract
         bool nodeField = false,
         bool subnetField = false,
         bool numberField = false,
+        bool ioSystemFields = false,
         bool connectionFields = false)
     {
         RejectSelectorField(deviceField && target.DeviceName is not null, prefix, "deviceName", kind);
@@ -665,8 +723,11 @@ public static class NetworkPayloadContract
         RejectSelectorField(interfaceFields && target.InterfaceType is not null, prefix, "interfaceType", kind);
         RejectSelectorField(interfaceFields && target.InterfaceOperatingMode is not null, prefix, "interfaceOperatingMode", kind);
         RejectSelectorField(nodeField && target.NodeId is not null, prefix, "nodeId", kind);
+        RejectSelectorField(nodeField && target.NodeIndex is not null, prefix, "nodeIndex", kind);
         RejectSelectorField(subnetField && target.SubnetId is not null, prefix, "subnetId", kind);
         RejectSelectorField(numberField && target.Number is not null, prefix, "number", kind);
+        RejectSelectorField(ioSystemFields && target.IoSystemIndex is not null, prefix, "ioSystemIndex", kind);
+        RejectSelectorField(ioSystemFields && target.IoSystemName is not null, prefix, "ioSystemName", kind);
         RejectSelectorField(connectionFields && target.ConnectionIndex is not null, prefix, "connectionIndex", kind);
         RejectSelectorField(connectionFields && target.ConnectionType is not null, prefix, "connectionType", kind);
         RejectSelectorField(connectionFields && target.LocalConnectionName is not null, prefix, "localConnectionName", kind);

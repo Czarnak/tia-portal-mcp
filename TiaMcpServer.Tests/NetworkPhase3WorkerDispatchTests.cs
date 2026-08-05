@@ -18,6 +18,16 @@ public class NetworkPhase3WorkerDispatchTests
     }
 
     [Fact]
+    public void WorkerProgram_PreservesRequiredNullMembersInNetworkObjectListPayloads()
+    {
+        var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+
+        Assert.Contains("NetworkObjectListJsonOptions", source, StringComparison.Ordinal);
+        Assert.Contains("DefaultIgnoreCondition = JsonIgnoreCondition.Never", source, StringComparison.Ordinal);
+        Assert.Contains("payload is NetworkObjectListInfo", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkerProgram_DispatchesInspectNetworkObjectThroughResolverAndInspector()
     {
         var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
@@ -44,6 +54,50 @@ public class NetworkPhase3WorkerDispatchTests
         Assert.Contains("WorkerFailureCategories.TargetEvidenceMismatch", source);
         Assert.Contains("WorkerFailureCategories.TargetKindUnsupported", source);
         Assert.DoesNotContain("System.Reflection", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IoSystemDiscoverySelector_CarriesNameEvidenceUsedToDisambiguateDuplicateNumbers()
+    {
+        var discoverySource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+        var resolverSource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs"));
+
+        Assert.Contains("NetworkSelectorFactory.IoSystem(", discoverySource, StringComparison.Ordinal);
+        Assert.Contains("ioSystemIndex,", discoverySource, StringComparison.Ordinal);
+        Assert.Contains("ioSystemName.IsUsable ? ioSystemName.Value : null", discoverySource, StringComparison.Ordinal);
+        Assert.Contains("target.IoSystemIndex", resolverSource, StringComparison.Ordinal);
+        Assert.Contains("candidateIndex", resolverSource, StringComparison.Ordinal);
+        Assert.Contains("target.IoSystemName", resolverSource, StringComparison.Ordinal);
+        Assert.Contains("candidate.Name", resolverSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NodeDiscoverySelector_CarriesOwningPathAndSiblingIndexToDisambiguateDuplicateIds()
+    {
+        var discoverySource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+        var resolverSource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs"));
+
+        Assert.Contains("NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value, itemPath, nodeIndex)", discoverySource, StringComparison.Ordinal);
+        Assert.Contains("target.NodeIndex", resolverSource, StringComparison.Ordinal);
+        Assert.Contains("MatchDeviceItem(project, target)", resolverSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NodeDiscoverySelector_RequiresCompleteOwningPathEvidence()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+        var nodeBlockStart = source.IndexOf("foreach (Node node in networkInterface.Nodes)", StringComparison.Ordinal);
+        var nodeBlockEnd = source.IndexOf("private static void ReadSubnets", nodeBlockStart, StringComparison.Ordinal);
+
+        Assert.True(nodeBlockStart >= 0 && nodeBlockEnd > nodeBlockStart);
+        var nodeBlock = source[nodeBlockStart..nodeBlockEnd];
+        Assert.Contains("itemPathDiagnostics", nodeBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("CombineDiagnostics(\n                Array.Empty<string>()", nodeBlock, StringComparison.Ordinal);
     }
 
     [Fact]

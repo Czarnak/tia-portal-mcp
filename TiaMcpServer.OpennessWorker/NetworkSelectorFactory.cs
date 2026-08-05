@@ -77,16 +77,37 @@ public static class NetworkSelectorFactory
     /// <summary>Builds a node selector from the device name and the node's own identity.</summary>
     /// <param name="deviceName">Exact device name. Must be non-blank.</param>
     /// <param name="nodeId">Node identity as reported by read_hardware_config. Must be non-blank.</param>
-    public static NetworkObjectSelectorInfo Node(string deviceName, string nodeId)
+    public static NetworkObjectSelectorInfo Node(
+        string deviceName,
+        string nodeId,
+        IReadOnlyList<DeviceItemPathSegmentInfo>? itemPath = null,
+        int? nodeIndex = null)
     {
         RequireNonBlank(deviceName, nameof(deviceName));
         RequireNonBlank(nodeId, nameof(nodeId));
+        if ((itemPath is null) != (nodeIndex is null))
+        {
+            throw new ArgumentException("Item path and node index must be supplied together.");
+        }
+        if (itemPath is not null)
+        {
+            RequireNonEmptyPath(itemPath);
+            ValidateSegments(itemPath);
+        }
+        if (nodeIndex < 0)
+        {
+            throw new ArgumentException(
+                $"Node index must be non-negative but was {nodeIndex}.",
+                nameof(nodeIndex));
+        }
 
         return new NetworkObjectSelectorInfo
         {
             Kind = NetworkObjectKinds.Node,
             DeviceName = deviceName,
+            ItemPath = itemPath?.Select(Clone).ToList(),
             NodeId = nodeId,
+            NodeIndex = nodeIndex,
         };
     }
 
@@ -103,10 +124,16 @@ public static class NetworkSelectorFactory
         };
     }
 
-    /// <summary>Builds an IO system selector from the subnet identity and the IO system number.</summary>
+    /// <summary>Builds an IO system selector from the subnet identity, number, and optional name evidence.</summary>
     /// <param name="subnetId">Subnet identity that owns this IO system. Must be non-blank.</param>
     /// <param name="number">IO system number within its subnet. Must be ≥ 0.</param>
-    public static NetworkObjectSelectorInfo IoSystem(string subnetId, int number)
+    /// <param name="ioSystemIndex">Optional zero-based sibling index within the subnet's IO-system collection.</param>
+    /// <param name="ioSystemName">Optional captured name evidence used to verify the indexed object.</param>
+    public static NetworkObjectSelectorInfo IoSystem(
+        string subnetId,
+        int number,
+        int? ioSystemIndex = null,
+        string? ioSystemName = null)
     {
         RequireNonBlank(subnetId, nameof(subnetId));
 
@@ -117,11 +144,20 @@ public static class NetworkSelectorFactory
                 nameof(number));
         }
 
+        if (ioSystemIndex < 0)
+        {
+            throw new ArgumentException(
+                $"IO system index must be non-negative but was {ioSystemIndex}.",
+                nameof(ioSystemIndex));
+        }
+
         return new NetworkObjectSelectorInfo
         {
             Kind = NetworkObjectKinds.IoSystem,
             SubnetId = subnetId,
             Number = number,
+            IoSystemIndex = ioSystemIndex,
+            IoSystemName = ioSystemName,
         };
     }
 

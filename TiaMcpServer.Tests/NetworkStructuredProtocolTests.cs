@@ -373,10 +373,21 @@ public class NetworkStructuredProtocolTests
             candidate => candidate.Name == "network_write");
         var schema = tool.ProtocolTool.InputSchema.GetRawText();
 
-        // The legacy flat configure fields are gone from what an agent is told it may send...
-        foreach (var legacy in new[] { "\"subnetName\"", "\"ioSystemName\"" })
+        // The legacy flat configure fields are gone from the operation object. ioSystemName may
+        // still appear inside target as optional Phase 3 selector evidence.
+        Assert.DoesNotContain("\"subnetName\"", schema, StringComparison.Ordinal);
+        using var schemaDocument = JsonDocument.Parse(schema);
+        var operationProperties = EnumerateSchemaObjects(schemaDocument.RootElement)
+            .Where(candidate => candidate.TryGetProperty("properties", out var properties)
+                && properties.TryGetProperty("operationId", out _)
+                && properties.TryGetProperty("operation", out _))
+            .Select(candidate => candidate.GetProperty("properties"))
+            .ToArray();
+        Assert.NotEmpty(operationProperties);
+        foreach (var properties in operationProperties)
         {
-            Assert.DoesNotContain(legacy, schema, StringComparison.Ordinal);
+            Assert.False(properties.TryGetProperty("subnetName", out _));
+            Assert.False(properties.TryGetProperty("ioSystemName", out _));
         }
 
         // ...and the surviving scalars are offered once each, inside changes only.
@@ -525,5 +536,30 @@ public class NetworkStructuredProtocolTests
         using var textDocument = JsonDocument.Parse(text);
         Assert.True(JsonElement.DeepEquals(structured, textDocument.RootElement));
         return structured;
+    }
+
+    private static IEnumerable<JsonElement> EnumerateSchemaObjects(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            yield return element;
+            foreach (var property in element.EnumerateObject())
+            {
+                foreach (var descendant in EnumerateSchemaObjects(property.Value))
+                {
+                    yield return descendant;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                foreach (var descendant in EnumerateSchemaObjects(item))
+                {
+                    yield return descendant;
+                }
+            }
+        }
     }
 }
