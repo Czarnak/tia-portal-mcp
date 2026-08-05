@@ -236,6 +236,23 @@ public class NetworkPhase3LiveHarnessContractTests
     }
 
     [Fact]
+    public void MissingFixtureNames_PreservesArrayShapeAcrossCardinalities()
+    {
+        var result = RunMissingFixtureNamesSmokeTest();
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"Missing-fixture helper failed with exit code {result.ExitCode}.{Environment.NewLine}" +
+            $"stdout:{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}" +
+            $"stderr:{Environment.NewLine}{result.StandardError}");
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var root = document.RootElement;
+        Assert.Equal(0, root.GetProperty("none").GetInt32());
+        Assert.Equal(1, root.GetProperty("one").GetInt32());
+        Assert.Equal(2, root.GetProperty("two").GetInt32());
+    }
+
+    [Fact]
     public void CanonicalComparisonHelper_RecordsStableHashesAndFirstDifference()
     {
         var result = RunCanonicalComparisonSmokeTest();
@@ -491,6 +508,50 @@ public class NetworkPhase3LiveHarnessContractTests
         }
     }
 
+    private static ScriptResult RunMissingFixtureNamesSmokeTest()
+    {
+        var smokeScriptPath = Path.Combine(
+            Path.GetTempPath(),
+            $"network-live-harness-missing-fixtures-{Guid.NewGuid():N}.ps1");
+        File.WriteAllText(smokeScriptPath, MissingFixtureNamesSmokeScript, new UTF8Encoding(false));
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(smokeScriptPath);
+            startInfo.ArgumentList.Add("-HarnessPath");
+            startInfo.ArgumentList.Add(ScriptPath);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start pwsh process.");
+            var standardOutput = process.StandardOutput.ReadToEndAsync();
+            var standardError = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill(entireProcessTree: true);
+                throw new TimeoutException("PowerShell missing-fixture smoke test did not exit.");
+            }
+
+            return new ScriptResult(
+                process.ExitCode,
+                standardOutput.GetAwaiter().GetResult(),
+                standardError.GetAwaiter().GetResult());
+        }
+        finally
+        {
+            File.Delete(smokeScriptPath);
+        }
+    }
+
     private static ScriptResult RunHostArtifactResolverSmokeTest(
         string hostDll,
         string workerExecutable,
@@ -647,6 +708,42 @@ public class NetworkPhase3LiveHarnessContractTests
 
         Compare-CanonicalText -First '{"a":1}' -Second '{"a":2}' |
             ConvertTo-Json -Compress -Depth 20
+        """;
+
+    private const string MissingFixtureNamesSmokeScript = """
+        param([Parameter(Mandatory)] [string] $HarnessPath)
+
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $HarnessPath,
+            [ref] $tokens,
+            [ref] $parseErrors)
+        if ($parseErrors.Count -ne 0) {
+            throw "Harness parsing failed: $($parseErrors[0].Message)"
+        }
+
+        $functionAst = $ast.Find({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] `
+                    -and $node.Name -eq 'Get-MissingFixtureNames'
+            }, $true)
+        if ($null -eq $functionAst) {
+            throw "Function 'Get-MissingFixtureNames' was not found in '$HarnessPath'."
+        }
+        Invoke-Expression $functionAst.Extent.Text
+
+        $none = Get-MissingFixtureNames -Targets ([ordered]@{ a = [pscustomobject]@{} })
+        $one = Get-MissingFixtureNames -Targets ([ordered]@{ a = $null })
+        $two = Get-MissingFixtureNames -Targets ([ordered]@{ a = $null; b = $null })
+        [ordered]@{
+            none = $none.Count
+            one = $one.Count
+            two = $two.Count
+        } | ConvertTo-Json -Compress -Depth 20
         """;
 
     private const string HostArtifactResolverSmokeScript = """

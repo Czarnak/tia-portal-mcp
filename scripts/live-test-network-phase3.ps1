@@ -719,7 +719,11 @@ function Get-RequiredMatrixFixtureTargets {
 
 function Get-MissingFixtureNames {
     param([Parameter(Mandatory)] [Collections.IDictionary] $Targets)
-    @($Targets.GetEnumerator() | Where-Object { $null -eq $_.Value } | ForEach-Object { $_.Key })
+    $missingFixtures = @(
+        $Targets.GetEnumerator() |
+            Where-Object { $null -eq $_.Value } |
+            ForEach-Object { $_.Key })
+    Write-Output -NoEnumerate $missingFixtures
 }
 
 function Invoke-Matrix {
