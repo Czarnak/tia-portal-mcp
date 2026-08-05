@@ -879,6 +879,7 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
         {
             Kind = NetworkObjectKinds.Node,
             DisplayName = $"Port_{i:D2}",
+            Selectable = true,
             Selector = new NetworkObjectSelectorInfo
             {
                 Kind = NetworkObjectKinds.Node,

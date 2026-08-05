@@ -239,6 +239,19 @@ public static class NetworkPayloadContract
             RequireNotNull(diagnostic, "items[].selectorDiagnostics[]");
         }
 
+        if (item.Selectable != (item.Selector is not null))
+        {
+            throw new JsonException(
+                "'items[].selectable' must agree with whether 'items[].selector' is present.");
+        }
+
+        if (!item.Selectable
+            && !item.SelectorDiagnostics.Any(diagnostic => !string.IsNullOrWhiteSpace(diagnostic)))
+        {
+            throw new JsonException(
+                "An unselectable item requires at least one nonblank selector diagnostic.");
+        }
+
         if (item.Selector is not null)
         {
             ValidateSelector(item.Selector, "items[].selector", item.Kind);

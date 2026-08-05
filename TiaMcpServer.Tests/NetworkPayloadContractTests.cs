@@ -323,6 +323,16 @@ public class NetworkPayloadContractTests
         // list_network_objects: selector.kind disagrees with summary kind.
         { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selector":{"kind":"{{{LeakToken}}}","deviceName":"PLC","nodeId":"n1"}}],"messages":[]}""" },
 
+        // list_network_objects: selectability must agree exactly with selector presence.
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selectable":true,"selector":null,"selectorDiagnostics":["{{{LeakToken}}}"]}],"totalCount":1,"returnedCount":1,"messages":[]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"{{{LeakToken}}}","selectable":false,"selector":{"kind":"node","deviceName":"PLC","nodeId":"n1"},"selectorDiagnostics":[]}],"totalCount":1,"returnedCount":1,"messages":[]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"{{{LeakToken}}}","selector":{"kind":"node","deviceName":"PLC","nodeId":"n1"},"selectorDiagnostics":[]}],"totalCount":1,"returnedCount":1,"messages":[]}""" },
+
+        // list_network_objects: an unselectable summary requires a nonblank diagnostic.
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selectable":false,"selector":null}],"totalCount":1,"returnedCount":1,"messages":["{{{LeakToken}}}"]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selectable":false,"selector":null,"selectorDiagnostics":[]}],"totalCount":1,"returnedCount":1,"messages":["{{{LeakToken}}}"]}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"X1","selectable":false,"selector":null,"selectorDiagnostics":[" "]}],"totalCount":1,"returnedCount":1,"messages":["{{{LeakToken}}}"]}""" },
+
         // list_network_objects: summary kind is required and nonblank.
         { "list_network_objects", $$$"""{"items":[{"displayName":"{{{LeakToken}}}","selector":null}],"messages":[]}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":" ","displayName":"x","selector":null}],"messages":["{{{LeakToken}}}"]}""" },
