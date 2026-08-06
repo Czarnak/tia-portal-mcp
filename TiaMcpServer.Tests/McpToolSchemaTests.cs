@@ -71,6 +71,22 @@ public class McpToolSchemaTests
         return type!;
     }
 
+    /// <summary>Raw generated input schema JSON text, for assertions that need to see nested
+    /// object shapes (e.g. <c>additionalProperties:false</c> closure) rather than just the
+    /// top-level property names <see cref="SchemaPropertyNames"/> exposes.</summary>
+    private static string SchemaRawText(Type toolType, string methodName)
+    {
+        var method = toolType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var tool = McpServerTool.Create(
+            method!,
+            target: null,
+            options: new McpServerToolCreateOptions { Services = Services });
+
+        return tool.ProtocolTool.InputSchema.GetRawText();
+    }
+
     [Theory]
     [InlineData(nameof(ProjectLifecycleTools.GetProjectStatus))]
     [InlineData(nameof(ProjectLifecycleTools.OpenProject))]
@@ -204,6 +220,48 @@ public class McpToolSchemaTests
             properties.OrderBy(name => name).ToArray());
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("safety", properties);
+    }
+
+    [Fact]
+    public void NetworkWrite_SchemaAdvertisesSubnetLifecycleOperationNamesAndNestedFieldsClosed()
+    {
+        var schema = SchemaRawText(RequiredNetworkToolType("NetworkWriteTools"), "NetworkWrite");
+
+        foreach (var operation in new[] { "create_subnet", "update_subnet", "delete_subnet" })
+        {
+            Assert.Contains(operation, schema, StringComparison.Ordinal);
+        }
+
+        // The exact nested request fields for the three lifecycle operations are advertised...
+        foreach (var member in new[]
+        {
+            "\"subnet\"",
+            "\"subnetChanges\"",
+            "\"networkType\"",
+            "\"highestAddress\"",
+            "\"transmissionSpeed\"",
+        })
+        {
+            Assert.Contains(member, schema, StringComparison.Ordinal);
+        }
+
+        // ...and every object in the generated schema (including the new nested subnet/
+        // subnetChanges shapes) is closed, so an unknown member is rejected rather than
+        // silently accepted by the model-facing contract.
+        Assert.Contains("\"additionalProperties\":false", schema, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NetworkOperationCatalog_WriteOperationNamesLocksInTheSubnetLifecycleTrio()
+    {
+        Assert.Contains("create_subnet", NetworkOperationCatalog.WriteOperationNames);
+        Assert.Contains("update_subnet", NetworkOperationCatalog.WriteOperationNames);
+        Assert.Contains("delete_subnet", NetworkOperationCatalog.WriteOperationNames);
+
+        // network_read must never advertise these as read operations.
+        Assert.DoesNotContain("create_subnet", NetworkOperationCatalog.ReadOperationNames);
+        Assert.DoesNotContain("update_subnet", NetworkOperationCatalog.ReadOperationNames);
+        Assert.DoesNotContain("delete_subnet", NetworkOperationCatalog.ReadOperationNames);
     }
 
     [Fact]

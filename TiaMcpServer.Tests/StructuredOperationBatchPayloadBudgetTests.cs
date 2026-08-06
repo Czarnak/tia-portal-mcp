@@ -5,6 +5,7 @@ using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests;
@@ -454,5 +455,77 @@ public class StructuredOperationBatchPayloadBudgetTests
         Assert.Equal(
             StructuredOperationBatchPayloadBudget.DocumentLimitReason,
             item.Omission!.Reason);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Phase 4 subnet lifecycle: network_write budget behavior with the minimal
+    // SubnetLifecycleResultInfo result contract. Neither budget constant is raised here.
+    // ------------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("create_subnet")]
+    [InlineData("update_subnet")]
+    [InlineData("delete_subnet")]
+    public void NetworkWriteBudget_MinimalSubnetLifecycleResultSurvivesNormalLimits(string operation)
+    {
+        var validPayload =
+            """{"subnetId":"subnet-1","name":"PN/IE_1","networkDeviceCount":2,"networkDeviceCountUnchanged":true}""";
+        var item = NetworkPayloadContract.Project(
+            new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
+            WorkerCallResult.Ok(validPayload));
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+
+        var batch = StructuredOperationBatch.FromItems(new[] { item });
+
+        // Default (real, un-lowered) budgets: MaxItemChars = 60,000 / MaxDocumentChars = 180,000.
+        var bounded = NetworkWriteTools.ApplyBudget(batch);
+
+        var boundedItem = Assert.Single(bounded.Operations);
+        Assert.Equal(OperationBatchStatus.Succeeded, boundedItem.Status);
+        Assert.Null(boundedItem.Omission);
+        Assert.True(JsonElement.DeepEquals(item.Result!.Value, boundedItem.Result!.Value));
+        Assert.Null(bounded.Truncation);
+    }
+
+    /// <summary>
+    /// An oversized/unexpected worker payload never reaches the budgeting stage at all: the
+    /// typed <see cref="SubnetLifecycleResultInfo"/> contract in <see cref="NetworkPayloadContract"/>
+    /// rejects any unmapped member as protocol_error before <see cref="NetworkWriteTools.ApplyBudget"/>
+    /// ever runs, regardless of how large the offending payload is. This proves the rejection is a
+    /// contract-shape decision, not a size decision the budget happened to make.
+    /// </summary>
+    [Theory]
+    [InlineData("create_subnet")]
+    [InlineData("update_subnet")]
+    [InlineData("delete_subnet")]
+    public void NetworkWriteBudget_OversizedUnexpectedPayload_IsRejectedByTheTypedContractBeforeBudgeting(
+        string operation)
+    {
+        // Deliberately far over MaxItemChars via one unmapped member: if the contract did not
+        // reject this outright, the budget would have to omit it as an oversized VALUE. Instead
+        // it must never even see a "value" - the contract fails the item first.
+        var oversizedUnexpectedMember = new string('x', StructuredOperationBatchPayloadBudget.MaxItemChars + 1);
+        var malformedPayload =
+            $$"""{"subnetId":"subnet-1","name":"PN/IE_1","networkDeviceCount":2,"networkDeviceCountUnchanged":true,"relationshipSummary":"{{oversizedUnexpectedMember}}"}""";
+
+        var item = NetworkPayloadContract.Project(
+            new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
+            WorkerCallResult.Ok(malformedPayload));
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+        Assert.DoesNotContain(oversizedUnexpectedMember, item.Failure.Message);
+        Assert.True(item.Failure.Message.Length < StructuredOperationBatchPayloadBudget.MaxItemChars);
+
+        var batch = StructuredOperationBatch.FromItems(new[] { item });
+        var bounded = NetworkWriteTools.ApplyBudget(batch);
+
+        // Untouched by budgeting: still Failed (never Omitted), and no truncation metadata was
+        // needed, because the contract already rejected the item as a whole.
+        var boundedItem = Assert.Single(bounded.Operations);
+        Assert.Equal(OperationBatchStatus.Failed, boundedItem.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, boundedItem.Failure!.Category);
+        Assert.Null(boundedItem.Omission);
+        Assert.Null(bounded.Truncation);
     }
 }

@@ -175,6 +175,54 @@ public class BatchToolMetadataTests
             Assert.DoesNotContain("search_equipment_catalog", description);
             Assert.DoesNotContain("add_network_device", description);
             Assert.DoesNotContain("configure_network_device", description);
+            Assert.DoesNotContain("create_subnet", description);
+            Assert.DoesNotContain("update_subnet", description);
+            Assert.DoesNotContain("delete_subnet", description);
+        }
+    }
+
+    [Fact]
+    public void NetworkWriteDescription_StatesConnectedSubnetDeletionIsAllowedAndDevicesRemain()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+
+        Assert.Contains("connected nodes is allowed", description);
+        Assert.Contains("devices remain", description);
+    }
+
+    [Fact]
+    public void NetworkWriteDescription_StatesNoBatchWideRollbackAndSeparateSaveAndCompile()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+
+        Assert.Contains("No batch-wide rollback", description);
+        Assert.Contains("never saves the project or compiles it", description);
+        Assert.Contains("save_project", description);
+        Assert.Contains("compile_check", description);
+        Assert.Contains("separately", description);
+    }
+
+    [Fact]
+    public void NetworkWriteDescription_OmitsDependencyInventoryAndConnectionAndDeviceDeletionWording()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+
+        Assert.DoesNotContain("dependency inventory", description, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("connection deletion", description, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("device deletion", description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NetworkReadDescription_DoesNotAdvertiseSubnetLifecycleWrites()
+    {
+        var description = MethodDescription(typeof(NetworkReadTools), "NetworkRead");
+
+        Assert.DoesNotContain("create_subnet", description);
+        Assert.DoesNotContain("update_subnet", description);
+        Assert.DoesNotContain("delete_subnet", description);
+        foreach (var operation in NetworkOperationCatalog.WriteOperationNames)
+        {
+            Assert.DoesNotContain(operation, description);
         }
     }
 
