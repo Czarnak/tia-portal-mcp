@@ -119,6 +119,7 @@ internal static class Program
                 "list_network_objects" => ListNetworkObjects(request),
                 "inspect_network_object" => InspectNetworkObject(request),
                 "probe_network_object_attributes" => ProbeNetworkObjectAttributes(request),
+                "probe_subnet_lifecycle_mutations" => ProbeSubnetLifecycleMutations(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
                 "configure_network_device" => ConfigureNetworkDevice(request),
@@ -365,6 +366,69 @@ internal static class Program
             NonRecoverableException => "nonRecoverable",
             _ => "unexpectedError",
         };
+
+    private static WorkerResponse ProbeSubnetLifecycleMutations(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to run the subnet lifecycle mutation probe.");
+        }
+        if (string.IsNullOrWhiteSpace(request.ProbeRunId))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "ProbeRunId must contain 6 to 12 ASCII letters or digits.");
+        }
+        var probeRunId = request.ProbeRunId!;
+        if (probeRunId.Length is < 6 or > 12
+            || probeRunId.Any(character => !char.IsLetterOrDigit(character)))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "ProbeRunId must contain 6 to 12 ASCII letters or digits.");
+        }
+        if (string.IsNullOrWhiteSpace(request.ProbeConnectedEthernetSubnetId)
+            || string.IsNullOrWhiteSpace(request.ProbeConnectedProfibusSubnetId))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Both connected Ethernet and PROFIBUS subnet IDs are required.");
+        }
+        if (request.ProbeProfibusHighestAddress is null
+            || string.IsNullOrWhiteSpace(request.ProbeProfibusTransmissionSpeed))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "The PROFIBUS edit probe requires HighestAddress and TransmissionSpeed values.");
+        }
+
+        return WithSession(request, session =>
+        {
+            session.EnsureConnected();
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null)
+            {
+                return failure;
+            }
+            if (session.Project is null || session.TiaPortal is null)
+            {
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No project or TIA Portal session is available for the subnet mutation probe.");
+            }
+
+            return Success(SubnetLifecycleMutationProbeService.Run(
+                session.TiaPortal,
+                session.Project,
+                probeRunId,
+                request.ProbeConnectedEthernetSubnetId!,
+                request.ProbeConnectedProfibusSubnetId!,
+                request.ProbeProfibusHighestAddress.Value,
+                request.ProbeProfibusTransmissionSpeed!));
+        });
+    }
 
     private static WorkerResponse SearchEquipmentCatalog(WorkerRequest request)
     {

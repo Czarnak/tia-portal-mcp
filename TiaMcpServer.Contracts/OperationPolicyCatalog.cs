@@ -91,6 +91,7 @@ public static class OperationPolicyCatalog
             ["delete_user_constant"] = OperationCapability.ProjectMutation,
             ["add_network_device"] = OperationCapability.ProjectMutation,
             ["configure_network_device"] = OperationCapability.ProjectMutation,
+            ["probe_subnet_lifecycle_mutations"] = OperationCapability.ProjectMutation,
 
             // OnlineControl (NOT read-only safe)
             ["start_plc"] = OperationCapability.OnlineControl,

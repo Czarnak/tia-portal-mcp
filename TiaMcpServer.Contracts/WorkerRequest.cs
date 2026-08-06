@@ -235,6 +235,25 @@ public class WorkerRequest
 
     #endregion
 
+    #region Internal Network Phase 4 live mutation probe
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeRunId { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeConnectedEthernetSubnetId { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeConnectedProfibusSubnetId { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public int? ProbeProfibusHighestAddress { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeProfibusTransmissionSpeed { get; set; }
+
+    #endregion
+
     #region Project lifecycle
 
     /// <summary>Forwarded by: create_project.</summary>
