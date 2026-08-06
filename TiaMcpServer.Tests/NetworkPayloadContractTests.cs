@@ -39,6 +39,18 @@ public class NetworkPayloadContractTests
         "configure_network_device",
         """{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{},"messages":[]}""",
         JsonValueKind.Object)]
+    [InlineData(
+        "create_subnet",
+        """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""",
+        JsonValueKind.Object)]
+    [InlineData(
+        "update_subnet",
+        """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""",
+        JsonValueKind.Object)]
+    [InlineData(
+        "delete_subnet",
+        """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""",
+        JsonValueKind.Object)]
     public void Project_DecodesEveryDeclaredOperationIntoItsResultType(
         string operation,
         string payload,

@@ -121,6 +121,9 @@ public static class NetworkPayloadContract
             Decode<ConfigureNetworkDeviceResultInfo>(payload, ValidateConfigureResult),
         "list_network_objects" => DecodeObjectList(payload),
         "inspect_network_object" => DecodeObjectInspection(payload),
+        "create_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
+        "update_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
+        "delete_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
         _ => throw new JsonException($"No declared result contract for network operation '{operation}'."),
     };
 
@@ -321,6 +324,29 @@ public static class NetworkPayloadContract
         RequireNotNull(value.AppliedSettings, "appliedSettings");
         RequireNotNull(value.SkippedSettings, "skippedSettings");
         RequireNotNull(value.Messages, "messages");
+    }
+
+    private static void ValidateSubnetLifecycleResult(SubnetLifecycleResultInfo value)
+    {
+        if (string.IsNullOrWhiteSpace(value.SubnetId))
+        {
+            throw new JsonException("'subnetId' must be a nonblank string.");
+        }
+
+        if (string.IsNullOrWhiteSpace(value.Name))
+        {
+            throw new JsonException("'name' must be a nonblank string.");
+        }
+
+        if (value.NetworkDeviceCount < 0)
+        {
+            throw new JsonException("'networkDeviceCount' must not be negative.");
+        }
+
+        if (!value.NetworkDeviceCountUnchanged)
+        {
+            throw new JsonException("'networkDeviceCountUnchanged' must be true.");
+        }
     }
 
     private static void ValidateObjectList(NetworkObjectListInfo value)
