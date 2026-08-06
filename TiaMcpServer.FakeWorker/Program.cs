@@ -14,6 +14,42 @@ var seq = 0;
 var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-plc", IpAddress = "192.168.0.20" };
 var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
 
+// Process-local, mutable subnet state shared by every "network-subnet-lifecycle*" scenario key
+// (Task 6, Phase 4): two devices that never change, and two subnets - one Ethernet, one PROFIBUS -
+// each already connected to a node. Sharing this exact list across the main scenario and its
+// switch variants (malformed/postcondition-failed/second-item-failure/alt-path) means a resolved
+// subnet's identity is byte-for-byte identical no matter which of those keys reads it, so a
+// project-path tampering test can bind a token against one key and get rejected against another
+// for exactly that reason - never a coincidentally different target. Connected subnets are never
+// treated as undeletable here: delete_subnet removes them unconditionally, matching production's
+// "connected deletion is allowed, no dependency inventory" rule.
+var subnetLifecycleState = new List<SubnetLifecycleSubnetState>
+{
+    new()
+    {
+        SubnetId = "subnet-eth-1",
+        Name = "PN/IE_1",
+        NetworkType = SubnetLifecycleContract.Ethernet,
+        ConnectedNodeNames = new List<string> { "PLC_1.X1" },
+    },
+    new()
+    {
+        SubnetId = "subnet-pb-1",
+        Name = "MPI/DP_1",
+        NetworkType = SubnetLifecycleContract.Profibus,
+        HighestAddress = 31,
+        TransmissionSpeed = "Baud187500",
+        ConnectedNodeNames = new List<string> { "PLC_1.MPI" },
+    },
+};
+var subnetLifecycleNextId = 1;
+var subnetLifecycleSecondFailureWriteCount = 0;
+var subnetLifecycleStateDriftReadCount = 0;
+
+// Two devices that never change across any subnet lifecycle operation, modelling the stable
+// "root device count" the production SubnetLifecycleService verifies after every commit.
+const int SubnetLifecycleDeviceCount = 2;
+
 string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {
@@ -321,6 +357,94 @@ while ((line = Console.In.ReadLine()) is not null)
         case "inspect-network-object-malformed":
             // Worker reports SUCCESS but the payload fails the declared result contract.
             Respond("""{"success":true,"payload":"{\"unexpectedShape\":true}"}""");
+            break;
+
+        // ---------------------------------------------------------------------------
+        // Phase 4: subnet lifecycle fixtures (Task 6)
+        // ---------------------------------------------------------------------------
+
+        case "network-subnet-lifecycle":
+            // The main stateful scenario: normal create/update/delete round trips, canonical
+            // text/structuredContent equality, minimal-result shape, audit, and every token
+            // tampering path bind against this key.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-alt-path":
+            // Same shared mutable state as "network-subnet-lifecycle", reached through a
+            // DIFFERENT scenario key: a token issued against one key is rejected against this one
+            // purely because the project path differs, never because the resolved target differs
+            // (both keys read the exact same underlying list).
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-alt-path"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-malformed-success":
+            // The worker reports SUCCESS for every subnet write, but the payload carries an extra
+            // unmapped member (device-detail/relationship-style free text) alongside the four
+            // declared SubnetLifecycleResultInfo fields. The strict decode contract
+            // (JsonUnmappedMemberHandling.Disallow) must reject this as protocol_error rather than
+            // publish the extra text - proving the protocol never grows relationship/device-detail
+            // wording even if a worker ever sent it.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    $$"""{"success":true,"payload":"{\"subnetId\":\"subnet-malformed-1\",\"name\":\"Malformed\",\"networkDeviceCount\":{{SubnetLifecycleDeviceCount}},\"networkDeviceCountUnchanged\":true,\"relationshipSummary\":\"connected to 2 devices\"}"}""",
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-malformed-success"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-postcondition-failed":
+            // Every subnet write reports the worker's own postcondition_failed outcome (the
+            // transaction committed but post-read verification did not match) rather than any
+            // success wording - modelled exactly like the existing block create/update
+            // postcondition_failed scenarios above.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    $$"""{"success":false,"failureCategory":"postcondition_failed","error":"subnet lifecycle verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""",
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-postcondition-failed"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-second-item-failure":
+            // The FIRST subnet write in a batch against this key succeeds and mutates the shared
+            // state exactly like the main scenario; the SECOND and every later one fails
+            // structurally. Proves a later failure stops the batch while the earlier success stays
+            // applied (no batch-wide rollback) and later items are skipped.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    HandleSecondItemFailureWrite(line, subnetLifecycleState),
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-second-item-failure"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-state-drift":
+            // read_hardware_config reports the SAME subnet identity (name/subnetId) on every call,
+            // but its connectedNodeNames - deliberately never part of the resolved target evidence
+            // - differs after the first read. A token issued against the first read must be
+            // rejected at apply against the SECOND, drifted read via the whole-project
+            // current-state hash (state_changed), never via a "different target" mismatch, mirroring
+            // the pure-safety-layer proof in NetworkPhase3SafetySnapshotTests at the full FakeWorker
+            // level.
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(++subnetLifecycleStateDriftReadCount)))
+                : $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-state-drift"}""");
             break;
 
         case "list-network-objects-large":
@@ -970,6 +1094,219 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
         ReturnedCount = items.Count,
         NextCursor = "large-list-page-2",
     };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: subnet lifecycle fixtures (Task 6)
+// ---------------------------------------------------------------------------
+
+List<DeviceInfo> SubnetLifecycleDevices() => new()
+{
+    new() { Name = "PLC_1", TypeIdentifier = "OrderNumber:TEST", Items = new List<DeviceItemInfo>() },
+    new() { Name = "HMI_1", TypeIdentifier = "OrderNumber:HMI", Items = new List<DeviceItemInfo>() },
+};
+
+/// <summary>
+/// Renders the CURRENT mutable subnet list as a contract-valid <see cref="HardwareConfigInfo"/>.
+/// Devices are always the same two entries; only <paramref name="subnets"/> reflects whatever
+/// create_subnet/update_subnet/delete_subnet has done to the shared state so far.
+/// </summary>
+HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState> subnets) => new()
+{
+    Devices = SubnetLifecycleDevices(),
+    Subnets = subnets
+        .Select(subnet => SelectableSubnet(
+            subnet.Name,
+            subnet.SubnetId,
+            subnet.NetworkType,
+            subnet.NetworkType,
+            Array.Empty<IoSystemInfo>(),
+            subnet.ConnectedNodeNames))
+        .ToList(),
+    Messages = new List<string>(),
+};
+
+/// <summary>
+/// Dedicated fixture for the "network-subnet-lifecycle-state-drift" scenario: reports the SAME one
+/// Ethernet subnet identity on every read, but its connectedNodeNames differs after the first call
+/// - a relationship-only change that never appears in resolved target evidence but still
+/// invalidates a token via the whole-project current-state hash.
+/// </summary>
+HardwareConfigInfo SubnetLifecycleStateDriftHardwareConfig(int readCount) => new()
+{
+    Devices = SubnetLifecycleDevices(),
+    Subnets = new List<SubnetInfo>
+    {
+        SelectableSubnet(
+            "PN/IE_1",
+            "subnet-eth-1",
+            SubnetLifecycleContract.Ethernet,
+            SubnetLifecycleContract.Ethernet,
+            Array.Empty<IoSystemInfo>(),
+            readCount <= 1
+                ? new[] { "PLC_1.X1" }
+                : new[] { "PLC_1.X1", "PLC_2.X1" }),
+    },
+    Messages = new List<string>(),
+};
+
+/// <summary>
+/// Dispatches one subnet lifecycle write against the shared mutable state and returns the exact
+/// four-member <see cref="SubnetLifecycleResultInfo"/> JSON. Shared by every scenario key that
+/// performs a REAL (non-switched) mutation, so create/update/delete behave identically no matter
+/// which key reached them.
+/// </summary>
+string DispatchSubnetLifecycleWrite(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+    => ReadMethod(requestLine) switch
+    {
+        "create_subnet" => HandleCreateSubnet(requestLine, subnets),
+        "update_subnet" => HandleUpdateSubnet(requestLine, subnets),
+        "delete_subnet" => HandleDeleteSubnet(requestLine, subnets),
+        _ => $$"""{"success":false,"error":"unexpected subnet lifecycle method '{{ReadMethod(requestLine)}}'"}""",
+    };
+
+/// <summary>
+/// Assigns a deterministic, nonblank, never-reused subnet id and applies PROFIBUS-only attributes
+/// only when the requested network type is PROFIBUS - mirroring
+/// <c>SubnetLifecycleService.ApplyProfibusAttributes</c>'s Ethernet/PROFIBUS split. The new subnet
+/// starts with an EMPTY connectedNodeNames list: nothing connects it, so it is immediately
+/// deletable as an "empty subnet" without needing a third preset fixture.
+/// </summary>
+string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    var name = ReadField(requestLine, "subnetName") ?? string.Empty;
+    var networkType = ReadField(requestLine, "subnetNetworkType") ?? string.Empty;
+    var isProfibus = string.Equals(networkType, SubnetLifecycleContract.Profibus, StringComparison.Ordinal);
+
+    var subnetId = $"subnet-created-{subnetLifecycleNextId}";
+    subnetLifecycleNextId++;
+
+    subnets.Add(new SubnetLifecycleSubnetState
+    {
+        SubnetId = subnetId,
+        Name = name,
+        NetworkType = networkType,
+        HighestAddress = isProfibus ? ReadIntField(requestLine, "subnetHighestAddress") : null,
+        TransmissionSpeed = isProfibus ? ReadField(requestLine, "subnetTransmissionSpeed") : null,
+        ConnectedNodeNames = new List<string>(),
+    });
+
+    return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+    {
+        SubnetId = subnetId,
+        Name = name,
+        NetworkDeviceCount = SubnetLifecycleDeviceCount,
+        NetworkDeviceCountUnchanged = true,
+    }));
+}
+
+/// <summary>
+/// Applies only the fields present on the request to the EXACT matching SubnetId - every other
+/// subnet in the shared list, and every field the request omitted, is left untouched.
+/// </summary>
+string HandleUpdateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    var subnetId = ReadField(requestLine, "subnetId");
+    var target = subnets.FirstOrDefault(subnet => subnet.SubnetId == subnetId);
+    if (target is null)
+    {
+        return $$"""{"success":false,"error":"network-subnet-lifecycle has no subnet with subnetId '{{subnetId}}'"}""";
+    }
+
+    var name = ReadField(requestLine, "subnetName");
+    if (name is not null)
+    {
+        target.Name = name;
+    }
+
+    var highestAddress = ReadIntField(requestLine, "subnetHighestAddress");
+    if (highestAddress is not null)
+    {
+        target.HighestAddress = highestAddress;
+    }
+
+    var transmissionSpeed = ReadField(requestLine, "subnetTransmissionSpeed");
+    if (transmissionSpeed is not null)
+    {
+        target.TransmissionSpeed = transmissionSpeed;
+    }
+
+    return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+    {
+        SubnetId = target.SubnetId,
+        Name = target.Name,
+        NetworkDeviceCount = SubnetLifecycleDeviceCount,
+        NetworkDeviceCountUnchanged = true,
+    }));
+}
+
+/// <summary>
+/// Removes the exact matching subnet from the shared list UNCONDITIONALLY - a non-empty
+/// connectedNodeNames never blocks this, matching production's "connected deletion is allowed, no
+/// dependency inventory" rule. The device collection is never touched.
+/// </summary>
+string HandleDeleteSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    var subnetId = ReadField(requestLine, "subnetId");
+    var target = subnets.FirstOrDefault(subnet => subnet.SubnetId == subnetId);
+    if (target is null)
+    {
+        return $$"""{"success":false,"error":"network-subnet-lifecycle has no subnet with subnetId '{{subnetId}}'"}""";
+    }
+
+    subnets.Remove(target);
+
+    return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+    {
+        SubnetId = target.SubnetId,
+        Name = target.Name,
+        NetworkDeviceCount = SubnetLifecycleDeviceCount,
+        NetworkDeviceCountUnchanged = true,
+    }));
+}
+
+/// <summary>
+/// The FIRST subnet write against "network-subnet-lifecycle-second-item-failure" performs a REAL
+/// mutation (proving the earlier item stays applied); every later one fails structurally without
+/// touching state, proving the batch stops and later items are skipped.
+/// </summary>
+string HandleSecondItemFailureWrite(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    subnetLifecycleSecondFailureWriteCount++;
+    return subnetLifecycleSecondFailureWriteCount == 1
+        ? DispatchSubnetLifecycleWrite(requestLine, subnets)
+        : $$"""{"success":false,"error":"deliberate second-item failure for network-subnet-lifecycle-second-item-failure"}""";
+}
+
+int? ReadIntField(string requestLine, string propertyName)
+{
+    try
+    {
+        using var doc = JsonDocument.Parse(requestLine);
+        return doc.RootElement.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Number
+            ? value.GetInt32()
+            : null;
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
+}
+
+/// <summary>Mutable process-local state for one subnet in the Phase 4 lifecycle scenarios.</summary>
+sealed class SubnetLifecycleSubnetState
+{
+    public required string SubnetId { get; init; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public string NetworkType { get; set; } = string.Empty;
+
+    public int? HighestAddress { get; set; }
+
+    public string? TransmissionSpeed { get; set; }
+
+    public List<string> ConnectedNodeNames { get; set; } = new();
 }
 
 /// <summary>Mutable process-local state for one node of the "multi-homed-network" scenario.</summary>
