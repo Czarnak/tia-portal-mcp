@@ -91,6 +91,21 @@ public static class NetworkWorkerInvoker
                 operation.Changes!.IoSystem?.SubnetId,
                 operation.Changes!.IoSystem?.Number,
                 projectPath),
+            "create_subnet" => client.CreateSubnetAsync(
+                operation.Subnet!.Name!,
+                operation.Subnet!.NetworkType!,
+                operation.Subnet!.HighestAddress,
+                operation.Subnet!.TransmissionSpeed,
+                projectPath),
+            "update_subnet" => client.UpdateSubnetAsync(
+                operation.Target!.SubnetId!,
+                operation.SubnetChanges?.Name,
+                operation.SubnetChanges?.HighestAddress,
+                operation.SubnetChanges?.TransmissionSpeed,
+                projectPath),
+            "delete_subnet" => client.DeleteSubnetAsync(
+                operation.Target!.SubnetId!,
+                projectPath),
             _ => Task.FromResult(WorkerCallResult.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"Unsupported network write operation '{operation.Operation}'.")),

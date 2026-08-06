@@ -197,6 +197,9 @@ public class ReadOnlyModeTests
     [InlineData("delete_user_constant")]
     [InlineData("add_network_device")]
     [InlineData("configure_network_device")]
+    [InlineData("create_subnet")]
+    [InlineData("update_subnet")]
+    [InlineData("delete_subnet")]
     [InlineData("start_plc")]
     [InlineData("stop_plc")]
     public void ReadOnlyMode_DeniesProhibitedOperations(string operation)

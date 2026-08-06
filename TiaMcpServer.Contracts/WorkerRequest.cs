@@ -183,7 +183,11 @@ public class WorkerRequest
     /// <summary>Forwarded by: configure_network_device.</summary>
     public string? PnDeviceName { get; set; }
 
-    /// <summary>Forwarded by: configure_network_device. The subnet to connect the node to.</summary>
+    /// <summary>
+    /// Forwarded by: configure_network_device (the subnet to connect the node to), update_subnet
+    /// and delete_subnet (the exact existing subnet targeted by the operation). create_subnet never
+    /// forwards it — a new subnet's id is assigned by Openness, not supplied by the caller.
+    /// </summary>
     public string? SubnetId { get; set; }
 
     /// <summary>
@@ -232,6 +236,32 @@ public class WorkerRequest
     /// validation because it is called directly by the read-only live harness.
     /// </summary>
     public List<string>? NetworkAttributeNames { get; set; }
+
+    #endregion
+
+    #region Network subnet lifecycle (Phase 4)
+
+    /// <summary>
+    /// Forwarded by: create_subnet (new subnet's name), update_subnet (new name for the targeted
+    /// subnet; omitted means leave it unchanged).
+    /// </summary>
+    public string? SubnetName { get; set; }
+
+    /// <summary>Forwarded by: create_subnet ONLY. Valid values: Ethernet, Profibus. Not changeable
+    /// on an existing subnet, so update_subnet never forwards it.</summary>
+    public string? SubnetNetworkType { get; set; }
+
+    /// <summary>
+    /// Forwarded by: create_subnet (optional, PROFIBUS only), update_subnet (optional; omitted
+    /// means leave it unchanged).
+    /// </summary>
+    public int? SubnetHighestAddress { get; set; }
+
+    /// <summary>
+    /// Forwarded by: create_subnet (optional, PROFIBUS only), update_subnet (optional; omitted
+    /// means leave it unchanged).
+    /// </summary>
+    public string? SubnetTransmissionSpeed { get; set; }
 
     #endregion
 

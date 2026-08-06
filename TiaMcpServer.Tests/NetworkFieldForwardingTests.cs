@@ -132,11 +132,33 @@ public class NetworkFieldForwardingTests
     }
 
     [Theory]
-    [InlineData("SubnetName")]
     [InlineData("IoSystemName")]
     public void WorkerRequest_NoLongerCarriesTheConfigureOnlyNameFields(string propertyName)
     {
         Assert.Null(typeof(WorkerRequest).GetProperty(propertyName));
+    }
+
+    /// <summary>
+    /// Task 3: the four new Phase 4 subnet lifecycle fields exist on <see cref="WorkerRequest"/>
+    /// with the exact nullable types the brief specifies, and every existing probe field the brief
+    /// forbids touching is still present and unchanged in shape — proving Step 2 added fields in
+    /// the general network-fields area without altering the probe region.
+    /// </summary>
+    [Theory]
+    [InlineData("SubnetName", typeof(string))]
+    [InlineData("SubnetNetworkType", typeof(string))]
+    [InlineData("SubnetHighestAddress", typeof(int?))]
+    [InlineData("SubnetTransmissionSpeed", typeof(string))]
+    [InlineData("ProbeRunId", typeof(string))]
+    [InlineData("ProbeConnectedEthernetSubnetId", typeof(string))]
+    [InlineData("ProbeConnectedProfibusSubnetId", typeof(string))]
+    [InlineData("ProbeProfibusHighestAddress", typeof(int?))]
+    [InlineData("ProbeProfibusTransmissionSpeed", typeof(string))]
+    public void WorkerRequest_CarriesTheExpectedSubnetAndProbeFieldTypes(string propertyName, Type expectedType)
+    {
+        var property = typeof(WorkerRequest).GetProperty(propertyName);
+        Assert.NotNull(property);
+        Assert.Equal(expectedType, property!.PropertyType);
     }
 
     /// <summary>

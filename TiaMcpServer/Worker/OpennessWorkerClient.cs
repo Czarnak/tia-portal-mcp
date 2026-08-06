@@ -184,6 +184,78 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
+    /// <summary>
+    /// Sends a <c>create_subnet</c> request. Never forwards <see cref="WorkerRequest.SubnetId"/> —
+    /// a new subnet's id is assigned by Openness at creation time, not supplied by the caller.
+    /// </summary>
+    public Task<WorkerCallResult> CreateSubnetAsync(
+        string name,
+        string networkType,
+        int? highestAddress,
+        string? transmissionSpeed,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "create_subnet",
+            projectPath,
+            request =>
+            {
+                request.SubnetName = name;
+                request.SubnetNetworkType = networkType;
+                request.SubnetHighestAddress = highestAddress;
+                request.SubnetTransmissionSpeed = transmissionSpeed;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    /// <summary>
+    /// Sends an <c>update_subnet</c> request. <paramref name="subnetId"/> is forwarded via the
+    /// existing <see cref="WorkerRequest.SubnetId"/> field — there is no second identity field.
+    /// Never forwards a network type: an existing subnet's type is not changeable through this
+    /// contract.
+    /// </summary>
+    public Task<WorkerCallResult> UpdateSubnetAsync(
+        string subnetId,
+        string? name,
+        int? highestAddress,
+        string? transmissionSpeed,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "update_subnet",
+            projectPath,
+            request =>
+            {
+                request.SubnetId = subnetId;
+                request.SubnetName = name;
+                request.SubnetHighestAddress = highestAddress;
+                request.SubnetTransmissionSpeed = transmissionSpeed;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    /// <summary>
+    /// Sends a <c>delete_subnet</c> request. Forwards only the target identity via the existing
+    /// <see cref="WorkerRequest.SubnetId"/> field.
+    /// </summary>
+    public Task<WorkerCallResult> DeleteSubnetAsync(string subnetId, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "delete_subnet",
+            projectPath,
+            request =>
+            {
+                request.SubnetId = subnetId;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
     public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter, int? maxResults = null)
     {
         // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
