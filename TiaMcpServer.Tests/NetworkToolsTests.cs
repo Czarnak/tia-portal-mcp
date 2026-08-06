@@ -480,7 +480,7 @@ public class NetworkToolsTests
 
         var warning = items[0].GetProperty("warnings")[0].GetString();
         Assert.Contains("may already have changed", warning);
-        Assert.Contains("no rollback", warning, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no batch-wide rollback", warning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

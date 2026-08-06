@@ -20,7 +20,7 @@ public class NetworkWriteTools
 
     private const string PartialWriteWarning =
         "This network_write call stopped here. This operation and any earlier operation in the same "
-        + "call may already have changed TIA state, and no rollback was attempted. Re-read the "
+        + "call may already have changed TIA state; no batch-wide rollback was attempted. Re-read the "
         + "hardware configuration with network_read before retrying.";
 
     [McpServerTool(
@@ -30,7 +30,7 @@ public class NetworkWriteTools
         OpenWorld = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(NetworkWriteResponse))]
-    [Description("Preview or apply up to 50 dedicated network write operations. Valid operations: add_network_device (typeIdentifier, deviceName) and configure_network_device (target, changes). configure_network_device names an existing node exactly — target.deviceName plus the target.nodeId reported by network_read — and requests at least one change; an omitted change member means leave it unchanged. Call without confirm or safetyToken to receive a preview, then call the same network_write tool with the identical ordered operations, confirm=true, and the returned safetyToken. The response is a discriminated envelope whose phase field is preview, apply, or error. Writes stop on first failure; later items are skipped and no rollback is performed.")]
+    [Description("Preview or apply up to 50 dedicated network write operations. Valid operations: add_network_device (typeIdentifier, deviceName) and configure_network_device (target, changes). configure_network_device names an existing node exactly — target.deviceName plus the target.nodeId reported by network_read — and requests at least one change; an omitted change member means leave it unchanged. Call without confirm or safetyToken to receive a preview, then call the same network_write tool with the identical ordered operations, confirm=true, and the returned safetyToken. The response is a discriminated envelope whose phase field is preview, apply, or error. Writes stop on first failure; later items are skipped. No batch-wide rollback is attempted: the failed operation and every earlier operation in the same call may already have changed TIA state, and the caller must re-read the current state with network_read before retrying.")]
     public static async Task<CallToolResult> NetworkWrite(
         OpennessWorkerClient workerClient,
         WriteSafetyService safety,
@@ -101,7 +101,7 @@ public class NetworkWriteTools
             ToolName,
             projectPath,
             resolution.Targets!,
-            $"Apply {operations.Length} network write operation(s) sequentially; stops on first failure (no rollback).",
+            $"Apply {operations.Length} network write operation(s) sequentially; stops on first failure (no batch-wide rollback).",
             operations,
             state.State!,
             "Preview only — nothing was changed. To apply, call network_write with the identical operations list, confirm=true, and this safetyToken.");
