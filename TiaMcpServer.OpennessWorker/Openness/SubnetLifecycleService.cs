@@ -164,13 +164,19 @@ internal static class SubnetLifecycleService
         var deviceCountAfter = project.Devices.Count;
         var deviceCountUnchanged = deviceCountAfter == deviceCountBefore;
 
-        var postReadMatches = FindMatches(project, subnetId);
-        if (postReadMatches.Count != 0 || !deviceCountUnchanged)
+        // Fail-closed, not fail-open: a surviving subnet whose SubnetId happens to be transiently
+        // unreadable must NOT read as "successfully deleted". Every other postcondition in this
+        // service already fails closed on an unreadable identity because absence-of-match is a
+        // FAILURE condition there; delete_subnet is the one operation where absence-of-match is the
+        // SUCCESS condition, so it needs its own explicit guard against that asymmetry.
+        var postReadMatches = FindMatches(project, subnetId, out var unreadableSubnetIdCount);
+        if (postReadMatches.Count != 0 || unreadableSubnetIdCount > 0 || !deviceCountUnchanged)
         {
             throw PostconditionFailed(
                 "delete_subnet",
-                $"Expected no subnet with SubnetId '{subnetId}' and an unchanged device count after "
-                + "the transaction committed. Inspect the project before retrying.");
+                $"Expected no subnet with SubnetId '{subnetId}', no subnet with an unreadable "
+                + "SubnetId, and an unchanged device count after the transaction committed. Inspect "
+                + "the project before retrying.");
         }
 
         return new SubnetLifecycleResultInfo
@@ -336,16 +342,34 @@ internal static class SubnetLifecycleService
     }
 
     private static List<Subnet> FindMatches(Project project, string subnetId)
+        => FindMatches(project, subnetId, out _);
+
+    /// <summary>
+    /// Same ordinal exact-match scan as <see cref="FindMatches(Project, string)"/>, additionally
+    /// reporting how many candidates' <c>SubnetId</c> could not be read at all — distinct from "read
+    /// successfully but didn't match" — so a caller that treats zero matches as a meaningful outcome
+    /// (delete_subnet's postcondition) can tell the two apart instead of silently conflating them.
+    /// </summary>
+    private static List<Subnet> FindMatches(Project project, string subnetId, out int unreadableCount)
     {
         var matches = new List<Subnet>();
+        var unreadable = 0;
         foreach (Subnet candidate in project.Subnets)
         {
-            if (string.Equals(ReadSubnetId(candidate), subnetId, StringComparison.Ordinal))
+            var candidateId = ReadSubnetId(candidate);
+            if (candidateId is null)
+            {
+                unreadable++;
+                continue;
+            }
+
+            if (string.Equals(candidateId, subnetId, StringComparison.Ordinal))
             {
                 matches.Add(candidate);
             }
         }
 
+        unreadableCount = unreadable;
         return matches;
     }
 

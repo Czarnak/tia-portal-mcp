@@ -1,6 +1,7 @@
 namespace TiaMcpServer.Tests;
 
 using System.Linq;
+using System.Text.RegularExpressions;
 using Xunit;
 
 /// <summary>
@@ -69,11 +70,13 @@ public class NetworkPhase4SubnetWorkerServiceContractTests
         Assert.Contains("WorkerFailureCategories.TargetAmbiguous", source, StringComparison.Ordinal);
 
         // No unvalidated fallback to a first/any match — every match count is checked (0 or >1
-        // both throw) before a single resolved subnet is ever used.
+        // both throw) before a single resolved subnet is ever used. Asserted by pattern rather than
+        // by the accidental local variable name ("matches") so a harmless rename cannot silently
+        // defeat this test.
         Assert.DoesNotContain("FirstOrDefault", source, StringComparison.Ordinal);
         Assert.DoesNotContain("First()", source, StringComparison.Ordinal);
-        Assert.Contains("matches.Count == 0", source, StringComparison.Ordinal);
-        Assert.Contains("matches.Count > 1", source, StringComparison.Ordinal);
+        Assert.Matches(new Regex(@"\.Count == 0"), source);
+        Assert.Matches(new Regex(@"\.Count > 1"), source);
     }
 
     [Fact]
@@ -83,6 +86,41 @@ public class NetworkPhase4SubnetWorkerServiceContractTests
         Assert.Equal(3, CountOccurrences(source, "tiaPortal.ExclusiveAccess("));
         Assert.Equal(3, CountOccurrences(source, "exclusiveAccess.Transaction(project,"));
         Assert.Equal(3, CountOccurrences(source, "transaction.CommitOnDispose();"));
+    }
+
+    [Fact]
+    public void Service_CommitsOnlyAfterEverySetterOrMutationCallHasAlreadyRunWithinEachOperation()
+    {
+        // The occurrence-count test above proves each shape exists once per operation, but proves
+        // nothing about ORDER — an implementation that committed as the very FIRST statement inside
+        // the transaction (before any setter ran) would still pass those counts. This test closes
+        // that gap: within each operation's own method body, every mutating call must appear
+        // strictly BEFORE that same body's "transaction.CommitOnDispose();".
+        var source = ServiceSource;
+
+        var createBody = ExtractPublicMethodBody(source, "Create");
+        AssertOccursBeforeCommit(createBody, "project.Subnets.Create(");
+        AssertOccursBeforeCommit(createBody, "ApplyProfibusAttributes(");
+
+        var updateBody = ExtractPublicMethodBody(source, "Update");
+        AssertOccursBeforeCommit(updateBody, "ApplyProfibusAttributes(");
+
+        var deleteBody = ExtractPublicMethodBody(source, "Delete");
+        AssertOccursBeforeCommit(deleteBody, "subnet.Delete();");
+    }
+
+    private static void AssertOccursBeforeCommit(string methodBody, string mutatingCall)
+    {
+        var commitIndex = methodBody.IndexOf("transaction.CommitOnDispose();", StringComparison.Ordinal);
+        var mutatingCallIndex = methodBody.IndexOf(mutatingCall, StringComparison.Ordinal);
+
+        Assert.True(commitIndex >= 0, "Expected 'transaction.CommitOnDispose();' in the method body.");
+        Assert.True(mutatingCallIndex >= 0, $"Expected '{mutatingCall}' in the method body.");
+        Assert.True(
+            mutatingCallIndex < commitIndex,
+            $"Expected '{mutatingCall}' (at index {mutatingCallIndex}) to occur before "
+            + $"'transaction.CommitOnDispose();' (at index {commitIndex}) — a commit must never run "
+            + "before the mutation it is supposed to be committing.");
     }
 
     [Fact]
@@ -105,9 +143,24 @@ public class NetworkPhase4SubnetWorkerServiceContractTests
     public void Service_CapturesRootDeviceCountBeforeAndComparesAfterEveryOperation()
     {
         var source = ServiceSource;
+
+        // Brief Step 4, bullet 1 mandates this exact "before" capture verbatim — kept as a literal
+        // string match. The "after" re-read has no brief-mandated variable name, so it is asserted
+        // as a pattern (re-reads Devices.Count and compares it to whatever the "before" value was
+        // named) rather than pinned to the accidental identifier "deviceCountAfter".
         Assert.Equal(3, CountOccurrences(source, "var deviceCountBefore = project.Devices.Count;"));
-        Assert.Equal(3, CountOccurrences(source, "var deviceCountAfter = project.Devices.Count;"));
-        Assert.Contains("deviceCountAfter == deviceCountBefore", source, StringComparison.Ordinal);
+
+        foreach (var body in new[]
+                 {
+                     ExtractPublicMethodBody(source, "Create"),
+                     ExtractPublicMethodBody(source, "Update"),
+                     ExtractPublicMethodBody(source, "Delete"),
+                 })
+        {
+            // "before" capture, then a second, later read of project.Devices.Count for comparison.
+            Assert.Equal(2, CountOccurrences(body, "project.Devices.Count"));
+            Assert.Matches(new Regex(@"==\s*deviceCountBefore\b"), body);
+        }
     }
 
     [Fact]
@@ -167,6 +220,29 @@ public class NetworkPhase4SubnetWorkerServiceContractTests
     }
 
     [Fact]
+    public void Service_DeletePostconditionFailsClosedRatherThanTreatingAnUnreadableSubnetIdAsDeleted()
+    {
+        // Every other postcondition in this service already fails closed on an unreadable identity
+        // because "no match found" is a FAILURE condition there (Create/Update need exactly one
+        // match). delete_subnet is the one operation where "no match found" is the SUCCESS
+        // condition, so an unreadable-but-still-present subnet must not be silently treated as
+        // "gone" — this guards that specific asymmetry.
+        var deleteBody = ExtractPublicMethodBody(ServiceSource, "Delete");
+
+        // Reads the post-transaction match, additionally reporting how many candidates' identity
+        // could not be read at all (distinct from "read fine but didn't match").
+        Assert.Matches(new Regex(@"out\s+var\s+\w*[Uu]nreadable\w*"), deleteBody);
+
+        var throwIndex = deleteBody.IndexOf("throw PostconditionFailed(", StringComparison.Ordinal);
+        Assert.True(throwIndex >= 0, "Expected a PostconditionFailed throw in Delete's body.");
+        var guardCondition = deleteBody[..throwIndex];
+
+        // The unreadable count must be checked as > 0 and OR'd into the same guard that already
+        // covers a nonzero match count and a changed device count — not read-and-ignored.
+        Assert.Matches(new Regex(@"[Uu]nreadable\w*\s*>\s*0"), guardCondition);
+    }
+
+    [Fact]
     public void Service_NeverTraversesConnectedNodesOrIoSystemsBeforeDeletingASubnet()
     {
         var source = ServiceSource;
@@ -192,6 +268,23 @@ public class NetworkPhase4SubnetWorkerServiceContractTests
         // Never caught at all — an uncaught NonRecoverableException propagates straight to
         // Program.Execute's dedicated catch rather than being swallowed here.
         Assert.DoesNotContain("NonRecoverableException", source, StringComparison.Ordinal);
+
+        // Naming the excluded type is not enough: a broad "catch (Exception ...)" (or any other
+        // catch wider than the narrow EngineeringException this file actually uses) would swallow
+        // NonRecoverableException too without ever mentioning it by name. Reject the broad forms
+        // directly, then enumerate every catch clause in the file and require each one to name
+        // exactly the one approved, narrow type.
+        Assert.DoesNotContain("catch (Exception", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("catch (SystemException", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("catch (ApplicationException", source, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex(@"catch\s*\{"), source); // bare "catch { ... }" with no type at all
+
+        var caughtTypes = Regex.Matches(source, @"catch\s*\(\s*([A-Za-z0-9_.]+)")
+            .Select(match => match.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        Assert.NotEmpty(caughtTypes);
+        Assert.All(caughtTypes, caughtType => Assert.Equal("EngineeringException", caughtType));
     }
 
     [Fact]
