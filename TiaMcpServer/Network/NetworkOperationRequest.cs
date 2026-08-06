@@ -30,7 +30,7 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
     [Description("Client-supplied unique identifier for this network operation; returned results are keyed by it.")]
     public string OperationId { get; set; } = string.Empty;
 
-    [Description("Network operation to run: read_hardware_config, search_equipment_catalog, add_network_device, configure_network_device, list_network_objects, or inspect_network_object.")]
+    [Description("Network operation to run: read_hardware_config, search_equipment_catalog, add_network_device, configure_network_device, list_network_objects, inspect_network_object, create_subnet, update_subnet, or delete_subnet.")]
     public string Operation { get; set; } = string.Empty;
 
     [Description("Optional absolute project path (.ap21). When omitted, the active project is used; all network writes in one request must share it.")]

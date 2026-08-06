@@ -500,7 +500,7 @@ public class BatchOperationCatalogTests
             new[] { "read_hardware_config", "search_equipment_catalog", "list_network_objects", "inspect_network_object" },
             NetworkOperationCatalog.ReadOperationNames);
         Assert.Equal(
-            new[] { "add_network_device", "configure_network_device" },
+            new[] { "add_network_device", "configure_network_device", "create_subnet", "update_subnet", "delete_subnet" },
             NetworkOperationCatalog.WriteOperationNames);
 
         foreach (var operation in new[]
@@ -510,7 +510,10 @@ public class BatchOperationCatalogTests
             "list_network_objects",
             "inspect_network_object",
             "add_network_device",
-            "configure_network_device"
+            "configure_network_device",
+            "create_subnet",
+            "update_subnet",
+            "delete_subnet"
         })
         {
             Assert.DoesNotContain(operation, BatchOperationCatalog.ReadOperationNames);
