@@ -123,6 +123,9 @@ internal static class Program
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
                 "configure_network_device" => ConfigureNetworkDevice(request),
+                "create_subnet" => CreateSubnet(request),
+                "update_subnet" => UpdateSubnet(request),
+                "delete_subnet" => DeleteSubnet(request),
                 "read_cross_references" => ReadCrossReferences(request),
                 "get_block_content"   => GetBlockContent(request),
                 "update_block_logic"  => UpdateBlockLogic(request),
@@ -515,6 +518,159 @@ internal static class Program
             request.SubnetId,
             request.IoSystemSubnetId,
             request.IoSystemNumber)));
+    }
+
+    private static WorkerResponse CreateSubnet(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with creating a subnet.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SubnetName))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetName is required.");
+        }
+
+        if (!SubnetLifecycleContract.IsSupportedNetworkType(request.SubnetNetworkType))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "SubnetNetworkType is required. Valid values: "
+                + $"{SubnetLifecycleContract.Ethernet}, {SubnetLifecycleContract.Profibus}.");
+        }
+
+        if (string.Equals(request.SubnetNetworkType, SubnetLifecycleContract.Ethernet, StringComparison.Ordinal)
+            && (request.SubnetHighestAddress is not null || request.SubnetTransmissionSpeed is not null))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                $"SubnetHighestAddress and SubnetTransmissionSpeed are not applicable for network type "
+                + $"'{SubnetLifecycleContract.Ethernet}'.");
+        }
+
+        ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
+        ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
+
+        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Create(
+            session.TiaPortal!,
+            session.Project!,
+            request.SubnetName!,
+            request.SubnetNetworkType!,
+            request.SubnetHighestAddress,
+            request.SubnetTransmissionSpeed)));
+    }
+
+    private static WorkerResponse UpdateSubnet(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with updating a subnet.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SubnetId))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
+        }
+
+        if (request.SubnetName is not null && string.IsNullOrWhiteSpace(request.SubnetName))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetName must not be blank when supplied.");
+        }
+
+        if (request.SubnetName is null && request.SubnetHighestAddress is null && request.SubnetTransmissionSpeed is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "update_subnet requires at least one requested change (name, highestAddress, or transmissionSpeed).");
+        }
+
+        ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
+        ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
+
+        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Update(
+            session.TiaPortal!,
+            session.Project!,
+            request.SubnetId!,
+            request.SubnetName,
+            request.SubnetHighestAddress,
+            request.SubnetTransmissionSpeed)));
+    }
+
+    private static WorkerResponse DeleteSubnet(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with deleting a subnet.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SubnetId))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
+        }
+
+        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Delete(
+            session.TiaPortal!,
+            session.Project!,
+            request.SubnetId!)));
+    }
+
+    private static void ValidateSubnetHighestAddressRange(int? value)
+    {
+        if (value is { } address
+            && (address < SubnetLifecycleContract.MinimumHighestAddress || address > SubnetLifecycleContract.MaximumHighestAddress))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                $"SubnetHighestAddress must be between {SubnetLifecycleContract.MinimumHighestAddress} and "
+                + $"{SubnetLifecycleContract.MaximumHighestAddress} (received {address}).");
+        }
+    }
+
+    private static void ValidateSubnetTransmissionSpeedValue(string? value)
+    {
+        if (value is not null && !SubnetLifecycleContract.IsSupportedTransmissionSpeed(value))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                $"SubnetTransmissionSpeed value '{value}' is not supported. Valid values: "
+                + $"{string.Join(", ", SubnetLifecycleContract.TransmissionSpeeds)}.");
+        }
+    }
+
+    /// <summary>
+    /// Shared session/project plumbing for the three subnet lifecycle operations: connects, opens
+    /// the requested project if needed, and requires both <see cref="WorkerTiaPortalSession.TiaPortal"/>
+    /// and <see cref="WorkerTiaPortalSession.Project"/> — the lifecycle service needs the portal handle
+    /// for <c>ExclusiveAccess</c>/<c>Transaction</c>, not just the project.
+    /// </summary>
+    private static WorkerResponse WithSubnetLifecycleProject(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
+    {
+        return WithSession(request, session =>
+        {
+            session.EnsureConnected();
+
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null)
+            {
+                return failure;
+            }
+
+            if (session.Project is null || session.TiaPortal is null)
+            {
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No project or TIA Portal session is available for the subnet lifecycle operation.");
+            }
+
+            return body(session);
+        });
     }
 
     private static WorkerResponse ReadCrossReferences(WorkerRequest request)
