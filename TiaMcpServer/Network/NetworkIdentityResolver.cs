@@ -41,6 +41,9 @@ public static class NetworkIdentityResolver
         {
             "add_network_device" => ResolveCreation(operation),
             "configure_network_device" => ResolveConfiguration(operation, state),
+            "create_subnet" => ResolveSubnetCreation(operation),
+            "update_subnet" => ResolveExistingSubnet(operation, state, validateChanges: true),
+            "delete_subnet" => ResolveExistingSubnet(operation, state, validateChanges: false),
             _ => NetworkIdentityResolution.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"'{operation.Operation}' is not a resolvable network write operation."),
@@ -64,6 +67,114 @@ public static class NetworkIdentityResolver
             SubnetId: null,
             IoSystemName: null,
             IoSystemNumber: null));
+
+    /// <summary>
+    /// A new subnet's <c>subnetId</c> is assigned by Openness at creation time, so, like
+    /// <see cref="ResolveCreation"/>, this is evidenced from the request alone: no hardware state
+    /// is consulted, <see cref="NetworkWriteTargetEvidence.SubnetId"/> stays null, and every
+    /// device-identity member also stays null because a subnet target never has a device identity.
+    /// </summary>
+    private static NetworkIdentityResolution ResolveSubnetCreation(NetworkOperationRequest operation)
+        => NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
+            operation.OperationId,
+            operation.Operation,
+            DeviceName: null,
+            DeviceTypeIdentifier: null,
+            DeviceItemPath: Array.Empty<string>(),
+            NetworkInterfaceName: null,
+            NodeName: null,
+            NodeId: null,
+            SubnetName: operation.Subnet!.Name,
+            SubnetId: null,
+            IoSystemName: null,
+            IoSystemNumber: null));
+
+    /// <summary>
+    /// Resolves <c>update_subnet</c>/<c>delete_subnet</c> targets against
+    /// <see cref="HardwareConfigInfo.Subnets"/>: exactly one element whose nonblank
+    /// <c>SubnetId</c> equals the requested value by <see cref="StringComparison.Ordinal"/>. There
+    /// is no name fallback, no case-insensitive match, and no first-match/index fallback — an
+    /// unreadable or absent identity never satisfies a write selector, and zero or duplicate
+    /// matches fail exactly the same way any other resolver step in this type does.
+    ///
+    /// <para>
+    /// Only the current subnet's own identity and <see cref="SubnetInfo.NetworkType"/> are
+    /// consulted. <see cref="SubnetInfo.ConnectedNodeNames"/> and <see cref="SubnetInfo.IoSystems"/>
+    /// are never read here: connected subnets resolve and remain deletable exactly like
+    /// disconnected ones, because this resolver builds no dependency inventory.
+    /// </para>
+    /// </summary>
+    private static NetworkIdentityResolution ResolveExistingSubnet(
+        NetworkOperationRequest operation,
+        HardwareConfigInfo? state,
+        bool validateChanges)
+    {
+        if (state is null)
+        {
+            return NetworkIdentityResolution.Fail(
+                WorkerFailureCategories.PostconditionFailed,
+                $"Operation '{operation.OperationId}': no hardware snapshot was available to resolve this target.");
+        }
+
+        var target = operation.Target;
+        if (target is null)
+        {
+            // The catalog already requires a target before this runs; fail closed rather than
+            // dereference a null one if it is ever reached anyway.
+            return NetworkIdentityResolution.Fail(
+                WorkerFailureCategories.ValidationError,
+                $"Operation '{operation.OperationId}': 'target' is required to resolve a subnet target.");
+        }
+
+        var prefix = $"Operation '{operation.OperationId}'";
+        var requestedId = target.SubnetId;
+
+        var subnetMatch = MatchExactlyOne(
+            OrEmpty(state.Subnets),
+            subnet => IdentitiesMatch(subnet.SubnetId, requestedId));
+        if (!subnetMatch.IsResolved)
+        {
+            return NetworkIdentityResolution.Fail(
+                WorkerFailureCategories.PostconditionFailed,
+                subnetMatch.IsAmbiguous
+                    ? $"{prefix}: multiple subnets report subnetId '{requestedId}'; subnetId must select exactly one subnet."
+                    : $"{prefix}: no subnet with subnetId '{requestedId}' was found.");
+        }
+
+        var subnet = subnetMatch.Match!;
+        if (!SubnetLifecycleContract.IsSupportedNetworkType(subnet.NetworkType))
+        {
+            return NetworkIdentityResolution.Fail(
+                WorkerFailureCategories.PostconditionFailed,
+                $"{prefix}: subnet '{requestedId}' reports a missing or unsupported network type and cannot be "
+                    + "resolved as a write target.");
+        }
+
+        if (validateChanges
+            && string.Equals(subnet.NetworkType, SubnetLifecycleContract.Ethernet, StringComparison.Ordinal)
+            && operation.SubnetChanges is { } changes
+            && (changes.HighestAddress is not null || changes.TransmissionSpeed is not null))
+        {
+            return NetworkIdentityResolution.Fail(
+                WorkerFailureCategories.ValidationError,
+                $"{prefix}: 'subnetChanges.highestAddress' and 'subnetChanges.transmissionSpeed' are not "
+                    + $"applicable to subnet '{requestedId}', which is network type '{SubnetLifecycleContract.Ethernet}'.");
+        }
+
+        return NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
+            operation.OperationId,
+            operation.Operation,
+            DeviceName: null,
+            DeviceTypeIdentifier: null,
+            DeviceItemPath: Array.Empty<string>(),
+            NetworkInterfaceName: null,
+            NodeName: null,
+            NodeId: null,
+            SubnetName: subnet.Name,
+            SubnetId: subnet.SubnetId,
+            IoSystemName: null,
+            IoSystemNumber: null));
+    }
 
     private static NetworkIdentityResolution ResolveConfiguration(NetworkOperationRequest operation, HardwareConfigInfo? state)
     {

@@ -45,12 +45,14 @@ public static class NetworkSafetySnapshot
     /// the operations is a different target.
     ///
     /// <para>
-    /// Creation operations (<c>add_network_device</c>) never need <paramref name="state"/> — they
-    /// name something that does not exist yet, so <paramref name="state"/> may be <see langword="null"/>
-    /// when a batch contains only creation operations (see <see cref="RequiresHardwareState"/>).
-    /// Any <c>configure_network_device</c> operation requires a non-null <paramref name="state"/>;
-    /// resolution fails closed (<see cref="WorkerFailureCategories.PostconditionFailed"/>) rather than
-    /// guess if it is ever asked to resolve one without state.
+    /// Creation operations (<c>add_network_device</c>, <c>create_subnet</c>) never need
+    /// <paramref name="state"/> — they name something that does not exist yet, so
+    /// <paramref name="state"/> may be <see langword="null"/> when a batch contains only creation
+    /// operations (see <see cref="RequiresHardwareState"/>). Any operation that names an
+    /// already-existing object (<c>configure_network_device</c>, <c>update_subnet</c>,
+    /// <c>delete_subnet</c>) requires a non-null <paramref name="state"/>; resolution fails closed
+    /// (<see cref="WorkerFailureCategories.PostconditionFailed"/>) rather than guess if it is ever
+    /// asked to resolve one without state.
     /// </para>
     /// </summary>
     public static NetworkTargetResolution BuildTargets(
@@ -73,12 +75,27 @@ public static class NetworkSafetySnapshot
     }
 
     /// <summary>
+    /// Operation names whose target evidence can only be resolved against a real hardware
+    /// snapshot — every operation that names an already-existing object. Creation operations
+    /// (<c>add_network_device</c>, <c>create_subnet</c>) are deliberately excluded: they name
+    /// something that does not exist yet, so their evidence is request-derived only.
+    /// </summary>
+    private static readonly IReadOnlySet<string> HardwareStateDependentOperations = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "configure_network_device",
+        "update_subnet",
+        "delete_subnet",
+    };
+
+    /// <summary>
     /// True when resolving this batch's targets needs a hardware snapshot — i.e. it contains at
-    /// least one <c>configure_network_device</c> operation. A purely creation batch can be resolved
-    /// (and its safety-token envelope cheaply checked) without paying for a state read first.
+    /// least one operation that names an already-existing object (<c>configure_network_device</c>,
+    /// <c>update_subnet</c>, or <c>delete_subnet</c>). A batch containing only creation operations
+    /// (<c>add_network_device</c>, <c>create_subnet</c>) can be resolved (and its safety-token
+    /// envelope cheaply checked) without paying for a state read first.
     /// </summary>
     public static bool RequiresHardwareState(IReadOnlyList<NetworkOperationRequest> operations)
-        => operations.Any(operation => string.Equals(operation.Operation, "configure_network_device", StringComparison.Ordinal));
+        => operations.Any(operation => HardwareStateDependentOperations.Contains(operation.Operation));
 
     public static string? ResolveProjectPath(IReadOnlyList<NetworkOperationRequest> operations)
         => operations.FirstOrDefault(operation => !string.IsNullOrWhiteSpace(operation.ProjectPath))?.ProjectPath;
