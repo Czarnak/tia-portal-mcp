@@ -152,4 +152,149 @@ public class NetworkOperationRequestJsonTests
         Assert.False(result.IsValid);
         Assert.Contains("index", result.Error);
     }
+
+    // ------------------------------------------------------------------
+    // Phase 4 subnet lifecycle JSON shape
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void CreateSubnet_EthernetJson_BindsCorrectly()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"create_subnet",
+             "subnet":{"name":"PN/IE_1","networkType":"Ethernet"}}
+            """;
+
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions);
+
+        Assert.NotNull(operation);
+        Assert.Equal("PN/IE_1", operation!.Subnet!.Name);
+        Assert.Equal("Ethernet", operation.Subnet!.NetworkType);
+        Assert.Null(operation.Subnet!.HighestAddress);
+        Assert.Null(operation.Subnet!.TransmissionSpeed);
+    }
+
+    [Fact]
+    public void CreateSubnet_ProfibusJsonWithBothOptionalAttributes_BindsCorrectly()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"create_subnet",
+             "subnet":{"name":"PB_1","networkType":"Profibus","highestAddress":31,"transmissionSpeed":"Baud1500000"}}
+            """;
+
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions);
+
+        Assert.NotNull(operation);
+        Assert.Equal("PB_1", operation!.Subnet!.Name);
+        Assert.Equal("Profibus", operation.Subnet!.NetworkType);
+        Assert.Equal(31, operation.Subnet!.HighestAddress);
+        Assert.Equal("Baud1500000", operation.Subnet!.TransmissionSpeed);
+    }
+
+    [Fact]
+    public void UpdateSubnet_RenameOnlyJson_BindsCorrectly()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"update_subnet",
+             "target":{"kind":"subnet","subnetId":"S1"},
+             "subnetChanges":{"name":"PN/IE_1_Renamed"}}
+            """;
+
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions);
+
+        Assert.NotNull(operation);
+        Assert.Equal("S1", operation!.Target!.SubnetId);
+        Assert.Equal("PN/IE_1_Renamed", operation.SubnetChanges!.Name);
+        Assert.Null(operation.SubnetChanges!.HighestAddress);
+        Assert.Null(operation.SubnetChanges!.TransmissionSpeed);
+    }
+
+    [Fact]
+    public void UpdateSubnet_ProfibusAttributeJson_BindsCorrectly()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"update_subnet",
+             "target":{"kind":"subnet","subnetId":"S1"},
+             "subnetChanges":{"highestAddress":16,"transmissionSpeed":"Baud500000"}}
+            """;
+
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions);
+
+        Assert.NotNull(operation);
+        Assert.Null(operation!.SubnetChanges!.Name);
+        Assert.Equal(16, operation.SubnetChanges!.HighestAddress);
+        Assert.Equal("Baud500000", operation.SubnetChanges!.TransmissionSpeed);
+    }
+
+    [Fact]
+    public void DeleteSubnet_Json_BindsCorrectly()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"delete_subnet",
+             "target":{"kind":"subnet","subnetId":"S1"}}
+            """;
+
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions);
+
+        Assert.NotNull(operation);
+        Assert.Equal("delete_subnet", operation!.Operation);
+        Assert.Equal("S1", operation.Target!.SubnetId);
+    }
+
+    [Fact]
+    public void SubnetDefinition_UnknownNestedMember_IsRejected()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"create_subnet",
+             "subnet":{"name":"PN/IE_1","networkType":"Ethernet","xUnknownField":"x"}}
+            """;
+
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions));
+
+        Assert.Contains("xUnknownField", exception.Message);
+    }
+
+    [Fact]
+    public void SubnetChanges_UnknownNestedMember_IsRejected()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"update_subnet",
+             "target":{"kind":"subnet","subnetId":"S1"},
+             "subnetChanges":{"name":"Renamed","xUnknownField":"x"}}
+            """;
+
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions));
+
+        Assert.Contains("xUnknownField", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("subnet", """{"name":"PN/IE_1","networkType":"Ethernet","subnetId":"S1"}""")]
+    [InlineData("subnetChanges", """{"name":"Renamed","subnetId":"S1"}""")]
+    public void WritableSubnetId_UnderSubnetOrSubnetChanges_IsRejectedAsUnmapped(string field, string nestedJson)
+    {
+        var json = $$"""{"operationId":"op1","operation":"create_subnet","{{field}}":{{nestedJson}}}""";
+
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions));
+
+        Assert.Contains("subnetId", exception.Message);
+    }
+
+    [Fact]
+    public void WritableNetworkType_UnderSubnetChanges_IsRejectedAsUnmapped()
+    {
+        const string json = """
+            {"operationId":"op1","operation":"update_subnet",
+             "target":{"kind":"subnet","subnetId":"S1"},
+             "subnetChanges":{"name":"Renamed","networkType":"Ethernet"}}
+            """;
+
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions));
+
+        Assert.Contains("networkType", exception.Message);
+    }
 }

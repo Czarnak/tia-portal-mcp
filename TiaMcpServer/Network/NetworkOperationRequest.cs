@@ -72,6 +72,16 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
 
     [Description("Attribute names to read on the inspected object. Optional for inspect_network_object; must be non-empty when supplied and must contain at most 200 unique names.")]
     public IReadOnlyList<string>? AttributeNames { get; set; }
+
+    // ------------------------------------------------------------------
+    // Phase 4 subnet lifecycle fields
+    // ------------------------------------------------------------------
+
+    [Description("Definition of the subnet to create. Required by create_subnet.")]
+    public NetworkSubnetDefinition? Subnet { get; set; }
+
+    [Description("Settings to change on the targeted subnet. Required by update_subnet; at least one change must be requested.")]
+    public NetworkSubnetChanges? SubnetChanges { get; set; }
 }
 
 /// <summary>
@@ -194,4 +204,42 @@ public sealed class NetworkIoSystemTarget
 
     [Description("IO system number within that subnet, as reported by read_hardware_config.")]
     public int? Number { get; init; }
+}
+
+/// <summary>
+/// What to create as a new subnet. Deliberately has no writable identifier: a subnet's
+/// <c>subnetId</c> is assigned by Openness at creation time and cannot be dictated by the caller.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class NetworkSubnetDefinition
+{
+    [Description("Name for the new subnet. Required and must be nonblank.")]
+    public string? Name { get; set; }
+
+    [Description("Network type for the new subnet. Required. Valid values: Ethernet, Profibus.")]
+    public string? NetworkType { get; set; }
+
+    [Description("Highest station address (0-126). Applicable only to Profibus subnets; optional even then.")]
+    public int? HighestAddress { get; set; }
+
+    [Description("Bus transmission speed. Applicable only to Profibus subnets; optional even then.")]
+    public string? TransmissionSpeed { get; set; }
+}
+
+/// <summary>
+/// What to change on an existing subnet. Every member is optional; null means no change.
+/// Deliberately has no writable identifier and no <c>networkType</c>: neither can be changed on an
+/// existing subnet through this contract.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class NetworkSubnetChanges
+{
+    [Description("New name for the targeted subnet. Omit to leave it unchanged.")]
+    public string? Name { get; set; }
+
+    [Description("New highest station address (0-126) for the targeted subnet. Omit to leave it unchanged.")]
+    public int? HighestAddress { get; set; }
+
+    [Description("New bus transmission speed for the targeted subnet. Omit to leave it unchanged.")]
+    public string? TransmissionSpeed { get; set; }
 }

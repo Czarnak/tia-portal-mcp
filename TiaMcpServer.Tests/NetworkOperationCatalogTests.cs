@@ -45,6 +45,9 @@ public class NetworkOperationCatalogTests
             ["configure_network_device"] = (NetworkOperationCategory.Write, new[] { "target", "changes" }, Array.Empty<string>()),
             ["list_network_objects"] = (NetworkOperationCategory.Read, new[] { "objectKinds" }, new[] { "deviceName", "pageSize", "cursor" }),
             ["inspect_network_object"] = (NetworkOperationCategory.Read, new[] { "target" }, new[] { "attributeNames" }),
+            ["create_subnet"] = (NetworkOperationCategory.Write, new[] { "subnet" }, Array.Empty<string>()),
+            ["update_subnet"] = (NetworkOperationCategory.Write, new[] { "target", "subnetChanges" }, Array.Empty<string>()),
+            ["delete_subnet"] = (NetworkOperationCategory.Write, new[] { "target" }, Array.Empty<string>()),
         };
 
         var actual = NetworkOperationCatalog.All.ToDictionary(spec => spec.Name, StringComparer.Ordinal);

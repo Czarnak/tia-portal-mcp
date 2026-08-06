@@ -61,6 +61,8 @@ public static class NetworkOperationCatalog
         ("pageSize", operation => operation.PageSize is not null),
         ("cursor", operation => operation.Cursor is not null),
         ("attributeNames", operation => operation.AttributeNames is not null),
+        ("subnet", operation => operation.Subnet is not null),
+        ("subnetChanges", operation => operation.SubnetChanges is not null),
     };
 
     // ---------------------------------------------------------------------------
@@ -255,6 +257,21 @@ public static class NetworkOperationCatalog
             {
                 ValidateConfigureNetworkDevice(operation, errors);
             }
+
+            if (spec.Name == "create_subnet")
+            {
+                ValidateCreateSubnet(operation, errors);
+            }
+
+            if (spec.Name == "update_subnet")
+            {
+                ValidateUpdateSubnet(operation, errors);
+            }
+
+            if (spec.Name == "delete_subnet")
+            {
+                ValidateDeleteSubnet(operation, errors);
+            }
         }
 
         if (expectedCategory == NetworkOperationCategory.Write)
@@ -284,6 +301,8 @@ public static class NetworkOperationCatalog
         "changes" => operation.Changes is not null,
         "objectKinds" => operation.ObjectKinds is not null,
         "attributeNames" => operation.AttributeNames is not null,
+        "subnet" => operation.Subnet is not null,
+        "subnetChanges" => operation.SubnetChanges is not null,
         _ => false,
     };
 
@@ -698,6 +717,152 @@ public static class NetworkOperationCatalog
         }
     }
 
+    /// <summary>
+    /// The rules that make a create_subnet request name a nonblank subnet with a supported network
+    /// type, and reject PROFIBUS-only attributes on an Ethernet subnet. Range and enum checks always
+    /// run; type applicability is create-only because the caller states the type here — on update
+    /// the current type is not yet known to this static validator (see Task 2).
+    /// </summary>
+    private static void ValidateCreateSubnet(NetworkOperationRequest operation, List<string> errors)
+    {
+        if (operation.Subnet is not { } subnet)
+        {
+            return;
+        }
+
+        var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
+
+        if (string.IsNullOrWhiteSpace(subnet.Name))
+        {
+            errors.Add($"{prefix} 'subnet.name' must not be blank.");
+        }
+
+        if (string.IsNullOrWhiteSpace(subnet.NetworkType))
+        {
+            errors.Add(
+                $"{prefix} 'subnet.networkType' is required. Valid values: "
+                + $"{SubnetLifecycleContract.Ethernet}, {SubnetLifecycleContract.Profibus}.");
+        }
+        else if (!SubnetLifecycleContract.IsSupportedNetworkType(subnet.NetworkType))
+        {
+            errors.Add(
+                $"{prefix} 'subnet.networkType' value '{subnet.NetworkType}' is not supported. Valid values: "
+                + $"{SubnetLifecycleContract.Ethernet}, {SubnetLifecycleContract.Profibus}.");
+        }
+        else if (string.Equals(subnet.NetworkType, SubnetLifecycleContract.Ethernet, StringComparison.Ordinal))
+        {
+            if (subnet.HighestAddress is not null)
+            {
+                errors.Add(
+                    $"{prefix} 'subnet.highestAddress' is not applicable for network type '{SubnetLifecycleContract.Ethernet}'.");
+            }
+
+            if (subnet.TransmissionSpeed is not null)
+            {
+                errors.Add(
+                    $"{prefix} 'subnet.transmissionSpeed' is not applicable for network type '{SubnetLifecycleContract.Ethernet}'.");
+            }
+        }
+
+        ValidateHighestAddressRange(subnet.HighestAddress, $"{prefix} 'subnet.highestAddress'", errors);
+        ValidateTransmissionSpeedValue(subnet.TransmissionSpeed, $"{prefix} 'subnet.transmissionSpeed'", errors);
+    }
+
+    /// <summary>
+    /// The rules that make an update_subnet request name exactly one existing subnet and request at
+    /// least one nonblank, in-range, recognised change. Whether a PROFIBUS-only field applies to the
+    /// current subnet's type is not decided here (see Task 2).
+    /// </summary>
+    private static void ValidateUpdateSubnet(NetworkOperationRequest operation, List<string> errors)
+    {
+        var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
+        var changes = operation.SubnetChanges;
+
+        if (changes is not null)
+        {
+            if (changes.Name is not null && string.IsNullOrWhiteSpace(changes.Name))
+            {
+                errors.Add($"{prefix} 'subnetChanges.name' must not be blank when supplied.");
+            }
+
+            if (changes.Name is null && changes.HighestAddress is null && changes.TransmissionSpeed is null)
+            {
+                errors.Add($"{prefix} 'subnetChanges' must request at least one change.");
+            }
+        }
+
+        ValidateSubnetTargetSelector(operation, errors);
+
+        if (changes is not null)
+        {
+            ValidateHighestAddressRange(changes.HighestAddress, $"{prefix} 'subnetChanges.highestAddress'", errors);
+            ValidateTransmissionSpeedValue(changes.TransmissionSpeed, $"{prefix} 'subnetChanges.transmissionSpeed'", errors);
+        }
+    }
+
+    /// <summary>The rules that make a delete_subnet request name exactly one existing subnet.</summary>
+    private static void ValidateDeleteSubnet(NetworkOperationRequest operation, List<string> errors)
+        => ValidateSubnetTargetSelector(operation, errors);
+
+    /// <summary>
+    /// Requires the target to name exactly one subnet: kind absent or exactly 'subnet', a nonblank
+    /// subnetId, and no other selector field. Unlike configure_network_device's 'node' default,
+    /// there is no legacy caller to accommodate here — an explicit non-subnet kind is still rejected
+    /// rather than silently reinterpreted.
+    /// </summary>
+    private static void ValidateSubnetTargetSelector(NetworkOperationRequest operation, List<string> errors)
+    {
+        if (operation.Target is not { } target)
+        {
+            return;
+        }
+
+        var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
+
+        if (target.Kind is not null && !string.Equals(target.Kind, NetworkObjectKinds.Subnet, StringComparison.Ordinal))
+        {
+            errors.Add(
+                $"{prefix} 'target.kind' must be '{NetworkObjectKinds.Subnet}' for {operation.Operation} "
+                + $"(received '{target.Kind}').");
+        }
+
+        if (string.IsNullOrWhiteSpace(target.SubnetId))
+        {
+            errors.Add($"{prefix} 'target.subnetId' must not be blank.");
+        }
+
+        foreach (var (name, isSet) in AllSelectorFields)
+        {
+            if (name == "kind" || name == "subnetId" || !isSet(target))
+            {
+                continue;
+            }
+
+            errors.Add($"{prefix} 'target.{name}' is not applicable for {operation.Operation}.");
+        }
+    }
+
+    private static void ValidateHighestAddressRange(int? value, string fieldPrefix, List<string> errors)
+    {
+        if (value is { } address
+            && (address < SubnetLifecycleContract.MinimumHighestAddress || address > SubnetLifecycleContract.MaximumHighestAddress))
+        {
+            errors.Add(
+                $"{fieldPrefix} must be between {SubnetLifecycleContract.MinimumHighestAddress} and "
+                + $"{SubnetLifecycleContract.MaximumHighestAddress} (received {address}).");
+        }
+    }
+
+    private static void ValidateTransmissionSpeedValue(string? value, string fieldPrefix, List<string> errors)
+    {
+        if (value is not null && !SubnetLifecycleContract.IsSupportedTransmissionSpeed(value))
+        {
+            errors.Add(
+                $"{fieldPrefix} value '{value}' is not supported. Valid values: "
+                + $"{string.Join(", ", SubnetLifecycleContract.TransmissionSpeeds)}.");
+        }
+    }
+
     private static IEnumerable<string> FindInapplicableFields(
         NetworkOperationRequest operation,
         NetworkOperationSpec spec)
@@ -729,6 +894,9 @@ public static class NetworkOperationCatalog
             new NetworkOperationSpec("configure_network_device", NetworkOperationCategory.Write, new[] { "target", "changes" }, None),
             new NetworkOperationSpec("list_network_objects", NetworkOperationCategory.Read, new[] { "objectKinds" }, new[] { "deviceName", "pageSize", "cursor" }),
             new NetworkOperationSpec("inspect_network_object", NetworkOperationCategory.Read, new[] { "target" }, new[] { "attributeNames" }),
+            new NetworkOperationSpec("create_subnet", NetworkOperationCategory.Write, new[] { "subnet" }, None),
+            new NetworkOperationSpec("update_subnet", NetworkOperationCategory.Write, new[] { "target", "subnetChanges" }, None),
+            new NetworkOperationSpec("delete_subnet", NetworkOperationCategory.Write, new[] { "target" }, None),
         };
 
         return specs.ToDictionary(spec => spec.Name, StringComparer.Ordinal);
