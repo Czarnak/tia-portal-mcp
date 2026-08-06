@@ -7,7 +7,16 @@ The measured representative-device query was 66.34% smaller than the full discov
 preserving every matching selector, so the separate `list_network_objects` retention gate passed
 and the operation is retained. See
 [SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md](SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md)
-for the evidence and explicit coverage gaps. Phases 4 and later remain open and are separate,
+for the evidence and explicit coverage gaps.
+
+Phase 4 (Ethernet/PROFIBUS subnet create/update/delete) is implemented and statically verified:
+both the stub and real V21 reference builds pass, the full test suite passes, and a whole-plan
+contract audit against the plan's Locked Public Contract found no discrepancy. Phase 4 is **not**
+live-verified — a separately authorized public-path run against a real TIA Portal V21 project
+(Task 10 of
+`docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md`) is still outstanding. See
+[SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
+for the full contract and evidence status. Phases 5 and later remain open and are separate,
 not-yet-scheduled work.
 
 Phase 2 completion is scoped narrowly: Tasks 1-7 of
@@ -35,8 +44,9 @@ Create a first-class, agent-friendly network engineering surface that:
 - exposes structured JSON that agents can inspect and transform reliably, per the completed
   Phase 2 contract gate below; and
 - exposes the completed Phase 3 snapshot-scoped discovery and typed read-only inspection surface
-  for device items, interfaces, nodes, subnets, IO systems, and communication connections; and
-- leaves subnet lifecycle, IO-system editing, and generic network-attribute writes to later phases.
+  for device items, interfaces, nodes, subnets, IO systems, and communication connections;
+- exposes the completed Phase 4 Ethernet/PROFIBUS subnet create/update/delete operations; and
+- leaves IO-system editing and generic network-attribute writes to later phases.
 
 The current implemented surface remains documented in
 [SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
@@ -158,25 +168,34 @@ did not cover PROFIBUS/DP or non-HMI communication-connection classes. These are
 and selectability limits, not evidence that the corresponding Siemens capabilities are absent.
 This phase does not certify commissioning or live hardware behavior.
 
-### Phase 4: Add First-Class Subnet Lifecycle Operations
+### Phase 4: Add First-Class Subnet Lifecycle Operations — Statically Complete
 
-Add subnet creation, editing, and deletion with type-aware attributes, dependency impact
-in previews, explicit destructive-operation safeguards, and post-write reads. Use an
-Openness transaction where V21 supports the complete operation; otherwise expose partial
-application semantics explicitly.
+Completed: `network_write` adds `create_subnet`, `update_subnet`, and `delete_subnet` without a new
+MCP tool. Scope is Ethernet and PROFIBUS subnets only, selected for update/delete by exact ordinal
+`subnetId` with no name or index fallback. PROFIBUS-only `highestAddress` (0-126) and the closed
+ten-symbol `transmissionSpeed` vocabulary are validated at both the host and worker boundary.
+Deleting a connected subnet is supported and never deletes devices; it does not enumerate dependent
+nodes, IO systems, or communication connections. Each operation runs inside one Openness
+`ExclusiveAccess`/`Transaction`, commits only after every requested setter succeeds, and verifies
+the root device count is unchanged after a post-read. The successful public result is exactly
+`subnetId`, `name`, `networkDeviceCount`, and `networkDeviceCountUnchanged` — never network type,
+changed attribute values, or dependency detail. This phase does not add node connect/disconnect,
+IO-system editing, communication-connection management, integrated PROFIBUS handling, generic
+network-attribute writes, project save, or hardware compile.
 
-Before adding any public tool operation or contract, run two PowerShell probes against disposable
-TIA Portal V21 project copies:
+Design rationale and the evidence basis (a read-only subnet metadata probe and an explicitly
+enabled internal mutation probe, both run against disposable TIA Portal V21 project copies before
+the public contract was settled) are recorded in
+[superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
+The full request/result contract, targeting rules, and current evidence status are documented in
+[SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
-- a read-only subnet metadata probe that records Ethernet and PROFIBUS attribute names, types,
-  access modes, current values, selector identity, and relationships; and
-- an explicitly enabled mutation probe that creates and edits isolated Ethernet and PROFIBUS
-  subnets, deletes both empty and connected subnets, records Openness validation and transaction
-  behavior, and post-reads the project to confirm that subnet deletion does not delete devices.
-
-Write timestamped JSON evidence under the ignored artifact directory. Review that evidence before
-settling the writable attributes, validation rules, transaction boundary, deletion guardrails, or
-postcondition contract. Ordinary tests and CI must never invoke these live probes.
+This mark reflects Tasks 1-9 of
+`docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md` and their automated gates
+(both stub and real V21 reference builds, the full `TiaMcpServer.Tests` suite, and a whole-plan
+contract audit against the plan's Locked Public Contract) passing — not a live TIA Portal V21
+acceptance run. Task 10, the separately authorized public-path live acceptance run, is outstanding
+and is reserved for explicit user authorization; it is not scheduled by this roadmap update.
 
 ### Phase 5: Add IO-System Attribute Editing
 

@@ -198,10 +198,11 @@ directories and remove them in `finally` blocks.
 ## 7. Batch and network execution
 
 `BatchOperationCatalog` and `BatchWorkerInvoker` own only generic batch operations.
-`NetworkOperationCatalog` and `NetworkWorkerInvoker` own the six dedicated network
-operations. Each domain validates against its own request type and catalog before a worker
-invocation; a new worker method belongs to its owning domain catalog and is not implicitly
-a generic batch operation.
+`NetworkOperationCatalog` and `NetworkWorkerInvoker` own the nine dedicated network
+operations, including the Phase 4 subnet lifecycle operations (`create_subnet`,
+`update_subnet`, `delete_subnet`). Each domain validates against its own request type and
+catalog before a worker invocation; a new worker method belongs to its owning domain catalog
+and is not implicitly a generic batch operation.
 
 `OperationBatches` provides request-agnostic shared execution, result formatting, and
 payload-budget infrastructure to both domains. Its network call sites use network-specific
@@ -253,10 +254,11 @@ than inventing a parallel one.
 ### Typed Network payload registry
 
 `TiaMcpServer/Network/NetworkPayloadContract.cs` is the only decoder of Network worker success
-payloads. It maps each of the six network operations to exactly one declared CLR result type
+payloads. It maps each of the nine network operations to exactly one declared CLR result type
 (`HardwareConfigInfo`, `CatalogEntryInfo[]`, `AddDeviceResultInfo`,
-`ConfigureNetworkDeviceResultInfo`, `NetworkObjectListInfo`, and
-`NetworkObjectInspectionInfo`) and rejects anything that does not match — a malformed,
+`ConfigureNetworkDeviceResultInfo`, `NetworkObjectListInfo`, `NetworkObjectInspectionInfo`, and
+`SubnetLifecycleResultInfo` — the last shared by `create_subnet`, `update_subnet`, and
+`delete_subnet`) and rejects anything that does not match — a malformed,
 unknown, wrongly cased, or wrongly typed payload becomes a failed item with category
 `protocol_error` rather than being forwarded under a schema that does not describe it. The
 rejected payload is never echoed back to the caller.
@@ -331,6 +333,70 @@ The worker-only `probe_network_object_attributes` method exists solely for the e
 authorized Phase 3 raw-metadata acceptance mode. It is read-only and absent from
 `NetworkOperationCatalog`, the public MCP schema, and host dispatch.
 
+### Phase 4 subnet lifecycle seam
+
+Phase 4 adds `create_subnet`, `update_subnet`, and `delete_subnet` to `network_write` without a new
+MCP tool, reusing every existing seam described above rather than adding a parallel one:
+
+```text
+network_write request
+  -> strict catalog validation
+  -> current subnet resolution and canonical safety binding
+  -> worker request
+  -> SubnetLifecycleService transaction
+  -> post-read/device-count assertion
+  -> minimal typed canonical result
+```
+
+- **Strict catalog validation** (`TiaMcpServer/Network/NetworkOperationCatalog.cs`): the same
+  deterministic order used by every other network operation — inapplicable fields, missing
+  required fields, nested DTO shape, target selector shape, type applicability, then numeric
+  range/enum value. `NetworkSubnetDefinition` and `NetworkSubnetChanges` are strict nested DTOs
+  with no writable `subnetId` and no writable `networkType` on update.
+- **Current subnet resolution and canonical safety binding**
+  (`TiaMcpServer/Network/NetworkIdentityResolver.cs`, `NetworkSafetySnapshot.cs`): `create_subnet`
+  evidence is request-derived (no hardware read); `update_subnet`/`delete_subnet` evidence is
+  resolved by exact ordinal `subnetId` match against the same `HardwareConfigInfo` snapshot the
+  other network writes use, with no name or index fallback. The resolved
+  `NetworkWriteTargetEvidence` (with `DeviceName` now `string?` so a subnet target need not invent a
+  device identity) is bound into the same `CanonicalWriteSafety` token as every other
+  `network_write` operation — there is no separate subnet-specific token mechanism.
+- **Worker request** (`TiaMcpServer.Contracts/WorkerRequest.cs`,
+  `TiaMcpServer/Worker/OpennessWorkerClient.cs`, `TiaMcpServer/Network/NetworkWorkerInvoker.cs`):
+  production fields `SubnetName`, `SubnetNetworkType`, `SubnetHighestAddress`,
+  `SubnetTransmissionSpeed` (plus the existing `SubnetId` for update/delete) are forwarded through
+  three explicit typed client methods, classified `ProjectMutation` in `OperationPolicyCatalog` and
+  denied in read-only mode before any worker call. These fields are distinct from the `Probe*`
+  fields reserved for the internal mutation-probe evidence fixture; production calls never populate
+  a `Probe*` member.
+- **`SubnetLifecycleService` transaction**
+  (`TiaMcpServer.OpennessWorker/Openness/SubnetLifecycleService.cs`): each of `Create`, `Update`,
+  and `Delete` opens exactly one `ExclusiveAccess`/`Transaction`, performs every requested setter,
+  and calls `CommitOnDispose()` only after every setter succeeds. Subnet lookup is ordinal, exact-one
+  `SubnetId` matching with no fallback to `Name`, index, or connected device. This file is a
+  distinct production implementation from `SubnetLifecycleMutationProbeService`, the internal-only
+  evidence probe behind `probe_subnet_lifecycle_mutations` — the probe is absent from
+  `NetworkOperationCatalog`, the public MCP schema, and host dispatch, exactly like Phase 3's raw
+  metadata probe.
+- **Post-read/device-count assertion**: after the transaction is disposed, the service re-reads the
+  target subnet (or confirms its absence for delete) and re-reads `project.Devices.Count`; any
+  mismatch — including a changed device count — fails with `WorkerFailureCategories.PostconditionFailed`
+  rather than reporting success, and the service never retries automatically.
+- **Minimal typed canonical result** (`TiaMcpServer.Contracts/SubnetLifecycleResultInfo.cs`,
+  registered in `NetworkPayloadContract` for all three operations): exactly `subnetId`, `name`,
+  `networkDeviceCount`, `networkDeviceCountUnchanged`. A payload missing a member, reporting
+  `networkDeviceCountUnchanged:false`, or carrying any extra member is rejected as `protocol_error`
+  before it reaches the caller.
+
+Deleting a connected subnet is supported end to end through this seam and never deletes devices;
+the worker never enumerates dependent nodes, IO systems, or communication connections, and the
+service never calls `Project.Save()` or triggers a hardware compile. Implementation is statically
+verified (both builds, the full test suite, and a whole-plan contract audit against the plan's
+Locked Public Contract); public-path live acceptance against a real TIA Portal V21 project remains
+a separately authorized, outstanding gate. See
+`docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the full contract and evidence
+status.
+
 ## 8. Write safety
 
 Generic batch data writes use a two-tool flow; lifecycle and network writes are
@@ -402,6 +468,18 @@ network write, save, compile, download, or commissioning action, and no automate
 runs the script. `TiaMcpServer.Tests/NetworkPhase3LiveHarnessContractTests.cs` enforces those
 source-level invariants. The completed evidence and remaining live-coverage gaps are recorded in
 `docs/SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md`.
+
+`scripts/live-test-network-phase4-subnets.ps1` is the separately authorized harness for the Phase 4
+subnet lifecycle seam, driving the public `network_read`/`network_write` protocol exactly like the
+Phase 2 harness does. Its default `Inventory` mode is read-only; `Preview` builds the exact
+create/update/delete operations without applying; `Apply` is double-gated behind `-AllowMutation`
+plus an exact acknowledgement string and an explicit disposable `.ap21` project path, and performs
+process cleanup in `finally`. No automated test or CI gate runs the script, and it never calls
+project save or compile. `TiaMcpServer.Tests/NetworkPhase4SubnetLiveHarnessContractTests.cs`
+enforces those source-level invariants by reading the script's own text. The script exists and its
+static contract is verified, but it has not yet been run against a live TIA Portal V21 project —
+see `docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the outstanding public live
+acceptance gate.
 
 ## 11. Keeping this document current
 

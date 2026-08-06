@@ -5,8 +5,17 @@ implemented on the Phase 2 single-layer JSON contract. The separately authorized
 evidence run completed on 2026-08-05, but final stabilization is pending design review because
 only three of eight observed communication connections had complete selectors. Its measurements,
 provenance, retention decision, and coverage limits are recorded in
-[NETWORK_PHASE3_LIVE_ACCEPTANCE.md](NETWORK_PHASE3_LIVE_ACCEPTANCE.md). See
-[../NETWORK_OPERATIONS_ROADMAP.md](../NETWORK_OPERATIONS_ROADMAP.md) for later-phase scope.
+[NETWORK_PHASE3_LIVE_ACCEPTANCE.md](NETWORK_PHASE3_LIVE_ACCEPTANCE.md).
+
+Phase 4 status: Ethernet and PROFIBUS subnet create/update/delete are added to `network_write`
+without a new MCP tool. Implementation is statically verified — both builds, the full test suite,
+and a whole-plan contract audit against the Locked Public Contract pass — but public-path live
+acceptance against a real TIA Portal V21 project is a separately authorized run that has not yet
+been performed. See
+[NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the full request
+shapes, writable values, targeting, deletion semantics, minimal result, and evidence status.
+
+See [../NETWORK_OPERATIONS_ROADMAP.md](../NETWORK_OPERATIONS_ROADMAP.md) for later-phase scope.
 
 ## Supported operations
 
@@ -20,8 +29,13 @@ The MCP provides a bounded device and network-identity surface:
 | `network_read` | `inspect_network_object` | Resolves one exact `target`, verifies its captured identity evidence, and returns modeled and generic attributes. Optional `attributeNames` is case-sensitive, duplicate-free, and limited to 200 names. |
 | `network_write` | `add_network_device` | Creates a device from an exact catalog `typeIdentifier`; requires `deviceName` and accepts optional `deviceItemName`. Flat by design — it names something that does not exist yet. |
 | `network_write` | `configure_network_device` | Configures one exact existing node: `target: { deviceName, nodeId }` plus `changes: { ipAddress?, subnetMask?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }`. |
+| `network_write` | `create_subnet` | Creates a new Ethernet or PROFIBUS subnet from `subnet: { name, networkType, highestAddress?, transmissionSpeed? }`. PROFIBUS-only fields are rejected for Ethernet. |
+| `network_write` | `update_subnet` | Renames or changes PROFIBUS attributes on an existing subnet: `target: { kind: "subnet", subnetId }` plus `subnetChanges` (at least one member). |
+| `network_write` | `delete_subnet` | Deletes an existing subnet by exact `target: { kind: "subnet", subnetId }`. Connected subnets are deletable; devices are never deleted. |
 
 `configure_network_device` is not a general network-editor proxy. Its writable contract is limited to the listed `changes` fields, and every selector is exact — see "Selector resolution" below.
+`create_subnet`, `update_subnet`, and `delete_subnet` are the Phase 4 subnet lifecycle operations,
+detailed in [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
 ### Discovery and inspection requests
 
@@ -231,6 +245,8 @@ and sets `isError:true`.
 
 Zero matches, more than one match, or a candidate whose own identity could not be read (an empty/null identity field) are all treated identically: resolution fails with `postcondition_failed`. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
 
+`update_subnet` and `delete_subnet` targets follow the identical exact, fail-closed rule: `target.subnetId` is matched with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+
 ### Multi-homed example
 
 A PC station (`PC_1`) with two ports — one PLC-facing (`nodeId: "node-plc"`), one database-facing (`nodeId: "node-db"`) — is reconfigured by targeting only the PLC-facing node:
@@ -253,7 +269,7 @@ After preview → confirm → apply, a `network_read` (`read_hardware_config`) p
 `NetworkWrite_MultiHomedFlow_ReadSelectPreviewApplyRead_ChangesOnlySelectedPortAndLeavesTheOtherByteForByteUnchanged`
 in `TiaMcpServer.Tests/NetworkStructuredProtocolTests.cs`. Always perform this explicit post-read after an apply: the write response itself never re-reads or echoes the written value.
 
-## The six typed payload result types
+## The typed payload result types
 
 Every network operation decodes its worker payload against exactly one declared CLR contract in `TiaMcpServer/Network/NetworkPayloadContract.cs`. A payload that does not match its declared contract — malformed, unknown, wrongly cased, wrongly typed, or structurally invalid — becomes a **failed** item with category `protocol_error`; the rejected payload is never echoed back.
 
@@ -265,6 +281,7 @@ Every network operation decodes its worker payload against exactly one declared 
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |
 | `add_network_device` | `AddDeviceResultInfo` | `deviceName`, `rootItemName`, `typeIdentifier`, `warnings[]`. |
 | `configure_network_device` | `ConfigureNetworkDeviceResultInfo` | `deviceName`, `appliedSettings` (map), `skippedSettings` (map), `messages[]`. |
+| `create_subnet`, `update_subnet`, `delete_subnet` | `SubnetLifecycleResultInfo` | Exactly `subnetId`, `name`, `networkDeviceCount`, `networkDeviceCountUnchanged` (must be `true`). All three subnet lifecycle operations share this one result type. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). |
 
 `NodeInfo.NodeId` and `SubnetInfo.SubnetId` are empty strings, and `IoSystemInfo.Number` is `null`, when the engineering system could not report that identity — an empty/null identity must never satisfy a write selector (see "Selector resolution is exact and fail-closed" above).
 
@@ -300,7 +317,6 @@ Network writes are sequential and stop on the first failure. Completed operation
 
 The current surface does not provide:
 
-- First-class subnet creation, deletion, or editing.
 - Node attributes beyond the device-configuration fields listed above.
 - PROFINET IO-system or DP master-system attribute editing.
 - Transfer-area creation or deletion.
@@ -333,6 +349,16 @@ warning remains visible and is not treated as selector or payload drift.
 The Phase 2 read/write harness remains at `scripts/live-test-network-phase2.ps1`. Its `Read`,
 `Preview`, and `Apply` modes require a disposable or backed-up project and separate authorization;
 the Phase 3 read-only authorization does not authorize any Phase 2 write mode.
+
+`scripts/live-test-network-phase4-subnets.ps1` is the separately authorized harness for the Phase 4
+subnet lifecycle operations. Its default `Inventory` mode is read-only; `Preview` constructs the
+exact create/update/delete operations without applying; `Apply` is double-gated behind
+`-AllowMutation` plus an exact acknowledgement string and requires an explicit disposable `.ap21`
+project path. The script exists and its static contract is verified
+(`TiaMcpServer.Tests/NetworkPhase4SubnetLiveHarnessContractTests.cs`), but it has not yet been run
+against a live TIA Portal V21 project; see
+[NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the outstanding
+public live acceptance gate.
 
 ## Future roadmap
 
