@@ -32,6 +32,8 @@ $script:WorkerProcess = $null
 $script:NextRequestId = 0
 $script:NetworkRequestCount = 0
 $script:WorkerRequestCount = 0
+$script:HardwareConfigSource = $null
+$script:HardwareConfigOmission = $null
 $script:SupportedSubnetTypes = @('Ethernet', 'Profibus')
 
 if ($Describe) {
@@ -46,7 +48,10 @@ if ($Describe) {
             'list_network_objects',
             'inspect_network_object'
         )
-        internalWorkerOperations = @('probe_network_object_attributes')
+        internalWorkerOperations = @(
+            'read_hardware_config'
+            'probe_network_object_attributes'
+        )
         evidenceDirectory = 'artifacts/live-network-phase4'
     } | ConvertTo-Json -Compress -Depth 20
     exit 0
@@ -274,6 +279,17 @@ function Connect-McpHost {
     }
 }
 
+function Connect-Worker {
+    if ($null -ne $script:WorkerProcess -and -not $script:WorkerProcess.HasExited) {
+        return
+    }
+
+    $script:WorkerProcess = Start-JsonLineProcess `
+        -Executable $WorkerExecutable `
+        -Arguments @('--access-mode', 'read-only') `
+        -Label 'phase4-subnet-probe-worker'
+}
+
 function Invoke-NetworkRead {
     param([Parameter(Mandatory)] [object[]] $Operations)
 
@@ -301,11 +317,10 @@ function Invoke-NetworkRead {
     $envelope
 }
 
-function Get-SucceededOperationResult {
+function Get-SingleOperationItem {
     param(
         [Parameter(Mandatory)] [object] $Envelope,
-        [Parameter(Mandatory)] [string] $Description,
-        [switch] $AllowOmitted
+        [Parameter(Mandatory)] [string] $Description
     )
 
     if ($null -eq $Envelope.batch -or $null -eq $Envelope.batch.operations) {
@@ -315,10 +330,16 @@ function Get-SucceededOperationResult {
     if ($items.Count -ne 1 -or $null -eq $items[0]) {
         throw "$Description did not return exactly one operation item."
     }
-    $item = $items[0]
-    if ($item.status -eq 'omitted' -and $AllowOmitted) {
-        return $null
-    }
+    $items[0]
+}
+
+function Get-SucceededOperationResult {
+    param(
+        [Parameter(Mandatory)] [object] $Envelope,
+        [Parameter(Mandatory)] [string] $Description
+    )
+
+    $item = Get-SingleOperationItem -Envelope $Envelope -Description $Description
     if ($item.status -ne 'succeeded') {
         $failureJson = $item.failure | ConvertTo-Json -Compress -Depth 20
         throw "$Description failed: $failureJson"
@@ -329,16 +350,47 @@ function Get-SucceededOperationResult {
     $item.result
 }
 
+function Invoke-WorkerHardwareConfig {
+    Connect-Worker
+    Send-JsonLine -Process $script:WorkerProcess -Message @{
+        method = 'read_hardware_config'
+        projectPath = $ProjectPath
+    }
+    $script:WorkerRequestCount++
+    $response = Read-JsonLine -Process $script:WorkerProcess
+    if ($null -eq $response -or -not $response.success) {
+        $failureJson = $response | ConvertTo-Json -Compress -Depth 20
+        throw "Worker hardware configuration read failed: $failureJson"
+    }
+    if ([string]::IsNullOrWhiteSpace($response.payload)) {
+        throw 'Worker hardware configuration read returned no payload.'
+    }
+    $payload = $response.payload | ConvertFrom-Json -Depth 100
+    if ($null -eq $payload) {
+        throw 'Worker hardware configuration read returned a null payload.'
+    }
+    $payload
+}
+
 function Invoke-HardwareConfig {
     $envelope = Invoke-NetworkRead -Operations @(@{
             operationId = 'phase4-hardware'
             operation = 'read_hardware_config'
             projectPath = $ProjectPath
         })
+    $item = Get-SingleOperationItem `
+        -Envelope $envelope `
+        -Description 'Hardware configuration'
+    if ($item.status -eq 'omitted') {
+        $script:HardwareConfigSource = 'workerFallback'
+        $script:HardwareConfigOmission = $item.omission
+        return Invoke-WorkerHardwareConfig
+    }
+
+    $script:HardwareConfigSource = 'networkRead'
     Get-SucceededOperationResult `
         -Envelope $envelope `
-        -Description 'Hardware configuration' `
-        -AllowOmitted
+        -Description 'Hardware configuration'
 }
 
 function Invoke-SubnetDiscoveryPage {
@@ -448,6 +500,8 @@ $evidence = [ordered]@{
     unsupportedSubnetTypes = @()
     subnets = @()
     hardwareConfigAvailable = $false
+    hardwareConfigSource = $null
+    hardwareConfigOmission = $null
     networkRequestCount = 0
     workerRequestCount = 0
     failure = $null
@@ -489,10 +543,7 @@ try {
     }
 
     if ($candidates.Count -gt 0) {
-        $script:WorkerProcess = Start-JsonLineProcess `
-            -Executable $WorkerExecutable `
-            -Arguments @('--access-mode', 'read-only') `
-            -Label 'phase4-subnet-probe-worker'
+        Connect-Worker
     }
     foreach ($candidate in $candidates) {
         $target = $candidate.Summary.selector
@@ -529,6 +580,8 @@ finally {
 
 $evidence.networkRequestCount = $script:NetworkRequestCount
 $evidence.workerRequestCount = $script:WorkerRequestCount
+$evidence.hardwareConfigSource = $script:HardwareConfigSource
+$evidence.hardwareConfigOmission = $script:HardwareConfigOmission
 $artifactRoot = Join-Path $script:RepositoryRoot 'artifacts'
 $artifactRoot = Join-Path $artifactRoot 'live-network-phase4'
 [void] (New-Item -ItemType Directory -Force -Path $artifactRoot)
