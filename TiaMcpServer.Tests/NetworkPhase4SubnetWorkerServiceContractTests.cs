@@ -243,6 +243,26 @@ public class NetworkPhase4SubnetWorkerServiceContractTests
     }
 
     [Fact]
+    public void Service_DeleteNeverFallsBackToAnEmptyNameWhenTheSubnetsOwnNameIsUnreadable()
+    {
+        // The captured Name read for delete_subnet's result must never be silently replaced with
+        // an empty string when it can't be read. NetworkPayloadContract.ValidateSubnetLifecycleResult
+        // rejects a blank Name as a malformed result (protocol_error), which would misreport a
+        // delete that actually committed as "never meaningfully forwarded" instead of the
+        // fail-closed postcondition_failed this asymmetry actually deserves.
+        var deleteBody = ExtractPublicMethodBody(ServiceSource, "Delete");
+
+        Assert.DoesNotContain("capturedName = string.Empty;", deleteBody, StringComparison.Ordinal);
+
+        // The unreadable-name case must feed the same PostconditionFailed guard as every other
+        // fail-closed check in Delete — not be swallowed into a fabricated fallback value.
+        var throwIndex = deleteBody.IndexOf("throw PostconditionFailed(", StringComparison.Ordinal);
+        Assert.True(throwIndex >= 0, "Expected a PostconditionFailed throw in Delete's body.");
+        var guardCondition = deleteBody[..throwIndex];
+        Assert.Matches(new Regex(@"capturedName\s+is\s+null"), guardCondition);
+    }
+
+    [Fact]
     public void Service_NeverTraversesConnectedNodesOrIoSystemsBeforeDeletingASubnet()
     {
         var source = ServiceSource;
