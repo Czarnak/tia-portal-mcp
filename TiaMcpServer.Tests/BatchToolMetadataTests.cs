@@ -182,12 +182,19 @@ public class BatchToolMetadataTests
     }
 
     [Fact]
-    public void NetworkWriteDescription_StatesConnectedSubnetDeletionIsAllowedAndDevicesRemain()
+    public void NetworkWriteDescription_StatesConnectedSubnetDeletionIsAllowedAndScopesTheDeviceCountClaim()
     {
         var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
 
         Assert.Contains("connected nodes is allowed", description);
-        Assert.Contains("devices remain", description);
+        Assert.Contains("does not delete any device", description);
+
+        // The claim must be scoped to what networkDeviceCountUnchanged actually checks (the root
+        // device collection), not overstated as leaving every device untouched — nested device
+        // user group members are outside that count.
+        Assert.Contains("networkDeviceCountUnchanged", description);
+        Assert.Contains("root device count", description);
+        Assert.Contains("device user groups", description);
     }
 
     [Fact]
