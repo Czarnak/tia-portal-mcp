@@ -12,7 +12,7 @@ Design rationale, evidence basis, and rejected alternatives are recorded in
 The full task-by-task implementation plan, including the Locked Public Contract this document
 matches, is at
 [../superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md](../superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md).
-See [../NETWORK_OPERATIONS_ROADMAP.md](../NETWORK_OPERATIONS_ROADMAP.md) for how this phase fits the
+See [../roadmap/network-operations.md](../roadmap/network-operations.md) for how this phase fits the
 overall network roadmap, and
 [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md) for the previously supported
 network operations and the shared canonical JSON contract Phase 4 reuses unchanged.

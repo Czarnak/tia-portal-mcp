@@ -92,3 +92,30 @@ run by an ordinary test or CI job — see `TiaMcpServer.Tests/NetworkLiveHarness
 - **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a generic batch operation; network operations use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
 - Siemens DLLs are **never committed** to the repo or the NuGet package
+
+## Documentation layout
+
+`docs/` is grouped by audience, not by document type:
+
+| Path | Audience |
+| --- | --- |
+| `docs/guides/` | people **using** the server — installation, client configuration, troubleshooting |
+| `docs/development/` | people **building** the server — building, MCP sandbox testing, packaging |
+| `docs/roadmap/` | direction — per-area tactical roadmaps (root `ROADMAP.md` is strategic) |
+| `docs/SupportedOperations/` | per-area operation reference |
+| `docs/ARCHITECTURE.md` | the design; keep current per its own §11 |
+| `docs/IMPROVEMENT_LOG.md` | engineering log — open follow-ups first, completed work at the end |
+| `docs/superpowers/` | **historical** specs, plans, and acceptance reports — not current documentation |
+
+Two rules that keep this from re-rotting:
+
+- **A new document under `docs/` is not complete until it is listed in `docs/README.md`.** That
+  index is the entry point; an unlisted document is unreachable in practice.
+- **`README.md` is also the NuGet package readme**, declared via `<PackageReadmeFile>` in
+  `TiaMcpServer/TiaMcpServer.csproj`. Relative links do not resolve on nuget.org, so every
+  cross-document link in `README.md` must be an absolute
+  `https://github.com/Czarnak/tia-portal-mcp/blob/main/...` URL. Every other document uses
+  relative links.
+
+`README.md` is a landing page: pitch, tool list, write-safety model, architecture summary, quick
+start, and the documentation map. Procedure belongs in `docs/`, not in the README.

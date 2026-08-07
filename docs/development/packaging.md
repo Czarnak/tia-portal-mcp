@@ -1,6 +1,52 @@
-# Installing a local branch build as the `tia-mcp` global tool
+# Packaging and local tool install
 
-## Prerequisites
+How to build the NuGet package from a source checkout and install that local build as the
+`tia-mcp` global tool, plus how to revert to the published version.
+
+## Local Package Build
+
+The package is already published on NuGet. Use this section only when testing package changes locally before publishing a new version.
+
+Create a local tool package:
+
+```powershell
+dotnet pack TiaMcpServer\TiaMcpServer.csproj -c Release
+```
+
+Install from the generated package source:
+
+```powershell
+dotnet tool install -g TiaMcpServer --add-source .\TiaMcpServer\bin\Release
+```
+
+Run the installed server:
+
+```powershell
+tia-mcp
+```
+
+To bind an MCP server process to a specific project, pass `--project` or set `TIA_MCP_PROJECT_PATH`:
+
+```powershell
+tia-mcp --project C:\Projects\Line.ap21
+$env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
+tia-mcp
+```
+
+After the first successful call, the session binds to the worker-reported active project. A later
+project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
+rebind the session, or start a new MCP session for a different customer project. Project-scoped read
+operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
+request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
+or call open_project to switch.` `get_project_status(projectPath)` is read-only and non-binding: it never opens or switches projects, even
+when `projectPath` names a project that is not the one currently open. It is the human-approved Round 5
+deferral from the read-side switching policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
+projects. Use `open_project` for deliberate session switching.
+
+
+## Installing a local branch build as the `tia-mcp` global tool
+
+### Prerequisites
 
 - TIA Portal V21 installed with Openness enabled, so real `Siemens.Engineering*.dll`
   compile references exist at `TiaPortalV21Dir` (defaults to
@@ -10,7 +56,7 @@
   leading `/p:...` MSBuild switches as path-like tokens and drops the `/`, which
   breaks `dotnet pack`'s version overrides silently (MSB1008 or wrong version).
 
-## Steps
+### Steps
 
 1. **Check out the branch/commit you want to test** and make sure the working tree
    is clean (`git status`).
@@ -81,7 +127,7 @@
    client (e.g. Claude Code's `/mcp` reconnect, or restart the client) to pick up
    the new binary, then re-run `open_project` — the previous project binding is gone.
 
-## Reverting to the published version
+### Reverting to the published version
 
 ```powershell
 dotnet tool uninstall -g TiaMcpServer

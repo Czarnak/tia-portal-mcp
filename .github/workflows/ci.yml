@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
     push:
         branches: ["main"]
@@ -7,6 +10,16 @@ on:
         branches: ["main"]
 
 jobs:
+    docs:
+        runs-on: windows-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Verify documentation links
+              shell: pwsh
+              run: ./scripts/verify-doc-links.ps1
+
     build-and-test:
         runs-on: windows-latest
         steps:
