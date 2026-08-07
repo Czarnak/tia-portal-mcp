@@ -311,9 +311,9 @@ public class BatchOperationCatalogTests
         var expected = new Dictionary<string, (BatchOperationCategory Category, IReadOnlyList<string> Required, IReadOnlyList<string> Optional)>
         {
             ["read_cross_references"] = (BatchOperationCategory.Read, none, new[] { "plcName", "filter", "maxResults" }),
-            ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format" }),
+            ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format", "withDependencies" }),
             ["list_tag_tables"] = (BatchOperationCategory.Read, none, new[] { "plcName" }),
-            ["get_type_content"] = (BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format" }),
+            ["get_type_content"] = (BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format", "withDependencies" }),
             ["update_block_logic"] = (BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, new[] { "format" }),
             ["create_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
             ["delete_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),

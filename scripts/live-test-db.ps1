@@ -223,14 +223,20 @@ function Assert-RejectionNamesKind {
     if ($ErrorText -notmatch $Pattern) {
         throw "The rejection does not name the block type. Expected /$Pattern/, got: $ErrorText"
     }
-    if ($ErrorText -notmatch 'not a global data block') {
-        throw "The rejection does not state the global-data-block constraint: $ErrorText"
+    # SourceFormatEligibility's refusal wording changed when format=source was widened to SCL-
+    # language FB/FC/OB (see scripts/live-test-scl.ps1): it no longer says "not a global data
+    # block", since that is no longer the whole story. It always states what format=source IS
+    # available for, so that is the stable substring to assert on instead.
+    if ($ErrorText -notmatch 'format=source is available for global data blocks and SCL-language FB/FC/OB') {
+        throw "The rejection does not state the format=source eligibility constraint: $ErrorText"
     }
 }
 
 <#
 Flattens browse_project_tree into one record per node: { Type, Path }. Used to detect objects that
 appeared or vanished — the stray-write signature that neither the compiler nor a re-export can see.
+
+TWIN: duplicated in scripts/live-test-scl.ps1 (same function name). Edit both or neither.
 #>
 function Get-ProjectNodeIndex {
     $response = Invoke-Worker @{ method = 'browse_project_tree'; projectPath = $ProjectPath }

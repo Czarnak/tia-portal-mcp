@@ -21,7 +21,7 @@ public static class InstallCommand
           --tia-project <path>   Bind to a specific TIA Portal project.
           --server-path <path>   Explicit path to the tia-mcp executable.
           --dry-run              Print the install command without executing.
-          --json                 Emit JSON output (not supported with mimocode).
+          --json                 Emit JSON output.
           --help                 Show this help message and exit.
 
         Exit codes:
@@ -40,7 +40,7 @@ public static class InstallCommand
         => RunAsync(args, new NativeProcessRunner(), Console.Out, Console.Error);
 
     internal static Task<int> RunAsync(string[] args, INativeProcessRunner runner, TextWriter output, TextWriter error)
-        => RunAsync(args, runner, output, error, ExecutableResolver.ResolveServerExecutable, ExecutableResolver.FindClientExecutable);
+        => RunAsync(args, runner, output, error, ExecutableResolver.ResolveServerExecutable, ExecutableResolver.ResolveClientExecutable);
 
     internal static async Task<int> RunAsync(
         string[] args,
@@ -48,7 +48,7 @@ public static class InstallCommand
         TextWriter output,
         TextWriter error,
         Func<string?, string?> resolveServerExe,
-        Func<string, string?> findClientExe)
+        Func<string, ExecutableResolutionResult> resolveClientExe)
     {
         var options = InstallCliParser.Parse(args);
 
@@ -103,7 +103,13 @@ public static class InstallCommand
             var msg = "tia-mcp executable not found. Install it with: dotnet tool install -g TiaMcpServer";
             if (options.Json)
             {
-                output.WriteLine(JsonSerializer.Serialize(new { success = false, client = client.ToString(), error = msg }));
+                output.WriteLine(JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    client = client.ToString(),
+                    errorCode = "tia_mcp_executable_not_found",
+                    message = msg
+                }));
             }
             else
             {
@@ -123,8 +129,8 @@ public static class InstallCommand
 
         var spec = new McpLaunchSpec(options.ServerName, serverExePath, launchArgs);
 
-        // Detect client executable
-        var detection = await installer.DetectAsync(runner, CancellationToken.None);
+        // Detect and resolve client executable
+        var detection = await installer.DetectAsync(resolveClientExe, CancellationToken.None);
         if (!detection.Found)
         {
             if (options.Json)
@@ -133,12 +139,14 @@ public static class InstallCommand
                 {
                     success = false,
                     client = client.ToString(),
-                    error = detection.Error
+                    clientCommand = GetClientCommand(client),
+                    errorCode = "client_not_found",
+                    message = detection.Error
                 }));
             }
             else
             {
-                error.WriteLine($"error: {detection.Error}");
+                error.WriteLine(detection.Error);
             }
 
             return 4;
@@ -152,8 +160,26 @@ public static class InstallCommand
             return 8;
         }
 
-        // Build install command
-        var installCommand = installer.BuildInstallCommand(options, spec);
+        // Build install command and resolve its executable
+        var installCommand = installer.BuildInstallCommand(options, spec, resolveClientExe);
+        var installExeResolution = ResolveInstallExecutable(
+            installCommand.Executable, detection, resolveClientExe);
+        installCommand = installCommand with
+        {
+            ResolvedPath = installExeResolution.ResolvedPath,
+            Kind = installExeResolution.Kind
+        };
+
+        // Build verification command and patch with detected executable
+        var verifyCommand = installer.BuildVerificationCommand(options, spec);
+        if (verifyCommand is not null)
+        {
+            verifyCommand = verifyCommand with
+            {
+                ResolvedPath = detection.ExecutablePath,
+                Kind = detection.Kind
+            };
+        }
 
         // Dry-run: print command and exit
         if (options.DryRun)
@@ -164,17 +190,53 @@ public static class InstallCommand
                 {
                     dryRun = true,
                     client = client.ToString(),
-                    executable = installCommand.Executable,
-                    arguments = installCommand.Arguments,
+                    clientCommand = GetClientCommand(client),
+                    resolvedClientPath = detection.ExecutablePath,
+                    clientExecutableKind = FormatKind(detection.Kind),
+                    serverPath = spec.ExecutablePath,
+                    nativeCommand = FormatCommand(installCommand),
                     interactive = installCommand.Interactive
                 }));
             }
             else
             {
-                output.WriteLine($"[dry-run] Would execute: {installCommand.Executable} {string.Join(" ", installCommand.Arguments)}");
+                output.WriteLine("Dry run: no changes will be made.");
+                output.WriteLine();
+                output.WriteLine($"Client: {FormatClientName(client)}");
+                output.WriteLine($"Client executable:");
+                output.WriteLine($"  {detection.ExecutablePath}");
+
+                if (installCommand.Kind != ExecutableKind.Native)
+                {
+                    var cmdExe = Environment.GetEnvironmentVariable("COMSPEC")
+                        ?? Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.System),
+                            "cmd.exe");
+                    output.WriteLine();
+                    output.WriteLine("Execution method:");
+                    output.WriteLine($"  {Path.GetFileName(cmdExe)} /d /s /c");
+                }
+
+                output.WriteLine();
+                output.WriteLine("Native command:");
+                output.WriteLine($"  {string.Join(" ", FormatCommand(installCommand))}");
+
+                // Print interactive guide for MiMoCode
+                if (installCommand.Interactive)
+                {
+                    output.WriteLine();
+                    PrintInteractiveGuide(output, client, spec, options);
+                }
             }
 
             return 0;
+        }
+
+        // Print interactive guide before launching interactive commands
+        if (installCommand.Interactive)
+        {
+            PrintInteractiveGuide(output, client, spec, options);
+            output.WriteLine();
         }
 
         // Execute install command
@@ -188,6 +250,10 @@ public static class InstallCommand
                 {
                     success = false,
                     client = client.ToString(),
+                    clientCommand = GetClientCommand(client),
+                    resolvedClientPath = detection.ExecutablePath,
+                    clientExecutableKind = FormatKind(detection.Kind),
+                    errorCode = "client_command_failed",
                     serverName = spec.ServerName,
                     accessMode = options.AccessMode,
                     serverPath = spec.ExecutablePath,
@@ -200,6 +266,7 @@ public static class InstallCommand
             else
             {
                 error.WriteLine($"error: Install command failed (exit code {installResult.ExitCode})");
+
                 if (!string.IsNullOrWhiteSpace(installResult.Stderr))
                 {
                     error.WriteLine(installResult.Stderr);
@@ -219,7 +286,6 @@ public static class InstallCommand
         string? verificationStdout = null;
         string? verificationStderr = null;
 
-        var verifyCommand = installer.BuildVerificationCommand(options, spec);
         if (verifyCommand is not null)
         {
             var verifyResult = await runner.RunAsync(verifyCommand, CancellationToken.None);
@@ -235,6 +301,9 @@ public static class InstallCommand
             {
                 success = true,
                 client = client.ToString(),
+                clientCommand = GetClientCommand(client),
+                resolvedClientPath = detection.ExecutablePath,
+                clientExecutableKind = FormatKind(detection.Kind),
                 serverName = spec.ServerName,
                 accessMode = options.AccessMode,
                 serverPath = spec.ExecutablePath,
@@ -267,9 +336,70 @@ public static class InstallCommand
 
     private static string[] FormatCommand(NativeCommand command)
     {
-        var result = new List<string> { command.Executable };
+        var result = new List<string>();
+
+        // Show what will actually be executed
+        if (command.Kind == ExecutableKind.CommandScript || command.Kind == ExecutableKind.BatchScript)
+        {
+            var cmdExe = Environment.GetEnvironmentVariable("COMSPEC")
+                ?? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System),
+                    "cmd.exe");
+            result.Add(Path.GetFileName(cmdExe));
+            result.Add("/d");
+            result.Add("/s");
+            result.Add("/c");
+        }
+
+        result.Add(command.ResolvedPath ?? command.Executable);
         result.AddRange(command.Arguments);
         return result.ToArray();
+    }
+
+    private static ExecutableResolutionResult ResolveInstallExecutable(
+        string installExeName,
+        ClientDetectionResult detection,
+        Func<string, ExecutableResolutionResult> resolveClientExe)
+    {
+        // If the install command uses the same executable as detected, reuse the detection result
+        if (string.Equals(installExeName, detection.ExecutablePath, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(installExeName, Path.GetFileNameWithoutExtension(detection.ExecutablePath), StringComparison.OrdinalIgnoreCase))
+        {
+            return new ExecutableResolutionResult(
+                detection.Found,
+                installExeName,
+                detection.ExecutablePath,
+                detection.Kind,
+                detection.Error);
+        }
+
+        // Different executable (e.g. MiMoCode uses 'claude' for install but detects 'mimo')
+        return resolveClientExe(installExeName);
+    }
+
+    private static void PrintInteractiveGuide(
+        TextWriter output,
+        ClientKind client,
+        McpLaunchSpec spec,
+        InstallOptions options)
+    {
+        output.WriteLine("Interactive mode: follow the prompts below.");
+        output.WriteLine();
+        output.WriteLine("When prompted, enter the following values:");
+        output.WriteLine();
+
+        switch (client)
+        {
+            case ClientKind.MiMoCode:
+                output.WriteLine($"  Server name:     {spec.ServerName}");
+                output.WriteLine($"  Server command:  {spec.ExecutablePath}");
+                output.WriteLine($"  Server args:     --access-mode {options.AccessMode}");
+                output.WriteLine($"  Transport type:  stdio");
+                break;
+            default:
+                output.WriteLine($"  (no guide available for {FormatClientName(client)})");
+                break;
+        }
     }
 
     private static string FormatClientName(ClientKind client) => client switch
@@ -279,5 +409,22 @@ public static class InstallCommand
         ClientKind.OpenCode => "OpenCode",
         ClientKind.MiMoCode => "MiMoCode",
         _ => client.ToString()
+    };
+
+    private static string GetClientCommand(ClientKind client) => client switch
+    {
+        ClientKind.ClaudeCode => "claude",
+        ClientKind.Codex => "codex",
+        ClientKind.OpenCode => "opencode",
+        ClientKind.MiMoCode => "mimo",
+        _ => client.ToString().ToLowerInvariant()
+    };
+
+    private static string FormatKind(ExecutableKind kind) => kind switch
+    {
+        ExecutableKind.Native => "native",
+        ExecutableKind.CommandScript => "command_script",
+        ExecutableKind.BatchScript => "batch_script",
+        _ => kind.ToString().ToLowerInvariant()
     };
 }

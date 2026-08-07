@@ -22,6 +22,9 @@ public class ClientInstallerTests
         return new InstallOptions(true, ClientKind.Codex, "tia-portal", accessMode, project, serverPath, dryRun, json, false, null);
     }
 
+    private static ExecutableResolutionResult DefaultResolve(string exe)
+        => new(true, exe, $@"C:\tools\{exe}.exe", ExecutableKind.Native, null);
+
     [Fact]
     public void ClaudeCode_ReadOnly_BuildsCorrectCommand()
     {
@@ -29,7 +32,7 @@ public class ClientInstallerTests
         var spec = CreateSpec();
         var options = CreateOptions();
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Equal("claude", cmd.Executable);
         Assert.False(cmd.Interactive);
@@ -43,7 +46,7 @@ public class ClientInstallerTests
         var spec = CreateSpec();
         var options = CreateOptions("read-write");
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Equal("claude", cmd.Executable);
         Assert.Contains("--access-mode", cmd.Arguments);
@@ -57,7 +60,7 @@ public class ClientInstallerTests
         var spec = CreateSpec("my-tia-server");
         var options = CreateOptions();
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Contains("my-tia-server", cmd.Arguments);
     }
@@ -69,7 +72,7 @@ public class ClientInstallerTests
         var spec = CreateSpec(project: @"C:\Projects\Line.ap21");
         var options = CreateOptions(project: @"C:\Projects\Line.ap21");
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Contains("--project", cmd.Arguments);
         Assert.Contains(@"C:\Projects\Line.ap21", cmd.Arguments);
@@ -96,7 +99,7 @@ public class ClientInstallerTests
         var spec = CreateSpec();
         var options = CreateOptions();
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Equal("codex", cmd.Executable);
         Assert.False(cmd.Interactive);
@@ -110,7 +113,7 @@ public class ClientInstallerTests
         var spec = CreateSpec();
         var options = CreateOptions("read-write");
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Equal("codex", cmd.Executable);
         Assert.Contains("read-write", cmd.Arguments);
@@ -123,7 +126,7 @@ public class ClientInstallerTests
         var spec = CreateSpec(project: @"C:\Projects\Line.ap21");
         var options = CreateOptions(project: @"C:\Projects\Line.ap21");
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Contains("--project", cmd.Arguments);
         Assert.Contains(@"C:\Projects\Line.ap21", cmd.Arguments);
@@ -150,7 +153,7 @@ public class ClientInstallerTests
         var spec = CreateSpec();
         var options = CreateOptions();
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Equal("opencode", cmd.Executable);
         Assert.False(cmd.Interactive);
@@ -164,7 +167,7 @@ public class ClientInstallerTests
         var spec = CreateSpec(project: @"C:\Projects\Line.ap21");
         var options = CreateOptions(project: @"C:\Projects\Line.ap21");
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Contains("--project", cmd.Arguments);
         Assert.Contains(@"C:\Projects\Line.ap21", cmd.Arguments);
@@ -191,7 +194,10 @@ public class ClientInstallerTests
         var spec = CreateSpec();
         var options = CreateOptions();
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        ExecutableResolutionResult FakeResolve(string exe)
+            => new(true, exe, $@"C:\tools\{exe}.exe", ExecutableKind.Native, null);
+
+        var cmd = installer.BuildInstallCommand(options, spec, FakeResolve);
 
         Assert.Equal("mimo", cmd.Executable);
         Assert.True(cmd.Interactive);
@@ -219,7 +225,7 @@ public class ClientInstallerTests
         var spec = new McpLaunchSpec("tia-portal", @"C:\Program Files\Tools\tia-mcp.exe", new[] { "--access-mode", "read-only" });
         var options = CreateOptions();
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Contains(@"C:\Program Files\Tools\tia-mcp.exe", cmd.Arguments);
     }
@@ -232,7 +238,7 @@ public class ClientInstallerTests
         var spec = CreateSpec(project: projectPath);
         var options = CreateOptions(project: projectPath);
 
-        var cmd = installer.BuildInstallCommand(options, spec);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
 
         Assert.Contains(projectPath, cmd.Arguments);
     }
@@ -273,5 +279,204 @@ public class ClientInstallerTests
     {
         var installer = new MiMoCodeInstaller();
         Assert.Equal(ClientKind.MiMoCode, installer.Client);
+    }
+
+    // --- Adapter integration: DetectAsync uses resolver ---
+
+    [Fact]
+    public async Task ClaudeCode_DetectAsync_WithCmdResolver_ReturnsCmdKind()
+    {
+        var installer = new ClaudeCodeInstaller();
+        ExecutableResolutionResult CmdResolver(string exe)
+            => new(true, exe, @"C:\npm\claude.cmd", ExecutableKind.CommandScript, null);
+
+        var result = await installer.DetectAsync(CmdResolver, CancellationToken.None);
+
+        Assert.True(result.Found);
+        Assert.Equal(@"C:\npm\claude.cmd", result.ExecutablePath);
+        Assert.Equal(ExecutableKind.CommandScript, result.Kind);
+        Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public async Task Codex_DetectAsync_WithExeResolver_ReturnsNativeKind()
+    {
+        var installer = new CodexInstaller();
+        ExecutableResolutionResult ExeResolver(string exe)
+            => new(true, exe, @"C:\tools\codex.exe", ExecutableKind.Native, null);
+
+        var result = await installer.DetectAsync(ExeResolver, CancellationToken.None);
+
+        Assert.True(result.Found);
+        Assert.Equal(@"C:\tools\codex.exe", result.ExecutablePath);
+        Assert.Equal(ExecutableKind.Native, result.Kind);
+    }
+
+    [Fact]
+    public async Task OpenCode_DetectAsync_WithCmdResolver_ReturnsCmdKind()
+    {
+        var installer = new OpenCodeInstaller();
+        ExecutableResolutionResult CmdResolver(string exe)
+            => new(true, exe, @"C:\npm\opencode.cmd", ExecutableKind.CommandScript, null);
+
+        var result = await installer.DetectAsync(CmdResolver, CancellationToken.None);
+
+        Assert.True(result.Found);
+        Assert.Equal(ExecutableKind.CommandScript, result.Kind);
+    }
+
+    [Fact]
+    public async Task MiMoCode_DetectAsync_WithCmdResolver_ReturnsCmdKind()
+    {
+        var installer = new MiMoCodeInstaller();
+        ExecutableResolutionResult CmdResolver(string exe)
+            => new(true, exe, @"C:\npm\mimo.cmd", ExecutableKind.CommandScript, null);
+
+        var result = await installer.DetectAsync(CmdResolver, CancellationToken.None);
+
+        Assert.True(result.Found);
+        Assert.Equal(ExecutableKind.CommandScript, result.Kind);
+    }
+
+    [Fact]
+    public async Task ClaudeCode_DetectAsync_WithNotFoundResolver_ReturnsNotFound()
+    {
+        var installer = new ClaudeCodeInstaller();
+        ExecutableResolutionResult NotFoundResolver(string exe)
+            => new(false, exe, null, ExecutableKind.Native, "not found");
+
+        var result = await installer.DetectAsync(NotFoundResolver, CancellationToken.None);
+
+        Assert.False(result.Found);
+        Assert.NotNull(result.Error);
+        Assert.Contains("Claude Code was not found", result.Error);
+    }
+
+    [Fact]
+    public async Task Codex_DetectAsync_WithNotFoundResolver_ReturnsNotFound()
+    {
+        var installer = new CodexInstaller();
+        ExecutableResolutionResult NotFoundResolver(string exe)
+            => new(false, exe, null, ExecutableKind.Native, "not found");
+
+        var result = await installer.DetectAsync(NotFoundResolver, CancellationToken.None);
+
+        Assert.False(result.Found);
+        Assert.Contains("Codex", result.Error);
+    }
+
+    [Fact]
+    public async Task OpenCode_DetectAsync_WithNotFoundResolver_ReturnsNotFound()
+    {
+        var installer = new OpenCodeInstaller();
+        ExecutableResolutionResult NotFoundResolver(string exe)
+            => new(false, exe, null, ExecutableKind.Native, "not found");
+
+        var result = await installer.DetectAsync(NotFoundResolver, CancellationToken.None);
+
+        Assert.False(result.Found);
+        Assert.Contains("OpenCode", result.Error);
+    }
+
+    [Fact]
+    public async Task MiMoCode_DetectAsync_WithNotFoundResolver_ReturnsNotFound()
+    {
+        var installer = new MiMoCodeInstaller();
+        ExecutableResolutionResult NotFoundResolver(string exe)
+            => new(false, exe, null, ExecutableKind.Native, "not found");
+
+        var result = await installer.DetectAsync(NotFoundResolver, CancellationToken.None);
+
+        Assert.False(result.Found);
+        Assert.Contains("MiMoCode", result.Error);
+    }
+
+    // --- Adapter integration: BuildInstallCommand uses runner with resolved path ---
+
+    [Fact]
+    public async Task ClaudeCode_CmdShim_RunnerUsesComspec()
+    {
+        var installer = new ClaudeCodeInstaller();
+        var spec = CreateSpec();
+        var options = CreateOptions();
+
+        ExecutableResolutionResult CmdResolver(string exe)
+            => new(true, exe, @"C:\npm\claude.cmd", ExecutableKind.CommandScript, null);
+
+        var detection = await installer.DetectAsync(CmdResolver, CancellationToken.None);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
+        cmd = cmd with { ResolvedPath = detection.ExecutablePath, Kind = detection.Kind };
+
+        var (fileName, args) = NativeProcessRunner.BuildProcessArgs(cmd);
+
+        var comspec = Environment.GetEnvironmentVariable("COMSPEC")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+        Assert.Equal(comspec, fileName);
+        Assert.Equal("/d", args[0]);
+        Assert.Equal("/s", args[1]);
+        Assert.Equal("/c", args[2]);
+        Assert.Equal(@"C:\npm\claude.cmd", args[3]);
+    }
+
+    [Fact]
+    public async Task Codex_Exe_RunnerUsesResolvedPath()
+    {
+        var installer = new CodexInstaller();
+        var spec = CreateSpec();
+        var options = CreateOptions();
+
+        ExecutableResolutionResult ExeResolver(string exe)
+            => new(true, exe, @"C:\tools\codex.exe", ExecutableKind.Native, null);
+
+        var detection = await installer.DetectAsync(ExeResolver, CancellationToken.None);
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
+        cmd = cmd with { ResolvedPath = detection.ExecutablePath, Kind = detection.Kind };
+
+        var (fileName, args) = NativeProcessRunner.BuildProcessArgs(cmd);
+
+        Assert.Equal(@"C:\tools\codex.exe", fileName);
+    }
+
+    // --- Regression test: .cmd shim does not cause file-not-found ---
+
+    [Fact]
+    public async Task ClaudeCode_CmdShim_DoesNotFailWithFileNotFound()
+    {
+        // This test reproduces the original bug:
+        // Given: command = "claude", where.exe returns a .cmd path
+        // When: tia-mcp install claude-code
+        // Then: the process runner uses cmd.exe, not the bare "claude" command
+
+        var installer = new ClaudeCodeInstaller();
+        var spec = CreateSpec();
+        var options = CreateOptions();
+
+        ExecutableResolutionResult CmdResolver(string exe)
+            => new(true, exe, @"C:\Users\allan\AppData\Roaming\npm\claude.cmd",
+                   ExecutableKind.CommandScript, null);
+
+        var detection = await installer.DetectAsync(CmdResolver, CancellationToken.None);
+        Assert.True(detection.Found);
+        Assert.Equal(ExecutableKind.CommandScript, detection.Kind);
+
+        var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
+        cmd = cmd with { ResolvedPath = detection.ExecutablePath, Kind = detection.Kind };
+
+        var (fileName, args) = NativeProcessRunner.BuildProcessArgs(cmd);
+
+        // Must use cmd.exe, not "claude" directly
+        var comspec = Environment.GetEnvironmentVariable("COMSPEC")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+        Assert.Equal(comspec, fileName);
+
+        // Script path must be after /c
+        Assert.Equal("/d", args[0]);
+        Assert.Equal("/s", args[1]);
+        Assert.Equal("/c", args[2]);
+        Assert.Equal(@"C:\Users\allan\AppData\Roaming\npm\claude.cmd", args[3]);
+
+        // MCP args follow
+        Assert.Equal("mcp", args[4]);
+        Assert.Equal("add", args[5]);
     }
 }

@@ -1,4 +1,6 @@
 using TiaMcpServer.OperationBatches;
+using System.Text;
+using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.Batch;
 
@@ -15,7 +17,12 @@ public static class BatchSafetySnapshot
 
     public static string DescribeOperation(BatchOperationRequest op) => op.Operation switch
     {
-        "update_block_logic" => $"Update PLC block '{op.BlockPath}'.",
+        // The format decides which pipeline runs and therefore what a failed write can leave
+        // behind, so the preview names it. Omitted format keeps the original wording, because
+        // callers' previews must not change when they did not opt in.
+        "update_block_logic" => string.Equals(op.Format, SourceFormatNames.Source, StringComparison.OrdinalIgnoreCase)
+            ? $"Update PLC block '{op.BlockPath}' from source format."
+            : $"Update PLC block '{op.BlockPath}'.",
         "create_tag_table" => $"Create PLC tag table '{op.TableName}'.",
         "delete_tag_table" => $"Delete PLC tag table '{op.TableName}'.",
         "create_tag" => $"Create PLC tag '{op.Name}' in table '{op.TableName}'.",

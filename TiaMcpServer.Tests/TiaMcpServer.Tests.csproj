@@ -150,10 +150,20 @@
     <None Include="Fixtures\AnalogInputSettings.udt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\AnalogInputSettings.xml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\Simulation_DB.db" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\DamperDigital.scl" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\AnalogInput.scl" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\DamperAnalog.scl" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\nStageHeater.scl" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceTextEncoding.cs"
       Link="Linked\Openness\SourceTextEncoding.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcTypeSourcePreflight.cs"
       Link="Linked\Openness\PlcTypeSourcePreflight.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceDeclarationScanner.cs"
+      Link="Linked\Openness\SourceDeclarationScanner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceFormatEligibility.cs"
+      Link="Linked\Openness\SourceFormatEligibility.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceReadWarnings.cs"
+      Link="Linked\Openness\SourceReadWarnings.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportRouting.cs"
       Link="Linked\Openness\BlockImportRouting.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceWriteWarnings.cs"

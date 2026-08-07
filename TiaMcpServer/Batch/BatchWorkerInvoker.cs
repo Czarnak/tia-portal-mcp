@@ -102,6 +102,7 @@ public static class BatchWorkerInvoker
             case "get_block_content":
                 request.BlockPath = op.BlockPath;
                 request.Format = NormalizeFormat(op);
+                request.WithDependencies = op.WithDependencies;
                 break;
             case "update_block_logic":
                 request.BlockPath = op.BlockPath;
@@ -112,6 +113,7 @@ public static class BatchWorkerInvoker
             case "get_type_content":
                 request.TypePath = op.TypePath;
                 request.Format = NormalizeFormat(op);
+                request.WithDependencies = op.WithDependencies;
                 break;
             case "update_type_content":
                 request.TypePath = op.TypePath;
@@ -141,7 +143,8 @@ public static class BatchWorkerInvoker
     private static Task<WorkerCallResult> InvokeGetBlockContent(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
             () => BuildRequest(op),
-            request => client.GetBlockContentAsync(request.BlockPath!, op.ProjectPath, request.Format));
+            request => client.GetBlockContentAsync(
+                request.BlockPath!, op.ProjectPath, request.Format, request.WithDependencies));
 
     private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
@@ -151,7 +154,8 @@ public static class BatchWorkerInvoker
     private static Task<WorkerCallResult> InvokeGetTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
             () => BuildRequest(op),
-            request => client.GetTypeContentAsync(request.TypePath!, request.Format, op.ProjectPath));
+            request => client.GetTypeContentAsync(
+                request.TypePath!, request.Format, op.ProjectPath, request.WithDependencies));
 
     private static Task<WorkerCallResult> InvokeUpdateTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(

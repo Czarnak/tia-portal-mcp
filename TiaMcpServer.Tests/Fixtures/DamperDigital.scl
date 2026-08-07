@@ -1,0 +1,97 @@
+﻿FUNCTION_BLOCK "DamperDigital"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      "Type" { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;   // 0- open/close; 1- 3 point
+      AutoOpen { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      AutoClose { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Opened { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Closed { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Info { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;   // 0- alarms off
+      Service { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Reset { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      MovementTime { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Time;
+   END_VAR
+
+   VAR_OUTPUT 
+      Open { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Close { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      ErrorNotOpened { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      ErrorNotClosed { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Error2Signals { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+   END_VAR
+
+   VAR_IN_OUT 
+      ManualOpen { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      ManualClose { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+   END_VAR
+
+   VAR 
+      statOpen { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      statClose { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      NotOpened { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      NotClosed { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      ManualOpenEdge { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      ManualCloseEdge { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      NotOpenedTON {InstructionName := 'IEC_TIMER'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : IEC_TIMER;
+      NotClosedTON {InstructionName := 'IEC_TIMER'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : IEC_TIMER;
+      DoubleSignalTON {InstructionName := 'IEC_TIMER'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : IEC_TIMER;
+   END_VAR
+
+
+BEGIN
+	REGION Timers declaration
+	    // Declare timers for alarms
+	     
+	    #NotOpenedTON.TON(IN := #NotOpened AND #Info AND NOT (#NotOpenedTON.Q AND #Reset),
+	                      PT := #MovementTime,
+	                      Q => #ErrorNotOpened);
+	    
+	    #NotClosedTON.TON(IN := #NotClosed AND #Info AND NOT (#NotClosedTON.Q AND #Reset),
+	                      PT := #MovementTime,
+	                      Q => #ErrorNotClosed);
+	    
+	    #DoubleSignalTON.TON(IN := #Opened AND #Closed AND #Info AND NOT (#DoubleSignalTON.Q AND #Reset),
+	                         PT := T#5s,
+	                         Q => #Error2Signals);
+	    
+	END_REGION
+	
+	REGION Outputs
+	    
+	    IF #Service THEN
+	        IF #ManualOpen THEN
+	            IF NOT #ManualOpenEdge THEN
+	                #ManualClose := FALSE;
+	            END_IF;
+	        ELSIF #ManualClose THEN
+	            IF NOT #ManualCloseEdge THEN
+	                #ManualOpen := FALSE;
+	            END_IF;
+	        END_IF;
+	        #ManualOpenEdge := #ManualOpen;
+	        #ManualCloseEdge := #ManualClose;
+	        #statOpen := #ManualOpen AND NOT (#Type OR #ManualClose);
+	        #statClose := #ManualClose;
+	    ELSE
+	        #statOpen := #AutoOpen AND NOT (#Type OR #AutoClose);
+	        #statClose := #AutoClose;
+	    END_IF;
+	    
+	    #Open := #statOpen;
+	    #Close := #statClose;
+	    
+	END_REGION
+	
+	
+	
+	REGION Not opened / closed
+	    
+	    #NotOpened := #Open AND NOT #Opened;
+	    #NotClosed := #Close AND NOT #Closed;
+	    
+	END_REGION
+	
+	
+END_FUNCTION_BLOCK
+

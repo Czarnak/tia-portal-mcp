@@ -47,14 +47,19 @@ public class BatchFieldForwardingTests
         ["dataType"] = "Bool",
         ["depth"] = 7,
         ["maxResults"] = 4242,
-        // format is validated against SourceFormatNames.Allowed (BatchWorkerInvoker.NormalizeFormat
-        // rejects anything else before any worker call), so an arbitrary sentinel string would fail
-        // request construction rather than exercise forwarding.
-        ["format"] = SourceFormatNames.Xml,
     };
 
-    private static object SentinelFor(PropertyInfo property, string fieldName)
+    private static object SentinelFor(PropertyInfo property, string fieldName, string operationName)
     {
+        if (fieldName == "format")
+        {
+            // NormalizeFormat supplies xml for block operations and source for type operations,
+            // so use the opposite valid value to prove the caller supplied it.
+            return operationName is "get_block_content" or "update_block_logic"
+                ? SourceFormatNames.Source
+                : SourceFormatNames.Xml;
+        }
+
         if (ValidatedFieldValues.TryGetValue(fieldName, out var known))
         {
             return known;
@@ -91,7 +96,7 @@ public class BatchFieldForwardingTests
                 ?? throw new InvalidOperationException(
                     $"Spec '{spec.Name}' declares field '{fieldName}' with no matching BatchOperationRequest property.");
 
-            var value = SentinelFor(property, fieldName);
+            var value = SentinelFor(property, fieldName, spec.Name);
             property.SetValue(request, value);
             expected.Add(value);
         }
@@ -154,13 +159,9 @@ public class BatchFieldForwardingTests
         Assert.True(result.Success, result.Error);
 
         var groups = expected.Select(RenderValue).GroupBy(value => value, StringComparer.Ordinal).ToList();
-        var baselinePayload = string.Empty;
-        if (groups.Any(group => group.Count() > 1))
-        {
-            var baselineResult = await BatchWorkerInvoker.InvokeAsync(client, BuildBaseline(spec!));
-            Assert.True(baselineResult.Success, baselineResult.Error);
-            baselinePayload = baselineResult.Payload;
-        }
+        var baselineResult = await BatchWorkerInvoker.InvokeAsync(client, BuildBaseline(spec!));
+        Assert.True(baselineResult.Success, baselineResult.Error);
+        var baselinePayload = baselineResult.Payload;
 
         foreach (var group in groups)
         {

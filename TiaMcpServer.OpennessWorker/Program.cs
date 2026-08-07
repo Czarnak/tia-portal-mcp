@@ -697,9 +697,13 @@ internal static class Program
         }
 
         var format = NormalizeBlockFormat(request.Format);
+        var withDependencies = request.WithDependencies == true;
 
-        return WithProject(request, project => RawPayload(
-            BlockExporter.Export(project, request.BlockPath!, format)));
+        return WithProject(request, project =>
+        {
+            var content = BlockExporter.Export(project, request.BlockPath!, format, withDependencies);
+            return RawPayload(content, SourceReadWarnings.ForExport(withDependencies, format, content));
+        });
     }
 
     private static WorkerResponse UpdateBlockLogic(WorkerRequest request)
@@ -731,9 +735,13 @@ internal static class Program
         }
 
         var format = NormalizeTypeFormat(request.Format);
+        var withDependencies = request.WithDependencies == true;
 
-        return WithProject(request, project => RawPayload(
-            PlcTypeExporter.Export(project, request.TypePath!, format)));
+        return WithProject(request, project =>
+        {
+            var content = PlcTypeExporter.Export(project, request.TypePath!, format, withDependencies);
+            return RawPayload(content, SourceReadWarnings.ForExport(withDependencies, format, content));
+        });
     }
 
     private static WorkerResponse UpdateTypeContent(WorkerRequest request)

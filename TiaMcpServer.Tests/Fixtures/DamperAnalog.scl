@@ -1,0 +1,196 @@
+﻿TYPE "AnalogInputSettings"
+VERSION : 0.1
+   STRUCT
+      Scaling : Struct
+         "Type" : Bool := TRUE;   // 0- multiply, 1 - scale
+         regMin : Int := 0;
+         regMax : Int := 27648;
+         valueMin : Real;
+         valueMax : Real;
+         Multiplier : Real;
+      END_STRUCT;
+      Limits : Struct
+         regMin : Int := -500;
+         regMax : Int := 30000;
+         regAlarmDelay : Time := T#1s;
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+
+TYPE "UDT_Settings"
+VERSION : 0.1
+   STRUCT
+      AlarmDelays : Struct
+         Protection : Time;
+         Communication : Time;
+         DriveFault : Time;
+         LowCurrent : Time;
+         WorkConfirmation : Time;
+         Tank : Time := T#5m;
+         Sensor { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Time;
+      END_STRUCT;
+      Sensors : Struct
+         LiquidLevel : Struct
+            Tank_1 { S7_SetPoint := 'False'} : "AnalogInputSettings";
+            Tank_2 { S7_SetPoint := 'False'} : "AnalogInputSettings";
+         END_STRUCT;
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+
+DATA_BLOCK "HMI_Settings_DB"
+{ DB_Accessible_From_OPC_UA := 'FALSE' ;
+ DB_Accessible_From_Webserver := 'FALSE' ;
+ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+"UDT_Settings"
+
+BEGIN
+
+END_DATA_BLOCK
+
+FUNCTION_BLOCK "DamperAnalog"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      Auto { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Service { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Calibration { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Info { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Reset { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Simulation { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      AutoSP { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      ManualSP { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      CurrentPosition { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Int;
+      CurrentPositionSim { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Int;
+      MovementTime { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Time;
+   END_VAR
+
+   VAR_OUTPUT 
+      Position { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      Setpoint { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      OutReg { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Int;
+      ErrorFeedback { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      ErrorPositioning { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+   END_VAR
+
+   VAR_IN_OUT 
+      ManualMove { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Settings : Struct
+         RegMin : Int;
+         RegMax : Int;
+         PosTolerance : Real;
+      END_STRUCT;
+   END_VAR
+
+   VAR 
+      tempPosInt { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Int;
+      SP { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      CurrentPositionReal { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      ErrorFeedbackIn { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      ErrorPositioningIn { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      CalibrationPrev { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      CalibrationActive { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      CalibrationStep { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Int;
+      ErrorFeedbackTON {InstructionName := 'TON_TIME'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : TON_TIME;
+      CalibrationOpenTON {InstructionName := 'TON_TIME'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : TON_TIME;
+      CalibrationCloseTON {InstructionName := 'TON_TIME'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : TON_TIME;
+   END_VAR
+   VAR RETAIN
+      ErrorPositioningTON {InstructionName := 'TON_TIME'; LibVersion := '1.0'; ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : TON_TIME;
+   END_VAR
+
+   VAR_TEMP 
+      tempAlarmTime : Time;
+   END_VAR
+
+
+BEGIN
+	REGION Alarm handling
+	    #tempAlarmTime := REAL_TO_DINT(DINT_TO_REAL(#MovementTime) * 1.5);
+	    
+	    #ErrorFeedbackTON(IN := #ErrorFeedbackIn,
+	                      PT := "HMI_Settings_DB".AlarmDelays.Sensor);
+	    
+	    #ErrorPositioningTON(IN := #ErrorPositioningIn,
+	                         PT := #tempAlarmTime);
+	    
+	    IF #ErrorPositioningTON.Q THEN
+	        #ErrorPositioning := TRUE;
+	    ELSIF #Reset THEN
+	        #ErrorPositioning := FALSE;
+	    END_IF;
+	    
+	    #ErrorFeedbackIn := (#CurrentPosition < -1000) OR (#CurrentPosition > 30000);
+	    #ErrorPositioningIn := (ABS(#CurrentPositionReal - #AutoSP) > #Settings.PosTolerance) AND #Auto AND #Info AND NOT #CalibrationActive;
+	END_REGION
+	
+	REGION Input processing
+	    IF #Simulation THEN
+	        #tempPosInt := #CurrentPositionSim;
+	    ELSE
+	        #tempPosInt := #CurrentPosition;
+	    END_IF;
+	    
+	    #CurrentPositionReal := SCALE_X_REAL(MIN := 0.0, MAX := 100.0, VALUE := NORM_X(MIN := #Settings.RegMin, MAX := #Settings.RegMax, VALUE := #tempPosInt));
+	END_REGION
+	
+	
+	REGION Calibration
+	    IF #Calibration AND #Service AND NOT #CalibrationPrev AND NOT #CalibrationActive THEN
+	        #CalibrationActive := TRUE;
+	        #CalibrationStep := 10;
+	    END_IF;
+	    
+	    #CalibrationPrev := #Calibration;
+	    
+	    #CalibrationOpenTON(IN := #CalibrationActive AND (#CalibrationStep = 10),
+	                        PT := #MovementTime);
+	    #CalibrationCloseTON(IN := #CalibrationActive AND (#CalibrationStep = 20),
+	                         PT := #MovementTime);
+	    
+	    IF #CalibrationActive THEN
+	        CASE #CalibrationStep OF
+	            10:
+	                IF #CalibrationOpenTON.Q THEN
+	                    #Settings.RegMax := #CurrentPosition;
+	                    #CalibrationStep := 20;
+	                END_IF;
+	            20:
+	                IF #CalibrationCloseTON.Q THEN
+	                    #Settings.RegMin := #CurrentPosition;
+	                    #CalibrationStep := 0;
+	                    #CalibrationActive := FALSE;
+	                END_IF;
+	            ELSE
+	                #CalibrationStep := 0;
+	                #CalibrationActive := FALSE;
+	        END_CASE;
+	    END_IF;
+	END_REGION
+	
+	REGION Output
+	    #ManualMove := #Service AND #ManualMove;
+	    
+	    IF #CalibrationActive THEN
+	        IF #CalibrationStep = 10 THEN
+	            #SP := 100.0;
+	        ELSE
+	            #SP := 0.0;
+	        END_IF;
+	    ELSIF #Auto THEN
+	        #SP := #AutoSP;
+	    ELSIF #ManualMove THEN
+	        #SP := #ManualSP;
+	    END_IF;
+	    
+	    #Position := LIMIT_REAL(MN := 0.0, IN := #CurrentPositionReal, MX := 100.0);
+	    #Setpoint := LIMIT_REAL(MN := 0.0, IN := #SP, MX := 100.0);
+	    
+	    #OutReg := SCALE_X_INT(MIN := 0, MAX := 27648, VALUE := #SP / 100);
+	END_REGION
+	
+END_FUNCTION_BLOCK
+

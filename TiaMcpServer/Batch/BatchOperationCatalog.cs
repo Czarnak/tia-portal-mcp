@@ -279,9 +279,9 @@ public static class BatchOperationCatalog
         {
             // Reads
             new BatchOperationSpec("read_cross_references", BatchOperationCategory.Read, None, new[] { "plcName", "filter", "maxResults" }),
-            new BatchOperationSpec("get_block_content", BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format" }),
+            new BatchOperationSpec("get_block_content", BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format", "withDependencies" }),
             new BatchOperationSpec("list_tag_tables", BatchOperationCategory.Read, None, new[] { "plcName" }),
-            new BatchOperationSpec("get_type_content", BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format" }),
+            new BatchOperationSpec("get_type_content", BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format", "withDependencies" }),
 
             // Data writes
             new BatchOperationSpec("update_block_logic", BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, new[] { "format" }),

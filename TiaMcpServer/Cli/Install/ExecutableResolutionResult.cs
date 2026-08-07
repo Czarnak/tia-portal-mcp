@@ -1,7 +1,8 @@
 namespace TiaMcpServer.Cli.Install;
 
-internal sealed record ClientDetectionResult(
+internal sealed record ExecutableResolutionResult(
     bool Found,
-    string? ExecutablePath,
+    string Command,
+    string? ResolvedPath,
     ExecutableKind Kind,
     string? Error);

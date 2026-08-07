@@ -276,7 +276,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> GetBlockContentAsync(string blockPath, string? projectPath, string? format = null)
+    public Task<WorkerCallResult> GetBlockContentAsync(
+        string blockPath,
+        string? projectPath,
+        string? format = null,
+        bool? withDependencies = null)
     {
         return SendBoundProjectRequestAsync(
             "get_block_content",
@@ -285,6 +289,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.Format = format;
+                request.WithDependencies = withDependencies;
             },
             string.Empty);
     }
@@ -308,7 +313,11 @@ public class OpennessWorkerClient : IDisposable
     /// Reads a PLC data type's exported source. Mirrors <see cref="GetBlockContentAsync"/>: same
     /// <see cref="SendBoundProjectRequestAsync"/> construction, same result handling, no bespoke logic.
     /// </summary>
-    public Task<WorkerCallResult> GetTypeContentAsync(string typePath, string? format, string? projectPath)
+    public Task<WorkerCallResult> GetTypeContentAsync(
+        string typePath,
+        string? format,
+        string? projectPath,
+        bool? withDependencies = null)
     {
         return SendBoundProjectRequestAsync(
             "get_type_content",
@@ -317,6 +326,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.TypePath = typePath;
                 request.Format = format;
+                request.WithDependencies = withDependencies;
             },
             string.Empty);
     }

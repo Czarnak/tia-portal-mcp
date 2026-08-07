@@ -196,7 +196,7 @@ public class InstallCliParserTests
     }
 
     [Fact]
-    public void Parse_MiMoCodeWithJson_ReturnsInvalidWithExit8()
+    public void Parse_MiMoCodeWithJson_ReturnsInvalid()
     {
         var result = InstallCliParser.Parse(new[] { "mimo", "--json" });
 
