@@ -440,7 +440,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // - differs after the first read. A token issued against the first read must be
             // rejected at apply against the SECOND, drifted read via the whole-project
             // current-state hash (state_changed), never via a "different target" mismatch, mirroring
-            // the pure-safety-layer proof in NetworkPhase3SafetySnapshotTests at the full FakeWorker
+            // the pure-safety-layer proof in NetworkIntrospectionSafetySnapshotTests at the full FakeWorker
             // level.
             Respond(ReadMethod(line) == "read_hardware_config"
                 ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(++subnetLifecycleStateDriftReadCount)))
