@@ -48,12 +48,42 @@ dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\
 Every write goes through preview-then-apply. This is non-negotiable.
 
 - **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
-- **Type writes** (`update_type_content`): batch data writes like any other, but strict — the type must already exist and the declared name in `sourceContent` must match the target. Openness would otherwise create a new type from an unrecognized name.
 - **Network writes**: call `network_write` with `confirm=false` and no token to preview, then call the same tool with `confirm=true`, the unchanged ordered operation list, and the returned token
 - **Project lifecycle writes** (`open_project`, `create_project`, etc.): self-previewing — call the tool without `safetyToken` to get a preview + token, then call again with `confirm=true` + the token
 - Safety tokens are single-use, expire in 10 minutes, bound to exact tool name + project path + requested input + current project state
 - Reordering, changing input, or project state changes invalidate the token
 - Successful writes append audit JSONL under `%LOCALAPPDATA%\TiaMcpServer\audit`
+
+## Structured JSON contract rules (Network Phase 2 and beyond)
+
+`network_read`/`network_write` are the first tools on the opt-in canonical JSON contract
+(`TiaMcpServer/Json/CanonicalJson.cs`, `TiaMcpServer/Tools/StructuredToolResult.cs`,
+`TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs`,
+`TiaMcpServer/Safety/CanonicalWriteSafety.cs`). These rules are durable for any future tool that
+migrates onto it — not just Network:
+
+- **Reuse the shared gate.** A new structured tool builds on `StructuredToolResult` /
+  `StructuredOperationBatch` / `CanonicalWriteSafety`; do not hand-roll a parallel canonical-JSON
+  or safety-token mechanism for a new domain.
+- **Text and structured documents are the same document.** A migrated tool's `content` text block
+  and its `structuredContent` come from exactly one `CanonicalJson.Serialize` call. They must
+  never be built from two independent renderings that could drift apart.
+- **Worker success payloads are typed.** A migrated tool declares exactly one CLR result type per
+  operation (see `TiaMcpServer/Network/NetworkPayloadContract.cs` for the pattern) and rejects a
+  payload that does not decode as that type — category `protocol_error` — rather than forwarding
+  worker-shaped data under a schema that does not describe it. The rejected payload is never
+  echoed back.
+- **No nested JSON strings.** A migrated tool's operation results are real JSON objects/arrays
+  under the response document, never an escaped JSON string a caller has to parse a second time.
+  This is exactly the Phase 1 defect Phase 2 removed for Network.
+
+See `docs/ARCHITECTURE.md` §7a for the full seam description and the exact host-to-worker
+selector boundary, and `docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md` for the concrete
+Network contract these rules describe in the abstract.
+
+A separately authorized live-TIA acceptance harness for the Network contract lives at
+`scripts/live-test-network-phase2.ps1` (PowerShell 7, `Read`/`Preview`/`Apply` modes). It is never
+run by an ordinary test or CI job — see `TiaMcpServer.Tests/NetworkLiveHarnessContractTests.cs`.
 
 ## Key conventions
 
