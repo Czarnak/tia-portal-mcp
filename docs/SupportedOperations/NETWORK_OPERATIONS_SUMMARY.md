@@ -15,7 +15,7 @@ been performed. See
 [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the full request
 shapes, writable values, targeting, deletion semantics, minimal result, and evidence status.
 
-See [../NETWORK_OPERATIONS_ROADMAP.md](../NETWORK_OPERATIONS_ROADMAP.md) for later-phase scope.
+See [../roadmap/network-operations.md](../roadmap/network-operations.md) for later-phase scope.
 
 ## Supported operations
 
@@ -363,4 +363,4 @@ public live acceptance gate.
 ## Future roadmap
 
 The approved high-level direction for expanded topology operations beyond this contract is
-documented in [NETWORK_OPERATIONS_ROADMAP.md](../NETWORK_OPERATIONS_ROADMAP.md).
+documented in [network-operations.md](../roadmap/network-operations.md).

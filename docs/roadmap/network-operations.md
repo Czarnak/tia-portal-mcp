@@ -6,7 +6,7 @@ review because only three of eight observed communication connections had comple
 The measured representative-device query was 66.34% smaller than the full discovery result while
 preserving every matching selector, so the separate `list_network_objects` retention gate passed
 and the operation is retained. See
-[SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md](SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md)
+[../SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md](../SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md)
 for the evidence and explicit coverage gaps.
 
 Phase 4 (Ethernet/PROFIBUS subnet create/update/delete) is implemented and statically verified:
@@ -15,7 +15,7 @@ contract audit against the plan's Locked Public Contract found no discrepancy. P
 live-verified — a separately authorized public-path run against a real TIA Portal V21 project
 (Task 10 of
 `docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md`) is still outstanding. See
-[SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
+[../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
 for the full contract and evidence status. Phases 5 and later remain open and are separate,
 not-yet-scheduled work.
 
@@ -49,7 +49,7 @@ Create a first-class, agent-friendly network engineering surface that:
 - leaves IO-system editing and generic network-attribute writes to later phases.
 
 The current implemented surface remains documented in
-[SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
+[../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
 
 ## Approved Public Tool Direction
 
@@ -142,7 +142,7 @@ rejected payload. Results are bounded against the exact response document: an ov
 omitted whole (never substringed) with retry guidance, and the whole document is capped with a
 `batch.truncation` record of what was affected. The exact envelopes, all four Phase 2 typed payload
 result types, and the multi-homed proof are documented in
-[SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
+[../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
 
 This mark reflects Tasks 1-7 and their automated gates (stub build, `dotnet test
 TiaMcpServer.Tests`, FakeWorker protocol tests) passing — not a live TIA Portal V21 acceptance
@@ -186,9 +186,9 @@ network-attribute writes, project save, or hardware compile.
 Design rationale and the evidence basis (a read-only subnet metadata probe and an explicitly
 enabled internal mutation probe, both run against disposable TIA Portal V21 project copies before
 the public contract was settled) are recorded in
-[superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
+[../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
 The full request/result contract, targeting rules, and current evidence status are documented in
-[SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+[../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
 This mark reflects Tasks 1-9 of
 `docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md` and their automated gates

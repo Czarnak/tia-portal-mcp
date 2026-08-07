@@ -1,6 +1,9 @@
-# Improvement Plan — tia-portal-mcp (2026-07-15)
+# Improvement Log — tia-portal-mcp
 
-Consolidated from three parallel reviews (C# correctness, silent-failure hunt, AI-agent usability audit)
+Engineering log for this project, started 2026-07-15. **Open follow-ups come first; completed work
+is grouped at the end.** Entries are kept verbatim as a record of what was found and when.
+
+Originally consolidated from three parallel reviews (C# correctness, silent-failure hunt, AI-agent usability audit)
 plus manual verification of the highest-stakes claims. Test suite at authoring time: 146/146 green
 (pure-logic tests only; no integration coverage of the worker or IPC layer). As of 2026-07-20 the
 suite is 341/341 green and does cover the worker/IPC layer via the fake-worker harness.
@@ -68,19 +71,6 @@ well-designed. The three biggest problems, in order of impact:
 | 3.5b | Inject `WriteSafetyService` via DI instead of the static audit path (registration already exists in `Program.cs`) | host | **DONE 2026-07-20 (Round 4, Task 2).** The tool layer receives the service through DI, so tests inject a temporary audit directory. |
 | 3.6 | `WorkerRequest` god DTO (47 fields): defer full split — flat is a defensible MCP trade-off — but group with `#region` per operation family and add a comment mapping fields→operations | Contracts | documentation — DONE 2026-07-20 |
 
-## Session binding now protects the default case — DONE 2026-07-20 (Round 4)
-
-The chosen fix binds a session from the worker-reported active-project path after its first
-successful call; the worker report is the ground truth. For project-scoped operations, once bound, a
-call that names a different `projectPath` is rejected unless `open_project` uses `forceRebind=true`.
-
-Read-side project-open policy completes the other half of the fix for project-scoped read paths: they
-will not switch the project currently open in TIA Portal. They return: "TIA Portal currently has
-project 'A' open, but this request targets 'B'. Read operations never switch projects. Omit
-projectPath to use the open project, or call open_project to switch." `get_project_status(projectPath)`
-is a known exception deferred to Round 5 because its lifecycle RPC also serves guarded write-state
-probes; do not use it to switch projects. Use `open_project` for a deliberate session switch.
-
 ## Found during live testing against TIA Portal V21 (2026-07-20)
 
 **Pre-Task-2 audit contamination is resolved — DONE via 3.5b (Round 4, Task 2).**
@@ -144,6 +134,49 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
   serialization per budget probe — measure before adopting.
 - **`TiaJson.Presentation.MakeReadOnly()`.** **DONE (Round 4):** presentation serialization options
   are frozen, protecting the safety-token `requestedInputHash` format.
+
+## Deferred / explicitly not planned
+
+- Openness `Transaction` and `ExclusiveAccess` APIs, authentication/authorization-event subscriptions,
+  server-push/long-polling MCP notifications, and exposing `doctor` diagnostics as an MCP-callable tool
+  (it remains CLI-only via `tia-mcp doctor`) — all out of Phase 5 production scope (AC-044); Phase 6+
+  candidates.
+- Splitting `WorkerRequest` into per-operation DTOs (churn > value while the protocol is stable).
+- MCP protocol-level error signaling instead of text results (needs SDK investigation; revisit after 1.1).
+- `NetworkDeviceConfigurator` speculative-reflection "UNVERIFIED SDK CALL" paths: verify against real
+  Openness V21 API on the TIA machine and pin exact method signatures (needs hardware access).
+- **Next round (needs TIA Portal hardware):** forward `externalAccessible`/`externalVisible`/
+  `externalWritable`/`isSafety` on `create_tag` if Openness V21 permits setting them at tag-creation
+  time — Round 4 narrowed this to that single question by making the fields an explicit error
+  instead of a silent drop. Same session should verify the `NetworkDeviceConfigurator`
+  "UNVERIFIED SDK CALL" reflection paths and decide whether `deviceItemName` is meaningful for
+  `configure_network_device`.
+
+## Testing gaps to close alongside
+
+- The fake-worker executable test harness now covers the timeout path and persistent-worker restart logic
+  through `OpennessWorkerClientIntegrationTests` — DONE 2026-07-16. Stderr propagation, malformed JSON,
+  and Win32Exception launch failure are also covered.
+- Batch validation aggregation (0.2) and unknown-property rejection (1.6) are pure-logic → plain xunit.
+- The 146 existing tests are contract/formatting tests; none exercise a worker process.
+
+## Suggested sequencing
+
+Phase 0 → 1.2 + 1.6 (the two false-success traps) → 2.2 (one-line concurrency guard) → rest of
+Phase 1 → 2.1 persistent worker → 2.3 payload bounds → 2.4 tool collapse → Phase 3 opportunistically
+alongside whichever files each phase already touches.
+## Session binding now protects the default case — DONE 2026-07-20 (Round 4)
+
+The chosen fix binds a session from the worker-reported active-project path after its first
+successful call; the worker report is the ground truth. For project-scoped operations, once bound, a
+call that names a different `projectPath` is rejected unless `open_project` uses `forceRebind=true`.
+
+Read-side project-open policy completes the other half of the fix for project-scoped read paths: they
+will not switch the project currently open in TIA Portal. They return: "TIA Portal currently has
+project 'A' open, but this request targets 'B'. Read operations never switch projects. Omit
+projectPath to use the open project, or call open_project to switch." `get_project_status(projectPath)`
+is a known exception deferred to Round 5 because its lifecycle RPC also serves guarded write-state
+probes; do not use it to switch projects. Use `open_project` for a deliberate session switch.
 
 ## Read-side project-open policy — DONE 2026-07-20 (Round 4)
 
@@ -298,34 +331,3 @@ ten-tool public surface, self-previewing lifecycle writes, non-binding status re
 `save_project_as(rebind:true)`, categorized failures, separate warnings, and verified block-write
 behavior. The installed plugin cache was not modified. The Phase 5 exit still requires the Plan 4
 graph/review and final automated acceptance gates; Phase 6 exclusions below remain unchanged.
-
-## Deferred / explicitly not planned
-
-- Openness `Transaction` and `ExclusiveAccess` APIs, authentication/authorization-event subscriptions,
-  server-push/long-polling MCP notifications, and exposing `doctor` diagnostics as an MCP-callable tool
-  (it remains CLI-only via `tia-mcp doctor`) — all out of Phase 5 production scope (AC-044); Phase 6+
-  candidates.
-- Splitting `WorkerRequest` into per-operation DTOs (churn > value while the protocol is stable).
-- MCP protocol-level error signaling instead of text results (needs SDK investigation; revisit after 1.1).
-- `NetworkDeviceConfigurator` speculative-reflection "UNVERIFIED SDK CALL" paths: verify against real
-  Openness V21 API on the TIA machine and pin exact method signatures (needs hardware access).
-- **Next round (needs TIA Portal hardware):** forward `externalAccessible`/`externalVisible`/
-  `externalWritable`/`isSafety` on `create_tag` if Openness V21 permits setting them at tag-creation
-  time — Round 4 narrowed this to that single question by making the fields an explicit error
-  instead of a silent drop. Same session should verify the `NetworkDeviceConfigurator`
-  "UNVERIFIED SDK CALL" reflection paths and decide whether `deviceItemName` is meaningful for
-  `configure_network_device`.
-
-## Testing gaps to close alongside
-
-- The fake-worker executable test harness now covers the timeout path and persistent-worker restart logic
-  through `OpennessWorkerClientIntegrationTests` — DONE 2026-07-16. Stderr propagation, malformed JSON,
-  and Win32Exception launch failure are also covered.
-- Batch validation aggregation (0.2) and unknown-property rejection (1.6) are pure-logic → plain xunit.
-- The 146 existing tests are contract/formatting tests; none exercise a worker process.
-
-## Suggested sequencing
-
-Phase 0 → 1.2 + 1.6 (the two false-success traps) → 2.2 (one-line concurrency guard) → rest of
-Phase 1 → 2.1 persistent worker → 2.3 payload bounds → 2.4 tool collapse → Phase 3 opportunistically
-alongside whichever files each phase already touches.

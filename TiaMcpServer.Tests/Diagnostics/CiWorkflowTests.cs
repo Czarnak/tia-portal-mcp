@@ -129,20 +129,20 @@ public class CiWorkflowTests
     }
 
     /// <summary>
-    /// README-side counterpart to <see cref="EverySolutionBuild_IsSerialized"/>: the "Build From
-    /// Source" section is a human-facing copy of the same command and can drift independently of
-    /// the CI workflow files. Reuses <see cref="SingleNodeBuildFlagPattern"/> so both surfaces are
-    /// held to the exact same token-boundary standard (no false-positive match on "-m:10").
+    /// Documentation-side counterpart to <see cref="EverySolutionBuild_IsSerialized"/>: the "Build
+    /// From Source" section is a human-facing copy of the same command and can drift independently
+    /// of the CI workflow files. Reuses <see cref="SingleNodeBuildFlagPattern"/> so both surfaces
+    /// are held to the exact same token-boundary standard (no false-positive match on "-m:10").
     /// </summary>
     [Fact]
-    public void Readme_BuildFromSourceCommand_ContainsSingleNodeBuildFlag()
+    public void BuildingDoc_BuildFromSourceCommand_ContainsSingleNodeBuildFlag()
     {
-        var readmePath = Path.Combine(GetRepositoryRoot(), "README.md");
-        Assert.True(File.Exists(readmePath), $"Expected README.md to exist at {readmePath}");
+        var readmePath = Path.Combine(GetRepositoryRoot(), "docs", "development", "building.md");
+        Assert.True(File.Exists(readmePath), $"Expected building.md to exist at {readmePath}");
 
         var readmeText = File.ReadAllText(readmePath);
         var headingIndex = readmeText.IndexOf("## Build From Source", StringComparison.Ordinal);
-        Assert.True(headingIndex >= 0, "Expected README.md to contain a 'Build From Source' section.");
+        Assert.True(headingIndex >= 0, "Expected docs/development/building.md to contain a 'Build From Source' section.");
 
         var nextHeadingIndex = readmeText.IndexOf("\n## ", headingIndex + 1, StringComparison.Ordinal);
         var sectionLength = nextHeadingIndex >= 0 ? nextHeadingIndex - headingIndex : readmeText.Length - headingIndex;
@@ -164,15 +164,15 @@ public class CiWorkflowTests
     /// Pins that <c>get_project_status</c> is documented as read-only/non-binding and that
     /// deliberate project switching is documented exclusively through <c>open_project</c> - never
     /// as something achievable by calling <c>get_project_status</c> with a different path. Guards
-    /// against the README regressing to instructing side-effecting status-based switching.
+    /// against the installation guide regressing to instructing side-effecting status-based switching.
     /// </summary>
     [Fact]
-    public void Readme_DescribesGetProjectStatusAsReadOnlyNonBindingAndSwitchingThroughOpenProject()
+    public void InstallationDoc_DescribesGetProjectStatusAsReadOnlyNonBindingAndSwitchingThroughOpenProject()
     {
-        var readmePath = Path.Combine(GetRepositoryRoot(), "README.md");
-        Assert.True(File.Exists(readmePath), $"Expected README.md to exist at {readmePath}");
+        var readmePath = Path.Combine(GetRepositoryRoot(), "docs", "guides", "installation.md");
+        Assert.True(File.Exists(readmePath), $"Expected installation.md to exist at {readmePath}");
 
-        // The README hard-wraps some paragraphs at ~120 columns, so a phrase spanning a wrap point
+        // The document hard-wraps some paragraphs at ~120 columns, so a phrase spanning a wrap point
         // would contain a newline where this assertion expects a space. Collapse all whitespace runs
         // (including line breaks) to a single space first so the check is resilient to rewrapping.
         var normalizedReadmeText = Regex.Replace(File.ReadAllText(readmePath), @"\s+", " ");
@@ -186,10 +186,10 @@ public class CiWorkflowTests
     }
 
     [Fact]
-    public void Readme_DescribesLiveVerifiedBlockWritesWithoutAPendingCaveat()
+    public void TroubleshootingDoc_DescribesLiveVerifiedBlockWritesWithoutAPendingCaveat()
     {
-        var readmePath = Path.Combine(GetRepositoryRoot(), "README.md");
-        Assert.True(File.Exists(readmePath), $"Expected README.md to exist at {readmePath}");
+        var readmePath = Path.Combine(GetRepositoryRoot(), "docs", "guides", "troubleshooting.md");
+        Assert.True(File.Exists(readmePath), $"Expected troubleshooting.md to exist at {readmePath}");
 
         var normalizedReadmeText = Regex.Replace(File.ReadAllText(readmePath), @"\s+", " ");
 

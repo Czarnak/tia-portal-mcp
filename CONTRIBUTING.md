@@ -1,6 +1,8 @@
 # Contributing
 
-Contributions are welcome. For background on the project architecture and build process, see [AGENTS.md](AGENTS.md) and the README's Architecture and Build sections.
+Contributions are welcome. For background, see [AGENTS.md](AGENTS.md) for build and convention
+reference, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design, and the
+[documentation index](docs/README.md) for everything else.
 
 ## Before you start
 
@@ -35,6 +37,10 @@ dotnet test TiaMcpServer.sln
 
 Tests use xUnit and do not require TIA Portal installed (they run against the stub build). No mocking libraries are used; fakes are hand-written implementations of service interfaces.
 
+For coverage reporting, stub vs. real TIA reference selection, and running the server locally from
+a source checkout, see [docs/development/building.md](docs/development/building.md). For the MCP
+Inspector test loop, see [docs/development/local-mcp-testing.md](docs/development/local-mcp-testing.md).
+
 ## Making changes
 
 ### Branch and focus
@@ -46,6 +52,20 @@ Tests use xUnit and do not require TIA Portal installed (they run against the st
   - Keep functions small (<50 lines) and files focused (<800 lines).
   - Test files follow the naming pattern `{ClassUnderTest}Tests.cs` in namespace `TiaMcpServer.Tests`.
   - No mocking libraries; write fakes by hand.
+
+### Documentation
+
+Documents under `docs/` are grouped by audience: `guides/` for people using the server,
+`development/` for people building it, `roadmap/` for direction. `docs/superpowers/` is historical
+process material and is not current documentation.
+
+**A new document under `docs/` is not complete until it is listed in
+[docs/README.md](docs/README.md).** That index is the only thing keeping the tree navigable — an
+unlisted document is one nobody will find.
+
+`README.md` is also the NuGet package readme, where relative links do not resolve. Every
+cross-document link in `README.md` must be an absolute
+`https://github.com/Czarnak/tia-portal-mcp/blob/main/...` URL. All other documents use relative links.
 
 ## Commit messages
 

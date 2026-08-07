@@ -125,7 +125,7 @@ Observations:
   UDT-level tool — that prerequisite is done.
 - **`BlockSourceGenerator` only emits XML today**, including an intentionally empty
   `<NetworkSource />` for SCL/STL compile units (a schema-valid placeholder, not real SCL text —
-  see the block-write-format-repair note in `docs/IMPROVEMENT_PLAN.md`). A `.scl`-default path
+  see the block-write-format-repair note in `docs/IMPROVEMENT_LOG.md`). A `.scl`-default path
   needs real SCL text generation/parsing, not this placeholder.
 - **`BlockImportRouting` already supports a no-XML bundle** (routes to `ImportFromDocuments`), but
   that path is currently only exercised as a fallback, not verified as the primary, default-driving

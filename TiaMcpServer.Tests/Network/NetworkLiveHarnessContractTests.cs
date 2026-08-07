@@ -6,7 +6,7 @@ namespace TiaMcpServer.Tests.Network;
 /// <summary>
 /// Static, execution-free contract tests for <c>scripts/live-test-network-phase2.ps1</c> — the
 /// separately authorized live-TIA MCP-protocol acceptance harness for the Network Operations
-/// Phase 2 JSON contract (see <c>docs/NETWORK_OPERATIONS_ROADMAP.md</c> and the Global
+/// Phase 2 JSON contract (see <c>docs/roadmap/network-operations.md</c> and the Global
 /// Constraints of <c>docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md</c>).
 ///
 /// <para>
