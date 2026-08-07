@@ -226,10 +226,13 @@ public class NetworkSubnetLifecycleLiveHarnessScriptTests
     {
         var text = ReadScript();
 
-        var tryIndex = text.IndexOf("$evidence = $null\ntry {", StringComparison.Ordinal);
-        Assert.True(tryIndex >= 0, "Expected the main dispatch to be wrapped in a try block.");
-        var finallyIndex = text.IndexOf("finally {\n    Stop-McpHost\n}", StringComparison.Ordinal);
-        Assert.True(finallyIndex > tryIndex, "Expected Stop-McpHost inside a finally block after the main try.");
+        var tryMatch = Regex.Match(text, @"\$evidence = \$null\r?\ntry \{");
+        Assert.True(tryMatch.Success, "Expected the main dispatch to be wrapped in a try block.");
+        var finallyMatch = Regex.Match(text, @"finally \{\r?\n {4}Stop-McpHost\r?\n\}");
+        Assert.True(finallyMatch.Success, "Expected Stop-McpHost inside a finally block after the main try.");
+        Assert.True(
+            finallyMatch.Index > tryMatch.Index,
+            "Expected Stop-McpHost inside a finally block after the main try.");
     }
 
     [Fact]
