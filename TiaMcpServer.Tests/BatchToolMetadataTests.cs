@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using Xunit;
 
@@ -154,19 +155,114 @@ public class BatchToolMetadataTests
         }
     }
 
+    [Fact]
+    public void GenericBatchDescriptions_OmitDedicatedNetworkOperations()
+    {
+        var descriptions = new[]
+        {
+            MethodDescription(typeof(BatchTools), "ExecuteReadBatch"),
+            MethodDescription(typeof(BatchTools), "PreviewWriteBatch"),
+            MethodDescription(typeof(BatchTools), "ApplyWriteBatch"),
+            MethodDescription(typeof(ReadBatchTools), "ExecuteReadBatch"),
+            MethodDescription(typeof(WriteBatchTools), "PreviewWriteBatch"),
+            MethodDescription(typeof(WriteBatchTools), "ApplyWriteBatch"),
+            PropertyDescription(nameof(BatchOperationRequest.Operation)),
+        };
+
+        foreach (var description in descriptions)
+        {
+            Assert.DoesNotContain("read_hardware_config", description);
+            Assert.DoesNotContain("search_equipment_catalog", description);
+            Assert.DoesNotContain("add_network_device", description);
+            Assert.DoesNotContain("configure_network_device", description);
+            Assert.DoesNotContain("create_subnet", description);
+            Assert.DoesNotContain("update_subnet", description);
+            Assert.DoesNotContain("delete_subnet", description);
+        }
+    }
+
+    [Fact]
+    public void NetworkWriteDescription_StatesConnectedSubnetDeletionIsAllowedAndScopesTheDeviceCountClaim()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+
+        Assert.Contains("connected nodes is allowed", description);
+        Assert.Contains("does not delete any device", description);
+
+        // The claim must be scoped to what networkDeviceCountUnchanged actually checks (the root
+        // device collection), not overstated as leaving every device untouched — nested device
+        // user group members are outside that count.
+        Assert.Contains("networkDeviceCountUnchanged", description);
+        Assert.Contains("root device count", description);
+        Assert.Contains("device user groups", description);
+    }
+
+    [Fact]
+    public void NetworkWriteDescription_StatesNoBatchWideRollbackAndSeparateSaveAndCompile()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+
+        Assert.Contains("No batch-wide rollback", description);
+        Assert.Contains("never saves the project or compiles it", description);
+        Assert.Contains("save_project", description);
+        Assert.Contains("compile_check", description);
+        Assert.Contains("separately", description);
+    }
+
+    [Fact]
+    public void NetworkWriteDescription_OmitsDependencyInventoryAndConnectionAndDeviceDeletionWording()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+
+        Assert.DoesNotContain("dependency inventory", description, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("connection deletion", description, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("device deletion", description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NetworkReadDescription_DoesNotAdvertiseSubnetLifecycleWrites()
+    {
+        var description = MethodDescription(typeof(NetworkReadTools), "NetworkRead");
+
+        Assert.DoesNotContain("create_subnet", description);
+        Assert.DoesNotContain("update_subnet", description);
+        Assert.DoesNotContain("delete_subnet", description);
+        foreach (var operation in NetworkOperationCatalog.WriteOperationNames)
+        {
+            Assert.DoesNotContain(operation, description);
+        }
+    }
+
+    [Fact]
+    public void NetworkReadDescription_ListsEveryNetworkReadOperation()
+    {
+        var description = MethodDescription(typeof(NetworkReadTools), "NetworkRead");
+        foreach (var operation in NetworkOperationCatalog.ReadOperationNames)
+        {
+            Assert.Contains(operation, description);
+        }
+    }
+
+    [Fact]
+    public void NetworkWriteDescription_ListsEveryNetworkWriteOperation()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+        foreach (var operation in NetworkOperationCatalog.WriteOperationNames)
+        {
+            Assert.Contains(operation, description);
+        }
+    }
+
     [Theory]
     [InlineData(nameof(BatchOperationRequest.OperationId))]
     [InlineData(nameof(BatchOperationRequest.Operation))]
     [InlineData(nameof(BatchOperationRequest.ProjectPath))]
     [InlineData(nameof(BatchOperationRequest.BlockPath))]
     [InlineData(nameof(BatchOperationRequest.YamlContent))]
-    [InlineData(nameof(BatchOperationRequest.Query))]
     [InlineData(nameof(BatchOperationRequest.TableName))]
     [InlineData(nameof(BatchOperationRequest.Name))]
     [InlineData(nameof(BatchOperationRequest.DataType))]
     [InlineData(nameof(BatchOperationRequest.Value))]
-    [InlineData(nameof(BatchOperationRequest.TypeIdentifier))]
-    [InlineData(nameof(BatchOperationRequest.DeviceName))]
     public void KeyRequestFieldsHaveDescriptions(string propertyName)
     {
         var property = typeof(BatchOperationRequest).GetProperty(propertyName);

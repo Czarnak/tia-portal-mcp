@@ -104,6 +104,35 @@ public class ReadOnlyModeHardeningTests
         Assert.True(WorkerOperationAuthorization.AllowsTiaConfirmations(McpAccessMode.ReadWrite));
     }
 
+    /// <summary>
+    /// The worker is the final defense layer even if a raw request bypasses the host's own
+    /// pre-snapshot access check (see NetworkOperationCatalog.ValidateAccessMode /
+    /// NetworkToolsTests.NetworkWrite_ReadOnlyDefenseRejectsBeforeSnapshot for that host-side
+    /// gate). This asserts the three Phase 4 subnet lifecycle operations are denied by this
+    /// worker-side gate too, before any Openness call would run.
+    /// </summary>
+    [Theory]
+    [InlineData("create_subnet")]
+    [InlineData("update_subnet")]
+    [InlineData("delete_subnet")]
+    public void WorkerAuthorization_DeniesSubnetLifecycleOperationsInReadOnlyMode(string operation)
+    {
+        var response = WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, operation);
+
+        Assert.NotNull(response);
+        Assert.False(response!.Success);
+        Assert.Equal(WorkerFailureCategories.AccessDenied, response.FailureCategory);
+    }
+
+    [Theory]
+    [InlineData("create_subnet")]
+    [InlineData("update_subnet")]
+    [InlineData("delete_subnet")]
+    public void WorkerAuthorization_AllowsSubnetLifecycleOperationsInReadWriteMode(string operation)
+    {
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, operation));
+    }
+
     [Fact]
     public void DoctorCliParser_ReadOnlyAlias_ReportsReadOnlyMode()
     {

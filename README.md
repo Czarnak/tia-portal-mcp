@@ -16,29 +16,38 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server currently exposes 12 tools in read-write mode and 3 tools in read-only mode.
+The server currently exposes 14 tools in read-write mode and 4 tools in read-only mode.
 
 ### Batch operations
 
-- `execute_read_batch` - run up to 50 read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others. Bound `search_equipment_catalog` and `read_cross_references` with `maxResults`; oversized batch responses are truncated or omitted server-side with explicit markers.
-- `preview_write_batch` / `apply_write_batch` - preview up to 50 write operations and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Batches cover data writes (block, tag table, tag, user constant, network device); project-lifecycle operations stay single-tool only.
+- `execute_read_batch` - run up to 50 retained generic read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others. Bound `read_cross_references` with `maxResults`; oversized batch responses are truncated or omitted server-side with explicit markers.
+- `preview_write_batch` / `apply_write_batch` - preview up to 50 retained generic data writes and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Project-lifecycle and network writes stay dedicated.
 
-The batch tools are the only path for data operations. Each `operation` name (e.g. `get_block_content`, `list_tag_tables`, `create_tag`, `update_block_logic`, `add_network_device`) carries that operation's parameters as one item; a single operation is just a one-item batch.
+The generic batch tools are the path for retained block, PLC type, tag-table, tag, and user-constant operations. Each `operation` name carries that operation's parameters as one item; a single operation is just a one-item batch.
 
-Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker (e.g. members skipped while reading a protected device). A populated `warnings` array means the payload may be partial. `read_hardware_config` additionally reports unreadable members in a payload-level `messages` array; device/module name and type-identifier fields omit values that could not be read instead of returning `0`/empty-string placeholders (a few secondary name fields still fall back to an empty string, with the failure noted in `messages`).
+Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker. A populated `warnings` array means the payload may be partial.
 
-Available read operations for `execute_read_batch`: `read_hardware_config`, `search_equipment_catalog`, `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+Available read operations for `execute_read_batch`: `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
 
+Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`.
+
+`get_block_content` / `update_block_logic` and `get_type_content` / `update_type_content` accept a `format` field. `format=source` is available for global data blocks, PLC data types, and SCL-language FB/FC/OB. Every other block language stays on `format=xml`.
+
+`withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency closure. The resulting document declares several objects and is **context only** — a write refuses any source declaring more than one object, and the read carries a warning saying so. Omit the field to get a document you can edit and submit back.
+
+### Network operations
+
+`network_read` and `network_write` both declare an MCP output schema and return one canonical JSON document identically as the `content` text block and as `structuredContent` — never a nested JSON string inside an outer envelope. This is the Phase 2 JSON contract; see [docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md) for the exact envelopes.
+
+- `network_read` - run up to 50 dedicated network reads: `read_hardware_config` and `search_equipment_catalog`. Reads run independently. Bound catalog searches with `query` and `maxResults`; when a network response is truncated, use the returned network-specific hint to narrow or split the request.
+- `network_write` - preview or apply up to 50 dedicated network writes: `add_network_device` (flat `typeIdentifier`/`deviceName`, since it names something that does not exist yet), `configure_network_device` (nested `target: { deviceName, nodeId }` plus `changes: { ipAddress?, subnetMask?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }` — a null `changes` member means leave that setting unchanged), `create_subnet` (`subnet: { name, networkType }`, plus PROFIBUS-only `highestAddress`/`transmissionSpeed`), `update_subnet` (`target: { subnetId }` plus `subnetChanges` with at least one member), and `delete_subnet` (`target: { subnetId }` — connected or not). Call with `confirm:false` and no token for a preview, then call the same tool with `confirm:true`, the unchanged ordered list, and the returned `safetyToken`. Apply is sequential, stops on the first failure, marks later items skipped, and does not roll back completed writes: `network_write` attaches an explicit warning to the failed item that this operation and any earlier operation in the same call may already have changed TIA state, and that you should re-read with `network_read` before retrying rather than blindly re-running the batch.
+
+`configure_network_device` targets one exact existing node: `target.deviceName` (case-insensitive) plus the exact `target.nodeId` reported by a prior `network_read` — never the first interface or first node on a device. `changes.subnet.subnetId` and `changes.ioSystem.subnetId`/`changes.ioSystem.number` are similarly exact, subnet-scoped selectors. Selector resolution is fail-closed: a selector that matches zero, more than one, or an unreadable candidate always fails with `postcondition_failed` rather than falling back to a guess. This is what makes it safe to target one port on a multi-homed device (a PC station with several network interfaces, for example) — configuring one node's exact `nodeId` changes only that node; every other node on the device is left byte-for-byte unchanged. Always follow a `network_write` apply with a `network_read` (`read_hardware_config`) post-read to confirm the outcome — the response never echoes back a re-read of the written value.
+
+`read_hardware_config` additionally reports unreadable members in a payload-level `messages` array; device/module name and type-identifier fields omit values that could not be read instead of returning `0`/empty-string placeholders (a few secondary name fields still fall back to an empty string, with the failure noted in `messages`). Hardware configuration data is engineering evidence, not certification that a physical installation has been commissioned.
+
+A separately authorized, PowerShell 7 live-TIA acceptance harness for this contract lives at `scripts/live-test-network-phase2.ps1`. It is never run by any automated test; see the script's own comment-based help for its `Read`/`Preview`/`Apply` modes and required confirmation gates.
 Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc` / `stop_plc`.
-
-`get_block_content` / `update_block_logic` and `get_type_content` / `update_type_content` accept a
-`format` field. `format=source` is available for global data blocks, PLC data types, and
-SCL-language FB/FC/OB. Every other block language stays on `format=xml`.
-
-`withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency
-closure. The resulting document declares several objects and is **context only** — a write refuses
-any source declaring more than one object, and the read carries a warning saying so. Omit the field
-to get a document you can edit and submit back.
 
 ### Project tools
 
@@ -49,11 +58,13 @@ to get a document you can edit and submit back.
 
 ## Write safety
 
-Every MCP write operation uses a preview-then-apply workflow. Batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Project lifecycle writes are self-previewing: call the write tool WITHOUT `safetyToken` to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), review it, then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`.
+Every MCP write operation uses a preview-then-apply workflow. Generic batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Network and project lifecycle writes are self-previewing: call the same write tool WITHOUT `safetyToken` (with `confirm:false` for `network_write`) to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), review it, then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`.
 
 Safety tokens are single-use, expire 10 minutes after preview, and are bound to the exact tool name, normalized project path, target, requested input, and current project state. The server rejects missing, expired, reused, mismatched, or stale-state tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
 `preview_write_batch` issues one token for the whole batch, bound to the exact ordered operation list and the combined current state. Reordering items, changing any item's input, retargeting the project path, or a change in project state all invalidate the token. `apply_write_batch` re-reads the combined current state once before consuming the token, then applies items sequentially and stops on the first failure.
+
+`network_write` snapshots topology once for preview and once for apply-time token validation. Its token is bound to the exact ordered network operation list and project state; successful apply attempts append an audit record.
 
 Every failed write reports a categorized `failureCategory` field alongside its human-readable `error` message, so a caller can branch on the exact failure without parsing text: `validation_error`, `binding_conflict`, `state_changed`, `worker_operation_failed`, `worker_timeout`, `worker_crashed`, or `postcondition_failed`. `save_project_as` requires `rebind:true`; calling it with `rebind:false` is rejected up front with `validation_error` before any preview, safety-token issuance, Siemens `SaveAs` call, or audit write, so it has no side effects. Warnings are always reported in a separate `warnings` array from the primary success/failure outcome — a populated `warnings` array never turns a failure into a success, and a categorized failure is never masked by an accompanying warning.
 
@@ -225,17 +236,18 @@ Configuration precedence: CLI argument > environment variable > default (read-wr
 
 The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
 
-In read-only mode, the server exposes exactly three MCP tools:
+In read-only mode, the server exposes exactly four MCP tools:
 
 - `get_project_status` — read active project metadata without opening or switching projects.
 - `browse_project_tree` — browse a bounded project subtree with optional `depth` and `startPath`.
-- `execute_read_batch` — run the six retained non-project read operations in a batch.
+- `execute_read_batch` — run the four retained non-project generic reads in a batch.
+- `network_read` — run the two dedicated network reads in a batch.
 
 The following operations are **not available** in read-only mode:
 
 - `compile_check` (invokes the Siemens compilation API)
 - All project lifecycle operations (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`)
-- All data mutations (block, tag, tag table, user constant, network device operations)
+- All data mutations (block, PLC type, tag, tag table, user constant, and network-device operations)
 - All PLC control operations (`start_plc`, `stop_plc`)
 
 In read-only mode, the server operates only on the project already open in TIA Portal. It never opens, creates, switches, or closes a project. A supplied `projectPath` is used only as an assertion that must match the currently open project.
@@ -301,14 +313,15 @@ dotnet run --project TiaMcpServer
 
 The server uses MCP over stdio, so it is normally launched by an MCP client rather than used interactively in a terminal.
 
-You can test the Openness worker directly:
+You can test the Openness worker directly for internal diagnostics (the worker protocol is not the public MCP API):
 
 ```powershell
 '{ "method": "browse_project_tree", "projectPath": null }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
-'{ "method": "read_hardware_config", "projectPath": null }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
 '{ "method": "read_cross_references", "projectPath": null, "crossReferenceFilter": "ObjectsWithReferences" }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
-'{ "method": "search_equipment_catalog", "query": "1516", "projectPath": null }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
 ```
+
+Use the dedicated `network_read` and `network_write` MCP tools for hardware discovery,
+catalog lookup, device creation, and device configuration.
 
 Expected successful response shape:
 
@@ -350,14 +363,14 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\Ti
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify the 12 tools appear in read-write mode.
+- Click `List Tools` and verify the 14 tools appear in read-write mode (or the four observation tools in read-only mode).
 - Start with the standalone `get_project_status` and `browse_project_tree` tools.
 - In read-write mode, call standalone `compile_check` for PLC or block compilation.
-- Then call `execute_read_batch` with an `operations` array whose items use retained operations such as `list_tag_tables`, `read_hardware_config`, `read_cross_references`, or `get_block_content`.
-- Use a `search_equipment_catalog` read item before hardware insertion so you can copy an exact `typeIdentifier`.
+- Then call `execute_read_batch` with an `operations` array whose items use retained operations such as `list_tag_tables`, `read_cross_references`, or `get_block_content`.
+- Use `network_read` with `search_equipment_catalog` before hardware insertion so you can copy an exact `typeIdentifier`.
 - Use a `get_block_content` read item on a block path returned by `browse_project_tree`.
 - Use `get_project_status` before lifecycle changes.
-- Avoid writes unless the project is disposable or backed up. Writes go through `preview_write_batch`, then `apply_write_batch` with `confirm=true` and the returned batch `safetyToken`.
+- Avoid writes unless the project is disposable or backed up. Generic writes go through `preview_write_batch`, then `apply_write_batch`; network writes use self-previewing `network_write` with `confirm:false`, then the unchanged list, `confirm:true`, and the returned token.
 
 For a bounded tree read, call standalone `browse_project_tree` with inputs such as:
 
@@ -376,14 +389,41 @@ Then use this read smoke-test for `execute_read_batch` (independent items; a fai
 ```json
 {
   "operations": [
-    { "operationId": "hw", "operation": "read_hardware_config" },
     { "operationId": "xref", "operation": "read_cross_references", "filter": "ObjectsWithReferences", "plcName": "PLC_1" },
-    { "operationId": "catalog", "operation": "search_equipment_catalog", "query": "1516" }
+    { "operationId": "tables", "operation": "list_tag_tables", "plcName": "PLC_1" }
   ]
 }
 ```
 
-Large projects can return large JSON from cross-reference diagnostics; narrow each read item with `plcName` and `filter`. To test explicit project binding, set `projectPath` on each operation item (all write items in a batch must target the same project path):
+Large projects can return large JSON from cross-reference diagnostics; narrow each read item with `plcName` and `filter`. For the dedicated network surface, use `network_read`:
+
+```json
+{
+  "operations": [
+    { "operationId": "hardware", "operation": "read_hardware_config", "projectPath": "C:\\Projects\\Sandbox\\Line.ap21" },
+    { "operationId": "catalog", "operation": "search_equipment_catalog", "query": "1516", "maxResults": 5 }
+  ]
+}
+```
+
+For network writes, preview first with self-previewing `network_write`. Do not provide a token during preview; use `confirm:false`. Target resolution (device, node, subnet, IO system) is always resolved against a single hardware snapshot taken before any operation in the batch runs, so a `configure_network_device` cannot target a node created earlier in the *same* batch — add a device first, `network_read` to discover its exact `nodeId`, then configure it in a separate `network_write` call:
+
+```json
+{
+  "confirm": false,
+  "operations": [
+    {
+      "operationId": "add",
+      "operation": "add_network_device",
+      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
+      "deviceName": "PLC_1",
+      "deviceItemName": "PLC_1"
+    }
+  ]
+}
+```
+
+Call `network_write` again with the same `operations` array unchanged, `confirm:true`, and the returned token to create the device, then call `network_read` (`read_hardware_config`) to read back its exact `nodeId`:
 
 ```json
 {
@@ -393,57 +433,52 @@ Large projects can return large JSON from cross-reference diagnostics; narrow ea
 }
 ```
 
-For writes, preview first with `preview_write_batch` to obtain one batch-level `safetyToken`, for example a device add plus its network configuration in order:
+With that `nodeId` in hand, preview a `configure_network_device` write against the exact `target`, then apply it the same way:
 
 ```json
 {
+  "confirm": false,
   "operations": [
-    {
-      "operationId": "add",
-      "operation": "add_network_device",
-      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
-      "deviceName": "PLC_1",
-      "deviceItemName": "PLC_1"
-    },
     {
       "operationId": "configure",
       "operation": "configure_network_device",
-      "deviceName": "PLC_1",
-      "ipAddress": "192.168.0.10",
-      "subnetMask": "255.255.255.0",
-      "pnDeviceName": "plc-1",
-      "subnetName": "PN/IE_1"
+      "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
+      "target": { "deviceName": "PLC_1", "nodeId": "<nodeId from read_hardware_config>" },
+      "changes": {
+        "ipAddress": "192.168.0.10",
+        "subnetMask": "255.255.255.0",
+        "pnDeviceName": "plc-1",
+        "subnet": { "subnetId": "<subnetId from read_hardware_config>" }
+      }
     }
   ]
 }
 ```
 
-Then apply with `apply_write_batch`, passing the same `operations` array unchanged plus the returned token (apply runs sequentially and stops on the first failure):
+Then call `network_write` again with the same `operations` array unchanged, `confirm:true`, and the returned token to apply it:
 
 ```json
 {
   "operations": [
     {
-      "operationId": "add",
-      "operation": "add_network_device",
-      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
-      "deviceName": "PLC_1",
-      "deviceItemName": "PLC_1"
-    },
-    {
       "operationId": "configure",
       "operation": "configure_network_device",
-      "deviceName": "PLC_1",
-      "ipAddress": "192.168.0.10",
-      "subnetMask": "255.255.255.0",
-      "pnDeviceName": "plc-1",
-      "subnetName": "PN/IE_1"
+      "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
+      "target": { "deviceName": "PLC_1", "nodeId": "<nodeId from read_hardware_config>" },
+      "changes": {
+        "ipAddress": "192.168.0.10",
+        "subnetMask": "255.255.255.0",
+        "pnDeviceName": "plc-1",
+        "subnet": { "subnetId": "<subnetId from read_hardware_config>" }
+      }
     }
   ],
   "confirm": true,
-  "safetyToken": "<token from preview_write_batch>"
+  "safetyToken": "<token from network_write preview>"
 }
 ```
+
+A `changes` member left out (for example, omitting `ioSystem`) means "leave that setting unchanged" — there is no flat legacy alias and no compatibility converter. Always follow the apply with another `network_read` (`read_hardware_config`) to confirm the outcome; the write response does not echo back a re-read of the written value.
 
 A tag write is the same flow with a one-item batch, e.g. `preview_write_batch` then `apply_write_batch` over:
 

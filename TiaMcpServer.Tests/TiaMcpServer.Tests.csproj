@@ -7,6 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
@@ -44,8 +46,13 @@
       Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
+    <Compile Include="..\TiaMcpServer\Json\CanonicalJson.cs" Link="Host\Json\CanonicalJson.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
+      Link="Host\StructuredToolResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs"
       Link="Host\WriteSafetyService.cs" />
+    <Compile Include="..\TiaMcpServer\Safety\CanonicalWriteSafety.cs"
+      Link="Host\CanonicalWriteSafety.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs"
       Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectLifecycleTools.cs"
@@ -64,19 +71,38 @@
       Link="Host\Batch\BatchOperationCatalog.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchSafetySnapshot.cs"
       Link="Host\Batch\BatchSafetySnapshot.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchOperationResult.cs"
-      Link="Host\Batch\BatchOperationResult.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchPayloadBudget.cs"
-      Link="Host\Batch\BatchPayloadBudget.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchExecutionEngine.cs"
-      Link="Host\Batch\BatchExecutionEngine.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchResultFormatter.cs"
-      Link="Host\Batch\BatchResultFormatter.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs" Link="Host\OperationBatches\IOperationBatchItem.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResult.cs" Link="Host\OperationBatches\OperationBatchResult.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchExecutionEngine.cs" Link="Host\OperationBatches\OperationBatchExecutionEngine.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchStateComposer.cs" Link="Host\OperationBatches\OperationBatchStateComposer.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResultFormatter.cs" Link="Host\OperationBatches\OperationBatchResultFormatter.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchPayloadBudget.cs" Link="Host\OperationBatches\OperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs" Link="Host\OperationBatches\StructuredOperationBatch.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs" Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs" Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
       Link="Host\Batch\BatchWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchTools.cs" Link="Host\Batch\BatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Batch\ReadBatchTools.cs" Link="Host\Batch\ReadBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkOperationRequest.cs"
+      Link="Host\Network\NetworkOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkOperationCatalog.cs"
+      Link="Host\Network\NetworkOperationCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWorkerInvoker.cs"
+      Link="Host\Network\NetworkWorkerInvoker.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkSafetySnapshot.cs"
+      Link="Host\Network\NetworkSafetySnapshot.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkIdentityResolver.cs"
+      Link="Host\Network\NetworkIdentityResolver.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkPayloadContract.cs"
+      Link="Host\Network\NetworkPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkToolResponses.cs"
+      Link="Host\Network\NetworkToolResponses.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkReadTools.cs"
+      Link="Host\Network\NetworkReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWriteTools.cs"
+      Link="Host\Network\NetworkWriteTools.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectRebindCloseGuard.cs"
       Link="Worker\ProjectRebindCloseGuard.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\AssemblyResolver.cs"
@@ -142,5 +168,25 @@
       Link="Linked\Openness\BlockImportRouting.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceWriteWarnings.cs"
       Link="Linked\Openness\BlockSourceWriteWarnings.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkSelectorFactory.cs"
+      Link="Network\NetworkSelectorFactory.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\CommunicationConnectionSelectorFactory.cs"
+      Link="Network\CommunicationConnectionSelectorFactory.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectCursorCodec.cs"
+      Link="Network\NetworkObjectCursorCodec.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectPageBuilder.cs"
+      Link="Network\NetworkObjectPageBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectDiscoveryEvidence.cs"
+      Link="Network\NetworkObjectDiscoveryEvidence.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeValueNormalizer.cs"
+      Link="Network\NetworkAttributeValueNormalizer.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeResultBuilder.cs"
+      Link="Network\NetworkAttributeResultBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeMetadataProcessor.cs"
+      Link="Network\NetworkAttributeMetadataProcessor.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkModeledAttributeCatalog.cs"
+      Link="Network\NetworkModeledAttributeCatalog.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\ConnectionModeledAttributeCatalog.cs"
+      Link="Network\ConnectionModeledAttributeCatalog.cs" />
   </ItemGroup>
 </Project>

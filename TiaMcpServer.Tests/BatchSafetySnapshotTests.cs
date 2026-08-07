@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using TiaMcpServer.Batch;
+using TiaMcpServer.OperationBatches;
 using Xunit;
 
 namespace TiaMcpServer.Tests;
@@ -64,12 +65,12 @@ public class BatchSafetySnapshotTests
     [Fact]
     public void CombineCurrentState_IncludesEachStateAndIsOrderSensitive()
     {
-        var states = new List<BatchCurrentState>
+        var states = new List<OperationBatchCurrentState>
         {
             new("a", "list_tag_tables", "STATE_ONE"),
             new("b", "get_block_content", "STATE_TWO"),
         };
-        var reversed = new List<BatchCurrentState> { states[1], states[0] };
+        var reversed = new List<OperationBatchCurrentState> { states[1], states[0] };
 
         var combined = BatchSafetySnapshot.CombineCurrentState(states);
 

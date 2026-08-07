@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -28,6 +29,7 @@ namespace TiaMcpServer.Tests;
 /// This is why it has to inspect McpServerTool.Create(...).ProtocolTool.InputSchema - the actual
 /// generated JSON schema - rather than attributes.
 /// </summary>
+[Collection("Mcp protocol serial")]
 public class McpToolSchemaTests
 {
     private static readonly IServiceProvider Services = BuildServices();
@@ -62,6 +64,29 @@ public class McpToolSchemaTests
         return names;
     }
 
+    private static Type RequiredNetworkToolType(string name)
+    {
+        var type = typeof(NetworkOperationRequest).Assembly.GetType($"TiaMcpServer.Network.{name}");
+        Assert.NotNull(type);
+        return type!;
+    }
+
+    /// <summary>Raw generated input schema JSON text, for assertions that need to see nested
+    /// object shapes (e.g. <c>additionalProperties:false</c> closure) rather than just the
+    /// top-level property names <see cref="SchemaPropertyNames"/> exposes.</summary>
+    private static string SchemaRawText(Type toolType, string methodName)
+    {
+        var method = toolType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var tool = McpServerTool.Create(
+            method!,
+            target: null,
+            options: new McpServerToolCreateOptions { Services = Services });
+
+        return tool.ProtocolTool.InputSchema.GetRawText();
+    }
+
     [Theory]
     [InlineData(nameof(ProjectLifecycleTools.GetProjectStatus))]
     [InlineData(nameof(ProjectLifecycleTools.OpenProject))]
@@ -84,12 +109,12 @@ public class McpToolSchemaTests
     /// ProjectLifecycleTools lives in - which, for TiaMcpServer.Tests, is the test assembly
     /// itself, since the host's tool source files are compiled directly into it (see
     /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
-    /// carrying [McpServerTool] and asserts the exact approved surface: 12 tools total, and the
+    /// carrying [McpServerTool] and asserts the exact approved surface: 14 tools total, and the
     /// internal lifecycle probe (probe_project_status_for_lifecycle, never [McpServerTool]-decorated)
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlyTwelveApprovedTools()
+    public void McpToolSurface_ExposesExactlyFourteenApprovedTools()
     {
         var toolTypes = typeof(ProjectLifecycleTools).Assembly
             .GetTypes()
@@ -103,14 +128,48 @@ public class McpToolSchemaTests
             .OrderBy(name => name)
             .ToArray();
 
+        var expected = new[]
+        {
+            "get_project_status",
+            "browse_project_tree",
+            "execute_read_batch",
+            "compile_check",
+            "open_project",
+            "create_project",
+            "save_project",
+            "save_project_as",
+            "archive_project",
+            "close_project",
+            "preview_write_batch",
+            "apply_write_batch",
+            "network_read",
+            "network_write"
+        };
+
+        Assert.Equal(expected.OrderBy(name => name), toolNames);
+        Assert.DoesNotContain("probe_network_object_attributes", toolNames);
+    }
+
+    [Fact]
+    public void McpReadOnlySurface_RemainsExactlyFourApprovedTools()
+    {
+        var toolNames = new[]
+        {
+            typeof(ProjectReadTools),
+            typeof(ReadBatchTools),
+            RequiredNetworkToolType("NetworkReadTools"),
+        }
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
+            .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
+            .Where(attribute => attribute is not null)
+            .Select(attribute => attribute!.Name)
+            .OrderBy(name => name)
+            .ToArray();
+
         Assert.Equal(
-            new[]
-            {
-                "apply_write_batch", "archive_project", "browse_project_tree", "close_project",
-                "compile_check", "create_project", "execute_read_batch", "get_project_status",
-                "open_project", "preview_write_batch", "save_project", "save_project_as"
-            },
+            new[] { "browse_project_tree", "execute_read_batch", "get_project_status", "network_read" },
             toolNames);
+        Assert.DoesNotContain("probe_network_object_attributes", toolNames);
     }
 
     [Fact]
@@ -136,6 +195,88 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("safety", properties);
         Assert.Contains("operations", properties);
+    }
+
+    [Fact]
+    public void NetworkRead_SchemaExposesOnlyOperations()
+    {
+        var properties = SchemaPropertyNames(
+            RequiredNetworkToolType("NetworkReadTools"),
+            "NetworkRead");
+
+        Assert.Equal(new[] { "operations" }, properties);
+        Assert.DoesNotContain("workerClient", properties);
+    }
+
+    [Fact]
+    public void NetworkWrite_SchemaNeverExposesInjectedServiceParameters()
+    {
+        var properties = SchemaPropertyNames(
+            RequiredNetworkToolType("NetworkWriteTools"),
+            "NetworkWrite");
+
+        Assert.Equal(
+            new[] { "confirm", "operations", "safetyToken" },
+            properties.OrderBy(name => name).ToArray());
+        Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("safety", properties);
+    }
+
+    [Fact]
+    public void NetworkWrite_SchemaAdvertisesSubnetLifecycleOperationNamesAndNestedFieldsClosed()
+    {
+        var schema = SchemaRawText(RequiredNetworkToolType("NetworkWriteTools"), "NetworkWrite");
+
+        foreach (var operation in new[] { "create_subnet", "update_subnet", "delete_subnet" })
+        {
+            Assert.Contains(operation, schema, StringComparison.Ordinal);
+        }
+
+        // The exact nested request fields for the three lifecycle operations are advertised...
+        foreach (var member in new[]
+        {
+            "\"subnet\"",
+            "\"subnetChanges\"",
+            "\"networkType\"",
+            "\"highestAddress\"",
+            "\"transmissionSpeed\"",
+        })
+        {
+            Assert.Contains(member, schema, StringComparison.Ordinal);
+        }
+
+        // ...and every object in the generated schema (including the new nested subnet/
+        // subnetChanges shapes) is closed, so an unknown member is rejected rather than
+        // silently accepted by the model-facing contract.
+        Assert.Contains("\"additionalProperties\":false", schema, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NetworkOperationCatalog_WriteOperationNamesLocksInTheSubnetLifecycleTrio()
+    {
+        Assert.Contains("create_subnet", NetworkOperationCatalog.WriteOperationNames);
+        Assert.Contains("update_subnet", NetworkOperationCatalog.WriteOperationNames);
+        Assert.Contains("delete_subnet", NetworkOperationCatalog.WriteOperationNames);
+
+        // network_read must never advertise these as read operations.
+        Assert.DoesNotContain("create_subnet", NetworkOperationCatalog.ReadOperationNames);
+        Assert.DoesNotContain("update_subnet", NetworkOperationCatalog.ReadOperationNames);
+        Assert.DoesNotContain("delete_subnet", NetworkOperationCatalog.ReadOperationNames);
+    }
+
+    [Fact]
+    public void NetworkSelectorDescriptions_StateTheLockedRequiredAndOptionalRules()
+    {
+        static string DescriptionOf(string propertyName)
+            => typeof(NetworkObjectTarget).GetProperty(propertyName)!
+                .GetCustomAttribute<System.ComponentModel.DescriptionAttribute>()!.Description;
+
+        Assert.Contains("deviceItem, networkInterface, and communicationConnection", DescriptionOf("ItemPath"));
+        Assert.Contains("Optional captured evidence", DescriptionOf("InterfaceName"));
+        Assert.Contains("Required for communicationConnection", DescriptionOf("ConnectionType"));
+        Assert.Contains("Required for communicationConnection", DescriptionOf("LocalConnectionName"));
+        Assert.Contains("Required for S7Connection", DescriptionOf("LocalConnectionId"));
+        Assert.Contains("not applicable to HmiConnection", DescriptionOf("LocalConnectionId"));
     }
 
     /// <summary>
@@ -200,3 +341,6 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("safetyToken", properties);
     }
 }
+
+[CollectionDefinition("Mcp protocol serial", DisableParallelization = true)]
+public sealed class McpProtocolSerialCollection;

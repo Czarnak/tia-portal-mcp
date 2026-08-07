@@ -1,4 +1,4 @@
-using TiaMcpServer.Batch;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tools;
@@ -7,21 +7,21 @@ internal static class StandaloneToolResultFormatter
 {
     public static string Format(WorkerCallResult result, string narrowingHint)
     {
-        if (result.Success && result.Payload.Length > BatchPayloadBudget.MaxItemChars)
+        if (result.Success && result.Payload.Length > OperationBatchPayloadBudget.MaxItemChars)
         {
             var trailerPrefix = $"\n[TRUNCATED — payload exceeded "
-                + $"{BatchPayloadBudget.MaxItemChars} characters. ";
+                + $"{OperationBatchPayloadBudget.MaxItemChars} characters. ";
             const string trailerSuffix = "]";
             var maxHintLength = Math.Max(
                 0,
-                BatchPayloadBudget.MaxItemChars - trailerPrefix.Length - trailerSuffix.Length);
+                OperationBatchPayloadBudget.MaxItemChars - trailerPrefix.Length - trailerSuffix.Length);
             var boundedHint = narrowingHint.Substring(
                 0,
                 Math.Min(narrowingHint.Length, maxHintLength));
             var trailer = trailerPrefix + boundedHint + trailerSuffix;
             var retainedLength = Math.Max(
                 0,
-                BatchPayloadBudget.MaxItemChars - trailer.Length);
+                OperationBatchPayloadBudget.MaxItemChars - trailer.Length);
 
             result = result with
             {

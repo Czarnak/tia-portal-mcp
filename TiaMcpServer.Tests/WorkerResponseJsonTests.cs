@@ -84,6 +84,26 @@ public class WorkerResponseJsonTests
         Assert.Equal(category, roundTripped!.FailureCategory);
     }
 
+    [Theory]
+    [InlineData("invalid_cursor")]
+    [InlineData("cursor_filter_mismatch")]
+    [InlineData("cursor_snapshot_mismatch")]
+    [InlineData("cursor_out_of_range")]
+    public void WorkerFailureCategories_RecognizesCursorFailureCategories(string category)
+    {
+        Assert.True(WorkerFailureCategories.IsKnown(category));
+    }
+
+    [Theory]
+    [InlineData("target_not_found")]
+    [InlineData("target_ambiguous")]
+    [InlineData("target_evidence_mismatch")]
+    [InlineData("target_kind_unsupported")]
+    public void WorkerFailureCategories_RecognizesTargetSelectionFailureCategories(string category)
+    {
+        Assert.True(WorkerFailureCategories.IsKnown(category));
+    }
+
     [Fact]
     public void FailureCategory_DefaultsToNull()
     {

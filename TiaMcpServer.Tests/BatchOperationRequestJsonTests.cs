@@ -10,33 +10,9 @@ public class BatchOperationRequestJsonTests
     private static readonly JsonSerializerOptions WebOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public void MisspelledOptionalProperty_IsRejectedNotSilentlyDropped()
-    {
-        // "ip_adress" is the exact trap from the audit: a typo that previously succeeded
-        // silently and left the device unconfigured while reporting success.
-        var json = """{"operationId":"op1","operation":"configure_network_device","deviceName":"IO_Device_1","ip_adress":"192.168.0.10"}""";
-
-        var ex = Assert.Throws<JsonException>(
-            () => JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions));
-
-        Assert.Contains("ip_adress", ex.Message);
-    }
-
-    [Fact]
-    public void KnownCamelCaseProperties_StillDeserialize()
-    {
-        var json = """{"operationId":"op1","operation":"configure_network_device","deviceName":"IO_Device_1","ipAddress":"192.168.0.10"}""";
-
-        var request = JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions);
-
-        Assert.NotNull(request);
-        Assert.Equal("192.168.0.10", request!.IpAddress);
-    }
-
-    [Fact]
     public void DeserializesRetainedMaxResultsField()
     {
-        var json = """{"operationId":"a","operation":"search_equipment_catalog","query":"CPU","maxResults":25}""";
+        var json = """{"operationId":"a","operation":"read_cross_references","maxResults":25}""";
 
         var request = JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions)!;
 
@@ -44,8 +20,8 @@ public class BatchOperationRequestJsonTests
     }
 
     [Theory]
-    [InlineData("""{"operationId":"a","operation":"read_hardware_config","depth":3}""", "depth")]
-    [InlineData("""{"operationId":"a","operation":"read_hardware_config","startPath":"PLC_1/Blocks"}""", "startPath")]
+    [InlineData("""{"operationId":"a","operation":"list_tag_tables","depth":3}""", "depth")]
+    [InlineData("""{"operationId":"a","operation":"list_tag_tables","startPath":"PLC_1/Blocks"}""", "startPath")]
     public void RemovedProjectTreeFields_AreRejected(string json, string field)
     {
         var exception = Assert.Throws<JsonException>(
@@ -59,5 +35,36 @@ public class BatchOperationRequestJsonTests
     {
         Assert.Null(typeof(BatchOperationRequest).GetProperty("Depth"));
         Assert.Null(typeof(BatchOperationRequest).GetProperty("StartPath"));
+    }
+
+    [Fact]
+    public void BatchRequestType_DoesNotExposeNetworkFields()
+    {
+        foreach (var propertyName in new[]
+        {
+            "Query",
+            "TypeIdentifier",
+            "DeviceName",
+            "DeviceItemName",
+            "IpAddress",
+            "SubnetMask",
+            "PnDeviceName",
+            "SubnetName",
+            "IoSystemName"
+        })
+        {
+            Assert.Null(typeof(BatchOperationRequest).GetProperty(propertyName));
+        }
+    }
+
+    [Fact]
+    public void RemovedNetworkField_IsRejectedDuringDeserialization()
+    {
+        var json = """{"operationId":"a","operation":"create_tag_table","tableName":"Inputs","deviceName":"PLC_1"}""";
+
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions));
+
+        Assert.Contains("deviceName", exception.Message);
     }
 }

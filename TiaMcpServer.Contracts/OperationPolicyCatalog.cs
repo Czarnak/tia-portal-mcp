@@ -57,6 +57,9 @@ public static class OperationPolicyCatalog
             ["search_equipment_catalog"] = OperationCapability.Observe,
             ["read_cross_references"] = OperationCapability.Observe,
             ["list_tag_tables"] = OperationCapability.Observe,
+            ["list_network_objects"] = OperationCapability.Observe,
+            ["inspect_network_object"] = OperationCapability.Observe,
+            ["probe_network_object_attributes"] = OperationCapability.Observe,
 
             // TemporaryExport (read-only safe, temporary files with cleanup)
             ["get_block_content"] = OperationCapability.TemporaryExport,
@@ -88,6 +91,10 @@ public static class OperationPolicyCatalog
             ["delete_user_constant"] = OperationCapability.ProjectMutation,
             ["add_network_device"] = OperationCapability.ProjectMutation,
             ["configure_network_device"] = OperationCapability.ProjectMutation,
+            ["create_subnet"] = OperationCapability.ProjectMutation,
+            ["update_subnet"] = OperationCapability.ProjectMutation,
+            ["delete_subnet"] = OperationCapability.ProjectMutation,
+            ["probe_subnet_lifecycle_mutations"] = OperationCapability.ProjectMutation,
 
             // OnlineControl (NOT read-only safe)
             ["start_plc"] = OperationCapability.OnlineControl,

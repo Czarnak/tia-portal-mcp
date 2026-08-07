@@ -3,6 +3,7 @@ using System.Text.Json;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -90,10 +91,10 @@ public class ProjectStandaloneToolTests
         var response = await ProjectReadTools.BrowseProjectTree(
             client,
             projectPath: "echo",
-            startPath: new string('x', BatchPayloadBudget.MaxItemChars + 100));
+            startPath: new string('x', OperationBatchPayloadBudget.MaxItemChars + 100));
         var payload = PayloadFromEnvelope(response);
 
-        Assert.Equal(BatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Equal(OperationBatchPayloadBudget.MaxItemChars, payload.Length);
         Assert.Contains("[TRUNCATED", payload);
         Assert.Contains("depth or a more specific startPath", payload);
     }
@@ -140,10 +141,10 @@ public class ProjectStandaloneToolTests
         var response = await ProjectEngineeringTools.CompileCheck(
             client,
             projectPath: "echo",
-            blockPath: new string('x', BatchPayloadBudget.MaxItemChars + 100));
+            blockPath: new string('x', OperationBatchPayloadBudget.MaxItemChars + 100));
         var payload = PayloadFromEnvelope(response);
 
-        Assert.Equal(BatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Equal(OperationBatchPayloadBudget.MaxItemChars, payload.Length);
         Assert.Contains("[TRUNCATED", payload);
         Assert.Contains("plcName or blockPath", payload);
     }

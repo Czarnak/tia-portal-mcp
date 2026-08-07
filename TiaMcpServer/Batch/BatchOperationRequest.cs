@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
+using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Batch;
 
@@ -13,13 +14,13 @@ namespace TiaMcpServer.Batch;
 /// CLR property names.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class BatchOperationRequest
+public sealed class BatchOperationRequest : IOperationBatchItem
 {
     [Description("Client-supplied unique identifier for this item within the batch; the result is keyed by it.")]
     public string OperationId { get; set; } = string.Empty;
 
-    [Description("The operation to run for this item. Read operations: read_hardware_config, read_cross_references, search_equipment_catalog, get_block_content, list_tag_tables, get_type_content. "
-        + "Write operations: update_block_logic, create_block, delete_block, create_block_group, delete_block_group, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, add_network_device, configure_network_device, start_plc, stop_plc, update_type_content. "
+    [Description("The operation to run for this item. Read operations: read_cross_references, get_block_content, list_tag_tables, get_type_content. "
+        + "Write operations: update_block_logic, create_block, delete_block, create_block_group, delete_block_group, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, start_plc, stop_plc, update_type_content. "
         + "Use reads only in execute_read_batch and writes only in preview_write_batch/apply_write_batch.")]
     public string Operation { get; set; } = string.Empty;
 
@@ -35,10 +36,7 @@ public sealed class BatchOperationRequest
     [Description("Optional PLC software name to scope the operation. Honored by list_tag_tables, read_cross_references, start_plc, stop_plc, and the tag, tag-table, and user-constant operations.")]
     public string? PlcName { get; set; }
 
-    [Description("Hardware catalog search query. Required by search_equipment_catalog.")]
-    public string? Query { get; set; }
-
-    [Description("Optional result cap. Valid for search_equipment_catalog (default 50 when omitted) and read_cross_references (unlimited when omitted; a truncation message is added when the cap is hit).")]
+    [Description("Optional result cap for read_cross_references. Unlimited when omitted; a truncation message is added when the cap is hit.")]
     public int? MaxResults { get; set; }
 
     [Description("Optional cross-reference filter for read_cross_references. Allowed values: AllObjects, ObjectsWithReferences, ObjectsWithoutReferences, UnusedObjects.")]
@@ -76,30 +74,6 @@ public sealed class BatchOperationRequest
 
     [Description("Optional flag marking the tag as a safety tag.")]
     public bool? IsSafety { get; set; }
-
-    [Description("Exact catalog type identifier, e.g. OrderNumber:6ES7 510-1DJ01-0AB0/V2.0. Required by add_network_device.")]
-    public string? TypeIdentifier { get; set; }
-
-    [Description("Device name. Required by add_network_device and configure_network_device.")]
-    public string? DeviceName { get; set; }
-
-    [Description("Optional device item name for add_network_device; defaults to deviceName when omitted. Not valid for configure_network_device.")]
-    public string? DeviceItemName { get; set; }
-
-    [Description("Optional IP address for configure_network_device, e.g. 192.168.0.10.")]
-    public string? IpAddress { get; set; }
-
-    [Description("Optional subnet mask for configure_network_device, e.g. 255.255.255.0.")]
-    public string? SubnetMask { get; set; }
-
-    [Description("Optional PROFINET device name for configure_network_device.")]
-    public string? PnDeviceName { get; set; }
-
-    [Description("Optional subnet name for configure_network_device.")]
-    public string? SubnetName { get; set; }
-
-    [Description("Optional IO-system name for configure_network_device.")]
-    public string? IoSystemName { get; set; }
 
     [Description("Block type for create_block. Valid values: FB, FC, OB, GlobalDB.")]
     public string? BlockType { get; set; }

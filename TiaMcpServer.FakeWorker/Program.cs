@@ -1,9 +1,55 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
 // stdin closes. The test encodes the scenario in the request's projectPath field.
 var seq = 0;
+
+// Process-local, mutable hardware state for the "multi-homed-network" scenario (see below): a
+// single PC station exposing two ports on separate interfaces. Declared once per FakeWorker
+// process so a configure_network_device call mutates it and a later read_hardware_config call in
+// the SAME process observes the mutation - proving a real read -> select -> preview -> apply ->
+// read round trip, not just a static fixture.
+var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-plc", IpAddress = "192.168.0.20" };
+var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
+
+// Process-local, mutable subnet state shared by every "network-subnet-lifecycle*" scenario key
+// (Task 6, Phase 4): two devices that never change, and two subnets - one Ethernet, one PROFIBUS -
+// each already connected to a node. Sharing this exact list across the main scenario and its
+// switch variants (malformed/postcondition-failed/second-item-failure/alt-path) means a resolved
+// subnet's identity is byte-for-byte identical no matter which of those keys reads it, so a
+// project-path tampering test can bind a token against one key and get rejected against another
+// for exactly that reason - never a coincidentally different target. Connected subnets are never
+// treated as undeletable here: delete_subnet removes them unconditionally, matching production's
+// "connected deletion is allowed, no dependency inventory" rule.
+var subnetLifecycleState = new List<SubnetLifecycleSubnetState>
+{
+    new()
+    {
+        SubnetId = "subnet-eth-1",
+        Name = "PN/IE_1",
+        NetworkType = SubnetLifecycleContract.Ethernet,
+        ConnectedNodeNames = new List<string> { "PLC_1.X1" },
+    },
+    new()
+    {
+        SubnetId = "subnet-pb-1",
+        Name = "MPI/DP_1",
+        NetworkType = SubnetLifecycleContract.Profibus,
+        HighestAddress = 31,
+        TransmissionSpeed = "Baud187500",
+        ConnectedNodeNames = new List<string> { "PLC_1.MPI" },
+    },
+};
+var subnetLifecycleNextId = 1;
+var subnetLifecycleSecondFailureWriteCount = 0;
+var subnetLifecycleStateDriftReadCount = 0;
+
+// Two devices that never change across any subnet lifecycle operation, modelling the stable
+// "root device count" the production SubnetLifecycleService verifies after every commit.
+const int SubnetLifecycleDeviceCount = 2;
+
 string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {
@@ -93,6 +139,11 @@ while ((line = Console.In.ReadLine()) is not null)
             // worker-reported category instead of overwriting it with worker_operation_failed.
             Respond("""{"success":false,"error":"invalid value","failureCategory":"validation_error"}""");
             break;
+        case "worker-error-with-target-not-found-category":
+            // Isolates the target_not_found approved-category contract without changing
+            // the long-standing validation_error behavior of the shared scenario above.
+            Respond("""{"success":false,"error":"target not found","failureCategory":"target_not_found"}""");
+            break;
         case "update-block-postcondition-failed":
             Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block update verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
             break;
@@ -118,6 +169,95 @@ while ((line = Console.In.ReadLine()) is not null)
             // Returns the received request verbatim so tests can assert which fields survived
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
+            break;
+        case "network-read-warnings":
+            // A contract-valid hardware payload carried alongside worker warnings, so the network
+            // read path can be proven to copy warnings onto the item it decoded successfully.
+            Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
+            break;
+        case "network-roundtrip":
+            Respond(ReadMethod(line) switch
+            {
+                // The request still advances seq, but its safety-bound state must remain stable
+                // between preview and apply; write responses below expose the request ordering.
+                // Both read payloads must satisfy their declared Phase 2 result contracts
+                // (HardwareConfigInfo / CatalogEntryInfo[]); an unmapped member here would be
+                // rejected as protocol_error instead of decoding. The hardware payload models a
+                // PLC plus a multi-homed PC station so node, subnet and IO-system identities are
+                // observable end to end.
+                "read_hardware_config" => Success(HardwareConfigPayload()),
+                "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"typeIdentifier\":\"OrderNumber:TEST\"}]"}""",
+                // The write payloads must satisfy AddDeviceResultInfo / ConfigureNetworkDeviceResultInfo
+                // too. Their free-text members carry seq so request ordering stays observable
+                // without smuggling an unmapped member past the declared contract.
+                "add_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"rootItemName\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"warnings\":[\"seq:{{seq}}\"]}"}""",
+                "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"ipAddress\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
+                _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "network-state-seq":
+            // A contract-valid HardwareConfigInfo that reports the request sequence in its own
+            // messages array, so a test can count how many worker requests a preview issued
+            // without the payload failing its declared contract. Also resolvable: it models a
+            // "PLC_2" device with a "node-1" node, so a configure_network_device target in the
+            // same batch can be resolved by NetworkIdentityResolver against this same read.
+            Respond(Success(ToCamelCaseJson(SingleNodeHardwareConfig(
+                "PLC_2", "if_1", "if_1", "n1", "node-1", messages: new[] { $"seq:{seq}" }))));
+            break;
+        case "network-unresolvable-target":
+            // A contract-valid, empty HardwareConfigInfo: no device can ever match a
+            // configure_network_device target here, so a preview against this scenario proves
+            // NetworkIdentityResolver's fail-closed path issues no safety token.
+            Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}"}""");
+            break;
+        case "network-write-item-failure":
+            // Stable hardware state (so preview/apply token binding holds) followed by a failing
+            // first write: the batch RAN, so the MCP call itself is not an error. The read models a
+            // resolvable "PLC_1"/"node-1" target so the configure_network_device operation in the
+            // batch can resolve against it at both preview and apply, before its own write call
+            // fails structurally like every other method in this scenario.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SingleNodeHardwareConfig(
+                    "PLC_1", "if_1", "if_1", "n1", "node-1"))),
+                _ => """{"success":false,"error":"device could not be added"}"""
+            });
+            break;
+        case "multi-homed-network":
+            // Stateful proof fixture (Task 7): one PC station ("PC_1") with two ports on separate
+            // interfaces, node-plc and node-db. read_hardware_config always reports the CURRENT
+            // mutable state; configure_network_device parses the forwarded nodeId and mutates only
+            // the matching node object, so a later read in the same process observes the change on
+            // exactly that port and byte-for-byte identical data on the other one.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(
+                    MultiHomedHardwareConfig(multiHomedPlcNode, multiHomedDbNode))),
+                "configure_network_device" => ConfigureMultiHomedNode(line, multiHomedPlcNode, multiHomedDbNode),
+                _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}' for multi-homed-network"}"""
+            });
+            break;
+        case "network-ambiguous-node":
+            // A contract-valid HardwareConfigInfo where ONE device exposes TWO nodes reporting the
+            // SAME nodeId across its two interfaces: proves NetworkIdentityResolver's ambiguous-match
+            // fail-closed path (postcondition_failed, no token issued) through the actual worker/tool
+            // wiring, not only the pure resolver unit tests.
+            Respond(Success(ToCamelCaseJson(AmbiguousNodeHardwareConfig())));
+            break;
+        case "invalid-network-success-payload":
+            // The worker reports SUCCESS for every method, but search_equipment_catalog and
+            // add_network_device both return a payload that cannot decode as their declared result
+            // contract (CatalogEntryInfo[] / AddDeviceResultInfo). read_hardware_config always
+            // returns a valid, contract-shaped (if empty) HardwareConfigInfo: a write batch must be
+            // able to complete its mandatory current-state read even though this scenario's whole
+            // point is a DIFFERENT operation's payload being rejected as protocol_error.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo())),
+                "search_equipment_catalog" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
+                "add_network_device" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
+                _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}' for invalid-network-success-payload"}"""
+            });
             break;
         case "type-content-roundtrip":
             // Used by TypeOperationFakeWorkerTests to drive a full get_type_content /
@@ -189,6 +329,133 @@ while ((line = Console.In.ReadLine()) is not null)
             // project path to classify the caller's archiveDirectory against.
             Respond("""{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\Projects\\SimpleProject\\SimpleProject.ap21"}""");
             break;
+
+        // ---------------------------------------------------------------------------
+        // Phase 3: list_network_objects and inspect_network_object fixtures
+        // ---------------------------------------------------------------------------
+
+        case "list-network-objects-success":
+            // One object of every kind (6 total), including one unselectable summary (no selector).
+            // Dispatches on method so both methods can share this project path if needed in future.
+            Respond(ReadMethod(line) == "list_network_objects"
+                ? Success(ToCamelCaseJson(ListNetworkObjectsFixture()))
+                : $$"""{"success":false,"error":"expected list_network_objects, got '{{ReadMethod(line)}}'"}""");
+            break;
+
+        case "inspect-network-object-success":
+            // Full set of attribute value kinds plus three special-case attribute names.
+            Respond(ReadMethod(line) == "inspect_network_object"
+                ? Success(ToCamelCaseJson(InspectNetworkObjectFixture()))
+                : $$"""{"success":false,"error":"expected inspect_network_object, got '{{ReadMethod(line)}}'"}""");
+            break;
+
+        case "list-network-objects-malformed":
+            // Worker reports SUCCESS but the payload fails the declared result contract.
+            Respond("""{"success":true,"payload":"{\"unexpectedShape\":true}"}""");
+            break;
+
+        case "inspect-network-object-malformed":
+            // Worker reports SUCCESS but the payload fails the declared result contract.
+            Respond("""{"success":true,"payload":"{\"unexpectedShape\":true}"}""");
+            break;
+
+        // ---------------------------------------------------------------------------
+        // Phase 4: subnet lifecycle fixtures (Task 6)
+        // ---------------------------------------------------------------------------
+
+        case "network-subnet-lifecycle":
+            // The main stateful scenario: normal create/update/delete round trips, canonical
+            // text/structuredContent equality, minimal-result shape, audit, and every token
+            // tampering path bind against this key.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-alt-path":
+            // Same shared mutable state as "network-subnet-lifecycle", reached through a
+            // DIFFERENT scenario key: a token issued against one key is rejected against this one
+            // purely because the project path differs, never because the resolved target differs
+            // (both keys read the exact same underlying list).
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-alt-path"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-malformed-success":
+            // The worker reports SUCCESS for every subnet write, but the payload carries an extra
+            // unmapped member (device-detail/relationship-style free text) alongside the four
+            // declared SubnetLifecycleResultInfo fields. The strict decode contract
+            // (JsonUnmappedMemberHandling.Disallow) must reject this as protocol_error rather than
+            // publish the extra text - proving the protocol never grows relationship/device-detail
+            // wording even if a worker ever sent it.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    $$"""{"success":true,"payload":"{\"subnetId\":\"subnet-malformed-1\",\"name\":\"Malformed\",\"networkDeviceCount\":{{SubnetLifecycleDeviceCount}},\"networkDeviceCountUnchanged\":true,\"relationshipSummary\":\"connected to 2 devices\"}"}""",
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-malformed-success"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-postcondition-failed":
+            // Every subnet write reports the worker's own postcondition_failed outcome (the
+            // transaction committed but post-read verification did not match) rather than any
+            // success wording - modelled exactly like the existing block create/update
+            // postcondition_failed scenarios above.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    $$"""{"success":false,"failureCategory":"postcondition_failed","error":"subnet lifecycle verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""",
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-postcondition-failed"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-second-item-failure":
+            // The FIRST subnet write in a batch against this key succeeds and mutates the shared
+            // state exactly like the main scenario; the SECOND and every later one fails
+            // structurally. Proves a later failure stops the batch while the earlier success stays
+            // applied (no batch-wide rollback) and later items are skipped.
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "create_subnet" or "update_subnet" or "delete_subnet" =>
+                    HandleSecondItemFailureWrite(line, subnetLifecycleState),
+                _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-second-item-failure"}"""
+            });
+            break;
+
+        case "network-subnet-lifecycle-state-drift":
+            // read_hardware_config reports the SAME subnet identity (name/subnetId) on every call,
+            // but its connectedNodeNames - deliberately never part of the resolved target evidence
+            // - differs after the first read. A token issued against the first read must be
+            // rejected at apply against the SECOND, drifted read via the whole-project
+            // current-state hash (state_changed), never via a "different target" mismatch, mirroring
+            // the pure-safety-layer proof in NetworkPhase3SafetySnapshotTests at the full FakeWorker
+            // level.
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(++subnetLifecycleStateDriftReadCount)))
+                : $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-state-drift"}""");
+            break;
+
+        case "list-network-objects-large":
+            // Deterministic large-list scenario for budget tests: 20 items (all node kind), a
+            // scripted nextCursor, and a totalCount that matches. No real pagination logic — the
+            // same fixture is returned on every call; the cursor is for binding tests only.
+            Respond(ReadMethod(line) == "list_network_objects"
+                ? Success(ToCamelCaseJson(LargeListNetworkObjectsFixture()))
+                : $$"""{"success":false,"error":"expected list_network_objects, got '{{ReadMethod(line)}}'"}""");
+            break;
+
         default:
             Respond($$"""{"success":false,"error":"unknown scenario '{{scenario}}'"}""");
             break;
@@ -200,6 +467,16 @@ void Respond(string json)
     Console.Out.WriteLine(json);
     Console.Out.Flush();
 }
+
+// Wraps a payload document as a successful worker response. Serializing beats hand-escaping once a
+// payload is more than a few members: the escaping is what a hand-written literal gets wrong, and a
+// mis-escaped payload would fail the strict Network contract for the wrong reason.
+string Success(string payload) => JsonSerializer.Serialize(new { success = true, payload });
+
+// A complete HardwareConfigInfo: every collection is present, and members that are genuinely
+// unset are explicit nulls rather than omitted, so the payload exercises the strict registry the
+// way a real worker read does.
+string HardwareConfigPayload() => ToCamelCaseJson(RoundTripHardwareConfig());
 
 string? ReadMethod(string requestLine) => ReadField(requestLine, "method");
 
@@ -220,4 +497,828 @@ string? ReadField(string requestLine, string propertyName)
     {
         return null;
     }
+}
+
+// Renders a real Contracts DTO as camelCase JSON. Used by scenarios that must serialize through
+// complete contract-shaped objects (HardwareConfigInfo, ConfigureNetworkDeviceResultInfo) rather
+// than hand-maintained escaped JSON string fragments: the CLR type is the source of truth for
+// which members exist, so a contract change here is a compile error, not a silently stale literal.
+string ToCamelCaseJson<T>(T value)
+    => JsonSerializer.Serialize(value, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+// Hardware fixtures are serialized from the shared Contracts DTOs and carry the same deterministic
+// selectors the real worker now emits. Keeping this construction in one place means a future
+// selector-contract change fails the FakeWorker build instead of silently invalidating every
+// preview/apply scenario with stale hand-written JSON.
+HardwareConfigInfo RoundTripHardwareConfig() => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = "PLC_1",
+            TypeIdentifier = "OrderNumber:TEST",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    "PLC_1", 0, "PROFINET interface_1", "OrderNumber:TEST", 1,
+                    "PROFINET interface_1",
+                    SelectableNode(
+                        "PLC_1", "X1", "node-1", "Ethernet", "192.168.0.10",
+                        "255.255.255.0", "plc-1", "PN/IE_1", "IO system_1")),
+            },
+        },
+        new()
+        {
+            Name = "PC_System_1",
+            TypeIdentifier = "OrderNumber:PC-System",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    "PC_System_1", 0, "IE general_1", "OrderNumber:IE-General", 1,
+                    "PROFINET interface_1",
+                    SelectableNode(
+                        "PC_System_1", "E1", "0", "Ethernet", "192.168.0.20",
+                        "255.255.255.0", null, "PN/IE_1", null)),
+                SelectableDeviceItem(
+                    "PC_System_1", 1, "IE general_2", "OrderNumber:IE-General", 2,
+                    "PROFINET interface_2",
+                    SelectableNode(
+                        "PC_System_1", "E2", "1", "Ethernet", "10.0.0.20",
+                        "255.255.255.0", null, "PN/IE_2", null)),
+            },
+        },
+    },
+    Subnets = new List<SubnetInfo>
+    {
+        SelectableSubnet(
+            "PN/IE_1", "subnet-1", "Ethernet", "Ethernet",
+            new[] { SelectableIoSystem("subnet-1", "IO system_1", 100, "PLC_1") },
+            new[] { "PLC_1.X1", "PC_System_1.E1" }),
+        SelectableSubnet(
+            "PN/IE_2", "subnet-2", "Ethernet", "Ethernet",
+            Array.Empty<IoSystemInfo>(),
+            new[] { "PC_System_1.E2" }),
+    },
+};
+
+HardwareConfigInfo SingleNodeHardwareConfig(
+    string deviceName,
+    string itemName,
+    string interfaceName,
+    string nodeName,
+    string nodeId,
+    IEnumerable<string>? messages = null) => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = deviceName,
+            TypeIdentifier = "OrderNumber:TEST",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    deviceName, 0, itemName, "OrderNumber:TEST", 1, interfaceName,
+                    SelectableNode(deviceName, nodeName, nodeId, "Ethernet")),
+            },
+        },
+    },
+    Messages = messages?.ToList() ?? new List<string>(),
+};
+
+HardwareConfigInfo AmbiguousNodeHardwareConfig() => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = "PC_1",
+            TypeIdentifier = "OrderNumber:PC-System",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    "PC_1", 0, "IE general_1", "OrderNumber:IE-General", 1, "if_1",
+                    SelectableNode("PC_1", "Port A", "dup-node", "Ethernet", "192.168.0.20")),
+                SelectableDeviceItem(
+                    "PC_1", 1, "IE general_2", "OrderNumber:IE-General", 2, "if_2",
+                    SelectableNode("PC_1", "Port B", "dup-node", "Ethernet", "10.20.30.40")),
+            },
+        },
+    },
+};
+
+DeviceItemInfo SelectableDeviceItem(
+    string deviceName,
+    int index,
+    string itemName,
+    string typeIdentifier,
+    int positionNumber,
+    string interfaceName,
+    params NodeInfo[] nodes)
+{
+    var path = new List<DeviceItemPathSegmentInfo>
+    {
+        new()
+        {
+            Index = index,
+            Name = itemName,
+            PositionNumber = positionNumber,
+            TypeIdentifier = typeIdentifier,
+        },
+    };
+
+    return new DeviceItemInfo
+    {
+        Name = itemName,
+        TypeIdentifier = typeIdentifier,
+        PositionNumber = positionNumber,
+        Selectable = true,
+        Selector = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.DeviceItem,
+            DeviceName = deviceName,
+            ItemPath = path,
+        },
+        NetworkInterfaces = new List<NetworkInterfaceInfo>
+        {
+            new()
+            {
+                Name = interfaceName,
+                Selectable = true,
+                Selector = new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.NetworkInterface,
+                    DeviceName = deviceName,
+                    ItemPath = path,
+                    InterfaceName = interfaceName,
+                },
+                Nodes = nodes.ToList(),
+            },
+        },
+    };
+}
+
+NodeInfo SelectableNode(
+    string deviceName,
+    string name,
+    string nodeId,
+    string? nodeType = null,
+    string? ipAddress = null,
+    string? subnetMask = null,
+    string? pnDeviceName = null,
+    string? subnetName = null,
+    string? ioSystemName = null) => new()
+{
+    Name = name,
+    NodeId = nodeId,
+    NodeType = nodeType,
+    IpAddress = ipAddress,
+    SubnetMask = subnetMask,
+    PnDeviceName = pnDeviceName,
+    SubnetName = subnetName,
+    IoSystemName = ioSystemName,
+    Selectable = true,
+    Selector = new NetworkObjectSelectorInfo
+    {
+        Kind = NetworkObjectKinds.Node,
+        DeviceName = deviceName,
+        NodeId = nodeId,
+    },
+};
+
+SubnetInfo SelectableSubnet(
+    string name,
+    string subnetId,
+    string? networkType,
+    string? typeIdentifier,
+    IEnumerable<IoSystemInfo> ioSystems,
+    IEnumerable<string> connectedNodeNames) => new()
+{
+    Name = name,
+    SubnetId = subnetId,
+    NetworkType = networkType,
+    TypeIdentifier = typeIdentifier,
+    Selectable = true,
+    Selector = new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Subnet, SubnetId = subnetId },
+    IoSystems = ioSystems.ToList(),
+    ConnectedNodeNames = connectedNodeNames.ToList(),
+};
+
+IoSystemInfo SelectableIoSystem(string subnetId, string name, int number, string? controllerName) => new()
+{
+    Name = name,
+    Number = number,
+    IoControllerName = controllerName,
+    Selectable = true,
+    Selector = new NetworkObjectSelectorInfo
+    {
+        Kind = NetworkObjectKinds.IoSystem,
+        SubnetId = subnetId,
+        Number = number,
+    },
+};
+
+// Builds the current HardwareConfigInfo for the "multi-homed-network" scenario from the live
+// mutable node state, so a read after a configure_network_device call observes the mutation.
+HardwareConfigInfo MultiHomedHardwareConfig(MultiHomedNode plc, MultiHomedNode db) => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = "PC_1",
+            TypeIdentifier = "OrderNumber:PC-System",
+            Items = new List<DeviceItemInfo>
+            {
+                SelectableDeviceItem(
+                    "PC_1", 0, "IE general_1", "OrderNumber:IE-General", 1,
+                    "PROFINET interface_1",
+                    SelectableNode(
+                        "PC_1", plc.Name, plc.NodeId, "Ethernet", plc.IpAddress, plc.SubnetMask,
+                        plc.PnDeviceName, "PN/IE_1")),
+                SelectableDeviceItem(
+                    "PC_1", 1, "IE general_2", "OrderNumber:IE-General", 2,
+                    "PROFINET interface_2",
+                    SelectableNode(
+                        "PC_1", db.Name, db.NodeId, "Ethernet", db.IpAddress, db.SubnetMask,
+                        db.PnDeviceName, "PN/IE_2")),
+            },
+        },
+    },
+    Subnets = new List<SubnetInfo>
+    {
+        SelectableSubnet(
+            "PN/IE_1", "subnet-plc", "Ethernet", null,
+            Array.Empty<IoSystemInfo>(), new[] { $"PC_1.{plc.Name}" }),
+        SelectableSubnet(
+            "PN/IE_2", "subnet-db", "Ethernet", null,
+            Array.Empty<IoSystemInfo>(), new[] { $"PC_1.{db.Name}" }),
+    },
+    Messages = new List<string>(),
+};
+
+// Parses the forwarded nodeId and mutates ONLY the matching node's live state, so the OTHER node
+// stays byte-for-byte identical on a later read. Real Openness would resolve this same nodeId to a
+// specific Node object before applying any of these settings; this fixture mirrors that by keying
+// off the same exact identifier the host already resolved before ever sending this request.
+string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHomedNode db)
+{
+    var nodeId = ReadField(requestLine, "nodeId");
+    var target = nodeId switch
+    {
+        "node-plc" => plc,
+        "node-db" => db,
+        _ => null,
+    };
+
+    if (target is null)
+    {
+        return $$"""{"success":false,"error":"multi-homed-network has no node with nodeId '{{nodeId}}'"}""";
+    }
+
+    var applied = new Dictionary<string, string>();
+
+    var ipAddress = ReadField(requestLine, "ipAddress");
+    if (ipAddress is not null)
+    {
+        target.IpAddress = ipAddress;
+        applied["ipAddress"] = ipAddress;
+    }
+
+    var subnetMask = ReadField(requestLine, "subnetMask");
+    if (subnetMask is not null)
+    {
+        target.SubnetMask = subnetMask;
+        applied["subnetMask"] = subnetMask;
+    }
+
+    var pnDeviceName = ReadField(requestLine, "pnDeviceName");
+    if (pnDeviceName is not null)
+    {
+        target.PnDeviceName = pnDeviceName;
+        applied["pnDeviceName"] = pnDeviceName;
+    }
+
+    var result = new ConfigureNetworkDeviceResultInfo
+    {
+        DeviceName = "PC_1",
+        AppliedSettings = applied,
+        SkippedSettings = new Dictionary<string, string>(),
+        Messages = new List<string> { $"configured nodeId '{nodeId}'" },
+    };
+
+    return Success(ToCamelCaseJson(result));
+}
+
+// Builds the Phase 3 list_network_objects fixture: one object of every kind (6 total), with the
+// communicationConnection entry unselectable (selector is null) because its connection index cannot
+// always be determined at list time. TotalCount matches Items.Count (no hidden items on this page).
+NetworkObjectListInfo ListNetworkObjectsFixture() => new()
+{
+    Items = new List<NetworkObjectSummaryInfo>
+    {
+        new()
+        {
+            Kind = NetworkObjectKinds.DeviceItem,
+            Selectable = true,
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.DeviceItem,
+                DeviceName = "PLC_1",
+                ItemPath = new List<DeviceItemPathSegmentInfo>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Name = "PROFINET interface_1",
+                        PositionNumber = 1,
+                        TypeIdentifier = "OrderNumber:TEST",
+                    },
+                },
+            },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "PROFINET interface_1",
+                TypeIdentifier = "OrderNumber:TEST",
+                PositionNumber = 1,
+                DeviceItemPath = new List<string> { "PROFINET interface_1" },
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.NetworkInterface,
+            Selectable = true,
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.NetworkInterface,
+                DeviceName = "PLC_1",
+                ItemPath = new List<DeviceItemPathSegmentInfo>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        Name = "PROFINET interface_1",
+                        PositionNumber = 1,
+                        TypeIdentifier = "OrderNumber:TEST",
+                    },
+                },
+                InterfaceName = "PROFINET interface_1",
+            },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "PROFINET interface_1",
+                DeviceItemPath = new List<string> { "PROFINET interface_1" },
+                InterfaceName = "PROFINET interface_1",
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.Node,
+            Selectable = true,
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.Node,
+                DeviceName = "PLC_1",
+                NodeId = "node-1",
+            },
+            Evidence = new NetworkObjectEvidenceInfo { Name = "X1", NodeName = "X1" },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.Subnet,
+            Selectable = true,
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.Subnet,
+                SubnetId = "subnet-1",
+            },
+            Evidence = new NetworkObjectEvidenceInfo { Name = "PN/IE_1", SubnetName = "PN/IE_1" },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.IoSystem,
+            Selectable = true,
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.IoSystem,
+                SubnetId = "subnet-1",
+                Number = 100,
+            },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "IO system_1",
+                SubnetName = "PN/IE_1",
+                IoSystemName = "IO system_1",
+            },
+        },
+        new()
+        {
+            Kind = NetworkObjectKinds.CommunicationConnection,
+            Selectable = false,
+            Selector = null, // connection index not always determinable at list time
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = "S7 connection_1",
+                TypeIdentifier = "S7",
+                ConnectionIsValid = false,
+            },
+            Diagnostics = new List<string>
+            {
+                "Connection identity could not be read; selector not available.",
+            },
+        },
+    },
+    TotalCount = 6,
+    ReturnedCount = 6,
+    NextCursor = null,
+};
+
+// Builds the Phase 3 inspect_network_object fixture: attributes covering the full typed value
+// vocabulary. Each attribute carries source provenance, access classification, supportedTypes, and
+// availability. The special names unknownAttribute, readFailed, and unrepresentable exercise the
+// three non-available availability states so round-trip tests can assert all lifecycle paths.
+NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
+{
+    Target = new NetworkObjectSelectorInfo
+    {
+        Kind = NetworkObjectKinds.Node,
+        DeviceName = "PLC_1",
+        NodeId = "node-1",
+    },
+    Evidence = new NetworkObjectEvidenceInfo
+    {
+        Name = "X1",
+        TypeIdentifier = "OrderNumber:TEST",
+        PositionNumber = 1,
+        Address = "192.168.0.10",
+        DeviceItemPath = new List<string> { "PLC_1", "X1" },
+        InterfaceName = "PROFINET interface_1",
+        InterfaceType = "PROFINET",
+        InterfaceOperatingMode = "IoController",
+        NodeName = "X1",
+        NodeType = "Ethernet",
+        SubnetName = "PN/IE_1",
+        NetworkType = "Ethernet",
+        IoSystemName = "IO system_1",
+        IoControllerName = "PLC_1",
+        ConnectionIsValid = true,
+        LocalEndpointName = "PLC_1.X1",
+        PartnerEndpointName = "ET200SP_1.X1",
+        LocalSubnetName = "PN/IE_1",
+        PartnerSubnetName = "PN/IE_1",
+    },
+    Attributes = new List<NetworkAttributeInfo>
+    {
+        new()
+        {
+            Name = "nullAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string>(),
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "null", Value = null },
+        },
+        new()
+        {
+            Name = "stringAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "string" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "string", Value = "192.168.0.10" },
+        },
+        new()
+        {
+            Name = "booleanAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "boolean" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "boolean", Value = true },
+        },
+        new()
+        {
+            Name = "integerAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "integer" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "integer", Value = 1500L },
+        },
+        new()
+        {
+            Name = "numberAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "number" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo { Kind = "number", Value = 3.14 },
+        },
+        new()
+        {
+            Name = "enumAttribute",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string> { "enum" },
+            Availability = "available",
+            Value = new NetworkAttributeValueInfo
+            {
+                Kind = "enum",
+                Value = new NetworkEnumValueInfo { TypeName = "MediaType", Symbol = "Ethernet", NumericValue = 1 },
+            },
+        },
+        new()
+        {
+            Name = "unknownAttribute",
+            Source = null,
+            Access = "unknown",
+            SupportedTypes = new List<string>(),
+            Availability = "unknownAttribute",
+            Diagnostic = new NetworkAttributeDiagnosticInfo
+            {
+                Category = "unknown_attribute",
+                Message = "Attribute was not recognized.",
+            },
+        },
+        new()
+        {
+            Name = "readFailed",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string>(),
+            Availability = "readFailed",
+            Diagnostic = new NetworkAttributeDiagnosticInfo { Category = "read_error", Message = "read failed" },
+        },
+        new()
+        {
+            Name = "unrepresentable",
+            Source = "modeled",
+            Access = "readOnly",
+            SupportedTypes = new List<string>(),
+            Availability = "unrepresentable",
+            Diagnostic = new NetworkAttributeDiagnosticInfo { Category = "type_error", Message = "cannot represent value" },
+        },
+    },
+    Messages = new List<string>(),
+};
+
+// Deterministic large-list scenario: 20 node entries with distinct nodeIds, a scripted next-page
+// cursor, and a totalCount larger than Items.Count to indicate more pages exist. No real pagination
+// is implemented; the cursor value is stable so budget tests can verify it is forwarded correctly.
+NetworkObjectListInfo LargeListNetworkObjectsFixture()
+{
+    var items = Enumerable.Range(1, 20)
+        .Select(i => new NetworkObjectSummaryInfo
+        {
+            Kind = NetworkObjectKinds.Node,
+            Selectable = true,
+            Selector = new NetworkObjectSelectorInfo
+            {
+                Kind = NetworkObjectKinds.Node,
+                DeviceName = "LargeSwitch",
+                NodeId = $"node-{i:D3}",
+            },
+            Evidence = new NetworkObjectEvidenceInfo
+            {
+                Name = $"Port_{i:D2}",
+                NodeName = $"Port_{i:D2}",
+            },
+        })
+        .ToList();
+
+    return new NetworkObjectListInfo
+    {
+        Items = items,
+        TotalCount = 100,
+        ReturnedCount = items.Count,
+        NextCursor = "large-list-page-2",
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: subnet lifecycle fixtures (Task 6)
+// ---------------------------------------------------------------------------
+
+List<DeviceInfo> SubnetLifecycleDevices() => new()
+{
+    new() { Name = "PLC_1", TypeIdentifier = "OrderNumber:TEST", Items = new List<DeviceItemInfo>() },
+    new() { Name = "HMI_1", TypeIdentifier = "OrderNumber:HMI", Items = new List<DeviceItemInfo>() },
+};
+
+/// <summary>
+/// Renders the CURRENT mutable subnet list as a contract-valid <see cref="HardwareConfigInfo"/>.
+/// Devices are always the same two entries; only <paramref name="subnets"/> reflects whatever
+/// create_subnet/update_subnet/delete_subnet has done to the shared state so far.
+/// </summary>
+HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState> subnets) => new()
+{
+    Devices = SubnetLifecycleDevices(),
+    Subnets = subnets
+        .Select(subnet => SelectableSubnet(
+            subnet.Name,
+            subnet.SubnetId,
+            subnet.NetworkType,
+            subnet.NetworkType,
+            Array.Empty<IoSystemInfo>(),
+            subnet.ConnectedNodeNames))
+        .ToList(),
+    Messages = new List<string>(),
+};
+
+/// <summary>
+/// Dedicated fixture for the "network-subnet-lifecycle-state-drift" scenario: reports the SAME one
+/// Ethernet subnet identity on every read, but its connectedNodeNames differs after the first call
+/// - a relationship-only change that never appears in resolved target evidence but still
+/// invalidates a token via the whole-project current-state hash.
+/// </summary>
+HardwareConfigInfo SubnetLifecycleStateDriftHardwareConfig(int readCount) => new()
+{
+    Devices = SubnetLifecycleDevices(),
+    Subnets = new List<SubnetInfo>
+    {
+        SelectableSubnet(
+            "PN/IE_1",
+            "subnet-eth-1",
+            SubnetLifecycleContract.Ethernet,
+            SubnetLifecycleContract.Ethernet,
+            Array.Empty<IoSystemInfo>(),
+            readCount <= 1
+                ? new[] { "PLC_1.X1" }
+                : new[] { "PLC_1.X1", "PLC_2.X1" }),
+    },
+    Messages = new List<string>(),
+};
+
+/// <summary>
+/// Dispatches one subnet lifecycle write against the shared mutable state and returns the exact
+/// four-member <see cref="SubnetLifecycleResultInfo"/> JSON. Shared by every scenario key that
+/// performs a REAL (non-switched) mutation, so create/update/delete behave identically no matter
+/// which key reached them.
+/// </summary>
+string DispatchSubnetLifecycleWrite(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+    => ReadMethod(requestLine) switch
+    {
+        "create_subnet" => HandleCreateSubnet(requestLine, subnets),
+        "update_subnet" => HandleUpdateSubnet(requestLine, subnets),
+        "delete_subnet" => HandleDeleteSubnet(requestLine, subnets),
+        _ => $$"""{"success":false,"error":"unexpected subnet lifecycle method '{{ReadMethod(requestLine)}}'"}""",
+    };
+
+/// <summary>
+/// Assigns a deterministic, nonblank, never-reused subnet id and applies PROFIBUS-only attributes
+/// only when the requested network type is PROFIBUS - mirroring
+/// <c>SubnetLifecycleService.ApplyProfibusAttributes</c>'s Ethernet/PROFIBUS split. The new subnet
+/// starts with an EMPTY connectedNodeNames list: nothing connects it, so it is immediately
+/// deletable as an "empty subnet" without needing a third preset fixture.
+/// </summary>
+string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    var name = ReadField(requestLine, "subnetName") ?? string.Empty;
+    var networkType = ReadField(requestLine, "subnetNetworkType") ?? string.Empty;
+    var isProfibus = string.Equals(networkType, SubnetLifecycleContract.Profibus, StringComparison.Ordinal);
+
+    var subnetId = $"subnet-created-{subnetLifecycleNextId}";
+    subnetLifecycleNextId++;
+
+    subnets.Add(new SubnetLifecycleSubnetState
+    {
+        SubnetId = subnetId,
+        Name = name,
+        NetworkType = networkType,
+        HighestAddress = isProfibus ? ReadIntField(requestLine, "subnetHighestAddress") : null,
+        TransmissionSpeed = isProfibus ? ReadField(requestLine, "subnetTransmissionSpeed") : null,
+        ConnectedNodeNames = new List<string>(),
+    });
+
+    return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+    {
+        SubnetId = subnetId,
+        Name = name,
+        NetworkDeviceCount = SubnetLifecycleDeviceCount,
+        NetworkDeviceCountUnchanged = true,
+    }));
+}
+
+/// <summary>
+/// Applies only the fields present on the request to the EXACT matching SubnetId - every other
+/// subnet in the shared list, and every field the request omitted, is left untouched.
+/// </summary>
+string HandleUpdateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    var subnetId = ReadField(requestLine, "subnetId");
+    var target = subnets.FirstOrDefault(subnet => subnet.SubnetId == subnetId);
+    if (target is null)
+    {
+        return $$"""{"success":false,"error":"network-subnet-lifecycle has no subnet with subnetId '{{subnetId}}'"}""";
+    }
+
+    var name = ReadField(requestLine, "subnetName");
+    if (name is not null)
+    {
+        target.Name = name;
+    }
+
+    var highestAddress = ReadIntField(requestLine, "subnetHighestAddress");
+    if (highestAddress is not null)
+    {
+        target.HighestAddress = highestAddress;
+    }
+
+    var transmissionSpeed = ReadField(requestLine, "subnetTransmissionSpeed");
+    if (transmissionSpeed is not null)
+    {
+        target.TransmissionSpeed = transmissionSpeed;
+    }
+
+    return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+    {
+        SubnetId = target.SubnetId,
+        Name = target.Name,
+        NetworkDeviceCount = SubnetLifecycleDeviceCount,
+        NetworkDeviceCountUnchanged = true,
+    }));
+}
+
+/// <summary>
+/// Removes the exact matching subnet from the shared list UNCONDITIONALLY - a non-empty
+/// connectedNodeNames never blocks this, matching production's "connected deletion is allowed, no
+/// dependency inventory" rule. The device collection is never touched.
+/// </summary>
+string HandleDeleteSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    var subnetId = ReadField(requestLine, "subnetId");
+    var target = subnets.FirstOrDefault(subnet => subnet.SubnetId == subnetId);
+    if (target is null)
+    {
+        return $$"""{"success":false,"error":"network-subnet-lifecycle has no subnet with subnetId '{{subnetId}}'"}""";
+    }
+
+    subnets.Remove(target);
+
+    return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+    {
+        SubnetId = target.SubnetId,
+        Name = target.Name,
+        NetworkDeviceCount = SubnetLifecycleDeviceCount,
+        NetworkDeviceCountUnchanged = true,
+    }));
+}
+
+/// <summary>
+/// The FIRST subnet write against "network-subnet-lifecycle-second-item-failure" performs a REAL
+/// mutation (proving the earlier item stays applied); every later one fails structurally without
+/// touching state, proving the batch stops and later items are skipped.
+/// </summary>
+string HandleSecondItemFailureWrite(string requestLine, List<SubnetLifecycleSubnetState> subnets)
+{
+    subnetLifecycleSecondFailureWriteCount++;
+    return subnetLifecycleSecondFailureWriteCount == 1
+        ? DispatchSubnetLifecycleWrite(requestLine, subnets)
+        : $$"""{"success":false,"error":"deliberate second-item failure for network-subnet-lifecycle-second-item-failure"}""";
+}
+
+int? ReadIntField(string requestLine, string propertyName)
+{
+    try
+    {
+        using var doc = JsonDocument.Parse(requestLine);
+        return doc.RootElement.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Number
+            ? value.GetInt32()
+            : null;
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
+}
+
+/// <summary>Mutable process-local state for one subnet in the Phase 4 lifecycle scenarios.</summary>
+sealed class SubnetLifecycleSubnetState
+{
+    public required string SubnetId { get; init; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public string NetworkType { get; set; } = string.Empty;
+
+    public int? HighestAddress { get; set; }
+
+    public string? TransmissionSpeed { get; set; }
+
+    public List<string> ConnectedNodeNames { get; set; } = new();
+}
+
+/// <summary>Mutable process-local state for one node of the "multi-homed-network" scenario.</summary>
+sealed class MultiHomedNode
+{
+    public required string Name { get; init; }
+
+    public required string NodeId { get; init; }
+
+    public string IpAddress { get; set; } = string.Empty;
+
+    public string? SubnetMask { get; set; }
+
+    public string? PnDeviceName { get; set; }
 }
