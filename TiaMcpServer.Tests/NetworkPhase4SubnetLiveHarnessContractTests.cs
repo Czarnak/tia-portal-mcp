@@ -409,7 +409,14 @@ public class NetworkPhase4SubnetLiveHarnessContractTests
         // -- the wrong behavior for a case that is EXPECTED to fail.
         Assert.Contains("function Invoke-McpToolCallExpectingError", text, StringComparison.Ordinal);
         var helperFunctionText = ExtractFunctionBody(text, "Invoke-McpToolCallExpectingError");
-        Assert.Matches(new Regex(@"if\s*\(\s*-not\s*\$result\.isError\s*\)"), helperFunctionText);
+        // A bare $result.isError access throws under Set-StrictMode when a tool's CallToolResult
+        // omits isError entirely (legal per the MCP spec: absent means false) -- confirmed live
+        // against get_project_status. Get-ToolResultIsError reads it safely via
+        // PSObject.Properties instead; the invariant this test locks (check "not an error", then
+        // throw) is unchanged.
+        Assert.Matches(
+            new Regex(@"if\s*\(\s*-not\s*\(\s*Get-ToolResultIsError\s+-Result\s+\$result\s*\)\s*\)"),
+            helperFunctionText);
         Assert.Contains("throw", helperFunctionText, StringComparison.Ordinal);
 
         // 1. Invalid transmission-speed symbol -- rejected by NetworkOperationCatalog.ValidateWrite
