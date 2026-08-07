@@ -285,16 +285,47 @@ function Connect-McpHost {
     return $initializeResult
 }
 
+function Get-ToolResultIsError {
+    # Per the MCP spec (CallToolResult.isError): "If not explicitly set, it defaults to false."
+    # get_project_status (and other tools that still return a plain string rather than going
+    # through StructuredToolResult.Create) are auto-wrapped by the SDK into a CallToolResult that
+    # never sets IsError, so the field is entirely absent from the JSON -- that is a normal
+    # successful result per spec, not a malformed one. Reading the property through
+    # PSObject.Properties keeps this safe under Set-StrictMode -Version Latest, which otherwise
+    # throws on any property access a JSON payload didn't happen to include.
+    param([object] $Result)
+    $property = $Result.PSObject.Properties['isError']
+    if ($null -eq $property) { return $false }
+    return [bool] $property.Value
+}
+
+function Get-ToolResultStructuredContent {
+    # UseStructuredContent = true tools (network_read/network_write) always emit a
+    # 'structuredContent' member. Plain-string tools like get_project_status never declare it, so
+    # the property is entirely absent from the JSON, not merely null -- a bare '.structuredContent'
+    # access throws under Set-StrictMode -Version Latest instead of returning $null. Reading it
+    # through PSObject.Properties makes "not declared" and "declared null" both come back as $null,
+    # which is what the caller's structuredContent-preferred / text-block-fallback logic expects.
+    param([object] $Result)
+    $property = $Result.PSObject.Properties['structuredContent']
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
 function Invoke-McpToolCall {
     param([string] $Name, [hashtable] $Arguments)
     $result = Invoke-McpRequest -Method 'tools/call' -Params @{ name = $Name; arguments = $Arguments }
-    if ($result.isError) {
+    if ($null -eq $result) {
+        throw "Tool '$Name' returned no result for 'tools/call'."
+    }
+    if (Get-ToolResultIsError -Result $result) {
         throw "Tool '$Name' returned isError:true -- $($result.content[0].text)"
     }
     # network_read/network_write declare structuredContent identical to the text block; prefer it
     # directly. Plain-string tools (get_project_status) have no structuredContent, so fall back to
     # parsing their text block.
-    if ($null -ne $result.structuredContent) { return $result.structuredContent }
+    $structuredContent = Get-ToolResultStructuredContent -Result $result
+    if ($null -ne $structuredContent) { return $structuredContent }
     return ($result.content[0].text | ConvertFrom-Json -Depth 60)
 }
 
@@ -306,10 +337,14 @@ function Invoke-McpToolCallExpectingError {
     # structuredContent-preferred / text-block-fallback logic as Invoke-McpToolCall.
     param([string] $Name, [hashtable] $Arguments)
     $result = Invoke-McpRequest -Method 'tools/call' -Params @{ name = $Name; arguments = $Arguments }
-    if (-not $result.isError) {
+    if ($null -eq $result) {
+        throw "Tool '$Name' returned no result for 'tools/call'."
+    }
+    if (-not (Get-ToolResultIsError -Result $result)) {
         throw "Tool '$Name' was expected to return isError:true for this negative case but succeeded instead -- this likely means validation regressed."
     }
-    if ($null -ne $result.structuredContent) { return $result.structuredContent }
+    $structuredContent = Get-ToolResultStructuredContent -Result $result
+    if ($null -ne $structuredContent) { return $structuredContent }
     return ($result.content[0].text | ConvertFrom-Json -Depth 60)
 }
 
@@ -349,10 +384,22 @@ function Read-HardwareConfig {
         )
     }
     $item = $response.batch.operations[0]
-    if ($item.status -ne 'succeeded') {
-        throw "read_hardware_config did not succeed: $($item.failure | ConvertTo-Json -Compress -Depth 20)"
+    if ($item.status -eq 'succeeded') {
+        return $item.result
     }
-    return $item.result
+
+    # 'failed' is the only status that ever populates .failure -- 'omitted' (the payload budget
+    # withholding an oversized result, see StructuredOperationBatchPayloadBudget) leaves .failure
+    # null by design and carries the real diagnostic in .omission instead. Printing .failure
+    # unconditionally here previously reported a misleading "null" for the omitted case and hid
+    # the actual reason and retry guidance.
+    if ($item.status -eq 'omitted') {
+        throw "read_hardware_config's result was omitted (too large for the response budget): $($item.omission | ConvertTo-Json -Compress -Depth 20). This project's hardware configuration exceeds network_read's per-item/document character limit; read_hardware_config cannot return it in one call. Retry via the narrower list_network_objects operation instead, per the omission's guidance."
+    }
+    if ($item.status -eq 'failed') {
+        throw "read_hardware_config failed: $($item.failure | ConvertTo-Json -Compress -Depth 20)"
+    }
+    throw "read_hardware_config did not succeed (status '$($item.status)'): $($item | ConvertTo-Json -Compress -Depth 20)"
 }
 
 function Get-ExistingSubnetName {
@@ -655,8 +702,12 @@ function Invoke-Apply {
 
     # --- Group 2: update both created subnets ---------------------------------------------------
     $updateOperations = @(
-        New-UpdateSubnetOperation -OperationId 'update-eth' -SubnetId $createdEthernetId -Changes @{ name = 'Phase4HarnessEthernetRenamed' }
-        New-UpdateSubnetOperation -OperationId 'update-pb' -SubnetId $createdProfibusId -Changes @{ name = 'Phase4HarnessProfibusRenamed'; highestAddress = 30; transmissionSpeed = 'Baud1500000' }
+        # TIA Portal enforces a 24-character subnet name limit (confirmed live: Openness'
+        # Subnet.set_Name throws "the subnet name is too long. max 24 character are allowed").
+        # The original "...Renamed" literals here were 28 characters and failed against a real
+        # project -- these two are 23/22 characters, staying under the limit.
+        New-UpdateSubnetOperation -OperationId 'update-eth' -SubnetId $createdEthernetId -Changes @{ name = 'Phase4HarnessEthRenamed' }
+        New-UpdateSubnetOperation -OperationId 'update-pb' -SubnetId $createdProfibusId -Changes @{ name = 'Phase4HarnessPbRenamed'; highestAddress = 30; transmissionSpeed = 'Baud1500000' }
     )
     $updateGroup = Invoke-LifecycleGroupAndVerify -GroupName 'update-isolated-subnets' -Operations $updateOperations -DeviceCountBefore $deviceCountBefore
 
