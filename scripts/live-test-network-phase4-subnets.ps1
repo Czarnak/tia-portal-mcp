@@ -21,7 +21,10 @@
     (read_hardware_config) and get_project_status. -Mode Preview also never mutates: it calls
     network_write with confirm:false for a representative create/update/delete operation array and
     records the resulting target evidence and non-secret token metadata -- it never reaches a
-    confirming apply call. Only -Mode Apply can change the project, and only when BOTH -AllowMutation
+    confirming apply call. Preview mode also exercises three non-mutating negative-path checks (an
+    invalid transmission-speed symbol, a PROFIBUS-only field on an Ethernet target, and a bogus
+    subnetId), confirming each is rejected with isError:true before any Openness transaction runs.
+    Only -Mode Apply can change the project, and only when BOTH -AllowMutation
     is supplied AND -Acknowledgement matches the exact required string below -- there is no
     shortcut and no default-yes path.
 
@@ -203,12 +206,32 @@ function Send-McpMessage {
 function Read-McpResponse {
     param([int] $Id, [int] $TimeoutSeconds = $StartupTimeoutSeconds)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    # A bare synchronous ReadLine() blocks this thread until a line arrives, so the deadline below
+    # would never get a chance to fire while a read is in flight. Reading asynchronously and
+    # waiting on the returned Task with a per-iteration timeout lets the loop recheck the deadline
+    # (and whether the host has exited) instead of blocking forever on a hung host. The same
+    # pending Task is reused across iterations rather than starting a new ReadLineAsync() call
+    # every loop -- issuing a second overlapping read before the first completes is not a safe
+    # StreamReader usage.
+    $pendingReadTask = $null
     while ((Get-Date) -lt $deadline) {
         if ($script:HostProcess.HasExited) {
             throw "The MCP host process exited (code $($script:HostProcess.ExitCode)) before responding to request id $Id."
         }
 
-        $line = $script:HostProcess.StandardOutput.ReadLine()
+        if ($null -eq $pendingReadTask) {
+            $pendingReadTask = $script:HostProcess.StandardOutput.ReadLineAsync()
+        }
+
+        $remainingMs = [int] [Math]::Max(0, ($deadline - (Get-Date)).TotalMilliseconds)
+        if (-not $pendingReadTask.Wait($remainingMs)) {
+            # No line arrived within this iteration's remaining budget -- loop again and recheck
+            # the deadline; the same pending read is kept for the next iteration.
+            continue
+        }
+
+        $line = $pendingReadTask.Result
+        $pendingReadTask = $null
         if ($null -eq $line -or [string]::IsNullOrWhiteSpace($line)) { continue }
 
         try { $parsed = $line | ConvertFrom-Json -Depth 60 } catch { continue }
@@ -275,6 +298,21 @@ function Invoke-McpToolCall {
     return ($result.content[0].text | ConvertFrom-Json -Depth 60)
 }
 
+function Invoke-McpToolCallExpectingError {
+    # Invoke-McpToolCall throws on isError:true, which is the wrong helper for a call that is
+    # EXPECTED to fail (the three non-mutating negative Preview cases below). This bypasses that
+    # throwing wrapper, asserts the call actually failed (throwing if it unexpectedly succeeded --
+    # that would mean validation regressed), and returns the parsed error envelope using the same
+    # structuredContent-preferred / text-block-fallback logic as Invoke-McpToolCall.
+    param([string] $Name, [hashtable] $Arguments)
+    $result = Invoke-McpRequest -Method 'tools/call' -Params @{ name = $Name; arguments = $Arguments }
+    if (-not $result.isError) {
+        throw "Tool '$Name' was expected to return isError:true for this negative case but succeeded instead -- this likely means validation regressed."
+    }
+    if ($null -ne $result.structuredContent) { return $result.structuredContent }
+    return ($result.content[0].text | ConvertFrom-Json -Depth 60)
+}
+
 # --- Provenance -----------------------------------------------------------------------------
 
 function Get-ServerCommit {
@@ -319,11 +357,14 @@ function Read-HardwareConfig {
 
 function Get-ExistingSubnetName {
     param([Parameter(Mandatory)] [object] $Hardware, [Parameter(Mandatory)] [string] $SubnetId)
-    $matches = @($Hardware.subnets | Where-Object { $_.subnetId -eq $SubnetId })
-    if ($matches.Count -ne 1) {
-        throw "Expected exactly one subnet with subnetId '$SubnetId' in the current hardware configuration; found $($matches.Count)."
+    # Named "subnetMatches" rather than PowerShell's automatic "matches" variable (the one
+    # populated by the -match operator), so a future edit that also uses -match in this scope
+    # cannot be silently confused by this being an ordinary local variable instead.
+    $subnetMatches = @($Hardware.subnets | Where-Object { $_.subnetId -eq $SubnetId })
+    if ($subnetMatches.Count -ne 1) {
+        throw "Expected exactly one subnet with subnetId '$SubnetId' in the current hardware configuration; found $($subnetMatches.Count)."
     }
-    return $matches[0].name
+    return $subnetMatches[0].name
 }
 
 function New-CreateSubnetOperation {
@@ -520,6 +561,64 @@ function Invoke-Preview {
     $updatePreview = Invoke-NetworkWritePreview -Operations $updateOperations
     $deletePreview = Invoke-NetworkWritePreview -Operations $deleteOperations
 
+    # --- Non-mutating negative-path checks -------------------------------------------------------
+    # Each of these three cases is rejected by the host BEFORE any Openness transaction runs
+    # (validated in NetworkOperationCatalog/NetworkIdentityResolver during preview construction),
+    # so calling them with confirm:false is fully safe. They stay entirely within this function,
+    # confirm:false only, and never advance to a confirming apply call -- there is no safety token
+    # for a request preview rejects.
+    $negativeCases = @()
+
+    # 1. Invalid transmission-speed symbol -- rejected by NetworkOperationCatalog.ValidateWrite
+    #    before any hardware state is even read.
+    $invalidSpeedOperation = New-CreateSubnetOperation -OperationId 'preview-negative-invalid-transmission-speed' -Name 'Phase4HarnessInvalidSpeedPreview' -NetworkType $script:ProfibusNetworkType -HighestAddress 20 -TransmissionSpeed 'NotARealBaudRate'
+    $invalidSpeedResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($invalidSpeedOperation); confirm = $false }
+    if ($invalidSpeedResult.error.category -ne 'validation_error') {
+        throw "Expected error.category 'validation_error' for the invalid-transmission-speed negative case; got '$($invalidSpeedResult.error.category)'."
+    }
+    $negativeCases += [ordered]@{
+        case          = 'invalid-transmission-speed-symbol'
+        operation     = $invalidSpeedOperation
+        errorCategory = $invalidSpeedResult.error.category
+        errorMessage  = $invalidSpeedResult.error.message
+    }
+
+    # 2. PROFIBUS-only field on an Ethernet target -- rejected during preview's target resolution
+    #    (NetworkIdentityResolver.ResolveExistingSubnet), after the hardware read but before any
+    #    token is issued or any worker call happens.
+    $ethernetHighestAddressOperation = New-UpdateSubnetOperation -OperationId 'preview-negative-ethernet-highest-address' -SubnetId $ConnectedEthernetSubnetId -Changes @{ highestAddress = 10 }
+    $ethernetHighestAddressResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($ethernetHighestAddressOperation); confirm = $false }
+    if ($ethernetHighestAddressResult.error.category -ne 'validation_error') {
+        throw "Expected error.category 'validation_error' for the PROFIBUS-only-field-on-Ethernet negative case; got '$($ethernetHighestAddressResult.error.category)'."
+    }
+    $negativeCases += [ordered]@{
+        case          = 'profibus-only-field-on-ethernet-target'
+        operation     = $ethernetHighestAddressOperation
+        errorCategory = $ethernetHighestAddressResult.error.category
+        errorMessage  = $ethernetHighestAddressResult.error.message
+    }
+
+    # 3. Bogus subnetId, synthesized deterministically from the real connected Ethernet subnetId
+    #    already read above -- defensively confirmed absent from the current hardware
+    #    configuration before use. Rejected during preview's target resolution's exact-one-match
+    #    check (NetworkIdentityResolver.ResolveExistingSubnet's no-match branch), which reports
+    #    postcondition_failed, not target_not_found.
+    $bogusSubnetId = "$ConnectedEthernetSubnetId-does-not-exist"
+    if (@($before.subnets | Where-Object { $_.subnetId -eq $bogusSubnetId }).Count -ne 0) {
+        throw "The synthesized bogus subnetId '$bogusSubnetId' unexpectedly collides with a real subnet in the current hardware configuration -- choose a different suffix."
+    }
+    $bogusSubnetOperation = New-DeleteSubnetOperation -OperationId 'preview-negative-bogus-subnet-id' -SubnetId $bogusSubnetId
+    $bogusSubnetResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($bogusSubnetOperation); confirm = $false }
+    if ($bogusSubnetResult.error.category -ne 'postcondition_failed') {
+        throw "Expected error.category 'postcondition_failed' for the bogus-subnetId negative case; got '$($bogusSubnetResult.error.category)'."
+    }
+    $negativeCases += [ordered]@{
+        case          = 'bogus-subnet-id'
+        operation     = $bogusSubnetOperation
+        errorCategory = $bogusSubnetResult.error.category
+        errorMessage  = $bogusSubnetResult.error.message
+    }
+
     [ordered]@{
         mode                = 'Preview'
         rootDeviceCount     = @($before.devices).Count
@@ -532,6 +631,7 @@ function Invoke-Preview {
         createPreview = Get-RedactedPreviewRecord -Preview $createPreview
         updatePreview = Get-RedactedPreviewRecord -Preview $updatePreview
         deletePreview = Get-RedactedPreviewRecord -Preview $deletePreview
+        negativeCases = $negativeCases
     }
 }
 

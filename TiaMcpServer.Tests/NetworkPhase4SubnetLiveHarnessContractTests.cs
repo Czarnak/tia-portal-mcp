@@ -369,6 +369,117 @@ public class NetworkPhase4SubnetLiveHarnessContractTests
     }
 
     [Fact]
+    public void Script_ReadMcpResponseUsesAnAsyncReadWithARealPerIterationTimeoutInsteadOfABlockingReadLine()
+    {
+        var text = ReadScript();
+        var functionText = ExtractFunctionBody(text, "Read-McpResponse");
+
+        // A bare synchronous ReadLine() blocks the calling thread until a line arrives, so the
+        // surrounding deadline loop never gets a chance to observe the timeout while a call is in
+        // flight -- StartupTimeoutSeconds could never actually interrupt a hung host. This must be
+        // replaced with an async read the loop can wait on with a bounded, re-computed timeout.
+        Assert.DoesNotContain("StandardOutput.ReadLine()", functionText, StringComparison.Ordinal);
+        Assert.Contains("StandardOutput.ReadLineAsync()", functionText, StringComparison.Ordinal);
+        Assert.Matches(new Regex(@"\.Wait\(\s*\$remainingMs\s*\)"), functionText);
+
+        // The remaining budget must be recomputed from the deadline every iteration (not read once
+        // before the loop), otherwise the timeout could never shrink as time passes.
+        Assert.Matches(new Regex(@"\$remainingMs\s*=.*\$deadline"), functionText);
+    }
+
+    [Fact]
+    public void Script_GetExistingSubnetNameDoesNotShadowTheAutomaticMatchesVariable()
+    {
+        var text = ReadScript();
+        var functionText = ExtractFunctionBody(text, "Get-ExistingSubnetName");
+
+        // $matches is a PowerShell automatic variable populated by the -match operator; using it
+        // as an ordinary local variable name is legal but risks silently colliding with a future
+        // -match usage in the same scope.
+        Assert.DoesNotMatch(new Regex(@"\$matches\b"), functionText);
+    }
+
+    [Fact]
+    public void Script_PreviewIncludesThreeNonMutatingNegativeCasesUsingTheNonThrowingHelper()
+    {
+        var text = ReadScript();
+        var previewFunctionText = ExtractFunctionBody(text, "Invoke-Preview");
+
+        // A new non-throwing helper is required because Invoke-McpToolCall throws on isError:true
+        // -- the wrong behavior for a case that is EXPECTED to fail.
+        Assert.Contains("function Invoke-McpToolCallExpectingError", text, StringComparison.Ordinal);
+        var helperFunctionText = ExtractFunctionBody(text, "Invoke-McpToolCallExpectingError");
+        Assert.Matches(new Regex(@"if\s*\(\s*-not\s*\$result\.isError\s*\)"), helperFunctionText);
+        Assert.Contains("throw", helperFunctionText, StringComparison.Ordinal);
+
+        // 1. Invalid transmission-speed symbol -- rejected by NetworkOperationCatalog.ValidateWrite
+        //    before any hardware state is even read.
+        Assert.Contains("NotARealBaudRate", previewFunctionText, StringComparison.Ordinal);
+
+        // 2. PROFIBUS-only field on an Ethernet target -- rejected during preview's target
+        //    resolution (NetworkIdentityResolver.ResolveExistingSubnet).
+        Assert.Matches(
+            new Regex(@"-SubnetId\s+\$ConnectedEthernetSubnetId[\s\S]{0,200}highestAddress\s*=\s*10"),
+            previewFunctionText);
+
+        // 3. A bogus subnetId, synthesized deterministically from a real one and defensively
+        //    checked to be absent before use -- rejected during preview's target resolution's
+        //    exact-one-match check.
+        Assert.Matches(new Regex(@"\$bogusSubnetId\s*=\s*""\$ConnectedEthernetSubnetId-does-not-exist"""), previewFunctionText);
+        Assert.Matches(new Regex(@"\.Count\s*-ne\s*0\s*\)\s*\{\s*\r?\n\s*throw"), previewFunctionText);
+
+        // All three negative cases must use the non-throwing helper, never the throwing one, and
+        // every negative case's asserted error category must be checked explicitly.
+        var negativeCaseCallSites = Regex.Matches(previewFunctionText, @"Invoke-McpToolCallExpectingError");
+        Assert.True(negativeCaseCallSites.Count >= 3, $"Expected at least 3 uses of Invoke-McpToolCallExpectingError in Invoke-Preview; found {negativeCaseCallSites.Count}.");
+        Assert.Contains("'validation_error'", previewFunctionText, StringComparison.Ordinal);
+        Assert.Contains("'postcondition_failed'", previewFunctionText, StringComparison.Ordinal);
+
+        // The negative cases are recorded in the evidence artifact.
+        Assert.Contains("negativeCases", previewFunctionText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Script_NegativeCasesNeverAppearInApplyOrCallInvokeNetworkWriteApply()
+    {
+        var text = ReadScript();
+        var previewFunctionText = ExtractFunctionBody(text, "Invoke-Preview");
+        var applyFunctionText = ExtractFunctionBody(text, "Invoke-Apply");
+
+        // The three negative cases stay entirely within Invoke-Preview, confirm:false only -- they
+        // must never reach Invoke-NetworkWriteApply, and Invoke-Apply must never reference them.
+        Assert.DoesNotContain("Invoke-NetworkWriteApply", previewFunctionText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Invoke-McpToolCallExpectingError", applyFunctionText, StringComparison.Ordinal);
+        Assert.DoesNotContain("NotARealBaudRate", applyFunctionText, StringComparison.Ordinal);
+        Assert.DoesNotContain("-does-not-exist", applyFunctionText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Script_DescriptionMentionsTheNonMutatingNegativePreviewCases()
+    {
+        var text = ReadScript();
+        var descriptionEnd = text.IndexOf(".PARAMETER", StringComparison.Ordinal);
+        Assert.True(descriptionEnd > 0, "Expected a .PARAMETER section after .DESCRIPTION.");
+        var descriptionText = text[..descriptionEnd];
+
+        Assert.Contains("negative", descriptionText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractFunctionBody(string text, string functionName)
+    {
+        var functionStart = text.IndexOf($"function {functionName}", StringComparison.Ordinal);
+        Assert.True(functionStart >= 0, $"Expected a function named {functionName}.");
+        var nextFunctionMatch = Regex.Match(
+            text[(functionStart + 1)..],
+            @"^function\s+\S+",
+            RegexOptions.Multiline);
+        var functionEnd = nextFunctionMatch.Success
+            ? functionStart + 1 + nextFunctionMatch.Index
+            : text.Length;
+        return text[functionStart..functionEnd];
+    }
+
+    [Fact]
     public void NoOrdinaryTestInvokesThePhase4LiveHarnessScript()
     {
         var testDirectory = Path.Combine(GetRepositoryRoot(), "TiaMcpServer.Tests");
