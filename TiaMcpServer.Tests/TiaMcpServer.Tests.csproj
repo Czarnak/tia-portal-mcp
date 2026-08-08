@@ -194,5 +194,7 @@
       Link="Workspace\VciProbeValueNormalizer.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciProbeObservationRunner.cs"
       Link="Workspace\VciProbeObservationRunner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciProbeSelectorFingerprint.cs"
+      Link="Workspace\VciProbeSelectorFingerprint.cs" />
   </ItemGroup>
 </Project>
