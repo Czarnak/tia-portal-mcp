@@ -30,7 +30,19 @@ public static class ProjectLifecycleService
         // IsOpen=false rather than open the requested project as a side effect.
         return session.Project is null
             ? new ProjectStatusInfo { IsOpen = false }
-            : ReadStatus(session.Project);
+            : ReadStatusWithMetadata(session.Project);
+    }
+
+    /// <summary>
+    /// The read-only status read (above) carries the extended metadata surface; the write-side
+    /// probes (<see cref="ProbeStatusForLifecycle"/> and lifecycle result/close payloads) stay on
+    /// plain <see cref="ReadStatus"/> so their payloads and safety-token binding remain unchanged.
+    /// </summary>
+    private static ProjectStatusInfo ReadStatusWithMetadata(Project project)
+    {
+        var status = ReadStatus(project);
+        status.Metadata = ProjectMetadataReader.Read(project);
+        return status;
     }
 
     /// <summary>

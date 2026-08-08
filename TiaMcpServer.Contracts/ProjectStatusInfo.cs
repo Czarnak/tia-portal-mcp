@@ -21,4 +21,12 @@ public class ProjectStatusInfo
     public string? LastModifiedBy { get; set; }
 
     public long? Size { get; set; }
+
+    /// <summary>
+    /// Extended read-only project metadata (copyright, family, multilingual comment, language
+    /// settings, history, used products, block-compilation settings), populated only by the
+    /// direct <c>get_project_status</c> read. Null when the project is not open so the JSON
+    /// contract remains additive and backward compatible.
+    /// </summary>
+    public ProjectMetadataInfo? Metadata { get; set; }
 }
