@@ -23,12 +23,14 @@ internal static class VciReadContractProbeService
     private const string NoVciService = "vci_service_not_available";
     private const string NoRootGroup = "workspace_root_group_not_available";
     private const string NoWorkspace = "no_workspace_available";
+    private const string WorkspaceSearchIncomplete = "workspace_search_incomplete_budget_exhausted";
     private const string SecondaryPathNotSupplied = "secondary_project_path_not_supplied";
     private const string SecondaryCandidateNotUnique = "secondary_project_candidate_not_unique";
     private const string SecondaryAttachDenied = "secondary_project_attach_denied";
     private const string ForeignObjectNotAvailable = "foreign_object_not_available";
     private const string NoMissingMapping = "no_naturally_missing_mapping_file";
     private const string NoInaccessibleMapping = "no_naturally_inaccessible_mapping_file";
+    private const string MappedFileSearchIncomplete = "mapped_file_search_incomplete_budget_exhausted";
 
     public static VciProbeCaseResultInfo Execute(
         TiaPortal currentPortal,
@@ -279,61 +281,80 @@ internal static class VciReadContractProbeService
             return;
         }
 
-        var processes = TiaPortal.GetProcesses()
-            .Where(process => string.Equals(
-                CanonicalPath(process.ProjectPath), secondaryPath, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        if (processes.Count != 1)
-        {
-            SetNotObservable(result, SecondaryCandidateNotUnique);
-            return;
-        }
-
+        var processes = TiaPortal.GetProcesses();
         try
         {
-            using var attached = processes[0].Attach();
-            if (Equals(attached, currentPortal))
+            var matchingProcesses = processes.Where(process => string.Equals(
+                    CanonicalPath(process.ProjectPath), secondaryPath, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (matchingProcesses.Count != 1)
             {
                 SetNotObservable(result, SecondaryCandidateNotUnique);
                 return;
             }
 
-            var projects = attached.Projects
-                .Where(candidateProject => !candidateProject.IsPrimary
-                    && string.Equals(
-                        CanonicalPath(candidateProject.Path), secondaryPath, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (projects.Count != 1)
+            TiaPortal attached;
+            try
+            {
+                attached = matchingProcesses[0].Attach();
+            }
+            catch (EngineeringSecurityException)
+            {
+                SetNotObservable(result, SecondaryAttachDenied);
+                return;
+            }
+            catch (RemotingException)
             {
                 SetNotObservable(result, ForeignObjectNotAvailable);
                 return;
             }
 
-            var catalog = VciProbeEngineeringObjectCatalog.Enumerate(projects[0], request);
-            result.Omissions.AddRange(catalog.Omissions);
-            var foreignObject = catalog.Candidates.FirstOrDefault()?.EngineeringObject as IEngineeringObject;
-            if (foreignObject is null)
+            if (ReferenceEquals(attached, currentPortal))
             {
-                SetNotObservable(result, ForeignObjectNotAvailable);
+                SetNotObservable(result, SecondaryCandidateNotUnique);
                 return;
             }
 
-            var outcome = VciProbeObservationRunner.Run(
-                () => project.IsModified,
-                () => workspace!.GetSupportedFileFormats(foreignObject));
-            ApplyOutcome(result, outcome, request);
-        }
-        catch (EngineeringSecurityException)
-        {
-            SetNotObservable(result, SecondaryAttachDenied);
-        }
-        catch (RemotingException)
-        {
-            SetNotObservable(result, ForeignObjectNotAvailable);
-        }
-        catch (EngineeringException)
-        {
-            SetNotObservable(result, ForeignObjectNotAvailable);
+            using (attached)
+            {
+                if (Equals(attached, currentPortal))
+                {
+                    SetNotObservable(result, SecondaryCandidateNotUnique);
+                    return;
+                }
+
+                try
+                {
+                    var projects = attached.Projects
+                        .Where(candidateProject => !candidateProject.IsPrimary
+                            && string.Equals(
+                                CanonicalPath(candidateProject.Path), secondaryPath, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    if (projects.Count != 1)
+                    {
+                        SetNotObservable(result, ForeignObjectNotAvailable);
+                        return;
+                    }
+
+                    var catalog = VciProbeEngineeringObjectCatalog.Enumerate(projects[0], request);
+                    result.Omissions.AddRange(catalog.Omissions);
+                    var foreignObject = catalog.Candidates.FirstOrDefault()?.EngineeringObject as IEngineeringObject;
+                    if (foreignObject is null)
+                    {
+                        SetNotObservable(result, ForeignObjectNotAvailable);
+                        return;
+                    }
+
+                    var outcome = VciProbeObservationRunner.Run(
+                        () => project.IsModified,
+                        () => workspace!.GetSupportedFileFormats(foreignObject));
+                    ApplyOutcome(result, outcome, request);
+                }
+                catch (RemotingException)
+                {
+                    SetNotObservable(result, ForeignObjectNotAvailable);
+                }
+            }
         }
         finally
         {
@@ -355,10 +376,15 @@ internal static class VciReadContractProbeService
             return;
         }
 
-        var candidate = FindMappedFileCandidate(root!, request, inaccessible);
+        var candidate = FindMappedFileCandidate(
+            root!, request, inaccessible, result.Omissions, out var searchIncomplete);
         if (candidate is null)
         {
-            SetNotObservable(result, inaccessible ? NoInaccessibleMapping : NoMissingMapping);
+            SetNotObservable(
+                result,
+                searchIncomplete
+                    ? MappedFileSearchIncomplete
+                    : inaccessible ? NoInaccessibleMapping : NoMissingMapping);
             return;
         }
 
@@ -515,15 +541,16 @@ internal static class VciReadContractProbeService
             return false;
         }
 
+        var searchIncomplete = false;
         workspace = request.Workspace is null
-            ? FindFirstWorkspace(root!, request)
+            ? FindFirstWorkspace(root!, request, result.Omissions, out searchIncomplete)
             : ResolveWorkspace(root!, request.Workspace);
         if (workspace is not null)
         {
             return true;
         }
 
-        SetNotObservable(result, NoWorkspace);
+        SetNotObservable(result, searchIncomplete ? WorkspaceSearchIncomplete : NoWorkspace);
         return false;
     }
 
@@ -636,45 +663,91 @@ internal static class VciReadContractProbeService
         return count == 1 ? match : null;
     }
 
-    private static Workspace? FindFirstWorkspace(WorkspaceSystemGroup root, VciProbeRequestInfo request)
+    private static Workspace? FindFirstWorkspace(
+        WorkspaceSystemGroup root,
+        VciProbeRequestInfo request,
+        List<VciProbeOmissionInfo> omissions,
+        out bool searchIncomplete)
     {
         var groupsObserved = 0;
         var workspacesObserved = 0;
-        return FindFirstWorkspaceCore(root, 0, request, ref groupsObserved, ref workspacesObserved);
+        searchIncomplete = false;
+        return FindFirstWorkspaceCore(
+            root, 0, "root", request, omissions,
+            ref groupsObserved, ref workspacesObserved, ref searchIncomplete);
     }
 
     private static Workspace? FindFirstWorkspaceCore(
         object group,
         int depth,
+        string traversalPath,
         VciProbeRequestInfo request,
+        List<VciProbeOmissionInfo> omissions,
         ref int groupsObserved,
-        ref int workspacesObserved)
+        ref int workspacesObserved,
+        ref bool searchIncomplete)
     {
         if (depth > request.MaxGroupDepth)
         {
+            OmitSearch(
+                omissions,
+                "Workspace search stopped at the configured group-depth budget.",
+                nameof(request.MaxGroupDepth),
+                request.MaxGroupDepth,
+                depth - 1,
+                traversalPath);
+            searchIncomplete = true;
             return null;
         }
 
         foreach (Workspace workspace in (IEnumerable)((dynamic)group).Workspaces)
         {
-            if (++workspacesObserved > request.MaxWorkspaces)
+            if (workspacesObserved >= request.MaxWorkspaces)
             {
+                OmitSearch(
+                    omissions,
+                    "Workspace search stopped at the configured workspace budget.",
+                    nameof(request.MaxWorkspaces),
+                    request.MaxWorkspaces,
+                    workspacesObserved,
+                    AppendTraversalPath(traversalPath, "workspaces", workspacesObserved));
+                searchIncomplete = true;
                 return null;
             }
+            workspacesObserved++;
             return workspace;
         }
 
+        var childIndex = 0;
         foreach (var child in (IEnumerable)((dynamic)group).Groups)
         {
-            if (++groupsObserved > request.MaxGroups)
+            if (groupsObserved >= request.MaxGroups)
             {
+                OmitSearch(
+                    omissions,
+                    "Workspace search stopped at the configured group budget.",
+                    nameof(request.MaxGroups),
+                    request.MaxGroups,
+                    groupsObserved,
+                    AppendTraversalPath(traversalPath, "groups", childIndex));
+                searchIncomplete = true;
                 return null;
             }
-            var found = FindFirstWorkspaceCore(child, depth + 1, request, ref groupsObserved, ref workspacesObserved);
-            if (found is not null)
+            groupsObserved++;
+            var found = FindFirstWorkspaceCore(
+                child,
+                depth + 1,
+                AppendTraversalPath(traversalPath, "groups", childIndex),
+                request,
+                omissions,
+                ref groupsObserved,
+                ref workspacesObserved,
+                ref searchIncomplete);
+            if (found is not null || searchIncomplete)
             {
                 return found;
             }
+            childIndex++;
         }
 
         return null;
@@ -683,47 +756,83 @@ internal static class VciReadContractProbeService
     private static MappedFileCandidate? FindMappedFileCandidate(
         WorkspaceSystemGroup root,
         VciProbeRequestInfo request,
-        bool inaccessible)
+        bool inaccessible,
+        List<VciProbeOmissionInfo> omissions,
+        out bool searchIncomplete)
     {
         var groupsObserved = 0;
         var workspacesObserved = 0;
         var mappingsObserved = 0;
+        searchIncomplete = false;
         return FindMappedFileCandidateCore(
-            root, 0, request, inaccessible,
-            ref groupsObserved, ref workspacesObserved, ref mappingsObserved);
+            root, 0, "root", request, inaccessible, omissions,
+            ref groupsObserved, ref workspacesObserved, ref mappingsObserved, ref searchIncomplete);
     }
 
     private static MappedFileCandidate? FindMappedFileCandidateCore(
         object group,
         int depth,
+        string traversalPath,
         VciProbeRequestInfo request,
         bool inaccessible,
+        List<VciProbeOmissionInfo> omissions,
         ref int groupsObserved,
         ref int workspacesObserved,
-        ref int mappingsObserved)
+        ref int mappingsObserved,
+        ref bool searchIncomplete)
     {
         if (depth > request.MaxGroupDepth)
         {
+            OmitSearch(
+                omissions,
+                "Mapped-file search stopped at the configured group-depth budget.",
+                nameof(request.MaxGroupDepth),
+                request.MaxGroupDepth,
+                depth - 1,
+                traversalPath);
+            searchIncomplete = true;
             return null;
         }
 
+        var workspaceIndex = 0;
         foreach (Workspace workspace in (IEnumerable)((dynamic)group).Workspaces)
         {
-            if (++workspacesObserved > request.MaxWorkspaces)
+            var workspacePath = AppendTraversalPath(traversalPath, "workspaces", workspaceIndex);
+            if (workspacesObserved >= request.MaxWorkspaces)
             {
+                OmitSearch(
+                    omissions,
+                    "Mapped-file search stopped at the configured workspace budget.",
+                    nameof(request.MaxWorkspaces),
+                    request.MaxWorkspaces,
+                    workspacesObserved,
+                    workspacePath);
+                searchIncomplete = true;
                 return null;
             }
+            workspacesObserved++;
 
+            var mappingIndex = 0;
             foreach (MappedObject mapping in workspace.MappedObjects)
             {
-                if (++mappingsObserved > request.MaxMappings)
+                if (mappingsObserved >= request.MaxMappings)
                 {
+                    OmitSearch(
+                        omissions,
+                        "Mapped-file search stopped at the configured mapping budget.",
+                        nameof(request.MaxMappings),
+                        request.MaxMappings,
+                        mappingsObserved,
+                        AppendTraversalPath(workspacePath, "mappedObjects", mappingIndex));
+                    searchIncomplete = true;
                     return null;
                 }
+                mappingsObserved++;
 
                 var path = ResolveMappedFilePath(workspace, mapping);
                 if (path is null)
                 {
+                    mappingIndex++;
                     continue;
                 }
 
@@ -736,26 +845,66 @@ internal static class VciReadContractProbeService
                 {
                     return new MappedFileCandidate(mapping, path);
                 }
+                mappingIndex++;
             }
+            workspaceIndex++;
         }
 
+        var childIndex = 0;
         foreach (var child in (IEnumerable)((dynamic)group).Groups)
         {
-            if (++groupsObserved > request.MaxGroups)
+            if (groupsObserved >= request.MaxGroups)
             {
+                OmitSearch(
+                    omissions,
+                    "Mapped-file search stopped at the configured group budget.",
+                    nameof(request.MaxGroups),
+                    request.MaxGroups,
+                    groupsObserved,
+                    AppendTraversalPath(traversalPath, "groups", childIndex));
+                searchIncomplete = true;
                 return null;
             }
+            groupsObserved++;
             var found = FindMappedFileCandidateCore(
-                child, depth + 1, request, inaccessible,
-                ref groupsObserved, ref workspacesObserved, ref mappingsObserved);
-            if (found is not null)
+                child,
+                depth + 1,
+                AppendTraversalPath(traversalPath, "groups", childIndex),
+                request,
+                inaccessible,
+                omissions,
+                ref groupsObserved,
+                ref workspacesObserved,
+                ref mappingsObserved,
+                ref searchIncomplete);
+            if (found is not null || searchIncomplete)
             {
                 return found;
             }
+            childIndex++;
         }
 
         return null;
     }
+
+    private static void OmitSearch(
+        List<VciProbeOmissionInfo> omissions,
+        string reason,
+        string budgetName,
+        int budgetValue,
+        int observedCount,
+        string traversalPath)
+        => omissions.Add(new VciProbeOmissionInfo
+        {
+            Reason = reason,
+            BudgetName = budgetName,
+            BudgetValue = budgetValue,
+            ObservedCount = observedCount,
+            TraversalPath = traversalPath,
+        });
+
+    private static string AppendTraversalPath(string traversalPath, string collectionName, int index)
+        => traversalPath + "/" + collectionName + "[" + index + "]";
 
     private static string? ResolveMappedFilePath(Workspace workspace, MappedObject mapping)
     {

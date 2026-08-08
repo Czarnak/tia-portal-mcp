@@ -85,20 +85,31 @@ public class VciReadProbeWorkerSourceContractTests
     [Fact]
     public void VciReadContractProbeService_DispatchesEveryLockedCaseAndRejectsUnknownCases()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "VciReadContractProbeService.cs"));
+        var source = ReadProbeServiceSource();
+        var execute = ReadMethod(source, "public static VciProbeCaseResultInfo Execute");
+        var switchStart = execute.IndexOf("Action dispatch = request.CaseId switch", StringComparison.Ordinal);
+        Assert.True(switchStart >= 0, "Execute does not dispatch on request.CaseId.");
+        var switchEnd = execute.IndexOf("};", switchStart, StringComparison.Ordinal);
+        Assert.True(switchEnd > switchStart, "Could not determine the end of the case dispatch switch.");
+        var dispatch = execute[switchStart..(switchEnd + 2)];
 
-        Assert.Contains("static class VciReadContractProbeService", source, StringComparison.Ordinal);
-        Assert.Contains("VciProbeCaseResultInfo Execute(", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("NotImplementedException", source, StringComparison.Ordinal);
-        Assert.Contains("VciReadProbeContract.IsKnownCase(request.CaseId)", source, StringComparison.Ordinal);
+        Assert.Contains("VciReadProbeContract.IsKnownCase(request.CaseId)", execute, StringComparison.Ordinal);
+        Assert.True(
+            execute.IndexOf("VciReadProbeContract.IsKnownCase(request.CaseId)", StringComparison.Ordinal) < switchStart,
+            "Known-case validation must fail closed before dispatch.");
 
+        var caseArms = Regex.Matches(dispatch, "\"(?<caseId>[^\"]+)\"\\s*=>", RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["caseId"].Value)
+            .ToArray();
+        Assert.Equal(VciReadProbeContract.CaseIds.Count, caseArms.Length);
         foreach (var caseId in VciReadProbeContract.CaseIds)
         {
-            Assert.Matches(
-                new Regex($"\"{Regex.Escape(caseId)}\"\\s*=>", RegexOptions.CultureInvariant),
-                source);
+            Assert.Equal(1, caseArms.Count(actual => string.Equals(actual, caseId, StringComparison.Ordinal)));
         }
+
+        Assert.Matches(
+            new Regex(@"_\s*=>\s*throw\s+new\s+ArgumentException\(", RegexOptions.CultureInvariant),
+            dispatch);
     }
 
     [Fact]
@@ -176,20 +187,36 @@ public class VciReadProbeWorkerSourceContractTests
     public void VciReadContractProbeService_UsesOnlyTheLockedNegativeInvocations()
     {
         var source = ReadProbeServiceSource();
+        var groupFind = ReadMethod(source, "private static void RunGroupFind");
+        var workspaceFind = ReadMethod(source, "private static void RunWorkspaceFind");
+        var nullFormat = ReadMethod(source, "private static void RunNullFormat");
+        var unsupportedFormat = ReadMethod(source, "private static void RunUnsupportedFormat");
+        var foreignFormat = ReadMethod(source, "private static void RunForeignFormat");
 
-        Assert.Contains("groups.Find(missingName)", source, StringComparison.Ordinal);
-        Assert.Contains("groups.Find(string.Empty)", source, StringComparison.Ordinal);
-        Assert.Contains("groups.Find(\"   \")", source, StringComparison.Ordinal);
-        Assert.Contains("groups.Find(null!)", source, StringComparison.Ordinal);
-        Assert.Contains("workspaces.Find(missingName)", source, StringComparison.Ordinal);
-        Assert.Contains("workspaces.Find(string.Empty)", source, StringComparison.Ordinal);
-        Assert.Contains("workspaces.Find(\"   \")", source, StringComparison.Ordinal);
-        Assert.Contains("workspaces.Find(null!)", source, StringComparison.Ordinal);
-        AssertMethodMatches(source, @"workspace!?\.GetSupportedFileFormats\(null!\)");
-        AssertMethodMatches(source, @"workspace!?\.GetSupportedFileFormats\(\(IEngineeringObject\)service!\)");
-        Assert.DoesNotContain("MethodInfo", source, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Invoke(", source, StringComparison.Ordinal);
-        Assert.Contains("signature_does_not_permit_argument", source, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(groupFind, "groups.Find(missingName)"));
+        Assert.Equal(1, CountOccurrences(groupFind, "groups.Find(string.Empty)"));
+        Assert.Equal(1, CountOccurrences(groupFind, "groups.Find(\"   \")"));
+        Assert.Equal(1, CountOccurrences(groupFind, "groups.Find(null!)"));
+        Assert.Equal(5, CountOccurrences(groupFind, "groups.Find("));
+
+        Assert.Equal(2, CountOccurrences(workspaceFind, "workspaces.Find(missingName)"));
+        Assert.Equal(1, CountOccurrences(workspaceFind, "workspaces.Find(string.Empty)"));
+        Assert.Equal(1, CountOccurrences(workspaceFind, "workspaces.Find(\"   \")"));
+        Assert.Equal(1, CountOccurrences(workspaceFind, "workspaces.Find(null!)"));
+        Assert.Equal(5, CountOccurrences(workspaceFind, "workspaces.Find("));
+
+        AssertMethodMatches(nullFormat, @"workspace!?\.GetSupportedFileFormats\(null!\)");
+        Assert.Equal(1, CountOccurrences(nullFormat, ".GetSupportedFileFormats("));
+        AssertMethodMatches(unsupportedFormat, @"workspace!?\.GetSupportedFileFormats\(\(IEngineeringObject\)service!\)");
+        Assert.Equal(1, CountOccurrences(unsupportedFormat, ".GetSupportedFileFormats("));
+        AssertMethodMatches(foreignFormat, @"workspace!?\.GetSupportedFileFormats\(foreignObject\)");
+        Assert.Equal(1, CountOccurrences(foreignFormat, ".GetSupportedFileFormats("));
+
+        foreach (var method in new[] { groupFind, workspaceFind, nullFormat, unsupportedFormat, foreignFormat })
+        {
+            Assert.DoesNotContain("MethodInfo", method, StringComparison.Ordinal);
+            Assert.DoesNotContain(".Invoke(", method, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -219,7 +246,7 @@ public class VciReadProbeWorkerSourceContractTests
 
         Assert.Contains("SecondaryProjectPath", source, StringComparison.Ordinal);
         Assert.Contains("TiaPortal.GetProcesses()", source, StringComparison.Ordinal);
-        AssertMethodMatches(source, @"processes\[0\]\.Attach\(\)");
+        AssertMethodMatches(source, @"matchingProcesses\[0\]\.Attach\(\)");
         Assert.Contains("!candidateProject.IsPrimary", source, StringComparison.Ordinal);
         Assert.Contains("secondary_project_path_not_supplied", source, StringComparison.Ordinal);
         Assert.Contains("secondary_project_candidate_not_unique", source, StringComparison.Ordinal);
@@ -232,6 +259,86 @@ public class VciReadProbeWorkerSourceContractTests
         Assert.Contains("File.Open(", source, StringComparison.Ordinal);
         Assert.Contains("no_naturally_missing_mapping_file", source, StringComparison.Ordinal);
         Assert.Contains("no_naturally_inaccessible_mapping_file", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_ForeignAcquisitionCatchesOnlyUnderstoodFailures()
+    {
+        var foreign = ReadMethod(ReadProbeServiceSource(), "private static void RunForeignFormat");
+
+        Assert.Contains("catch (EngineeringSecurityException)", foreign, StringComparison.Ordinal);
+        Assert.Contains("catch (RemotingException)", foreign, StringComparison.Ordinal);
+        Assert.DoesNotContain("catch (EngineeringException)", foreign, StringComparison.Ordinal);
+        Assert.DoesNotContain("NonRecoverableException", foreign, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_ReportsBudgetExhaustionInsteadOfClaimingAbsence()
+    {
+        var source = ReadProbeServiceSource();
+        var acquireWorkspace = ReadMethod(source, "private static bool TryAcquireWorkspace");
+        var runMappedFileStatus = ReadMethod(source, "private static void RunMappedFileStatus");
+        var findWorkspace = ReadMethod(source, "private static Workspace? FindFirstWorkspace");
+        var findWorkspaceCore = ReadMethod(source, "private static Workspace? FindFirstWorkspaceCore");
+        var findMapping = ReadMethod(source, "private static MappedFileCandidate? FindMappedFileCandidate");
+        var findMappingCore = ReadMethod(source, "private static MappedFileCandidate? FindMappedFileCandidateCore");
+
+        Assert.Contains("result.Omissions", acquireWorkspace, StringComparison.Ordinal);
+        Assert.Contains("WorkspaceSearchIncomplete", acquireWorkspace, StringComparison.Ordinal);
+        Assert.Contains("workspace_search_incomplete_budget_exhausted", source, StringComparison.Ordinal);
+        Assert.Contains("searchIncomplete", acquireWorkspace, StringComparison.Ordinal);
+        Assert.Contains("result.Omissions", runMappedFileStatus, StringComparison.Ordinal);
+        Assert.Contains("MappedFileSearchIncomplete", runMappedFileStatus, StringComparison.Ordinal);
+        Assert.Contains("mapped_file_search_incomplete_budget_exhausted", source, StringComparison.Ordinal);
+        Assert.Contains("searchIncomplete", runMappedFileStatus, StringComparison.Ordinal);
+
+        Assert.Contains("List<VciProbeOmissionInfo> omissions", findWorkspace, StringComparison.Ordinal);
+        Assert.Contains("List<VciProbeOmissionInfo> omissions", findMapping, StringComparison.Ordinal);
+        foreach (var budget in new[] { "MaxGroupDepth", "MaxGroups", "MaxWorkspaces" })
+        {
+            Assert.Contains($"nameof(request.{budget})", findWorkspaceCore, StringComparison.Ordinal);
+        }
+        foreach (var budget in new[] { "MaxGroupDepth", "MaxGroups", "MaxWorkspaces", "MaxMappings" })
+        {
+            Assert.Contains($"nameof(request.{budget})", findMappingCore, StringComparison.Ordinal);
+        }
+        Assert.Contains("TraversalPath = traversalPath", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_DisposesEveryDiscoveredProcessProxyAcrossForeignEarlyReturns()
+    {
+        var foreign = ReadMethod(ReadProbeServiceSource(), "private static void RunForeignFormat");
+        var acquireIndex = foreign.IndexOf("var processes = TiaPortal.GetProcesses();", StringComparison.Ordinal);
+        Assert.True(acquireIndex >= 0, "Foreign case does not retain every discovered process proxy.");
+
+        var tryIndex = foreign.IndexOf("try", acquireIndex, StringComparison.Ordinal);
+        Assert.True(tryIndex > acquireIndex, "Process selection must begin inside the disposal try/finally.");
+
+        var filterIndex = foreign.IndexOf("processes.Where(", tryIndex, StringComparison.Ordinal);
+        Assert.True(filterIndex > tryIndex, "Process-path reads must occur inside the disposal try/finally.");
+
+        var zeroOrMultipleIndex = foreign.IndexOf("matchingProcesses.Count != 1", filterIndex, StringComparison.Ordinal);
+        Assert.True(zeroOrMultipleIndex > filterIndex, "Zero/multiple selection must occur after bounded filtering.");
+
+        var attachIndex = foreign.IndexOf("matchingProcesses[0].Attach()", zeroOrMultipleIndex, StringComparison.Ordinal);
+        Assert.True(attachIndex > zeroOrMultipleIndex, "Attach must use the uniquely selected process proxy.");
+
+        var sharedPortalGuardIndex = foreign.IndexOf("ReferenceEquals(attached, currentPortal)", attachIndex, StringComparison.Ordinal);
+        Assert.True(sharedPortalGuardIndex > attachIndex, "The shared portal instance must be rejected after attach.");
+        var attachedOwnershipIndex = foreign.IndexOf("using (attached)", attachIndex, StringComparison.Ordinal);
+        Assert.True(
+            attachedOwnershipIndex > sharedPortalGuardIndex,
+            "The worker must not take disposal ownership until it proves the attached portal is not the shared instance.");
+
+        var finallyIndex = foreign.LastIndexOf("finally", StringComparison.Ordinal);
+        Assert.True(finallyIndex > attachedOwnershipIndex, "The foreign acquisition must have a final disposal path.");
+
+        var disposeIndex = foreign.IndexOf("process.Dispose()", finallyIndex, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("return;", foreign[acquireIndex..tryIndex], StringComparison.Ordinal);
+        Assert.True(disposeIndex > finallyIndex, "Every discovered process proxy must be disposed in finally.");
+        Assert.Equal(1, CountOccurrences(foreign, "process.Dispose()"));
     }
 
     [Fact]
