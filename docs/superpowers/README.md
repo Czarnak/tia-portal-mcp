@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-08 | [VCI workspace Phase 1 — live characterization and contract baseline](specs/2026-08-08-vci-workspace-phase1-design.md) |
 | 2026-08-07 | [Documentation reorganization](specs/2026-08-07-docs-reorganization-design.md) |
 | 2026-08-06 | [Network Phase 4 — subnet lifecycle](specs/2026-08-06-network-phase4-subnet-lifecycle-design.md) |
 | 2026-08-03 | [Network Phase 3 — identity and introspection](specs/2026-08-03-network-operations-phase3-identity-introspection-design.md) |
