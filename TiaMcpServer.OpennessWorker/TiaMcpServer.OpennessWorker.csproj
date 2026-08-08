@@ -19,6 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- VCI compositions expose distinct system/user group proxy types; Task 5 keeps their
+         common read-only traversal in one bounded reader through the runtime binder. -->
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="Siemens.Engineering.Base">
       <HintPath>$(TiaOpennessReferenceDir)\Siemens.Engineering.Base.dll</HintPath>
       <Private>False</Private>

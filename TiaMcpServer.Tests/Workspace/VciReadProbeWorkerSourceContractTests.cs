@@ -309,6 +309,92 @@ public class VciReadProbeWorkerSourceContractTests
             "Catalog must not declare a static field caching discovered candidates across worker requests.");
     }
 
+    [Fact]
+    public void SnapshotReader_UsesTheExactReadOnlyVciPositiveMatrix()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
+
+        // This protects the Task 5 read boundary. Removing one of these members would silently
+        // reduce the observed VCI surface rather than producing evidence for the live gate.
+        foreach (var member in new[]
+                 {
+                     "GetService<VersionControlInterface>",
+                     "WorkspaceGroup",
+                     "Groups",
+                     "Workspaces",
+                     "MappedObjects",
+                     "GetSupportedFileFormats",
+                     "Status",
+                     "GetStatus",
+                     "GetChildStatus",
+                 })
+        {
+            Assert.Contains(member, source, StringComparison.Ordinal);
+        }
+
+        foreach (var workspaceProperty in new[]
+                 {
+                     "Name",
+                     "RootPath",
+                     "Comment",
+                     "WorkspaceLanguage",
+                     "GlobalLibraryPath",
+                     "DeleteUnusedTypeVersionFromLibrary",
+                 })
+        {
+            Assert.Contains(workspaceProperty, source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void SnapshotReader_PreservesEvidenceAndBoundsEveryTraversal()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
+
+        Assert.Contains("MaxGroupDepth", source, StringComparison.Ordinal);
+        Assert.Contains("MaxGroups", source, StringComparison.Ordinal);
+        Assert.Contains("MaxWorkspaces", source, StringComparison.Ordinal);
+        Assert.Contains("MaxMappings", source, StringComparison.Ordinal);
+        Assert.Contains("SameNameOrdinal", source, StringComparison.Ordinal);
+        Assert.Contains("EnumerationIndex", source, StringComparison.Ordinal);
+        Assert.Contains("ParentCanonicalKey", source, StringComparison.Ordinal);
+        Assert.Contains("VciProbeOmissionInfo", source, StringComparison.Ordinal);
+        Assert.Contains("VciProbeMemberObservationInfo", source, StringComparison.Ordinal);
+        Assert.Contains("VciProbeObservationRunner.Run(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".OrderBy(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".OrderByDescending(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SnapshotReader_InvokesSupportedFormatsOnceAndDoesNotContainVciWrites()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
+
+        Assert.Equal(1, CountOccurrences(source, ".GetSupportedFileFormats("));
+        Assert.Contains("no_workspace_candidate_pair", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Create(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Delete(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ExportObject(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ConnectObject(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Synchronize(", source, StringComparison.Ordinal);
+    }
+
+    private static int CountOccurrences(string source, string value)
+    {
+        var count = 0;
+        var offset = 0;
+        while ((offset = source.IndexOf(value, offset, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            offset += value.Length;
+        }
+
+        return count;
+    }
+
     private static string FindRepositoryFile(params string[] segments)
         => Path.Combine(new[] { FindRepositoryRoot() }.Concat(segments).ToArray());
 
