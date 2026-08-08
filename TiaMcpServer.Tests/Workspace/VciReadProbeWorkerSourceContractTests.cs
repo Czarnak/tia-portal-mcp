@@ -261,6 +261,28 @@ public class VciReadProbeWorkerSourceContractTests
     }
 
     [Fact]
+    public void Resolver_RejectsSelectorsWithoutANonblankFingerprintBeforeResolving()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectResolver.cs"));
+
+        var missingFingerprintCheck = source.IndexOf(
+            "string.IsNullOrWhiteSpace(selector.Fingerprint)",
+            StringComparison.Ordinal);
+        var resolvedReturn = source.IndexOf(
+            "VciProbeEngineeringObjectResolution.Resolved(candidate)",
+            StringComparison.Ordinal);
+
+        Assert.True(
+            missingFingerprintCheck >= 0,
+            "Resolver must reject a missing or whitespace-only fingerprint rather than structurally resolving it.");
+        Assert.Contains("SelectorStaleOrAmbiguous", source, StringComparison.Ordinal);
+        Assert.True(
+            missingFingerprintCheck < resolvedReturn,
+            "Resolver must reject a missing fingerprint before it can return a resolved candidate.");
+    }
+
+    [Fact]
     public void CatalogAndResolver_RecordOmissionsInsteadOfUnboundedTraversalOrSilentDrops()
     {
         var catalogSource = File.ReadAllText(FindRepositoryFile(

@@ -71,8 +71,8 @@ public static class VciProbeEngineeringObjectResolver
         // candidate: a freshly recomputed fingerprint that disagrees with the selector's stored one
         // means the object moved, was renamed, or was replaced by something of a different runtime
         // type at the same structural position since the selector was captured.
-        if (!string.IsNullOrEmpty(selector.Fingerprint)
-            && !string.Equals(candidate.Fingerprint, selector.Fingerprint, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(selector.Fingerprint)
+            || !string.Equals(candidate.Fingerprint, selector.Fingerprint, StringComparison.Ordinal))
         {
             return VciProbeEngineeringObjectResolution.NotObservable(NotObservableReasons.SelectorStaleOrAmbiguous);
         }
