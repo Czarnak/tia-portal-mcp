@@ -385,54 +385,85 @@ public class VciReadProbeWorkerSourceContractTests
     [Fact]
     public void SnapshotReader_PreservesCompleteMappingSelectorsAndSeparateStatusEvidence()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
-        var snapshotContract = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.Contracts", "VciProbeSnapshotInfo.cs"));
+        var mappingBody = ReadSnapshotReaderMethod("private static void WalkMappings");
 
-        Assert.Contains("EngineeringObject =", source, StringComparison.Ordinal);
-        Assert.Contains("mapping.EngineeringObject", source, StringComparison.Ordinal);
-        Assert.Contains("StatusProperty", snapshotContract, StringComparison.Ordinal);
-        Assert.Contains("GetStatus", snapshotContract, StringComparison.Ordinal);
-        Assert.Contains("mapping.Status", source, StringComparison.Ordinal);
-        Assert.Contains("mapping.GetStatus()", source, StringComparison.Ordinal);
-        Assert.Contains("mapping.GetChildStatus()", source, StringComparison.Ordinal);
-        Assert.DoesNotContain(" + \" | \" + ", source, StringComparison.Ordinal);
+        AssertMethodMatches(mappingBody,
+            @"var\s+objectOutcome\s*=\s*Observe\(result,\s*project,\s*""EngineeringObject"",\s*\(\)\s*=>\s*mapping\.EngineeringObject\)");
+        AssertMethodMatches(mappingBody,
+            @"EngineeringObject\s*=\s*FindEngineeringObjectSelector\(project,\s*request,\s*objectOutcome\.ReturnValue\)");
+        AssertMethodMatches(mappingBody,
+            @"var\s+status\s*=\s*Observe\(result,\s*project,\s*""Status"",\s*\(\)\s*=>\s*mapping\.Status\)");
+        AssertMethodMatches(mappingBody,
+            @"var\s+getStatus\s*=\s*Observe\(result,\s*project,\s*""GetStatus"",\s*\(\)\s*=>\s*mapping\.GetStatus\(\)\)");
+        AssertMethodMatches(mappingBody,
+            @"var\s+childStatus\s*=\s*Observe\(result,\s*project,\s*""GetChildStatus"",\s*\(\)\s*=>\s*mapping\.GetChildStatus\(\)\)");
+        AssertMethodMatches(mappingBody, @"StatusProperty\s*=\s*Render\(status\.ReturnValue,");
+        AssertMethodMatches(mappingBody, @"GetStatus\s*=\s*Render\(getStatus\.ReturnValue,");
+        AssertMethodMatches(mappingBody, @"ChildStatus\s*=\s*Render\(childStatus\.ReturnValue,");
     }
 
     [Fact]
     public void SnapshotReader_PreservesTypedFormatItemsAndCompleteWorkspaceIdentity()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
-        var snapshotContract = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.Contracts", "VciProbeSnapshotInfo.cs"));
-        var selectorContract = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.Contracts", "VciProbeSelectorInfo.cs"));
+        var formatsBody = ReadSnapshotReaderMethod("internal static VciProbeSnapshotReadResult ReadSupportedFormats");
+        var resolveWorkspaceBody = ReadSnapshotReaderMethod("private static object? ResolveWorkspace");
 
-        Assert.Contains("CandidateCollectionRuntimeType", snapshotContract, StringComparison.Ordinal);
-        Assert.Contains("RuntimeTypeName", snapshotContract, StringComparison.Ordinal);
-        Assert.Contains("IsNull", snapshotContract, StringComparison.Ordinal);
-        Assert.Contains("SameNameOrdinal", selectorContract, StringComparison.Ordinal);
-        Assert.Contains("CanonicalRootPath", source, StringComparison.Ordinal);
-        Assert.Contains("segment.SameNameOrdinal", source, StringComparison.Ordinal);
-        Assert.Contains("normalized.RuntimeType", source, StringComparison.Ordinal);
-        Assert.Contains("normalized.Kind == \"null\"", source, StringComparison.Ordinal);
+        AssertMethodMatches(formatsBody,
+            @"CandidateCollectionRuntimeType\s*=\s*formats\.GetType\(\)\.FullName\s*\?\?\s*formats\.GetType\(\)\.Name");
+        AssertMethodMatches(formatsBody, @"foreach\s*\(var\s+format\s+in\s+formats\)");
+        AssertMethodMatches(formatsBody, @"var\s+normalized\s*=\s*VciProbeValueNormalizer\.Normalize\(format,");
+        AssertMethodMatches(formatsBody, @"Description\s*=\s*Render\(normalized\)");
+        AssertMethodMatches(formatsBody, @"RuntimeTypeName\s*=\s*normalized\.RuntimeType");
+        AssertMethodMatches(formatsBody, @"IsNull\s*=\s*normalized\.Kind\s*==\s*""null""");
+
+        AssertMethodMatches(resolveWorkspaceBody,
+            @"index\s*==\s*segment\.Index\s*&&\s*string\.Equals\(name,\s*segment\.Name,\s*StringComparison\.Ordinal\)\s*&&\s*sameNameOrdinal\s*==\s*segment\.SameNameOrdinal");
+        AssertMethodMatches(resolveWorkspaceBody,
+            @"string\.Equals\(candidate\.Name\s+as\s+string,\s*selector\.WorkspaceName,\s*StringComparison\.Ordinal\)\s*&&\s*string\.Equals\(canonicalRootPath,\s*selector\.CanonicalRootPath,\s*StringComparison\.Ordinal\)");
+        AssertMethodMatches(resolveWorkspaceBody, @"return\s+workspaceMatchCount\s*==\s*1\s*\?\s*workspaceMatch\s*:\s*null");
     }
 
     [Fact]
     public void SnapshotReader_PreservesTypedCanonicalizationFailuresAndPathQualifiedOmissions()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
-        var resultContract = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.Contracts", "VciProbeResultInfo.cs"));
+        var observeBody = ReadSnapshotReaderMethod("private static VciProbeObservationOutcomeInfo Observe");
+        var formatsBody = ReadSnapshotReaderMethod("internal static VciProbeSnapshotReadResult ReadSupportedFormats");
+        var groupBody = ReadSnapshotReaderMethod("private static void WalkGroup");
+        var workspaceBody = ReadSnapshotReaderMethod("private static void WalkWorkspaces");
+        var mappingBody = ReadSnapshotReaderMethod("private static void WalkMappings");
 
-        Assert.Contains("PathCanonicalizationException", source, StringComparison.Ordinal);
-        Assert.Contains("Exception =", source, StringComparison.Ordinal);
-        Assert.Contains("TraversalPath", resultContract, StringComparison.Ordinal);
-        Assert.Contains("FormatGroupPath", source, StringComparison.Ordinal);
+        AssertMethodMatches(observeBody,
+            @"var\s+failure\s*=\s*outcome\.Exception\s*\?\?\s*normalized\.PathCanonicalizationException");
+        AssertMethodMatches(observeBody, @"Exception\s*=\s*ToExceptionInfo\(failure\)");
+        AssertMethodMatches(formatsBody, @"request\.MaxCollectionItems,\s*index,\s*""formats""\)");
+        Assert.Equal(2, CountRegexMatches(groupBody, @"request\.Max(?:GroupDepth|Groups),\s*[^\n]+,\s*FormatGroupPath\(parentPath\)\)"));
+        AssertMethodMatches(workspaceBody, @"request\.MaxWorkspaces,\s*[^\n]+,\s*FormatGroupPath\(groupPath\)\)");
+        AssertMethodMatches(mappingBody, @"request\.MaxMappings,\s*[^\n]+,\s*FormatGroupPath\(groupPath\)\)");
     }
+
+    private static string ReadSnapshotReaderMethod(string signature)
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"))
+            .Replace("\r\n", "\n");
+        var start = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Snapshot reader method '{signature}' was not found.");
+
+        var nextMethod = source.IndexOf("\n    private static ", start + signature.Length, StringComparison.Ordinal);
+        if (nextMethod < 0)
+        {
+            nextMethod = source.IndexOf("\n}\n\ninternal sealed class", start + signature.Length, StringComparison.Ordinal);
+        }
+
+        Assert.True(nextMethod > start, $"Could not determine the end of snapshot reader method '{signature}'.");
+        return source[start..nextMethod];
+    }
+
+    private static void AssertMethodMatches(string methodBody, string pattern)
+        => Assert.Matches(new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.Singleline), methodBody);
+
+    private static int CountRegexMatches(string value, string pattern)
+        => System.Text.RegularExpressions.Regex.Matches(value, pattern, System.Text.RegularExpressions.RegexOptions.Singleline).Count;
 
     private static int CountOccurrences(string source, string value)
     {
