@@ -1,6 +1,7 @@
 using System.Reflection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
 using TiaMcpServer.Tools;
 using Xunit;
@@ -149,6 +150,141 @@ public class VciReadProbeWorkerSourceContractTests
 
         Assert.Equal(4, readOnlyToolNames.Length);
         Assert.DoesNotContain("probe_vci_read_contract", readOnlyToolNames);
+    }
+
+    /// <summary>
+    /// Source-contract tests for the Task 4 bounded engineering-object catalog and resolver.
+    ///
+    /// <para>
+    /// <c>VciProbeEngineeringObjectCatalog.cs</c> and <c>VciProbeEngineeringObjectResolver.cs</c>
+    /// call into <c>Siemens.Engineering.*</c> types, so — exactly like
+    /// <c>VciReadContractProbeService.cs</c> above — they cannot be linked into this net8 test
+    /// project or exercised behaviorally here. These tests read the worker source files as text and
+    /// assert the exact structural facts Task 4 requires.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void CatalogAndResolver_UseObjectIdentifierProviderGetIdentifierAndFind()
+    {
+        var catalogSource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectCatalog.cs"));
+        var resolverSource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectResolver.cs"));
+
+        Assert.Contains("GetService<ObjectIdentifierProvider>()", catalogSource, StringComparison.Ordinal);
+        Assert.Contains(".GetIdentifier(", catalogSource, StringComparison.Ordinal);
+
+        Assert.Contains("GetService<ObjectIdentifierProvider>()", resolverSource, StringComparison.Ordinal);
+        Assert.Contains(".Find(", resolverSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_DiscoversExactlyTheSixBoundedCandidateFamilies()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectCatalog.cs"));
+
+        Assert.Contains("\"project\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"device\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"device_item\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"plc_block\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"plc_tag_table\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"plc_type\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_ReusesPlcSoftwareLocatorForPlcSoftwareDiscovery()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectCatalog.cs"));
+
+        Assert.Contains("PlcSoftwareLocator.FindInDevice(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExistingTraversalReaders_ArePublicDtoUnchangedByTaskFour()
+    {
+        // ProjectTreeWalker and NetworkObjectIndexReader are the "established recursive traversal
+        // patterns" Task 4 must reuse, not modify. Their public node/summary DTOs are asserted here
+        // by name so a later edit that renames or removes a member breaks this test rather than
+        // silently drifting the public shape those readers already ship.
+        var projectTreeWalkerSource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeWalker.cs"));
+        var networkObjectIndexReaderSource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+
+        Assert.Contains("public class ProjectTreeWalker", projectTreeWalkerSource, StringComparison.Ordinal);
+        Assert.Contains("public List<ProjectTreeNode> Walk(Project project)", projectTreeWalkerSource, StringComparison.Ordinal);
+
+        Assert.Contains("public static class NetworkObjectIndexReader", networkObjectIndexReaderSource, StringComparison.Ordinal);
+        Assert.Contains(
+            "public static IReadOnlyList<NetworkObjectSummaryInfo> Read(",
+            networkObjectIndexReaderSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_SelectsOneRepresentativePerDistinctRuntimeTypeBeforeFillingRemainingBudget()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectCatalog.cs"));
+
+        var seenTypesIndex = source.IndexOf("seenTypes", StringComparison.Ordinal);
+        Assert.True(seenTypesIndex >= 0, "Catalog does not track distinct runtime types seen during selection.");
+
+        Assert.Contains("RuntimeTypeName", source, StringComparison.Ordinal);
+        Assert.Contains(nameof(VciProbeRequestInfo.MaxEngineeringObjects), source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Resolver_VerifiesRuntimeTypeAndFingerprintBeforeReturningAResolvedCandidate()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectResolver.cs"));
+
+        // The resolver re-runs catalog discovery (which itself calls VciProbeSelectorFingerprint
+        // .Compute for every candidate) and compares the fresh, re-resolved candidate's fingerprint
+        // against the selector's stored one, rather than recomputing the hash a second time here.
+        Assert.Contains("VciProbeEngineeringObjectCatalog.Enumerate(", source, StringComparison.Ordinal);
+        Assert.Contains("candidate.Fingerprint", source, StringComparison.Ordinal);
+        Assert.Contains("selector.Fingerprint", source, StringComparison.Ordinal);
+        Assert.Contains("selector_stale_or_ambiguous", source, StringComparison.Ordinal);
+
+        // Resolve-by-identifier must be attempted before the structural-path fallback.
+        var stableIdIndex = source.IndexOf("StableIdentifier", StringComparison.Ordinal);
+        var structuralMatchIndex = source.IndexOf("FindStructuralMatch", StringComparison.Ordinal);
+        Assert.True(stableIdIndex >= 0, "Resolver does not reference StableIdentifier.");
+        Assert.True(structuralMatchIndex >= 0, "Resolver does not fall back to a structural-path match.");
+        Assert.True(
+            stableIdIndex < structuralMatchIndex,
+            "Resolver must attempt the stable-identifier path before the structural-path fallback.");
+    }
+
+    [Fact]
+    public void CatalogAndResolver_RecordOmissionsInsteadOfUnboundedTraversalOrSilentDrops()
+    {
+        var catalogSource = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectCatalog.cs"));
+
+        Assert.Contains("VciProbeOmissionInfo", catalogSource, StringComparison.Ordinal);
+        Assert.Contains(nameof(VciProbeRequestInfo.MaxCollectionItems), catalogSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_DoesNotCacheSiemensObjectProxiesAcrossInvocations()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeEngineeringObjectCatalog.cs"));
+
+        // No static mutable field may retain a discovered candidate/engineering object between
+        // Enumerate(...) calls (worker requests never share Siemens object proxies). Matches a
+        // field declaration specifically (name followed by '=' or ';') so it does not false-positive
+        // on a method whose return type happens to be the same generic list (name followed by '(').
+        var staticFieldPattern = new System.Text.RegularExpressions.Regex(
+            @"static\s+(readonly\s+)?List<VciProbeEngineeringObjectCandidate>\s*\??\s*\w+\s*[=;]");
+        Assert.False(
+            staticFieldPattern.IsMatch(source),
+            "Catalog must not declare a static field caching discovered candidates across worker requests.");
     }
 
     private static string FindRepositoryFile(params string[] segments)
