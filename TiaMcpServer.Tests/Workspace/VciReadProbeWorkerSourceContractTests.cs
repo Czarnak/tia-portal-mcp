@@ -306,7 +306,7 @@ public class VciReadProbeWorkerSourceContractTests
     }
 
     [Fact]
-    public void VciReadContractProbeService_WorkspaceBudgetOmissionUsesTheCurrentGroupsLocalWorkspaceIndex()
+    public void VciReadContractProbeService_WorkspaceBudgetOmissionUsesLocalPathIndexAndGlobalObservedCount()
     {
         var core = ReadMethod(
             ReadProbeServiceSource(),
@@ -325,15 +325,20 @@ public class VciReadProbeWorkerSourceContractTests
 
         var localIndexDeclaration = core.IndexOf("var workspaceIndex = 0;", StringComparison.Ordinal);
         Assert.InRange(localIndexDeclaration, 0, workspaceLoopStart - 1);
-        Assert.Contains(
-            "AppendTraversalPath(traversalPath, \"workspaces\", workspaceIndex)",
-            workspaceLoop,
+
+        var budgetBranchStart = workspaceLoop.IndexOf(
+            "if (workspacesObserved >= request.MaxWorkspaces)",
             StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "AppendTraversalPath(traversalPath, \"workspaces\", workspacesObserved)",
-            workspaceLoop,
+        var budgetBranchEnd = workspaceLoop.IndexOf(
+            "searchIncomplete = true;",
+            budgetBranchStart,
             StringComparison.Ordinal);
-        Assert.Contains("workspacesObserved", workspaceLoop, StringComparison.Ordinal);
+        Assert.True(budgetBranchStart >= 0 && budgetBranchEnd > budgetBranchStart, "Could not isolate the workspace-budget branch.");
+        var budgetBranch = workspaceLoop[budgetBranchStart..budgetBranchEnd];
+
+        AssertMethodMatches(
+            budgetBranch,
+            @"OmitSearch\(\s*omissions,\s*""[^""]+"",\s*nameof\(request\.MaxWorkspaces\),\s*request\.MaxWorkspaces,\s*workspacesObserved,\s*AppendTraversalPath\(traversalPath,\s*""workspaces"",\s*workspaceIndex\)\s*\)\s*;");
     }
 
     [Fact]
