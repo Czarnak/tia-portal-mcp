@@ -16,29 +16,38 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server currently exposes 12 tools in read-write mode and 3 tools in read-only mode.
+The server currently exposes 14 tools in read-write mode and 4 tools in read-only mode.
 
 ### Batch operations
 
-- `execute_read_batch` - run up to 50 read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others. Bound `search_equipment_catalog` and `read_cross_references` with `maxResults`; oversized batch responses are truncated or omitted server-side with explicit markers.
-- `preview_write_batch` / `apply_write_batch` - preview up to 50 write operations and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Batches cover data writes (block, tag table, tag, user constant, network device); project-lifecycle operations stay single-tool only.
+- `execute_read_batch` - run up to 50 retained generic read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others. Bound `read_cross_references` with `maxResults`; oversized batch responses are truncated or omitted server-side with explicit markers.
+- `preview_write_batch` / `apply_write_batch` - preview up to 50 retained generic data writes and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Project-lifecycle and network writes stay dedicated.
 
-The batch tools are the only path for data operations. Each `operation` name (e.g. `get_block_content`, `list_tag_tables`, `create_tag`, `update_block_logic`, `add_network_device`) carries that operation's parameters as one item; a single operation is just a one-item batch.
+The generic batch tools are the path for retained block, PLC type, tag-table, tag, and user-constant operations. Each `operation` name carries that operation's parameters as one item; a single operation is just a one-item batch.
 
-Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker (e.g. members skipped while reading a protected device). A populated `warnings` array means the payload may be partial. `read_hardware_config` additionally reports unreadable members in a payload-level `messages` array; device/module name and type-identifier fields omit values that could not be read instead of returning `0`/empty-string placeholders (a few secondary name fields still fall back to an empty string, with the failure noted in `messages`).
+Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker. A populated `warnings` array means the payload may be partial.
 
-Available read operations for `execute_read_batch`: `read_hardware_config`, `search_equipment_catalog`, `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+Available read operations for `execute_read_batch`: `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
 
+Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`.
+
+`get_block_content` / `update_block_logic` and `get_type_content` / `update_type_content` accept a `format` field. `format=source` is available for global data blocks, PLC data types, and SCL-language FB/FC/OB. Every other block language stays on `format=xml`.
+
+`withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency closure. The resulting document declares several objects and is **context only** — a write refuses any source declaring more than one object, and the read carries a warning saying so. Omit the field to get a document you can edit and submit back.
+
+### Network operations
+
+`network_read` and `network_write` both declare an MCP output schema and return one canonical JSON document identically as the `content` text block and as `structuredContent` — never a nested JSON string inside an outer envelope. This is the Phase 2 JSON contract; see [docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md) for the exact envelopes.
+
+- `network_read` - run up to 50 dedicated network reads: `read_hardware_config` and `search_equipment_catalog`. Reads run independently. Bound catalog searches with `query` and `maxResults`; when a network response is truncated, use the returned network-specific hint to narrow or split the request.
+- `network_write` - preview or apply up to 50 dedicated network writes: `add_network_device` (flat `typeIdentifier`/`deviceName`, since it names something that does not exist yet), `configure_network_device` (nested `target: { deviceName, nodeId }` plus `changes: { ipAddress?, subnetMask?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }` — a null `changes` member means leave that setting unchanged), `create_subnet` (`subnet: { name, networkType }`, plus PROFIBUS-only `highestAddress`/`transmissionSpeed`), `update_subnet` (`target: { subnetId }` plus `subnetChanges` with at least one member), and `delete_subnet` (`target: { subnetId }` — connected or not). Call with `confirm:false` and no token for a preview, then call the same tool with `confirm:true`, the unchanged ordered list, and the returned `safetyToken`. Apply is sequential, stops on the first failure, marks later items skipped, and does not roll back completed writes: `network_write` attaches an explicit warning to the failed item that this operation and any earlier operation in the same call may already have changed TIA state, and that you should re-read with `network_read` before retrying rather than blindly re-running the batch.
+
+`configure_network_device` targets one exact existing node: `target.deviceName` (case-insensitive) plus the exact `target.nodeId` reported by a prior `network_read` — never the first interface or first node on a device. `changes.subnet.subnetId` and `changes.ioSystem.subnetId`/`changes.ioSystem.number` are similarly exact, subnet-scoped selectors. Selector resolution is fail-closed: a selector that matches zero, more than one, or an unreadable candidate always fails with `postcondition_failed` rather than falling back to a guess. This is what makes it safe to target one port on a multi-homed device (a PC station with several network interfaces, for example) — configuring one node's exact `nodeId` changes only that node; every other node on the device is left byte-for-byte unchanged. Always follow a `network_write` apply with a `network_read` (`read_hardware_config`) post-read to confirm the outcome — the response never echoes back a re-read of the written value.
+
+`read_hardware_config` additionally reports unreadable members in a payload-level `messages` array; device/module name and type-identifier fields omit values that could not be read instead of returning `0`/empty-string placeholders (a few secondary name fields still fall back to an empty string, with the failure noted in `messages`). Hardware configuration data is engineering evidence, not certification that a physical installation has been commissioned.
+
+A separately authorized, PowerShell 7 live-TIA acceptance harness for this contract lives at `scripts/live-test-network-phase2.ps1`. It is never run by any automated test; see the script's own comment-based help for its `Read`/`Preview`/`Apply` modes and required confirmation gates.
 Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc` / `stop_plc`.
-
-`get_block_content` / `update_block_logic` and `get_type_content` / `update_type_content` accept a
-`format` field. `format=source` is available for global data blocks, PLC data types, and
-SCL-language FB/FC/OB. Every other block language stays on `format=xml`.
-
-`withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency
-closure. The resulting document declares several objects and is **context only** — a write refuses
-any source declaring more than one object, and the read carries a warning saying so. Omit the field
-to get a document you can edit and submit back.
 
 ### Project tools
 
@@ -49,11 +58,13 @@ to get a document you can edit and submit back.
 
 ## Write safety
 
-Every MCP write operation uses a preview-then-apply workflow. Batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Project lifecycle writes are self-previewing: call the write tool WITHOUT `safetyToken` to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), review it, then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`.
+Every MCP write operation uses a preview-then-apply workflow. Generic batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Network and project lifecycle writes are self-previewing: call the same write tool WITHOUT `safetyToken` (with `confirm:false` for `network_write`) to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), review it, then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`.
 
 Safety tokens are single-use, expire 10 minutes after preview, and are bound to the exact tool name, normalized project path, target, requested input, and current project state. The server rejects missing, expired, reused, mismatched, or stale-state tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
 `preview_write_batch` issues one token for the whole batch, bound to the exact ordered operation list and the combined current state. Reordering items, changing any item's input, retargeting the project path, or a change in project state all invalidate the token. `apply_write_batch` re-reads the combined current state once before consuming the token, then applies items sequentially and stops on the first failure.
+
+`network_write` snapshots topology once for preview and once for apply-time token validation. Its token is bound to the exact ordered network operation list and project state; successful apply attempts append an audit record.
 
 Every failed write reports a categorized `failureCategory` field alongside its human-readable `error` message, so a caller can branch on the exact failure without parsing text: `validation_error`, `binding_conflict`, `state_changed`, `worker_operation_failed`, `worker_timeout`, `worker_crashed`, or `postcondition_failed`. `save_project_as` requires `rebind:true`; calling it with `rebind:false` is rejected up front with `validation_error` before any preview, safety-token issuance, Siemens `SaveAs` call, or audit write, so it has no side effects. Warnings are always reported in a separate `warnings` array from the primary success/failure outcome — a populated `warnings` array never turns a failure into a success, and a categorized failure is never masked by an accompanying warning.
 
@@ -68,549 +79,70 @@ This project therefore uses two processes:
 
 The MCP host keeps one persistent .NET Framework 4.8 worker process attached to TIA Portal and exchanges newline-delimited JSON over stdin/stdout. Requests are serialized, and the worker restarts automatically after a crash or timeout. Siemens DLLs are never copied into this repository or the NuGet package; the worker resolves them from the local TIA Portal V21 installation.
 
-## Requirements
 
-- Windows
-- Siemens TIA Portal V21 installed
-- TIA Portal Openness installed and enabled
-- Current Windows user is a member of the `Siemens TIA Openness` user group
-- .NET SDK 8.0 or newer for `dotnet tool install`
-- .NET Framework 4.8 Runtime for the Openness worker
+## Quick start
 
-Source builds additionally need:
-
-- .NET SDK 8.0.4xx or newer 8.0 feature band. The repo includes `global.json` to prefer .NET SDK 8 for builds.
-- .NET Framework 4.8 Developer Pack or targeting pack
-
-By default, source builds expect Openness DLLs here:
-
-```text
-C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48
-```
-
-Local developer builds prefer real TIA Portal V21 assemblies from `TiaPortalV21Dir`. You can override that path with the `TiaPortalV21Dir` MSBuild property or environment variable. It must point to the folder containing `Siemens.Engineering.Base.dll` and `Siemens.Engineering.Step7.dll`.
-
-The repo also contains compile-time reference stubs in `ref/` so CI can build and package the MCP server without installing TIA Portal. Those stubs are fallback-only when a local TIA install is not found. To force stub references for CI/package builds:
-
-```powershell
-dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true
-```
-
-To force local TIA references:
-
-```powershell
-dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
-```
-
-During build, the worker prints the selected reference directory:
-
-```text
-TIA Openness compile references: C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48 (UseTiaPortalReferenceStubs=false)
-```
-
-## Install
+Install the server as a .NET global tool, check your environment, and register it with an MCP client:
 
 ```powershell
 dotnet tool install -g TiaMcpServer
-```
-
-Run the installed server:
-
-```powershell
-tia-mcp
-```
-
-To bind an MCP server process to a specific project, pass `--project` or set `TIA_MCP_PROJECT_PATH`:
-
-```powershell
-tia-mcp --project C:\Projects\Line.ap21
-$env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
-tia-mcp
-```
-
-After the first successful call, the session binds to the worker-reported active project. A later
-project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
-rebind the session, or start a new MCP session for a different customer project. Project-scoped read
-operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
-request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is read-only and non-binding: it never opens or switches projects, even
-when `projectPath` names a project that is not the one currently open. It is the human-approved Round 5
-deferral from the read-side switching policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
-projects. Use `open_project` for deliberate session switching.
-
-### Version flag
-
-Run `tia-mcp --version` (or `tia-mcp -v`) to print the host version and exit without starting the MCP server.
-
-### Doctor command
-
-Run `tia-mcp doctor` to validate the runtime environment before using the MCP server. It checks the operating system, .NET runtimes, TIA Portal installation, Openness assemblies, user group membership, worker executable, host/worker version compatibility, running TIA Portal processes, and project binding.
-
-```powershell
 tia-mcp doctor
-tia-mcp doctor --json
-tia-mcp doctor --verbose
-tia-mcp doctor --project C:\Projects\Line.ap21
-```
-
-Options:
-
-- `--json` - emit a single JSON document to stdout.
-- `--verbose` - include diagnostic evidence for each check.
-- `--project` - informational project binding (does not start the MCP host).
-
-Exit codes: `0` (no blocking failures), `1` (one or more checks failed), `2` (invalid arguments).
-
-### Register with an MCP client
-
-The `tia-mcp install` command registers the TIA Portal MCP server with a supported MCP client by invoking the client's native CLI. It does not edit configuration files directly.
-
-Supported clients: Claude Code, Codex, OpenCode, MiMoCode.
-
-```powershell
 tia-mcp install claude-code
-tia-mcp install codex
-tia-mcp install opencode
-tia-mcp install mimocode
 ```
 
-Aliases: `claude` (Claude Code), `mimo` (MiMoCode).
+`tia-mcp doctor` validates Windows version, .NET runtimes, the TIA Portal installation, Openness
+assemblies, user-group membership, and host/worker compatibility before you connect anything. Run it
+first — it reports exactly which prerequisite is missing.
 
-Options:
+| Prerequisite | Notes |
+| --- | --- |
+| Windows | Windows-only; the Openness API has no other host |
+| Siemens TIA Portal V21 | with Openness installed and enabled |
+| `Siemens TIA Openness` group | the current Windows user must be a member |
+| .NET SDK 8.0 or newer | required by `dotnet tool install` |
+| .NET Framework 4.8 runtime | required by the Openness worker process |
 
-- `--name <name>` - server registration name (default: `tia-portal`).
-- `--access-mode <mode>` - access mode: `read-only` or `read-write` (default: `read-only`).
-- `--tia-project <path>` - bind to a specific TIA Portal project.
-- `--server-path <path>` - explicit path to the `tia-mcp` executable.
-- `--dry-run` - print the install command without executing.
-- `--json` - emit JSON output (not supported with MiMoCode).
+Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
+**read-only** mode by default; add `--access-mode read-write` to expose the write tools.
 
-Examples:
+Binding to a specific project, every install option, and the full access-mode reference are in the
+[installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing
+the published tool, see [building from source](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/development/building.md).
 
-```powershell
-# Register with Codex using read-write mode
-tia-mcp install codex --access-mode read-write
+## Documentation
 
-# Register with Claude Code bound to a specific project
-tia-mcp install claude-code --tia-project C:\Projects\Line.ap21
+**Using the server**
 
-# Preview the install command without running it
-tia-mcp install codex --dry-run
+- [Installation](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md) — install, verify with `doctor`, register with a client, access modes
+- [MCP client configuration](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/mcp-client-configuration.md) — client config reference and block path addressing
+- [Troubleshooting](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/troubleshooting.md) — common failures and verified TIA Portal V21 behavior
+- [Supported operations](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/README.md) — every operation by area, with parameters
 
-# JSON output for automation
-tia-mcp install codex --json
-```
+**Understanding the design**
 
-MiMoCode uses interactive mode and will prompt for values. The `--json` flag is not supported with MiMoCode.
+- [Architecture](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/ARCHITECTURE.md) — two-process topology, access enforcement, write safety, the canonical JSON seam
 
-Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (unsupported client), `4` (client not found), `5` (tia-mcp executable not found), `6` (native command failed), `7` (verification failed), `8` (unsupported option combination).
+**Building and contributing**
 
-### Access modes
+- [Contributing](https://github.com/Czarnak/tia-portal-mcp/blob/main/CONTRIBUTING.md) — workflow, branch and commit conventions
+- [Building from source](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/development/building.md) — build, test, coverage, run locally
+- [Local MCP sandbox testing](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/development/local-mcp-testing.md) — the MCP Inspector test loop
+- [Packaging](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/development/packaging.md) — build the package, install a local build as `tia-mcp`
 
-The server supports two access modes that control which operations are available:
+**Direction**
 
-- **read-write** (default) - full tool surface with the existing preview-and-apply write safety model.
-- **read-only** - only observation operations are available. Write tools are not advertised to MCP clients, and prohibited operations are rejected at both the host and worker levels.
-
-Enable read-only mode:
-
-```powershell
-tia-mcp --access-mode read-only
-tia-mcp --read-only
-$env:TIA_MCP_ACCESS_MODE = 'read-only'
-tia-mcp
-```
-
-Configuration precedence: CLI argument > environment variable > default (read-write).
-
-The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
-
-In read-only mode, the server exposes exactly three MCP tools:
-
-- `get_project_status` — read active project metadata without opening or switching projects.
-- `browse_project_tree` — browse a bounded project subtree with optional `depth` and `startPath`.
-- `execute_read_batch` — run the six retained non-project read operations in a batch.
-
-The following operations are **not available** in read-only mode:
-
-- `compile_check` (invokes the Siemens compilation API)
-- All project lifecycle operations (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`)
-- All data mutations (block, tag, tag table, user constant, network device operations)
-- All PLC control operations (`start_plc`, `stop_plc`)
-
-In read-only mode, the server operates only on the project already open in TIA Portal. It never opens, creates, switches, or closes a project. A supplied `projectPath` is used only as an assertion that must match the currently open project.
-
-Read-only mode is a security boundary enforced at three layers:
-
-1. Write tools are not registered in the MCP tool discovery response.
-2. The host-side `OperationAccessPolicy` rejects prohibited operations before the worker process is started.
-3. The worker-side `WorkerOperationAuthorization` independently rejects prohibited operations even if a raw worker request bypasses the host.
-
-MCP client configuration example:
-
-```json
-{
-  "mcpServers": {
-    "tia-portal-read-only": {
-      "command": "tia-mcp",
-      "args": ["--access-mode", "read-only"]
-    }
-  }
-}
-```
-
-The `tia-mcp doctor` command reports the active access mode.
-
-The package includes the `openness-worker` folder and required non-Siemens dependencies. It intentionally excludes `Siemens.Engineering*.dll`; those are loaded from the local TIA Portal installation at runtime.
-
-## Build From Source
-
-```powershell
-dotnet restore TiaMcpServer.sln
-dotnet build TiaMcpServer.sln -m:1
-```
-
-The `-m:1` option serializes solution builds. The MCP host project also builds and copies the net48 Openness worker, so serialized builds avoid duplicate parallel worker builds during local development.
-
-The source build creates the .NET 8 host and copies the .NET Framework worker into:
-
-```text
-TiaMcpServer\bin\Debug\net8.0\openness-worker
-```
-
-### Coverage
-
-CI collects coverage, then enforces an 80% scoped line-coverage threshold locally (before the Codecov upload, which stays reporting-only). Run the same scoped collection and threshold check locally:
-
-```powershell
-$results = Join-Path 'TestResults' ('local-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory $results
-$report = Get-ChildItem -LiteralPath $results -Recurse -Filter coverage.cobertura.xml | Select-Object -First 1
-./scripts/verify-coverage-threshold.ps1 -CoveragePath $report.FullName -MinimumLineRate 0.80
-```
-
-`coverage.runsettings` scopes the Cobertura report to `TiaMcpServer` and `TiaMcpServer.Contracts`; test assemblies, `TiaMcpServer.FakeWorker`, and `TiaMcpServer.OpennessWorker` are excluded. `verify-coverage-threshold.ps1` exits non-zero below the threshold.
-
-## Run Locally
-
-Start TIA Portal V21 first and open a project, then run:
-
-```powershell
-dotnet run --project TiaMcpServer
-```
-
-The server uses MCP over stdio, so it is normally launched by an MCP client rather than used interactively in a terminal.
-
-You can test the Openness worker directly:
-
-```powershell
-'{ "method": "browse_project_tree", "projectPath": null }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
-'{ "method": "read_hardware_config", "projectPath": null }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
-'{ "method": "read_cross_references", "projectPath": null, "crossReferenceFilter": "ObjectsWithReferences" }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
-'{ "method": "search_equipment_catalog", "query": "1516", "projectPath": null }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
-```
-
-Expected successful response shape:
-
-```json
-{"success":true,"payload":"[...]"}
-```
-
-Expected error response shape:
-
-```json
-{"success":false,"error":"No running TIA Portal V21 instance found. Please start TIA Portal before using the MCP server."}
-```
-
-## Local MCP Sandbox Testing
-
-For the safest local MCP test loop, use the official MCP Inspector against a disposable copy of a TIA project. The Inspector runs your server as a child stdio process and lets you list/call tools without adding the server to a daily-use AI client.
-
-1. Start TIA Portal V21.
-2. Open a test project, preferably a copied `.ap21` project, not a production project.
-3. Build the repo:
-
-    ```powershell
-    dotnet restore TiaMcpServer.sln
-    dotnet build TiaMcpServer.sln -m:1
-    ```
-
-4. Launch MCP Inspector against the built server:
-
-```powershell
-npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll
-```
-
-To bind the inspector session to a specific project path instead of the currently open TIA project:
-
-```powershell
-npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll --project C:\Projects\Sandbox\Line.ap21
-```
-
-In the Inspector UI:
-
-- Open the Tools tab.
-- Click `List Tools` and verify the 12 tools appear in read-write mode.
-- Start with the standalone `get_project_status` and `browse_project_tree` tools.
-- In read-write mode, call standalone `compile_check` for PLC or block compilation.
-- Then call `execute_read_batch` with an `operations` array whose items use retained operations such as `list_tag_tables`, `read_hardware_config`, `read_cross_references`, or `get_block_content`.
-- Use a `search_equipment_catalog` read item before hardware insertion so you can copy an exact `typeIdentifier`.
-- Use a `get_block_content` read item on a block path returned by `browse_project_tree`.
-- Use `get_project_status` before lifecycle changes.
-- Avoid writes unless the project is disposable or backed up. Writes go through `preview_write_batch`, then `apply_write_batch` with `confirm=true` and the returned batch `safetyToken`.
-
-For a bounded tree read, call standalone `browse_project_tree` with inputs such as:
-
-```json
-{ "projectPath": null, "depth": 2, "startPath": "PLC_1" }
-```
-
-In read-write mode, call standalone `compile_check` with inputs such as:
-
-```json
-{ "projectPath": null, "plcName": "PLC_1", "blockPath": "PLC_1/Blocks/Main" }
-```
-
-Then use this read smoke-test for `execute_read_batch` (independent items; a failing item does not stop the others):
-
-```json
-{
-  "operations": [
-    { "operationId": "hw", "operation": "read_hardware_config" },
-    { "operationId": "xref", "operation": "read_cross_references", "filter": "ObjectsWithReferences", "plcName": "PLC_1" },
-    { "operationId": "catalog", "operation": "search_equipment_catalog", "query": "1516" }
-  ]
-}
-```
-
-Large projects can return large JSON from cross-reference diagnostics; narrow each read item with `plcName` and `filter`. To test explicit project binding, set `projectPath` on each operation item (all write items in a batch must target the same project path):
-
-```json
-{
-  "operations": [
-    { "operationId": "hardware", "operation": "read_hardware_config", "projectPath": "C:\\Projects\\Sandbox\\Line.ap21" }
-  ]
-}
-```
-
-For writes, preview first with `preview_write_batch` to obtain one batch-level `safetyToken`, for example a device add plus its network configuration in order:
-
-```json
-{
-  "operations": [
-    {
-      "operationId": "add",
-      "operation": "add_network_device",
-      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
-      "deviceName": "PLC_1",
-      "deviceItemName": "PLC_1"
-    },
-    {
-      "operationId": "configure",
-      "operation": "configure_network_device",
-      "deviceName": "PLC_1",
-      "ipAddress": "192.168.0.10",
-      "subnetMask": "255.255.255.0",
-      "pnDeviceName": "plc-1",
-      "subnetName": "PN/IE_1"
-    }
-  ]
-}
-```
-
-Then apply with `apply_write_batch`, passing the same `operations` array unchanged plus the returned token (apply runs sequentially and stops on the first failure):
-
-```json
-{
-  "operations": [
-    {
-      "operationId": "add",
-      "operation": "add_network_device",
-      "typeIdentifier": "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
-      "deviceName": "PLC_1",
-      "deviceItemName": "PLC_1"
-    },
-    {
-      "operationId": "configure",
-      "operation": "configure_network_device",
-      "deviceName": "PLC_1",
-      "ipAddress": "192.168.0.10",
-      "subnetMask": "255.255.255.0",
-      "pnDeviceName": "plc-1",
-      "subnetName": "PN/IE_1"
-    }
-  ],
-  "confirm": true,
-  "safetyToken": "<token from preview_write_batch>"
-}
-```
-
-A tag write is the same flow with a one-item batch, e.g. `preview_write_batch` then `apply_write_batch` over:
-
-```json
-{
-  "operations": [
-    {
-      "operationId": "tag",
-      "operation": "create_tag",
-      "plcName": "PLC_1",
-      "tableName": "StandardTags",
-      "name": "StartButton",
-      "dataType": "Bool",
-      "logicalAddress": "%I0.0"
-    }
-  ]
-}
-```
-
-Project lifecycle writes remain single-tool and self-previewing. First call `open_project` with only the project path to receive the preview and token:
-
-```json
-{
-  "projectPath": "C:\\Projects\\Sandbox\\Line.ap21"
-}
-```
-
-Then call `open_project` again with the same arguments plus `confirm=true` and the returned token:
-
-```json
-{
-  "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
-  "confirm": true,
-  "safetyToken": "<token from the preview call>"
-}
-```
-
-Use archive mode values `None`, `DiscardRestorableData`, `Compressed`, or `DiscardRestorableDataAndCompressed`.
-
-## Local Package Build
-
-The package is already published on NuGet. Use this section only when testing package changes locally before publishing a new version.
-
-Create a local tool package:
-
-```powershell
-dotnet pack TiaMcpServer\TiaMcpServer.csproj -c Release
-```
-
-Install from the generated package source:
-
-```powershell
-dotnet tool install -g TiaMcpServer --add-source .\TiaMcpServer\bin\Release
-```
-
-Run the installed server:
-
-```powershell
-tia-mcp
-```
-
-To bind an MCP server process to a specific project, pass `--project` or set `TIA_MCP_PROJECT_PATH`:
-
-```powershell
-tia-mcp --project C:\Projects\Line.ap21
-$env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
-tia-mcp
-```
-
-After the first successful call, the session binds to the worker-reported active project. A later
-project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
-rebind the session, or start a new MCP session for a different customer project. Project-scoped read
-operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
-request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is read-only and non-binding: it never opens or switches projects, even
-when `projectPath` names a project that is not the one currently open. It is the human-approved Round 5
-deferral from the read-side switching policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
-projects. Use `open_project` for deliberate session switching.
-
-## Block Paths
-
-Prefer block paths returned in `browse_project_tree` node `Details.Path` values. Supported block path forms are:
-
-```text
-BlockName
-PLC_1/BlockName
-PLC_1/Blocks/Folder/SubFolder/BlockName
-PLC_1/Units/UnitName/Blocks/Folder/SubFolder/BlockName
-```
-
-Legacy `BlockName` and `PLC_1/BlockName` paths are accepted only when the block name is unambiguous. If more than one block has the same name, use the deterministic `Path` returned by `browse_project_tree`.
-
-## MCP Client Configuration
-
-Configure your MCP client to launch the tool command:
-
-```json
-{
-  "mcpServers": {
-    "tia-portal": {
-      "command": "tia-mcp"
-    }
-  }
-}
-```
-
-For local development without installing the tool, point the client at `dotnet`:
-
-```json
-{
-  "mcpServers": {
-    "tia-portal-dev": {
-      "command": "dotnet",
-      "args": ["run", "--project", "{REPO PATH}\\TiaMcpServer"]
-    }
-  }
-}
-```
-
-With an explicit project binding:
-
-```json
-{
-  "mcpServers": {
-    "tia-portal-dev": {
-      "command": "dotnet",
-      "args": ["run", "--project", "{REPO PATH}\\TiaMcpServer", "--", "--project", "C:\\Projects\\Sandbox\\Line.ap21"]
-    }
-  }
-}
-```
-
-## Troubleshooting
-
-- `System.Runtime.Remoting.RemotingException` / `TypeLoadException` in .NET 8: Siemens Openness must run in the net48 worker. Rebuild the solution and make sure the host output contains `openness-worker\TiaMcpServer.OpennessWorker.exe`.
-- Openness DLL not found: verify TIA Portal V21 is installed and set `TiaPortalV21Dir` to the `PublicAPI\V21\net48` folder if your install path is non-standard.
-- Build uses `ref/` on a developer machine: verify `TiaPortalV21Dir` points to the local V21 `PublicAPI\V21\net48` folder, or force local references with `/p:UseTiaPortalReferenceStubs=false`.
-- No running TIA Portal instance: start TIA Portal V21 before calling tools that attach to the current project.
-- Access denied or attach failure: confirm the Windows user belongs to the `Siemens TIA Openness` user group, then sign out and back in.
-- `dotnet` selects the wrong SDK: install .NET SDK 8.0.4xx or update `global.json` to a locally installed .NET 8 SDK feature band.
-
-## Verified TIA Portal V21 behavior
-
-The Phase 5 acceptance record documents the verified recovery guidance for these previously
-problematic paths. Multi-document `update_block_logic` round trips are verified: submit the
-exported SIMATIC ML document bundle through a guarded batch, expect one import followed by compile
-and re-export verification, and treat a structural/unsafe-document rejection as a no-change result.
-An edited bundle is likewise compiled and re-exported. Do not automatically retry a write with an
-uncertain worker outcome; inspect the current block instead.
-
-SCL `create_block` calls are verified: the generated SCL source contains a non-empty compile unit,
-the requested block resolves at its requested path, and `compile_check` confirms it compiles. The
-same guarded preview/token/apply flow applies to SCL and GlobalDB block creation.
-
-`save_project_as` with `rebind: false` is resolved: it is rejected up front with a
-`validation_error` response, before any preview, safety-token issuance, Siemens `SaveAs` call, or
-audit write, so it has no side effects. `rebind: true` is required; see
-[Write safety](#write-safety). A supported SaveAs rebinds both host and worker to the
-worker-reported copied project path; verify it with a subsequent status or read call.
+- [Roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/ROADMAP.md) — directional priorities
+- [Network operations roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/roadmap/network-operations.md) — phased network tool delivery
+- [Export/import format roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/roadmap/export-import-format.md) — source-format exchange
+- [Improvement log](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/IMPROVEMENT_LOG.md) — open follow-ups and completed engineering work
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and how to set up your environment. For architecture and build reference, see [AGENTS.md](AGENTS.md).
+Contributions are welcome. See [CONTRIBUTING.md](https://github.com/Czarnak/tia-portal-mcp/blob/main/CONTRIBUTING.md) for the development workflow and how to set up your environment. For architecture and build reference, see [AGENTS.md](https://github.com/Czarnak/tia-portal-mcp/blob/main/AGENTS.md).
 
 ## Security
 
-For how to report security vulnerabilities, see [SECURITY.md](SECURITY.md).
+For how to report security vulnerabilities, see [SECURITY.md](https://github.com/Czarnak/tia-portal-mcp/blob/main/SECURITY.md).
 
 ## Check other tools
 

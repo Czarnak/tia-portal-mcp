@@ -88,6 +88,52 @@ public class OpennessWorkerClient : IDisposable
             "[]");
     }
 
+    /// <summary>
+    /// Sends a <c>list_network_objects</c> request to the worker. <paramref name="objectKinds"/>
+    /// is deep-copied into a new list so the worker-bound request never holds a reference to the
+    /// caller's mutable collection.
+    /// </summary>
+    public Task<WorkerCallResult> ListNetworkObjectsAsync(
+        IReadOnlyList<string> objectKinds,
+        string? deviceName,
+        int? pageSize,
+        string? cursor,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "list_network_objects",
+            projectPath,
+            request =>
+            {
+                request.NetworkObjectKinds = new List<string>(objectKinds);
+                request.NetworkObjectDeviceName = deviceName;
+                request.NetworkObjectPageSize = pageSize;
+                request.NetworkObjectCursor = cursor;
+            },
+            "{}");
+    }
+
+    /// <summary>
+    /// Sends an <c>inspect_network_object</c> request to the worker. The caller must supply a
+    /// <see cref="NetworkObjectSelectorInfo"/> that was mapped from the host's
+    /// <c>NetworkObjectTarget</c> (item-path segments deep-copied, caller list discarded).
+    /// </summary>
+    public Task<WorkerCallResult> InspectNetworkObjectAsync(
+        NetworkObjectSelectorInfo target,
+        IReadOnlyList<string>? attributeNames,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "inspect_network_object",
+            projectPath,
+            request =>
+            {
+                request.NetworkObjectTarget = target;
+                request.NetworkAttributeNames = attributeNames is null ? null : new List<string>(attributeNames);
+            },
+            "{}");
+    }
+
     public Task<WorkerCallResult> AddNetworkDeviceAsync(
         string typeIdentifier,
         string deviceName,
@@ -110,11 +156,13 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(
         string deviceName,
+        string nodeId,
         string? ipAddress,
         string? subnetMask,
         string? pnDeviceName,
-        string? subnetName,
-        string? ioSystemName,
+        string? subnetId,
+        string? ioSystemSubnetId,
+        int? ioSystemNumber,
         string? projectPath)
     {
         return SendBoundProjectRequestAsync(
@@ -123,11 +171,85 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.DeviceName = deviceName;
+                request.NodeId = nodeId;
                 request.IpAddress = ipAddress;
                 request.SubnetMask = subnetMask;
                 request.PnDeviceName = pnDeviceName;
-                request.SubnetName = subnetName;
-                request.IoSystemName = ioSystemName;
+                request.SubnetId = subnetId;
+                request.IoSystemSubnetId = ioSystemSubnetId;
+                request.IoSystemNumber = ioSystemNumber;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    /// <summary>
+    /// Sends a <c>create_subnet</c> request. Never forwards <see cref="WorkerRequest.SubnetId"/> —
+    /// a new subnet's id is assigned by Openness at creation time, not supplied by the caller.
+    /// </summary>
+    public Task<WorkerCallResult> CreateSubnetAsync(
+        string name,
+        string networkType,
+        int? highestAddress,
+        string? transmissionSpeed,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "create_subnet",
+            projectPath,
+            request =>
+            {
+                request.SubnetName = name;
+                request.SubnetNetworkType = networkType;
+                request.SubnetHighestAddress = highestAddress;
+                request.SubnetTransmissionSpeed = transmissionSpeed;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    /// <summary>
+    /// Sends an <c>update_subnet</c> request. <paramref name="subnetId"/> is forwarded via the
+    /// existing <see cref="WorkerRequest.SubnetId"/> field — there is no second identity field.
+    /// Never forwards a network type: an existing subnet's type is not changeable through this
+    /// contract.
+    /// </summary>
+    public Task<WorkerCallResult> UpdateSubnetAsync(
+        string subnetId,
+        string? name,
+        int? highestAddress,
+        string? transmissionSpeed,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "update_subnet",
+            projectPath,
+            request =>
+            {
+                request.SubnetId = subnetId;
+                request.SubnetName = name;
+                request.SubnetHighestAddress = highestAddress;
+                request.SubnetTransmissionSpeed = transmissionSpeed;
+                request.Confirm = true;
+                request.AllowTiaConfirmations = true;
+            },
+            "{}");
+    }
+
+    /// <summary>
+    /// Sends a <c>delete_subnet</c> request. Forwards only the target identity via the existing
+    /// <see cref="WorkerRequest.SubnetId"/> field.
+    /// </summary>
+    public Task<WorkerCallResult> DeleteSubnetAsync(string subnetId, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "delete_subnet",
+            projectPath,
+            request =>
+            {
+                request.SubnetId = subnetId;
                 request.Confirm = true;
                 request.AllowTiaConfirmations = true;
             },

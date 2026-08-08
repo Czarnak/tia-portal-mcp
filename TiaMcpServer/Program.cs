@@ -6,6 +6,7 @@ using TiaMcpServer.Batch;
 using TiaMcpServer.Cli;
 using TiaMcpServer.Cli.Install;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -66,13 +67,15 @@ namespace TiaMcpServer
                 .AddMcpServer()
                 .WithStdioServerTransport()
                 .WithTools<ProjectReadTools>()
-                .WithTools<ReadBatchTools>();
+                .WithTools<ReadBatchTools>()
+                .WithTools<NetworkReadTools>();
 
             if (accessMode == McpAccessMode.ReadWrite)
             {
                 mcp.WithTools<ProjectEngineeringTools>()
                    .WithTools<ProjectWriteTools>()
-                   .WithTools<WriteBatchTools>();
+                   .WithTools<WriteBatchTools>()
+                   .WithTools<NetworkWriteTools>();
             }
 
             await builder.Build().RunAsync();

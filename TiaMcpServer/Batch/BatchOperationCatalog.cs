@@ -236,13 +236,10 @@ public static class BatchOperationCatalog
     {
         "blockPath" => !string.IsNullOrWhiteSpace(op.BlockPath),
         "yamlContent" => !string.IsNullOrWhiteSpace(op.YamlContent),
-        "query" => !string.IsNullOrWhiteSpace(op.Query),
         "tableName" => !string.IsNullOrWhiteSpace(op.TableName),
         "name" => !string.IsNullOrWhiteSpace(op.Name),
         "dataType" => !string.IsNullOrWhiteSpace(op.DataType),
         "value" => !string.IsNullOrWhiteSpace(op.Value),
-        "typeIdentifier" => !string.IsNullOrWhiteSpace(op.TypeIdentifier),
-        "deviceName" => !string.IsNullOrWhiteSpace(op.DeviceName),
         "blockType" => !string.IsNullOrWhiteSpace(op.BlockType),
         "typePath" => !string.IsNullOrWhiteSpace(op.TypePath),
         "sourceContent" => !string.IsNullOrWhiteSpace(op.SourceContent),
@@ -281,8 +278,6 @@ public static class BatchOperationCatalog
         var specs = new[]
         {
             // Reads
-            new BatchOperationSpec("read_hardware_config", BatchOperationCategory.Read, None, None),
-            new BatchOperationSpec("search_equipment_catalog", BatchOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new BatchOperationSpec("read_cross_references", BatchOperationCategory.Read, None, new[] { "plcName", "filter", "maxResults" }),
             new BatchOperationSpec("get_block_content", BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format", "withDependencies" }),
             new BatchOperationSpec("list_tag_tables", BatchOperationCategory.Read, None, new[] { "plcName" }),
@@ -298,8 +293,6 @@ public static class BatchOperationCatalog
             new BatchOperationSpec("create_user_constant", BatchOperationCategory.Write, new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
             new BatchOperationSpec("update_user_constant", BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
             new BatchOperationSpec("delete_user_constant", BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
-            new BatchOperationSpec("add_network_device", BatchOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
-            new BatchOperationSpec("configure_network_device", BatchOperationCategory.Write, new[] { "deviceName" }, new[] { "ipAddress", "subnetMask", "pnDeviceName", "subnetName", "ioSystemName" }),
             new BatchOperationSpec("create_block", BatchOperationCategory.Write, new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
             new BatchOperationSpec("delete_block", BatchOperationCategory.Write, new[] { "blockPath" }, None),
             new BatchOperationSpec("create_block_group", BatchOperationCategory.Write, new[] { "blockPath" }, None),

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
@@ -5,7 +7,7 @@ namespace TiaMcpServer.Contracts;
 ///
 /// The shape is deliberately flat rather than one DTO per operation: the protocol is stable
 /// and per-operation types would cost more churn than they save. See "Deferred / explicitly
-/// not planned" in docs/IMPROVEMENT_PLAN.md.
+/// not planned" in docs/IMPROVEMENT_LOG.md.
 ///
 /// <para>
 /// Only the fields relevant to <see cref="Method"/> are read; everything else is ignored.
@@ -167,6 +169,12 @@ public class WorkerRequest
     public string? DeviceName { get; set; }
 
     /// <summary>
+    /// Forwarded by: configure_network_device. Identifies exactly one node on the named device,
+    /// because a device may expose several interfaces and nodes.
+    /// </summary>
+    public string? NodeId { get; set; }
+
+    /// <summary>
     /// Forwarded by: add_network_device ONLY. configure_network_device does not forward it —
     /// setting it on that operation is silently dropped. The fallback to DeviceName when the
     /// caller omits it is applied by BatchWorkerInvoker.ResolveDeviceItemName before the call.
@@ -182,11 +190,104 @@ public class WorkerRequest
     /// <summary>Forwarded by: configure_network_device.</summary>
     public string? PnDeviceName { get; set; }
 
-    /// <summary>Forwarded by: configure_network_device.</summary>
+    /// <summary>
+    /// Forwarded by: configure_network_device (the subnet to connect the node to), update_subnet
+    /// and delete_subnet (the exact existing subnet targeted by the operation). create_subnet never
+    /// forwards it — a new subnet's id is assigned by Openness, not supplied by the caller.
+    /// </summary>
+    public string? SubnetId { get; set; }
+
+    /// <summary>
+    /// Forwarded by: configure_network_device. The subnet that owns the requested IO system. Kept
+    /// separate from <see cref="SubnetId"/> so an IO-system change can be requested without also
+    /// requesting a subnet connection change.
+    /// </summary>
+    public string? IoSystemSubnetId { get; set; }
+
+    /// <summary>Forwarded by: configure_network_device. The IO system's number within its subnet.</summary>
+    public int? IoSystemNumber { get; set; }
+
+    #endregion
+
+    #region Network object discovery and inspection (Phase 3)
+
+    /// <summary>
+    /// Forwarded by: list_network_objects. Contains only valid kind strings (validated by the host
+    /// catalog before sending). Prefixed to avoid collision with the existing flat DeviceName field.
+    /// </summary>
+    public List<string>? NetworkObjectKinds { get; set; }
+
+    /// <summary>
+    /// Forwarded by: list_network_objects (optional device filter). Prefixed to avoid collision
+    /// with the existing flat DeviceName field used by add_network_device / configure_network_device.
+    /// </summary>
+    public string? NetworkObjectDeviceName { get; set; }
+
+    /// <summary>Forwarded by: list_network_objects. Validated to the range [1, 200] by the host.</summary>
+    public int? NetworkObjectPageSize { get; set; }
+
+    /// <summary>Forwarded by: list_network_objects. Opaque cursor from a previous paged response.</summary>
+    public string? NetworkObjectCursor { get; set; }
+
+    /// <summary>
+    /// Forwarded by: inspect_network_object, probe_network_object_attributes. Mapped from the
+    /// host's <c>NetworkObjectTarget</c>
+    /// to a fresh <see cref="NetworkObjectSelectorInfo"/>; item-path segments are deep-copied so
+    /// the worker never holds a reference to the caller's mutable list.
+    /// </summary>
+    public NetworkObjectSelectorInfo? NetworkObjectTarget { get; set; }
+
+    /// <summary>
+    /// Forwarded by: inspect_network_object, probe_network_object_attributes (optional). The
+    /// public inspection path validates [1, 200] unique names; the internal probe repeats that
+    /// validation because it is called directly by the read-only live harness.
+    /// </summary>
+    public List<string>? NetworkAttributeNames { get; set; }
+
+    #endregion
+
+    #region Network subnet lifecycle (Phase 4)
+
+    /// <summary>
+    /// Forwarded by: create_subnet (new subnet's name), update_subnet (new name for the targeted
+    /// subnet; omitted means leave it unchanged).
+    /// </summary>
     public string? SubnetName { get; set; }
 
-    /// <summary>Forwarded by: configure_network_device.</summary>
-    public string? IoSystemName { get; set; }
+    /// <summary>Forwarded by: create_subnet ONLY. Valid values: Ethernet, Profibus. Not changeable
+    /// on an existing subnet, so update_subnet never forwards it.</summary>
+    public string? SubnetNetworkType { get; set; }
+
+    /// <summary>
+    /// Forwarded by: create_subnet (optional, PROFIBUS only), update_subnet (optional; omitted
+    /// means leave it unchanged).
+    /// </summary>
+    public int? SubnetHighestAddress { get; set; }
+
+    /// <summary>
+    /// Forwarded by: create_subnet (optional, PROFIBUS only), update_subnet (optional; omitted
+    /// means leave it unchanged).
+    /// </summary>
+    public string? SubnetTransmissionSpeed { get; set; }
+
+    #endregion
+
+    #region Internal Network Phase 4 live mutation probe
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeRunId { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeConnectedEthernetSubnetId { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeConnectedProfibusSubnetId { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public int? ProbeProfibusHighestAddress { get; set; }
+
+    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
+    public string? ProbeProfibusTransmissionSpeed { get; set; }
 
     #endregion
 

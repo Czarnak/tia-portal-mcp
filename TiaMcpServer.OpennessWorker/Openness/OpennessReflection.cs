@@ -65,6 +65,45 @@ internal static class OpennessReflection
         }
     }
 
+    /// <summary>
+    /// Reads a member that may be a CLR property on some Openness types and only a dynamic
+    /// Openness attribute on others (for example <c>Subnet.SubnetId</c>, which
+    /// <c>GetAttributeInfos()</c> lists as a <c>[ReadWrite]</c> attribute rather than exposing as a
+    /// property). Tries the CLR property first, then falls back to <c>GetAttribute</c>.
+    ///
+    /// <para>
+    /// <c>GetAttribute</c> with an unsupported attribute name throws rather than returning null, so
+    /// the fallback is guarded the same way <see cref="ReadProperty(object?, string)"/> already
+    /// guards its own reflection: an <see cref="EngineeringException"/> degrades to null instead of
+    /// propagating. Callers resolving an identity a write selector will match against should treat a
+    /// null result the same as "this candidate's identity is unreadable" — it must never satisfy a
+    /// selector.
+    /// </para>
+    /// </summary>
+    public static string? ReadPropertyOrAttribute(object instance, string propertyName)
+    {
+        var value = ReadProperty(instance, propertyName);
+        if (value is not null)
+        {
+            return value.ToString();
+        }
+
+        if (instance is not IEngineeringObject engineeringObject)
+        {
+            return null;
+        }
+
+        try
+        {
+            return engineeringObject.GetAttribute(propertyName)?.ToString();
+        }
+        catch (EngineeringException ex)
+        {
+            Console.Error.WriteLine($"Skipping attribute '{propertyName}': {ex.Message}");
+            return null;
+        }
+    }
+
     public static IEnumerable<object> ReadEnumerableProperty(object instance, string propertyName)
     {
         return Enumerate(ReadProperty(instance, propertyName), propertyName);

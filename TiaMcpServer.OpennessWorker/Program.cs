@@ -16,6 +16,13 @@ internal static class Program
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly JsonSerializerOptions NetworkObjectListJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never
+    };
+
     // TIA Portal 권한 요청 다이얼로그는 Attach() 호출마다 뜬다.
     // 세션을 프로세스 수명 동안 재사용해 Attach()를 최초 1회만 호출한다.
     private static readonly WorkerTiaPortalSession _sharedSession = new(allowTiaConfirmations: true);
@@ -109,9 +116,16 @@ internal static class Program
             {
                 "browse_project_tree" => BrowseProjectTree(request),
                 "read_hardware_config" => ReadHardwareConfig(request),
+                "list_network_objects" => ListNetworkObjects(request),
+                "inspect_network_object" => InspectNetworkObject(request),
+                "probe_network_object_attributes" => ProbeNetworkObjectAttributes(request),
+                "probe_subnet_lifecycle_mutations" => ProbeSubnetLifecycleMutations(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
                 "configure_network_device" => ConfigureNetworkDevice(request),
+                "create_subnet" => CreateSubnet(request),
+                "update_subnet" => UpdateSubnet(request),
+                "delete_subnet" => DeleteSubnet(request),
                 "read_cross_references" => ReadCrossReferences(request),
                 "get_block_content"   => GetBlockContent(request),
                 "update_block_logic"  => UpdateBlockLogic(request),
@@ -150,6 +164,10 @@ internal static class Program
         {
             return Failure(WorkerFailureCategories.ValidationError, $"Worker request was invalid JSON: {ex.Message}");
         }
+        catch (NetworkCursorException ex)
+        {
+            return Failure(ex.Category, ex.Message);
+        }
         catch (WorkerOperationException ex)
         {
             return Failure(ex.FailureCategory, ex.Message, ex.Warnings);
@@ -175,6 +193,244 @@ internal static class Program
     private static WorkerResponse ReadHardwareConfig(WorkerRequest request)
     {
         return WithProject(request, project => Success(HardwareConfigReader.Read(project)));
+    }
+
+    private static WorkerResponse ListNetworkObjects(WorkerRequest request)
+    {
+        ValidateListNetworkObjectsRequest(request);
+
+        int pageSize;
+        try
+        {
+            pageSize = NetworkObjectPageBuilder.ResolvePageSize(request.NetworkObjectPageSize);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectPageSize must be between 1 and 200.");
+        }
+
+        return WithProject(request, project =>
+        {
+            var orderedItems = NetworkObjectIndexReader.Read(project, request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
+            var queryHash = NetworkObjectCursorCodec.CreateQueryHash(request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
+            var snapshotHash = NetworkObjectCursorCodec.CreateSnapshotHash(orderedItems);
+            var offset = request.NetworkObjectCursor is null
+                ? 0
+                : NetworkObjectCursorCodec.Decode(
+                    request.NetworkObjectCursor,
+                    queryHash,
+                    snapshotHash,
+                    orderedItems.Count).Offset;
+            return Success(NetworkObjectPageBuilder.Build(orderedItems, pageSize, offset, queryHash, snapshotHash));
+        });
+    }
+
+    private static void ValidateListNetworkObjectsRequest(WorkerRequest request)
+    {
+        if (request.NetworkObjectKinds is null || request.NetworkObjectKinds.Count == 0)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectKinds is required.");
+        }
+
+        if (request.NetworkObjectKinds.Any(kind => !NetworkObjectKinds.All.Contains(kind))
+            || request.NetworkObjectKinds.Distinct(StringComparer.Ordinal).Count() != request.NetworkObjectKinds.Count)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectKinds is invalid.");
+        }
+
+        if (request.NetworkObjectDeviceName is not null && string.IsNullOrWhiteSpace(request.NetworkObjectDeviceName))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectDeviceName must not be blank.");
+        }
+
+        if (request.NetworkObjectDeviceName is not null
+            && (request.NetworkObjectKinds.Contains(NetworkObjectKinds.Subnet)
+                || request.NetworkObjectKinds.Contains(NetworkObjectKinds.IoSystem)))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkObjectDeviceName is not applicable to subnet or ioSystem discovery.");
+        }
+    }
+
+    private static WorkerResponse InspectNetworkObject(WorkerRequest request)
+    {
+        if (request.NetworkObjectTarget is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkObjectTarget is required.");
+        }
+
+        return WithProject(request, project =>
+        {
+            var resolution = NetworkObjectSelectorResolver.Resolve(project, request.NetworkObjectTarget);
+            if (!resolution.Success)
+            {
+                return Failure(
+                    resolution.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                    resolution.Error ?? "The network object target could not be resolved.");
+            }
+
+            return Success(NetworkObjectInspector.Inspect(
+                resolution.Resolved!,
+                request.NetworkAttributeNames));
+        });
+    }
+
+    private static WorkerResponse ProbeNetworkObjectAttributes(WorkerRequest request)
+    {
+        if (request.NetworkObjectTarget is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkObjectTarget is required.");
+        }
+
+        if (request.NetworkAttributeNames is { Count: 0 }
+            || request.NetworkAttributeNames is { Count: > 200 }
+            || (request.NetworkAttributeNames is not null
+                && (request.NetworkAttributeNames.Any(string.IsNullOrWhiteSpace)
+                    || request.NetworkAttributeNames.Distinct(StringComparer.Ordinal).Count()
+                        != request.NetworkAttributeNames.Count)))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "NetworkAttributeNames must contain between 1 and 200 unique, nonblank names when supplied.");
+        }
+
+        return WithProject(request, project =>
+        {
+            var resolution = NetworkObjectSelectorResolver.Resolve(project, request.NetworkObjectTarget);
+            if (!resolution.Success)
+            {
+                return Failure(
+                    resolution.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                    resolution.Error ?? "The network object target could not be resolved.");
+            }
+
+            var selectedNames = request.NetworkAttributeNames is null
+                ? null
+                : new HashSet<string>(request.NetworkAttributeNames, StringComparer.Ordinal);
+            var attributes = resolution.Resolved!.EngineeringObject.GetAttributeInfos()
+                .Where(info => selectedNames is null || selectedNames.Contains(info.Name))
+                .OrderBy(info => info.Name, StringComparer.Ordinal)
+                .Select(info => ProbeNetworkAttribute(resolution.Resolved.EngineeringObject, info))
+                .ToList();
+
+            return Success(new NetworkAttributeProbeInfo
+            {
+                Target = resolution.Resolved.Target,
+                Attributes = attributes,
+                Messages = resolution.Resolved.Messages.ToList(),
+            });
+        });
+    }
+
+    private static NetworkAttributeProbeEntryInfo ProbeNetworkAttribute(
+        IEngineeringObject engineeringObject,
+        EngineeringAttributeInfo info)
+    {
+        string? observedClrValueType = null;
+        string? exceptionCategory = null;
+        if (info.AccessMode is EngineeringAttributeAccessMode.Read or EngineeringAttributeAccessMode.ReadWrite)
+        {
+            try
+            {
+                var value = engineeringObject.GetAttribute(info.Name);
+                observedClrValueType = value?.GetType().FullName;
+            }
+            catch (Exception exception)
+            {
+                exceptionCategory = ProbeExceptionCategory(exception);
+            }
+        }
+
+        return new NetworkAttributeProbeEntryInfo
+        {
+            Name = info.Name,
+            AccessMode = Enum.GetName(typeof(EngineeringAttributeAccessMode), info.AccessMode) ?? "Unknown",
+            SupportedClrTypeNames = info.SupportedTypes
+                .Select(type => type.FullName ?? type.Name)
+                .OrderBy(typeName => typeName, StringComparer.Ordinal)
+                .ToList(),
+            ObservedClrValueType = observedClrValueType,
+            ExceptionCategory = exceptionCategory,
+        };
+    }
+
+    private static string ProbeExceptionCategory(Exception exception)
+        => exception switch
+        {
+            EngineeringSecurityException => "accessDenied",
+            EngineeringNotSupportedException => "notSupported",
+            EngineeringObjectDisposedException => "objectDisposed",
+            EngineeringException => "engineeringError",
+            NonRecoverableException => "nonRecoverable",
+            _ => "unexpectedError",
+        };
+
+    private static WorkerResponse ProbeSubnetLifecycleMutations(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to run the subnet lifecycle mutation probe.");
+        }
+        if (string.IsNullOrWhiteSpace(request.ProbeRunId))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "ProbeRunId must contain 6 to 12 ASCII letters or digits.");
+        }
+        var probeRunId = request.ProbeRunId!;
+        if (probeRunId.Length is < 6 or > 12
+            || probeRunId.Any(character => !char.IsLetterOrDigit(character)))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "ProbeRunId must contain 6 to 12 ASCII letters or digits.");
+        }
+        if (string.IsNullOrWhiteSpace(request.ProbeConnectedEthernetSubnetId)
+            || string.IsNullOrWhiteSpace(request.ProbeConnectedProfibusSubnetId))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Both connected Ethernet and PROFIBUS subnet IDs are required.");
+        }
+        if (request.ProbeProfibusHighestAddress is null
+            || string.IsNullOrWhiteSpace(request.ProbeProfibusTransmissionSpeed))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "The PROFIBUS edit probe requires HighestAddress and TransmissionSpeed values.");
+        }
+
+        return WithSession(request, session =>
+        {
+            session.EnsureConnected();
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null)
+            {
+                return failure;
+            }
+            if (session.Project is null || session.TiaPortal is null)
+            {
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No project or TIA Portal session is available for the subnet mutation probe.");
+            }
+
+            return Success(SubnetLifecycleMutationProbeService.Run(
+                session.TiaPortal,
+                session.Project,
+                probeRunId,
+                request.ProbeConnectedEthernetSubnetId!,
+                request.ProbeConnectedProfibusSubnetId!,
+                request.ProbeProfibusHighestAddress.Value,
+                request.ProbeProfibusTransmissionSpeed!));
+        });
     }
 
     private static WorkerResponse SearchEquipmentCatalog(WorkerRequest request)
@@ -240,6 +496,11 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "DeviceName is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(request.NodeId))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NodeId is required.");
+        }
+
         if (!request.Confirm)
         {
             throw new WorkerOperationException(
@@ -250,11 +511,166 @@ internal static class Program
         return WithProject(request, project => Success(NetworkDeviceConfigurator.Configure(
             project,
             request.DeviceName!,
+            request.NodeId!,
             request.IpAddress,
             request.SubnetMask,
             request.PnDeviceName,
+            request.SubnetId,
+            request.IoSystemSubnetId,
+            request.IoSystemNumber)));
+    }
+
+    private static WorkerResponse CreateSubnet(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with creating a subnet.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SubnetName))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetName is required.");
+        }
+
+        if (!SubnetLifecycleContract.IsSupportedNetworkType(request.SubnetNetworkType))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "SubnetNetworkType is required. Valid values: "
+                + $"{SubnetLifecycleContract.Ethernet}, {SubnetLifecycleContract.Profibus}.");
+        }
+
+        if (string.Equals(request.SubnetNetworkType, SubnetLifecycleContract.Ethernet, StringComparison.Ordinal)
+            && (request.SubnetHighestAddress is not null || request.SubnetTransmissionSpeed is not null))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                $"SubnetHighestAddress and SubnetTransmissionSpeed are not applicable for network type "
+                + $"'{SubnetLifecycleContract.Ethernet}'.");
+        }
+
+        ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
+        ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
+
+        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Create(
+            session.TiaPortal!,
+            session.Project!,
+            request.SubnetName!,
+            request.SubnetNetworkType!,
+            request.SubnetHighestAddress,
+            request.SubnetTransmissionSpeed)));
+    }
+
+    private static WorkerResponse UpdateSubnet(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with updating a subnet.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SubnetId))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
+        }
+
+        if (request.SubnetName is not null && string.IsNullOrWhiteSpace(request.SubnetName))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetName must not be blank when supplied.");
+        }
+
+        if (request.SubnetName is null && request.SubnetHighestAddress is null && request.SubnetTransmissionSpeed is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "update_subnet requires at least one requested change (name, highestAddress, or transmissionSpeed).");
+        }
+
+        ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
+        ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
+
+        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Update(
+            session.TiaPortal!,
+            session.Project!,
+            request.SubnetId!,
             request.SubnetName,
-            request.IoSystemName)));
+            request.SubnetHighestAddress,
+            request.SubnetTransmissionSpeed)));
+    }
+
+    private static WorkerResponse DeleteSubnet(WorkerRequest request)
+    {
+        if (!request.Confirm)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Operation not confirmed. Set confirm=true to proceed with deleting a subnet.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SubnetId))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
+        }
+
+        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Delete(
+            session.TiaPortal!,
+            session.Project!,
+            request.SubnetId!)));
+    }
+
+    private static void ValidateSubnetHighestAddressRange(int? value)
+    {
+        if (value is { } address
+            && (address < SubnetLifecycleContract.MinimumHighestAddress || address > SubnetLifecycleContract.MaximumHighestAddress))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                $"SubnetHighestAddress must be between {SubnetLifecycleContract.MinimumHighestAddress} and "
+                + $"{SubnetLifecycleContract.MaximumHighestAddress} (received {address}).");
+        }
+    }
+
+    private static void ValidateSubnetTransmissionSpeedValue(string? value)
+    {
+        if (value is not null && !SubnetLifecycleContract.IsSupportedTransmissionSpeed(value))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                $"SubnetTransmissionSpeed value '{value}' is not supported. Valid values: "
+                + $"{string.Join(", ", SubnetLifecycleContract.TransmissionSpeeds)}.");
+        }
+    }
+
+    /// <summary>
+    /// Shared session/project plumbing for the three subnet lifecycle operations: connects, opens
+    /// the requested project if needed, and requires both <see cref="WorkerTiaPortalSession.TiaPortal"/>
+    /// and <see cref="WorkerTiaPortalSession.Project"/> — the lifecycle service needs the portal handle
+    /// for <c>ExclusiveAccess</c>/<c>Transaction</c>, not just the project.
+    /// </summary>
+    private static WorkerResponse WithSubnetLifecycleProject(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
+    {
+        return WithSession(request, session =>
+        {
+            session.EnsureConnected();
+
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null)
+            {
+                return failure;
+            }
+
+            if (session.Project is null || session.TiaPortal is null)
+            {
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No project or TIA Portal session is available for the subnet lifecycle operation.");
+            }
+
+            return body(session);
+        });
     }
 
     private static WorkerResponse ReadCrossReferences(WorkerRequest request)
@@ -867,10 +1283,13 @@ internal static class Program
 
     private static WorkerResponse Success<T>(T payload)
     {
+        var payloadOptions = payload is NetworkObjectListInfo
+            ? NetworkObjectListJsonOptions
+            : JsonOptions;
         return new WorkerResponse
         {
             Success = true,
-            Payload = JsonSerializer.Serialize(payload, JsonOptions)
+            Payload = JsonSerializer.Serialize(payload, payloadOptions)
         };
     }
 
