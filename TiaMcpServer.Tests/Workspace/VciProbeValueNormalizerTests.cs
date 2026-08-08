@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -213,6 +214,83 @@ public class VciProbeValueNormalizerTests
         var result = VciProbeValueNormalizer.Normalize(input, maxCollectionItems: 3);
 
         Assert.Null(result.Omission);
+    }
+
+    [Fact]
+    public void Normalize_CollectionExceedingBudget_StopsPullingFromSourceOnceBudgetIsSpent()
+    {
+        // A source with far more items than any reasonable full-drain would leave time for. If the
+        // normalizer only stops appending to Items but keeps calling MoveNext() to count a "total
+        // seen", this enumerable would be driven to completion (millions of MoveNext() calls). The
+        // budget is a work/resource bound, not just an output-truncation bound, so at most one
+        // MoveNext() call beyond the budget (the lookahead needed to detect truncation at all) is
+        // acceptable — draining the source is not.
+        var source = new CountingEnumerable(totalItems: 5_000_000);
+
+        var result = VciProbeValueNormalizer.Normalize(source, maxCollectionItems: 5);
+
+        Assert.Equal("collection", result.Kind);
+        Assert.Equal(5, result.Items.Count);
+        Assert.NotNull(result.Omission);
+        Assert.Equal(5, result.Omission!.ObservedCount);
+
+        // Exactly budget (5) MoveNext() calls to fill Items, plus at most one more to discover
+        // there was a 6th item (which is how truncation-vs-exact-fit is told apart). Nowhere near
+        // draining 5,000,000 items.
+        Assert.True(
+            source.MoveNextCalls <= 6,
+            $"Expected enumeration to stop at or just past the budget, but MoveNext() was called {source.MoveNextCalls} times.");
+    }
+
+    [Fact]
+    public void Normalize_CollectionExactlyAtBudget_StopsWithoutOverreadingAndProducesNoOmission()
+    {
+        var source = new CountingEnumerable(totalItems: 3);
+
+        var result = VciProbeValueNormalizer.Normalize(source, maxCollectionItems: 3);
+
+        Assert.Equal(3, result.Items.Count);
+        Assert.Null(result.Omission);
+
+        // The lookahead calls MoveNext() once more after the 3rd item to check for a 4th; since
+        // the source only has 3, that call simply returns false (end of sequence) — still just 4
+        // total calls, never a full re-drain.
+        Assert.Equal(4, source.MoveNextCalls);
+    }
+
+    /// <summary>
+    /// A minimal, non-generic <see cref="IEnumerable"/> that counts <see cref="IEnumerator.MoveNext"/>
+    /// calls, so a test can prove the normalizer never pulls past the budget (plus the single
+    /// truncation-detecting lookahead item).
+    /// </summary>
+    private sealed class CountingEnumerable : IEnumerable
+    {
+        private readonly int _totalItems;
+
+        public CountingEnumerable(int totalItems) => _totalItems = totalItems;
+
+        public int MoveNextCalls { get; private set; }
+
+        public IEnumerator GetEnumerator() => new Enumerator(this);
+
+        private sealed class Enumerator : IEnumerator
+        {
+            private readonly CountingEnumerable _owner;
+            private int _index = -1;
+
+            public Enumerator(CountingEnumerable owner) => _owner = owner;
+
+            public object Current => _index;
+
+            public bool MoveNext()
+            {
+                _owner.MoveNextCalls++;
+                _index++;
+                return _index < _owner._totalItems;
+            }
+
+            public void Reset() => _index = -1;
+        }
     }
 
     [Fact]

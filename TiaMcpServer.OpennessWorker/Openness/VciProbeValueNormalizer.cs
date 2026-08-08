@@ -216,23 +216,32 @@ public static class VciProbeValueNormalizer
     {
         var result = new VciProbeNormalizedValueInfo { Kind = "collection", RuntimeType = runtimeType };
 
+        // Stop pulling from the source the instant the budget is spent. MaxCollectionItems is a
+        // work/resource budget (e.g. against a large or COM-backed enumerable), not merely an
+        // output-truncation bound, so this must never drain the whole source just to report an
+        // exact remainder count. The one MoveNext() call that lands on the (budget+1)th item is
+        // the minimum needed to tell "truncated" apart from "the source had exactly the budget's
+        // worth of items" (the latter must NOT report an omission); that single item is discarded
+        // unnormalized.
         var observed = 0;
-        var totalSeen = 0;
+        var truncated = false;
         foreach (var item in enumerable)
         {
-            totalSeen++;
-            if (observed < maxCollectionItems)
+            if (observed >= maxCollectionItems)
             {
-                result.Items.Add(NormalizeCore(item, maxCollectionItems, maxDepth, depth + 1));
-                observed++;
+                truncated = true;
+                break;
             }
+
+            result.Items.Add(NormalizeCore(item, maxCollectionItems, maxDepth, depth + 1));
+            observed++;
         }
 
-        if (totalSeen > observed)
+        if (truncated)
         {
             result.Omission = new VciProbeOmissionInfo
             {
-                Reason = $"Collection truncated after {observed} item(s); {totalSeen - observed} more item(s) were observed but not normalized.",
+                Reason = $"Collection enumeration stopped after {observed} item(s) to respect the configured budget; additional item(s) were not read.",
                 BudgetName = nameof(VciProbeRequestInfo.MaxCollectionItems),
                 BudgetValue = maxCollectionItems,
                 ObservedCount = observed,
