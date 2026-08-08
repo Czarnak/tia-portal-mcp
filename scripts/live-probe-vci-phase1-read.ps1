@@ -195,6 +195,42 @@ function Read-JsonLine {
     return $readTask.GetAwaiter().GetResult()
 }
 
+function Test-TransportProbeResponse {
+    param([Parameter(Mandatory)] [string] $ResponseText)
+
+    try {
+        $document = [Text.Json.JsonDocument]::Parse($ResponseText)
+    }
+    catch {
+        throw 'Worker transport preflight returned malformed JSONL.'
+    }
+
+    try {
+        $root = $document.RootElement
+        if ($root.ValueKind -ne [Text.Json.JsonValueKind]::Object) {
+            throw 'Worker transport preflight response must be an object.'
+        }
+        $properties = @($root.EnumerateObject())
+        $names = @($properties | ForEach-Object { $_.Name } | Sort-Object)
+        if ($names.Count -ne 3 -or ($names -join '|') -ne 'error|failureCategory|success') {
+            throw 'Worker transport preflight response has an unexpected envelope.'
+        }
+        if ($root.GetProperty('success').ValueKind -ne [Text.Json.JsonValueKind]::False) {
+            throw 'Worker transport preflight response must be a denial.'
+        }
+        if ($root.GetProperty('failureCategory').GetString() -ne 'access_denied') {
+            throw 'Worker transport preflight response has an unexpected failure category.'
+        }
+        $expectedError = "Operation '__task7_transport_probe__' is disabled because the worker is running in read-only mode."
+        if ($root.GetProperty('error').GetString() -ne $expectedError) {
+            throw 'Worker transport preflight response has an unexpected denial message.'
+        }
+    }
+    finally {
+        $document.Dispose()
+    }
+}
+
 $scriptDirectory = Split-Path -Parent $PSCommandPath
 if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
     throw 'The harness repository boundary could not be canonicalized.'
@@ -245,12 +281,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($transportResponse)) {
         throw 'Worker transport preflight returned no JSONL response.'
     }
-    try {
-        $null = $transportResponse | ConvertFrom-Json -Depth 10
-    }
-    catch {
-        throw 'Worker transport preflight returned malformed JSONL.'
-    }
+    Test-TransportProbeResponse -ResponseText $transportResponse
     throw 'The Task 7 shell completed preflight. Task 8 must provide the separately authorized evidence run logic.'
 }
 finally {

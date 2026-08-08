@@ -104,7 +104,7 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
-    public void Run_UsesTheBoundedJsonLineReaderForVendorFreeTransportPreflight()
+    public void Run_UsesTheBoundedJsonLineReaderAndValidatorForVendorFreeTransportPreflight()
     {
         var source = ReadScript();
 
@@ -117,14 +117,38 @@ public sealed class VciReadProbeScriptTests
                 @"Read-JsonLine\s+-Process\s+\$worker\s+-TimeoutSeconds\s+\$TimeoutSeconds",
                 RegexOptions.CultureInvariant),
             source);
+        Assert.Contains("Test-TransportProbeResponse -ResponseText $transportResponse", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void EvidenceRootPreflight_RejectsExistingFiles()
+    public void TransportResponseValidator_AcceptsOnlyTheExpectedReadOnlyDenialEnvelope()
     {
-        var source = ReadScript();
+        var result = RunTransportValidatorSmokeTest();
 
-        Assert.Contains("if (-not $item.PSIsContainer)", source, StringComparison.Ordinal);
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
+        Assert.Equal(new[] { true, false, false, false }, outcomes);
+    }
+
+    [Fact]
+    public void EvidenceRootPreflight_RejectsAnExistingFileWithoutStartingAWorker()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"vci-evidence-root-{Guid.NewGuid():N}");
+        var allowedRoot = Path.Combine(root, "artifacts", "live-vci-phase1");
+        Directory.CreateDirectory(allowedRoot);
+        var evidenceFile = Path.Combine(allowedRoot, "not-a-directory.json");
+        File.WriteAllText(evidenceFile, "x");
+        try
+        {
+            var result = RunEvidenceRootSmokeTest(root, allowedRoot, evidenceFile);
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("directories", result.StandardError, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
@@ -228,6 +252,47 @@ public sealed class VciReadProbeScriptTests
         var source = ProcessReaderSmokeScript.Replace("REPLACE_HARNESS_PATH", escapedHarnessPath, StringComparison.Ordinal);
         File.WriteAllText(smokeScriptPath, source, new UTF8Encoding(false));
         return smokeScriptPath;
+    }
+
+    private static ScriptResult RunTransportValidatorSmokeTest()
+    {
+        var escapedHarnessPath = ScriptPath.Replace("'", "''", StringComparison.Ordinal);
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-TransportProbeResponse' }, $true)
+            if ($null -eq $functionAst) { throw 'Validator function was not found.' }
+            Invoke-Expression $functionAst.Extent.Text
+            $fixtures = @(
+                '{"success":false,"error":"Operation ''__task7_transport_probe__'' is disabled because the worker is running in read-only mode.","failureCategory":"access_denied"}',
+                '{"success":true,"payload":"handled"}',
+                '{"success":false,"error":"unexpected","failureCategory":"access_denied"}',
+                '{"arbitrary":true}'
+            )
+            $outcomes = foreach ($fixture in $fixtures) { try { Test-TransportProbeResponse -ResponseText $fixture; $true } catch { $false } }
+            $outcomes | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", escapedHarnessPath, StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunEvidenceRootSmokeTest(string root, string allowedRoot, string evidenceFile)
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            foreach ($functionName in @('Test-AbsolutePath', 'Resolve-CanonicalDirectoryPath')) {
+                $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
+                Invoke-Expression $functionAst.Extent.Text
+            }
+            Resolve-CanonicalDirectoryPath -Path 'REPLACE_EVIDENCE_FILE' -RepositoryRoot 'REPLACE_ROOT' -AllowedRoot 'REPLACE_ALLOWED_ROOT'
+            """
+            .Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal)
+            .Replace("REPLACE_EVIDENCE_FILE", evidenceFile.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal)
+            .Replace("REPLACE_ROOT", root.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal)
+            .Replace("REPLACE_ALLOWED_ROOT", allowedRoot.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
     }
 
     private static string GetRepositoryRoot()
