@@ -81,6 +81,9 @@ public sealed class VciProbeMemberObservationInfo
 
     /// <summary>True when the member's value itself was null.</summary>
     public bool IsNull { get; set; }
+
+    /// <summary>Typed exception evidence when observing or normalizing this member failed.</summary>
+    public VciProbeExceptionInfo? Exception { get; set; }
 }
 
 /// <summary>Captured exception evidence. Deliberately excludes the stack trace.</summary>
@@ -130,4 +133,7 @@ public sealed class VciProbeOmissionInfo
 
     /// <summary>Number of items actually observed before the budget was exhausted.</summary>
     public int ObservedCount { get; set; }
+
+    /// <summary>Exact raw traversal path at which the worker stopped, when applicable.</summary>
+    public string? TraversalPath { get; set; }
 }

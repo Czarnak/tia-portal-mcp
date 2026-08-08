@@ -22,6 +22,9 @@ public sealed class VciProbeSnapshotInfo
 
     /// <summary>Populated by format-discovery cases (e.g. <c>R-FMT</c>).</summary>
     public List<VciProbeCandidateSnapshotInfo> Candidates { get; set; } = new();
+
+    /// <summary>Runtime type of the raw format collection observed for an <c>R-FMT</c> case.</summary>
+    public string? CandidateCollectionRuntimeType { get; set; }
 }
 
 /// <summary>Bounded snapshot of the VCI service and its root workspace group.</summary>
@@ -121,6 +124,12 @@ public sealed class VciProbeMappingSnapshotInfo
     /// <summary>String rendering of <c>MappedObject.GetStatus()</c>, when observed.</summary>
     public string? Status { get; set; }
 
+    /// <summary>String rendering of the <c>MappedObject.Status</c> property, when observed.</summary>
+    public string? StatusProperty { get; set; }
+
+    /// <summary>String rendering of <c>MappedObject.GetStatus()</c>, when observed.</summary>
+    public string? GetStatus { get; set; }
+
     /// <summary>String rendering of <c>MappedObject.GetChildStatus()</c>, when observed.</summary>
     public string? ChildStatus { get; set; }
 }
@@ -140,4 +149,10 @@ public sealed class VciProbeCandidateSnapshotInfo
 
     /// <summary>Human-readable description of the candidate (e.g. a file format's display name).</summary>
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>Runtime type of this raw candidate item, including for unsupported values.</summary>
+    public string RuntimeTypeName { get; set; } = string.Empty;
+
+    /// <summary>True when the raw candidate item was null, distinct from an empty string.</summary>
+    public bool IsNull { get; set; }
 }

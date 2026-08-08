@@ -14,6 +14,9 @@ public sealed class VciGroupPathSegmentInfo
 
     /// <summary>Name of the group at this level of the group hierarchy.</summary>
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Zero-based occurrence among siblings with the same <see cref="Name"/>.</summary>
+    public int SameNameOrdinal { get; set; }
 }
 
 /// <summary>

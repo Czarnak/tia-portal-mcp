@@ -382,6 +382,58 @@ public class VciReadProbeWorkerSourceContractTests
         Assert.DoesNotContain(".Synchronize(", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SnapshotReader_PreservesCompleteMappingSelectorsAndSeparateStatusEvidence()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
+        var snapshotContract = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.Contracts", "VciProbeSnapshotInfo.cs"));
+
+        Assert.Contains("EngineeringObject =", source, StringComparison.Ordinal);
+        Assert.Contains("mapping.EngineeringObject", source, StringComparison.Ordinal);
+        Assert.Contains("StatusProperty", snapshotContract, StringComparison.Ordinal);
+        Assert.Contains("GetStatus", snapshotContract, StringComparison.Ordinal);
+        Assert.Contains("mapping.Status", source, StringComparison.Ordinal);
+        Assert.Contains("mapping.GetStatus()", source, StringComparison.Ordinal);
+        Assert.Contains("mapping.GetChildStatus()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(" + \" | \" + ", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SnapshotReader_PreservesTypedFormatItemsAndCompleteWorkspaceIdentity()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
+        var snapshotContract = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.Contracts", "VciProbeSnapshotInfo.cs"));
+        var selectorContract = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.Contracts", "VciProbeSelectorInfo.cs"));
+
+        Assert.Contains("CandidateCollectionRuntimeType", snapshotContract, StringComparison.Ordinal);
+        Assert.Contains("RuntimeTypeName", snapshotContract, StringComparison.Ordinal);
+        Assert.Contains("IsNull", snapshotContract, StringComparison.Ordinal);
+        Assert.Contains("SameNameOrdinal", selectorContract, StringComparison.Ordinal);
+        Assert.Contains("CanonicalRootPath", source, StringComparison.Ordinal);
+        Assert.Contains("segment.SameNameOrdinal", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.RuntimeType", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.Kind == \"null\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SnapshotReader_PreservesTypedCanonicalizationFailuresAndPathQualifiedOmissions()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciProbeSnapshotReader.cs"));
+        var resultContract = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.Contracts", "VciProbeResultInfo.cs"));
+
+        Assert.Contains("PathCanonicalizationException", source, StringComparison.Ordinal);
+        Assert.Contains("Exception =", source, StringComparison.Ordinal);
+        Assert.Contains("TraversalPath", resultContract, StringComparison.Ordinal);
+        Assert.Contains("FormatGroupPath", source, StringComparison.Ordinal);
+    }
+
     private static int CountOccurrences(string source, string value)
     {
         var count = 0;

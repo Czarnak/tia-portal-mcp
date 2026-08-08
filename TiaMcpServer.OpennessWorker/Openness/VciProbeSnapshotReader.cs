@@ -81,12 +81,14 @@ internal static class VciProbeSnapshotReader
             return result;
         }
 
+        result.Snapshot.CandidateCollectionRuntimeType = formats.GetType().FullName ?? formats.GetType().Name;
+
         var index = 0;
         foreach (var format in formats)
         {
             if (index >= request.MaxCollectionItems)
             {
-                Omit(result, "Supported-format enumeration stopped at the configured collection budget.", nameof(request.MaxCollectionItems), request.MaxCollectionItems, index);
+                Omit(result, "Supported-format enumeration stopped at the configured collection budget.", nameof(request.MaxCollectionItems), request.MaxCollectionItems, index, "formats");
                 break;
             }
 
@@ -96,6 +98,8 @@ internal static class VciProbeSnapshotReader
                 EnumerationIndex = index,
                 CanonicalKey = "format:" + index,
                 Description = Render(normalized),
+                RuntimeTypeName = normalized.RuntimeType,
+                IsNull = normalized.Kind == "null",
             });
             index++;
         }
@@ -115,7 +119,7 @@ internal static class VciProbeSnapshotReader
     {
         if (depth > request.MaxGroupDepth)
         {
-            Omit(result, "Workspace-group traversal stopped at the configured depth.", nameof(request.MaxGroupDepth), request.MaxGroupDepth, depth - 1);
+            Omit(result, "Workspace-group traversal stopped at the configured depth.", nameof(request.MaxGroupDepth), request.MaxGroupDepth, depth - 1, FormatGroupPath(parentPath));
             return;
         }
 
@@ -134,7 +138,7 @@ internal static class VciProbeSnapshotReader
             {
                 if (result.Snapshot.Groups.Count >= request.MaxGroups)
                 {
-                    Omit(result, "Workspace-group traversal stopped at the configured group budget.", nameof(request.MaxGroups), request.MaxGroups, result.Snapshot.Groups.Count);
+                    Omit(result, "Workspace-group traversal stopped at the configured group budget.", nameof(request.MaxGroups), request.MaxGroups, result.Snapshot.Groups.Count, FormatGroupPath(parentPath));
                     break;
                 }
 
@@ -146,7 +150,7 @@ internal static class VciProbeSnapshotReader
                 var canonicalKey = (parentCanonicalKey ?? "root") + "/" + groupIndex + ":" + SameNameOrdinal + ":" + name;
                 var childPath = new List<VciGroupPathSegmentInfo>(parentPath)
                 {
-                    new VciGroupPathSegmentInfo { Index = groupIndex, Name = name },
+                    new VciGroupPathSegmentInfo { Index = groupIndex, Name = name, SameNameOrdinal = SameNameOrdinal },
                 };
                 var snapshot = new VciProbeGroupSnapshotInfo
                 {
@@ -187,7 +191,7 @@ internal static class VciProbeSnapshotReader
         {
             if (result.Snapshot.Workspaces.Count >= request.MaxWorkspaces)
             {
-                Omit(result, "Workspace enumeration stopped at the configured workspace budget.", nameof(request.MaxWorkspaces), request.MaxWorkspaces, result.Snapshot.Workspaces.Count);
+                Omit(result, "Workspace enumeration stopped at the configured workspace budget.", nameof(request.MaxWorkspaces), request.MaxWorkspaces, result.Snapshot.Workspaces.Count, FormatGroupPath(groupPath));
                 break;
             }
 
@@ -232,7 +236,7 @@ internal static class VciProbeSnapshotReader
         {
             if (result.Snapshot.Mappings.Count >= request.MaxMappings)
             {
-                Omit(result, "Mapping enumeration stopped at the configured mapping budget.", nameof(request.MaxMappings), request.MaxMappings, result.Snapshot.Mappings.Count);
+                Omit(result, "Mapping enumeration stopped at the configured mapping budget.", nameof(request.MaxMappings), request.MaxMappings, result.Snapshot.Mappings.Count, FormatGroupPath(groupPath));
                 break;
             }
 
@@ -244,18 +248,22 @@ internal static class VciProbeSnapshotReader
             var status = Observe(result, project, "Status", () => mapping.Status);
             var getStatus = Observe(result, project, "GetStatus", () => mapping.GetStatus());
             var childStatus = Observe(result, project, "GetChildStatus", () => mapping.GetChildStatus());
+            var mappingSelector = new VciMappingSelectorInfo
+            {
+                Workspace = new VciWorkspaceSelectorInfo { GroupPath = new List<VciGroupPathSegmentInfo>(groupPath), WorkspaceName = workspaceSnapshot.Name, CanonicalRootPath = workspaceSnapshot.RootPath },
+                EngineeringObject = FindEngineeringObjectSelector(project, request, objectOutcome.ReturnValue),
+                RelativeDirectory = Render(directory.ReturnValue, request.MaxCollectionItems),
+                FileName = Render(file.ReturnValue, request.MaxCollectionItems),
+                Format = Render(format.ReturnValue, request.MaxCollectionItems),
+            };
             result.Snapshot.Mappings.Add(new VciProbeMappingSnapshotInfo
             {
                 EnumerationIndex = result.Snapshot.Mappings.Count,
                 CanonicalKey = workspaceSnapshot.CanonicalKey + "/mapping:" + index,
-                Selector = new VciMappingSelectorInfo
-                {
-                    Workspace = new VciWorkspaceSelectorInfo { GroupPath = new List<VciGroupPathSegmentInfo>(groupPath), WorkspaceName = workspaceSnapshot.Name, CanonicalRootPath = workspaceSnapshot.RootPath },
-                    RelativeDirectory = Render(directory.ReturnValue, request.MaxCollectionItems),
-                    FileName = Render(file.ReturnValue, request.MaxCollectionItems),
-                    Format = Render(format.ReturnValue, request.MaxCollectionItems),
-                },
-                Status = Render(status.ReturnValue, request.MaxCollectionItems) + " | " + Render(getStatus.ReturnValue, request.MaxCollectionItems),
+                Selector = mappingSelector,
+                Status = Render(getStatus.ReturnValue, request.MaxCollectionItems),
+                StatusProperty = Render(status.ReturnValue, request.MaxCollectionItems),
+                GetStatus = Render(getStatus.ReturnValue, request.MaxCollectionItems),
                 ChildStatus = Render(childStatus.ReturnValue, request.MaxCollectionItems),
             });
             workspaceSnapshot.MappedObjectCount++;
@@ -270,49 +278,101 @@ internal static class VciProbeSnapshotReader
         {
             var index = 0;
             object? matched = null;
+            var matchedCount = 0;
+            var sameNameCounts = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var child in (System.Collections.IEnumerable)current.Groups)
             {
-                if (index == segment.Index && string.Equals(((dynamic)child).Name as string, segment.Name, StringComparison.Ordinal))
+                var name = ((dynamic)child).Name as string ?? string.Empty;
+                sameNameCounts.TryGetValue(name, out var sameNameOrdinal);
+                sameNameCounts[name] = sameNameOrdinal + 1;
+                if (index == segment.Index
+                    && string.Equals(name, segment.Name, StringComparison.Ordinal)
+                    && sameNameOrdinal == segment.SameNameOrdinal)
                 {
                     matched = child;
-                    break;
+                    matchedCount++;
                 }
                 index++;
             }
-            if (matched is null)
+            if (matched is null || matchedCount != 1)
             {
                 return null;
             }
             current = matched;
         }
 
+        object? workspaceMatch = null;
+        var workspaceMatchCount = 0;
         foreach (var workspace in (System.Collections.IEnumerable)current.Workspaces)
         {
             dynamic candidate = workspace;
-            if (string.Equals(candidate.Name as string, selector.WorkspaceName, StringComparison.Ordinal))
+            var canonicalRootPath = RenderCanonicalPath(candidate.RootPath);
+            if (string.Equals(candidate.Name as string, selector.WorkspaceName, StringComparison.Ordinal)
+                && string.Equals(canonicalRootPath, selector.CanonicalRootPath, StringComparison.Ordinal))
             {
-                return workspace;
+                workspaceMatch = workspace;
+                workspaceMatchCount++;
             }
         }
-        return null;
+        return workspaceMatchCount == 1 ? workspaceMatch : null;
     }
 
     private static VciProbeObservationOutcomeInfo Observe(VciProbeSnapshotReadResult result, Project project, string name, Func<object?> read)
     {
         var outcome = VciProbeObservationRunner.Run(() => project.IsModified, read);
         var normalized = VciProbeValueNormalizer.Normalize(outcome.ReturnValue, 1);
+        var failure = outcome.Exception ?? normalized.PathCanonicalizationException;
         result.Members.Add(new VciProbeMemberObservationInfo
         {
             Name = name,
             ClrTypeName = normalized.RuntimeType,
             IsNull = outcome.ReturnValue is null,
-            StringValue = outcome.Exception is null ? Render(normalized) : outcome.Exception.ExceptionTypeName + ": " + outcome.Exception.Message,
+            StringValue = failure is null ? Render(normalized) : failure.ExceptionTypeName + ": " + failure.Message,
+            Exception = ToExceptionInfo(failure),
         });
         return outcome;
     }
 
-    private static void Omit(VciProbeSnapshotReadResult result, string reason, string budgetName, int budgetValue, int observedCount)
-        => result.Omissions.Add(new VciProbeOmissionInfo { Reason = reason, BudgetName = budgetName, BudgetValue = budgetValue, ObservedCount = observedCount });
+    private static void Omit(VciProbeSnapshotReadResult result, string reason, string budgetName, int budgetValue, int observedCount, string traversalPath)
+        => result.Omissions.Add(new VciProbeOmissionInfo { Reason = reason, BudgetName = budgetName, BudgetValue = budgetValue, ObservedCount = observedCount, TraversalPath = traversalPath });
+
+    private static VciEngineeringObjectSelectorInfo FindEngineeringObjectSelector(Project project, VciProbeRequestInfo request, object? engineeringObject)
+    {
+        if (engineeringObject is null)
+        {
+            return new VciEngineeringObjectSelectorInfo();
+        }
+
+        foreach (var candidate in VciProbeEngineeringObjectCatalog.Enumerate(project, request).Candidates)
+        {
+            if (Equals(candidate.EngineeringObject, engineeringObject))
+            {
+                return candidate.Selector;
+            }
+        }
+
+        return new VciEngineeringObjectSelectorInfo();
+    }
+
+    private static VciProbeExceptionInfo? ToExceptionInfo(VciProbeNormalizedExceptionInfo? exception)
+        => exception is null
+            ? null
+            : new VciProbeExceptionInfo
+            {
+                ExceptionTypeName = exception.ExceptionTypeName,
+                Message = exception.Message,
+                HResult = exception.HResult,
+            };
+
+    private static string FormatGroupPath(IReadOnlyList<VciGroupPathSegmentInfo> path)
+    {
+        var result = "root";
+        foreach (var segment in path)
+        {
+            result += "/" + segment.Index + ":" + segment.SameNameOrdinal + ":" + segment.Name;
+        }
+        return result;
+    }
 
     private static string Render(object? value, int maxCollectionItems) => Render(VciProbeValueNormalizer.Normalize(value, maxCollectionItems));
 
