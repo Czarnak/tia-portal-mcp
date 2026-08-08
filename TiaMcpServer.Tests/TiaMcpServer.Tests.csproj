@@ -188,5 +188,7 @@
       Link="Network\NetworkModeledAttributeCatalog.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\ConnectionModeledAttributeCatalog.cs"
       Link="Network\ConnectionModeledAttributeCatalog.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciProbeJsonBoundary.cs"
+      Link="Workspace\VciProbeJsonBoundary.cs" />
   </ItemGroup>
 </Project>
