@@ -9,7 +9,7 @@
 - **Expand hardware and network engineering** — support topology, communication connections, and selected advanced device and module configuration workflows.
 - **Add HMI engineering support** — cover supported HMI object discovery, import/export, and controlled updates, including multilingual content.
 - **Enable reusable engineering assets** — add global-library, library-type, and master-copy workflows with explicit version and access controls.
-- **Support collaborative engineering** — add Multiuser/VCI and project-server visibility, session lifecycle, locking, and commit workflows.
+- **Support collaborative engineering** — add focused [VCI workspace operations](docs/roadmap/workspace-operations.md) and, separately, Multiuser/project-server visibility, session lifecycle, locking, and commit workflows.
 - **Strengthen controlled online and security operations** — maintain guarded PLC online workflows and add least-privilege user, role, function-right, and UMAC capabilities.
 - **Evaluate safety and automated testing extensions** — investigate Safety and TestSuite automation only where prerequisites, isolation, approval, and auditability can be established.
 

@@ -133,6 +133,7 @@ the published tool, see [building from source](https://github.com/Czarnak/tia-po
 
 - [Roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/ROADMAP.md) — directional priorities
 - [Network operations roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/roadmap/network-operations.md) — phased network tool delivery
+- [VCI workspace operations roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/roadmap/workspace-operations.md) — phased VCI workspace tool delivery
 - [Export/import format roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/roadmap/export-import-format.md) — source-format exchange
 - [Improvement log](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/IMPROVEMENT_LOG.md) — open follow-ups and completed engineering work
 
