@@ -8,6 +8,12 @@ namespace TiaMcpServer.Contracts;
 /// </summary>
 public sealed class VciProbeSnapshotInfo
 {
+    /// <summary>
+    /// Ordered normalized member observations that produced this snapshot, including typed
+    /// member-level exception evidence. Empty when the case has no member observations.
+    /// </summary>
+    public List<VciProbeMemberObservationInfo> Members { get; set; } = new();
+
     /// <summary>Populated by case <c>R-SVC</c>.</summary>
     public VciProbeServiceSnapshotInfo? Service { get; set; }
 

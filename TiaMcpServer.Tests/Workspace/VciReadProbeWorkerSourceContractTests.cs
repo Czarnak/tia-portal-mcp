@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
@@ -82,14 +83,155 @@ public class VciReadProbeWorkerSourceContractTests
     }
 
     [Fact]
-    public void VciReadContractProbeService_ExistsAsACompileOnlyShell()
+    public void VciReadContractProbeService_DispatchesEveryLockedCaseAndRejectsUnknownCases()
     {
         var source = File.ReadAllText(FindRepositoryFile(
             "TiaMcpServer.OpennessWorker", "Openness", "VciReadContractProbeService.cs"));
 
         Assert.Contains("static class VciReadContractProbeService", source, StringComparison.Ordinal);
         Assert.Contains("VciProbeCaseResultInfo Execute(", source, StringComparison.Ordinal);
-        Assert.Contains("throw new NotImplementedException(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("NotImplementedException", source, StringComparison.Ordinal);
+        Assert.Contains("VciReadProbeContract.IsKnownCase(request.CaseId)", source, StringComparison.Ordinal);
+
+        foreach (var caseId in VciReadProbeContract.CaseIds)
+        {
+            Assert.Matches(
+                new Regex($"\"{Regex.Escape(caseId)}\"\\s*=>", RegexOptions.CultureInvariant),
+                source);
+        }
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_SamplesProjectStateInFinallyForEveryOutcome()
+    {
+        var source = ReadProbeServiceSource();
+
+        AssertMethodMatches(source,
+            @"var\s+isModifiedBefore\s*=\s*project\.IsModified\s*;[\s\S]*try\s*\{[\s\S]*return\s+result\s*;[\s\S]*finally\s*\{[\s\S]*IsModifiedBefore\s*=\s*isModifiedBefore[\s\S]*IsModifiedAfter\s*=\s*project\.IsModified");
+        Assert.Contains("not_observable", source, StringComparison.Ordinal);
+        Assert.Contains("Exception = ToExceptionInfo(outcome.Exception)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProbeVciReadContractHandler_ReturnsDeliberateCaseExceptionsAsSuccessfulPayloads()
+    {
+        var program = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        var service = ReadProbeServiceSource();
+
+        AssertMethodMatches(program,
+            @"Success\(VciReadContractProbeService\.Execute\(tiaPortal,\s*project,\s*request\.VciProbe!?\)\)");
+        Assert.Contains("Outcome = outcome.Outcome", service, StringComparison.Ordinal);
+        Assert.Contains("Exception = ToExceptionInfo(outcome.Exception)", service, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_FoldsNormalizedValueAndExceptionEvidenceIntoWireDtos()
+    {
+        var source = ReadProbeServiceSource();
+
+        Assert.NotNull(typeof(VciProbeExceptionInfo).GetProperty("InnerException"));
+        Assert.NotNull(typeof(VciProbeSnapshotInfo).GetProperty("Members"));
+        Assert.Contains("InnerException = ToExceptionInfo(exception.InnerException)", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.Items", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.EnumName", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.EnumIntegralValue", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.OriginalPath", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.CanonicalPath", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.PathCanonicalizationException", source, StringComparison.Ordinal);
+        Assert.Contains("normalized.Omission", source, StringComparison.Ordinal);
+
+        var snapshot = ReadMethod(source, "private static void RunSnapshot");
+        Assert.Contains("read.Snapshot.Members.AddRange(read.Members)", snapshot, StringComparison.Ordinal);
+        Assert.DoesNotContain("result.Return", snapshot, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciReadProbeProductionSources_ContainNoProhibitedWriteCallSites()
+    {
+        var opennessDirectory = Path.GetDirectoryName(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "VciReadContractProbeService.cs"))!;
+        var prohibitedCall = new Regex(
+            @"\.\s*(?:Create|Delete|ConnectObject|ExportObject|Synchronize|SetAttribute|SetAttributes|Save|Compile|Download)\s*\(",
+            RegexOptions.CultureInvariant);
+
+        // Scan every Siemens-facing VCI probe source. Pure JSON/fingerprint helpers are excluded:
+        // SHA256.Create() is not an Openness mutation and must not false-positive as VCI Create().
+        foreach (var fileName in new[]
+                 {
+                     "VciReadContractProbeService.cs",
+                     "VciProbeSnapshotReader.cs",
+                     "VciProbeEngineeringObjectCatalog.cs",
+                     "VciProbeEngineeringObjectResolver.cs",
+                     "VciProbeObservationRunner.cs",
+                     "VciProbeValueNormalizer.cs",
+                 })
+        {
+            var file = Path.Combine(opennessDirectory, fileName);
+            var source = File.ReadAllText(file);
+            Assert.False(prohibitedCall.IsMatch(source), $"Prohibited write call found in {Path.GetFileName(file)}.");
+        }
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_UsesOnlyTheLockedNegativeInvocations()
+    {
+        var source = ReadProbeServiceSource();
+
+        Assert.Contains("groups.Find(missingName)", source, StringComparison.Ordinal);
+        Assert.Contains("groups.Find(string.Empty)", source, StringComparison.Ordinal);
+        Assert.Contains("groups.Find(\"   \")", source, StringComparison.Ordinal);
+        Assert.Contains("groups.Find(null!)", source, StringComparison.Ordinal);
+        Assert.Contains("workspaces.Find(missingName)", source, StringComparison.Ordinal);
+        Assert.Contains("workspaces.Find(string.Empty)", source, StringComparison.Ordinal);
+        Assert.Contains("workspaces.Find(\"   \")", source, StringComparison.Ordinal);
+        Assert.Contains("workspaces.Find(null!)", source, StringComparison.Ordinal);
+        AssertMethodMatches(source, @"workspace!?\.GetSupportedFileFormats\(null!\)");
+        AssertMethodMatches(source, @"workspace!?\.GetSupportedFileFormats\(\(IEngineeringObject\)service!\)");
+        Assert.DoesNotContain("MethodInfo", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Invoke(", source, StringComparison.Ordinal);
+        Assert.Contains("signature_does_not_permit_argument", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_RepeatabilityRetainsTwoOrderedObservationsAndCanaryReacquires()
+    {
+        var source = ReadProbeServiceSource();
+
+        var repeatability = ReadMethod(source, "private static void RunRepeatability");
+        Assert.Contains("var first =", repeatability, StringComparison.Ordinal);
+        Assert.Contains("var second =", repeatability, StringComparison.Ordinal);
+        Assert.Contains("Observations = new List<VciProbeReturnInfo> { first, second }", repeatability, StringComparison.Ordinal);
+        Assert.Contains("IsIdentical =", repeatability, StringComparison.Ordinal);
+        var repeatabilityObservation = ReadMethod(source, "private static VciProbeReturnInfo ReadRepeatabilityObservation");
+        Assert.Contains("GetSupportedFileFormats", repeatabilityObservation, StringComparison.Ordinal);
+
+        var canary = ReadMethod(source, "private static void RunCanary");
+        Assert.Contains("project.GetService<VersionControlInterface>()", canary, StringComparison.Ordinal);
+        Assert.Contains("service.WorkspaceGroup", canary, StringComparison.Ordinal);
+        Assert.Contains("root.Groups.Count", canary, StringComparison.Ordinal);
+        Assert.Contains("root.Workspaces.Count", canary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciReadContractProbeService_ForeignAndMappedFileCasesAreReadOnlyAndFailClosed()
+    {
+        var source = ReadProbeServiceSource();
+
+        Assert.Contains("SecondaryProjectPath", source, StringComparison.Ordinal);
+        Assert.Contains("TiaPortal.GetProcesses()", source, StringComparison.Ordinal);
+        AssertMethodMatches(source, @"processes\[0\]\.Attach\(\)");
+        Assert.Contains("!candidateProject.IsPrimary", source, StringComparison.Ordinal);
+        Assert.Contains("secondary_project_path_not_supplied", source, StringComparison.Ordinal);
+        Assert.Contains("secondary_project_candidate_not_unique", source, StringComparison.Ordinal);
+        Assert.Contains("secondary_project_attach_denied", source, StringComparison.Ordinal);
+        Assert.Contains("foreign_object_not_available", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Projects.Open(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Close(", source, StringComparison.Ordinal);
+
+        Assert.Contains("File.Exists(", source, StringComparison.Ordinal);
+        Assert.Contains("File.Open(", source, StringComparison.Ordinal);
+        Assert.Contains("no_naturally_missing_mapping_file", source, StringComparison.Ordinal);
+        Assert.Contains("no_naturally_inaccessible_mapping_file", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -441,6 +583,26 @@ public class VciReadProbeWorkerSourceContractTests
         Assert.Equal(2, CountRegexMatches(groupBody, @"request\.Max(?:GroupDepth|Groups),\s*[^\n]+,\s*FormatGroupPath\(parentPath\)\)"));
         AssertMethodMatches(workspaceBody, @"request\.MaxWorkspaces,\s*[^\n]+,\s*FormatGroupPath\(groupPath\)\)");
         AssertMethodMatches(mappingBody, @"request\.MaxMappings,\s*[^\n]+,\s*FormatGroupPath\(groupPath\)\)");
+    }
+
+    private static string ReadProbeServiceSource()
+        => File.ReadAllText(FindRepositoryFile(
+                "TiaMcpServer.OpennessWorker", "Openness", "VciReadContractProbeService.cs"))
+            .Replace("\r\n", "\n");
+
+    private static string ReadMethod(string source, string signature)
+    {
+        var start = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Method '{signature}' was not found.");
+
+        var nextMethod = source.IndexOf("\n    private static ", start + signature.Length, StringComparison.Ordinal);
+        if (nextMethod < 0)
+        {
+            nextMethod = source.LastIndexOf("\n}", StringComparison.Ordinal);
+        }
+
+        Assert.True(nextMethod > start, $"Could not determine the end of method '{signature}'.");
+        return source[start..nextMethod];
     }
 
     private static string ReadSnapshotReaderMethod(string signature)

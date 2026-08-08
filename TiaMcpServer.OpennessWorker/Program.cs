@@ -345,6 +345,13 @@ internal static class Program
     /// </summary>
     private static WorkerResponse ProbeVciReadContract(WorkerRequest request)
     {
+        if (request.VciProbe is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "'vciProbe' is required for probe_vci_read_contract.");
+        }
+
         var validationError = VciReadProbeContract.Validate(request.VciProbe);
         if (validationError is not null)
         {
@@ -353,8 +360,8 @@ internal static class Program
                 validationError);
         }
 
-        return WithProject(request, project =>
-            Success(VciReadContractProbeService.Execute(project, request.VciProbe!)));
+        return WithProject(request, (tiaPortal, project) =>
+            Success(VciReadContractProbeService.Execute(tiaPortal, project, request.VciProbe)));
     }
 
     private static NetworkAttributeProbeEntryInfo ProbeNetworkAttribute(
@@ -1189,6 +1196,16 @@ internal static class Program
             return body(session.Project);
         });
     }
+
+    /// <summary>
+    /// Project wrapper for read operations that also need the already-attached portal identity.
+    /// It never creates or reattaches a session; the existing <see cref="WithProject(WorkerRequest, Func{Project, WorkerResponse})"/>
+    /// gate still owns connection and project-selection policy.
+    /// </summary>
+    private static WorkerResponse WithProject(
+        WorkerRequest request,
+        Func<TiaPortal, Project, WorkerResponse> body)
+        => WithProject(request, project => body(_sharedSession.TiaPortal!, project));
 
     /// <summary>
     /// Applies <see cref="ProjectOpenPolicy"/> before any non-lifecycle operation may open a

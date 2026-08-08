@@ -97,6 +97,12 @@ public sealed class VciProbeExceptionInfo
 
     /// <summary>Exception HResult.</summary>
     public int HResult { get; set; }
+
+    /// <summary>
+    /// Bounded normalized inner-exception evidence, when present. The worker normalizer limits
+    /// this chain to its configured maximum depth; null preserves the original v1 wire default.
+    /// </summary>
+    public VciProbeExceptionInfo? InnerException { get; set; }
 }
 
 /// <summary><c>Project.IsModified</c> read immediately before and after the observed call.</summary>
