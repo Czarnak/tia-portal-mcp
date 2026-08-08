@@ -98,6 +98,15 @@ internal static class Program
     {
         try
         {
+            // Strict, vendor-free VCI probe envelope check — runs before normal (permissive)
+            // WorkerRequest deserialization and only inspects requests targeting
+            // probe_vci_read_contract. Every other request passes through untouched.
+            var vciBoundaryError = VciProbeJsonBoundary.Validate(line);
+            if (vciBoundaryError is not null)
+            {
+                return Failure(WorkerFailureCategories.ValidationError, vciBoundaryError);
+            }
+
             var request = JsonSerializer.Deserialize<WorkerRequest>(line, JsonOptions);
             if (request is null)
             {
@@ -119,6 +128,7 @@ internal static class Program
                 "list_network_objects" => ListNetworkObjects(request),
                 "inspect_network_object" => InspectNetworkObject(request),
                 "probe_network_object_attributes" => ProbeNetworkObjectAttributes(request),
+                "probe_vci_read_contract" => ProbeVciReadContract(request),
                 "probe_subnet_lifecycle_mutations" => ProbeSubnetLifecycleMutations(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
@@ -325,6 +335,26 @@ internal static class Program
                 Messages = resolution.Resolved.Messages.ToList(),
             });
         });
+    }
+
+    /// <summary>
+    /// Internal, read-only VCI Workspace Phase 1 probe. Never registered as an MCP tool; callable
+    /// only via this worker operation name. Mirrors <see cref="ProbeNetworkObjectAttributes"/>'s
+    /// shape: semantic validation of the typed request happens before <see cref="WithProject"/> so
+    /// a malformed probe never opens or touches a project.
+    /// </summary>
+    private static WorkerResponse ProbeVciReadContract(WorkerRequest request)
+    {
+        var validationError = VciReadProbeContract.Validate(request.VciProbe);
+        if (validationError is not null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                validationError);
+        }
+
+        return WithProject(request, project =>
+            Success(VciReadContractProbeService.Execute(project, request.VciProbe!)));
     }
 
     private static NetworkAttributeProbeEntryInfo ProbeNetworkAttribute(

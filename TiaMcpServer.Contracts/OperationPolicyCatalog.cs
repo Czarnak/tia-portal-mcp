@@ -60,6 +60,7 @@ public static class OperationPolicyCatalog
             ["list_network_objects"] = OperationCapability.Observe,
             ["inspect_network_object"] = OperationCapability.Observe,
             ["probe_network_object_attributes"] = OperationCapability.Observe,
+            [VciReadProbeContract.OperationName] = OperationCapability.Observe,
 
             // TemporaryExport (read-only safe, temporary files with cleanup)
             ["get_block_content"] = OperationCapability.TemporaryExport,
