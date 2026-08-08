@@ -106,18 +106,12 @@ public sealed class VciReadProbeScriptTests
     [Fact]
     public void Run_UsesTheBoundedJsonLineReaderAndValidatorForVendorFreeTransportPreflight()
     {
-        var source = ReadScript();
+        var result = RunRunBlockOrderSmokeTest();
 
-        Assert.Contains("__task7_transport_probe__", source, StringComparison.Ordinal);
-        Assert.Matches(
-            new Regex(@"StandardInput\.WriteLine\(\$transportProbe\)", RegexOptions.CultureInvariant),
-            source);
-        Assert.Matches(
-            new Regex(
-                @"Read-JsonLine\s+-Process\s+\$worker\s+-TimeoutSeconds\s+\$TimeoutSeconds",
-                RegexOptions.CultureInvariant),
-            source);
-        Assert.Contains("Test-TransportProbeResponse -ResponseText $transportResponse", source, StringComparison.Ordinal);
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.True(document.RootElement.GetProperty("ordered").GetBoolean());
+        Assert.True(document.RootElement.GetProperty("cleanupAfterValidation").GetBoolean());
     }
 
     [Fact]
@@ -128,7 +122,7 @@ public sealed class VciReadProbeScriptTests
         Assert.True(result.ExitCode == 0, result.StandardError);
         using var document = JsonDocument.Parse(result.StandardOutput);
         var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
-        Assert.Equal(new[] { true, false, false, false }, outcomes);
+        Assert.Equal(new[] { true, false, false, false, false, false }, outcomes);
     }
 
     [Fact]
@@ -268,11 +262,35 @@ public sealed class VciReadProbeScriptTests
                 '{"success":false,"error":"Operation ''__task7_transport_probe__'' is disabled because the worker is running in read-only mode.","failureCategory":"access_denied"}',
                 '{"success":true,"payload":"handled"}',
                 '{"success":false,"error":"unexpected","failureCategory":"access_denied"}',
-                '{"arbitrary":true}'
+                '{"arbitrary":true}',
+                '{not-json',
+                '{"success":false,"error":"Operation ''__task7_transport_probe__'' is disabled because the worker is running in read-only mode.","failureCategory":"access_denied","payload":"unexpected"}'
             )
             $outcomes = foreach ($fixture in $fixtures) { try { Test-TransportProbeResponse -ResponseText $fixture; $true } catch { $false } }
             $outcomes | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", escapedHarnessPath, StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunRunBlockOrderSmokeTest()
+    {
+        var command = """
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('REPLACE_HARNESS_PATH', [ref] $tokens, [ref] $errors)
+            $runTry = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.TryStatementAst] -and $node.Extent.Text.Contains('Start-JsonLineProcess') }, $true)
+            if ($null -eq $runTry) { throw 'Run try block was not found.' }
+            $text = $runTry.Extent.Text
+            $write = $text.IndexOf('$worker.StandardInput.WriteLine($transportProbe)', [StringComparison]::Ordinal)
+            $flush = $text.IndexOf('$worker.StandardInput.Flush()', [StringComparison]::Ordinal)
+            $read = $text.IndexOf('Read-JsonLine -Process $worker -TimeoutSeconds $TimeoutSeconds', [StringComparison]::Ordinal)
+            $validate = $text.IndexOf('Test-TransportProbeResponse -ResponseText $transportResponse', [StringComparison]::Ordinal)
+            $finally = $text.IndexOf('finally', [StringComparison]::Ordinal)
+            $kill = $text.IndexOf('$worker.Kill($true)', [StringComparison]::Ordinal)
+            [ordered]@{
+                ordered = $write -ge 0 -and $write -lt $flush -and $flush -lt $read -and $read -lt $validate
+                cleanupAfterValidation = $validate -lt $finally -and $finally -lt $kill
+            } | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
     }
 
