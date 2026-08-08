@@ -306,6 +306,37 @@ public class VciReadProbeWorkerSourceContractTests
     }
 
     [Fact]
+    public void VciReadContractProbeService_WorkspaceBudgetOmissionUsesTheCurrentGroupsLocalWorkspaceIndex()
+    {
+        var core = ReadMethod(
+            ReadProbeServiceSource(),
+            "private static Workspace? FindFirstWorkspaceCore");
+        var workspaceLoopStart = core.IndexOf(
+            "foreach (Workspace workspace in (IEnumerable)((dynamic)group).Workspaces)",
+            StringComparison.Ordinal);
+        Assert.True(workspaceLoopStart >= 0, "Workspace traversal loop was not found.");
+
+        var childLoopStart = core.IndexOf(
+            "foreach (var child in (IEnumerable)((dynamic)group).Groups)",
+            workspaceLoopStart,
+            StringComparison.Ordinal);
+        Assert.True(childLoopStart > workspaceLoopStart, "Could not isolate the workspace traversal loop.");
+        var workspaceLoop = core[workspaceLoopStart..childLoopStart];
+
+        var localIndexDeclaration = core.IndexOf("var workspaceIndex = 0;", StringComparison.Ordinal);
+        Assert.InRange(localIndexDeclaration, 0, workspaceLoopStart - 1);
+        Assert.Contains(
+            "AppendTraversalPath(traversalPath, \"workspaces\", workspaceIndex)",
+            workspaceLoop,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "AppendTraversalPath(traversalPath, \"workspaces\", workspacesObserved)",
+            workspaceLoop,
+            StringComparison.Ordinal);
+        Assert.Contains("workspacesObserved", workspaceLoop, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void VciReadContractProbeService_DisposesEveryDiscoveredProcessProxyAcrossForeignEarlyReturns()
     {
         var foreign = ReadMethod(ReadProbeServiceSource(), "private static void RunForeignFormat");

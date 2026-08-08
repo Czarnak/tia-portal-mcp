@@ -700,6 +700,7 @@ internal static class VciReadContractProbeService
             return null;
         }
 
+        var workspaceIndex = 0;
         foreach (Workspace workspace in (IEnumerable)((dynamic)group).Workspaces)
         {
             if (workspacesObserved >= request.MaxWorkspaces)
@@ -710,11 +711,12 @@ internal static class VciReadContractProbeService
                     nameof(request.MaxWorkspaces),
                     request.MaxWorkspaces,
                     workspacesObserved,
-                    AppendTraversalPath(traversalPath, "workspaces", workspacesObserved));
+                    AppendTraversalPath(traversalPath, "workspaces", workspaceIndex));
                 searchIncomplete = true;
                 return null;
             }
             workspacesObserved++;
+            workspaceIndex++;
             return workspace;
         }
 
