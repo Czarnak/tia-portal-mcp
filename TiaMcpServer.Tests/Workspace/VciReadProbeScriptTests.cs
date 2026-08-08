@@ -104,6 +104,30 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
+    public void Run_UsesTheBoundedJsonLineReaderForVendorFreeTransportPreflight()
+    {
+        var source = ReadScript();
+
+        Assert.Contains("__task7_transport_probe__", source, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"StandardInput\.WriteLine\(\$transportProbe\)", RegexOptions.CultureInvariant),
+            source);
+        Assert.Matches(
+            new Regex(
+                @"Read-JsonLine\s+-Process\s+\$worker\s+-TimeoutSeconds\s+\$TimeoutSeconds",
+                RegexOptions.CultureInvariant),
+            source);
+    }
+
+    [Fact]
+    public void EvidenceRootPreflight_RejectsExistingFiles()
+    {
+        var source = ReadScript();
+
+        Assert.Contains("if (-not $item.PSIsContainer)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProcessReader_ReceivesJsonLineAndInheritsStandardErrorWithoutRunspaceCallbacks()
     {
         _ = ReadScript();
@@ -137,9 +161,11 @@ public sealed class VciReadProbeScriptTests
     public void NoOrdinaryTestInvokesTheLiveProbeRunMode()
     {
         var references = Directory.EnumerateFiles(
-                Path.Combine(RepositoryRoot, "TiaMcpServer.Tests"),
-                "*.cs",
+                RepositoryRoot,
+                "*.*",
                 SearchOption.AllDirectories)
+            .Where(path => new[] { ".cs", ".ps1", ".yml", ".yaml" }.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+            .Where(path => !path.Contains(Path.DirectorySeparatorChar + ".superpowers" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             .Where(path => !string.Equals(path, ScriptPath, StringComparison.OrdinalIgnoreCase))
             .Where(path => !path.EndsWith(nameof(VciReadProbeScriptTests) + ".cs", StringComparison.Ordinal))
             .Where(path =>

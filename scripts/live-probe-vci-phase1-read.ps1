@@ -124,6 +124,9 @@ function Resolve-CanonicalDirectoryPath {
             if ($null -eq $item) {
                 throw 'EvidenceRoot could not be canonicalized.'
             }
+            if (-not $item.PSIsContainer) {
+                throw 'EvidenceRoot and its existing ancestors must be directories.'
+            }
             if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
                 throw 'EvidenceRoot cannot contain a reparse-point ancestor.'
             }
@@ -235,6 +238,19 @@ $workerArguments = @('--access-mode', 'read-only')
 $worker = $null
 try {
     $worker = Start-JsonLineProcess -Executable $canonicalWorkerExecutable -Arguments $workerArguments
+    $transportProbe = @{ method = '__task7_transport_probe__' } | ConvertTo-Json -Compress -Depth 10
+    $worker.StandardInput.WriteLine($transportProbe)
+    $worker.StandardInput.Flush()
+    $transportResponse = Read-JsonLine -Process $worker -TimeoutSeconds $TimeoutSeconds
+    if ([string]::IsNullOrWhiteSpace($transportResponse)) {
+        throw 'Worker transport preflight returned no JSONL response.'
+    }
+    try {
+        $null = $transportResponse | ConvertFrom-Json -Depth 10
+    }
+    catch {
+        throw 'Worker transport preflight returned malformed JSONL.'
+    }
     throw 'The Task 7 shell completed preflight. Task 8 must provide the separately authorized evidence run logic.'
 }
 finally {
