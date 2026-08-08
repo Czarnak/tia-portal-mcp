@@ -336,4 +336,11 @@ public class WorkerRequest
     public bool SaveBeforeClose { get; set; } = true;
 
     #endregion
+
+    #region Internal VCI Phase 1 read probe
+
+    /// <summary>Forwarded only by the internal probe_vci_read_contract worker operation.</summary>
+    public VciProbeRequestInfo? VciProbe { get; set; }
+
+    #endregion
 }
