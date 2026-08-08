@@ -392,6 +392,8 @@ public class VciReadProbeWorkerSourceContractTests
         AssertMethodMatches(mappingBody,
             @"EngineeringObject\s*=\s*FindEngineeringObjectSelector\(project,\s*request,\s*objectOutcome\.ReturnValue\)");
         AssertMethodMatches(mappingBody,
+            @"Workspace\s*=\s*new\s+VciWorkspaceSelectorInfo\s*\{\s*GroupPath\s*=\s*new\s+List<VciGroupPathSegmentInfo>\(groupPath\),\s*WorkspaceName\s*=\s*workspaceSnapshot\.Name,\s*CanonicalRootPath\s*=\s*workspaceSnapshot\.RootPath\s*\}");
+        AssertMethodMatches(mappingBody,
             @"var\s+status\s*=\s*Observe\(result,\s*project,\s*""Status"",\s*\(\)\s*=>\s*mapping\.Status\)");
         AssertMethodMatches(mappingBody,
             @"var\s+getStatus\s*=\s*Observe\(result,\s*project,\s*""GetStatus"",\s*\(\)\s*=>\s*mapping\.GetStatus\(\)\)");
