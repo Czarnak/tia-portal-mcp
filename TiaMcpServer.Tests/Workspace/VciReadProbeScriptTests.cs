@@ -290,6 +290,57 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
+    public void CaseMatrix_ReconstructsNestedDuplicateGroupSelectorsAndExactInstanceIds()
+    {
+        var result = RunNestedGroupMatrixSmokeTest();
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var evidence = document.RootElement;
+
+        var groupInventory = evidence.GetProperty("groupInventory").EnumerateArray().ToArray();
+        Assert.Equal(
+            new[] { "root", "root/0:0:Dup", "root/1:1:Dup", "root/1:1:Dup/0:0:Child" },
+            groupInventory.Select(item => item.GetProperty("canonicalKey").GetString()));
+        Assert.Equal(
+            new[]
+            {
+                "[]",
+                """[{"index":0,"name":"Dup","sameNameOrdinal":0}]""",
+                """[{"index":1,"name":"Dup","sameNameOrdinal":1}]""",
+                """[{"index":1,"name":"Dup","sameNameOrdinal":1},{"index":0,"name":"Child","sameNameOrdinal":0}]""",
+            },
+            groupInventory.Select(item => item.GetProperty("selector").GetProperty("groupPath").GetRawText()));
+
+        var workspaceSelector = evidence.GetProperty("workspaceSelector");
+        Assert.Equal("Nested", workspaceSelector.GetProperty("workspaceName").GetString());
+        Assert.Equal("C:\\Nested", workspaceSelector.GetProperty("canonicalRootPath").GetString());
+        Assert.Equal(
+            """[{"index":1,"name":"Dup","sameNameOrdinal":1},{"index":0,"name":"Child","sameNameOrdinal":0}]""",
+            workspaceSelector.GetProperty("groupPath").GetRawText());
+
+        var groupNullCases = evidence.GetProperty("groupNullCases").EnumerateArray().ToArray();
+        Assert.Equal(
+            new[]
+            {
+                "n-grp-find-null-40c5c63bb864ce93170e",
+                "n-grp-find-null-b5f9f168ce2d7ea43b52",
+                "n-grp-find-null-ca2ce7320763a014d86d",
+                "n-grp-find-null-7772b252cf1f8bf0bb31",
+            },
+            groupNullCases.Select(item => item.GetProperty("caseInstanceId").GetString()));
+        Assert.Equal(
+            groupInventory.Select(item => item.GetProperty("selector").GetProperty("groupPath").GetRawText()),
+            groupNullCases.Select(item => item.GetProperty("groupPath").GetRawText()));
+
+        var formatNullCase = evidence.GetProperty("formatNullCase");
+        Assert.Equal("n-fmt-null-5cec1f3541b725768959", formatNullCase.GetProperty("caseInstanceId").GetString());
+        Assert.Equal(
+            """[{"index":1,"name":"Dup","sameNameOrdinal":1},{"index":0,"name":"Child","sameNameOrdinal":0}]""",
+            formatNullCase.GetProperty("workspace").GetProperty("groupPath").GetRawText());
+    }
+
+    [Fact]
     public void CaseMatrix_EndsWithRepeatabilityAndCanaryAndFailsClosedOnEvidenceDrift()
     {
         var source = ReadScript();
@@ -779,6 +830,112 @@ public sealed class VciReadProbeScriptTests
             } | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunNestedGroupMatrixSmokeTest()
+    {
+        var harnessPath = ScriptPath;
+        string? mutatedHarnessPath = null;
+        if (string.Equals(
+                Environment.GetEnvironmentVariable("VCI_TASK8_MUTATE_GROUP_ORDINAL"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            const string marker = "        $groupPath = @($pathsByKey[$parentKey]) + ,([ordered]@{";
+            var source = ReadScript();
+            var mutatedSource = source.Replace(
+                marker,
+                "        $sameNameOrdinal = 0" + Environment.NewLine + marker,
+                StringComparison.Ordinal);
+            Assert.NotEqual(source, mutatedSource);
+            mutatedHarnessPath = Path.Combine(
+                Path.GetTempPath(),
+                $"vci-task8-group-inventory-mutant-{Guid.NewGuid():N}.ps1");
+            File.WriteAllText(mutatedHarnessPath, mutatedSource, Encoding.ASCII);
+            harnessPath = mutatedHarnessPath;
+        }
+
+        try
+        {
+            var command = """
+                $harnessPath = 'REPLACE_HARNESS_PATH'
+                $tokens = $null; $errors = $null
+                $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+                if ($errors.Count -ne 0) { throw 'Harness parsing failed.' }
+                foreach ($functionName in @(
+                        'ConvertTo-CanonicalValue', 'ConvertTo-CanonicalJson', 'Get-Sha256Text',
+                        'New-CaseDefinition', 'Get-CaseInstanceId', 'Get-FormatPairs',
+                        'Get-GroupPathInventory', 'Get-WorkspaceInventory', 'New-CaseMatrix')) {
+                    $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
+                    if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
+                    Invoke-Expression $functionAst.Extent.Text
+                }
+
+                $probeBudgets = [ordered]@{
+                    maxGroupDepth = 16; maxGroups = 500; maxWorkspaces = 500; maxMappings = 5000
+                    maxEngineeringObjects = 200; maxCollectionItems = 5000
+                }
+                $negativeCaseIds = @(
+                    'N-FMT-FOREIGN', 'N-FMT-NULL', 'N-FMT-UNSUPPORTED',
+                    'N-GRP-FIND-EMPTY', 'N-GRP-FIND-MISSING', 'N-GRP-FIND-NULL',
+                    'N-GRP-FIND-WHITESPACE', 'N-MAP-INACCESSIBLE-FILE',
+                    'N-MAP-MISSING-FILE', 'N-WS-FIND-EMPTY', 'N-WS-FIND-MISSING',
+                    'N-WS-FIND-NULL', 'N-WS-FIND-WHITESPACE'
+                )
+                $groups = @(
+                    [ordered]@{
+                        enumerationIndex = 0; canonicalKey = 'root/0:0:Dup'; name = 'Dup'; depth = 1
+                        parentCanonicalKey = $null; childGroupCount = 0; workspaceCount = 0
+                    },
+                    [ordered]@{
+                        enumerationIndex = 1; canonicalKey = 'root/1:1:Dup'; name = 'Dup'; depth = 1
+                        parentCanonicalKey = $null; childGroupCount = 1; workspaceCount = 0
+                    },
+                    [ordered]@{
+                        enumerationIndex = 2; canonicalKey = 'root/1:1:Dup/0:0:Child'; name = 'Child'; depth = 2
+                        parentCanonicalKey = 'root/1:1:Dup'; childGroupCount = 0; workspaceCount = 1
+                    }
+                )
+                $workspaces = @([ordered]@{
+                    enumerationIndex = 0
+                    canonicalKey = 'root/1:1:Dup/0:0:Child/workspace:0:Nested'
+                    name = 'Nested'; rootPath = 'C:\Nested'
+                })
+
+                $groupInventory = @(Get-GroupPathInventory -GroupSnapshots $groups)
+                $workspaceInventory = @(Get-WorkspaceInventory -WorkspaceSnapshots $workspaces -GroupPathInventory $groupInventory)
+                $matrix = @(New-CaseMatrix -Mappings @() -GroupSnapshots $groups -WorkspaceSnapshots $workspaces -SecondaryProjectPath $null)
+                $groupNullCases = @($matrix | Where-Object { $_.caseId -eq 'N-GRP-FIND-NULL' } | ForEach-Object {
+                    [ordered]@{
+                        caseInstanceId = Get-CaseInstanceId -Definition $_
+                        groupPath = $_.workspace.groupPath
+                    }
+                })
+                $formatNullCases = @($matrix | Where-Object { $_.caseId -eq 'N-FMT-NULL' })
+                if ($formatNullCases.Count -ne 1) { throw 'Expected one nested N-FMT-NULL definition.' }
+
+                [ordered]@{
+                    groupInventory = $groupInventory
+                    workspaceSelector = $workspaceInventory[0].selector
+                    groupNullCases = $groupNullCases
+                    formatNullCase = [ordered]@{
+                        caseInstanceId = Get-CaseInstanceId -Definition $formatNullCases[0]
+                        workspace = $formatNullCases[0].workspace
+                    }
+                } | ConvertTo-Json -Compress -Depth 100
+                """.Replace(
+                    "REPLACE_HARNESS_PATH",
+                    harnessPath.Replace("'", "''", StringComparison.Ordinal),
+                    StringComparison.Ordinal);
+            return RunPowerShell("-Command", command);
+        }
+        finally
+        {
+            if (mutatedHarnessPath is not null)
+            {
+                File.Delete(mutatedHarnessPath);
+            }
+        }
     }
 
     private static ScriptResult RunRunBlockOrderSmokeTest()
