@@ -104,14 +104,23 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
-    public void Run_UsesTheBoundedJsonLineReaderAndValidatorForVendorFreeTransportPreflight()
+    public void Run_HasExactlyOneTopLevelPostDescribeLifecycleWithOrderedTransportAndCleanup()
     {
         var result = RunRunBlockOrderSmokeTest();
 
         Assert.True(result.ExitCode == 0, result.StandardError);
         using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.True(document.RootElement.GetProperty("ordered").GetBoolean());
-        Assert.True(document.RootElement.GetProperty("cleanupAfterValidation").GetBoolean());
+        var root = document.RootElement;
+        Assert.Equal(1, root.GetProperty("topLevelRunLifecycleCount").GetInt32());
+        Assert.True(
+            root.GetProperty("afterDescribe").GetBoolean(),
+            "The Run lifecycle must be a top-level statement after the Describe guard.");
+        Assert.True(
+            root.GetProperty("transportOrdered").GetBoolean(),
+            "The top-level Run lifecycle must directly write, flush, bounded-read, then assert the denial.");
+        Assert.True(
+            root.GetProperty("cleanupInSameFinally").GetBoolean(),
+            "The top-level Run lifecycle must close, terminate if needed, and dispose in its own finally block.");
     }
 
     [Fact]
@@ -277,18 +286,88 @@ public sealed class VciReadProbeScriptTests
         var command = """
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('REPLACE_HARNESS_PATH', [ref] $tokens, [ref] $errors)
-            $runTry = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.TryStatementAst] -and $node.Extent.Text.Contains('Start-JsonLineProcess') }, $true)
-            if ($null -eq $runTry) { throw 'Run try block was not found.' }
-            $text = $runTry.Extent.Text
-            $write = $text.IndexOf('$worker.StandardInput.WriteLine($transportProbe)', [StringComparison]::Ordinal)
-            $flush = $text.IndexOf('$worker.StandardInput.Flush()', [StringComparison]::Ordinal)
-            $read = $text.IndexOf('Read-JsonLine -Process $worker -TimeoutSeconds $TimeoutSeconds', [StringComparison]::Ordinal)
-            $validate = $text.IndexOf('Test-TransportProbeResponse -ResponseText $transportResponse', [StringComparison]::Ordinal)
-            $finally = $text.IndexOf('finally', [StringComparison]::Ordinal)
-            $kill = $text.IndexOf('$worker.Kill($true)', [StringComparison]::Ordinal)
+            if ($errors.Count -ne 0) { throw 'Harness parsing failed.' }
+
+            function Get-DirectStatementIndex {
+                param([object[]] $Statements, [string] $Text)
+
+                $matches = @($Statements | Where-Object { $_.Extent.Text -eq $Text })
+                if ($matches.Count -ne 1) { return -1 }
+                return [Array]::IndexOf($Statements, $matches[0])
+            }
+
+            $topLevelStatements = @($ast.EndBlock.Statements)
+            $describeGuards = @($topLevelStatements | Where-Object {
+                    $_ -is [System.Management.Automation.Language.IfStatementAst] -and
+                    $_.Clauses.Count -eq 1 -and
+                    $_.Clauses[0].Item1.Extent.Text -eq '$Mode -eq ''Describe'''
+                })
+            $runLifecycles = @(
+                for ($index = 0; $index -lt $topLevelStatements.Count; $index++) {
+                    $statement = $topLevelStatements[$index]
+                    if ($statement -isnot [System.Management.Automation.Language.TryStatementAst]) { continue }
+                    $bodyStatements = @($statement.Body.Statements)
+                    $start = Get-DirectStatementIndex `
+                        -Statements $bodyStatements `
+                        -Text '$worker = Start-JsonLineProcess -Executable $canonicalWorkerExecutable -Arguments $workerArguments'
+                    if ($start -ge 0) {
+                        [pscustomobject]@{ Index = $index; Ast = $statement }
+                    }
+                }
+            )
+
+            $afterDescribe = $false
+            $transportOrdered = $false
+            $cleanupInSameFinally = $false
+            if ($describeGuards.Count -eq 1 -and $runLifecycles.Count -eq 1) {
+                $describeIndex = [Array]::IndexOf($topLevelStatements, $describeGuards[0])
+                $runLifecycle = $runLifecycles[0]
+                $runTry = $runLifecycle.Ast
+                $afterDescribe = $runLifecycle.Index -gt $describeIndex
+
+                $bodyStatements = @($runTry.Body.Statements)
+                $write = Get-DirectStatementIndex -Statements $bodyStatements -Text '$worker.StandardInput.WriteLine($transportProbe)'
+                $flush = Get-DirectStatementIndex -Statements $bodyStatements -Text '$worker.StandardInput.Flush()'
+                $read = Get-DirectStatementIndex -Statements $bodyStatements -Text '$transportResponse = Read-JsonLine -Process $worker -TimeoutSeconds $TimeoutSeconds'
+                $assertDenied = Get-DirectStatementIndex -Statements $bodyStatements -Text 'Test-TransportProbeResponse -ResponseText $transportResponse'
+                $transportOrdered = $write -ge 0 -and $write -lt $flush -and $flush -lt $read -and $read -lt $assertDenied
+
+                if ($null -ne $runTry.Finally) {
+                    $finallyStatements = @($runTry.Finally.Statements)
+                    $cleanupIfs = @($finallyStatements | Where-Object {
+                            $_ -is [System.Management.Automation.Language.IfStatementAst] -and
+                            $_.Clauses.Count -eq 1 -and
+                            $_.Clauses[0].Item1.Extent.Text -eq '$null -ne $worker'
+                        })
+                    if ($cleanupIfs.Count -eq 1) {
+                        $cleanupStatements = @($cleanupIfs[0].Clauses[0].Item2.Statements)
+                        $closeTry = @($cleanupStatements | Where-Object {
+                                $_ -is [System.Management.Automation.Language.TryStatementAst] -and
+                                $_.Body.Statements.Count -eq 1 -and
+                                $_.Body.Statements[0].Extent.Text -eq '$worker.StandardInput.Close()'
+                            })
+                        $terminateIf = @($cleanupStatements | Where-Object {
+                                $_ -is [System.Management.Automation.Language.IfStatementAst] -and
+                                $_.Clauses.Count -eq 1 -and
+                                $_.Clauses[0].Item1.Extent.Text -eq '-not $worker.HasExited' -and
+                                $_.Clauses[0].Item2.Statements.Count -eq 1 -and
+                                $_.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.TryStatementAst] -and
+                                $_.Clauses[0].Item2.Statements[0].Body.Statements.Count -eq 1 -and
+                                $_.Clauses[0].Item2.Statements[0].Body.Statements[0].Extent.Text -eq '$worker.Kill($true)'
+                            })
+                        $close = if ($closeTry.Count -eq 1) { [Array]::IndexOf($cleanupStatements, $closeTry[0]) } else { -1 }
+                        $terminate = if ($terminateIf.Count -eq 1) { [Array]::IndexOf($cleanupStatements, $terminateIf[0]) } else { -1 }
+                        $dispose = Get-DirectStatementIndex -Statements $cleanupStatements -Text '$worker.Dispose()'
+                        $cleanupInSameFinally = $close -ge 0 -and $close -lt $terminate -and $terminate -lt $dispose
+                    }
+                }
+            }
+
             [ordered]@{
-                ordered = $write -ge 0 -and $write -lt $flush -and $flush -lt $read -and $read -lt $validate
-                cleanupAfterValidation = $validate -lt $finally -and $finally -lt $kill
+                topLevelRunLifecycleCount = $runLifecycles.Count
+                afterDescribe = $afterDescribe
+                transportOrdered = $transportOrdered
+                cleanupInSameFinally = $cleanupInSameFinally
             } | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
