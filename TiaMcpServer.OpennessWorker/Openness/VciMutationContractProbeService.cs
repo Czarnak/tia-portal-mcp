@@ -128,6 +128,7 @@ internal static class VciMutationContractProbeService
             };
 
             dispatch();
+            CompleteApplyObservation(project, request, result);
             return result;
         }
         finally
@@ -137,6 +138,24 @@ internal static class VciMutationContractProbeService
                 IsModifiedBefore = isModifiedBefore,
                 IsModifiedAfter = project.IsModified,
             };
+        }
+    }
+
+    private static void CompleteApplyObservation(
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        if (!string.Equals(request.Mode, "Apply", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        result.Before ??= CaptureSnapshot(project, request, result);
+        result.After ??= CaptureSnapshot(project, request, result);
+        if (!result.Canary.Attempted)
+        {
+            result.Canary = RunCanary(project, request, result);
         }
     }
 
@@ -513,7 +532,14 @@ internal static class VciMutationContractProbeService
         }
 
         var names = ScenarioNames(request);
-        var workspaceName = withLanguage ? names.LanguageWorkspace : names.RootWorkspace;
+        var workspaceName = string.IsNullOrWhiteSpace(request.WorkspaceName)
+            ? withLanguage ? names.LanguageWorkspace : names.RootWorkspace
+            : request.WorkspaceName!;
+        if (!workspaceName.StartsWith(names.Prefix, StringComparison.Ordinal))
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return;
+        }
         if (group!.Workspaces.Find(workspaceName) is not null)
         {
             SetNotObservable(result, RequiredFixtureState);
@@ -853,33 +879,8 @@ internal static class VciMutationContractProbeService
             return;
         }
 
-        ExportTarget? target;
-        if (input == ConnectInput.Missing)
+        if (input is ConnectInput.Malformed or ConnectInput.PartialFileSet)
         {
-            target = ResolveTarget(
-                workspace!,
-                ExportRelativeDirectory(),
-                "__missing__",
-                result);
-            if (target is not null
-                && CaptureBoundedFileSet(
-                    target.Directory,
-                    target.FileNameWithoutExtension,
-                    request.MaxCollectionItems,
-                    result.Omissions).Count != 0)
-            {
-                SetNotObservable(result, RequiredFixtureState);
-                return;
-            }
-        }
-        else
-        {
-            target = ResolveSeedTarget(workspace!, request, result);
-            if (target is null)
-            {
-                return;
-            }
-
             if (input == ConnectInput.PartialFileSet)
             {
                 var exported = ResolveExportTarget(workspace!, request, result);
@@ -896,10 +897,27 @@ internal static class VciMutationContractProbeService
                     return;
                 }
             }
+
+            SetNotObservable(result, RequiredFixtureState);
+            return;
         }
 
+        var target = ResolveTarget(
+            workspace!,
+            ExportRelativeDirectory(),
+            "__missing__",
+            result);
         if (target is null)
         {
+            return;
+        }
+        if (CaptureBoundedFileSet(
+                target.Directory,
+                target.FileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions).Count != 0)
+        {
+            SetNotObservable(result, RequiredFixtureState);
             return;
         }
 
@@ -956,7 +974,12 @@ internal static class VciMutationContractProbeService
         VciMutationProbeRequestInfo request,
         VciMutationProbeCaseResultInfo result)
     {
-        var relativeDirectory = ExportRelativeDirectory();
+        var relativeDirectory = string.IsNullOrWhiteSpace(request.RelativeDirectory)
+            ? ExportRelativeDirectory()
+            : request.RelativeDirectory!;
+        var fileNameWithoutExtension = string.IsNullOrWhiteSpace(request.FileName)
+            ? "Simulation_DB"
+            : request.FileName!;
         var directoryDecision = VciMutationPathPolicy.ResolveRelativeDirectory(
             workspace.RootPath.FullName,
             relativeDirectory);
@@ -970,7 +993,7 @@ internal static class VciMutationContractProbeService
         var fileDecision = VciMutationPathPolicy.ResolveFile(
             workspace.RootPath.FullName,
             relativeDirectory,
-            "Simulation_DB");
+            fileNameWithoutExtension);
         if (!fileDecision.IsValid)
         {
             AddCheck(result.Preconditions, "export_file_confined", false, fileDecision.RejectionCategory);
@@ -982,7 +1005,7 @@ internal static class VciMutationContractProbeService
         AddCheck(result.Preconditions, "export_file_confined", true, fileDecision.CanonicalPath);
         return new ExportTarget(
             new DirectoryInfo(directoryDecision.CanonicalPath!),
-            "Simulation_DB",
+            fileNameWithoutExtension,
             fileDecision.CanonicalPath!);
     }
 
@@ -1165,6 +1188,55 @@ internal static class VciMutationContractProbeService
         }
 
         var statusBefore = mapping.GetStatus();
+        var directory = mapping.DirectoryPath;
+        var fileNameWithoutExtension = mapping.FileNameWithoutExtension;
+        var filesBefore = CaptureBoundedFileSet(
+            directory,
+            fileNameWithoutExtension,
+            request.MaxCollectionItems,
+            result.Omissions);
+        if (filesBefore.Count == 0)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            result.StopScenarioFamily = true;
+            return;
+        }
+
+        if (!ResolveComparisonTarget(
+                project,
+                request,
+                result,
+                out var comparisonTarget))
+        {
+            result.StopScenarioFamily = true;
+            return;
+        }
+
+        var comparisonFiles = CaptureBoundedFileSet(
+            comparisonTarget!.Directory,
+            comparisonTarget.FileNameWithoutExtension,
+            request.MaxCollectionItems,
+            result.Omissions);
+        if (comparisonFiles.Count == 0)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            result.StopScenarioFamily = true;
+            return;
+        }
+
+        var controlledExportsDiffer = !HashSetsEqual(filesBefore, comparisonFiles);
+        AddCheck(
+            result.Preconditions,
+            "baseline_and_changed_exports_differ",
+            controlledExportsDiffer,
+            null);
+        if (!controlledExportsDiffer)
+        {
+            SetNotObservable(result, "baseline_and_changed_exports_identical");
+            result.StopScenarioFamily = true;
+            return;
+        }
+
         var requiredDifference = mode == SynchronizationMode.ProjectToWorkspace
             ? IndividualObjectCompareDetails.ProjectObjectChanged
             : IndividualObjectCompareDetails.WorkspaceFileChanged;
@@ -1184,20 +1256,6 @@ internal static class VciMutationContractProbeService
                 mode == SynchronizationMode.ProjectToWorkspace
                     ? "expected_project_only_state_not_established"
                     : RequiredFixtureState);
-            result.StopScenarioFamily = true;
-            return;
-        }
-
-        var directory = mapping.DirectoryPath;
-        var fileNameWithoutExtension = mapping.FileNameWithoutExtension;
-        var filesBefore = CaptureBoundedFileSet(
-            directory,
-            fileNameWithoutExtension,
-            request.MaxCollectionItems,
-            result.Omissions);
-        if (filesBefore.Count == 0)
-        {
-            SetNotObservable(result, RequiredFixtureState);
             result.StopScenarioFamily = true;
             return;
         }
@@ -1232,6 +1290,12 @@ internal static class VciMutationContractProbeService
                 fileNameWithoutExtension,
                 request.MaxCollectionItems,
                 result.Omissions);
+            if (mode == SynchronizationMode.ProjectToWorkspace
+                && !HashSetsEqual(callFilesAfter, comparisonFiles))
+            {
+                throw new InvalidOperationException(
+                    "The ProjectToWorkspace result did not hash-match the changed VCI-produced file set.");
+            }
             var verificationFiles = new List<string>();
             if (mode == SynchronizationMode.WorkspaceToProject)
             {
@@ -1257,8 +1321,39 @@ internal static class VciMutationContractProbeService
                 callStatusAfter,
                 callFilesBefore,
                 callFilesAfter,
-                verificationFiles);
+                verificationFiles,
+                comparisonFiles);
         });
+    }
+
+    private static bool ResolveComparisonTarget(
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        out ExportTarget? comparisonTarget)
+    {
+        comparisonTarget = null;
+        if (string.IsNullOrWhiteSpace(request.RelativeDirectory)
+            || string.IsNullOrWhiteSpace(request.FileName)
+            || !TryAcquireScenarioGroup(project, request, result, out var group))
+        {
+            SetNotObservableUnlessTerminal(result, RequiredFixtureState);
+            return false;
+        }
+
+        var comparisonWorkspace = group!.Workspaces.Find(ScenarioNames(request).LanguageWorkspace);
+        if (comparisonWorkspace is null)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return false;
+        }
+
+        comparisonTarget = ResolveTarget(
+            comparisonWorkspace,
+            request.RelativeDirectory!,
+            request.FileName!,
+            result);
+        return comparisonTarget is not null;
     }
 
     private static bool ResolveVerificationTarget(
@@ -1385,7 +1480,8 @@ internal static class VciMutationContractProbeService
         IndividualObjectCompareResult statusAfter,
         IReadOnlyList<string> filesBefore,
         IReadOnlyList<string> filesAfter,
-        IReadOnlyList<string>? verificationFiles = null)
+        IReadOnlyList<string>? verificationFiles = null,
+        IReadOnlyList<string>? comparisonFiles = null)
     {
         var result = new VciProbeReturnInfo
         {
@@ -1409,6 +1505,13 @@ internal static class VciMutationContractProbeService
             for (var index = 0; index < verificationFiles.Count; index++)
             {
                 result.Members.Add(Member("verification.file[" + index + "]", verificationFiles[index]));
+            }
+        }
+        if (comparisonFiles is not null)
+        {
+            for (var index = 0; index < comparisonFiles.Count; index++)
+            {
+                result.Members.Add(Member("comparison.file[" + index + "]", comparisonFiles[index]));
             }
         }
         return result;
@@ -1558,15 +1661,19 @@ internal static class VciMutationContractProbeService
                 }
                 break;
             case TransactionMutation.DeleteGroup:
-                if (TryAcquireScenarioGroup(project, request, result, out var deleteGroup)
-                    && deleteGroup!.Groups.Count == 0
-                    && deleteGroup.Workspaces.Count == 0)
+                if (TryAcquireScenarioGroup(project, request, result, out var deleteGroup))
                 {
-                    mutation = () =>
+                    var nestedGroup = deleteGroup!.Groups.Find(names.NestedGroup);
+                    if (nestedGroup is not null
+                        && nestedGroup.Groups.Count == 0
+                        && nestedGroup.Workspaces.Count == 0)
                     {
-                        deleteGroup.Delete();
-                        return "group_deleted";
-                    };
+                        mutation = () =>
+                        {
+                            nestedGroup.Delete();
+                            return "nested_group_deleted";
+                        };
+                    }
                 }
                 break;
             default:
@@ -1599,6 +1706,7 @@ internal static class VciMutationContractProbeService
         result.Transaction.Requested = true;
         result.Before = CaptureSnapshot(project, request, result);
         var snapshotBefore = SnapshotSignature(result.Before);
+        var isModifiedBefore = project.IsModified;
         var filesBefore = fileTarget is null
             ? new List<string>()
             : CaptureBoundedFileSet(
@@ -1644,11 +1752,21 @@ internal static class VciMutationContractProbeService
                     fileTarget.FileNameWithoutExtension,
                     request.MaxCollectionItems,
                     result.Omissions);
+            var projectStateRolledBack = string.Equals(
+                snapshotBefore,
+                SnapshotSignature(result.After),
+                StringComparison.Ordinal)
+                && project.IsModified == isModifiedBefore;
             AddCheck(
                 result.SafetyInvariants,
                 "project_state_rolled_back",
-                string.Equals(snapshotBefore, SnapshotSignature(result.After), StringComparison.Ordinal),
+                projectStateRolledBack,
                 null);
+            if (!projectStateRolledBack)
+            {
+                result.UncertainOutcome = true;
+                result.StopScenarioFamily = true;
+            }
             AddCheck(
                 result.SafetyInvariants,
                 "external_files_rolled_back",
@@ -2180,8 +2298,10 @@ internal static class VciMutationContractProbeService
         else
         {
             var group = root!.Groups.Find(ScenarioNames(request).Group);
-            workspace = group?.Workspaces.Find(ScenarioNames(request).LanguageWorkspace)
-                ?? group?.Workspaces.Find(ScenarioNames(request).RootWorkspace);
+            workspace = !string.IsNullOrWhiteSpace(request.WorkspaceName)
+                ? group?.Workspaces.Find(request.WorkspaceName)
+                : group?.Workspaces.Find(ScenarioNames(request).LanguageWorkspace)
+                    ?? group?.Workspaces.Find(ScenarioNames(request).RootWorkspace);
         }
 
         if (workspace is null)
@@ -2196,8 +2316,25 @@ internal static class VciMutationContractProbeService
         VciMutationProbeRequestInfo request,
         VciMutationProbeCaseResultInfo result)
     {
-        if (request.Mapping is null
-            || !TryAcquireRoot(project, result, out _, out var root))
+        if (request.Mapping is null)
+        {
+            var scenarioWorkspace = ResolveSelectedOrScenarioWorkspace(project, request, result);
+            if (scenarioWorkspace is null
+                || !TryResolveEngineeringObject(project, request, result, out var scenarioObject))
+            {
+                SetNotObservableUnlessTerminal(result, "selected_mapping_not_found");
+                return null;
+            }
+
+            var scenarioMapping = scenarioWorkspace.MappedObjects.Find(scenarioObject!);
+            if (scenarioMapping is null)
+            {
+                SetNotObservable(result, "selected_mapping_not_found");
+            }
+            return scenarioMapping;
+        }
+
+        if (!TryAcquireRoot(project, result, out _, out var root))
         {
             SetNotObservableUnlessTerminal(result, "selected_mapping_not_found");
             return null;
@@ -2278,13 +2415,19 @@ internal static class VciMutationContractProbeService
 
     private static ScenarioIdentity ScenarioNames(VciMutationProbeRequestInfo request)
     {
-        var compact = new string(request.RunId.Where(char.IsLetterOrDigit).Take(12).ToArray());
-        if (compact.Length == 0)
+        var compactRun = new string(request.RunId.Where(char.IsLetterOrDigit).Take(12).ToArray());
+        if (compactRun.Length == 0)
         {
-            compact = "Run";
+            compactRun = "Run";
         }
 
-        var prefix = "CodexVci_" + compact;
+        var compactScenario = new string(request.ScenarioId.Where(char.IsLetterOrDigit).Take(12).ToArray());
+        if (compactScenario.Length == 0)
+        {
+            compactScenario = "Scenario";
+        }
+
+        var prefix = "CodexVci_" + compactRun + "_" + compactScenario;
         return new ScenarioIdentity(
             prefix,
             prefix,

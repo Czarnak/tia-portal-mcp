@@ -25,6 +25,35 @@ public class VciMutationProbeWorkerSourceContractTests
     }
 
     [Fact]
+    public void WorkerProgram_MutationProbeRebindsOnlyWorkerOwnedProjectsAndClosesThemWithoutSaving()
+    {
+        var program = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        var mutationHandler = SliceMethod(program, "private static WorkerResponse ProbeVciMutationContract", "private static");
+        var readHandler = SliceMethod(program, "private static WorkerResponse ProbeVciReadContract", "private static");
+        var rebindGate = SliceMethod(program, "private static WorkerResponse? EnsureRequestedProjectOpen", "private static");
+        var session = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker",
+            "Openness",
+            "TiaPortalSession.cs"));
+
+        Assert.Contains("allowWorkerOwnedProjectRebind: true", mutationHandler, StringComparison.Ordinal);
+        Assert.Contains("RequestWorkerOpenedProjectCloseOnDispose", mutationHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("allowWorkerOwnedProjectRebind: true", readHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("RequestWorkerOpenedProjectCloseOnDispose", readHandler, StringComparison.Ordinal);
+        Assert.Contains("session.ProjectOpenedByWorker", rebindGate, StringComparison.Ordinal);
+        Assert.Contains("session.OpenProject(requestedProjectPath!)", rebindGate, StringComparison.Ordinal);
+        Assert.Contains("!session.ProjectOpenedByWorker", rebindGate, StringComparison.Ordinal);
+        Assert.Contains("requires TIA Portal to have no user-opened project", rebindGate, StringComparison.Ordinal);
+        Assert.Contains("internal bool ProjectOpenedByWorker", session, StringComparison.Ordinal);
+        AssertOrdered(
+            session,
+            "if (disposing && _closeWorkerOpenedProjectOnDispose && _projectOpenedByWorker",
+            "Project.Close()",
+            "_tiaPortal?.Dispose()");
+        Assert.DoesNotContain("Project.Save", session, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Service_DispatchesEveryLockedCaseAndRejectsUnknownCases()
     {
         var source = ServiceSource();
@@ -75,6 +104,19 @@ public class VciMutationProbeWorkerSourceContractTests
         Assert.Contains("CaptureSnapshot", canary, StringComparison.Ordinal);
         Assert.DoesNotContain("ExclusiveAccess", canary, StringComparison.Ordinal);
         Assert.DoesNotContain("Transaction", canary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_CompletesSnapshotsAndCanaryForPreconditionDrivenApplyObservations()
+    {
+        var source = ServiceSource();
+        var execute = SliceMethod(source, "public static VciMutationProbeCaseResultInfo Execute", "private static");
+        var completion = SliceMethod(source, "private static void CompleteApplyObservation", "private static");
+
+        AssertOrdered(execute, "dispatch();", "CompleteApplyObservation", "return result;");
+        Assert.Contains("result.Before ??= CaptureSnapshot", completion, StringComparison.Ordinal);
+        Assert.Contains("result.After ??= CaptureSnapshot", completion, StringComparison.Ordinal);
+        Assert.Contains("result.Canary = RunCanary", completion, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -161,6 +203,23 @@ public class VciMutationProbeWorkerSourceContractTests
     }
 
     [Fact]
+    public void Service_DoesNotLabelAValidSeedAsMalformedOrPartialConnectEvidence()
+    {
+        var source = ServiceSource();
+        var connectNegative = SliceMethod(source, "private static void RunConnectNegative", "private static");
+
+        Assert.Contains(
+            "input is ConnectInput.Malformed or ConnectInput.PartialFileSet",
+            connectNegative,
+            StringComparison.Ordinal);
+        AssertOrdered(
+            connectNegative,
+            "input is ConnectInput.Malformed or ConnectInput.PartialFileSet",
+            "SetNotObservable",
+            "workspace!.ConnectObject");
+    }
+
+    [Fact]
     public void Service_Task5CasesNoLongerUseTheDeferredHandler()
     {
         var source = ServiceSource();
@@ -223,11 +282,42 @@ public class VciMutationProbeWorkerSourceContractTests
         var source = ServiceSource();
         var synchronize = SliceMethod(source, "private static void RunSynchronization", "private static");
 
+        Assert.Contains("ResolveComparisonTarget", synchronize, StringComparison.Ordinal);
+        Assert.Contains("baseline_and_changed_exports_identical", synchronize, StringComparison.Ordinal);
+        AssertOrdered(synchronize, "controlledExportsDiffer", "expectedDifferenceEstablished");
         Assert.Contains("ResolveVerificationTarget", synchronize, StringComparison.Ordinal);
         Assert.Contains("verificationWorkspace!.ExportObject", synchronize, StringComparison.Ordinal);
         Assert.Contains("HashSetsEqual", synchronize, StringComparison.Ordinal);
         Assert.Contains("ComputeSha256", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Compile", synchronize, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_ScenarioStateIsScopedByRunAndScenarioAndDoesNotRequireAnInventoryMapping()
+    {
+        var source = ServiceSource();
+        var names = SliceMethod(source, "private static ScenarioIdentity ScenarioNames", "private static");
+        var workspaceResolver = SliceMethod(
+            source,
+            "private static Workspace? ResolveSelectedOrScenarioWorkspace",
+            "private static");
+        var mappingResolver = SliceMethod(source, "private static MappedObject? ResolveMapping", "private static");
+
+        Assert.Contains("request.RunId", names, StringComparison.Ordinal);
+        Assert.Contains("request.ScenarioId", names, StringComparison.Ordinal);
+        Assert.Contains("request.WorkspaceName", workspaceResolver, StringComparison.Ordinal);
+        Assert.Contains("ResolveSelectedOrScenarioWorkspace", mappingResolver, StringComparison.Ordinal);
+        Assert.Contains("TryResolveEngineeringObject", mappingResolver, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_TransactionGroupDeletionTargetsTheEmptyNestedScenarioGroup()
+    {
+        var source = ServiceSource();
+        var transactionCase = SliceMethod(source, "private static void RunTransactionCase", "private static");
+
+        Assert.Contains("names.NestedGroup", transactionCase, StringComparison.Ordinal);
+        Assert.Contains("nestedGroup.Delete()", transactionCase, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -245,6 +335,9 @@ public class VciMutationProbeWorkerSourceContractTests
         Assert.DoesNotContain("CommitOnDispose", rollback, StringComparison.Ordinal);
         Assert.Contains("project_state_rolled_back", rollback, StringComparison.Ordinal);
         Assert.Contains("external_files_rolled_back", rollback, StringComparison.Ordinal);
+        Assert.Contains("if (!projectStateRolledBack)", rollback, StringComparison.Ordinal);
+        Assert.Contains("result.UncertainOutcome = true", rollback, StringComparison.Ordinal);
+        Assert.Contains("result.StopScenarioFamily = true", rollback, StringComparison.Ordinal);
     }
 
     [Fact]

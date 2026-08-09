@@ -12,6 +12,7 @@ public class TiaPortalSession : IDisposable
     private TiaPortal? _tiaPortal;
     private bool _disposed;
     private bool _projectOpenedByWorker;
+    private bool _closeWorkerOpenedProjectOnDispose;
 
     public TiaPortalSession(bool allowTiaConfirmations = false)
     {
@@ -29,6 +30,11 @@ public class TiaPortalSession : IDisposable
     public TiaPortal? TiaPortal => _tiaPortal;
 
     public bool IsConnected => _tiaPortal != null;
+
+    internal bool ProjectOpenedByWorker => _projectOpenedByWorker;
+
+    internal void RequestWorkerOpenedProjectCloseOnDispose()
+        => _closeWorkerOpenedProjectOnDispose = true;
 
     public void Connect()
     {
@@ -184,6 +190,19 @@ public class TiaPortalSession : IDisposable
         }
 
         _disposed = true;
+
+        if (disposing && _closeWorkerOpenedProjectOnDispose && _projectOpenedByWorker && Project is not null)
+        {
+            try
+            {
+                Project.Close();
+            }
+            catch (Exception exception)
+            {
+                Console.Error.WriteLine(
+                    "Could not close the worker-opened project during shutdown: " + exception.Message);
+            }
+        }
 
         if (disposing && _tiaPortal != null)
         {

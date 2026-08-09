@@ -388,9 +388,11 @@ internal static class Program
                 validationError);
         }
 
+        _sharedSession.RequestWorkerOpenedProjectCloseOnDispose();
         return WithProject(request, (tiaPortal, project) =>
             Success(VciMutationContractProbeService.Execute(
-                tiaPortal, project, request.VciMutationProbe)));
+                tiaPortal, project, request.VciMutationProbe)),
+            allowWorkerOwnedProjectRebind: true);
     }
 
     private static NetworkAttributeProbeEntryInfo ProbeNetworkAttribute(
@@ -1203,13 +1205,19 @@ internal static class Program
     }
 
     /// <summary>Opens an Openness session, ensures a project is available, then runs <paramref name="body"/>.</summary>
-    private static WorkerResponse WithProject(WorkerRequest request, Func<Project, WorkerResponse> body)
+    private static WorkerResponse WithProject(
+        WorkerRequest request,
+        Func<Project, WorkerResponse> body,
+        bool allowWorkerOwnedProjectRebind = false)
     {
         return WithSession(request, session =>
         {
             session.EnsureConnected();
 
-            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            var failure = EnsureRequestedProjectOpen(
+                session,
+                request.ProjectPath,
+                allowWorkerOwnedProjectRebind);
             if (failure is not null)
             {
                 return failure;
@@ -1233,8 +1241,12 @@ internal static class Program
     /// </summary>
     private static WorkerResponse WithProject(
         WorkerRequest request,
-        Func<TiaPortal, Project, WorkerResponse> body)
-        => WithProject(request, project => body(_sharedSession.TiaPortal!, project));
+        Func<TiaPortal, Project, WorkerResponse> body,
+        bool allowWorkerOwnedProjectRebind = false)
+        => WithProject(
+            request,
+            project => body(_sharedSession.TiaPortal!, project),
+            allowWorkerOwnedProjectRebind);
 
     /// <summary>
     /// Applies <see cref="ProjectOpenPolicy"/> before any non-lifecycle operation may open a
@@ -1242,7 +1254,10 @@ internal static class Program
     /// In read-only mode, opening a project is never permitted — only the currently open
     /// project may be used.
     /// </summary>
-    private static WorkerResponse? EnsureRequestedProjectOpen(WorkerTiaPortalSession session, string? requestedProjectPath)
+    private static WorkerResponse? EnsureRequestedProjectOpen(
+        WorkerTiaPortalSession session,
+        string? requestedProjectPath,
+        bool allowWorkerOwnedProjectRebind = false)
     {
         var currentPath = session.CurrentProjectPath;
 
@@ -1282,9 +1297,26 @@ internal static class Program
         }
 
         // Read-write mode: existing behavior.
-        switch (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath))
+        var decision = ProjectOpenPolicy.Decide(currentPath, requestedProjectPath);
+        if (allowWorkerOwnedProjectRebind
+            && decision == ProjectOpenDecision.UseAttached
+            && currentPath is not null
+            && requestedProjectPath is not null
+            && !session.ProjectOpenedByWorker)
+        {
+            return Failure(
+                WorkerFailureCategories.BindingConflict,
+                "The internal VCI mutation probe requires TIA Portal to have no user-opened project. "
+                + "Close the current project and retry so the worker can own every disposable project it opens.");
+        }
+
+        switch (decision)
         {
             case ProjectOpenDecision.OpenRequested:
+                session.OpenProject(requestedProjectPath!);
+                return null;
+            case ProjectOpenDecision.Refuse
+                when allowWorkerOwnedProjectRebind && session.ProjectOpenedByWorker:
                 session.OpenProject(requestedProjectPath!);
                 return null;
             case ProjectOpenDecision.Refuse:

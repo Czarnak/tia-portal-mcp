@@ -59,6 +59,14 @@ $script:CaseIds = @(
     'N-SYNC-BOTH-SIDES', 'N-SYNC-INVALID-ENUM', 'N-DELETE-NONEMPTY',
     'N-DELETE-TWICE', 'N-STALE-MAPPING-PROXY'
 )
+$script:HarnessConfinementCaseIds = @(
+    'N-WORKSPACE-PATH-RELATIVE',
+    'N-WORKSPACE-PATH-MISSING-PARENT',
+    'N-WORKSPACE-PATH-CONFLICT',
+    'N-WORKSPACE-PATH-FILE',
+    'N-FILENAME-ABSOLUTE',
+    'N-FILENAME-TRAVERSAL'
+)
 $script:ScenarioOrder = @(
     'lifecycle',
     'mapping',
@@ -67,40 +75,158 @@ $script:ScenarioOrder = @(
     'negative',
     'transaction'
 )
-$script:ScenarioCases = [ordered]@{
+
+function New-ScenarioStep {
+    param(
+        [Parameter(Mandatory)] [string] $StepId,
+        [Parameter(Mandatory)] [string] $CaseId,
+        [Parameter(Mandatory)] [string] $ProjectRole,
+        [string] $ScenarioKey,
+        [ValidateSet('none', 'root', 'language')]
+        [string] $WorkspaceRole = 'none',
+        [string] $RelativeDirectory,
+        [string] $FileName
+    )
+    return [ordered]@{
+        stepId = $StepId
+        caseId = $CaseId
+        projectRole = $ProjectRole
+        scenarioKey = $ScenarioKey
+        workspaceRole = $WorkspaceRole
+        relativeDirectory = $RelativeDirectory
+        fileName = $FileName
+    }
+}
+
+$script:ScenarioSteps = [ordered]@{
     lifecycle = @(
-        'M-CANARY', 'M-GROUP', 'M-WORKSPACE-ROOT', 'M-WORKSPACE-LANGUAGE',
-        'M-DELETE-WORKSPACE', 'M-DELETE-GROUP', 'N-GROUP-NULL', 'N-GROUP-EMPTY',
-        'N-GROUP-WHITESPACE', 'N-GROUP-DUPLICATE', 'N-GROUP-INVALID',
-        'N-WORKSPACE-NULL', 'N-WORKSPACE-EMPTY', 'N-WORKSPACE-WHITESPACE',
-        'N-WORKSPACE-DUPLICATE', 'N-WORKSPACE-INVALID',
-        'N-WORKSPACE-PATH-RELATIVE', 'N-WORKSPACE-PATH-MISSING-PARENT',
-        'N-WORKSPACE-PATH-CONFLICT', 'N-WORKSPACE-PATH-FILE',
-        'N-WORKSPACE-LANGUAGE-NULL', 'N-WORKSPACE-LANGUAGE-INVALID',
-        'N-WORKSPACE-GLOBAL-LIBRARY-NULL', 'N-WORKSPACE-GLOBAL-LIBRARY-INVALID',
-        'N-DELETE-NONEMPTY', 'N-DELETE-TWICE'
+        New-ScenarioStep 'lifecycle-canary' 'M-CANARY' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-group' 'M-GROUP' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-root' 'M-WORKSPACE-ROOT' 'lifecycleProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'lifecycle-language' 'M-WORKSPACE-LANGUAGE' 'lifecycleProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'lifecycle-group-null' 'N-GROUP-NULL' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-group-empty' 'N-GROUP-EMPTY' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-group-whitespace' 'N-GROUP-WHITESPACE' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-group-duplicate' 'N-GROUP-DUPLICATE' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-group-invalid' 'N-GROUP-INVALID' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-workspace-null' 'N-WORKSPACE-NULL' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-workspace-empty' 'N-WORKSPACE-EMPTY' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-workspace-whitespace' 'N-WORKSPACE-WHITESPACE' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-workspace-duplicate' 'N-WORKSPACE-DUPLICATE' 'lifecycleProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'lifecycle-workspace-invalid' 'N-WORKSPACE-INVALID' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-path-relative' 'N-WORKSPACE-PATH-RELATIVE' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-path-missing-parent' 'N-WORKSPACE-PATH-MISSING-PARENT' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-path-conflict' 'N-WORKSPACE-PATH-CONFLICT' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-path-file' 'N-WORKSPACE-PATH-FILE' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-language-null' 'N-WORKSPACE-LANGUAGE-NULL' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-language-invalid' 'N-WORKSPACE-LANGUAGE-INVALID' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-library-null' 'N-WORKSPACE-GLOBAL-LIBRARY-NULL' 'lifecycleProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'lifecycle-library-invalid' 'N-WORKSPACE-GLOBAL-LIBRARY-INVALID' 'lifecycleProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'lifecycle-delete-nonempty' 'N-DELETE-NONEMPTY' 'lifecycleProjectPath'
+        New-ScenarioStep 'lifecycle-delete-twice' 'N-DELETE-TWICE' 'lifecycleProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'lifecycle-delete-language' 'M-DELETE-WORKSPACE' 'lifecycleProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'lifecycle-delete-root' 'M-DELETE-WORKSPACE' 'lifecycleProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'lifecycle-delete-group' 'M-DELETE-GROUP' 'lifecycleProjectPath'
     )
     mapping = @(
-        'M-EXPORT', 'M-DISCONNECT', 'M-CONNECT', 'M-DELETE-MAPPING',
-        'N-OBJECT-NULL', 'N-OBJECT-UNSUPPORTED', 'N-OBJECT-FOREIGN',
-        'N-OBJECT-DISPOSED', 'N-OBJECT-ALREADY-MAPPED', 'N-OBJECT-DELETED',
-        'N-FORMAT-NULL', 'N-FORMAT-EMPTY', 'N-FORMAT-UNSUPPORTED',
-        'N-FORMAT-WRONG-CASE', 'N-FORMAT-MISMATCH', 'N-FILENAME-INVALID',
-        'N-FILENAME-ABSOLUTE', 'N-FILENAME-TRAVERSAL', 'N-FILENAME-COLLISION',
-        'N-CONNECT-MISSING', 'N-CONNECT-MALFORMED', 'N-CONNECT-WRONG-OBJECT',
-        'N-CONNECT-PARTIAL-FILE-SET', 'N-STALE-MAPPING-PROXY'
+        New-ScenarioStep 'mapping-group' 'M-GROUP' 'mappingProjectPath'
+        New-ScenarioStep 'mapping-root' 'M-WORKSPACE-ROOT' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-export' 'M-EXPORT' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-already-mapped' 'N-OBJECT-ALREADY-MAPPED' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-stale-proxy' 'N-STALE-MAPPING-PROXY' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-disconnect' 'M-DISCONNECT' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-connect' 'M-CONNECT' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-delete' 'M-DELETE-MAPPING' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-object-null' 'N-OBJECT-NULL' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-object-unsupported' 'N-OBJECT-UNSUPPORTED' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-object-foreign' 'N-OBJECT-FOREIGN' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-object-disposed' 'N-OBJECT-DISPOSED' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-object-deleted' 'N-OBJECT-DELETED' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-format-null' 'N-FORMAT-NULL' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-format-empty' 'N-FORMAT-EMPTY' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-format-unsupported' 'N-FORMAT-UNSUPPORTED' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-format-wrong-case' 'N-FORMAT-WRONG-CASE' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-format-mismatch' 'N-FORMAT-MISMATCH' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-filename-invalid' 'N-FILENAME-INVALID' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-filename-absolute' 'N-FILENAME-ABSOLUTE' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-filename-traversal' 'N-FILENAME-TRAVERSAL' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-filename-collision' 'N-FILENAME-COLLISION' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-connect-missing' 'N-CONNECT-MISSING' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-connect-malformed' 'N-CONNECT-MALFORMED' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-connect-wrong-object' 'N-CONNECT-WRONG-OBJECT' 'mappingProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'mapping-connect-partial' 'N-CONNECT-PARTIAL-FILE-SET' 'mappingProjectPath' -WorkspaceRole root
     )
-    project_to_workspace = @('M-P2W')
-    workspace_to_project = @('M-W2P')
+    project_to_workspace = @(
+        New-ScenarioStep 'p2w-baseline-group' 'M-GROUP' 'workspaceToProjectBaselineProjectPath'
+        New-ScenarioStep 'p2w-baseline-root' 'M-WORKSPACE-ROOT' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'p2w-baseline-export' 'M-EXPORT' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'p2w-baseline-disconnect' 'M-DISCONNECT' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'p2w-changed-group' 'M-GROUP' 'projectToWorkspaceChangedProjectPath'
+        New-ScenarioStep 'p2w-changed-root' 'M-WORKSPACE-ROOT' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'p2w-changed-language' 'M-WORKSPACE-LANGUAGE' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'p2w-changed-export' 'M-EXPORT' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole language -RelativeDirectory 'mapping\expected' -FileName 'Simulation_DB_Changed'
+        New-ScenarioStep 'p2w-changed-disconnect' 'M-DISCONNECT' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'p2w-connect-baseline' 'M-CONNECT' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'p2w-synchronize' 'M-P2W' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole root -RelativeDirectory 'mapping\expected' -FileName 'Simulation_DB_Changed'
+    )
+    workspace_to_project = @(
+        New-ScenarioStep 'w2p-changed-group' 'M-GROUP' 'projectToWorkspaceChangedProjectPath'
+        New-ScenarioStep 'w2p-changed-root' 'M-WORKSPACE-ROOT' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'w2p-changed-export' 'M-EXPORT' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'w2p-changed-disconnect' 'M-DISCONNECT' 'projectToWorkspaceChangedProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'w2p-baseline-group' 'M-GROUP' 'workspaceToProjectBaselineProjectPath'
+        New-ScenarioStep 'w2p-baseline-root' 'M-WORKSPACE-ROOT' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'w2p-baseline-language' 'M-WORKSPACE-LANGUAGE' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'w2p-baseline-export' 'M-EXPORT' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole language -RelativeDirectory 'mapping\expected' -FileName 'Simulation_DB_Baseline'
+        New-ScenarioStep 'w2p-baseline-disconnect' 'M-DISCONNECT' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'w2p-connect-changed' 'M-CONNECT' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'w2p-synchronize' 'M-W2P' 'workspaceToProjectBaselineProjectPath' -WorkspaceRole root -RelativeDirectory 'mapping\expected' -FileName 'Simulation_DB_Baseline'
+    )
     negative = @(
-        'N-SYNC-MISSING', 'N-SYNC-MALFORMED', 'N-SYNC-UNCHANGED',
-        'N-SYNC-PROJECT-ONLY', 'N-SYNC-WORKSPACE-ONLY', 'N-SYNC-BOTH-SIDES',
-        'N-SYNC-INVALID-ENUM'
+        New-ScenarioStep 'negative-equal-group' 'M-GROUP' 'negativeProjectPath' -ScenarioKey 'negative_equal'
+        New-ScenarioStep 'negative-equal-root' 'M-WORKSPACE-ROOT' 'negativeProjectPath' -ScenarioKey 'negative_equal' -WorkspaceRole root
+        New-ScenarioStep 'negative-equal-export' 'M-EXPORT' 'negativeProjectPath' -ScenarioKey 'negative_equal' -WorkspaceRole root
+        New-ScenarioStep 'negative-missing' 'N-SYNC-MISSING' 'negativeProjectPath' -ScenarioKey 'negative_equal' -WorkspaceRole root
+        New-ScenarioStep 'negative-malformed' 'N-SYNC-MALFORMED' 'negativeProjectPath' -ScenarioKey 'negative_equal' -WorkspaceRole root
+        New-ScenarioStep 'negative-unchanged' 'N-SYNC-UNCHANGED' 'negativeProjectPath' -ScenarioKey 'negative_equal' -WorkspaceRole root
+        New-ScenarioStep 'negative-both-sides' 'N-SYNC-BOTH-SIDES' 'negativeProjectPath' -ScenarioKey 'negative_equal' -WorkspaceRole root
+        New-ScenarioStep 'negative-invalid-enum' 'N-SYNC-INVALID-ENUM' 'negativeProjectPath' -ScenarioKey 'negative_equal' -WorkspaceRole root
+        New-ScenarioStep 'negative-p2w-baseline-group' 'M-GROUP' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_p2w'
+        New-ScenarioStep 'negative-p2w-baseline-root' 'M-WORKSPACE-ROOT' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_p2w' -WorkspaceRole root
+        New-ScenarioStep 'negative-p2w-baseline-export' 'M-EXPORT' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_p2w' -WorkspaceRole root
+        New-ScenarioStep 'negative-p2w-baseline-disconnect' 'M-DISCONNECT' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_p2w' -WorkspaceRole root
+        New-ScenarioStep 'negative-p2w-changed-group' 'M-GROUP' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_p2w'
+        New-ScenarioStep 'negative-p2w-changed-root' 'M-WORKSPACE-ROOT' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_p2w' -WorkspaceRole root
+        New-ScenarioStep 'negative-p2w-connect' 'M-CONNECT' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_p2w' -WorkspaceRole root
+        New-ScenarioStep 'negative-project-only' 'N-SYNC-PROJECT-ONLY' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_p2w' -WorkspaceRole root
+        New-ScenarioStep 'negative-w2p-changed-group' 'M-GROUP' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_w2p'
+        New-ScenarioStep 'negative-w2p-changed-root' 'M-WORKSPACE-ROOT' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_w2p' -WorkspaceRole root
+        New-ScenarioStep 'negative-w2p-changed-export' 'M-EXPORT' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_w2p' -WorkspaceRole root
+        New-ScenarioStep 'negative-w2p-changed-disconnect' 'M-DISCONNECT' 'projectToWorkspaceChangedProjectPath' -ScenarioKey 'negative_w2p' -WorkspaceRole root
+        New-ScenarioStep 'negative-w2p-baseline-group' 'M-GROUP' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_w2p'
+        New-ScenarioStep 'negative-w2p-baseline-root' 'M-WORKSPACE-ROOT' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_w2p' -WorkspaceRole root
+        New-ScenarioStep 'negative-w2p-connect' 'M-CONNECT' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_w2p' -WorkspaceRole root
+        New-ScenarioStep 'negative-workspace-only' 'N-SYNC-WORKSPACE-ONLY' 'workspaceToProjectBaselineProjectPath' -ScenarioKey 'negative_w2p' -WorkspaceRole root
     )
     transaction = @(
-        'M-TX-GROUP', 'M-TX-WORKSPACE', 'M-TX-EXPORT', 'M-TX-CONNECT',
-        'M-TX-P2W', 'M-TX-W2P', 'M-TX-DISCONNECT',
-        'M-TX-DELETE-WORKSPACE', 'M-TX-DELETE-GROUP'
+        New-ScenarioStep 'transaction-group' 'M-GROUP' 'transactionProjectPath'
+        New-ScenarioStep 'transaction-root' 'M-WORKSPACE-ROOT' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-language' 'M-WORKSPACE-LANGUAGE' 'transactionProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'transaction-tx-group' 'M-TX-GROUP' 'transactionProjectPath'
+        New-ScenarioStep 'transaction-tx-workspace' 'M-TX-WORKSPACE' 'transactionProjectPath'
+        New-ScenarioStep 'transaction-tx-export' 'M-TX-EXPORT' 'transactionProjectPath' -WorkspaceRole root -RelativeDirectory 'mapping\tx-export' -FileName 'Simulation_DB_Tx'
+        New-ScenarioStep 'transaction-export' 'M-EXPORT' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-disconnect-for-connect' 'M-DISCONNECT' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-tx-connect' 'M-TX-CONNECT' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-connect' 'M-CONNECT' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-tx-p2w' 'M-TX-P2W' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-tx-w2p' 'M-TX-W2P' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-tx-disconnect' 'M-TX-DISCONNECT' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-disconnect-for-delete' 'M-DISCONNECT' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-tx-delete-workspace' 'M-TX-DELETE-WORKSPACE' 'transactionProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'transaction-delete-language' 'M-DELETE-WORKSPACE' 'transactionProjectPath' -WorkspaceRole language
+        New-ScenarioStep 'transaction-delete-root' 'M-DELETE-WORKSPACE' 'transactionProjectPath' -WorkspaceRole root
+        New-ScenarioStep 'transaction-tx-delete-group' 'M-TX-DELETE-GROUP' 'transactionProjectPath'
     )
 }
 $script:Budgets = [ordered]@{
@@ -435,10 +561,44 @@ function Get-GitCommit {
 
 function New-PlanScenarios {
     $scenarios = @()
+    $seenStepIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($scenarioId in $script:ScenarioOrder) {
+        $steps = @()
+        $closedSegments = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        $currentSegment = $null
+        foreach ($sourceStep in @($script:ScenarioSteps[$scenarioId])) {
+            if ($script:CaseIds -notcontains [string]$sourceStep.caseId) {
+                throw "scenario_case_unknown:$($sourceStep.caseId)"
+            }
+            if (-not $seenStepIds.Add([string]$sourceStep.stepId)) {
+                throw "scenario_step_duplicate:$($sourceStep.stepId)"
+            }
+            $scenarioKey = if ([string]::IsNullOrWhiteSpace([string]$sourceStep.scenarioKey)) {
+                $scenarioId
+            }
+            else { [string]$sourceStep.scenarioKey }
+            $projectStateSegment = $scenarioKey + ':' + [string]$sourceStep.projectRole
+            if (-not [string]::Equals([string]$currentSegment, $projectStateSegment, [StringComparison]::Ordinal)) {
+                if ($null -ne $currentSegment) { [void]$closedSegments.Add([string]$currentSegment) }
+                if ($closedSegments.Contains($projectStateSegment)) {
+                    throw "scenario_project_state_segment_noncontiguous:$projectStateSegment"
+                }
+                $currentSegment = $projectStateSegment
+            }
+            $steps += [ordered]@{
+                stepId = [string]$sourceStep.stepId
+                caseId = [string]$sourceStep.caseId
+                projectRole = [string]$sourceStep.projectRole
+                scenarioKey = $scenarioKey
+                invocationLayer = $(if ($script:HarnessConfinementCaseIds -contains [string]$sourceStep.caseId) { 'harness_confinement' } else { 'worker' })
+                workspaceRole = [string]$sourceStep.workspaceRole
+                relativeDirectory = $sourceStep.relativeDirectory
+                fileName = $sourceStep.fileName
+            }
+        }
         $scenarios += [ordered]@{
             scenarioId = $scenarioId
-            caseIds = @($script:ScenarioCases[$scenarioId])
+            steps = $steps
         }
     }
     return $scenarios
@@ -509,13 +669,7 @@ function Invoke-Inventory {
             }
         }
     }
-    finally {
-        if (-not $worker.HasExited) {
-            $worker.StandardInput.Close()
-            if (-not $worker.WaitForExit(5000)) { $worker.Kill($true) }
-        }
-        $worker.Dispose()
-    }
+    finally { Stop-ProbeWorker -Process $worker }
     if ([IO.Directory]::Exists($Inputs.workspaceRoot) -or [IO.File]::Exists($Inputs.workspaceRoot)) {
         throw 'workspace_root_created_during_inventory'
     }
@@ -562,6 +716,7 @@ function Invoke-Inventory {
         scenarios = @(New-PlanScenarios)
         expectedPreconditions = @(
             'all disposable project hashes unchanged since Inventory',
+            'TIA Portal has no user-opened project before each probe worker starts',
             'workspace root remains absent until Apply confirmation',
             'Simulation_DB resolves with exact SimaticML support in every disposable copy'
         )
@@ -693,16 +848,22 @@ function Assert-ApplyGuards {
     return $planEvidence
 }
 
-function Get-ScenarioProjectRole {
-    param([Parameter(Mandatory)] [string] $ScenarioId)
-    switch ($ScenarioId) {
-        'lifecycle' { return 'lifecycleProjectPath' }
-        'mapping' { return 'mappingProjectPath' }
-        'project_to_workspace' { return 'projectToWorkspaceChangedProjectPath' }
-        'workspace_to_project' { return 'workspaceToProjectBaselineProjectPath' }
-        'negative' { return 'negativeProjectPath' }
-        'transaction' { return 'transactionProjectPath' }
-        default { throw "unknown_scenario:$ScenarioId" }
+function Get-ScenarioIdentity {
+    param(
+        [Parameter(Mandatory)] [string] $RunId,
+        [Parameter(Mandatory)] [string] $ScenarioKey
+    )
+    $compactRun = [regex]::Replace($RunId, '[^A-Za-z0-9]', '')
+    if ($compactRun.Length -gt 12) { $compactRun = $compactRun.Substring(0, 12) }
+    if ($compactRun.Length -eq 0) { $compactRun = 'Run' }
+    $compactScenario = [regex]::Replace($ScenarioKey, '[^A-Za-z0-9]', '')
+    if ($compactScenario.Length -gt 12) { $compactScenario = $compactScenario.Substring(0, 12) }
+    if ($compactScenario.Length -eq 0) { $compactScenario = 'Scenario' }
+    $prefix = "CodexVci_${compactRun}_${compactScenario}"
+    return [ordered]@{
+        prefix = $prefix
+        rootWorkspace = $prefix + '_Root'
+        languageWorkspace = $prefix + '_Language'
     }
 }
 
@@ -722,39 +883,50 @@ function New-ApplyWorkerRequest {
     param(
         [Parameter(Mandatory)] [object] $PlanEvidence,
         [Parameter(Mandatory)] [string] $RunId,
-        [Parameter(Mandatory)] [string] $ScenarioId,
-        [Parameter(Mandatory)] [string] $CaseId,
-        [Parameter(Mandatory)] [string] $Role,
+        [Parameter(Mandatory)] [string] $Family,
+        [Parameter(Mandatory)] [object] $Step,
         [Parameter(Mandatory)] [string] $ProjectPath,
         [Parameter(Mandatory)] [string] $WorkspaceRoot,
         [Parameter(Mandatory)] [int] $Sequence
     )
+    $caseId = [string]$Step.caseId
+    $role = [string]$Step.projectRole
+    $scenarioKey = [string]$Step.scenarioKey
     $project = Get-PlanProject -PlanEvidence $PlanEvidence -Role $Role
     $engineeringObject = [ordered]@{
         stableIdentifier = $project.selectedObjectStableIdentifier
         structuralPath = @($PlanEvidence.canonicalPlan.selectedObject.structuralPath)
         fingerprint = $project.selectedObjectFingerprint
     }
-    $synchronizationMode = switch ($CaseId) {
+    $synchronizationMode = switch ($caseId) {
         { $_ -in @('M-P2W', 'M-TX-P2W') } { 'ProjectToWorkspace'; break }
         { $_ -in @('M-W2P', 'M-TX-W2P') } { 'WorkspaceToProject'; break }
+        default { $null }
+    }
+    $identity = Get-ScenarioIdentity -RunId $RunId -ScenarioKey $scenarioKey
+    $workspaceName = switch ([string]$Step.workspaceRole) {
+        'root' { [string]$identity.rootWorkspace; break }
+        'language' { [string]$identity.languageWorkspace; break }
         default { $null }
     }
     $probe = [ordered]@{
         schemaVersion = $script:ProbeSchema
         runId = $RunId
-        sessionId = $ScenarioId
-        scenarioId = $ScenarioId
-        caseId = $CaseId
-        caseInstanceId = "$ScenarioId-$Sequence"
+        sessionId = $Family
+        scenarioId = $scenarioKey
+        caseId = $caseId
+        caseInstanceId = "$([string]$Step.stepId):$Sequence"
         mode = 'Apply'
         workspaceRoot = $WorkspaceRoot
+        workspaceName = $workspaceName
         engineeringObject = $engineeringObject
-        mapping = $project.selectedMapping
-        fileFormat = $(if ($CaseId -in @('M-EXPORT', 'M-TX-EXPORT')) { 'SimaticML' } else { $null })
+        mapping = $null
+        relativeDirectory = $Step.relativeDirectory
+        fileName = $Step.fileName
+        fileFormat = $(if ($caseId -in @('M-EXPORT', 'M-TX-EXPORT')) { 'SimaticML' } else { $null })
         seedRelativePath = 'mapping\export\Simulation_DB.xml'
         synchronizationMode = $synchronizationMode
-        rollbackTransaction = $CaseId.StartsWith('M-TX-', [StringComparison]::Ordinal)
+        rollbackTransaction = $caseId.StartsWith('M-TX-', [StringComparison]::Ordinal)
         maxGroupDepth = [int]$PlanEvidence.canonicalPlan.budgets.maxGroupDepth
         maxGroups = [int]$PlanEvidence.canonicalPlan.budgets.maxGroups
         maxWorkspaces = [int]$PlanEvidence.canonicalPlan.budgets.maxWorkspaces
@@ -863,7 +1035,12 @@ function Get-ApplyResultStopReason {
     if ($null -eq $Result.before -or $null -eq $Result.after) { return 'incomplete_evidence' }
     if ([bool]$Result.uncertainOutcome) { return 'uncertain_mutation' }
     if ([bool]$Result.stopScenarioFamily) { return 'worker_family_stop' }
-    if ([string]$Result.outcome -in @('returned', 'returned_null', 'threw')) {
+    if ([string]::Equals([string]$Result.outcome, 'not_observable', [StringComparison]::Ordinal) -and
+        $CaseId.StartsWith('M-', [StringComparison]::Ordinal) -and
+        -not $CaseId.StartsWith('M-TX-', [StringComparison]::Ordinal)) {
+        return 'required_step_not_observable'
+    }
+    if ([string]$Result.outcome -in @('returned', 'returned_null', 'threw', 'not_observable')) {
         if ($null -eq $Result.canary -or -not [bool]$Result.canary.attempted -or -not [bool]$Result.canary.usable) {
             return 'canary_unusable'
         }
@@ -940,7 +1117,10 @@ function Get-NormalizedCaseRecords {
         $records += [ordered]@{
             sequence = [int]$record.sequence
             scenarioId = [string]$record.scenarioId
+            scenarioKey = [string]$record.scenarioKey
+            stepId = [string]$record.stepId
             caseId = [string]$record.caseId
+            invocationLayer = [string]$record.invocationLayer
             transportOutcome = [string]$record.transport.outcome
             stopReason = $record.stopReason
             workerResult = ConvertTo-NormalizedValue -Value $record.workerResult -Replacements $replacements
@@ -1053,22 +1233,85 @@ function Invoke-Apply {
     try {
         foreach ($scenario in @($PlanEvidence.canonicalPlan.scenarios)) {
             $scenarioId = [string]$scenario.scenarioId
-            $role = Get-ScenarioProjectRole -ScenarioId $scenarioId
-            $projectPath = [string]$Inputs.projectPaths[$role]
             $familyStopped = $false
             $worker = $null
             try {
                 $worker = Start-ProbeWorker -Executable $Inputs.workerExecutable
-                foreach ($caseIdValue in @($scenario.caseIds)) {
+                foreach ($step in @($scenario.steps)) {
                     if ($familyStopped) { break }
-                    $caseId = [string]$caseIdValue
+                    $stepId = [string]$step.stepId
+                    $caseId = [string]$step.caseId
+                    $role = [string]$step.projectRole
+                    $projectPath = [string]$Inputs.projectPaths[$role]
                     $sequence++
+                    if ([string]::Equals(
+                            [string]$step.invocationLayer,
+                            'harness_confinement',
+                            [StringComparison]::Ordinal)) {
+                        $filesystemCaseBefore = Get-FilesystemSnapshot -Root $Inputs.workspaceRoot -MaxFiles $script:Budgets.maxCollectionItems
+                        $sentUtc = [DateTime]::UtcNow
+                        $filesystemCaseAfter = Get-FilesystemSnapshot -Root $Inputs.workspaceRoot -MaxFiles $script:Budgets.maxCollectionItems
+                        $receivedUtc = [DateTime]::UtcNow
+                        $plannedProject = Get-PlanProject -PlanEvidence $PlanEvidence -Role $role
+                        $currentProjectSha256 = try { Get-Sha256File -Path $projectPath } catch { $null }
+                        $stopReason = $null
+                        $transportOutcome = 'harness_confinement'
+                        if (-not [bool]$filesystemCaseBefore.complete -or -not [bool]$filesystemCaseAfter.complete) {
+                            $transportOutcome = 'incomplete_evidence'
+                            $stopReason = 'incomplete_filesystem_evidence'
+                        }
+                        if ($null -eq $currentProjectSha256 -or -not [string]::Equals(
+                                [string]$currentProjectSha256,
+                                [string]$plannedProject.projectSha256,
+                                [StringComparison]::Ordinal)) {
+                            $transportOutcome = 'project_file_changed'
+                            $stopReason = 'project_file_changed'
+                        }
+                        $record = [ordered]@{
+                            schemaVersion = 'vci-phase1-mutation-case-evidence/v1'
+                            terminal = $true
+                            sequence = $sequence
+                            runId = $runId
+                            scenarioId = $scenarioId
+                            scenarioKey = [string]$step.scenarioKey
+                            stepId = $stepId
+                            caseId = $caseId
+                            caseInstanceId = "$stepId`:$sequence"
+                            invocationLayer = 'harness_confinement'
+                            planHash = [string]$PlanEvidence.planHash
+                            project = [ordered]@{ role = $role; projectPath = $projectPath; projectSha256 = $currentProjectSha256 }
+                            transport = [ordered]@{
+                                outcome = $transportOutcome
+                                workerPid = $null
+                                sentUtc = $sentUtc.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
+                                receivedUtc = $receivedUtc.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
+                                elapsedMilliseconds = 0
+                                exitCode = $null
+                            }
+                            filesystemBeforeSnapshotId = [string]$filesystemCaseBefore.snapshotId
+                            filesystemAfterSnapshotId = [string]$filesystemCaseAfter.snapshotId
+                            harnessObservation = [ordered]@{
+                                outcome = 'not_observable'
+                                notObservableReason = 'harness_confinement_rejected_before_worker'
+                                workerRequestSent = $false
+                                rejectedInputCategory = $caseId
+                            }
+                            workerResult = $null
+                            stopReason = $stopReason
+                        }
+                        $writer.WriteLine((ConvertTo-CompactJson -Value $record))
+                        $records += $record
+                        if ($null -ne $stopReason) {
+                            $familyStopped = $true
+                            $stoppedFamilies += [ordered]@{ scenarioId = $scenarioId; stepId = $stepId; caseId = $caseId; reason = $stopReason }
+                        }
+                        continue
+                    }
                     $request = New-ApplyWorkerRequest `
                         -PlanEvidence $PlanEvidence `
                         -RunId $runId `
-                        -ScenarioId $scenarioId `
-                        -CaseId $caseId `
-                        -Role $role `
+                        -Family $scenarioId `
+                        -Step $step `
                         -ProjectPath $projectPath `
                         -WorkspaceRoot $Inputs.workspaceRoot `
                         -Sequence $sequence
@@ -1102,6 +1345,15 @@ function Invoke-Apply {
                         $transportOutcome = 'incomplete_evidence'
                         $stopReason = 'incomplete_filesystem_evidence'
                     }
+                    $plannedProject = Get-PlanProject -PlanEvidence $PlanEvidence -Role $role
+                    $currentProjectSha256 = try { Get-Sha256File -Path $projectPath } catch { $null }
+                    if ($null -eq $currentProjectSha256 -or -not [string]::Equals(
+                            [string]$currentProjectSha256,
+                            [string]$plannedProject.projectSha256,
+                            [StringComparison]::Ordinal)) {
+                        $transportOutcome = 'project_file_changed'
+                        $stopReason = 'project_file_changed'
+                    }
                     $exitCode = if ($worker.HasExited) { $worker.ExitCode } else { $null }
                     $record = [ordered]@{
                         schemaVersion = 'vci-phase1-mutation-case-evidence/v1'
@@ -1109,10 +1361,13 @@ function Invoke-Apply {
                         sequence = $sequence
                         runId = $runId
                         scenarioId = $scenarioId
+                        scenarioKey = [string]$step.scenarioKey
+                        stepId = $stepId
                         caseId = $caseId
                         caseInstanceId = [string]$request.vciMutationProbe.caseInstanceId
+                        invocationLayer = 'worker'
                         planHash = [string]$PlanEvidence.planHash
-                        project = [ordered]@{ role = $role; projectPath = $projectPath; projectSha256 = Get-Sha256File -Path $projectPath }
+                        project = [ordered]@{ role = $role; projectPath = $projectPath; projectSha256 = $currentProjectSha256 }
                         transport = [ordered]@{
                             outcome = $transportOutcome
                             workerPid = $worker.Id
@@ -1123,18 +1378,19 @@ function Invoke-Apply {
                         }
                         filesystemBeforeSnapshotId = [string]$filesystemCaseBefore.snapshotId
                         filesystemAfterSnapshotId = [string]$filesystemCaseAfter.snapshotId
+                        harnessObservation = $null
                         workerResult = $result
                         stopReason = $stopReason
                     }
                     $writer.WriteLine((ConvertTo-CompactJson -Value $record))
                     $records += $record
                     if ($null -ne $result) {
-                        $snapshotBefore += [ordered]@{ scenarioId = $scenarioId; caseId = $caseId; snapshot = $result.before }
-                        $snapshotAfter += [ordered]@{ scenarioId = $scenarioId; caseId = $caseId; snapshot = $result.after }
+                        $snapshotBefore += [ordered]@{ scenarioId = $scenarioId; stepId = $stepId; caseId = $caseId; snapshot = $result.before }
+                        $snapshotAfter += [ordered]@{ scenarioId = $scenarioId; stepId = $stepId; caseId = $caseId; snapshot = $result.after }
                     }
                     if ($null -ne $stopReason) {
                         $familyStopped = $true
-                        $stoppedFamilies += [ordered]@{ scenarioId = $scenarioId; caseId = $caseId; reason = $stopReason }
+                        $stoppedFamilies += [ordered]@{ scenarioId = $scenarioId; stepId = $stepId; caseId = $caseId; reason = $stopReason }
                     }
                 }
             }
@@ -1162,11 +1418,40 @@ function Invoke-Apply {
         -CurrentEvidenceRoot $Inputs.evidenceRoot `
         -CurrentManifestEvidence $manifestEvidence `
         -OtherEvidenceRoot $EquivalentEvidenceRoot)
-    $plannedCount = @($PlanEvidence.canonicalPlan.scenarios | ForEach-Object { @($_.caseIds).Count } | Measure-Object -Sum).Sum
+    $projectHashMismatches = @()
+    foreach ($plannedProject in @($PlanEvidence.canonicalPlan.projects)) {
+        $role = [string]$plannedProject.role
+        $projectPath = [string]$Inputs.projectPaths[$role]
+        $currentHash = try { Get-Sha256File -Path $projectPath } catch { $null }
+        if ($null -eq $currentHash -or -not [string]::Equals(
+                [string]$currentHash,
+                [string]$plannedProject.projectSha256,
+                [StringComparison]::Ordinal)) {
+            $projectHashMismatches += [ordered]@{
+                role = $role
+                expectedSha256 = [string]$plannedProject.projectSha256
+                actualSha256 = $currentHash
+            }
+        }
+    }
+    $originalPath = [string]$Inputs.projectPaths.originalProjectPath
+    $currentOriginalHash = try { Get-Sha256File -Path $originalPath } catch { $null }
+    if ($null -eq $currentOriginalHash -or -not [string]::Equals(
+            [string]$currentOriginalHash,
+            [string]$PlanEvidence.canonicalPlan.originalProject.projectSha256,
+            [StringComparison]::Ordinal)) {
+        $projectHashMismatches += [ordered]@{
+            role = 'originalProjectPath'
+            expectedSha256 = [string]$PlanEvidence.canonicalPlan.originalProject.projectSha256
+            actualSha256 = $currentOriginalHash
+        }
+    }
+    $plannedCount = @($PlanEvidence.canonicalPlan.scenarios | ForEach-Object { @($_.steps).Count } | Measure-Object -Sum).Sum
     $overallPass = $stoppedFamilies.Count -eq 0 -and
         $records.Count -eq $plannedCount -and
         [bool]$filesystemAfter.complete -and
-        $mismatches.Count -eq 0
+        $mismatches.Count -eq 0 -and
+        $projectHashMismatches.Count -eq 0
     $summary = [ordered]@{
         schemaVersion = 'vci-phase1-mutation-summary/v1'
         runId = $runId
@@ -1174,8 +1459,10 @@ function Invoke-Apply {
         workspaceRoot = $Inputs.workspaceRoot
         plannedCaseCount = $plannedCount
         requestedCaseCount = $records.Count
+        workerRequestCount = @($records | Where-Object { [string]$_.invocationLayer -eq 'worker' }).Count
         stoppedFamilies = $stoppedFamilies
         normalizedMismatches = $mismatches
+        projectHashMismatches = $projectHashMismatches
         filesystemEvidenceComplete = [bool]$filesystemAfter.complete
         overallPass = $overallPass
     }
@@ -1219,6 +1506,7 @@ function Get-DescribeDocument {
         requiresSeparateLiveAuthorization = $true
         safetyRules = @(
             'Original project is never opened.',
+            'Inventory and Apply require TIA Portal to have no project open so the worker owns disposable project rebinding.',
             'Inventory invokes only P-INVENTORY and leaves the workspace root absent.',
             'Apply requires exact plan hash, acknowledgement, explicit mutation switch, and confirmation.',
             'No project persistence, archive, build, download, online, or commissioning operation is permitted.'

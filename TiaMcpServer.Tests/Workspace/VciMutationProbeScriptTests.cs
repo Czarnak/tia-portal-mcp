@@ -61,6 +61,9 @@ public sealed class VciMutationProbeScriptTests
         Assert.Contains(
             root.GetProperty("stopConditions").EnumerateArray(),
             value => value.GetString()!.Contains("uncertain", StringComparison.Ordinal));
+        Assert.Contains(
+            root.GetProperty("safetyRules").EnumerateArray(),
+            value => value.GetString()!.Contains("no project open", StringComparison.Ordinal));
         Assert.Contains("retain", root.GetProperty("retentionPolicy").GetString(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(
             "Describe did not open or create any TIA process or filesystem path.",
@@ -188,6 +191,8 @@ public sealed class VciMutationProbeScriptTests
             .Select(line => JsonDocument.Parse(line).RootElement.Clone())
             .ToArray();
         Assert.Equal(6, requests.Length);
+        Assert.Single(
+            requests.Select(request => request.GetProperty("fakeWorkerInstanceId").GetString()).Distinct());
         Assert.All(requests, request =>
         {
             Assert.Equal("probe_vci_mutation_contract", request.GetProperty("method").GetString());
@@ -224,7 +229,7 @@ public sealed class VciMutationProbeScriptTests
     }
 
     [Fact]
-    public void Apply_InvokesEveryPlannedCaseOnceInOrderAndWritesTheCompleteEvidenceBundle()
+    public void Apply_InvokesEveryPlannedStepInOrderAndWritesTheCompleteEvidenceBundle()
     {
         using var fixture = new HarnessFixture();
         AssertSuccess(fixture.Run("Inventory"));
@@ -233,15 +238,81 @@ public sealed class VciMutationProbeScriptTests
         var result = fixture.RunApply();
 
         AssertSuccess(result);
-        var expectedCases = fixture.PlannedCases;
+        var expectedSteps = fixture.PlannedSteps;
+        var expectedCases = expectedSteps.Select(step => step.CaseId).ToArray();
+        var expectedWorkerSteps = expectedSteps
+            .Where(step => step.InvocationLayer == "worker")
+            .ToArray();
         var requests = File.ReadAllLines(fixture.WorkerLogPath)
             .Select(line => JsonDocument.Parse(line).RootElement.Clone())
             .ToArray();
-        Assert.Equal(expectedCases, requests.Select(request =>
+        Assert.Equal(expectedWorkerSteps.Select(step => step.CaseId), requests.Select(request =>
             request.GetProperty("vciMutationProbe").GetProperty("caseId").GetString()));
-        Assert.Equal(expectedCases.Length, requests.Length);
-        Assert.All(expectedCases, caseId => Assert.Single(requests.Where(request =>
-            request.GetProperty("vciMutationProbe").GetProperty("caseId").GetString() == caseId)));
+        Assert.Equal(expectedWorkerSteps.Length, requests.Length);
+        Assert.All(
+            expectedSteps,
+            step => Assert.Single(expectedSteps.Where(candidate => candidate.StepId == step.StepId)));
+        Assert.All(
+            VciMutationProbeContract.CaseIds.Where(caseId => caseId != "P-INVENTORY"),
+            caseId => Assert.Contains(expectedSteps, step => step.CaseId == caseId));
+        Assert.Equal(
+            expectedWorkerSteps.Select(step => step.StepId),
+            requests.Select(request => request.GetProperty("vciMutationProbe").GetProperty("caseInstanceId").GetString()!
+                .Split(':', 2, StringSplitOptions.None)[0]));
+        Assert.All(requests, request =>
+            Assert.Equal(JsonValueKind.Null, request.GetProperty("vciMutationProbe").GetProperty("mapping").ValueKind));
+        foreach (var family in expectedWorkerSteps.GroupBy(step => step.Family, StringComparer.Ordinal))
+        {
+            var instanceIds = requests
+                .Where(request => request.GetProperty("vciMutationProbe").GetProperty("sessionId").GetString() == family.Key)
+                .Select(request => request.GetProperty("fakeWorkerInstanceId").GetString())
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            Assert.Single(instanceIds);
+        }
+        Assert.Equal(
+            expectedWorkerSteps.Select(step => step.Family).Distinct(StringComparer.Ordinal).Count(),
+            requests.Select(request => request.GetProperty("fakeWorkerInstanceId").GetString()).Distinct(StringComparer.Ordinal).Count());
+        Assert.DoesNotContain(
+            requests,
+            request => request.GetProperty("vciMutationProbe").GetProperty("caseId").GetString() is
+                "N-WORKSPACE-PATH-RELATIVE" or
+                "N-WORKSPACE-PATH-MISSING-PARENT" or
+                "N-WORKSPACE-PATH-CONFLICT" or
+                "N-WORKSPACE-PATH-FILE" or
+                "N-FILENAME-ABSOLUTE" or
+                "N-FILENAME-TRAVERSAL");
+
+        var p2wRequest = Assert.Single(requests.Where(request =>
+            request.GetProperty("vciMutationProbe").GetProperty("caseId").GetString() == "M-P2W"));
+        var w2pRequest = Assert.Single(requests.Where(request =>
+            request.GetProperty("vciMutationProbe").GetProperty("caseId").GetString() == "M-W2P"));
+        var p2wProbe = p2wRequest.GetProperty("vciMutationProbe");
+        var w2pProbe = w2pRequest.GetProperty("vciMutationProbe");
+        Assert.NotEqual(p2wProbe.GetProperty("workspaceName").GetString(), w2pProbe.GetProperty("workspaceName").GetString());
+        Assert.Equal("mapping\\expected", p2wProbe.GetProperty("relativeDirectory").GetString());
+        Assert.Equal("Simulation_DB_Changed", p2wProbe.GetProperty("fileName").GetString());
+        Assert.Equal("mapping\\expected", w2pProbe.GetProperty("relativeDirectory").GetString());
+        Assert.Equal("Simulation_DB_Baseline", w2pProbe.GetProperty("fileName").GetString());
+
+        var projectToWorkspace = expectedSteps.Where(step => step.Family == "project_to_workspace").ToArray();
+        Assert.Equal(
+            new[]
+            {
+                "workspaceToProjectBaselineProjectPath", "workspaceToProjectBaselineProjectPath",
+                "workspaceToProjectBaselineProjectPath", "workspaceToProjectBaselineProjectPath",
+                "projectToWorkspaceChangedProjectPath", "projectToWorkspaceChangedProjectPath",
+                "projectToWorkspaceChangedProjectPath", "projectToWorkspaceChangedProjectPath",
+                "projectToWorkspaceChangedProjectPath", "projectToWorkspaceChangedProjectPath",
+                "projectToWorkspaceChangedProjectPath",
+            },
+            projectToWorkspace.Select(step => step.ProjectRole));
+        Assert.Equal("M-P2W", projectToWorkspace[^1].CaseId);
+        Assert.Contains(expectedSteps, step => step.Family == "negative" && step.CaseId == "N-SYNC-PROJECT-ONLY");
+        Assert.Contains(expectedSteps, step => step.Family == "negative" && step.CaseId == "N-SYNC-WORKSPACE-ONLY");
+        Assert.All(
+            VciMutationProbeContract.CaseIds.Where(caseId => caseId.StartsWith("M-TX-", StringComparison.Ordinal)),
+            caseId => Assert.Single(expectedSteps.Where(step => step.CaseId == caseId)));
 
         Assert.Equal(
             new[]
@@ -262,20 +333,35 @@ public sealed class VciMutationProbeScriptTests
             .ToArray();
         Assert.Equal(expectedCases.Length, records.Length);
         Assert.Equal(expectedCases, records.Select(record => record.GetProperty("caseId").GetString()));
+        Assert.Equal(expectedSteps.Select(step => step.StepId), records.Select(record => record.GetProperty("stepId").GetString()));
         Assert.All(records, record =>
         {
             Assert.True(record.GetProperty("terminal").GetBoolean());
-            Assert.Equal("response", record.GetProperty("transport").GetProperty("outcome").GetString());
             Assert.True(record.GetProperty("filesystemBeforeSnapshotId").GetString()!.Length == 64);
             Assert.True(record.GetProperty("filesystemAfterSnapshotId").GetString()!.Length == 64);
-            Assert.True(record.GetProperty("workerResult").GetProperty("canary").GetProperty("attempted").GetBoolean());
-            Assert.True(record.GetProperty("workerResult").GetProperty("canary").GetProperty("usable").GetBoolean());
+            if (record.GetProperty("invocationLayer").GetString() == "harness_confinement")
+            {
+                Assert.Equal("harness_confinement", record.GetProperty("transport").GetProperty("outcome").GetString());
+                Assert.Equal(JsonValueKind.Null, record.GetProperty("workerResult").ValueKind);
+                Assert.False(record.GetProperty("harnessObservation").GetProperty("workerRequestSent").GetBoolean());
+                Assert.Equal(
+                    "harness_confinement_rejected_before_worker",
+                    record.GetProperty("harnessObservation").GetProperty("notObservableReason").GetString());
+            }
+            else
+            {
+                Assert.Equal("response", record.GetProperty("transport").GetProperty("outcome").GetString());
+                Assert.Equal(JsonValueKind.Null, record.GetProperty("harnessObservation").ValueKind);
+                Assert.True(record.GetProperty("workerResult").GetProperty("canary").GetProperty("attempted").GetBoolean());
+                Assert.True(record.GetProperty("workerResult").GetProperty("canary").GetProperty("usable").GetBoolean());
+            }
         });
 
         using var summary = JsonDocument.Parse(File.ReadAllText(fixture.SummaryPath));
         Assert.True(summary.RootElement.GetProperty("overallPass").GetBoolean());
         Assert.Equal(expectedCases.Length, summary.RootElement.GetProperty("requestedCaseCount").GetInt32());
         Assert.Empty(summary.RootElement.GetProperty("stoppedFamilies").EnumerateArray());
+        Assert.Empty(summary.RootElement.GetProperty("projectHashMismatches").EnumerateArray());
     }
 
     [Fact]
@@ -319,6 +405,8 @@ public sealed class VciMutationProbeScriptTests
     [InlineData("malformed", "protocol_error")]
     [InlineData("incomplete", "incomplete_evidence")]
     [InlineData("uncertain", "uncertain_mutation")]
+    [InlineData("not_observable", "required_step_not_observable")]
+    [InlineData("project_file_changed", "project_file_changed")]
     public void Apply_FlushesTerminalFailureStopsOnlyItsFamilyAndNeverInvokesTheCaseAgain(
         string behavior,
         string expectedOutcome)
@@ -335,15 +423,16 @@ public sealed class VciMutationProbeScriptTests
             .ToArray();
         Assert.Equal("M-CANARY", records[0].GetProperty("caseId").GetString());
         var failed = Assert.Single(records.Where(record =>
-            record.GetProperty("caseId").GetString() == "M-GROUP"));
+            record.GetProperty("stepId").GetString() == "lifecycle-group"));
         Assert.Equal(expectedOutcome, failed.GetProperty("transport").GetProperty("outcome").GetString());
 
-        var requestedCases = File.ReadAllLines(fixture.WorkerLogPath)
-            .Select(line => JsonDocument.Parse(line).RootElement.GetProperty("vciMutationProbe").GetProperty("caseId").GetString())
+        var requestedSteps = File.ReadAllLines(fixture.WorkerLogPath)
+            .Select(line => JsonDocument.Parse(line).RootElement.GetProperty("vciMutationProbe").GetProperty("caseInstanceId").GetString()!
+                .Split(':', 2, StringSplitOptions.None)[0])
             .ToArray();
-        Assert.Single(requestedCases.Where(caseId => caseId == "M-GROUP"));
-        Assert.DoesNotContain("M-WORKSPACE-ROOT", requestedCases);
-        Assert.Contains("M-EXPORT", requestedCases);
+        Assert.Single(requestedSteps.Where(stepId => stepId == "lifecycle-group"));
+        Assert.DoesNotContain("lifecycle-root", requestedSteps);
+        Assert.Contains("mapping-export", requestedSteps);
 
         using var summary = JsonDocument.Parse(File.ReadAllText(fixture.SummaryPath));
         var stopped = Assert.Single(summary.RootElement.GetProperty("stoppedFamilies").EnumerateArray());
@@ -364,14 +453,15 @@ public sealed class VciMutationProbeScriptTests
         var records = File.ReadAllLines(fixture.CasesPath)
             .Select(line => JsonDocument.Parse(line).RootElement.Clone())
             .ToArray();
-        var timedOut = Assert.Single(records.Where(record => record.GetProperty("caseId").GetString() == "M-GROUP"));
+        var timedOut = Assert.Single(records.Where(record => record.GetProperty("stepId").GetString() == "lifecycle-group"));
         Assert.Equal("timed_out", timedOut.GetProperty("transport").GetProperty("outcome").GetString());
-        var requestedCases = File.ReadAllLines(fixture.WorkerLogPath)
-            .Select(line => JsonDocument.Parse(line).RootElement.GetProperty("vciMutationProbe").GetProperty("caseId").GetString())
+        var requestedSteps = File.ReadAllLines(fixture.WorkerLogPath)
+            .Select(line => JsonDocument.Parse(line).RootElement.GetProperty("vciMutationProbe").GetProperty("caseInstanceId").GetString()!
+                .Split(':', 2, StringSplitOptions.None)[0])
             .ToArray();
-        Assert.Single(requestedCases.Where(caseId => caseId == "M-GROUP"));
-        Assert.DoesNotContain("M-WORKSPACE-ROOT", requestedCases);
-        Assert.Contains("M-EXPORT", requestedCases);
+        Assert.Single(requestedSteps.Where(stepId => stepId == "lifecycle-group"));
+        Assert.DoesNotContain("lifecycle-root", requestedSteps);
+        Assert.Contains("mapping-export", requestedSteps);
     }
 
     [Fact]
@@ -512,15 +602,20 @@ public sealed class VciMutationProbeScriptTests
         public string PlanPath => Path.Combine(RunEvidenceRoot, "plan.json");
         public string CasesPath => Path.Combine(RunEvidenceRoot, "cases.jsonl");
         public string SummaryPath => Path.Combine(RunEvidenceRoot, "summary.json");
-        public string[] PlannedCases
+        public PlannedStep[] PlannedSteps
         {
             get
             {
                 using var plan = JsonDocument.Parse(File.ReadAllText(PlanPath));
                 return plan.RootElement.GetProperty("canonicalPlan").GetProperty("scenarios")
                     .EnumerateArray()
-                    .SelectMany(scenario => scenario.GetProperty("caseIds").EnumerateArray())
-                    .Select(caseId => caseId.GetString()!)
+                    .SelectMany(scenario => scenario.GetProperty("steps").EnumerateArray()
+                        .Select(step => new PlannedStep(
+                            scenario.GetProperty("scenarioId").GetString()!,
+                            step.GetProperty("stepId").GetString()!,
+                            step.GetProperty("caseId").GetString()!,
+                            step.GetProperty("projectRole").GetString()!,
+                            step.GetProperty("invocationLayer").GetString()!)))
                     .ToArray();
             }
         }
@@ -647,14 +742,17 @@ public sealed class VciMutationProbeScriptTests
             #Requires -Version 7
             Set-StrictMode -Version Latest
             $ErrorActionPreference = 'Stop'
+            $workerInstanceId = [Guid]::NewGuid().ToString('N')
             while ($null -ne ($line = [Console]::In.ReadLine())) {
                 $request = $line | ConvertFrom-Json -Depth 100
+                $request | Add-Member -NotePropertyName fakeWorkerInstanceId -NotePropertyValue $workerInstanceId
                 Add-Content -LiteralPath $env:VCI_MUTATION_TEST_WORKER_LOG -Value ($request | ConvertTo-Json -Compress -Depth 100) -Encoding utf8
                 $projectName = [IO.Path]::GetFileNameWithoutExtension([string]$request.projectPath)
                 $caseId = [string]$request.vciMutationProbe.caseId
+                $caseInstanceId = [string]$request.vciMutationProbe.caseInstanceId
                 $isInventory = $caseId -eq 'P-INVENTORY'
                 $behavior = [string]$env:VCI_MUTATION_TEST_BEHAVIOR
-                if (-not $isInventory -and $caseId -eq 'M-GROUP') {
+                if (-not $isInventory -and $caseInstanceId.StartsWith('lifecycle-group:', [StringComparison]::Ordinal)) {
                     if ($behavior -eq 'timeout') { Start-Sleep -Seconds 30 }
                     if ($behavior -eq 'process_lost') { exit 73 }
                     if ($behavior -eq 'malformed') {
@@ -704,6 +802,9 @@ public sealed class VciMutationProbeScriptTests
                 }
                 $outcome = 'returned'
                 $exception = $null
+                if ($behavior -eq 'not_observable' -and $caseInstanceId.StartsWith('lifecycle-group:', [StringComparison]::Ordinal)) {
+                    $outcome = 'not_observable'
+                }
                 if (-not $isInventory -and $behavior -eq 'semantic_variant' -and $caseId -eq 'M-CANARY') {
                     $outcome = 'threw'
                     $exception = [ordered]@{
@@ -713,8 +814,12 @@ public sealed class VciMutationProbeScriptTests
                         innerException = $null
                     }
                 }
-                $incomplete = -not $isInventory -and $behavior -eq 'incomplete' -and $caseId -eq 'M-GROUP'
-                $uncertain = -not $isInventory -and $behavior -eq 'uncertain' -and $caseId -eq 'M-GROUP'
+                $isInjectedStep = -not $isInventory -and $caseInstanceId.StartsWith('lifecycle-group:', [StringComparison]::Ordinal)
+                $incomplete = $isInjectedStep -and $behavior -eq 'incomplete'
+                $uncertain = $isInjectedStep -and $behavior -eq 'uncertain'
+                if ($isInjectedStep -and $behavior -eq 'project_file_changed') {
+                    [IO.File]::AppendAllText([string]$request.projectPath, 'changed-by-fake-worker')
+                }
                 $isTransaction = $caseId.StartsWith('M-TX-', [StringComparison]::Ordinal)
                 $result = [ordered]@{
                     schemaVersion = 'vci-mutation-probe/v1'
@@ -772,7 +877,7 @@ public sealed class VciMutationProbeScriptTests
                     }
                     uncertainOutcome = $uncertain
                     stopScenarioFamily = $uncertain
-                    notObservableReason = $null
+                    notObservableReason = $(if ($outcome -eq 'not_observable') { 'required_fixture_state_not_available' } else { $null })
                     omissions = @()
                 }
                 $response = [ordered]@{
@@ -787,4 +892,11 @@ public sealed class VciMutationProbeScriptTests
     }
 
     private sealed record ScriptResult(int ExitCode, string StandardOutput, string StandardError);
+
+    public sealed record PlannedStep(
+        string Family,
+        string StepId,
+        string CaseId,
+        string ProjectRole,
+        string InvocationLayer);
 }
