@@ -824,8 +824,8 @@ function Assert-JsonNullableString {
         [Parameter(Mandatory)] [string] $Label
     )
 
-    if ($null -ne $Value -and $Value -isnot [string]) {
-        throw "malformed_worker_payload: $Label must be null or a string."
+    if ($Value -isnot [string]) {
+        throw "malformed_worker_payload: $Label must be a string when present."
     }
 }
 
@@ -1174,6 +1174,65 @@ function Assert-VciProbePayload {
         Assert-VciProbeOmission -Value $omission -Label "payload.omissions[$index]"
         $index++
     }
+
+    $hasReturn = $Value.Contains('return')
+    $hasSnapshot = $Value.Contains('snapshot')
+    $hasException = $Value.Contains('exception')
+    $hasRepeatability = $Value.Contains('repeatability')
+    $hasNotObservableReason = $Value.Contains('notObservableReason')
+    switch ([string] $Value.outcome) {
+        'not_observable' {
+            if (-not $hasNotObservableReason -or
+                [string]::IsNullOrWhiteSpace([string] $Value.notObservableReason)) {
+                throw 'malformed_worker_payload: not_observable outcome requires a non-empty reason.'
+            }
+            if ($hasReturn -or $hasSnapshot -or $hasException -or $hasRepeatability) {
+                throw 'malformed_worker_payload: not_observable outcome contains a contradictory result branch.'
+            }
+        }
+        'threw' {
+            if (-not $hasException) {
+                throw 'malformed_worker_payload: threw outcome requires exception evidence.'
+            }
+            if ($hasReturn -or $hasSnapshot -or $hasRepeatability -or $hasNotObservableReason) {
+                throw 'malformed_worker_payload: threw outcome contains a contradictory result branch.'
+            }
+        }
+        'returned_null' {
+            if (-not $hasReturn -or -not $Value.return.isNull) {
+                throw 'malformed_worker_payload: returned_null outcome requires a null return observation.'
+            }
+            if ($hasSnapshot -or $hasException -or $hasRepeatability -or $hasNotObservableReason) {
+                throw 'malformed_worker_payload: returned_null outcome contains a contradictory result branch.'
+            }
+        }
+        'returned' {
+            if ($hasException -or $hasNotObservableReason) {
+                throw 'malformed_worker_payload: returned outcome contains contradictory exception or reason evidence.'
+            }
+            if ($Value.caseId -in @('R-SVC', 'R-GRP', 'R-WS', 'R-MAP', 'R-FMT', 'R-CANARY')) {
+                if (-not $hasSnapshot -or $hasReturn -or $hasRepeatability) {
+                    throw 'malformed_worker_payload: returned snapshot case requires only snapshot evidence.'
+                }
+            }
+            elseif ($Value.caseId -eq 'R-REP') {
+                if (-not $hasRepeatability -or $hasReturn -or $hasSnapshot) {
+                    throw 'malformed_worker_payload: returned repeatability case requires only repeatability evidence.'
+                }
+            }
+            elseif ($Value.caseId.StartsWith('N-', [StringComparison]::Ordinal)) {
+                if (-not $hasReturn -or $Value.return.isNull -or $hasSnapshot -or $hasRepeatability) {
+                    throw 'malformed_worker_payload: returned observation case requires only a non-null return observation.'
+                }
+            }
+            else {
+                throw "malformed_worker_payload: returned outcome has unsupported case '$($Value.caseId)'."
+            }
+        }
+        default {
+            throw "malformed_worker_payload: worker outcome '$($Value.outcome)' is not a worker outcome."
+        }
+    }
 }
 
 function Test-WorkerPayload {
@@ -1487,6 +1546,7 @@ function Get-FilesystemSnapshot {
                 try {
                     $attributes = [IO.File]::GetAttributes($entry)
                     if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                        $complete = $false
                         $omissions.Add([ordered]@{ root = $root; path = $entry; reason = 'reparse_point_not_followed' })
                         continue
                     }
@@ -1652,6 +1712,62 @@ function Assert-TerminalCoverage {
     }
 }
 
+function Assert-SnapshotAfterCoverage {
+    param(
+        [Parameter(Mandatory)] [object[]] $Records,
+        [Parameter(Mandatory)] [string] $SessionId,
+        [Parameter(Mandatory)] [string[]] $ExpectedCaseInstanceIds
+    )
+
+    $requiredCaseIds = @('R-SVC', 'R-GRP', 'R-WS', 'R-MAP')
+    if ($ExpectedCaseInstanceIds.Count -ne $requiredCaseIds.Count -or
+        @($ExpectedCaseInstanceIds | Where-Object { [string]::IsNullOrWhiteSpace([string] $_) }).Count -gt 0) {
+        throw 'missing_snapshot_after_case_instance_id: the expected after-canary identifier set is incomplete.'
+    }
+    if (@($ExpectedCaseInstanceIds | Group-Object | Where-Object { $_.Count -ne 1 }).Count -gt 0) {
+        throw 'duplicate_snapshot_after_case_instance_id: the expected after-canary identifier set contains duplicates.'
+    }
+
+    $sessionRecords = @($Records | Where-Object { $_.sessionId -eq $SessionId })
+    if (@($sessionRecords | Where-Object { [string]::IsNullOrWhiteSpace([string] $_.caseInstanceId) }).Count -gt 0) {
+        throw 'missing_snapshot_after_case_instance_id: an after-canary record has no identifier.'
+    }
+    $actualIdCounts = @{}
+    foreach ($record in $sessionRecords) {
+        $caseInstanceId = [string] $record.caseInstanceId
+        if ($actualIdCounts.ContainsKey($caseInstanceId)) {
+            throw 'duplicate_snapshot_after_case_instance_id: a session contains duplicate after-canary identifiers.'
+        }
+        $actualIdCounts[$caseInstanceId] = 1
+    }
+
+    for ($index = 0; $index -lt $requiredCaseIds.Count; $index++) {
+        $caseId = $requiredCaseIds[$index]
+        $caseRecords = @($sessionRecords | Where-Object { $_.caseId -eq $caseId })
+        if ($caseRecords.Count -eq 0 -or -not $actualIdCounts.ContainsKey($ExpectedCaseInstanceIds[$index])) {
+            throw "missing_snapshot_after_case_instance_id: session '$SessionId' lacks '$caseId' with its expected identifier."
+        }
+        if ($caseRecords.Count -ne 1 -or $caseRecords[0].caseInstanceId -cne $ExpectedCaseInstanceIds[$index]) {
+            throw "unexpected_snapshot_after_case_instance_id: session '$SessionId' has unexpected evidence for '$caseId'."
+        }
+    }
+    for ($index = 0; $index -lt $requiredCaseIds.Count; $index++) {
+        if ($sessionRecords[$index].caseId -cne $requiredCaseIds[$index] -or
+            $sessionRecords[$index].caseInstanceId -cne $ExpectedCaseInstanceIds[$index]) {
+            throw "unexpected_snapshot_after_case_instance_id: session '$SessionId' after-canary evidence is out of order."
+        }
+    }
+    foreach ($record in $sessionRecords) {
+        if ($record.caseId -notin $requiredCaseIds -or
+            $record.caseInstanceId -notin $ExpectedCaseInstanceIds) {
+            throw "unexpected_snapshot_after_case_instance_id: session '$SessionId' contains unexpected after-canary evidence."
+        }
+        if ($record.schemaVersion -ne 'vci-phase1-read-case-evidence/v1' -or -not $record.terminal) {
+            throw 'snapshot_after_schema_mismatch: after-canary evidence is not a terminal case record.'
+        }
+    }
+}
+
 function Compare-SessionRecords {
     param([Parameter(Mandatory)] [object[]] $Records)
 
@@ -1769,6 +1885,7 @@ function Invoke-ProbeSession {
     $matrixRecords = [Collections.Generic.List[object]]::new()
     $afterCanaryRecords = [Collections.Generic.List[object]]::new()
     $expectedCaseInstanceIds = [Collections.Generic.List[string]]::new()
+    $expectedAfterCanaryCaseInstanceIds = [Collections.Generic.List[string]]::new()
     $snapshotFailure = $null
     try {
         $worker = Start-JsonLineProcess -Executable $WorkerExecutable -Arguments $WorkerArguments
@@ -1831,12 +1948,18 @@ function Invoke-ProbeSession {
             throw 'missing_case_instance_id: R-CANARY was not the final case-matrix terminal record.'
         }
 
-        foreach ($definition in (New-SnapshotDefinitions -Phase 'after-canary')) {
-            $request = New-ProbeWorkerRequest `
-                -RunId $RunId `
-                -SessionId $SessionId `
-                -ProjectPath $ProjectPath `
-                -Definition $definition
+        $afterCanaryRequests = @(
+            foreach ($definition in (New-SnapshotDefinitions -Phase 'after-canary')) {
+                $request = New-ProbeWorkerRequest `
+                    -RunId $RunId `
+                    -SessionId $SessionId `
+                    -ProjectPath $ProjectPath `
+                    -Definition $definition
+                $expectedAfterCanaryCaseInstanceIds.Add([string] $request.vciProbe.caseInstanceId)
+                $request
+            }
+        )
+        foreach ($request in $afterCanaryRequests) {
             $record = Invoke-ProbeRequest `
                 -Worker $worker `
                 -Request $request `
@@ -1865,6 +1988,7 @@ function Invoke-ProbeSession {
             }
             afterCanaryRecords = $afterCanaryRecords.ToArray()
             expectedCaseInstanceIds = $expectedCaseInstanceIds.ToArray()
+            expectedAfterCanaryCaseInstanceIds = $expectedAfterCanaryCaseInstanceIds.ToArray()
             workspaceRoots = $workspaceRoots
             filesystemBefore = $filesystemBefore
             failure = $snapshotFailure
@@ -1989,6 +2113,7 @@ $snapshotBeforeEntries = [Collections.Generic.List[object]]::new()
 $snapshotAfterEntries = [Collections.Generic.List[object]]::new()
 $afterCanaryRecords = [Collections.Generic.List[object]]::new()
 $expectedCaseInstanceIdsBySession = @{}
+$expectedAfterCanaryCaseInstanceIdsBySession = @{}
 $workspaceRoots = @()
 $filesystemBefore = $null
 $filesystemAfter = $null
@@ -2008,6 +2133,7 @@ try {
             -CaptureFilesystemBefore ($sessionId -eq 'session-1')
         $sessionResults.Add($sessionResult)
         $expectedCaseInstanceIdsBySession[$sessionId] = @($sessionResult.expectedCaseInstanceIds)
+        $expectedAfterCanaryCaseInstanceIdsBySession[$sessionId] = @($sessionResult.expectedAfterCanaryCaseInstanceIds)
         $snapshotBeforeEntries.Add($sessionResult.snapshotBefore)
         $snapshotAfterEntries.Add($sessionResult.snapshotAfter)
         foreach ($record in @($sessionResult.afterCanaryRecords)) {
@@ -2123,6 +2249,26 @@ foreach ($record in $caseRecords) {
     }
 }
 
+$snapshotAfterCoverageComplete = $true
+foreach ($sessionId in $sessionIds) {
+    try {
+        [string[]] $expectedAfterCanaryCaseInstanceIds = if ($expectedAfterCanaryCaseInstanceIdsBySession.ContainsKey($sessionId)) {
+            @($expectedAfterCanaryCaseInstanceIdsBySession[$sessionId])
+        }
+        else {
+            @()
+        }
+        Assert-SnapshotAfterCoverage `
+            -Records $afterCanaryRecords.ToArray() `
+            -SessionId $sessionId `
+            -ExpectedCaseInstanceIds $expectedAfterCanaryCaseInstanceIds
+    }
+    catch {
+        $snapshotAfterCoverageComplete = $false
+        $failureReasons.Add($_.Exception.Message)
+    }
+}
+
 $normalizedMismatches = @(Compare-SessionRecords -Records $caseRecords)
 $snapshotMismatches = @(Compare-SessionRecords -Records $afterCanaryRecords.ToArray())
 foreach ($mismatch in $snapshotMismatches) {
@@ -2159,6 +2305,7 @@ $evidenceComplete = $sessionResults.Count -eq 2 -and
     $snapshotBeforeEntries.Count -eq 2 -and
     $snapshotAfterEntries.Count -eq 2 -and
     $terminalCoverageComplete -and
+    $snapshotAfterCoverageComplete -and
     $filesystemBefore.complete -and
     $filesystemAfter.complete
 if (-not $evidenceComplete) {

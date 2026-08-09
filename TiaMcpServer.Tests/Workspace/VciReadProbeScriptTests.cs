@@ -149,6 +149,23 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
+    public void WorkerPayloadValidator_EnforcesExclusiveCaseSpecificOutcomeBranchesAndOmittedNulls()
+    {
+        var result = RunWorkerPayloadOutcomeShapeSmokeTest();
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
+        Assert.Equal(
+            new[]
+            {
+                true, true, true, true, true, true, true,
+                false, false, false, false, false,
+            },
+            outcomes);
+    }
+
+    [Fact]
     public void WorkspaceRootDiscovery_FailsClosedWhenAnyDiscoveredRootIsMissing()
     {
         var result = RunWorkspaceRootDiscoverySmokeTest();
@@ -161,6 +178,41 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
+    public void FilesystemSnapshot_NestedReparsePointMakesEvidenceAndOverallGateIncomplete()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"vci-task8-reparse-{Guid.NewGuid():N}");
+        var workspace = Path.Combine(root, "workspace");
+        var target = Path.Combine(root, "target");
+        var nestedLink = Path.Combine(workspace, "nested-link");
+        Directory.CreateDirectory(workspace);
+        Directory.CreateDirectory(target);
+        File.WriteAllText(Path.Combine(workspace, "ordinary.txt"), "ordinary", Encoding.ASCII);
+        File.WriteAllText(Path.Combine(target, "must-not-be-hashed.txt"), "outside", Encoding.ASCII);
+
+        try
+        {
+            CreateDirectoryJunction(nestedLink, target);
+            var result = RunFilesystemSnapshotSmokeTest(workspace);
+
+            Assert.True(result.ExitCode == 0, result.StandardError);
+            using var document = JsonDocument.Parse(result.StandardOutput);
+            var evidence = document.RootElement;
+            Assert.False(evidence.GetProperty("snapshotComplete").GetBoolean());
+            Assert.True(evidence.GetProperty("reparseOmissionObserved").GetBoolean());
+            Assert.False(evidence.GetProperty("invariantComplete").GetBoolean());
+            Assert.False(evidence.GetProperty("overallGate").GetBoolean());
+        }
+        finally
+        {
+            if (Directory.Exists(nestedLink))
+            {
+                Directory.Delete(nestedLink);
+            }
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void TerminalCoverage_RequiresTheExactExpectedCaseInstanceIdSet()
     {
         var result = RunTerminalCoverageSmokeTest();
@@ -169,6 +221,17 @@ public sealed class VciReadProbeScriptTests
         using var document = JsonDocument.Parse(result.StandardOutput);
         var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
         Assert.Equal(new[] { true, true, true, true }, outcomes);
+    }
+
+    [Fact]
+    public void SnapshotAfterCoverage_RequiresExactPositiveReadCaseInstanceIds()
+    {
+        var result = RunSnapshotAfterCoverageSmokeTest();
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
+        Assert.Equal(new[] { true, true, true, true, true }, outcomes);
     }
 
     [Fact]
@@ -552,6 +615,7 @@ public sealed class VciReadProbeScriptTests
             }
             function Test-Fixture([object] $Payload) {
                 try {
+                    $request.vciProbe.caseId = [string] $Payload.caseId
                     $null = Test-WorkerPayload -ResponseText (New-Envelope -Payload $Payload) -Request $request -ExpectedProjectPath 'C:\P.ap21'
                     return $true
                 }
@@ -568,12 +632,12 @@ public sealed class VciReadProbeScriptTests
             $workerTimeout = Copy-Fixture $basePayload; $workerTimeout.outcome = 'timed_out'
             $missingOmissions = Copy-Fixture $basePayload; $missingOmissions.Remove('omissions')
 
-            $validReturn = Copy-Fixture $basePayload; $validReturn.Remove('snapshot')
-            $validReturn.return = [ordered]@{
+            $repeatabilityObservation = [ordered]@{
                 clrTypeName = 'System.String'; isNull = $false; stringValue = 'value'
                 members = @([ordered]@{ name = 'Length'; clrTypeName = 'System.Int32'; stringValue = '5'; isNull = $false })
             }
-            $validReturn.repeatability = [ordered]@{ observations = @($validReturn.return); isIdentical = $true }
+            $validReturn = Copy-Fixture $basePayload; $validReturn.Remove('snapshot'); $validReturn.caseId = 'R-REP'
+            $validReturn.repeatability = [ordered]@{ observations = @($repeatabilityObservation); isIdentical = $true }
 
             $validException = Copy-Fixture $basePayload; $validException.Remove('snapshot'); $validException.outcome = 'threw'
             $validException.exception = [ordered]@{
@@ -604,7 +668,8 @@ public sealed class VciReadProbeScriptTests
                 }
             })
 
-            $malformedReturn = Copy-Fixture $validReturn
+            $malformedReturn = Copy-Fixture $basePayload; $malformedReturn.Remove('snapshot'); $malformedReturn.caseId = 'N-FMT-NULL'
+            $malformedReturn.return = Copy-Fixture $repeatabilityObservation
             $malformedReturn.return.members = 'not-an-array'
 
             $malformedException = Copy-Fixture $validException
@@ -633,6 +698,83 @@ public sealed class VciReadProbeScriptTests
                 (Test-Fixture -Payload $malformedException),
                 (Test-Fixture -Payload $malformedRepeatability),
                 (Test-Fixture -Payload $malformedOmission)
+            ) | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunWorkerPayloadOutcomeShapeSmokeTest()
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            foreach ($functionName in @(
+                    'Assert-JsonObjectShape', 'Assert-JsonArray', 'Assert-JsonString',
+                    'Assert-JsonNullableString', 'Assert-JsonBoolean', 'Assert-JsonInteger',
+                    'Assert-VciProbeException', 'Assert-VciProbeMember', 'Assert-VciProbeReturn',
+                    'Assert-VciWorkspaceSelector', 'Assert-VciEngineeringObjectSelector',
+                    'Assert-VciMappingSelector', 'Assert-VciProbeSnapshot',
+                    'Assert-VciProbeRepeatability', 'Assert-VciProbeProjectState',
+                    'Assert-VciProbeOmission', 'Assert-VciProbePayload')) {
+                $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
+                if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
+                Invoke-Expression $functionAst.Extent.Text
+            }
+
+            function New-Base([string] $CaseId, [string] $Outcome) {
+                return [ordered]@{
+                    schemaVersion = 'vci-read-probe/v1'; runId = 'run'; sessionId = 'session-1'
+                    caseId = $CaseId; caseInstanceId = 'instance'; outcome = $Outcome
+                    projectState = [ordered]@{ isModifiedBefore = $false; isModifiedAfter = $false }
+                    omissions = @()
+                }
+            }
+            function New-Return([bool] $IsNull) {
+                return [ordered]@{ clrTypeName = 'System.String'; isNull = $IsNull; members = @() }
+            }
+            function New-Snapshot {
+                return [ordered]@{ members = @(); groups = @(); workspaces = @(); mappings = @(); candidates = @() }
+            }
+            function Copy-Fixture([object] $Value) {
+                return ($Value | ConvertTo-Json -Compress -Depth 100) | ConvertFrom-Json -AsHashtable -Depth 100
+            }
+            function Test-Fixture([object] $Value) {
+                try { Assert-VciProbePayload -Value $Value; return $true } catch { return $false }
+            }
+
+            $validSnapshot = New-Base 'R-SVC' 'returned'; $validSnapshot.snapshot = New-Snapshot
+            $validFormatSnapshot = New-Base 'R-FMT' 'returned'; $validFormatSnapshot.snapshot = New-Snapshot
+            $validNegative = New-Base 'N-GRP-FIND-EMPTY' 'returned'; $validNegative.return = New-Return -IsNull $false
+            $validRepeatability = New-Base 'R-REP' 'returned'; $validRepeatability.repeatability = [ordered]@{
+                observations = @((New-Return -IsNull $false), (New-Return -IsNull $false)); isIdentical = $true
+            }
+            $validReturnedNull = New-Base 'N-WS-FIND-MISSING' 'returned_null'; $validReturnedNull.return = New-Return -IsNull $true
+            $validThrew = New-Base 'N-FMT-NULL' 'threw'; $validThrew.exception = [ordered]@{
+                exceptionTypeName = 'System.ArgumentNullException'; message = 'value'; hResult = -1
+            }
+            $validNotObservable = New-Base 'N-MAP-INACCESSIBLE-FILE' 'not_observable'
+            $validNotObservable.notObservableReason = 'no_inaccessible_mapping'
+
+            $explicitNullReason = Copy-Fixture $validSnapshot; $explicitNullReason.notObservableReason = $null
+            $contradictoryBranch = Copy-Fixture $validSnapshot; $contradictoryBranch.return = New-Return -IsNull $false
+            $missingRequiredBranch = New-Base 'R-SVC' 'returned'
+            $wrongReturnedNull = New-Base 'N-WS-FIND-MISSING' 'returned_null'; $wrongReturnedNull.return = New-Return -IsNull $false
+            $notObservableWithReturn = Copy-Fixture $validNotObservable; $notObservableWithReturn.return = New-Return -IsNull $false
+
+            @(
+                (Test-Fixture $validSnapshot),
+                (Test-Fixture $validFormatSnapshot),
+                (Test-Fixture $validNegative),
+                (Test-Fixture $validRepeatability),
+                (Test-Fixture $validReturnedNull),
+                (Test-Fixture $validThrew),
+                (Test-Fixture $validNotObservable),
+                (Test-Fixture $explicitNullReason),
+                (Test-Fixture $contradictoryBranch),
+                (Test-Fixture $missingRequiredBranch),
+                (Test-Fixture $wrongReturnedNull),
+                (Test-Fixture $notObservableWithReturn)
             ) | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
@@ -679,6 +821,61 @@ public sealed class VciReadProbeScriptTests
         return RunPowerShell("-Command", command);
     }
 
+    private static ScriptResult RunFilesystemSnapshotSmokeTest(string workspaceRoot)
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            foreach ($functionName in @('Get-UtcTimestamp', 'Get-FilesystemSnapshot', 'Compare-FilesystemSnapshots')) {
+                $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
+                if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
+                Invoke-Expression $functionAst.Extent.Text
+            }
+
+            $snapshot = Get-FilesystemSnapshot -WorkspaceRoots @('REPLACE_WORKSPACE_ROOT') -MaxFiles 100 -MaxBytes 1048576
+            $invariant = Compare-FilesystemSnapshots -Before $snapshot -After $snapshot
+            [ordered]@{
+                snapshotComplete = $snapshot.complete
+                reparseOmissionObserved = @($snapshot.omissions | Where-Object { $_.reason -eq 'reparse_point_not_followed' }).Count -eq 1
+                invariantComplete = $invariant.complete
+                overallGate = $snapshot.complete -and $invariant.complete -and $invariant.unchanged
+            } | ConvertTo-Json -Compress -Depth 10
+            """
+            .Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal)
+            .Replace("REPLACE_WORKSPACE_ROOT", workspaceRoot.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static void CreateDirectoryJunction(string junctionPath, string targetPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("/d");
+        startInfo.ArgumentList.Add("/c");
+        startInfo.ArgumentList.Add("mklink");
+        startInfo.ArgumentList.Add("/J");
+        startInfo.ArgumentList.Add(junctionPath);
+        startInfo.ArgumentList.Add(targetPath);
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start the junction fixture process.");
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(
+            process.ExitCode == 0,
+            $"Failed to create test junction.{Environment.NewLine}" +
+            $"stdout:{Environment.NewLine}{standardOutput}{Environment.NewLine}" +
+            $"stderr:{Environment.NewLine}{standardError}");
+    }
+
     private static ScriptResult RunTerminalCoverageSmokeTest()
     {
         var command = """
@@ -709,6 +906,49 @@ public sealed class VciReadProbeScriptTests
                 (Test-Coverage -Records @((New-Record 'A')) -ExpectedError 'missing_case_instance_id:'),
                 (Test-Coverage -Records @((New-Record 'A'), (New-Record 'A'), (New-Record 'B')) -ExpectedError 'duplicate_case_instance_id:'),
                 (Test-Coverage -Records @((New-Record 'A'), (New-Record 'B'), (New-Record 'C')) -ExpectedError 'unexpected_case_instance_id:')
+            ) | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunSnapshotAfterCoverageSmokeTest()
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-SnapshotAfterCoverage' }, $true)
+            if ($null -eq $functionAst) { throw 'Assert-SnapshotAfterCoverage was not found.' }
+            Invoke-Expression $functionAst.Extent.Text
+
+            $expectedIds = @('r-svc-after', 'r-grp-after', 'r-ws-after', 'r-map-after')
+            function New-Record([string] $CaseId, [string] $InstanceId) {
+                return [ordered]@{
+                    schemaVersion = 'vci-phase1-read-case-evidence/v1'; terminal = $true
+                    sessionId = 'session-1'; caseId = $CaseId; caseInstanceId = $InstanceId
+                }
+            }
+            $valid = @(
+                (New-Record 'R-SVC' 'r-svc-after'),
+                (New-Record 'R-GRP' 'r-grp-after'),
+                (New-Record 'R-WS' 'r-ws-after'),
+                (New-Record 'R-MAP' 'r-map-after')
+            )
+            function Test-Coverage([object[]] $Records, [AllowNull()] [string] $ExpectedError) {
+                try {
+                    Assert-SnapshotAfterCoverage -Records $Records -SessionId 'session-1' -ExpectedCaseInstanceIds $expectedIds
+                    return [string]::IsNullOrEmpty($ExpectedError)
+                }
+                catch {
+                    return -not [string]::IsNullOrEmpty($ExpectedError) -and $_.Exception.Message.StartsWith($ExpectedError, [StringComparison]::Ordinal)
+                }
+            }
+            @(
+                (Test-Coverage -Records $valid -ExpectedError $null),
+                (Test-Coverage -Records @($valid | Where-Object { $_.caseId -ne 'R-MAP' }) -ExpectedError 'missing_snapshot_after_case_instance_id:'),
+                (Test-Coverage -Records @($valid + (New-Record 'R-SVC' 'r-svc-after')) -ExpectedError 'duplicate_snapshot_after_case_instance_id:'),
+                (Test-Coverage -Records @($valid + (New-Record 'R-SVC' 'unexpected-after')) -ExpectedError 'unexpected_snapshot_after_case_instance_id:'),
+                (Test-Coverage -Records @($valid[1], $valid[0], $valid[2], $valid[3]) -ExpectedError 'unexpected_snapshot_after_case_instance_id:')
             ) | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
