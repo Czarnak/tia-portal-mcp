@@ -52,5 +52,6 @@ Evidence from live runs against TIA Portal V21.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-09 | [VCI workspace Phase 1 — read-only probe](acceptance/reports/20260809T072541470Z-d49e4677-vci-workspace-phase1-read-probe.md) |
 | 2026-08-01 | [Network Phase 1 — rerun](acceptance/reports/2026-08-01-16-56-00-network-operations-phase1-rerun.md) |
 | 2026-08-01 | [Network Phase 1](acceptance/reports/2026-08-01-16-48-48-network-operations-phase1.md) |
