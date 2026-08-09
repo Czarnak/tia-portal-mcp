@@ -105,6 +105,32 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
+    public void GitProvenance_WorksWhenLastExitCodeIsInitiallyUnsetUnderStrictMode()
+    {
+        var command = """
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            Remove-Variable -Name LASTEXITCODE -Scope Global -ErrorAction SilentlyContinue
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('REPLACE_HARNESS_PATH', [ref] $tokens, [ref] $errors)
+            if ($errors.Count -ne 0) { throw 'Harness parsing failed.' }
+            $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-GitProvenance' }, $true)
+            if ($null -eq $functionAst) { throw 'Get-GitProvenance was not found.' }
+            Invoke-Expression $functionAst.Extent.Text
+            Get-GitProvenance -RepositoryRoot 'REPLACE_REPOSITORY_ROOT' | ConvertTo-Json -Compress -Depth 10
+            """
+            .Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal)
+            .Replace("REPLACE_REPOSITORY_ROOT", RepositoryRoot.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+
+        var result = RunPowerShell("-Command", command);
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Matches("^[0-9a-f]{40}$", document.RootElement.GetProperty("commit").GetString());
+        Assert.True(document.RootElement.GetProperty("trackedChangeCount").GetInt32() >= 0);
+    }
+
+    [Fact]
     public void Run_UsesOneFreshWorkerPerSessionAndCapturesAfterCanaryOutsideCasesJsonl()
     {
         var result = RunRunBlockOrderSmokeTest();

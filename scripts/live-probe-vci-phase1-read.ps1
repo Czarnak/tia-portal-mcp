@@ -1855,12 +1855,15 @@ function Get-GitProvenance {
     if ($null -eq (Get-Command git -ErrorAction SilentlyContinue)) {
         throw 'Git is required to capture evidence provenance.'
     }
-    $commit = (& git -C $RepositoryRoot rev-parse HEAD 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string] $commit)) {
+    $commitLines = @(& git -C $RepositoryRoot rev-parse HEAD 2>$null)
+    $commitExitCode = $global:LASTEXITCODE
+    $commit = $commitLines | Select-Object -First 1
+    if ($commitExitCode -ne 0 -or [string]::IsNullOrWhiteSpace([string] $commit)) {
         throw 'Git commit provenance could not be captured.'
     }
     $statusLines = @(& git -C $RepositoryRoot status --porcelain --untracked-files=normal 2>$null)
-    if ($LASTEXITCODE -ne 0) {
+    $statusExitCode = $global:LASTEXITCODE
+    if ($statusExitCode -ne 0) {
         throw 'Git dirty-state provenance could not be captured.'
     }
     return [ordered]@{
