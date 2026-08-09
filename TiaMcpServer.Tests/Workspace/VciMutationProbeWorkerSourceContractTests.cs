@@ -106,6 +106,82 @@ public class VciMutationProbeWorkerSourceContractTests
         Assert.Contains("harness_confinement_rejected_before_worker", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Service_Task5ExportUsesGuardedTypedOrderBeforeTheSharedCanary()
+    {
+        var source = ServiceSource();
+        var export = SliceMethod(source, "private static void RunExport", "private static");
+        AssertOrdered(
+            export,
+            "GetSupportedFileFormats",
+            "Contains(\"SimaticML\", StringComparer.Ordinal)",
+            "ResolveExportTarget",
+            "workspace.ExportObject",
+            "workspace.MappedObjects.Find",
+            "BuildMappingReturn");
+
+        var mutationGate = SliceMethod(source, "private static void RunCommittedMutation", "private static");
+        AssertOrdered(mutationGate, "mutation()", "RunCanary");
+    }
+
+    [Fact]
+    public void Service_Task5ConfinesPathsBeforeConstructingSiemensPathArguments()
+    {
+        var source = ServiceSource();
+        var resolver = SliceMethod(source, "private static ExportTarget? ResolveExportTarget", "private static");
+
+        AssertOrdered(
+            resolver,
+            "VciMutationPathPolicy.ResolveRelativeDirectory",
+            "VciMutationPathPolicy.ResolveFile",
+            "new DirectoryInfo");
+        Assert.DoesNotContain("new DirectoryInfo(request.", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new FileInfo(request.", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_Task5DisconnectConnectAndEvidenceUseTypedVciMembers()
+    {
+        var source = ServiceSource();
+        var disconnect = SliceMethod(source, "private static void RunDisconnect", "private static");
+        var connect = SliceMethod(source, "private static void RunConnect", "private static");
+        var evidence = SliceMethod(source, "private static VciProbeReturnInfo BuildMappingReturn", "private static");
+
+        AssertOrdered(disconnect, "CaptureBoundedFileSet", "mapping.Delete()", "CaptureBoundedFileSet");
+        AssertOrdered(connect, "workspace.ConnectObject", "workspace.MappedObjects.Find", "BuildMappingReturn");
+        Assert.Contains("mapping.Status", evidence, StringComparison.Ordinal);
+        Assert.Contains("mapping.GetStatus()", evidence, StringComparison.Ordinal);
+        Assert.Contains("mapping.GetChildStatus()", evidence, StringComparison.Ordinal);
+        Assert.Contains("CaptureBoundedFileSet", evidence, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_Task5CasesNoLongerUseTheDeferredHandler()
+    {
+        var source = ServiceSource();
+        var task5Cases = new[]
+        {
+            "M-EXPORT", "M-DISCONNECT", "M-CONNECT",
+            "N-OBJECT-NULL", "N-OBJECT-UNSUPPORTED", "N-OBJECT-FOREIGN",
+            "N-OBJECT-DISPOSED", "N-OBJECT-ALREADY-MAPPED", "N-OBJECT-DELETED",
+            "N-FORMAT-NULL", "N-FORMAT-EMPTY", "N-FORMAT-UNSUPPORTED",
+            "N-FORMAT-WRONG-CASE", "N-FORMAT-MISMATCH",
+            "N-FILENAME-INVALID", "N-FILENAME-ABSOLUTE", "N-FILENAME-TRAVERSAL",
+            "N-FILENAME-COLLISION", "N-CONNECT-MISSING", "N-CONNECT-MALFORMED",
+            "N-CONNECT-WRONG-OBJECT", "N-CONNECT-PARTIAL-FILE-SET",
+        };
+
+        foreach (var caseId in task5Cases)
+        {
+            var arm = Regex.Match(
+                source,
+                Regex.Escape("\"" + caseId + "\" =>") + @"[^\r\n]+",
+                RegexOptions.CultureInvariant);
+            Assert.True(arm.Success, $"Missing switch arm for {caseId}.");
+            Assert.DoesNotContain("RunDeferredCase", arm.Value, StringComparison.Ordinal);
+        }
+    }
+
     private static string ServiceSource()
         => File.ReadAllText(FindRepositoryFile(
             "TiaMcpServer.OpennessWorker",
@@ -118,6 +194,18 @@ public class VciMutationProbeWorkerSourceContractTests
         Assert.True(start >= 0, $"Missing method marker '{startMarker}'.");
         var next = source.IndexOf(nextMethodMarker, start + startMarker.Length, StringComparison.Ordinal);
         return next < 0 ? source.Substring(start) : source.Substring(start, next - start);
+    }
+
+    private static void AssertOrdered(string source, params string[] markers)
+    {
+        var previous = -1;
+        foreach (var marker in markers)
+        {
+            var current = source.IndexOf(marker, previous + 1, StringComparison.Ordinal);
+            Assert.True(current >= 0, $"Missing ordered marker '{marker}'.");
+            Assert.True(current > previous, $"Marker '{marker}' was out of order.");
+            previous = current;
+        }
     }
 
     private static string FindRepositoryFile(params string[] parts)

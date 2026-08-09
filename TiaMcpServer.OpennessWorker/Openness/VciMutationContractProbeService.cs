@@ -57,9 +57,9 @@ internal static class VciMutationContractProbeService
                 "M-GROUP" => () => RunCreateGroups(currentPortal, project, request, result),
                 "M-WORKSPACE-ROOT" => () => RunCreateWorkspace(currentPortal, project, request, result, withLanguage: false),
                 "M-WORKSPACE-LANGUAGE" => () => RunCreateWorkspace(currentPortal, project, request, result, withLanguage: true),
-                "M-EXPORT" => () => RunDeferredCase(result),
-                "M-DISCONNECT" => () => RunDeferredCase(result),
-                "M-CONNECT" => () => RunDeferredCase(result),
+                "M-EXPORT" => () => RunExport(currentPortal, project, request, result),
+                "M-DISCONNECT" => () => RunDisconnect(currentPortal, project, request, result),
+                "M-CONNECT" => () => RunConnect(currentPortal, project, request, result),
                 "M-P2W" => () => RunDeferredCase(result),
                 "M-W2P" => () => RunDeferredCase(result),
                 "M-DELETE-MAPPING" => () => RunDeleteMapping(currentPortal, project, request, result),
@@ -92,25 +92,25 @@ internal static class VciMutationContractProbeService
                 "N-WORKSPACE-LANGUAGE-INVALID" => () => SetNotObservable(result, SignatureDoesNotPermitArgument),
                 "N-WORKSPACE-GLOBAL-LIBRARY-NULL" => () => RunGlobalLibraryNegative(currentPortal, project, request, result, useNull: true),
                 "N-WORKSPACE-GLOBAL-LIBRARY-INVALID" => () => RunGlobalLibraryNegative(currentPortal, project, request, result, useNull: false),
-                "N-OBJECT-NULL" => () => RunDeferredCase(result),
-                "N-OBJECT-UNSUPPORTED" => () => RunDeferredCase(result),
-                "N-OBJECT-FOREIGN" => () => RunDeferredCase(result),
-                "N-OBJECT-DISPOSED" => () => RunDeferredCase(result),
-                "N-OBJECT-ALREADY-MAPPED" => () => RunDeferredCase(result),
-                "N-OBJECT-DELETED" => () => RunDeferredCase(result),
-                "N-FORMAT-NULL" => () => RunDeferredCase(result),
-                "N-FORMAT-EMPTY" => () => RunDeferredCase(result),
-                "N-FORMAT-UNSUPPORTED" => () => RunDeferredCase(result),
-                "N-FORMAT-WRONG-CASE" => () => RunDeferredCase(result),
-                "N-FORMAT-MISMATCH" => () => RunDeferredCase(result),
-                "N-FILENAME-INVALID" => () => RunDeferredCase(result),
-                "N-FILENAME-ABSOLUTE" => () => RunDeferredCase(result),
-                "N-FILENAME-TRAVERSAL" => () => RunDeferredCase(result),
-                "N-FILENAME-COLLISION" => () => RunDeferredCase(result),
-                "N-CONNECT-MISSING" => () => RunDeferredCase(result),
-                "N-CONNECT-MALFORMED" => () => RunDeferredCase(result),
-                "N-CONNECT-WRONG-OBJECT" => () => RunDeferredCase(result),
-                "N-CONNECT-PARTIAL-FILE-SET" => () => RunDeferredCase(result),
+                "N-OBJECT-NULL" => () => RunObjectNegative(currentPortal, project, request, result, ObjectInput.Null),
+                "N-OBJECT-UNSUPPORTED" => () => RunObjectNegative(currentPortal, project, request, result, ObjectInput.Unsupported),
+                "N-OBJECT-FOREIGN" => () => RunUnavailableTask5Case(result),
+                "N-OBJECT-DISPOSED" => () => RunUnavailableTask5Case(result),
+                "N-OBJECT-ALREADY-MAPPED" => () => RunObjectNegative(currentPortal, project, request, result, ObjectInput.AlreadyMapped),
+                "N-OBJECT-DELETED" => () => RunUnavailableTask5Case(result),
+                "N-FORMAT-NULL" => () => RunFormatNegative(currentPortal, project, request, result, FormatInput.Null),
+                "N-FORMAT-EMPTY" => () => RunFormatNegative(currentPortal, project, request, result, FormatInput.Empty),
+                "N-FORMAT-UNSUPPORTED" => () => RunFormatNegative(currentPortal, project, request, result, FormatInput.Unsupported),
+                "N-FORMAT-WRONG-CASE" => () => RunFormatNegative(currentPortal, project, request, result, FormatInput.WrongCase),
+                "N-FORMAT-MISMATCH" => () => RunFormatNegative(currentPortal, project, request, result, FormatInput.Mismatch),
+                "N-FILENAME-INVALID" => () => RunInvalidFilename(currentPortal, project, request, result),
+                "N-FILENAME-ABSOLUTE" => () => RunHarnessConfinementOnly(result),
+                "N-FILENAME-TRAVERSAL" => () => RunHarnessConfinementOnly(result),
+                "N-FILENAME-COLLISION" => () => RunFilenameCollision(currentPortal, project, request, result),
+                "N-CONNECT-MISSING" => () => RunConnectNegative(currentPortal, project, request, result, ConnectInput.Missing),
+                "N-CONNECT-MALFORMED" => () => RunConnectNegative(currentPortal, project, request, result, ConnectInput.Malformed),
+                "N-CONNECT-WRONG-OBJECT" => () => RunUnavailableTask5Case(result),
+                "N-CONNECT-PARTIAL-FILE-SET" => () => RunConnectNegative(currentPortal, project, request, result, ConnectInput.PartialFileSet),
                 "N-SYNC-MISSING" => () => RunDeferredCase(result),
                 "N-SYNC-MALFORMED" => () => RunDeferredCase(result),
                 "N-SYNC-UNCHANGED" => () => RunDeferredCase(result),
@@ -336,6 +336,605 @@ internal static class VciMutationContractProbeService
         });
     }
 
+    private static void RunExport(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        if (!TryResolveWorkspaceAndEngineeringObject(
+                project, request, result, out var workspace, out var engineeringObject))
+        {
+            return;
+        }
+
+        var formats = workspace!.GetSupportedFileFormats(engineeringObject!).ToList();
+        if (!formats.Contains("SimaticML", StringComparer.Ordinal))
+        {
+            SetNotObservable(result, "selected_format_not_supported");
+            return;
+        }
+
+        var target = ResolveExportTarget(workspace, request, result);
+        if (target is null)
+        {
+            return;
+        }
+
+        if (workspace.MappedObjects.Find(engineeringObject!) is not null)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return;
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: false, commitOnSuccess: true, () =>
+        {
+            _ = workspace.ExportObject(
+                engineeringObject!,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                "SimaticML");
+            var mapping = workspace.MappedObjects.Find(engineeringObject!);
+            if (mapping is null)
+            {
+                throw new InvalidOperationException("ExportObject returned without a rediscoverable mapping.");
+            }
+            return BuildMappingReturn(
+                workspace,
+                mapping,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+        });
+    }
+
+    private static void RunDisconnect(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        var mapping = ResolveMapping(project, request, result);
+        if (mapping is null)
+        {
+            return;
+        }
+
+        var directory = mapping.DirectoryPath;
+        var fileNameWithoutExtension = mapping.FileNameWithoutExtension;
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: false, commitOnSuccess: true, () =>
+        {
+            var filesBefore = CaptureBoundedFileSet(
+                directory,
+                fileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+            mapping.Delete();
+            var filesAfter = CaptureBoundedFileSet(
+                directory,
+                fileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+            return BuildFileTransitionReturn("MappedObject.Delete", filesBefore, filesAfter);
+        });
+    }
+
+    private static void RunConnect(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        if (!TryResolveWorkspaceAndEngineeringObject(
+                project, request, result, out var workspace, out var engineeringObject))
+        {
+            return;
+        }
+
+        var formats = workspace!.GetSupportedFileFormats(engineeringObject!).ToList();
+        if (!formats.Contains("SimaticML", StringComparer.Ordinal))
+        {
+            SetNotObservable(result, "selected_format_not_supported");
+            return;
+        }
+
+        var target = ResolveExportTarget(workspace, request, result);
+        if (target is null)
+        {
+            return;
+        }
+
+        var retainedFiles = CaptureBoundedFileSet(
+            target.Directory,
+            target.FileNameWithoutExtension,
+            request.MaxCollectionItems,
+            result.Omissions);
+        if (retainedFiles.Count == 0 || workspace.MappedObjects.Find(engineeringObject!) is not null)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return;
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: false, commitOnSuccess: true, () =>
+        {
+            _ = workspace.ConnectObject(
+                engineeringObject!,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                "SimaticML");
+            var mapping = workspace.MappedObjects.Find(engineeringObject!);
+            if (mapping is null)
+            {
+                throw new InvalidOperationException("ConnectObject returned without a rediscoverable mapping.");
+            }
+            return BuildMappingReturn(
+                workspace,
+                mapping,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+        });
+    }
+
+    private static void RunObjectNegative(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        ObjectInput input)
+    {
+        var workspace = ResolveSelectedOrScenarioWorkspace(project, request, result);
+        if (workspace is null)
+        {
+            return;
+        }
+
+        var target = ResolveExportTarget(workspace, request, result);
+        if (target is null)
+        {
+            return;
+        }
+
+        IEngineeringObject? argument;
+        switch (input)
+        {
+            case ObjectInput.Null:
+                argument = null;
+                break;
+            case ObjectInput.Unsupported:
+                if (!TryAcquireRoot(project, result, out var service, out _))
+                {
+                    return;
+                }
+                argument = (IEngineeringObject)service!;
+                break;
+            case ObjectInput.AlreadyMapped:
+                if (!TryResolveEngineeringObject(project, request, result, out argument)
+                    || workspace.MappedObjects.Find(argument!) is null)
+                {
+                    SetNotObservableUnlessTerminal(result, RequiredFixtureState);
+                    return;
+                }
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(input));
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: true, commitOnSuccess: false, () =>
+            workspace.ExportObject(
+                argument!,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                "SimaticML"));
+    }
+
+    private static void RunFormatNegative(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        FormatInput input)
+    {
+        if (!TryResolveWorkspaceAndEngineeringObject(
+                project, request, result, out var workspace, out var engineeringObject))
+        {
+            return;
+        }
+
+        var target = ResolveExportTarget(workspace!, request, result);
+        if (target is null)
+        {
+            return;
+        }
+
+        string? format;
+        switch (input)
+        {
+            case FormatInput.Null:
+                format = null;
+                break;
+            case FormatInput.Empty:
+                format = string.Empty;
+                break;
+            case FormatInput.Unsupported:
+                format = "__unsupported__";
+                break;
+            case FormatInput.WrongCase:
+                format = "simaticml";
+                break;
+            case FormatInput.Mismatch:
+                format = workspace!.GetSupportedFileFormats(engineeringObject!)
+                    .FirstOrDefault(candidate => !string.Equals(candidate, "SimaticML", StringComparison.Ordinal));
+                if (format is null)
+                {
+                    SetNotObservable(result, "selected_format_not_supported");
+                    return;
+                }
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(input));
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: true, commitOnSuccess: false, () =>
+            workspace!.ExportObject(
+                engineeringObject!,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                format!));
+    }
+
+    private static void RunInvalidFilename(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        if (!TryResolveWorkspaceAndEngineeringObject(
+                project, request, result, out var workspace, out var engineeringObject))
+        {
+            return;
+        }
+
+        var directoryDecision = VciMutationPathPolicy.ResolveRelativeDirectory(
+            workspace!.RootPath.FullName,
+            ExportRelativeDirectory());
+        if (!directoryDecision.IsValid)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return;
+        }
+
+        var directory = new DirectoryInfo(directoryDecision.CanonicalPath!);
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: true, commitOnSuccess: false, () =>
+            workspace.ExportObject(engineeringObject!, directory, "bad<name>", "SimaticML"));
+    }
+
+    private static void RunFilenameCollision(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        if (!TryResolveWorkspaceAndEngineeringObject(
+                project, request, result, out var workspace, out var engineeringObject))
+        {
+            return;
+        }
+
+        var target = ResolveExportTarget(workspace!, request, result);
+        if (target is null
+            || CaptureBoundedFileSet(
+                    target.Directory,
+                    target.FileNameWithoutExtension,
+                    request.MaxCollectionItems,
+                    result.Omissions).Count == 0)
+        {
+            SetNotObservableUnlessTerminal(result, RequiredFixtureState);
+            return;
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: true, commitOnSuccess: false, () =>
+            workspace!.ExportObject(
+                engineeringObject!,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                "SimaticML"));
+    }
+
+    private static void RunConnectNegative(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        ConnectInput input)
+    {
+        if (!TryResolveWorkspaceAndEngineeringObject(
+                project, request, result, out var workspace, out var engineeringObject))
+        {
+            return;
+        }
+
+        ExportTarget? target;
+        if (input == ConnectInput.Missing)
+        {
+            target = ResolveTarget(
+                workspace!,
+                ExportRelativeDirectory(),
+                "__missing__",
+                result);
+            if (target is not null
+                && CaptureBoundedFileSet(
+                    target.Directory,
+                    target.FileNameWithoutExtension,
+                    request.MaxCollectionItems,
+                    result.Omissions).Count != 0)
+            {
+                SetNotObservable(result, RequiredFixtureState);
+                return;
+            }
+        }
+        else
+        {
+            target = ResolveSeedTarget(workspace!, request, result);
+            if (target is null)
+            {
+                return;
+            }
+
+            if (input == ConnectInput.PartialFileSet)
+            {
+                var exported = ResolveExportTarget(workspace!, request, result);
+                var exportedFiles = exported is null
+                    ? new List<string>()
+                    : CaptureBoundedFileSet(
+                        exported.Directory,
+                        exported.FileNameWithoutExtension,
+                        request.MaxCollectionItems,
+                        result.Omissions);
+                if (exportedFiles.Count <= 1)
+                {
+                    SetNotObservable(result, "selected_format_is_single_file");
+                    return;
+                }
+            }
+        }
+
+        if (target is null)
+        {
+            return;
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: true, commitOnSuccess: false, () =>
+            workspace!.ConnectObject(
+                engineeringObject!,
+                target.Directory,
+                target.FileNameWithoutExtension,
+                "SimaticML"));
+    }
+
+    private static bool TryResolveWorkspaceAndEngineeringObject(
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        out Workspace? workspace,
+        out IEngineeringObject? engineeringObject)
+    {
+        workspace = ResolveSelectedOrScenarioWorkspace(project, request, result);
+        engineeringObject = null;
+        return workspace is not null
+            && TryResolveEngineeringObject(project, request, result, out engineeringObject);
+    }
+
+    private static bool TryResolveEngineeringObject(
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        out IEngineeringObject? engineeringObject)
+    {
+        engineeringObject = null;
+        if (request.EngineeringObject is null)
+        {
+            SetNotObservable(result, "selected_engineering_object_not_found");
+            return false;
+        }
+
+        var resolution = VciProbeEngineeringObjectResolver.Resolve(
+            project,
+            ToReadRequest(request),
+            request.EngineeringObject);
+        engineeringObject = resolution.Candidate?.EngineeringObject as IEngineeringObject;
+        if (engineeringObject is not null)
+        {
+            return true;
+        }
+
+        SetNotObservable(result, "selected_engineering_object_not_found");
+        return false;
+    }
+
+    private static ExportTarget? ResolveExportTarget(
+        Workspace workspace,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        var relativeDirectory = ExportRelativeDirectory();
+        var directoryDecision = VciMutationPathPolicy.ResolveRelativeDirectory(
+            workspace.RootPath.FullName,
+            relativeDirectory);
+        if (!directoryDecision.IsValid)
+        {
+            AddCheck(result.Preconditions, "export_directory_confined", false, directoryDecision.RejectionCategory);
+            SetNotObservable(result, RequiredFixtureState);
+            return null;
+        }
+
+        var fileDecision = VciMutationPathPolicy.ResolveFile(
+            workspace.RootPath.FullName,
+            relativeDirectory,
+            "Simulation_DB");
+        if (!fileDecision.IsValid)
+        {
+            AddCheck(result.Preconditions, "export_file_confined", false, fileDecision.RejectionCategory);
+            SetNotObservable(result, RequiredFixtureState);
+            return null;
+        }
+
+        AddCheck(result.Preconditions, "export_directory_confined", true, directoryDecision.CanonicalPath);
+        AddCheck(result.Preconditions, "export_file_confined", true, fileDecision.CanonicalPath);
+        return new ExportTarget(
+            new DirectoryInfo(directoryDecision.CanonicalPath!),
+            "Simulation_DB",
+            fileDecision.CanonicalPath!);
+    }
+
+    private static ExportTarget? ResolveTarget(
+        Workspace workspace,
+        string relativeDirectory,
+        string fileNameWithoutExtension,
+        VciMutationProbeCaseResultInfo result)
+    {
+        var directoryDecision = VciMutationPathPolicy.ResolveRelativeDirectory(
+            workspace.RootPath.FullName,
+            relativeDirectory);
+        var fileDecision = VciMutationPathPolicy.ResolveFile(
+            workspace.RootPath.FullName,
+            relativeDirectory,
+            fileNameWithoutExtension);
+        if (!directoryDecision.IsValid || !fileDecision.IsValid)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return null;
+        }
+
+        return new ExportTarget(
+            new DirectoryInfo(directoryDecision.CanonicalPath!),
+            fileNameWithoutExtension,
+            fileDecision.CanonicalPath!);
+    }
+
+    private static ExportTarget? ResolveSeedTarget(
+        Workspace workspace,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        if (string.IsNullOrWhiteSpace(request.SeedRelativePath))
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return null;
+        }
+
+        var relativeDirectory = Path.GetDirectoryName(request.SeedRelativePath!) ?? string.Empty;
+        var fileName = Path.GetFileNameWithoutExtension(request.SeedRelativePath!);
+        return ResolveTarget(workspace, relativeDirectory, fileName, result);
+    }
+
+    private static string ExportRelativeDirectory()
+        => Path.Combine("mapping", "export");
+
+    private static VciProbeReturnInfo BuildMappingReturn(
+        Workspace workspace,
+        MappedObject mapping,
+        DirectoryInfo directory,
+        string fileNameWithoutExtension,
+        int maxCollectionItems,
+        List<VciProbeOmissionInfo> omissions)
+    {
+        var result = new VciProbeReturnInfo
+        {
+            ClrTypeName = mapping.GetType().FullName ?? mapping.GetType().Name,
+            StringValue = "mapping_observation",
+        };
+        result.Members.Add(Member("workspace", workspace.Name));
+        result.Members.Add(Member("directoryPath", mapping.DirectoryPath.FullName));
+        result.Members.Add(Member("fileNameWithoutExtension", mapping.FileNameWithoutExtension));
+        result.Members.Add(Member("fileFormat", mapping.FileFormat));
+        result.Members.Add(Member("status", mapping.Status));
+        result.Members.Add(Member("getStatus", mapping.GetStatus()));
+        result.Members.Add(Member("getChildStatus", mapping.GetChildStatus()));
+
+        var files = CaptureBoundedFileSet(
+            directory,
+            fileNameWithoutExtension,
+            maxCollectionItems,
+            omissions);
+        for (var index = 0; index < files.Count; index++)
+        {
+            result.Members.Add(Member("file[" + index + "]", files[index]));
+        }
+        return result;
+    }
+
+    private static VciProbeReturnInfo BuildFileTransitionReturn(
+        string operation,
+        IReadOnlyList<string> filesBefore,
+        IReadOnlyList<string> filesAfter)
+    {
+        var result = new VciProbeReturnInfo
+        {
+            ClrTypeName = "vci_file_transition",
+            StringValue = operation,
+        };
+        for (var index = 0; index < filesBefore.Count; index++)
+        {
+            result.Members.Add(Member("before[" + index + "]", filesBefore[index]));
+        }
+        for (var index = 0; index < filesAfter.Count; index++)
+        {
+            result.Members.Add(Member("after[" + index + "]", filesAfter[index]));
+        }
+        result.Members.Add(Member("filesRemain", filesAfter.Count > 0));
+        return result;
+    }
+
+    private static List<string> CaptureBoundedFileSet(
+        DirectoryInfo directory,
+        string fileNameWithoutExtension,
+        int maxCollectionItems,
+        List<VciProbeOmissionInfo> omissions)
+    {
+        if (!directory.Exists)
+        {
+            return new List<string>();
+        }
+
+        var files = Directory.EnumerateFiles(
+                directory.FullName,
+                fileNameWithoutExtension + "*",
+                SearchOption.TopDirectoryOnly)
+            .Take(maxCollectionItems + 1)
+            .Select(Path.GetFileName)
+            .Where(file => file is not null)
+            .Cast<string>()
+            .ToList();
+        if (files.Count > maxCollectionItems)
+        {
+            files.RemoveAt(files.Count - 1);
+            omissions.Add(new VciProbeOmissionInfo
+            {
+                Reason = "Generated-file enumeration stopped at the configured collection budget.",
+                BudgetName = nameof(VciMutationProbeRequestInfo.MaxCollectionItems),
+                BudgetValue = maxCollectionItems,
+                ObservedCount = maxCollectionItems,
+                TraversalPath = directory.FullName,
+            });
+        }
+        return files;
+    }
+
+    private static VciProbeMemberObservationInfo Member(string name, object? value)
+        => new()
+        {
+            Name = name,
+            ClrTypeName = value?.GetType().FullName ?? "null",
+            IsNull = value is null,
+            StringValue = value?.ToString(),
+        };
+
+    private static void RunUnavailableTask5Case(VciMutationProbeCaseResultInfo result)
+        => SetNotObservable(result, RequiredFixtureState);
+
     private static void RunDeleteMapping(
         TiaPortal tiaPortal,
         Project project,
@@ -520,7 +1119,7 @@ internal static class VciMutationContractProbeService
         {
             workspace.GlobalLibraryPath = useNull
                 ? null!
-                : new FileInfo(request.WorkspaceRoot + "\0invalid-library.al21");
+                : new FileInfo("\0invalid-library.al21");
             return workspace.GlobalLibraryPath;
         });
     }
@@ -610,7 +1209,8 @@ internal static class VciMutationContractProbeService
                 result.Transaction.Started = true;
                 var returnValue = mutation();
                 result.Outcome = returnValue is null ? "returned_null" : "returned";
-                result.Return = ToReturnInfo(returnValue, request.MaxCollectionItems, result.Omissions);
+                result.Return = returnValue as VciProbeReturnInfo
+                    ?? ToReturnInfo(returnValue, request.MaxCollectionItems, result.Omissions);
 
                 var postCallSnapshot = CaptureSnapshot(project, request, result);
                 result.After = postCallSnapshot;
@@ -1084,6 +1684,46 @@ internal static class VciMutationContractProbeService
         public string NestedGroup { get; }
         public string RootWorkspace { get; }
         public string LanguageWorkspace { get; }
+    }
+
+    private sealed class ExportTarget
+    {
+        public ExportTarget(
+            DirectoryInfo directory,
+            string fileNameWithoutExtension,
+            string canonicalFilePath)
+        {
+            Directory = directory;
+            FileNameWithoutExtension = fileNameWithoutExtension;
+            CanonicalFilePath = canonicalFilePath;
+        }
+
+        public DirectoryInfo Directory { get; }
+        public string FileNameWithoutExtension { get; }
+        public string CanonicalFilePath { get; }
+    }
+
+    private enum ObjectInput
+    {
+        Null,
+        Unsupported,
+        AlreadyMapped,
+    }
+
+    private enum FormatInput
+    {
+        Null,
+        Empty,
+        Unsupported,
+        WrongCase,
+        Mismatch,
+    }
+
+    private enum ConnectInput
+    {
+        Missing,
+        Malformed,
+        PartialFileSet,
     }
 
     private enum GroupNameInput
