@@ -343,4 +343,11 @@ public class WorkerRequest
     public VciProbeRequestInfo? VciProbe { get; set; }
 
     #endregion
+
+    #region Internal VCI Phase 1 mutation probe
+
+    /// <summary>Forwarded only by the internal probe_vci_mutation_contract worker operation.</summary>
+    public VciMutationProbeRequestInfo? VciMutationProbe { get; set; }
+
+    #endregion
 }

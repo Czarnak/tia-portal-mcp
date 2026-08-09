@@ -96,6 +96,7 @@ public static class OperationPolicyCatalog
             ["update_subnet"] = OperationCapability.ProjectMutation,
             ["delete_subnet"] = OperationCapability.ProjectMutation,
             ["probe_subnet_lifecycle_mutations"] = OperationCapability.ProjectMutation,
+            [VciMutationProbeContract.OperationName] = OperationCapability.ProjectMutation,
 
             // OnlineControl (NOT read-only safe)
             ["start_plc"] = OperationCapability.OnlineControl,

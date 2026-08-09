@@ -190,6 +190,10 @@
       Link="Network\ConnectionModeledAttributeCatalog.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciProbeJsonBoundary.cs"
       Link="Workspace\VciProbeJsonBoundary.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciMutationProbeJsonBoundary.cs"
+      Link="Workspace\VciMutationProbeJsonBoundary.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciMutationPathPolicy.cs"
+      Link="Workspace\VciMutationPathPolicy.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciProbeValueNormalizer.cs"
       Link="Workspace\VciProbeValueNormalizer.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\VciProbeObservationRunner.cs"

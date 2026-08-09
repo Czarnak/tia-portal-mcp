@@ -37,6 +37,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-09 | [VCI workspace Phase 1 — mutation probe](plans/2026-08-09-vci-workspace-phase1-mutation-probe.md) |
 | 2026-08-08 | [VCI workspace Phase 1 — read-only probe](plans/2026-08-08-vci-workspace-phase1-read-probe.md) |
 | 2026-08-06 | [Network Phase 4 — subnet lifecycle](plans/2026-08-06-network-phase4-subnet-lifecycle.md) |
 | 2026-08-04 | [Network Phase 3 — identity and introspection](plans/2026-08-04-network-operations-phase3-identity-introspection.md) |
