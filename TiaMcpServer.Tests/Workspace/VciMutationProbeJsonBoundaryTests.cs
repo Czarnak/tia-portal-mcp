@@ -9,6 +9,7 @@ public class VciMutationProbeJsonBoundaryTests
         "{\"schemaVersion\":\"vci-mutation-probe/v1\",\"runId\":\"r\",\"sessionId\":\"s\"," +
         "\"scenarioId\":\"scenario\",\"caseId\":\"P-INVENTORY\",\"caseInstanceId\":\"i\"," +
         "\"mode\":\"Inventory\",\"workspaceRoot\":\"C:\\\\vci-root\"," +
+        "\"workspace\":{\"groupPath\":[],\"workspaceName\":\"ws\",\"canonicalRootPath\":\"C:\\\\existing-ws\"}," +
         "\"engineeringObject\":{\"structuralPath\":[]},\"fileFormat\":\"SimaticML\"}";
 
     [Fact]
@@ -118,7 +119,12 @@ public class VciMutationProbeJsonBoundaryTests
     [InlineData("mapping", "[]")]
     public void Validate_RejectsNonObjectSelectors(string field, string value)
     {
-        var probe = ValidProbe.Insert(ValidProbe.Length - 1, $",\"{field}\":{value}");
+        var probe = field == "workspace"
+            ? ValidProbe.Replace(
+                "\"workspace\":{\"groupPath\":[],\"workspaceName\":\"ws\",\"canonicalRootPath\":\"C:\\\\existing-ws\"}",
+                $"\"workspace\":{value}",
+                StringComparison.Ordinal)
+            : ValidProbe.Insert(ValidProbe.Length - 1, $",\"{field}\":{value}");
 
         var error = VciMutationProbeJsonBoundary.Validate(Wrap(probe));
 
@@ -132,12 +138,18 @@ public class VciMutationProbeJsonBoundaryTests
     [InlineData("\"mapping\":{\"workspace\":{},\"engineeringObject\":{},\"callSequence\":[]}", "callSequence")]
     public void Validate_RejectsUnknownNestedSelectorFields(string selector, string unknownField)
     {
-        var probe = unknownField == "propertyName"
-            ? ValidProbe.Replace(
+        var probe = unknownField switch
+        {
+            "methodName" => ValidProbe.Replace(
+                "\"workspace\":{\"groupPath\":[],\"workspaceName\":\"ws\",\"canonicalRootPath\":\"C:\\\\existing-ws\"}",
+                selector,
+                StringComparison.Ordinal),
+            "propertyName" => ValidProbe.Replace(
                 "\"engineeringObject\":{\"structuralPath\":[]}",
                 selector,
-                StringComparison.Ordinal)
-            : ValidProbe.Insert(ValidProbe.Length - 1, "," + selector);
+                StringComparison.Ordinal),
+            _ => ValidProbe.Insert(ValidProbe.Length - 1, "," + selector),
+        };
 
         var error = VciMutationProbeJsonBoundary.Validate(Wrap(probe));
 

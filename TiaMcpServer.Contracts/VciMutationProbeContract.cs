@@ -108,6 +108,7 @@ public static class VciMutationProbeContract
         "baseline_and_changed_exports_identical",
         "expected_project_only_state_not_established",
         "transaction_not_supported",
+        "harness_confinement_rejected_before_worker",
     };
 
     private static readonly HashSet<string> CaseIdSet = new HashSet<string>(CaseIds, StringComparer.Ordinal);
@@ -190,6 +191,12 @@ public static class VciMutationProbeContract
 
         if (ExportCases.Contains(request.CaseId))
         {
+            if (string.Equals(request.CaseId, "P-INVENTORY", StringComparison.Ordinal)
+                && request.Workspace is null)
+            {
+                return "'workspace' is required for case 'P-INVENTORY'.";
+            }
+
             if (request.EngineeringObject is null)
             {
                 return $"'engineeringObject' is required for case '{request.CaseId}'.";

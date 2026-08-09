@@ -107,6 +107,12 @@ internal static class Program
                 return Failure(WorkerFailureCategories.ValidationError, vciBoundaryError);
             }
 
+            var vciMutationBoundaryError = VciMutationProbeJsonBoundary.Validate(line);
+            if (vciMutationBoundaryError is not null)
+            {
+                return Failure(WorkerFailureCategories.ValidationError, vciMutationBoundaryError);
+            }
+
             var request = JsonSerializer.Deserialize<WorkerRequest>(line, JsonOptions);
             if (request is null)
             {
@@ -129,6 +135,7 @@ internal static class Program
                 "inspect_network_object" => InspectNetworkObject(request),
                 "probe_network_object_attributes" => ProbeNetworkObjectAttributes(request),
                 "probe_vci_read_contract" => ProbeVciReadContract(request),
+                "probe_vci_mutation_contract" => ProbeVciMutationContract(request),
                 "probe_subnet_lifecycle_mutations" => ProbeSubnetLifecycleMutations(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
@@ -362,6 +369,28 @@ internal static class Program
 
         return WithProject(request, (tiaPortal, project) =>
             Success(VciReadContractProbeService.Execute(tiaPortal, project, request.VciProbe)));
+    }
+
+    private static WorkerResponse ProbeVciMutationContract(WorkerRequest request)
+    {
+        if (request.VciMutationProbe is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "'vciMutationProbe' is required for probe_vci_mutation_contract.");
+        }
+
+        var validationError = VciMutationProbeContract.Validate(request.VciMutationProbe);
+        if (validationError is not null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                validationError);
+        }
+
+        return WithProject(request, (tiaPortal, project) =>
+            Success(VciMutationContractProbeService.Execute(
+                tiaPortal, project, request.VciMutationProbe)));
     }
 
     private static NetworkAttributeProbeEntryInfo ProbeNetworkAttribute(
