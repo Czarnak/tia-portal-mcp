@@ -1199,6 +1199,9 @@ function Assert-VciProbePayload {
             }
         }
         'returned_null' {
+            if (-not $Value.caseId.StartsWith('N-', [StringComparison]::Ordinal)) {
+                throw 'malformed_worker_payload: returned_null outcome is valid only for negative observation cases.'
+            }
             if (-not $hasReturn -or -not $Value.return.isNull) {
                 throw 'malformed_worker_payload: returned_null outcome requires a null return observation.'
             }
@@ -1815,6 +1818,23 @@ function Test-ProjectStateInvariant {
     return [ordered]@{ unchanged = $failures.Count -eq 0; failures = $failures.ToArray() }
 }
 
+function Test-CanaryUsable {
+    param(
+        [Parameter(Mandatory)] [object[]] $Records,
+        [Parameter(Mandatory)] [string] $SessionId
+    )
+
+    $canary = @($Records | Where-Object { $_.sessionId -eq $SessionId -and $_.caseId -eq 'R-CANARY' })
+    if ($canary.Count -ne 1) {
+        return $false
+    }
+    $record = $canary[0]
+    return $record.outcome -ceq 'returned' -and
+        $record.workerPayload -is [Collections.IDictionary] -and
+        $record.workerPayload.Contains('snapshot') -and
+        $record.workerPayload.snapshot -is [Collections.IDictionary]
+}
+
 function Read-CaseRecords {
     param([Parameter(Mandatory)] [string] $Path)
 
@@ -2294,7 +2314,7 @@ elseif (-not $filesystemInvariant.unchanged) {
 $canaryStatus = [Collections.Generic.List[object]]::new()
 foreach ($sessionId in $sessionIds) {
     $canary = @($caseRecords | Where-Object { $_.sessionId -eq $sessionId -and $_.caseId -eq 'R-CANARY' })
-    $usable = $canary.Count -eq 1 -and $canary[0].outcome -in @('returned', 'returned_null')
+    $usable = Test-CanaryUsable -Records $caseRecords -SessionId $sessionId
     $canaryStatus.Add([ordered]@{ sessionId = $sessionId; usable = $usable; outcome = if ($canary.Count -eq 1) { $canary[0].outcome } else { $null } })
     if (-not $usable) {
         $failureReasons.Add("$sessionId canary_not_usable")

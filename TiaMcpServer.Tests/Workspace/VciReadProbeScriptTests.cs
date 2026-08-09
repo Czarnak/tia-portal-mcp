@@ -160,9 +160,23 @@ public sealed class VciReadProbeScriptTests
             new[]
             {
                 true, true, true, true, true, true, true,
-                false, false, false, false, false,
+                false, false, false, false, false, false, false,
             },
             outcomes);
+    }
+
+    [Fact]
+    public void CanaryGate_RequiresReturnedSnapshotAndReturnedNullCannotPassOverall()
+    {
+        var result = RunCanaryGateSmokeTest();
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var evidence = document.RootElement;
+        Assert.True(evidence.GetProperty("returnedSnapshotUsable").GetBoolean());
+        Assert.False(evidence.GetProperty("returnedNullUsable").GetBoolean());
+        Assert.False(evidence.GetProperty("returnedWithoutSnapshotUsable").GetBoolean());
+        Assert.False(evidence.GetProperty("returnedNullOverallPass").GetBoolean());
     }
 
     [Fact]
@@ -761,6 +775,8 @@ public sealed class VciReadProbeScriptTests
             $missingRequiredBranch = New-Base 'R-SVC' 'returned'
             $wrongReturnedNull = New-Base 'N-WS-FIND-MISSING' 'returned_null'; $wrongReturnedNull.return = New-Return -IsNull $false
             $notObservableWithReturn = Copy-Fixture $validNotObservable; $notObservableWithReturn.return = New-Return -IsNull $false
+            $canaryReturnedNull = New-Base 'R-CANARY' 'returned_null'; $canaryReturnedNull.return = New-Return -IsNull $true
+            $serviceReturnedNull = New-Base 'R-SVC' 'returned_null'; $serviceReturnedNull.return = New-Return -IsNull $true
 
             @(
                 (Test-Fixture $validSnapshot),
@@ -774,8 +790,45 @@ public sealed class VciReadProbeScriptTests
                 (Test-Fixture $contradictoryBranch),
                 (Test-Fixture $missingRequiredBranch),
                 (Test-Fixture $wrongReturnedNull),
-                (Test-Fixture $notObservableWithReturn)
+                (Test-Fixture $notObservableWithReturn),
+                (Test-Fixture $canaryReturnedNull),
+                (Test-Fixture $serviceReturnedNull)
             ) | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunCanaryGateSmokeTest()
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-CanaryUsable' }, $true)
+            if ($null -eq $functionAst) { throw 'Test-CanaryUsable was not found.' }
+            Invoke-Expression $functionAst.Extent.Text
+
+            function New-Canary([string] $Outcome, [object] $Payload) {
+                return [ordered]@{
+                    sessionId = 'session-1'; caseId = 'R-CANARY'; outcome = $Outcome
+                    workerPayload = $Payload
+                }
+            }
+            $returnedSnapshot = New-Canary 'returned' ([ordered]@{ snapshot = [ordered]@{} })
+            $returnedNull = New-Canary 'returned_null' ([ordered]@{
+                return = [ordered]@{ clrTypeName = 'null'; isNull = $true; members = @() }
+            })
+            $returnedWithoutSnapshot = New-Canary 'returned' ([ordered]@{})
+
+            $returnedNullUsable = Test-CanaryUsable -Records @($returnedNull) -SessionId 'session-1'
+            $failureReasons = [Collections.Generic.List[string]]::new()
+            if (-not $returnedNullUsable) { $failureReasons.Add('session-1 canary_not_usable') }
+            [ordered]@{
+                returnedSnapshotUsable = Test-CanaryUsable -Records @($returnedSnapshot) -SessionId 'session-1'
+                returnedNullUsable = $returnedNullUsable
+                returnedWithoutSnapshotUsable = Test-CanaryUsable -Records @($returnedWithoutSnapshot) -SessionId 'session-1'
+                returnedNullOverallPass = $failureReasons.Count -eq 0
+            } | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
     }
