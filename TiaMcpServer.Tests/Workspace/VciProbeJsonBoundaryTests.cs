@@ -57,6 +57,52 @@ public class VciProbeJsonBoundaryTests
     }
 
     [Fact]
+    public void Validate_AlternateCaseMethodPropertyCannotBypassStrictEnvelope()
+    {
+        var json = "{\"Method\":\"probe_vci_read_contract\",\"projectPath\":\"C:\\\\P.ap21\","
+            + "\"vciProbe\":" + ValidProbe + "}";
+
+        Assert.Equal("Unknown root field 'Method'.", VciProbeJsonBoundary.Validate(json));
+    }
+
+    [Theory]
+    [InlineData("\"extraRoot\":1", "extraRoot")]
+    [InlineData("\"confirm\":false", "confirm")]
+    [InlineData("\"allowTiaConfirmations\":false", "allowTiaConfirmations")]
+    public void Validate_AlternateCaseMethodPropertyCannotBypassUnknownOrWriteRootFields(
+        string rootField,
+        string expectedField)
+    {
+        var json = "{" + rootField + ",\"Method\":\"probe_vci_read_contract\","
+            + "\"vciProbe\":" + ValidProbe + "}";
+
+        var error = VciProbeJsonBoundary.Validate(json);
+
+        Assert.NotNull(error);
+        Assert.Contains(expectedField, error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_DuplicateMethodCasingCannotHideProbeDispatch()
+    {
+        var json = "{\"method\":\"get_block_content\",\"Method\":\"probe_vci_read_contract\","
+            + "\"vciProbe\":" + ValidProbe + "}";
+
+        var error = VciProbeJsonBoundary.Validate(json);
+
+        Assert.NotNull(error);
+        Assert.Contains("Duplicate root field 'Method'", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_AlternateCaseMethodPropertyStillPassesThroughForNonVciMethods()
+    {
+        var json = "{\"Method\":\"get_block_content\",\"blockPath\":\"Main\",\"confirm\":false}";
+
+        Assert.Null(VciProbeJsonBoundary.Validate(json));
+    }
+
+    [Fact]
     public void Validate_NeverThrowsOnUnparsableJson()
     {
         var exception = Record.Exception(() => VciProbeJsonBoundary.Validate("{ not json"));

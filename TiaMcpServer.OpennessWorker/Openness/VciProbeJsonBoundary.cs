@@ -101,15 +101,7 @@ public static class VciProbeJsonBoundary
                 return null;
             }
 
-            if (!TryGetCaseSensitive(root, "method", out var methodElement)
-                || methodElement.ValueKind != JsonValueKind.String)
-            {
-                return null;
-            }
-
-            var methodValue = methodElement.GetString();
-            if (!string.Equals(
-                    methodValue, VciReadProbeContract.OperationName, StringComparison.OrdinalIgnoreCase))
+            if (!TargetsVciReadProbe(root))
             {
                 return null;
             }
@@ -413,6 +405,24 @@ public static class VciProbeJsonBoundary
         }
 
         return null;
+    }
+
+    private static bool TargetsVciReadProbe(JsonElement root)
+    {
+        foreach (var property in root.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "method", StringComparison.OrdinalIgnoreCase)
+                && property.Value.ValueKind == JsonValueKind.String
+                && string.Equals(
+                    property.Value.GetString(),
+                    VciReadProbeContract.OperationName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetCaseSensitive(JsonElement obj, string name, out JsonElement value)
