@@ -357,6 +357,36 @@ public class VciProbeJsonBoundaryTests
     }
 
     [Fact]
+    public void Validate_AcceptsCompleteRFmtCaseWithSameNameOrdinal()
+    {
+        var probe = "{\"schemaVersion\":\"vci-read-probe/v1\",\"runId\":\"r\",\"sessionId\":\"s\","
+            + "\"caseId\":\"R-FMT\",\"caseInstanceId\":\"i\","
+            + "\"workspace\":{\"workspaceName\":\"WS1\","
+            + "\"groupPath\":[{\"index\":2,\"name\":\"Programs\",\"sameNameOrdinal\":1}]},"
+            + "\"engineeringObject\":{\"stableIdentifier\":\"id\"}}";
+
+        Assert.Null(VciProbeJsonBoundary.Validate(Wrap(probe)));
+    }
+
+    [Theory]
+    [InlineData("\"1\"")]
+    [InlineData("1.5")]
+    [InlineData("2147483648")]
+    public void Validate_RejectsSameNameOrdinalOutsideJsonInt32(string sameNameOrdinalJson)
+    {
+        var probe = "{\"schemaVersion\":\"vci-read-probe/v1\",\"runId\":\"r\",\"sessionId\":\"s\","
+            + "\"caseId\":\"R-FMT\",\"caseInstanceId\":\"i\","
+            + "\"workspace\":{\"workspaceName\":\"WS1\","
+            + "\"groupPath\":[{\"index\":2,\"name\":\"Programs\",\"sameNameOrdinal\":"
+            + sameNameOrdinalJson + "}]},"
+            + "\"engineeringObject\":{\"stableIdentifier\":\"id\"}}";
+
+        Assert.Equal(
+            "'vciProbe.workspace.groupPath[].sameNameOrdinal' must be an integer.",
+            VciProbeJsonBoundary.Validate(Wrap(probe)));
+    }
+
+    [Fact]
     public void Validate_RejectsWrongTypeForProjectPath()
     {
         var json = "{\"method\":\"probe_vci_read_contract\",\"projectPath\":123,\"vciProbe\":" + ValidProbe + "}";

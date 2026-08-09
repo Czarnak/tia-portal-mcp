@@ -42,7 +42,7 @@ public static class VciProbeJsonBoundary
         new HashSet<string>(StringComparer.Ordinal) { "groupPath", "workspaceName", "canonicalRootPath" };
 
     private static readonly HashSet<string> GroupPathSegmentAllowedFields =
-        new HashSet<string>(StringComparer.Ordinal) { "index", "name" };
+        new HashSet<string>(StringComparer.Ordinal) { "index", "name", "sameNameOrdinal" };
 
     private static readonly HashSet<string> EngineeringObjectSelectorAllowedFields =
         new HashSet<string>(StringComparer.Ordinal) { "stableIdentifier", "structuralPath", "fingerprint" };
@@ -296,6 +296,13 @@ public static class VciProbeJsonBoundary
                 && segmentNameElement.ValueKind != JsonValueKind.String)
             {
                 return "'vciProbe.workspace.groupPath[].name' must be a string.";
+            }
+
+            if (TryGetCaseSensitive(segment, "sameNameOrdinal", out var sameNameOrdinalElement)
+                && (sameNameOrdinalElement.ValueKind != JsonValueKind.Number
+                    || !sameNameOrdinalElement.TryGetInt32(out _)))
+            {
+                return "'vciProbe.workspace.groupPath[].sameNameOrdinal' must be an integer.";
             }
         }
 
