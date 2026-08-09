@@ -182,6 +182,90 @@ public class VciMutationProbeWorkerSourceContractTests
         }
     }
 
+    [Fact]
+    public void Service_Task6SynchronizationTreatsSynchronizeAsVoidAndReadsStateSeparately()
+    {
+        var source = ServiceSource();
+        var synchronize = SliceMethod(source, "private static void RunSynchronization", "private static");
+
+        AssertOrdered(
+            synchronize,
+            "mapping.GetStatus()",
+            "CaptureBoundedFileSet",
+            "mapping.Synchronize(mode);",
+            "mapping.GetStatus()",
+            "CaptureBoundedFileSet");
+        Assert.DoesNotContain("= mapping.Synchronize", source, StringComparison.Ordinal);
+        Assert.Contains("SynchronizationMode.ProjectToWorkspace", source, StringComparison.Ordinal);
+        Assert.Contains("SynchronizationMode.WorkspaceToProject", source, StringComparison.Ordinal);
+        Assert.Contains("IndividualObjectCompareDetails.ProjectObjectChanged", source, StringComparison.Ordinal);
+        Assert.Contains("IndividualObjectCompareDetails.WorkspaceFileChanged", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_Task6InvalidSynchronizationEnumUsesOneExplicitCastOnly()
+    {
+        var source = ServiceSource();
+        var invalid = SliceMethod(source, "private static void RunInvalidSynchronizationMode", "private static");
+
+        Assert.Contains("mapping.Synchronize((SynchronizationMode)int.MaxValue);", invalid, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(source, @"\(SynchronizationMode\)int\.MaxValue").Cast<Match>());
+    }
+
+    [Fact]
+    public void Service_Task6WorkspaceToProjectUsesIndependentVerificationExportAndHashes()
+    {
+        var source = ServiceSource();
+        var synchronize = SliceMethod(source, "private static void RunSynchronization", "private static");
+
+        Assert.Contains("ResolveVerificationTarget", synchronize, StringComparison.Ordinal);
+        Assert.Contains("verificationWorkspace!.ExportObject", synchronize, StringComparison.Ordinal);
+        Assert.Contains("HashSetsEqual", synchronize, StringComparison.Ordinal);
+        Assert.Contains("ComputeSha256", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Compile", synchronize, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_Task6RollbackGateOmitsCommitAndSeparatesProjectFromFileEvidence()
+    {
+        var source = ServiceSource();
+        var rollback = SliceMethod(source, "private static void RunRollbackOnlyMutation", "private static");
+
+        Assert.Contains("tiaPortal.ExclusiveAccess", rollback, StringComparison.Ordinal);
+        Assert.Contains("exclusiveAccess.Transaction(project", rollback, StringComparison.Ordinal);
+        Assert.Contains("mutation()", rollback, StringComparison.Ordinal);
+        Assert.Contains("CaptureSnapshot", rollback, StringComparison.Ordinal);
+        Assert.Contains("CaptureBoundedFileSet", rollback, StringComparison.Ordinal);
+        Assert.Contains("RunCanary", rollback, StringComparison.Ordinal);
+        Assert.DoesNotContain("CommitOnDispose", rollback, StringComparison.Ordinal);
+        Assert.Contains("project_state_rolled_back", rollback, StringComparison.Ordinal);
+        Assert.Contains("external_files_rolled_back", rollback, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Service_Task6CasesNoLongerUseTheDeferredHandler()
+    {
+        var source = ServiceSource();
+        var task6Cases = new[]
+        {
+            "M-P2W", "M-W2P", "M-TX-GROUP", "M-TX-WORKSPACE", "M-TX-EXPORT",
+            "M-TX-CONNECT", "M-TX-P2W", "M-TX-W2P", "M-TX-DISCONNECT",
+            "M-TX-DELETE-WORKSPACE", "M-TX-DELETE-GROUP", "N-SYNC-MISSING",
+            "N-SYNC-MALFORMED", "N-SYNC-UNCHANGED", "N-SYNC-PROJECT-ONLY",
+            "N-SYNC-WORKSPACE-ONLY", "N-SYNC-BOTH-SIDES", "N-SYNC-INVALID-ENUM",
+        };
+
+        foreach (var caseId in task6Cases)
+        {
+            var arm = Regex.Match(
+                source,
+                Regex.Escape("\"" + caseId + "\" =>") + @"[^\r\n]+",
+                RegexOptions.CultureInvariant);
+            Assert.True(arm.Success, $"Missing switch arm for {caseId}.");
+            Assert.DoesNotContain("RunDeferredCase", arm.Value, StringComparison.Ordinal);
+        }
+    }
+
     private static string ServiceSource()
         => File.ReadAllText(FindRepositoryFile(
             "TiaMcpServer.OpennessWorker",

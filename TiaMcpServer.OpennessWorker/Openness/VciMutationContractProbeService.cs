@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using Siemens.Engineering;
 using Siemens.Engineering.VersionControl;
 using TiaMcpServer.Contracts;
@@ -60,20 +61,20 @@ internal static class VciMutationContractProbeService
                 "M-EXPORT" => () => RunExport(currentPortal, project, request, result),
                 "M-DISCONNECT" => () => RunDisconnect(currentPortal, project, request, result),
                 "M-CONNECT" => () => RunConnect(currentPortal, project, request, result),
-                "M-P2W" => () => RunDeferredCase(result),
-                "M-W2P" => () => RunDeferredCase(result),
+                "M-P2W" => () => RunSynchronization(currentPortal, project, request, result, SynchronizationMode.ProjectToWorkspace),
+                "M-W2P" => () => RunSynchronization(currentPortal, project, request, result, SynchronizationMode.WorkspaceToProject),
                 "M-DELETE-MAPPING" => () => RunDeleteMapping(currentPortal, project, request, result),
                 "M-DELETE-WORKSPACE" => () => RunDeleteWorkspace(currentPortal, project, request, result),
                 "M-DELETE-GROUP" => () => RunDeleteGroups(currentPortal, project, request, result),
-                "M-TX-GROUP" => () => RunDeferredCase(result),
-                "M-TX-WORKSPACE" => () => RunDeferredCase(result),
-                "M-TX-EXPORT" => () => RunDeferredCase(result),
-                "M-TX-CONNECT" => () => RunDeferredCase(result),
-                "M-TX-P2W" => () => RunDeferredCase(result),
-                "M-TX-W2P" => () => RunDeferredCase(result),
-                "M-TX-DISCONNECT" => () => RunDeferredCase(result),
-                "M-TX-DELETE-WORKSPACE" => () => RunDeferredCase(result),
-                "M-TX-DELETE-GROUP" => () => RunDeferredCase(result),
+                "M-TX-GROUP" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.Group),
+                "M-TX-WORKSPACE" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.Workspace),
+                "M-TX-EXPORT" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.Export),
+                "M-TX-CONNECT" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.Connect),
+                "M-TX-P2W" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.ProjectToWorkspace),
+                "M-TX-W2P" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.WorkspaceToProject),
+                "M-TX-DISCONNECT" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.Disconnect),
+                "M-TX-DELETE-WORKSPACE" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.DeleteWorkspace),
+                "M-TX-DELETE-GROUP" => () => RunTransactionCase(currentPortal, project, request, result, TransactionMutation.DeleteGroup),
                 "N-GROUP-NULL" => () => RunGroupNameNegative(currentPortal, project, request, result, GroupNameInput.Null),
                 "N-GROUP-EMPTY" => () => RunGroupNameNegative(currentPortal, project, request, result, GroupNameInput.Empty),
                 "N-GROUP-WHITESPACE" => () => RunGroupNameNegative(currentPortal, project, request, result, GroupNameInput.Whitespace),
@@ -111,13 +112,13 @@ internal static class VciMutationContractProbeService
                 "N-CONNECT-MALFORMED" => () => RunConnectNegative(currentPortal, project, request, result, ConnectInput.Malformed),
                 "N-CONNECT-WRONG-OBJECT" => () => RunUnavailableTask5Case(result),
                 "N-CONNECT-PARTIAL-FILE-SET" => () => RunConnectNegative(currentPortal, project, request, result, ConnectInput.PartialFileSet),
-                "N-SYNC-MISSING" => () => RunDeferredCase(result),
-                "N-SYNC-MALFORMED" => () => RunDeferredCase(result),
-                "N-SYNC-UNCHANGED" => () => RunDeferredCase(result),
-                "N-SYNC-PROJECT-ONLY" => () => RunDeferredCase(result),
-                "N-SYNC-WORKSPACE-ONLY" => () => RunDeferredCase(result),
-                "N-SYNC-BOTH-SIDES" => () => RunDeferredCase(result),
-                "N-SYNC-INVALID-ENUM" => () => RunDeferredCase(result),
+                "N-SYNC-MISSING" => () => RunSynchronizationNegative(currentPortal, project, request, result, SynchronizationInput.Missing),
+                "N-SYNC-MALFORMED" => () => RunSynchronizationNegative(currentPortal, project, request, result, SynchronizationInput.Malformed),
+                "N-SYNC-UNCHANGED" => () => RunSynchronizationNegative(currentPortal, project, request, result, SynchronizationInput.Unchanged),
+                "N-SYNC-PROJECT-ONLY" => () => RunSynchronizationNegative(currentPortal, project, request, result, SynchronizationInput.ProjectOnly),
+                "N-SYNC-WORKSPACE-ONLY" => () => RunSynchronizationNegative(currentPortal, project, request, result, SynchronizationInput.WorkspaceOnly),
+                "N-SYNC-BOTH-SIDES" => () => RunSynchronizationNegative(currentPortal, project, request, result, SynchronizationInput.BothSides),
+                "N-SYNC-INVALID-ENUM" => () => RunInvalidSynchronizationMode(currentPortal, project, request, result),
                 "N-DELETE-NONEMPTY" => () => RunDeleteNonemptyGroup(currentPortal, project, request, result),
                 "N-DELETE-TWICE" => () => RunDeleteTwice(currentPortal, project, request, result),
                 "N-STALE-MAPPING-PROXY" => () => RunStaleMappingProxy(currentPortal, project, request, result),
@@ -904,9 +905,8 @@ internal static class VciMutationContractProbeService
                 fileNameWithoutExtension + "*",
                 SearchOption.TopDirectoryOnly)
             .Take(maxCollectionItems + 1)
-            .Select(Path.GetFileName)
-            .Where(file => file is not null)
-            .Cast<string>()
+            .Select(file => (Path.GetFileName(file) ?? string.Empty)
+                + "|sha256:" + ComputeSha256(file))
             .ToList();
         if (files.Count > maxCollectionItems)
         {
@@ -923,6 +923,26 @@ internal static class VciMutationContractProbeService
         return files;
     }
 
+    private static string ComputeSha256(string path)
+    {
+        try
+        {
+            using var stream = File.Open(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var sha256 = SHA256.Create();
+            return BitConverter.ToString(sha256.ComputeHash(stream))
+                .Replace("-", string.Empty)
+                .ToLowerInvariant();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return "unavailable:" + exception.GetType().Name;
+        }
+    }
+
     private static VciProbeMemberObservationInfo Member(string name, object? value)
         => new()
         {
@@ -934,6 +954,529 @@ internal static class VciMutationContractProbeService
 
     private static void RunUnavailableTask5Case(VciMutationProbeCaseResultInfo result)
         => SetNotObservable(result, RequiredFixtureState);
+
+    private static void RunSynchronization(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        SynchronizationMode mode)
+    {
+        var mapping = ResolveMapping(project, request, result);
+        if (mapping is null)
+        {
+            return;
+        }
+
+        var statusBefore = mapping.GetStatus();
+        var requiredDifference = mode == SynchronizationMode.ProjectToWorkspace
+            ? IndividualObjectCompareDetails.ProjectObjectChanged
+            : IndividualObjectCompareDetails.WorkspaceFileChanged;
+        var expectedDifferenceEstablished = statusBefore.CompareState == CompareState.Unequal
+            && statusBefore.IndividualObjectCompareDetails == requiredDifference;
+        AddCheck(
+            result.Preconditions,
+            mode == SynchronizationMode.ProjectToWorkspace
+                ? "project_only_difference_established"
+                : "workspace_only_difference_established",
+            expectedDifferenceEstablished,
+            statusBefore.IndividualObjectCompareDetails.ToString());
+        if (!expectedDifferenceEstablished)
+        {
+            SetNotObservable(
+                result,
+                mode == SynchronizationMode.ProjectToWorkspace
+                    ? "expected_project_only_state_not_established"
+                    : RequiredFixtureState);
+            result.StopScenarioFamily = true;
+            return;
+        }
+
+        var directory = mapping.DirectoryPath;
+        var fileNameWithoutExtension = mapping.FileNameWithoutExtension;
+        var filesBefore = CaptureBoundedFileSet(
+            directory,
+            fileNameWithoutExtension,
+            request.MaxCollectionItems,
+            result.Omissions);
+        if (filesBefore.Count == 0)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            result.StopScenarioFamily = true;
+            return;
+        }
+
+        Workspace? verificationWorkspace = null;
+        ExportTarget? verificationTarget = null;
+        if (mode == SynchronizationMode.WorkspaceToProject
+            && !ResolveVerificationTarget(
+                project,
+                request,
+                result,
+                mapping.EngineeringObject,
+                out verificationWorkspace,
+                out verificationTarget))
+        {
+            result.StopScenarioFamily = true;
+            return;
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: false, commitOnSuccess: true, () =>
+        {
+            var callStatusBefore = mapping.GetStatus();
+            var callFilesBefore = CaptureBoundedFileSet(
+                directory,
+                fileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+            mapping.Synchronize(mode);
+            var callStatusAfter = mapping.GetStatus();
+            var callFilesAfter = CaptureBoundedFileSet(
+                directory,
+                fileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+            var verificationFiles = new List<string>();
+            if (mode == SynchronizationMode.WorkspaceToProject)
+            {
+                _ = verificationWorkspace!.ExportObject(
+                    mapping.EngineeringObject,
+                    verificationTarget!.Directory,
+                    verificationTarget.FileNameWithoutExtension,
+                    "SimaticML");
+                verificationFiles = CaptureBoundedFileSet(
+                    verificationTarget.Directory,
+                    verificationTarget.FileNameWithoutExtension,
+                    request.MaxCollectionItems,
+                    result.Omissions);
+                if (!HashSetsEqual(callFilesBefore, verificationFiles))
+                {
+                    throw new InvalidOperationException(
+                        "The WorkspaceToProject verification export did not hash-match the changed VCI-produced file set.");
+                }
+            }
+            return BuildSynchronizationReturn(
+                mode,
+                callStatusBefore,
+                callStatusAfter,
+                callFilesBefore,
+                callFilesAfter,
+                verificationFiles);
+        });
+    }
+
+    private static bool ResolveVerificationTarget(
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        IEngineeringObject engineeringObject,
+        out Workspace? verificationWorkspace,
+        out ExportTarget? verificationTarget)
+    {
+        verificationWorkspace = null;
+        verificationTarget = null;
+        if (!TryAcquireScenarioGroup(project, request, result, out var group))
+        {
+            return false;
+        }
+
+        var names = ScenarioNames(request);
+        verificationWorkspace = group!.Workspaces.Find(names.LanguageWorkspace);
+        if (verificationWorkspace is null
+            || verificationWorkspace.MappedObjects.Find(engineeringObject) is not null)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return false;
+        }
+
+        verificationTarget = ResolveTarget(
+            verificationWorkspace,
+            Path.Combine("mapping", "verify"),
+            "Simulation_DB_Verify",
+            result);
+        return verificationTarget is not null;
+    }
+
+    private static void RunSynchronizationNegative(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        SynchronizationInput input)
+    {
+        var mapping = ResolveMapping(project, request, result);
+        if (mapping is null)
+        {
+            return;
+        }
+
+        if (input == SynchronizationInput.BothSides)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return;
+        }
+
+        var status = mapping.GetStatus();
+        var stateEstablished = input switch
+        {
+            SynchronizationInput.Missing => status.CompareState == CompareState.WorkspaceFileMissing,
+            SynchronizationInput.Malformed => status.CompareState == CompareState.Unknown,
+            SynchronizationInput.Unchanged => status.CompareState == CompareState.Equal,
+            SynchronizationInput.ProjectOnly => status.CompareState == CompareState.Unequal
+                && status.IndividualObjectCompareDetails == IndividualObjectCompareDetails.ProjectObjectChanged,
+            SynchronizationInput.WorkspaceOnly => status.CompareState == CompareState.Unequal
+                && status.IndividualObjectCompareDetails == IndividualObjectCompareDetails.WorkspaceFileChanged,
+            _ => false,
+        };
+        AddCheck(result.Preconditions, "requested_synchronization_state_established", stateEstablished, status.CompareState.ToString());
+        if (!stateEstablished)
+        {
+            SetNotObservable(result, RequiredFixtureState);
+            return;
+        }
+
+        var mode = input == SynchronizationInput.ProjectOnly
+            ? SynchronizationMode.ProjectToWorkspace
+            : SynchronizationMode.WorkspaceToProject;
+        var directory = mapping.DirectoryPath;
+        var fileNameWithoutExtension = mapping.FileNameWithoutExtension;
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: true, commitOnSuccess: false, () =>
+        {
+            var beforeStatus = mapping.GetStatus();
+            var beforeFiles = CaptureBoundedFileSet(
+                directory,
+                fileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+            mapping.Synchronize(mode);
+            var afterStatus = mapping.GetStatus();
+            var afterFiles = CaptureBoundedFileSet(
+                directory,
+                fileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+            return BuildSynchronizationReturn(
+                mode,
+                beforeStatus,
+                afterStatus,
+                beforeFiles,
+                afterFiles);
+        });
+    }
+
+    private static void RunInvalidSynchronizationMode(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result)
+    {
+        var mapping = ResolveMapping(project, request, result);
+        if (mapping is null)
+        {
+            return;
+        }
+
+        RunCommittedMutation(tiaPortal, project, request, result, expectThrow: true, commitOnSuccess: false, () =>
+        {
+            mapping.Synchronize((SynchronizationMode)int.MaxValue);
+            return mapping.GetStatus();
+        });
+    }
+
+    private static VciProbeReturnInfo BuildSynchronizationReturn(
+        SynchronizationMode mode,
+        IndividualObjectCompareResult statusBefore,
+        IndividualObjectCompareResult statusAfter,
+        IReadOnlyList<string> filesBefore,
+        IReadOnlyList<string> filesAfter,
+        IReadOnlyList<string>? verificationFiles = null)
+    {
+        var result = new VciProbeReturnInfo
+        {
+            ClrTypeName = "vci_synchronization_observation",
+            StringValue = mode.ToString(),
+        };
+        result.Members.Add(Member("before.compareState", statusBefore.CompareState));
+        result.Members.Add(Member("before.details", statusBefore.IndividualObjectCompareDetails));
+        result.Members.Add(Member("after.compareState", statusAfter.CompareState));
+        result.Members.Add(Member("after.details", statusAfter.IndividualObjectCompareDetails));
+        for (var index = 0; index < filesBefore.Count; index++)
+        {
+            result.Members.Add(Member("before.file[" + index + "]", filesBefore[index]));
+        }
+        for (var index = 0; index < filesAfter.Count; index++)
+        {
+            result.Members.Add(Member("after.file[" + index + "]", filesAfter[index]));
+        }
+        if (verificationFiles is not null)
+        {
+            for (var index = 0; index < verificationFiles.Count; index++)
+            {
+                result.Members.Add(Member("verification.file[" + index + "]", verificationFiles[index]));
+            }
+        }
+        return result;
+    }
+
+    private static bool HashSetsEqual(
+        IReadOnlyList<string> expected,
+        IReadOnlyList<string> actual)
+    {
+        var expectedHashes = expected.Select(ExtractSha256).ToList();
+        var actualHashes = actual.Select(ExtractSha256).ToList();
+        if (expectedHashes.Any(hash => hash is null)
+            || actualHashes.Any(hash => hash is null))
+        {
+            return false;
+        }
+
+        return expectedHashes.Cast<string>().OrderBy(hash => hash, StringComparer.Ordinal)
+            .SequenceEqual(
+                actualHashes.Cast<string>().OrderBy(hash => hash, StringComparer.Ordinal),
+                StringComparer.Ordinal);
+    }
+
+    private static string? ExtractSha256(string fileEvidence)
+    {
+        const string marker = "|sha256:";
+        var markerIndex = fileEvidence.LastIndexOf(marker, StringComparison.Ordinal);
+        if (markerIndex < 0)
+        {
+            return null;
+        }
+
+        var hash = fileEvidence.Substring(markerIndex + marker.Length);
+        return hash.Length == 64 && hash.All(Uri.IsHexDigit) ? hash : null;
+    }
+
+    private static void RunTransactionCase(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        TransactionMutation mutationKind)
+    {
+        Func<object?>? mutation = null;
+        ExportTarget? fileTarget = null;
+        var names = ScenarioNames(request);
+
+        switch (mutationKind)
+        {
+            case TransactionMutation.Group:
+                if (TryAcquireRoot(project, result, out _, out var root)
+                    && root!.Groups.Find(names.Prefix + "_TxGroup") is null)
+                {
+                    mutation = () => root.Groups.Create(names.Prefix + "_TxGroup").Name;
+                }
+                break;
+            case TransactionMutation.Workspace:
+                if (TryAcquireScenarioGroup(project, request, result, out var group)
+                    && group!.Workspaces.Find(names.Prefix + "_TxWorkspace") is null)
+                {
+                    var path = ScenarioWorkspacePath(request, names.Prefix + "_TxWorkspace");
+                    mutation = () => group.Workspaces.Create(
+                        names.Prefix + "_TxWorkspace",
+                        new DirectoryInfo(path)).Name;
+                }
+                break;
+            case TransactionMutation.Export:
+                if (TryResolveWorkspaceAndEngineeringObject(
+                        project, request, result, out var exportWorkspace, out var exportObject))
+                {
+                    fileTarget = ResolveExportTarget(exportWorkspace!, request, result);
+                    if (fileTarget is not null
+                        && exportWorkspace!.MappedObjects.Find(exportObject!) is null)
+                    {
+                        mutation = () => exportWorkspace.ExportObject(
+                            exportObject!,
+                            fileTarget.Directory,
+                            fileTarget.FileNameWithoutExtension,
+                            "SimaticML");
+                    }
+                }
+                break;
+            case TransactionMutation.Connect:
+                if (TryResolveWorkspaceAndEngineeringObject(
+                        project, request, result, out var connectWorkspace, out var connectObject))
+                {
+                    fileTarget = ResolveExportTarget(connectWorkspace!, request, result);
+                    if (fileTarget is not null
+                        && connectWorkspace!.MappedObjects.Find(connectObject!) is null
+                        && CaptureBoundedFileSet(
+                            fileTarget.Directory,
+                            fileTarget.FileNameWithoutExtension,
+                            request.MaxCollectionItems,
+                            result.Omissions).Count > 0)
+                    {
+                        mutation = () => connectWorkspace.ConnectObject(
+                            connectObject!,
+                            fileTarget.Directory,
+                            fileTarget.FileNameWithoutExtension,
+                            "SimaticML");
+                    }
+                }
+                break;
+            case TransactionMutation.ProjectToWorkspace:
+            case TransactionMutation.WorkspaceToProject:
+                var syncMapping = ResolveMapping(project, request, result);
+                if (syncMapping is not null)
+                {
+                    fileTarget = new ExportTarget(
+                        syncMapping.DirectoryPath,
+                        syncMapping.FileNameWithoutExtension,
+                        Path.Combine(syncMapping.DirectoryPath.FullName, syncMapping.FileNameWithoutExtension));
+                    var mode = mutationKind == TransactionMutation.ProjectToWorkspace
+                        ? SynchronizationMode.ProjectToWorkspace
+                        : SynchronizationMode.WorkspaceToProject;
+                    mutation = () =>
+                    {
+                        syncMapping.Synchronize(mode);
+                        return syncMapping.GetStatus();
+                    };
+                }
+                break;
+            case TransactionMutation.Disconnect:
+                var disconnectMapping = ResolveMapping(project, request, result);
+                if (disconnectMapping is not null)
+                {
+                    fileTarget = new ExportTarget(
+                        disconnectMapping.DirectoryPath,
+                        disconnectMapping.FileNameWithoutExtension,
+                        Path.Combine(disconnectMapping.DirectoryPath.FullName, disconnectMapping.FileNameWithoutExtension));
+                    mutation = () =>
+                    {
+                        disconnectMapping.Delete();
+                        return "mapping_disconnected";
+                    };
+                }
+                break;
+            case TransactionMutation.DeleteWorkspace:
+                var workspace = ResolveSelectedOrScenarioWorkspace(project, request, result);
+                if (workspace is not null && workspace.MappedObjects.Count == 0)
+                {
+                    mutation = () =>
+                    {
+                        workspace.Delete();
+                        return "workspace_deleted";
+                    };
+                }
+                break;
+            case TransactionMutation.DeleteGroup:
+                if (TryAcquireScenarioGroup(project, request, result, out var deleteGroup)
+                    && deleteGroup!.Groups.Count == 0
+                    && deleteGroup.Workspaces.Count == 0)
+                {
+                    mutation = () =>
+                    {
+                        deleteGroup.Delete();
+                        return "group_deleted";
+                    };
+                }
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mutationKind));
+        }
+
+        if (mutation is null)
+        {
+            SetNotObservableUnlessTerminal(result, RequiredFixtureState);
+            return;
+        }
+
+        RunRollbackOnlyMutation(
+            tiaPortal,
+            project,
+            request,
+            result,
+            mutation,
+            fileTarget);
+    }
+
+    private static void RunRollbackOnlyMutation(
+        TiaPortal tiaPortal,
+        Project project,
+        VciMutationProbeRequestInfo request,
+        VciMutationProbeCaseResultInfo result,
+        Func<object?> mutation,
+        ExportTarget? fileTarget)
+    {
+        result.Transaction.Requested = true;
+        result.Before = CaptureSnapshot(project, request, result);
+        var snapshotBefore = SnapshotSignature(result.Before);
+        var filesBefore = fileTarget is null
+            ? new List<string>()
+            : CaptureBoundedFileSet(
+                fileTarget.Directory,
+                fileTarget.FileNameWithoutExtension,
+                request.MaxCollectionItems,
+                result.Omissions);
+        try
+        {
+            using (var exclusiveAccess = tiaPortal.ExclusiveAccess(
+                "VCI Workspace Phase 1 rollback probe: " + request.CaseId))
+            using (var transaction = exclusiveAccess.Transaction(project, request.CaseId))
+            {
+                result.Transaction.Started = true;
+                var returnValue = mutation();
+                result.Outcome = returnValue is null ? "returned_null" : "returned";
+                result.Return = returnValue as VciProbeReturnInfo
+                    ?? ToReturnInfo(returnValue, request.MaxCollectionItems, result.Omissions);
+                result.After = CaptureSnapshot(project, request, result);
+                result.Canary = RunCanary(project, request, result);
+                result.Transaction.CanCommitBeforeDispose = transaction.CanCommit;
+            }
+        }
+        catch (NonRecoverableException)
+        {
+            result.UncertainOutcome = true;
+            result.StopScenarioFamily = true;
+            throw;
+        }
+        catch (Exception exception) when (IsEvidenceException(exception))
+        {
+            RecordException(result, exception);
+        }
+        finally
+        {
+            result.Transaction.Disposed = result.Transaction.Started;
+            result.After = CaptureSnapshot(project, request, result);
+            result.Canary = RunCanary(project, request, result);
+            var filesAfter = fileTarget is null
+                ? new List<string>()
+                : CaptureBoundedFileSet(
+                    fileTarget.Directory,
+                    fileTarget.FileNameWithoutExtension,
+                    request.MaxCollectionItems,
+                    result.Omissions);
+            AddCheck(
+                result.SafetyInvariants,
+                "project_state_rolled_back",
+                string.Equals(snapshotBefore, SnapshotSignature(result.After), StringComparison.Ordinal),
+                null);
+            AddCheck(
+                result.SafetyInvariants,
+                "external_files_rolled_back",
+                filesBefore.SequenceEqual(filesAfter, StringComparer.Ordinal),
+                "Filesystem rollback is independent evidence, not inferred from project rollback.");
+        }
+    }
+
+    private static string SnapshotSignature(VciProbeSnapshotInfo? snapshot)
+    {
+        if (snapshot is null)
+        {
+            return "null";
+        }
+
+        return string.Join("|", new[]
+        {
+            snapshot.Service?.ServiceAvailable.ToString() ?? "null",
+            snapshot.Service?.RootGroupAvailable.ToString() ?? "null",
+            string.Join(",", snapshot.Groups.Select(group => group.CanonicalKey + ":" + group.Name)),
+            string.Join(",", snapshot.Workspaces.Select(workspace => workspace.CanonicalKey + ":" + workspace.Name + ":" + workspace.RootPath)),
+            string.Join(",", snapshot.Mappings.Select(mapping => mapping.CanonicalKey + ":" + mapping.Status)),
+        });
+    }
 
     private static void RunDeleteMapping(
         TiaPortal tiaPortal,
@@ -1724,6 +2267,29 @@ internal static class VciMutationContractProbeService
         Missing,
         Malformed,
         PartialFileSet,
+    }
+
+    private enum SynchronizationInput
+    {
+        Missing,
+        Malformed,
+        Unchanged,
+        ProjectOnly,
+        WorkspaceOnly,
+        BothSides,
+    }
+
+    private enum TransactionMutation
+    {
+        Group,
+        Workspace,
+        Export,
+        Connect,
+        ProjectToWorkspace,
+        WorkspaceToProject,
+        Disconnect,
+        DeleteWorkspace,
+        DeleteGroup,
     }
 
     private enum GroupNameInput
