@@ -37,6 +37,28 @@ $evidenceFiles = @(
     'summary.json'
 )
 
+$sessionIds = @('session-1', 'session-2')
+$negativeCaseIds = @(
+    'N-FMT-FOREIGN', 'N-FMT-NULL', 'N-FMT-UNSUPPORTED',
+    'N-GRP-FIND-EMPTY', 'N-GRP-FIND-MISSING', 'N-GRP-FIND-NULL',
+    'N-GRP-FIND-WHITESPACE', 'N-MAP-INACCESSIBLE-FILE',
+    'N-MAP-MISSING-FILE', 'N-WS-FIND-EMPTY', 'N-WS-FIND-MISSING',
+    'N-WS-FIND-NULL', 'N-WS-FIND-WHITESPACE'
+)
+$validWorkerOutcomes = @('returned', 'returned_null', 'not_observable', 'threw')
+$probeBudgets = [ordered]@{
+    maxGroupDepth = 16
+    maxGroups = 500
+    maxWorkspaces = 500
+    maxMappings = 5000
+    maxEngineeringObjects = 200
+    maxCollectionItems = 5000
+}
+$filesystemBudgets = [ordered]@{
+    maxFiles = 100000
+    maxBytes = 10737418240
+}
+
 if ($Mode -eq 'Describe') {
     [ordered]@{
         schemaVersion = 'vci-phase1-read-harness/v1'
@@ -132,12 +154,12 @@ function Resolve-CanonicalDirectoryPath {
             }
         }
 
-        if ($cursor.Equals($AllowedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        if ($cursor.Equals($RepositoryRoot, [StringComparison]::OrdinalIgnoreCase)) {
             break
         }
         $parent = [IO.Directory]::GetParent($cursor)
         if ($null -eq $parent) {
-            throw 'EvidenceRoot could not be canonicalized.'
+            throw 'EvidenceRoot does not resolve beneath the repository boundary.'
         }
         $cursor = $parent.FullName
     }
@@ -231,6 +253,1063 @@ function Test-TransportProbeResponse {
     }
 }
 
+function Get-UtcTimestamp {
+    return [DateTime]::UtcNow.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function ConvertTo-CanonicalValue {
+    param([AllowNull()] [object] $Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if ($Value -is [Collections.IDictionary]) {
+        $result = [ordered]@{}
+        foreach ($key in @($Value.Keys | ForEach-Object { [string] $_ } | Sort-Object -CaseSensitive)) {
+            $result[$key] = ConvertTo-CanonicalValue -Value $Value[$key]
+        }
+        return $result
+    }
+
+    if ($Value -is [Collections.IEnumerable] -and $Value -isnot [string]) {
+        $items = @()
+        foreach ($item in $Value) {
+            $items += ,(ConvertTo-CanonicalValue -Value $item)
+        }
+        return ,$items
+    }
+
+    if ($Value -is [string] -or $Value -is [bool] -or
+        $Value -is [byte] -or $Value -is [sbyte] -or
+        $Value -is [int16] -or $Value -is [uint16] -or
+        $Value -is [int32] -or $Value -is [uint32] -or
+        $Value -is [int64] -or $Value -is [uint64] -or
+        $Value -is [single] -or $Value -is [double] -or $Value -is [decimal]) {
+        return $Value
+    }
+
+    $properties = @($Value.PSObject.Properties | Where-Object { $_.IsGettable } | Sort-Object Name -CaseSensitive)
+    if ($properties.Count -gt 0) {
+        $result = [ordered]@{}
+        foreach ($property in $properties) {
+            $result[$property.Name] = ConvertTo-CanonicalValue -Value $property.Value
+        }
+        return $result
+    }
+
+    throw "Unsupported canonical evidence value type '$($Value.GetType().FullName)'."
+}
+
+function ConvertTo-CanonicalJson {
+    param([AllowNull()] [object] $Value)
+
+    $canonical = ConvertTo-CanonicalValue -Value $Value
+    return $canonical | ConvertTo-Json -Compress -Depth 100
+}
+
+function Get-Sha256Text {
+    param([Parameter(Mandatory)] [string] $Text)
+
+    $encoding = [Text.UTF8Encoding]::new($false)
+    $bytes = $encoding.GetBytes($Text)
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        return [Convert]::ToHexString($sha256.ComputeHash($bytes)).ToLowerInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
+function Write-AtomicJsonDocument {
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [AllowNull()] [object] $Value
+    )
+
+    $json = $Value | ConvertTo-Json -Compress -Depth 100
+    $encoding = [Text.UTF8Encoding]::new($false)
+    $temporaryPath = "$Path.tmp-$([Guid]::NewGuid().ToString('N'))"
+    try {
+        [IO.File]::WriteAllBytes($temporaryPath, $encoding.GetBytes($json + [Environment]::NewLine))
+        [IO.File]::Move($temporaryPath, $Path, $true)
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
+            Remove-Item -LiteralPath $temporaryPath -Force
+        }
+    }
+}
+
+function Open-CasesWriter {
+    param([Parameter(Mandatory)] [string] $Path)
+
+    $stream = [IO.FileStream]::new(
+        $Path,
+        [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write,
+        [IO.FileShare]::Read)
+    try {
+        return [IO.StreamWriter]::new($stream, [Text.UTF8Encoding]::new($false))
+    }
+    catch {
+        $stream.Dispose()
+        throw
+    }
+}
+
+function Write-CaseRecord {
+    param(
+        [Parameter(Mandatory)] [IO.StreamWriter] $Writer,
+        [Parameter(Mandatory)] [object] $Record
+    )
+
+    $Writer.WriteLine(($Record | ConvertTo-Json -Compress -Depth 100))
+    $Writer.Flush()
+    $Writer.BaseStream.Flush($true)
+}
+
+function Stop-JsonLineProcess {
+    param([Parameter(Mandatory)] [Diagnostics.Process] $Process)
+
+    try { $Process.StandardInput.Close() } catch { }
+    if (-not $Process.HasExited) {
+        try { $Process.Kill($true) } catch { }
+    }
+    try { [void] $Process.WaitForExit(5000) } catch { }
+    $Process.Dispose()
+}
+
+function Read-WorkerTerminal {
+    param(
+        [Parameter(Mandatory)] [Diagnostics.Process] $Process,
+        [Parameter(Mandatory)] [int] $TimeoutSeconds
+    )
+
+    $readTask = $Process.StandardOutput.ReadLineAsync()
+    $exitTask = $Process.WaitForExitAsync()
+    $delayTask = [Threading.Tasks.Task]::Delay($TimeoutSeconds * 1000)
+    $tasks = [Threading.Tasks.Task[]] @($readTask, $exitTask, $delayTask)
+    $completed = [Threading.Tasks.Task]::WhenAny($tasks).GetAwaiter().GetResult()
+
+    if ([object]::ReferenceEquals($completed, $readTask)) {
+        $line = $readTask.GetAwaiter().GetResult()
+        if ($null -ne $line) {
+            return [ordered]@{ kind = 'response'; line = $line; exitCode = $null }
+        }
+        $exitCode = if ($Process.HasExited) { $Process.ExitCode } else { $null }
+        return [ordered]@{ kind = 'process_lost'; line = $null; exitCode = $exitCode }
+    }
+
+    if ([object]::ReferenceEquals($completed, $exitTask)) {
+        if ($readTask.Wait(1000)) {
+            $line = $readTask.GetAwaiter().GetResult()
+            if ($null -ne $line) {
+                return [ordered]@{ kind = 'response'; line = $line; exitCode = $Process.ExitCode }
+            }
+        }
+        $exitCode = if ($Process.HasExited) { $Process.ExitCode } else { $null }
+        return [ordered]@{ kind = 'process_lost'; line = $null; exitCode = $exitCode }
+    }
+
+    return [ordered]@{ kind = 'timed_out'; line = $null; exitCode = $null }
+}
+
+function New-CaseDefinition {
+    param(
+        [Parameter(Mandatory)] [string] $CaseId,
+        [Parameter(Mandatory)] [string] $Phase,
+        [AllowNull()] [object] $Workspace,
+        [AllowNull()] [object] $EngineeringObject,
+        [AllowNull()] [string] $TargetName,
+        [AllowNull()] [string] $SecondaryProjectPath
+    )
+
+    return [ordered]@{
+        caseId = $CaseId
+        phase = $Phase
+        workspace = $Workspace
+        engineeringObject = $EngineeringObject
+        targetName = $TargetName
+        secondaryProjectPath = $SecondaryProjectPath
+    }
+}
+
+function Get-CaseInstanceId {
+    param([Parameter(Mandatory)] [Collections.IDictionary] $Definition)
+
+    $identity = [ordered]@{
+        caseId = $Definition.caseId
+        phase = $Definition.phase
+        workspace = $Definition.workspace
+        engineeringObject = $Definition.engineeringObject
+        targetName = $Definition.targetName
+        secondaryProjectPath = $Definition.secondaryProjectPath
+    }
+    $hash = Get-Sha256Text -Text (ConvertTo-CanonicalJson -Value $identity)
+    return "$($Definition.caseId.ToLowerInvariant())-$($hash.Substring(0, 20))"
+}
+
+function New-ProbeWorkerRequest {
+    param(
+        [Parameter(Mandatory)] [string] $RunId,
+        [Parameter(Mandatory)] [string] $SessionId,
+        [Parameter(Mandatory)] [string] $ProjectPath,
+        [Parameter(Mandatory)] [Collections.IDictionary] $Definition
+    )
+
+    $probe = [ordered]@{
+        schemaVersion = 'vci-read-probe/v1'
+        runId = $RunId
+        sessionId = $SessionId
+        caseId = $Definition.caseId
+        caseInstanceId = Get-CaseInstanceId -Definition $Definition
+        targetName = $Definition.targetName
+        workspace = $Definition.workspace
+        engineeringObject = $Definition.engineeringObject
+        secondaryProjectPath = $Definition.secondaryProjectPath
+        maxGroupDepth = $probeBudgets.maxGroupDepth
+        maxGroups = $probeBudgets.maxGroups
+        maxWorkspaces = $probeBudgets.maxWorkspaces
+        maxMappings = $probeBudgets.maxMappings
+        maxEngineeringObjects = $probeBudgets.maxEngineeringObjects
+        maxCollectionItems = $probeBudgets.maxCollectionItems
+    }
+
+    return [ordered]@{
+        method = 'probe_vci_read_contract'
+        projectPath = $ProjectPath
+        vciProbe = $Probe
+    }
+}
+
+function New-SnapshotDefinitions {
+    param([Parameter(Mandatory)] [string] $Phase)
+
+    return @(
+        (New-CaseDefinition -CaseId 'R-SVC' -Phase $Phase -Workspace $null -EngineeringObject $null -TargetName $null -SecondaryProjectPath $null),
+        (New-CaseDefinition -CaseId 'R-GRP' -Phase $Phase -Workspace $null -EngineeringObject $null -TargetName $null -SecondaryProjectPath $null),
+        (New-CaseDefinition -CaseId 'R-WS' -Phase $Phase -Workspace $null -EngineeringObject $null -TargetName $null -SecondaryProjectPath $null),
+        (New-CaseDefinition -CaseId 'R-MAP' -Phase $Phase -Workspace $null -EngineeringObject $null -TargetName $null -SecondaryProjectPath $null)
+    )
+}
+
+function Get-FormatPairs {
+    param([AllowNull()] [object[]] $Mappings)
+
+    $pairs = [Collections.Generic.List[object]]::new()
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($mapping in @($Mappings)) {
+        if ($null -eq $mapping -or $null -eq $mapping.selector) {
+            continue
+        }
+        $workspace = $mapping.selector.workspace
+        $engineeringObject = $mapping.selector.engineeringObject
+        if ($null -eq $workspace -or $null -eq $engineeringObject) {
+            continue
+        }
+        $pair = [ordered]@{ workspace = $workspace; engineeringObject = $engineeringObject }
+        $key = ConvertTo-CanonicalJson -Value $pair
+        if ($seen.Add($key)) {
+            $pairs.Add($pair)
+        }
+    }
+    return $pairs.ToArray()
+}
+
+function New-CaseMatrix {
+    param(
+        [AllowNull()] [object[]] $Mappings,
+        [AllowNull()] [string] $SecondaryProjectPath
+    )
+
+    $matrix = [Collections.Generic.List[object]]::new()
+    $formatPairs = @(Get-FormatPairs -Mappings $Mappings)
+    if ($formatPairs.Count -eq 0) {
+        $emptyWorkspace = [ordered]@{ groupPath = @(); workspaceName = ''; canonicalRootPath = $null }
+        $emptyObject = [ordered]@{ stableIdentifier = $null; structuralPath = @(); fingerprint = $null }
+        $matrix.Add((New-CaseDefinition -CaseId 'R-FMT' -Phase 'matrix' -Workspace $emptyWorkspace -EngineeringObject $emptyObject -TargetName $null -SecondaryProjectPath $null))
+    }
+    else {
+        foreach ($pair in $formatPairs) {
+            $matrix.Add((New-CaseDefinition -CaseId 'R-FMT' -Phase 'matrix' -Workspace $pair.workspace -EngineeringObject $pair.engineeringObject -TargetName $null -SecondaryProjectPath $null))
+        }
+    }
+
+    $applicableWorkspaces = [Collections.Generic.List[object]]::new()
+    $workspaceKeys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($pair in $formatPairs) {
+        $workspaceKey = ConvertTo-CanonicalJson -Value $pair.workspace
+        if ($workspaceKeys.Add($workspaceKey)) {
+            $applicableWorkspaces.Add($pair.workspace)
+        }
+    }
+    if ($applicableWorkspaces.Count -eq 0) {
+        $applicableWorkspaces.Add($null)
+    }
+
+    foreach ($caseId in $negativeCaseIds) {
+        $perWorkspace = $caseId.StartsWith('N-FMT-', [StringComparison]::Ordinal) -or
+            $caseId.StartsWith('N-GRP-', [StringComparison]::Ordinal) -or
+            $caseId.StartsWith('N-WS-', [StringComparison]::Ordinal)
+        if ($perWorkspace) {
+            $workspaces = $applicableWorkspaces.ToArray()
+        }
+        else {
+            $workspaces = [object[]]::new(1)
+            $workspaces[0] = $null
+        }
+        foreach ($workspace in $workspaces) {
+            $secondary = if ($caseId -eq 'N-FMT-FOREIGN') { $SecondaryProjectPath } else { $null }
+            $matrix.Add((New-CaseDefinition -CaseId $caseId -Phase 'matrix' -Workspace $workspace -EngineeringObject $null -TargetName $null -SecondaryProjectPath $secondary))
+        }
+    }
+
+    $repeatWorkspace = if ($formatPairs.Count -gt 0) { $formatPairs[0].workspace } else { $null }
+    $repeatObject = if ($formatPairs.Count -gt 0) { $formatPairs[0].engineeringObject } else { $null }
+    $matrix.Add((New-CaseDefinition -CaseId 'R-REP' -Phase 'matrix' -Workspace $repeatWorkspace -EngineeringObject $repeatObject -TargetName $null -SecondaryProjectPath $null))
+    $matrix.Add((New-CaseDefinition -CaseId 'R-CANARY' -Phase 'matrix' -Workspace $null -EngineeringObject $null -TargetName $null -SecondaryProjectPath $null))
+    return $matrix.ToArray()
+}
+
+function New-TransportFailureRecord {
+    param(
+        [Parameter(Mandatory)] [ValidateSet('timed_out', 'process_lost')] [string] $Outcome,
+        [Parameter(Mandatory)] [Collections.IDictionary] $Request,
+        [Parameter(Mandatory)] [int] $TransportSequence,
+        [Parameter(Mandatory)] [int] $WorkerProcessId,
+        [AllowNull()] [Nullable[int]] $ExitCode,
+        [Parameter(Mandatory)] [string] $SentUtc,
+        [Parameter(Mandatory)] [string] $ReceivedUtc,
+        [Parameter(Mandatory)] [long] $ElapsedMilliseconds
+    )
+
+    return [ordered]@{
+        schemaVersion = 'vci-phase1-read-case-evidence/v1'
+        terminal = $true
+        runId = $Request.vciProbe.runId
+        sessionId = $Request.vciProbe.sessionId
+        caseId = $Request.vciProbe.caseId
+        caseInstanceId = $Request.vciProbe.caseInstanceId
+        outcome = $Outcome
+        exception = $null
+        evidenceFailure = $Outcome
+        workerPayload = $null
+        workerWarnings = @()
+        transport = [ordered]@{
+            kind = $Outcome
+            transportSequence = $TransportSequence
+            workerProcessId = $WorkerProcessId
+            sentUtc = $SentUtc
+            receivedUtc = $ReceivedUtc
+            elapsedMilliseconds = $ElapsedMilliseconds
+            exitCode = $ExitCode
+        }
+    }
+}
+
+function New-EvidenceFailureRecord {
+    param(
+        [Parameter(Mandatory)] [string] $Category,
+        [Parameter(Mandatory)] [string] $Message,
+        [Parameter(Mandatory)] [Collections.IDictionary] $Request,
+        [Parameter(Mandatory)] [int] $TransportSequence,
+        [Parameter(Mandatory)] [int] $WorkerProcessId,
+        [Parameter(Mandatory)] [string] $SentUtc,
+        [Parameter(Mandatory)] [string] $ReceivedUtc,
+        [Parameter(Mandatory)] [long] $ElapsedMilliseconds,
+        [AllowNull()] [string] $RawResponse
+    )
+
+    return [ordered]@{
+        schemaVersion = 'vci-phase1-read-case-evidence/v1'
+        terminal = $true
+        runId = $Request.vciProbe.runId
+        sessionId = $Request.vciProbe.sessionId
+        caseId = $Request.vciProbe.caseId
+        caseInstanceId = $Request.vciProbe.caseInstanceId
+        outcome = $null
+        exception = $null
+        evidenceFailure = $Category
+        evidenceFailureMessage = $Message
+        workerPayload = $null
+        workerWarnings = @()
+        rawResponse = $RawResponse
+        transport = [ordered]@{
+            kind = 'response'
+            transportSequence = $TransportSequence
+            workerProcessId = $WorkerProcessId
+            sentUtc = $SentUtc
+            receivedUtc = $ReceivedUtc
+            elapsedMilliseconds = $ElapsedMilliseconds
+            exitCode = $null
+        }
+    }
+}
+
+function ConvertFrom-JsonHashtable {
+    param(
+        [Parameter(Mandatory)] [string] $Json,
+        [Parameter(Mandatory)] [string] $FailureMessage
+    )
+
+    try {
+        $value = $Json | ConvertFrom-Json -AsHashtable -Depth 100
+    }
+    catch {
+        throw $FailureMessage
+    }
+    if ($value -isnot [Collections.IDictionary]) {
+        throw $FailureMessage
+    }
+    return $value
+}
+
+function Test-WorkerPayload {
+    param(
+        [Parameter(Mandatory)] [string] $ResponseText,
+        [Parameter(Mandatory)] [Collections.IDictionary] $Request,
+        [Parameter(Mandatory)] [string] $ExpectedProjectPath
+    )
+
+    $envelope = ConvertFrom-JsonHashtable -Json $ResponseText -FailureMessage 'malformed_worker_payload: worker envelope is not a JSON object.'
+    $allowedEnvelopeFields = @('success', 'payload', 'error', 'failureCategory', 'warnings', 'resolvedProjectPath')
+    foreach ($name in $envelope.Keys) {
+        if ($name -notin $allowedEnvelopeFields) {
+            throw "malformed_worker_payload: unknown worker envelope field '$name'."
+        }
+    }
+    if ($envelope.success -isnot [bool] -or -not $envelope.success) {
+        $category = if ([string]::IsNullOrWhiteSpace([string] $envelope.failureCategory)) { 'protocol_error' } else { [string] $envelope.failureCategory }
+        $message = if ([string]::IsNullOrWhiteSpace([string] $envelope.error)) { 'Worker returned an unsuccessful envelope.' } else { [string] $envelope.error }
+        throw "${category}: $message"
+    }
+    if ($envelope.payload -isnot [string] -or [string]::IsNullOrWhiteSpace($envelope.payload)) {
+        throw 'malformed_worker_payload: successful worker envelope has no typed payload.'
+    }
+    if ($envelope.Contains('resolvedProjectPath') -and
+        -not [string]::IsNullOrWhiteSpace([string] $envelope.resolvedProjectPath) -and
+        -not ([string] $envelope.resolvedProjectPath).Equals($ExpectedProjectPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'malformed_worker_payload: worker resolved a different project path.'
+    }
+
+    $payload = ConvertFrom-JsonHashtable -Json $envelope.payload -FailureMessage 'malformed_worker_payload: typed payload is not a JSON object.'
+    $allowedPayloadFields = @(
+        'schemaVersion', 'runId', 'sessionId', 'caseId', 'caseInstanceId', 'outcome',
+        'return', 'snapshot', 'exception', 'repeatability', 'notObservableReason',
+        'projectState', 'omissions'
+    )
+    foreach ($name in $payload.Keys) {
+        if ($name -notin $allowedPayloadFields) {
+            throw "malformed_worker_payload: unknown typed payload field '$name'."
+        }
+    }
+    if (-not $payload.Contains('schemaVersion') -or $payload.schemaVersion -ne 'vci-read-probe/v1') {
+        throw 'schema_mismatch: worker payload schema is not vci-read-probe/v1.'
+    }
+    foreach ($field in @('runId', 'sessionId', 'caseId', 'caseInstanceId')) {
+        if (-not $payload.Contains($field) -or $payload[$field] -ne $Request.vciProbe[$field]) {
+            throw "malformed_worker_payload: worker payload field '$field' did not echo the request."
+        }
+    }
+    if ($payload.outcome -notin $validWorkerOutcomes) {
+        throw "malformed_worker_payload: worker outcome '$($payload.outcome)' is not a worker outcome."
+    }
+    if (-not $payload.Contains('projectState') -or $payload.projectState -isnot [Collections.IDictionary] -or
+        $payload.projectState.isModifiedBefore -isnot [bool] -or
+        $payload.projectState.isModifiedAfter -isnot [bool]) {
+        throw 'malformed_worker_payload: projectState is missing or invalid.'
+    }
+    if ($payload.outcome -eq 'threw' -and
+        (-not $payload.Contains('exception') -or $payload.exception -isnot [Collections.IDictionary])) {
+        throw 'malformed_worker_payload: threw outcome has no typed exception evidence.'
+    }
+    if ($payload.outcome -eq 'not_observable' -and
+        (-not $payload.Contains('notObservableReason') -or [string]::IsNullOrWhiteSpace([string] $payload.notObservableReason))) {
+        throw 'malformed_worker_payload: not_observable outcome has no reason.'
+    }
+    if (-not $payload.Contains('omissions') -or $payload.omissions -is [string] -or
+        $payload.omissions -isnot [Collections.IEnumerable]) {
+        throw 'malformed_worker_payload: omissions must be an array.'
+    }
+
+    $warnings = @()
+    if ($envelope.Contains('warnings') -and $null -ne $envelope.warnings) {
+        if ($envelope.warnings -is [string] -or $envelope.warnings -isnot [Collections.IEnumerable]) {
+            throw 'malformed_worker_payload: warnings must be an array.'
+        }
+        $warnings = @($envelope.warnings)
+    }
+
+    return [ordered]@{
+        payload = $payload
+        warnings = $warnings
+        resolvedProjectPath = if ($envelope.Contains('resolvedProjectPath')) { $envelope.resolvedProjectPath } else { $null }
+    }
+}
+
+function Invoke-ProbeRequest {
+    param(
+        [Parameter(Mandatory)] [Diagnostics.Process] $Worker,
+        [Parameter(Mandatory)] [Collections.IDictionary] $Request,
+        [Parameter(Mandatory)] [int] $TimeoutSeconds,
+        [Parameter(Mandatory)] [ref] $TransportSequence,
+        [AllowNull()] [IO.StreamWriter] $CasesWriter,
+        [Parameter(Mandatory)] [bool] $RecordCase
+    )
+
+    $TransportSequence.Value++
+    $sequence = $TransportSequence.Value
+    $sentUtc = Get-UtcTimestamp
+    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+    $terminal = $null
+    try {
+        $requestJson = $Request | ConvertTo-Json -Compress -Depth 100
+        $Worker.StandardInput.WriteLine($requestJson)
+        $Worker.StandardInput.Flush()
+        $terminal = Read-WorkerTerminal -Process $Worker -TimeoutSeconds $TimeoutSeconds
+    }
+    catch {
+        $stopwatch.Stop()
+        $receivedUtc = Get-UtcTimestamp
+        $record = New-TransportFailureRecord `
+            -Outcome 'process_lost' `
+            -Request $Request `
+            -TransportSequence $sequence `
+            -WorkerProcessId $Worker.Id `
+            -ExitCode $(if ($Worker.HasExited) { $Worker.ExitCode } else { $null }) `
+            -SentUtc $sentUtc `
+            -ReceivedUtc $receivedUtc `
+            -ElapsedMilliseconds $stopwatch.ElapsedMilliseconds
+        if ($RecordCase -and $null -ne $CasesWriter) {
+            Write-CaseRecord -Writer $CasesWriter -Record $record
+        }
+        if (-not $RecordCase) {
+            return $record
+        }
+        throw "process_lost: $($_.Exception.Message)"
+    }
+
+    $stopwatch.Stop()
+    $receivedUtc = Get-UtcTimestamp
+    if ($terminal.kind -ne 'response') {
+        $record = New-TransportFailureRecord `
+            -Outcome $terminal.kind `
+            -Request $Request `
+            -TransportSequence $sequence `
+            -WorkerProcessId $Worker.Id `
+            -ExitCode $terminal.exitCode `
+            -SentUtc $sentUtc `
+            -ReceivedUtc $receivedUtc `
+            -ElapsedMilliseconds $stopwatch.ElapsedMilliseconds
+        if ($RecordCase -and $null -ne $CasesWriter) {
+            Write-CaseRecord -Writer $CasesWriter -Record $record
+        }
+        if ($terminal.kind -eq 'timed_out' -and -not $Worker.HasExited) {
+            try { $Worker.Kill($true) } catch { }
+        }
+        if (-not $RecordCase) {
+            return $record
+        }
+        throw "$($terminal.kind): worker did not return a terminal JSONL payload."
+    }
+
+    try {
+        $validated = Test-WorkerPayload -ResponseText $terminal.line -Request $Request -ExpectedProjectPath $Request.projectPath
+    }
+    catch {
+        $category = if ($_.Exception.Message.StartsWith('schema_mismatch:', [StringComparison]::Ordinal)) {
+            'schema_mismatch'
+        }
+        elseif ($_.Exception.Message.StartsWith('malformed_worker_payload:', [StringComparison]::Ordinal)) {
+            'malformed_worker_payload'
+        }
+        else {
+            'protocol_error'
+        }
+        $record = New-EvidenceFailureRecord `
+            -Category $category `
+            -Message $_.Exception.Message `
+            -Request $Request `
+            -TransportSequence $sequence `
+            -WorkerProcessId $Worker.Id `
+            -SentUtc $sentUtc `
+            -ReceivedUtc $receivedUtc `
+            -ElapsedMilliseconds $stopwatch.ElapsedMilliseconds `
+            -RawResponse $terminal.line
+        if ($RecordCase -and $null -ne $CasesWriter) {
+            Write-CaseRecord -Writer $CasesWriter -Record $record
+        }
+        if (-not $RecordCase) {
+            return $record
+        }
+        throw
+    }
+
+    $record = [ordered]@{
+        schemaVersion = 'vci-phase1-read-case-evidence/v1'
+        terminal = $true
+        runId = $Request.vciProbe.runId
+        sessionId = $Request.vciProbe.sessionId
+        caseId = $Request.vciProbe.caseId
+        caseInstanceId = $Request.vciProbe.caseInstanceId
+        outcome = $validated.payload.outcome
+        exception = if ($validated.payload.Contains('exception')) { $validated.payload.exception } else { $null }
+        evidenceFailure = $null
+        workerPayload = $validated.payload
+        workerWarnings = $validated.warnings
+        resolvedProjectPath = $validated.resolvedProjectPath
+        transport = [ordered]@{
+            kind = 'response'
+            transportSequence = $sequence
+            workerProcessId = $Worker.Id
+            sentUtc = $sentUtc
+            receivedUtc = $receivedUtc
+            elapsedMilliseconds = $stopwatch.ElapsedMilliseconds
+            exitCode = $terminal.exitCode
+        }
+    }
+    if ($RecordCase -and $null -ne $CasesWriter) {
+        Write-CaseRecord -Writer $CasesWriter -Record $record
+    }
+    return $record
+}
+
+function Get-WorkspaceRoots {
+    param([Parameter(Mandatory)] [object[]] $SnapshotRecords)
+
+    $roots = [Collections.Generic.List[string]]::new()
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($record in $SnapshotRecords) {
+        if ($record.caseId -ne 'R-WS' -or $null -eq $record.workerPayload.snapshot) {
+            continue
+        }
+        foreach ($workspace in @($record.workerPayload.snapshot.workspaces)) {
+            if ([string]::IsNullOrWhiteSpace([string] $workspace.rootPath)) {
+                continue
+            }
+            try {
+                $root = [IO.Path]::GetFullPath([string] $workspace.rootPath)
+            }
+            catch {
+                throw 'filesystem_hashing_incomplete: a discovered workspace root could not be canonicalized.'
+            }
+            if ($seen.Add($root)) {
+                $roots.Add($root)
+            }
+        }
+    }
+    return $roots.ToArray()
+}
+
+function Get-MappingSnapshots {
+    param([Parameter(Mandatory)] [object[]] $SnapshotRecords)
+
+    $mappings = [Collections.Generic.List[object]]::new()
+    foreach ($record in $SnapshotRecords) {
+        if ($record.caseId -ne 'R-MAP' -or $null -eq $record.workerPayload.snapshot) {
+            continue
+        }
+        foreach ($mapping in @($record.workerPayload.snapshot.mappings)) {
+            $mappings.Add($mapping)
+        }
+    }
+    return $mappings.ToArray()
+}
+
+function Get-FilesystemSnapshot {
+    param(
+        [Parameter(Mandatory)] [string[]] $WorkspaceRoots,
+        [Parameter(Mandatory)] [int] $MaxFiles,
+        [Parameter(Mandatory)] [long] $MaxBytes
+    )
+
+    $files = [Collections.Generic.List[object]]::new()
+    $omissions = [Collections.Generic.List[object]]::new()
+    $complete = $true
+    [long] $totalBytes = 0
+
+    :filesystemRoots foreach ($root in $WorkspaceRoots) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+            $complete = $false
+            $omissions.Add([ordered]@{ root = $root; path = $null; reason = 'workspace_root_missing' })
+            continue
+        }
+        $rootItem = Get-Item -LiteralPath $root -Force
+        if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            $complete = $false
+            $omissions.Add([ordered]@{ root = $root; path = $null; reason = 'workspace_root_is_reparse_point' })
+            continue
+        }
+
+        $pending = [Collections.Generic.Queue[string]]::new()
+        $pending.Enqueue($root)
+        while ($pending.Count -gt 0) {
+            $directory = $pending.Dequeue()
+            try {
+                $entries = @([IO.Directory]::EnumerateFileSystemEntries($directory) | Sort-Object -CaseSensitive)
+            }
+            catch {
+                $complete = $false
+                $omissions.Add([ordered]@{ root = $root; path = $directory; reason = 'directory_enumeration_failed'; message = $_.Exception.Message })
+                continue
+            }
+
+            foreach ($entry in $entries) {
+                try {
+                    $attributes = [IO.File]::GetAttributes($entry)
+                    if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                        $omissions.Add([ordered]@{ root = $root; path = $entry; reason = 'reparse_point_not_followed' })
+                        continue
+                    }
+                    if (($attributes -band [IO.FileAttributes]::Directory) -ne 0) {
+                        $pending.Enqueue($entry)
+                        continue
+                    }
+
+                    if ($files.Count -ge $MaxFiles) {
+                        $complete = $false
+                        $omissions.Add([ordered]@{ root = $root; path = $entry; reason = 'max_file_count_exceeded'; budget = $MaxFiles })
+                        break filesystemRoots
+                    }
+                    $fileInfoBefore = [IO.FileInfo]::new($entry)
+                    if ($totalBytes + $fileInfoBefore.Length -gt $MaxBytes) {
+                        $complete = $false
+                        $omissions.Add([ordered]@{ root = $root; path = $entry; reason = 'max_byte_count_exceeded'; budget = $MaxBytes })
+                        break filesystemRoots
+                    }
+                    $hash = (Get-FileHash -LiteralPath $entry -Algorithm SHA256).Hash.ToLowerInvariant()
+                    $fileInfoAfter = [IO.FileInfo]::new($entry)
+                    if ($fileInfoBefore.Length -ne $fileInfoAfter.Length -or
+                        $fileInfoBefore.LastWriteTimeUtc -ne $fileInfoAfter.LastWriteTimeUtc) {
+                        $complete = $false
+                        $omissions.Add([ordered]@{ root = $root; path = $entry; reason = 'file_changed_while_hashing' })
+                        continue
+                    }
+                    $relativePath = [IO.Path]::GetRelativePath($root, $entry).Replace([IO.Path]::DirectorySeparatorChar, '/')
+                    $files.Add([ordered]@{
+                            root = $root
+                            relativePath = $relativePath
+                            length = $fileInfoAfter.Length
+                            lastWriteUtc = $fileInfoAfter.LastWriteTimeUtc.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
+                            sha256 = $hash
+                        })
+                    $totalBytes += $fileInfoAfter.Length
+                }
+                catch {
+                    $complete = $false
+                    $omissions.Add([ordered]@{ root = $root; path = $entry; reason = 'file_hash_failed'; message = $_.Exception.Message })
+                }
+            }
+        }
+    }
+
+    return [ordered]@{
+        schemaVersion = 'vci-phase1-filesystem-snapshot/v1'
+        capturedUtc = Get-UtcTimestamp
+        workspaceRoots = $WorkspaceRoots
+        complete = $complete
+        maxFiles = $MaxFiles
+        maxBytes = $MaxBytes
+        observedFiles = $files.Count
+        observedBytes = $totalBytes
+        files = $files.ToArray()
+        omissions = $omissions.ToArray()
+    }
+}
+
+function Remove-NormalizedEvidenceFields {
+    param([AllowNull()] [object] $Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+    if ($Value -is [Collections.IDictionary]) {
+        $result = [ordered]@{}
+        $removedNames = @(
+            'runId', 'sessionId', 'sentUtc', 'receivedUtc', 'capturedUtc',
+            'elapsedMilliseconds', 'workerProcessId', 'transportSequence'
+        )
+        foreach ($key in @($Value.Keys | ForEach-Object { [string] $_ } | Sort-Object -CaseSensitive)) {
+            if ($key -in $removedNames) {
+                continue
+            }
+            $result[$key] = Remove-NormalizedEvidenceFields -Value $Value[$key]
+        }
+        return $result
+    }
+    if ($Value -is [Collections.IEnumerable] -and $Value -isnot [string]) {
+        $items = @()
+        foreach ($item in $Value) {
+            $items += ,(Remove-NormalizedEvidenceFields -Value $item)
+        }
+        return ,$items
+    }
+    return $Value
+}
+
+function Compare-FilesystemSnapshots {
+    param(
+        [Parameter(Mandatory)] [Collections.IDictionary] $Before,
+        [Parameter(Mandatory)] [Collections.IDictionary] $After
+    )
+
+    if (-not $Before.complete -or -not $After.complete) {
+        return [ordered]@{ complete = $false; unchanged = $false; failure = 'filesystem_hashing_incomplete' }
+    }
+    $beforeComparable = [ordered]@{ workspaceRoots = $Before.workspaceRoots; files = $Before.files }
+    $afterComparable = [ordered]@{ workspaceRoots = $After.workspaceRoots; files = $After.files }
+    $unchanged = (ConvertTo-CanonicalJson -Value $beforeComparable) -ceq (ConvertTo-CanonicalJson -Value $afterComparable)
+    return [ordered]@{
+        complete = $true
+        unchanged = $unchanged
+        failure = if ($unchanged) { $null } else { 'filesystem_changed' }
+    }
+}
+
+function Assert-TerminalCoverage {
+    param(
+        [Parameter(Mandatory)] [object[]] $Records,
+        [Parameter(Mandatory)] [string] $SessionId
+    )
+
+    $sessionRecords = @($Records | Where-Object { $_.sessionId -eq $SessionId })
+    $duplicate = @($sessionRecords | Group-Object caseInstanceId | Where-Object { $_.Count -ne 1 })
+    if ($duplicate.Count -gt 0) {
+        throw 'duplicate_case_instance_id: a session contains duplicate terminal identifiers.'
+    }
+    if ($sessionRecords.Count -eq 0 -or @($sessionRecords | Where-Object { [string]::IsNullOrWhiteSpace([string] $_.caseInstanceId) }).Count -gt 0) {
+        throw 'missing_case_instance_id: a session terminal record has no identifier.'
+    }
+    foreach ($caseId in $caseIds) {
+        if (@($sessionRecords | Where-Object { $_.caseId -eq $caseId }).Count -eq 0) {
+            throw "missing_case_instance_id: session '$SessionId' has no terminal record for case '$caseId'."
+        }
+    }
+    if (@($sessionRecords | Where-Object { $_.schemaVersion -ne 'vci-phase1-read-case-evidence/v1' }).Count -gt 0) {
+        throw 'schema_mismatch: cases.jsonl contains an unexpected evidence schema.'
+    }
+    if (@($sessionRecords | Where-Object { -not $_.terminal }).Count -gt 0) {
+        throw 'missing_case_instance_id: a request has no terminal evidence record.'
+    }
+}
+
+function Compare-SessionRecords {
+    param([Parameter(Mandatory)] [object[]] $Records)
+
+    $first = @($Records | Where-Object { $_.sessionId -eq 'session-1' })
+    $second = @($Records | Where-Object { $_.sessionId -eq 'session-2' })
+    $firstById = @{}
+    $secondById = @{}
+    foreach ($record in $first) { $firstById[$record.caseInstanceId] = $record }
+    foreach ($record in $second) { $secondById[$record.caseInstanceId] = $record }
+
+    $mismatches = [Collections.Generic.List[object]]::new()
+    $allIds = @($firstById.Keys + $secondById.Keys | Sort-Object -Unique -CaseSensitive)
+    foreach ($caseInstanceId in $allIds) {
+        if (-not $firstById.ContainsKey($caseInstanceId) -or -not $secondById.ContainsKey($caseInstanceId)) {
+            $mismatches.Add([ordered]@{ caseInstanceId = $caseInstanceId; reason = 'missing_case_instance_id' })
+            continue
+        }
+        $left = ConvertTo-CanonicalJson -Value (Remove-NormalizedEvidenceFields -Value $firstById[$caseInstanceId])
+        $right = ConvertTo-CanonicalJson -Value (Remove-NormalizedEvidenceFields -Value $secondById[$caseInstanceId])
+        if ($left -cne $right) {
+            $mismatches.Add([ordered]@{ caseInstanceId = $caseInstanceId; reason = 'normalized_session_mismatch' })
+        }
+    }
+    return $mismatches.ToArray()
+}
+
+function Test-ProjectStateInvariant {
+    param([Parameter(Mandatory)] [object[]] $Records)
+
+    $failures = [Collections.Generic.List[object]]::new()
+    foreach ($sessionId in $sessionIds) {
+        $sessionRecords = @($Records | Where-Object { $_.sessionId -eq $sessionId -and $null -ne $_.workerPayload })
+        if ($sessionRecords.Count -eq 0) {
+            $failures.Add([ordered]@{ sessionId = $sessionId; reason = 'missing_project_state_evidence' })
+            continue
+        }
+        $baseline = $sessionRecords[0].workerPayload.projectState.isModifiedBefore
+        foreach ($record in $sessionRecords) {
+            $state = $record.workerPayload.projectState
+            if ($state.isModifiedBefore -ne $baseline -or $state.isModifiedAfter -ne $baseline) {
+                $failures.Add([ordered]@{ sessionId = $sessionId; caseInstanceId = $record.caseInstanceId; reason = 'project_state_changed' })
+            }
+        }
+    }
+    return [ordered]@{ unchanged = $failures.Count -eq 0; failures = $failures.ToArray() }
+}
+
+function Read-CaseRecords {
+    param([Parameter(Mandatory)] [string] $Path)
+
+    $records = [Collections.Generic.List[object]]::new()
+    foreach ($line in [IO.File]::ReadLines($Path, [Text.UTF8Encoding]::new($false))) {
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+        $record = ConvertFrom-JsonHashtable -Json $line -FailureMessage 'malformed_worker_payload: cases.jsonl contains malformed evidence.'
+        $records.Add($record)
+    }
+    return $records.ToArray()
+}
+
+function Get-GitProvenance {
+    param([Parameter(Mandatory)] [string] $RepositoryRoot)
+
+    if ($null -eq (Get-Command git -ErrorAction SilentlyContinue)) {
+        throw 'Git is required to capture evidence provenance.'
+    }
+    $commit = (& git -C $RepositoryRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string] $commit)) {
+        throw 'Git commit provenance could not be captured.'
+    }
+    $statusLines = @(& git -C $RepositoryRoot status --porcelain --untracked-files=normal 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Git dirty-state provenance could not be captured.'
+    }
+    return [ordered]@{
+        commit = ([string] $commit).Trim()
+        isDirty = $statusLines.Count -gt 0
+        trackedChangeCount = $statusLines.Count
+    }
+}
+
+function Get-CountSummary {
+    param([Parameter(Mandatory)] [object[]] $Records)
+
+    $counts = [Collections.Generic.List[object]]::new()
+    foreach ($group in @($Records | Group-Object sessionId, caseId, outcome | Sort-Object Name -CaseSensitive)) {
+        $sample = $group.Group[0]
+        $counts.Add([ordered]@{
+                sessionId = $sample.sessionId
+                caseId = $sample.caseId
+                outcome = $sample.outcome
+                count = $group.Count
+            })
+    }
+    return $counts.ToArray()
+}
+
+function Invoke-ProbeSession {
+    param(
+        [Parameter(Mandatory)] [string] $RunId,
+        [Parameter(Mandatory)] [string] $SessionId,
+        [Parameter(Mandatory)] [string] $ProjectPath,
+        [Parameter(Mandatory)] [string] $WorkerExecutable,
+        [Parameter(Mandatory)] [string[]] $WorkerArguments,
+        [AllowNull()] [string] $SecondaryProjectPath,
+        [Parameter(Mandatory)] [int] $TimeoutSeconds,
+        [Parameter(Mandatory)] [IO.StreamWriter] $CasesWriter,
+        [Parameter(Mandatory)] [bool] $CaptureFilesystemBefore
+    )
+
+    $worker = $null
+    $transportSequence = 0
+    $baselineRecords = [Collections.Generic.List[object]]::new()
+    $matrixRecords = [Collections.Generic.List[object]]::new()
+    $afterCanaryRecords = [Collections.Generic.List[object]]::new()
+    $snapshotFailure = $null
+    try {
+        $worker = Start-JsonLineProcess -Executable $WorkerExecutable -Arguments $WorkerArguments
+
+        foreach ($definition in (New-SnapshotDefinitions -Phase 'baseline')) {
+            $request = New-ProbeWorkerRequest `
+                -RunId $RunId `
+                -SessionId $SessionId `
+                -ProjectPath $ProjectPath `
+                -Definition $definition
+            $record = Invoke-ProbeRequest `
+                -Worker $worker `
+                -Request $request `
+                -TimeoutSeconds $TimeoutSeconds `
+                -TransportSequence ([ref] $transportSequence) `
+                -CasesWriter $CasesWriter `
+                -RecordCase $true
+            $baselineRecords.Add($record)
+        }
+
+        $workspaceRoots = @(Get-WorkspaceRoots -SnapshotRecords $baselineRecords.ToArray())
+        $mappings = @(Get-MappingSnapshots -SnapshotRecords $baselineRecords.ToArray())
+        $filesystemBefore = $null
+        if ($CaptureFilesystemBefore) {
+            $filesystemBefore = Get-FilesystemSnapshot `
+                -WorkspaceRoots $workspaceRoots `
+                -MaxFiles $filesystemBudgets.maxFiles `
+                -MaxBytes $filesystemBudgets.maxBytes
+            if (-not $filesystemBefore.complete) {
+                throw 'filesystem_hashing_incomplete: pre-run workspace hashing did not complete.'
+            }
+        }
+
+        $matrix = @(New-CaseMatrix -Mappings $mappings -SecondaryProjectPath $SecondaryProjectPath)
+        foreach ($definition in $matrix) {
+            $request = New-ProbeWorkerRequest `
+                -RunId $RunId `
+                -SessionId $SessionId `
+                -ProjectPath $ProjectPath `
+                -Definition $definition
+            $record = Invoke-ProbeRequest `
+                -Worker $worker `
+                -Request $request `
+                -TimeoutSeconds $TimeoutSeconds `
+                -TransportSequence ([ref] $transportSequence) `
+                -CasesWriter $CasesWriter `
+                -RecordCase $true
+            $matrixRecords.Add($record)
+        }
+
+        if ($matrixRecords.Count -eq 0 -or $matrixRecords[$matrixRecords.Count - 1].caseId -ne 'R-CANARY') {
+            throw 'missing_case_instance_id: R-CANARY was not the final case-matrix terminal record.'
+        }
+
+        foreach ($definition in (New-SnapshotDefinitions -Phase 'after-canary')) {
+            $request = New-ProbeWorkerRequest `
+                -RunId $RunId `
+                -SessionId $SessionId `
+                -ProjectPath $ProjectPath `
+                -Definition $definition
+            $record = Invoke-ProbeRequest `
+                -Worker $worker `
+                -Request $request `
+                -TimeoutSeconds $TimeoutSeconds `
+                -TransportSequence ([ref] $transportSequence) `
+                -CasesWriter $null `
+                -RecordCase $false
+            $afterCanaryRecords.Add($record)
+            if (-not [string]::IsNullOrWhiteSpace([string] $record.evidenceFailure)) {
+                $snapshotFailure = [string] $record.evidenceFailure
+                break
+            }
+        }
+
+        return [ordered]@{
+            sessionId = $SessionId
+            workerProcessId = $worker.Id
+            snapshotBefore = [ordered]@{
+                sessionId = $SessionId
+                observations = @($baselineRecords.ToArray() | ForEach-Object { $_.workerPayload })
+            }
+            snapshotAfter = [ordered]@{
+                sessionId = $SessionId
+                observations = @($afterCanaryRecords.ToArray() | ForEach-Object { $_.workerPayload })
+                terminalRecords = $afterCanaryRecords.ToArray()
+            }
+            afterCanaryRecords = $afterCanaryRecords.ToArray()
+            workspaceRoots = $workspaceRoots
+            filesystemBefore = $filesystemBefore
+            failure = $snapshotFailure
+        }
+    }
+    finally {
+        if ($null -ne $worker) {
+            Stop-JsonLineProcess -Process $worker
+        }
+    }
+}
+
 $scriptDirectory = Split-Path -Parent $PSCommandPath
 if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
     throw 'The harness repository boundary could not be canonicalized.'
@@ -271,25 +1350,281 @@ if (-not [string]::IsNullOrWhiteSpace($SecondaryProjectPath)) {
 }
 
 $workerArguments = @('--access-mode', 'read-only')
-$worker = $null
-try {
-    $worker = Start-JsonLineProcess -Executable $canonicalWorkerExecutable -Arguments $workerArguments
-    $transportProbe = @{ method = '__task7_transport_probe__' } | ConvertTo-Json -Compress -Depth 10
-    $worker.StandardInput.WriteLine($transportProbe)
-    $worker.StandardInput.Flush()
-    $transportResponse = Read-JsonLine -Process $worker -TimeoutSeconds $TimeoutSeconds
-    if ([string]::IsNullOrWhiteSpace($transportResponse)) {
-        throw 'Worker transport preflight returned no JSONL response.'
+$gitProvenance = Get-GitProvenance -RepositoryRoot $repositoryRoot
+$dotnetVersion = (& dotnet --version 2>$null | Select-Object -First 1)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string] $dotnetVersion)) {
+    throw '.NET version provenance could not be captured.'
+}
+
+$runId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture) +
+    '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
+$runDirectory = Join-Path $canonicalEvidenceRoot $runId
+if (Test-Path -LiteralPath $runDirectory) {
+    throw 'The generated evidence run directory already exists.'
+}
+[void] [IO.Directory]::CreateDirectory($runDirectory)
+
+$manifest = [ordered]@{
+    schemaVersion = 'vci-phase1-read-manifest/v1'
+    runId = $runId
+    createdUtc = Get-UtcTimestamp
+    readOnly = $true
+    mutatesProject = $false
+    workerOperation = 'probe_vci_read_contract'
+    workerAccessMode = 'read-only'
+    workerSessions = $sessionIds
+    script = [ordered]@{
+        path = [IO.Path]::GetFullPath($PSCommandPath)
+        sha256 = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
     }
-    Test-TransportProbeResponse -ResponseText $transportResponse
-    throw 'The Task 7 shell completed preflight. Task 8 must provide the separately authorized evidence run logic.'
+    worker = [ordered]@{
+        path = $canonicalWorkerExecutable
+        sha256 = (Get-FileHash -LiteralPath $canonicalWorkerExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    git = $gitProvenance
+    environment = [ordered]@{
+        operatingSystem = [Environment]::OSVersion.VersionString
+        powerShellVersion = $PSVersionTable.PSVersion.ToString()
+        dotnetVersion = ([string] $dotnetVersion).Trim()
+    }
+    paths = [ordered]@{
+        repositoryRoot = $repositoryRoot
+        projectPath = $canonicalProjectPath
+        secondaryProjectPath = $canonicalSecondaryProjectPath
+        evidenceRoot = $canonicalEvidenceRoot
+        runDirectory = $runDirectory
+    }
+    authorizationInputs = [ordered]@{
+        mode = $Mode
+        separateLiveAuthorizationRequired = $true
+        secondaryProjectPathSupplied = -not [string]::IsNullOrWhiteSpace($SecondaryProjectPath)
+        secondaryProjectReadAuthorized = [bool] $AllowSecondaryProjectRead
+    }
+    timeoutSeconds = $TimeoutSeconds
+    probeBudgets = $probeBudgets
+    filesystemBudgets = $filesystemBudgets
+    caseIds = $caseIds
+    evidenceFiles = $evidenceFiles
+}
+
+$manifestPath = Join-Path $runDirectory 'manifest.json'
+$casesPath = Join-Path $runDirectory 'cases.jsonl'
+$snapshotBeforePath = Join-Path $runDirectory 'snapshot-before.json'
+$snapshotAfterPath = Join-Path $runDirectory 'snapshot-after.json'
+$filesystemBeforePath = Join-Path $runDirectory 'filesystem-before.json'
+$filesystemAfterPath = Join-Path $runDirectory 'filesystem-after.json'
+$summaryPath = Join-Path $runDirectory 'summary.json'
+Write-AtomicJsonDocument -Path $manifestPath -Value $manifest
+
+$failureReasons = [Collections.Generic.List[string]]::new()
+$sessionResults = [Collections.Generic.List[object]]::new()
+$snapshotBeforeEntries = [Collections.Generic.List[object]]::new()
+$snapshotAfterEntries = [Collections.Generic.List[object]]::new()
+$afterCanaryRecords = [Collections.Generic.List[object]]::new()
+$workspaceRoots = @()
+$filesystemBefore = $null
+$filesystemAfter = $null
+$casesWriter = $null
+try {
+    $casesWriter = Open-CasesWriter -Path $casesPath
+    foreach ($sessionId in $sessionIds) {
+        $sessionResult = Invoke-ProbeSession `
+            -RunId $runId `
+            -SessionId $sessionId `
+            -ProjectPath $canonicalProjectPath `
+            -WorkerExecutable $canonicalWorkerExecutable `
+            -WorkerArguments $workerArguments `
+            -SecondaryProjectPath $canonicalSecondaryProjectPath `
+            -TimeoutSeconds $TimeoutSeconds `
+            -CasesWriter $casesWriter `
+            -CaptureFilesystemBefore ($sessionId -eq 'session-1')
+        $sessionResults.Add($sessionResult)
+        $snapshotBeforeEntries.Add($sessionResult.snapshotBefore)
+        $snapshotAfterEntries.Add($sessionResult.snapshotAfter)
+        foreach ($record in @($sessionResult.afterCanaryRecords)) {
+            $afterCanaryRecords.Add($record)
+        }
+        if ($sessionId -eq 'session-1') {
+            $workspaceRoots = @($sessionResult.workspaceRoots)
+            $filesystemBefore = $sessionResult.filesystemBefore
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string] $sessionResult.failure)) {
+            throw $sessionResult.failure
+        }
+    }
+}
+catch {
+    $failureReasons.Add($_.Exception.Message)
 }
 finally {
-    if ($null -ne $worker) {
-        try { $worker.StandardInput.Close() } catch { }
-        if (-not $worker.HasExited) {
-            try { $worker.Kill($true) } catch { }
-        }
-        $worker.Dispose()
+    if ($null -ne $casesWriter) {
+        $casesWriter.Dispose()
     }
+}
+
+if ($null -eq $filesystemBefore) {
+    $filesystemBefore = [ordered]@{
+        schemaVersion = 'vci-phase1-filesystem-snapshot/v1'
+        capturedUtc = Get-UtcTimestamp
+        workspaceRoots = $workspaceRoots
+        complete = $false
+        maxFiles = $filesystemBudgets.maxFiles
+        maxBytes = $filesystemBudgets.maxBytes
+        observedFiles = 0
+        observedBytes = 0
+        files = @()
+        omissions = @([ordered]@{ root = $null; path = $null; reason = 'filesystem_hashing_incomplete' })
+    }
+}
+
+try {
+    $filesystemAfter = Get-FilesystemSnapshot `
+        -WorkspaceRoots $workspaceRoots `
+        -MaxFiles $filesystemBudgets.maxFiles `
+        -MaxBytes $filesystemBudgets.maxBytes
+}
+catch {
+    $failureReasons.Add("filesystem_hashing_incomplete: $($_.Exception.Message)")
+    $filesystemAfter = [ordered]@{
+        schemaVersion = 'vci-phase1-filesystem-snapshot/v1'
+        capturedUtc = Get-UtcTimestamp
+        workspaceRoots = $workspaceRoots
+        complete = $false
+        maxFiles = $filesystemBudgets.maxFiles
+        maxBytes = $filesystemBudgets.maxBytes
+        observedFiles = 0
+        observedBytes = 0
+        files = @()
+        omissions = @([ordered]@{ root = $null; path = $null; reason = 'filesystem_hashing_incomplete' })
+    }
+}
+
+$snapshotBeforeDocument = [ordered]@{
+    schemaVersion = 'vci-phase1-read-snapshot/v1'
+    runId = $runId
+    phase = 'before'
+    sessions = $snapshotBeforeEntries.ToArray()
+}
+$snapshotAfterDocument = [ordered]@{
+    schemaVersion = 'vci-phase1-read-snapshot/v1'
+    runId = $runId
+    phase = 'after-canary'
+    sessions = $snapshotAfterEntries.ToArray()
+}
+Write-AtomicJsonDocument -Path $snapshotBeforePath -Value $snapshotBeforeDocument
+Write-AtomicJsonDocument -Path $snapshotAfterPath -Value $snapshotAfterDocument
+Write-AtomicJsonDocument -Path $filesystemBeforePath -Value $filesystemBefore
+Write-AtomicJsonDocument -Path $filesystemAfterPath -Value $filesystemAfter
+
+$caseRecords = @()
+try {
+    $caseRecords = @(Read-CaseRecords -Path $casesPath)
+}
+catch {
+    $failureReasons.Add($_.Exception.Message)
+}
+
+$terminalCoverageComplete = $true
+foreach ($sessionId in $sessionIds) {
+    try {
+        Assert-TerminalCoverage -Records $caseRecords -SessionId $sessionId
+        $sessionCases = @($caseRecords | Where-Object { $_.sessionId -eq $sessionId })
+        if ($sessionCases.Count -eq 0 -or $sessionCases[$sessionCases.Count - 1].caseId -ne 'R-CANARY') {
+            throw 'missing_case_instance_id: R-CANARY is not the final cases.jsonl record for the session.'
+        }
+    }
+    catch {
+        $terminalCoverageComplete = $false
+        $failureReasons.Add($_.Exception.Message)
+    }
+}
+
+foreach ($record in $caseRecords) {
+    if (-not [string]::IsNullOrWhiteSpace([string] $record.evidenceFailure)) {
+        $failureReasons.Add([string] $record.evidenceFailure)
+    }
+}
+
+$normalizedMismatches = @(Compare-SessionRecords -Records $caseRecords)
+$snapshotMismatches = @(Compare-SessionRecords -Records $afterCanaryRecords.ToArray())
+foreach ($mismatch in $snapshotMismatches) {
+    $normalizedMismatches += ,$mismatch
+}
+if ($normalizedMismatches.Count -gt 0) {
+    $failureReasons.Add('normalized_session_mismatch')
+}
+
+$projectStateRecords = @($caseRecords) + @($afterCanaryRecords.ToArray())
+$projectStateInvariant = Test-ProjectStateInvariant -Records $projectStateRecords
+if (-not $projectStateInvariant.unchanged) {
+    $failureReasons.Add('project_state_changed')
+}
+$filesystemInvariant = Compare-FilesystemSnapshots -Before $filesystemBefore -After $filesystemAfter
+if (-not $filesystemInvariant.complete) {
+    $failureReasons.Add('filesystem_hashing_incomplete')
+}
+elseif (-not $filesystemInvariant.unchanged) {
+    $failureReasons.Add('filesystem_changed')
+}
+
+$canaryStatus = [Collections.Generic.List[object]]::new()
+foreach ($sessionId in $sessionIds) {
+    $canary = @($caseRecords | Where-Object { $_.sessionId -eq $sessionId -and $_.caseId -eq 'R-CANARY' })
+    $usable = $canary.Count -eq 1 -and $canary[0].outcome -in @('returned', 'returned_null')
+    $canaryStatus.Add([ordered]@{ sessionId = $sessionId; usable = $usable; outcome = if ($canary.Count -eq 1) { $canary[0].outcome } else { $null } })
+    if (-not $usable) {
+        $failureReasons.Add("$sessionId canary_not_usable")
+    }
+}
+
+$evidenceComplete = $sessionResults.Count -eq 2 -and
+    $snapshotBeforeEntries.Count -eq 2 -and
+    $snapshotAfterEntries.Count -eq 2 -and
+    $terminalCoverageComplete -and
+    $filesystemBefore.complete -and
+    $filesystemAfter.complete
+if (-not $evidenceComplete) {
+    $failureReasons.Add('evidence_incomplete')
+}
+
+$preSummaryExpected = @($evidenceFiles | Where-Object { $_ -ne 'summary.json' } | Sort-Object -CaseSensitive)
+$preSummaryActual = @(Get-ChildItem -LiteralPath $runDirectory -File | Select-Object -ExpandProperty Name | Sort-Object -CaseSensitive)
+if ((ConvertTo-CanonicalJson -Value $preSummaryActual) -cne (ConvertTo-CanonicalJson -Value $preSummaryExpected)) {
+    $failureReasons.Add('evidence_file_set_mismatch')
+}
+
+$uniqueFailureReasons = @($failureReasons | Sort-Object -Unique -CaseSensitive)
+$summary = [ordered]@{
+    schemaVersion = 'vci-phase1-read-summary/v1'
+    runId = $runId
+    completedUtc = Get-UtcTimestamp
+    counts = Get-CountSummary -Records $caseRecords
+    normalizedMismatches = $normalizedMismatches
+    canaryStatus = $canaryStatus.ToArray()
+    projectStateInvariant = $projectStateInvariant
+    filesystemInvariant = $filesystemInvariant
+    evidenceComplete = $evidenceComplete
+    failures = $uniqueFailureReasons
+    overallPass = $uniqueFailureReasons.Count -eq 0
+}
+Write-AtomicJsonDocument -Path $summaryPath -Value $summary
+
+$actualEvidenceFiles = @(Get-ChildItem -LiteralPath $runDirectory -File | Select-Object -ExpandProperty Name | Sort-Object -CaseSensitive)
+$expectedEvidenceFiles = @($evidenceFiles | Sort-Object -CaseSensitive)
+if ((ConvertTo-CanonicalJson -Value $actualEvidenceFiles) -cne (ConvertTo-CanonicalJson -Value $expectedEvidenceFiles)) {
+    $summary.overallPass = $false
+    $summary.evidenceComplete = $false
+    $summary.failures = @($summary.failures + 'evidence_file_set_mismatch' | Sort-Object -Unique -CaseSensitive)
+    Write-AtomicJsonDocument -Path $summaryPath -Value $summary
+}
+
+[ordered]@{
+    schemaVersion = 'vci-phase1-read-run-result/v1'
+    runId = $runId
+    runDirectory = $runDirectory
+    overallPass = $summary.overallPass
+} | ConvertTo-Json -Compress -Depth 10
+
+if (-not $summary.overallPass) {
+    throw "VCI Phase 1 read evidence run failed. Evidence retained at '$runDirectory'."
 }

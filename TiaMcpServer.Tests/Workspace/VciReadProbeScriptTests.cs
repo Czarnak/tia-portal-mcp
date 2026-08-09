@@ -88,7 +88,8 @@ public sealed class VciReadProbeScriptTests
         var source = ReadScript();
 
         Assert.DoesNotContain("Start-McpHost", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("workspace_", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("workspace_read", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("workspace_write", source, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("--access-mode", source, StringComparison.Ordinal);
         Assert.Contains("read-only", source, StringComparison.Ordinal);
         Assert.Contains("$psi.RedirectStandardInput = $true", source, StringComparison.Ordinal);
@@ -104,23 +105,18 @@ public sealed class VciReadProbeScriptTests
     }
 
     [Fact]
-    public void Run_HasExactlyOneTopLevelPostDescribeLifecycleWithOrderedTransportAndCleanup()
+    public void Run_UsesOneFreshWorkerPerSessionAndCapturesAfterCanaryOutsideCasesJsonl()
     {
         var result = RunRunBlockOrderSmokeTest();
 
         Assert.True(result.ExitCode == 0, result.StandardError);
         using var document = JsonDocument.Parse(result.StandardOutput);
         var root = document.RootElement;
-        Assert.Equal(1, root.GetProperty("topLevelRunLifecycleCount").GetInt32());
-        Assert.True(
-            root.GetProperty("afterDescribe").GetBoolean(),
-            "The Run lifecycle must be a top-level statement after the Describe guard.");
-        Assert.True(
-            root.GetProperty("transportOrdered").GetBoolean(),
-            "The top-level Run lifecycle must directly write, flush, bounded-read, then assert the denial.");
-        Assert.True(
-            root.GetProperty("cleanupInSameFinally").GetBoolean(),
-            "The top-level Run lifecycle must close, terminate if needed, and dispose in its own finally block.");
+        Assert.Equal(1, root.GetProperty("topLevelSessionLoopCount").GetInt32());
+        Assert.True(root.GetProperty("freshWorkerInSession").GetBoolean());
+        Assert.True(root.GetProperty("canaryBeforeAfterSnapshot").GetBoolean());
+        Assert.True(root.GetProperty("afterSnapshotIsNotCasesJsonl").GetBoolean());
+        Assert.True(root.GetProperty("cleanupInSessionFinally").GetBoolean());
     }
 
     [Fact]
@@ -132,6 +128,17 @@ public sealed class VciReadProbeScriptTests
         using var document = JsonDocument.Parse(result.StandardOutput);
         var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
         Assert.Equal(new[] { true, false, false, false, false, false }, outcomes);
+    }
+
+    [Fact]
+    public void WorkerPayloadValidator_FailsClosedOnSchemaEnvelopeAndOutcomeDrift()
+    {
+        var result = RunWorkerPayloadValidatorSmokeTest();
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
+        Assert.Equal(new[] { true, false, false, false, false }, outcomes);
     }
 
     [Fact]
@@ -182,6 +189,102 @@ public sealed class VciReadProbeScriptTests
             Assert.DoesNotContain("PSInvalidOperationException", result.StandardError, StringComparison.Ordinal);
             Assert.DoesNotContain("There is no Runspace available", result.StandardError, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void EvidenceBundle_UsesAtomicUtf8DocumentsAndFlushesEveryJsonlRecord()
+    {
+        var source = ReadScript();
+
+        Assert.Contains("function Write-AtomicJsonDocument", source, StringComparison.Ordinal);
+        Assert.Contains("[Text.UTF8Encoding]::new($false)", source, StringComparison.Ordinal);
+        Assert.Contains("[IO.File]::Move($temporaryPath, $Path, $true)", source, StringComparison.Ordinal);
+        Assert.Contains("function Open-CasesWriter", source, StringComparison.Ordinal);
+        Assert.Contains("function Write-CaseRecord", source, StringComparison.Ordinal);
+        Assert.Contains("$Writer.Flush()", source, StringComparison.Ordinal);
+        Assert.Contains("$Writer.BaseStream.Flush($true)", source, StringComparison.Ordinal);
+        Assert.Contains("[IO.FileMode]::CreateNew", source, StringComparison.Ordinal);
+
+        var root = Path.Combine(Path.GetTempPath(), $"vci-task8-writers-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var result = RunEvidenceWriterSmokeTest(root);
+            Assert.True(result.ExitCode == 0, result.StandardError);
+            using var document = JsonDocument.Parse(result.StandardOutput);
+            var evidence = document.RootElement;
+            Assert.Equal(2, evidence.GetProperty("documentVersion").GetInt32());
+            Assert.True(evidence.GetProperty("documentHasNoBom").GetBoolean());
+            Assert.Equal(1, evidence.GetProperty("visibleLinesAfterFirstFlush").GetInt32());
+            Assert.Equal(2, evidence.GetProperty("visibleLinesAfterSecondFlush").GetInt32());
+            Assert.Equal(0, evidence.GetProperty("temporaryFileCount").GetInt32());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TwoSessionRun_StartsFreshWorkersAndSendsOnlyTheLockedRequestEnvelope()
+    {
+        var source = ReadScript();
+
+        Assert.Contains("$sessionIds = @('session-1', 'session-2')", source, StringComparison.Ordinal);
+        Assert.Contains("function Invoke-ProbeSession", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "$worker = Start-JsonLineProcess -Executable $WorkerExecutable -Arguments $WorkerArguments",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("Stop-JsonLineProcess -Process $worker", source, StringComparison.Ordinal);
+        Assert.Contains("function New-ProbeWorkerRequest", source, StringComparison.Ordinal);
+        Assert.Contains("method = 'probe_vci_read_contract'", source, StringComparison.Ordinal);
+        Assert.Contains("projectPath = $ProjectPath", source, StringComparison.Ordinal);
+        Assert.Contains("vciProbe = $Probe", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("confirm =", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("allowTiaConfirmations", source, StringComparison.OrdinalIgnoreCase);
+
+        var result = RunRequestAndMatrixSmokeTest();
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var evidence = document.RootElement;
+        Assert.Equal("method|projectPath|vciProbe", evidence.GetProperty("requestFields").GetString());
+        Assert.True(evidence.GetProperty("stableAcrossSessions").GetBoolean());
+        Assert.Equal("R-REP", evidence.GetProperty("penultimateCase").GetString());
+        Assert.Equal("R-CANARY", evidence.GetProperty("lastCase").GetString());
+        Assert.Equal(1, evidence.GetProperty("formatCaseCount").GetInt32());
+        Assert.Equal(13, evidence.GetProperty("negativeCaseCount").GetInt32());
+    }
+
+    [Fact]
+    public void CaseMatrix_EndsWithRepeatabilityAndCanaryAndFailsClosedOnEvidenceDrift()
+    {
+        var source = ReadScript();
+
+        Assert.Contains("function New-CaseMatrix", source, StringComparison.Ordinal);
+        Assert.Contains("$matrix.Add((New-CaseDefinition -CaseId 'R-REP'", source, StringComparison.Ordinal);
+        Assert.Contains("$matrix.Add((New-CaseDefinition -CaseId 'R-CANARY'", source, StringComparison.Ordinal);
+        Assert.Contains("function Assert-TerminalCoverage", source, StringComparison.Ordinal);
+        Assert.Contains("duplicate_case_instance_id", source, StringComparison.Ordinal);
+        Assert.Contains("missing_case_instance_id", source, StringComparison.Ordinal);
+        Assert.Contains("schema_mismatch", source, StringComparison.Ordinal);
+        Assert.Contains("malformed_worker_payload", source, StringComparison.Ordinal);
+        Assert.Contains("filesystem_hashing_incomplete", source, StringComparison.Ordinal);
+        Assert.Contains("project_state_changed", source, StringComparison.Ordinal);
+        Assert.Contains("filesystem_changed", source, StringComparison.Ordinal);
+        Assert.Contains("normalized_session_mismatch", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TransportFailures_AreTerminalTimeoutOrProcessLossRecordsWithoutVendorExceptions()
+    {
+        var source = ReadScript();
+
+        Assert.Contains("function New-TransportFailureRecord", source, StringComparison.Ordinal);
+        Assert.Contains("[ValidateSet('timed_out', 'process_lost')]", source, StringComparison.Ordinal);
+        Assert.Contains("outcome = $Outcome", source, StringComparison.Ordinal);
+        Assert.Contains("exception = $null", source, StringComparison.Ordinal);
+        Assert.Contains("exitCode = $ExitCode", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -281,93 +384,212 @@ public sealed class VciReadProbeScriptTests
         return RunPowerShell("-Command", command);
     }
 
+    private static ScriptResult RunWorkerPayloadValidatorSmokeTest()
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            foreach ($functionName in @('ConvertFrom-JsonHashtable', 'Test-WorkerPayload')) {
+                $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
+                if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
+                Invoke-Expression $functionAst.Extent.Text
+            }
+            $validWorkerOutcomes = @('returned', 'returned_null', 'not_observable', 'threw')
+            $request = [ordered]@{
+                method = 'probe_vci_read_contract'
+                projectPath = 'C:\P.ap21'
+                vciProbe = [ordered]@{
+                    runId = 'run'; sessionId = 'session-1'; caseId = 'R-SVC'; caseInstanceId = 'case-1'
+                }
+            }
+            $basePayload = [ordered]@{
+                schemaVersion = 'vci-read-probe/v1'
+                runId = 'run'; sessionId = 'session-1'; caseId = 'R-SVC'; caseInstanceId = 'case-1'
+                outcome = 'returned'
+                snapshot = [ordered]@{}
+                projectState = [ordered]@{ isModifiedBefore = $false; isModifiedAfter = $false }
+                omissions = @()
+            }
+            function New-Envelope([object] $Payload) {
+                return [ordered]@{
+                    success = $true
+                    payload = ($Payload | ConvertTo-Json -Compress -Depth 100)
+                    resolvedProjectPath = 'C:\P.ap21'
+                } | ConvertTo-Json -Compress -Depth 100
+            }
+            function Test-Fixture([object] $Payload) {
+                try {
+                    $null = Test-WorkerPayload -ResponseText (New-Envelope -Payload $Payload) -Request $request -ExpectedProjectPath 'C:\P.ap21'
+                    return $true
+                }
+                catch {
+                    return $false
+                }
+            }
+
+            $wrongSchema = $basePayload.Clone(); $wrongSchema.schemaVersion = 'wrong/v1'
+            $unknownField = $basePayload.Clone(); $unknownField.extra = 1
+            $workerTimeout = $basePayload.Clone(); $workerTimeout.outcome = 'timed_out'
+            $missingOmissions = $basePayload.Clone(); $missingOmissions.Remove('omissions')
+            @(
+                (Test-Fixture -Payload $basePayload),
+                (Test-Fixture -Payload $wrongSchema),
+                (Test-Fixture -Payload $unknownField),
+                (Test-Fixture -Payload $workerTimeout),
+                (Test-Fixture -Payload $missingOmissions)
+            ) | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunEvidenceWriterSmokeTest(string root)
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            if ($errors.Count -ne 0) { throw 'Harness parsing failed.' }
+            foreach ($functionName in @('Write-AtomicJsonDocument', 'Open-CasesWriter', 'Write-CaseRecord')) {
+                $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
+                if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
+                Invoke-Expression $functionAst.Extent.Text
+            }
+
+            $root = 'REPLACE_ROOT'
+            $documentPath = Join-Path $root 'document.json'
+            $casesPath = Join-Path $root 'cases.jsonl'
+            Write-AtomicJsonDocument -Path $documentPath -Value ([ordered]@{ version = 1 })
+            Write-AtomicJsonDocument -Path $documentPath -Value ([ordered]@{ version = 2 })
+            $documentBytes = [IO.File]::ReadAllBytes($documentPath)
+            $documentValue = [IO.File]::ReadAllText($documentPath) | ConvertFrom-Json
+
+            function Get-VisibleLineCount {
+                param([string] $Path)
+
+                $stream = [IO.FileStream]::new($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+                $reader = [IO.StreamReader]::new($stream, [Text.UTF8Encoding]::new($false))
+                try {
+                    return @($reader.ReadToEnd().Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)).Count
+                }
+                finally {
+                    $reader.Dispose()
+                }
+            }
+
+            $writer = Open-CasesWriter -Path $casesPath
+            try {
+                Write-CaseRecord -Writer $writer -Record ([ordered]@{ sequence = 1 })
+                $firstCount = Get-VisibleLineCount -Path $casesPath
+                Write-CaseRecord -Writer $writer -Record ([ordered]@{ sequence = 2 })
+                $secondCount = Get-VisibleLineCount -Path $casesPath
+            }
+            finally {
+                $writer.Dispose()
+            }
+
+            [ordered]@{
+                documentVersion = $documentValue.version
+                documentHasNoBom = -not ($documentBytes.Length -ge 3 -and $documentBytes[0] -eq 0xEF -and $documentBytes[1] -eq 0xBB -and $documentBytes[2] -eq 0xBF)
+                visibleLinesAfterFirstFlush = $firstCount
+                visibleLinesAfterSecondFlush = $secondCount
+                temporaryFileCount = @(Get-ChildItem -LiteralPath $root -Filter '*.tmp-*' -File).Count
+            } | ConvertTo-Json -Compress -Depth 10
+            """
+            .Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal)
+            .Replace("REPLACE_ROOT", root.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunRequestAndMatrixSmokeTest()
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            if ($errors.Count -ne 0) { throw 'Harness parsing failed.' }
+            foreach ($functionName in @(
+                    'ConvertTo-CanonicalValue', 'ConvertTo-CanonicalJson', 'Get-Sha256Text',
+                    'New-CaseDefinition', 'Get-CaseInstanceId', 'New-ProbeWorkerRequest',
+                    'Get-FormatPairs', 'New-CaseMatrix')) {
+                $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
+                if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
+                Invoke-Expression $functionAst.Extent.Text
+            }
+
+            $probeBudgets = [ordered]@{
+                maxGroupDepth = 16; maxGroups = 500; maxWorkspaces = 500; maxMappings = 5000
+                maxEngineeringObjects = 200; maxCollectionItems = 5000
+            }
+            $negativeCaseIds = @(
+                'N-FMT-FOREIGN', 'N-FMT-NULL', 'N-FMT-UNSUPPORTED',
+                'N-GRP-FIND-EMPTY', 'N-GRP-FIND-MISSING', 'N-GRP-FIND-NULL',
+                'N-GRP-FIND-WHITESPACE', 'N-MAP-INACCESSIBLE-FILE',
+                'N-MAP-MISSING-FILE', 'N-WS-FIND-EMPTY', 'N-WS-FIND-MISSING',
+                'N-WS-FIND-NULL', 'N-WS-FIND-WHITESPACE'
+            )
+            $workspace = [ordered]@{ groupPath = @(); workspaceName = 'W'; canonicalRootPath = 'C:\W' }
+            $engineeringObject = [ordered]@{ stableIdentifier = 'id'; structuralPath = @(); fingerprint = 'fingerprint' }
+            $mapping = [ordered]@{ selector = [ordered]@{ workspace = $workspace; engineeringObject = $engineeringObject } }
+            $matrix = @(New-CaseMatrix -Mappings @($mapping, $mapping) -SecondaryProjectPath $null)
+            $definition = $matrix[0]
+            $request1 = New-ProbeWorkerRequest -RunId 'run' -SessionId 'session-1' -ProjectPath 'C:\P.ap21' -Definition $definition
+            $request2 = New-ProbeWorkerRequest -RunId 'run' -SessionId 'session-2' -ProjectPath 'C:\P.ap21' -Definition $definition
+
+            [ordered]@{
+                requestFields = (@($request1.Keys | Sort-Object) -join '|')
+                stableAcrossSessions = $request1.vciProbe.caseInstanceId -ceq $request2.vciProbe.caseInstanceId
+                penultimateCase = $matrix[$matrix.Count - 2].caseId
+                lastCase = $matrix[$matrix.Count - 1].caseId
+                formatCaseCount = @($matrix | Where-Object { $_.caseId -eq 'R-FMT' }).Count
+                negativeCaseCount = @($matrix | Where-Object { $_.caseId.StartsWith('N-', [StringComparison]::Ordinal) }).Count
+            } | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
     private static ScriptResult RunRunBlockOrderSmokeTest()
     {
         var command = """
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('REPLACE_HARNESS_PATH', [ref] $tokens, [ref] $errors)
             if ($errors.Count -ne 0) { throw 'Harness parsing failed.' }
+            $sessionLoops = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.ForEachStatementAst] -and
+                        $node.Extent.Text.Contains('foreach ($sessionId in $sessionIds)', [StringComparison]::Ordinal) -and
+                        $node.Extent.Text.Contains('Invoke-ProbeSession', [StringComparison]::Ordinal)
+                    }, $true))
 
-            function Get-DirectStatementIndex {
-                param([object[]] $Statements, [string] $Text)
-
-                $matches = @($Statements | Where-Object { $_.Extent.Text -eq $Text })
-                if ($matches.Count -ne 1) { return -1 }
-                return [Array]::IndexOf($Statements, $matches[0])
-            }
-
-            $topLevelStatements = @($ast.EndBlock.Statements)
-            $describeGuards = @($topLevelStatements | Where-Object {
-                    $_ -is [System.Management.Automation.Language.IfStatementAst] -and
-                    $_.Clauses.Count -eq 1 -and
-                    $_.Clauses[0].Item1.Extent.Text -eq '$Mode -eq ''Describe'''
-                })
-            $runLifecycles = @(
-                for ($index = 0; $index -lt $topLevelStatements.Count; $index++) {
-                    $statement = $topLevelStatements[$index]
-                    if ($statement -isnot [System.Management.Automation.Language.TryStatementAst]) { continue }
-                    $bodyStatements = @($statement.Body.Statements)
-                    $start = Get-DirectStatementIndex `
-                        -Statements $bodyStatements `
-                        -Text '$worker = Start-JsonLineProcess -Executable $canonicalWorkerExecutable -Arguments $workerArguments'
-                    if ($start -ge 0) {
-                        [pscustomobject]@{ Index = $index; Ast = $statement }
-                    }
-                }
-            )
-
-            $afterDescribe = $false
-            $transportOrdered = $false
-            $cleanupInSameFinally = $false
-            if ($describeGuards.Count -eq 1 -and $runLifecycles.Count -eq 1) {
-                $describeIndex = [Array]::IndexOf($topLevelStatements, $describeGuards[0])
-                $runLifecycle = $runLifecycles[0]
-                $runTry = $runLifecycle.Ast
-                $afterDescribe = $runLifecycle.Index -gt $describeIndex
-
-                $bodyStatements = @($runTry.Body.Statements)
-                $write = Get-DirectStatementIndex -Statements $bodyStatements -Text '$worker.StandardInput.WriteLine($transportProbe)'
-                $flush = Get-DirectStatementIndex -Statements $bodyStatements -Text '$worker.StandardInput.Flush()'
-                $read = Get-DirectStatementIndex -Statements $bodyStatements -Text '$transportResponse = Read-JsonLine -Process $worker -TimeoutSeconds $TimeoutSeconds'
-                $assertDenied = Get-DirectStatementIndex -Statements $bodyStatements -Text 'Test-TransportProbeResponse -ResponseText $transportResponse'
-                $transportOrdered = $write -ge 0 -and $write -lt $flush -and $flush -lt $read -and $read -lt $assertDenied
-
-                if ($null -ne $runTry.Finally) {
-                    $finallyStatements = @($runTry.Finally.Statements)
-                    $cleanupIfs = @($finallyStatements | Where-Object {
-                            $_ -is [System.Management.Automation.Language.IfStatementAst] -and
-                            $_.Clauses.Count -eq 1 -and
-                            $_.Clauses[0].Item1.Extent.Text -eq '$null -ne $worker'
-                        })
-                    if ($cleanupIfs.Count -eq 1) {
-                        $cleanupStatements = @($cleanupIfs[0].Clauses[0].Item2.Statements)
-                        $closeTry = @($cleanupStatements | Where-Object {
-                                $_ -is [System.Management.Automation.Language.TryStatementAst] -and
-                                $_.Body.Statements.Count -eq 1 -and
-                                $_.Body.Statements[0].Extent.Text -eq '$worker.StandardInput.Close()'
-                            })
-                        $terminateIf = @($cleanupStatements | Where-Object {
-                                $_ -is [System.Management.Automation.Language.IfStatementAst] -and
-                                $_.Clauses.Count -eq 1 -and
-                                $_.Clauses[0].Item1.Extent.Text -eq '-not $worker.HasExited' -and
-                                $_.Clauses[0].Item2.Statements.Count -eq 1 -and
-                                $_.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.TryStatementAst] -and
-                                $_.Clauses[0].Item2.Statements[0].Body.Statements.Count -eq 1 -and
-                                $_.Clauses[0].Item2.Statements[0].Body.Statements[0].Extent.Text -eq '$worker.Kill($true)'
-                            })
-                        $close = if ($closeTry.Count -eq 1) { [Array]::IndexOf($cleanupStatements, $closeTry[0]) } else { -1 }
-                        $terminate = if ($terminateIf.Count -eq 1) { [Array]::IndexOf($cleanupStatements, $terminateIf[0]) } else { -1 }
-                        $dispose = Get-DirectStatementIndex -Statements $cleanupStatements -Text '$worker.Dispose()'
-                        $cleanupInSameFinally = $close -ge 0 -and $close -lt $terminate -and $terminate -lt $dispose
-                    }
-                }
-            }
+            $sessionFunction = $ast.Find({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                    $node.Name -eq 'Invoke-ProbeSession'
+                }, $true)
+            if ($null -eq $sessionFunction) { throw 'Invoke-ProbeSession was not found.' }
+            $functionText = $sessionFunction.Extent.Text
+            $startIndex = $functionText.IndexOf(
+                '$worker = Start-JsonLineProcess -Executable $WorkerExecutable -Arguments $WorkerArguments',
+                [StringComparison]::Ordinal)
+            $canaryIndex = $functionText.IndexOf(
+                "caseId -ne 'R-CANARY'",
+                [StringComparison]::Ordinal)
+            $afterIndex = $functionText.IndexOf(
+                "New-SnapshotDefinitions -Phase 'after-canary'",
+                [StringComparison]::Ordinal)
+            $recordFalseIndex = $functionText.IndexOf(
+                '-RecordCase $false',
+                [StringComparison]::Ordinal)
+            $cleanupIndex = $functionText.IndexOf(
+                'Stop-JsonLineProcess -Process $worker',
+                [StringComparison]::Ordinal)
 
             [ordered]@{
-                topLevelRunLifecycleCount = $runLifecycles.Count
-                afterDescribe = $afterDescribe
-                transportOrdered = $transportOrdered
-                cleanupInSameFinally = $cleanupInSameFinally
+                topLevelSessionLoopCount = $sessionLoops.Count
+                freshWorkerInSession = $startIndex -ge 0
+                canaryBeforeAfterSnapshot = $canaryIndex -ge 0 -and $canaryIndex -lt $afterIndex
+                afterSnapshotIsNotCasesJsonl = $recordFalseIndex -gt $afterIndex
+                cleanupInSessionFinally = $cleanupIndex -gt $afterIndex
             } | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
