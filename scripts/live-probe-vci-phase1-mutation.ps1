@@ -18,8 +18,10 @@ param(
 
     [switch] $AllowMutation,
     [string] $Acknowledgement,
-    [string] $PlanHash,
-    [switch] $NonInteractiveAcceptance
+    [Alias('PlanHash')]
+    [string] $ExpectedPlanHash,
+    [switch] $NonInteractiveAcceptance,
+    [string] $EquivalentEvidenceRoot
 )
 
 Set-StrictMode -Version Latest
@@ -121,7 +123,14 @@ function Write-JsonFile {
         [Parameter(Mandatory)] [object] $Value
     )
     $utf8 = [Text.UTF8Encoding]::new($false)
-    [IO.File]::WriteAllText($Path, (ConvertTo-CompactJson -Value $Value), $utf8)
+    $temporaryPath = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    try {
+        [IO.File]::WriteAllText($temporaryPath, (ConvertTo-CompactJson -Value $Value), $utf8)
+        [IO.File]::Move($temporaryPath, $Path, $true)
+    }
+    finally {
+        if ([IO.File]::Exists($temporaryPath)) { [IO.File]::Delete($temporaryPath) }
+    }
 }
 
 function Get-Sha256Text {
@@ -251,7 +260,13 @@ function Resolve-SafeWorkspaceRoot {
     $driveRoot = [IO.Path]::GetPathRoot($canonical).TrimEnd([IO.Path]::DirectorySeparatorChar)
     $profileRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile).TrimEnd([IO.Path]::DirectorySeparatorChar)
     $unsafe = @($driveRoot, $profileRoot, $RepositoryRoot.TrimEnd([IO.Path]::DirectorySeparatorChar))
-    $unsafe += @($ProjectPaths.PSObject.Properties | ForEach-Object { [IO.Path]::GetDirectoryName([string]$_.Value) })
+    $projectPathValues = if ($ProjectPaths -is [Collections.IDictionary]) {
+        @($ProjectPaths.Values)
+    }
+    else {
+        @($ProjectPaths.PSObject.Properties | ForEach-Object { $_.Value })
+    }
+    $unsafe += @($projectPathValues | ForEach-Object { [IO.Path]::GetDirectoryName([string]$_) })
     foreach ($candidate in $unsafe) {
         if ([string]::Equals($canonical, $candidate, [StringComparison]::OrdinalIgnoreCase)) {
             throw 'workspace_root_unsafe:protected_path'
@@ -378,6 +393,24 @@ function Assert-InventoryResult {
     if ($formats -notcontains 'SimaticML') { throw 'inventory_exact_format_missing' }
 }
 
+function Get-InventoryMappingSelector {
+    param([Parameter(Mandatory)] [object] $Result)
+    if ($null -eq $Result.before -or $null -eq $Result.before.mappings) { return $null }
+    $matches = @($Result.before.mappings | Where-Object {
+        $selector = $_.selector
+        $null -ne $selector -and
+        [string]::Equals([string]$selector.format, 'SimaticML', [StringComparison]::Ordinal) -and
+        $null -ne $selector.engineeringObject -and
+        @($selector.engineeringObject.structuralPath).Count -eq 4 -and
+        [string]::Equals(
+            [string]@($selector.engineeringObject.structuralPath)[3].name,
+            'Simulation_DB',
+            [StringComparison]::Ordinal)
+    })
+    if ($matches.Count -eq 0) { return $null }
+    return $matches[0].selector
+}
+
 function Get-GitCommit {
     param([Parameter(Mandatory)] [string] $RepositoryRoot)
     $psi = [Diagnostics.ProcessStartInfo]::new('git')
@@ -458,6 +491,7 @@ function Invoke-Inventory {
             }
             $result = Invoke-ProbeWorker -Process $worker -Request $request -Timeout $TimeoutSeconds
             Assert-InventoryResult -Result $result
+            $selectedMapping = Get-InventoryMappingSelector -Result $result
             $projects += [ordered]@{
                 role = $role
                 projectPath = [string]$Inputs.projectPaths[$role]
@@ -471,6 +505,7 @@ function Invoke-Inventory {
                 selectedWorkspaceGroupPath = Get-ReturnMember -Result $result -Name 'workspace.groupPath'
                 selectedWorkspaceRootPath = Get-ReturnMember -Result $result -Name 'workspace.canonicalRootPath'
                 selectedFormat = 'SimaticML'
+                selectedMapping = $selectedMapping
             }
         }
     }
@@ -503,6 +538,7 @@ function Invoke-Inventory {
             selectedWorkspaceName = $_.selectedWorkspaceName
             selectedWorkspaceGroupPath = $_.selectedWorkspaceGroupPath
             selectedWorkspaceRootPath = $_.selectedWorkspaceRootPath
+            selectedMapping = $_.selectedMapping
         }
     })
     $canonicalPlan = [ordered]@{
@@ -541,12 +577,20 @@ function Invoke-Inventory {
         canonicalPlan = $canonicalPlan
     }
     [IO.Directory]::CreateDirectory($Inputs.evidenceRoot) | Out-Null
-    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'inventory.json')) -Value $inventory
-    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'plan.json')) -Value $planEvidence
+    $evidenceRunId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture) + '-' + $planHashValue.Substring(0, 12)
+    $evidenceRunRoot = [IO.Path]::Combine($Inputs.evidenceRoot, $evidenceRunId)
+    if ([IO.Directory]::Exists($evidenceRunRoot) -or [IO.File]::Exists($evidenceRunRoot)) {
+        throw 'evidence_run_root_already_exists'
+    }
+    [IO.Directory]::CreateDirectory($evidenceRunRoot) | Out-Null
+    Write-JsonFile -Path ([IO.Path]::Combine($evidenceRunRoot, 'inventory.json')) -Value $inventory
+    Write-JsonFile -Path ([IO.Path]::Combine($evidenceRunRoot, 'plan.json')) -Value $planEvidence
     return [ordered]@{
         schemaVersion = $script:InventorySchema
-        inventoryPath = [IO.Path]::Combine($Inputs.evidenceRoot, 'inventory.json')
-        planPath = [IO.Path]::Combine($Inputs.evidenceRoot, 'plan.json')
+        evidenceRunId = $evidenceRunId
+        evidenceRunRoot = $evidenceRunRoot
+        inventoryPath = [IO.Path]::Combine($evidenceRunRoot, 'inventory.json')
+        planPath = [IO.Path]::Combine($evidenceRunRoot, 'plan.json')
         planHash = $planHashValue
         selectedObject = 'Simulation_DB'
         resolvedProjectPaths = @($projects | ForEach-Object { $_.projectPath })
@@ -557,25 +601,586 @@ function Invoke-Inventory {
 }
 
 function Assert-ApplyGuards {
-    param([Parameter(Mandatory)] [object] $Inputs)
+    param(
+        [Parameter(Mandatory)] [object] $Inputs,
+        [Parameter(Mandatory)] [string] $RepositoryRoot
+    )
     if (-not $AllowMutation) { throw 'allow_mutation_required' }
     if (-not [string]::Equals($Acknowledgement, $script:AcknowledgementText, [StringComparison]::Ordinal)) {
         throw 'acknowledgement_required'
     }
-    if ([string]::IsNullOrWhiteSpace($PlanHash)) { throw 'plan_hash_required' }
-    $planPath = [IO.Path]::Combine($Inputs.evidenceRoot, 'plan.json')
-    if (-not [IO.File]::Exists($planPath)) { throw 'plan_not_found' }
-    $planEvidence = Get-Content -LiteralPath $planPath -Raw | ConvertFrom-Json -Depth 100
-    $canonicalJson = ConvertTo-CompactJson -Value $planEvidence.canonicalPlan
-    $calculatedHash = Get-Sha256Text -Text $canonicalJson
-    if (-not [string]::Equals([string]$planEvidence.planHash, $calculatedHash, [StringComparison]::Ordinal) -or
-        -not [string]::Equals($PlanHash, $calculatedHash, [StringComparison]::Ordinal)) {
+    if ([string]::IsNullOrWhiteSpace($ExpectedPlanHash)) { throw 'plan_hash_required' }
+    if (-not [IO.Directory]::Exists($Inputs.evidenceRoot)) { throw 'plan_not_found' }
+    $planPaths = @()
+    $directPlan = [IO.Path]::Combine($Inputs.evidenceRoot, 'plan.json')
+    if ([IO.File]::Exists($directPlan)) { $planPaths += $directPlan }
+    foreach ($directory in [IO.Directory]::EnumerateDirectories($Inputs.evidenceRoot)) {
+        $candidate = [IO.Path]::Combine($directory, 'plan.json')
+        if ([IO.File]::Exists($candidate)) { $planPaths += $candidate }
+    }
+    if ($planPaths.Count -eq 0) { throw 'plan_not_found' }
+    $planMatches = @()
+    foreach ($candidatePath in $planPaths) {
+        $candidatePlan = Get-Content -LiteralPath $candidatePath -Raw | ConvertFrom-Json -Depth 100
+        $candidateCanonicalJson = ConvertTo-CompactJson -Value $candidatePlan.canonicalPlan
+        $candidateHash = Get-Sha256Text -Text $candidateCanonicalJson
+        if ([string]::Equals([string]$candidatePlan.planHash, $candidateHash, [StringComparison]::Ordinal) -and
+            [string]::Equals($ExpectedPlanHash, $candidateHash, [StringComparison]::Ordinal)) {
+            $planMatches += [ordered]@{ path = $candidatePath; evidence = $candidatePlan; calculatedHash = $candidateHash }
+        }
+    }
+    if ($planMatches.Count -ne 1) { throw 'plan_hash_mismatch' }
+    $planPath = [string]$planMatches[0].path
+    $planEvidence = $planMatches[0].evidence
+    $calculatedHash = [string]$planMatches[0].calculatedHash
+    $Inputs.evidenceRoot = [IO.Path]::GetDirectoryName($planPath)
+    if (-not [string]::Equals([string]$planEvidence.planHash, $calculatedHash, [StringComparison]::Ordinal)) {
         throw 'plan_hash_mismatch'
     }
     if (-not [string]::Equals([string]$planEvidence.canonicalPlan.workspaceRoot, $Inputs.workspaceRoot, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'plan_workspace_root_mismatch'
     }
-    if (-not $NonInteractiveAcceptance) { throw 'interactive_confirmation_required' }
+    if (-not [string]::Equals([string]$planEvidence.canonicalPlan.manifestPath, $Inputs.manifestPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'plan_manifest_path_mismatch'
+    }
+    if ([int]$planEvidence.canonicalPlan.timeoutSeconds -ne $TimeoutSeconds) { throw 'plan_timeout_mismatch' }
+    if (-not [string]::Equals(
+            [string]$planEvidence.canonicalPlan.provenance.gitCommit,
+            (Get-GitCommit -RepositoryRoot $RepositoryRoot),
+            [StringComparison]::Ordinal)) { throw 'plan_git_commit_mismatch' }
+    if (-not [string]::Equals(
+            [string]$planEvidence.canonicalPlan.provenance.workerSha256,
+            (Get-Sha256File -Path $Inputs.workerExecutable),
+            [StringComparison]::Ordinal)) { throw 'plan_worker_hash_mismatch' }
+    if (-not [string]::Equals(
+            [string]$planEvidence.canonicalPlan.provenance.scriptSha256,
+            (Get-Sha256File -Path ([IO.Path]::GetFullPath($PSCommandPath))),
+            [StringComparison]::Ordinal)) { throw 'plan_script_hash_mismatch' }
+    if (-not [string]::Equals(
+            [string]$planEvidence.canonicalPlan.originalProject.projectSha256,
+            (Get-Sha256File -Path ([string]$Inputs.projectPaths.originalProjectPath)),
+            [StringComparison]::Ordinal)) { throw 'plan_original_project_hash_mismatch' }
+    foreach ($project in @($planEvidence.canonicalPlan.projects)) {
+        $role = [string]$project.role
+        if ($null -eq $Inputs.projectPaths[$role]) { throw "plan_project_role_unknown:$role" }
+        if (-not [string]::Equals([string]$project.projectPath, [string]$Inputs.projectPaths[$role], [StringComparison]::OrdinalIgnoreCase)) {
+            throw "plan_project_path_mismatch:$role"
+        }
+        if (-not [string]::Equals([string]$project.projectSha256, (Get-Sha256File -Path ([string]$Inputs.projectPaths[$role])), [StringComparison]::Ordinal)) {
+            throw "plan_project_hash_mismatch:$role"
+        }
+    }
+    foreach ($fileName in @(
+            'manifest.json', 'cases.jsonl', 'snapshot-before.json', 'snapshot-after.json',
+            'filesystem-before.json', 'filesystem-after.json', 'summary.json')) {
+        if ([IO.File]::Exists([IO.Path]::Combine($Inputs.evidenceRoot, $fileName))) {
+            throw "apply_evidence_already_exists:$fileName"
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($EquivalentEvidenceRoot)) {
+        $equivalentRoot = if ([IO.Path]::IsPathFullyQualified($EquivalentEvidenceRoot)) {
+            [IO.Path]::GetFullPath($EquivalentEvidenceRoot)
+        }
+        else { $null }
+        if ($null -eq $equivalentRoot -or
+            -not [IO.File]::Exists([IO.Path]::Combine($equivalentRoot, 'cases.jsonl')) -or
+            -not [IO.File]::Exists([IO.Path]::Combine($equivalentRoot, 'manifest.json')) -or
+            -not [IO.File]::Exists([IO.Path]::Combine($equivalentRoot, 'filesystem-after.json')) -or
+            -not [IO.File]::Exists([IO.Path]::Combine($equivalentRoot, 'summary.json'))) {
+            throw 'equivalent_evidence_not_complete'
+        }
+    }
+    return $planEvidence
+}
+
+function Get-ScenarioProjectRole {
+    param([Parameter(Mandatory)] [string] $ScenarioId)
+    switch ($ScenarioId) {
+        'lifecycle' { return 'lifecycleProjectPath' }
+        'mapping' { return 'mappingProjectPath' }
+        'project_to_workspace' { return 'projectToWorkspaceChangedProjectPath' }
+        'workspace_to_project' { return 'workspaceToProjectBaselineProjectPath' }
+        'negative' { return 'negativeProjectPath' }
+        'transaction' { return 'transactionProjectPath' }
+        default { throw "unknown_scenario:$ScenarioId" }
+    }
+}
+
+function Get-PlanProject {
+    param(
+        [Parameter(Mandatory)] [object] $PlanEvidence,
+        [Parameter(Mandatory)] [string] $Role
+    )
+    $matches = @($PlanEvidence.canonicalPlan.projects | Where-Object {
+        [string]::Equals([string]$_.role, $Role, [StringComparison]::Ordinal)
+    })
+    if ($matches.Count -ne 1) { throw "plan_project_missing_or_ambiguous:$Role" }
+    return $matches[0]
+}
+
+function New-ApplyWorkerRequest {
+    param(
+        [Parameter(Mandatory)] [object] $PlanEvidence,
+        [Parameter(Mandatory)] [string] $RunId,
+        [Parameter(Mandatory)] [string] $ScenarioId,
+        [Parameter(Mandatory)] [string] $CaseId,
+        [Parameter(Mandatory)] [string] $Role,
+        [Parameter(Mandatory)] [string] $ProjectPath,
+        [Parameter(Mandatory)] [string] $WorkspaceRoot,
+        [Parameter(Mandatory)] [int] $Sequence
+    )
+    $project = Get-PlanProject -PlanEvidence $PlanEvidence -Role $Role
+    $engineeringObject = [ordered]@{
+        stableIdentifier = $project.selectedObjectStableIdentifier
+        structuralPath = @($PlanEvidence.canonicalPlan.selectedObject.structuralPath)
+        fingerprint = $project.selectedObjectFingerprint
+    }
+    $synchronizationMode = switch ($CaseId) {
+        { $_ -in @('M-P2W', 'M-TX-P2W') } { 'ProjectToWorkspace'; break }
+        { $_ -in @('M-W2P', 'M-TX-W2P') } { 'WorkspaceToProject'; break }
+        default { $null }
+    }
+    $probe = [ordered]@{
+        schemaVersion = $script:ProbeSchema
+        runId = $RunId
+        sessionId = $ScenarioId
+        scenarioId = $ScenarioId
+        caseId = $CaseId
+        caseInstanceId = "$ScenarioId-$Sequence"
+        mode = 'Apply'
+        workspaceRoot = $WorkspaceRoot
+        engineeringObject = $engineeringObject
+        mapping = $project.selectedMapping
+        fileFormat = $(if ($CaseId -in @('M-EXPORT', 'M-TX-EXPORT')) { 'SimaticML' } else { $null })
+        seedRelativePath = 'mapping\export\Simulation_DB.xml'
+        synchronizationMode = $synchronizationMode
+        rollbackTransaction = $CaseId.StartsWith('M-TX-', [StringComparison]::Ordinal)
+        maxGroupDepth = [int]$PlanEvidence.canonicalPlan.budgets.maxGroupDepth
+        maxGroups = [int]$PlanEvidence.canonicalPlan.budgets.maxGroups
+        maxWorkspaces = [int]$PlanEvidence.canonicalPlan.budgets.maxWorkspaces
+        maxMappings = [int]$PlanEvidence.canonicalPlan.budgets.maxMappings
+        maxEngineeringObjects = [int]$PlanEvidence.canonicalPlan.budgets.maxEngineeringObjects
+        maxCollectionItems = [int]$PlanEvidence.canonicalPlan.budgets.maxCollectionItems
+    }
+    return [ordered]@{
+        requestId = "apply-$Sequence"
+        method = 'probe_vci_mutation_contract'
+        projectPath = $ProjectPath
+        vciMutationProbe = $probe
+    }
+}
+
+function Get-FilesystemSnapshot {
+    param(
+        [Parameter(Mandatory)] [string] $Root,
+        [Parameter(Mandatory)] [int] $MaxFiles
+    )
+    $files = @()
+    $omissions = @()
+    $complete = $true
+    $exists = [IO.Directory]::Exists($Root)
+    if ($exists) {
+        $pending = [Collections.Generic.Stack[IO.DirectoryInfo]]::new()
+        $pending.Push([IO.DirectoryInfo]::new($Root))
+        while ($pending.Count -gt 0) {
+            $directory = $pending.Pop()
+            try {
+                $entries = @($directory.EnumerateFileSystemInfos() | Sort-Object FullName)
+            }
+            catch {
+                $complete = $false
+                $omissions += [ordered]@{ relativePath = [IO.Path]::GetRelativePath($Root, $directory.FullName); reason = 'directory_unreadable' }
+                continue
+            }
+            foreach ($entry in $entries) {
+                $relativePath = [IO.Path]::GetRelativePath($Root, $entry.FullName).Replace('\', '/')
+                if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    $complete = $false
+                    $omissions += [ordered]@{ relativePath = $relativePath; reason = 'reparse_point_not_followed' }
+                    continue
+                }
+                if ($entry -is [IO.DirectoryInfo]) {
+                    $pending.Push($entry)
+                    continue
+                }
+                if ($files.Count -ge $MaxFiles) {
+                    $complete = $false
+                    $omissions += [ordered]@{ relativePath = $relativePath; reason = 'file_budget_exhausted' }
+                    break
+                }
+                try {
+                    $file = [IO.FileInfo]$entry
+                    $files += [ordered]@{
+                        relativePath = $relativePath
+                        size = $file.Length
+                        sha256 = Get-Sha256File -Path $file.FullName
+                    }
+                }
+                catch {
+                    $complete = $false
+                    $omissions += [ordered]@{ relativePath = $relativePath; reason = 'file_unreadable' }
+                }
+            }
+            if ($files.Count -ge $MaxFiles) { break }
+        }
+    }
+    $snapshot = [ordered]@{
+        schemaVersion = 'vci-phase1-mutation-filesystem/v1'
+        root = $Root
+        exists = $exists
+        complete = $complete
+        files = @($files | Sort-Object relativePath)
+        omissions = @($omissions | Sort-Object relativePath, reason)
+        snapshotId = $null
+    }
+    $snapshot.snapshotId = Get-Sha256Text -Text (ConvertTo-CompactJson -Value $snapshot)
+    return $snapshot
+}
+
+function Stop-ProbeWorker {
+    param([AllowNull()] [Diagnostics.Process] $Process)
+    if ($null -eq $Process) { return }
+    try {
+        if (-not $Process.HasExited) {
+            $Process.StandardInput.Close()
+            if (-not $Process.WaitForExit(5000)) { $Process.Kill($true) }
+        }
+    }
+    finally { $Process.Dispose() }
+}
+
+function Get-ApplyResultStopReason {
+    param(
+        [Parameter(Mandatory)] [object] $Result,
+        [Parameter(Mandatory)] [string] $CaseId,
+        [Parameter(Mandatory)] [string] $CaseInstanceId
+    )
+    if (-not [string]::Equals([string]$Result.schemaVersion, $script:ProbeSchema, [StringComparison]::Ordinal) -or
+        -not [string]::Equals([string]$Result.caseId, $CaseId, [StringComparison]::Ordinal) -or
+        -not [string]::Equals([string]$Result.caseInstanceId, $CaseInstanceId, [StringComparison]::Ordinal)) {
+        return 'protocol_error'
+    }
+    if ($null -eq $Result.before -or $null -eq $Result.after) { return 'incomplete_evidence' }
+    if ([bool]$Result.uncertainOutcome) { return 'uncertain_mutation' }
+    if ([bool]$Result.stopScenarioFamily) { return 'worker_family_stop' }
+    if ([string]$Result.outcome -in @('returned', 'returned_null', 'threw')) {
+        if ($null -eq $Result.canary -or -not [bool]$Result.canary.attempted -or -not [bool]$Result.canary.usable) {
+            return 'canary_unusable'
+        }
+    }
+    return $null
+}
+
+function ConvertTo-NormalizedValue {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [object] $Replacements
+    )
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [string]) {
+        $normalized = [string]$Value
+        foreach ($replacement in @($Replacements)) {
+            if (-not [string]::IsNullOrEmpty([string]$replacement.from)) {
+                $normalized = $normalized.Replace([string]$replacement.from, [string]$replacement.to, [StringComparison]::OrdinalIgnoreCase)
+            }
+        }
+        return $normalized
+    }
+    if ($Value -is [bool] -or $Value -is [ValueType]) { return $Value }
+    if ($Value -is [Collections.IEnumerable] -and $Value -isnot [Collections.IDictionary]) {
+        $items = @()
+        foreach ($item in $Value) { $items += ,(ConvertTo-NormalizedValue -Value $item -Replacements $Replacements) }
+        return ,$items
+    }
+    $result = [ordered]@{}
+    $properties = if ($Value -is [Collections.IDictionary]) {
+        @($Value.Keys | ForEach-Object { [ordered]@{ Name = [string]$_; Value = $Value[$_] } })
+    }
+    else {
+        @($Value.PSObject.Properties | ForEach-Object { [ordered]@{ Name = $_.Name; Value = $_.Value } })
+    }
+    foreach ($property in $properties) {
+        if ([string]$property.Name -in @('runId', 'caseInstanceId')) { continue }
+        $result[[string]$property.Name] = ConvertTo-NormalizedValue -Value $property.Value -Replacements $Replacements
+    }
+    return $result
+}
+
+function Get-NormalizationReplacements {
+    param([Parameter(Mandatory)] [object] $ManifestEvidence)
+    $replacements = @(
+        [ordered]@{ from = [string]$ManifestEvidence.runId; to = '<RUN_ID>' },
+        [ordered]@{ from = [string]$ManifestEvidence.workspaceRoot; to = '<WORKSPACE_ROOT>' }
+    )
+    $projectProperties = if ($ManifestEvidence.projectPaths -is [Collections.IDictionary]) {
+        @($ManifestEvidence.projectPaths.Keys | ForEach-Object {
+            [ordered]@{ Name = [string]$_; Value = $ManifestEvidence.projectPaths[$_] }
+        })
+    }
+    else {
+        @($ManifestEvidence.projectPaths.PSObject.Properties | ForEach-Object {
+            [ordered]@{ Name = $_.Name; Value = $_.Value }
+        })
+    }
+    foreach ($property in $projectProperties) {
+        $replacements += [ordered]@{ from = [string]$property.Value; to = "<PROJECT:$($property.Name)>" }
+    }
+    return $replacements
+}
+
+function Get-NormalizedCaseRecords {
+    param(
+        [Parameter(Mandatory)] [string] $CasesPath,
+        [Parameter(Mandatory)] [object] $ManifestEvidence
+    )
+    $replacements = Get-NormalizationReplacements -ManifestEvidence $ManifestEvidence
+    $records = @()
+    foreach ($line in [IO.File]::ReadLines($CasesPath)) {
+        $record = $line | ConvertFrom-Json -Depth 100
+        $records += [ordered]@{
+            sequence = [int]$record.sequence
+            scenarioId = [string]$record.scenarioId
+            caseId = [string]$record.caseId
+            transportOutcome = [string]$record.transport.outcome
+            stopReason = $record.stopReason
+            workerResult = ConvertTo-NormalizedValue -Value $record.workerResult -Replacements $replacements
+        }
+    }
+    return $records
+}
+
+function Get-NormalizedFilesystemAfter {
+    param([Parameter(Mandatory)] [string] $Path)
+    $snapshot = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -Depth 100
+    return [ordered]@{
+        complete = [bool]$snapshot.complete
+        files = @($snapshot.files | Where-Object {
+            -not [string]::Equals([string]$_.relativePath, '.vci-mutation-run.json', [StringComparison]::Ordinal)
+        } | ForEach-Object {
+            [ordered]@{ relativePath = $_.relativePath; size = $_.size; sha256 = $_.sha256 }
+        })
+        omissions = @($snapshot.omissions)
+    }
+}
+
+function Compare-EquivalentEvidence {
+    param(
+        [Parameter(Mandatory)] [string] $CurrentEvidenceRoot,
+        [Parameter(Mandatory)] [object] $CurrentManifestEvidence,
+        [AllowNull()] [string] $OtherEvidenceRoot
+    )
+    if ([string]::IsNullOrWhiteSpace($OtherEvidenceRoot)) { return @() }
+    $otherRoot = [IO.Path]::GetFullPath($OtherEvidenceRoot)
+    $otherManifest = Get-Content -LiteralPath ([IO.Path]::Combine($otherRoot, 'manifest.json')) -Raw | ConvertFrom-Json -Depth 100
+    $current = @(Get-NormalizedCaseRecords -CasesPath ([IO.Path]::Combine($CurrentEvidenceRoot, 'cases.jsonl')) -ManifestEvidence $CurrentManifestEvidence)
+    $other = @(Get-NormalizedCaseRecords -CasesPath ([IO.Path]::Combine($otherRoot, 'cases.jsonl')) -ManifestEvidence $otherManifest)
+    $mismatches = @()
+    $count = [Math]::Max($current.Count, $other.Count)
+    for ($index = 0; $index -lt $count; $index++) {
+        if ($index -ge $current.Count -or $index -ge $other.Count) {
+            $caseId = if ($index -lt $current.Count) { [string]$current[$index].caseId } else { [string]$other[$index].caseId }
+            $mismatches += [ordered]@{ index = $index; caseId = $caseId; reason = 'record_count_or_order_difference' }
+            continue
+        }
+        if (-not [string]::Equals(
+                (ConvertTo-CompactJson -Value $current[$index]),
+                (ConvertTo-CompactJson -Value $other[$index]),
+                [StringComparison]::Ordinal)) {
+            $mismatches += [ordered]@{ index = $index; caseId = [string]$current[$index].caseId; reason = 'normalized_case_difference' }
+        }
+    }
+    $currentFilesystem = Get-NormalizedFilesystemAfter -Path ([IO.Path]::Combine($CurrentEvidenceRoot, 'filesystem-after.json'))
+    $otherFilesystem = Get-NormalizedFilesystemAfter -Path ([IO.Path]::Combine($otherRoot, 'filesystem-after.json'))
+    if (-not [string]::Equals(
+            (ConvertTo-CompactJson -Value $currentFilesystem),
+            (ConvertTo-CompactJson -Value $otherFilesystem),
+            [StringComparison]::Ordinal)) {
+        $mismatches += [ordered]@{ index = -1; caseId = '<filesystem-after>'; reason = 'normalized_filesystem_difference' }
+    }
+    return $mismatches
+}
+
+function Invoke-Apply {
+    param(
+        [Parameter(Mandatory)] [object] $Inputs,
+        [Parameter(Mandatory)] [object] $PlanEvidence
+    )
+    $runId = [IO.Path]::GetFileName($Inputs.evidenceRoot.TrimEnd([IO.Path]::DirectorySeparatorChar))
+    if ([IO.Directory]::Exists($Inputs.workspaceRoot) -or [IO.File]::Exists($Inputs.workspaceRoot)) {
+        throw 'workspace_root_appeared_after_apply_guard'
+    }
+    $filesystemBefore = Get-FilesystemSnapshot -Root $Inputs.workspaceRoot -MaxFiles $script:Budgets.maxCollectionItems
+    [IO.Directory]::CreateDirectory($Inputs.workspaceRoot) | Out-Null
+    $markerPath = [IO.Path]::Combine($Inputs.workspaceRoot, '.vci-mutation-run.json')
+    Write-JsonFile -Path $markerPath -Value ([ordered]@{
+        schemaVersion = 'vci-phase1-mutation-run-marker/v1'
+        runId = $runId
+        planHash = [string]$PlanEvidence.planHash
+    })
+    if (-not $NonInteractiveAcceptance) {
+        $confirmation = Read-Host "Type APPLY $($PlanEvidence.planHash) to continue"
+        if (-not [string]::Equals($confirmation, "APPLY $($PlanEvidence.planHash)", [StringComparison]::Ordinal)) {
+            $entries = @([IO.Directory]::EnumerateFileSystemEntries($Inputs.workspaceRoot))
+            if ($entries.Count -eq 1 -and [string]::Equals($entries[0], $markerPath, [StringComparison]::OrdinalIgnoreCase)) {
+                [IO.File]::Delete($markerPath)
+                [IO.Directory]::Delete($Inputs.workspaceRoot, $false)
+            }
+            throw 'interactive_confirmation_declined'
+        }
+    }
+    $manifestEvidence = [ordered]@{
+        schemaVersion = 'vci-phase1-mutation-manifest/v1'
+        runId = $runId
+        planHash = [string]$PlanEvidence.planHash
+        workspaceRoot = $Inputs.workspaceRoot
+        workerExecutable = $Inputs.workerExecutable
+        scenarioManifestPath = $Inputs.manifestPath
+        projectPaths = $Inputs.projectPaths
+        scenarioManifest = $Inputs.manifest
+    }
+    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'manifest.json')) -Value $manifestEvidence
+    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'filesystem-before.json')) -Value $filesystemBefore
+
+    $casesPath = [IO.Path]::Combine($Inputs.evidenceRoot, 'cases.jsonl')
+    $stream = [IO.File]::Open($casesPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+    $writer = [IO.StreamWriter]::new($stream, [Text.UTF8Encoding]::new($false))
+    $writer.AutoFlush = $true
+    $sequence = 0
+    $records = @()
+    $snapshotBefore = @()
+    $snapshotAfter = @()
+    $stoppedFamilies = @()
+    try {
+        foreach ($scenario in @($PlanEvidence.canonicalPlan.scenarios)) {
+            $scenarioId = [string]$scenario.scenarioId
+            $role = Get-ScenarioProjectRole -ScenarioId $scenarioId
+            $projectPath = [string]$Inputs.projectPaths[$role]
+            $familyStopped = $false
+            $worker = $null
+            try {
+                $worker = Start-ProbeWorker -Executable $Inputs.workerExecutable
+                foreach ($caseIdValue in @($scenario.caseIds)) {
+                    if ($familyStopped) { break }
+                    $caseId = [string]$caseIdValue
+                    $sequence++
+                    $request = New-ApplyWorkerRequest `
+                        -PlanEvidence $PlanEvidence `
+                        -RunId $runId `
+                        -ScenarioId $scenarioId `
+                        -CaseId $caseId `
+                        -Role $role `
+                        -ProjectPath $projectPath `
+                        -WorkspaceRoot $Inputs.workspaceRoot `
+                        -Sequence $sequence
+                    $filesystemCaseBefore = Get-FilesystemSnapshot -Root $Inputs.workspaceRoot -MaxFiles $script:Budgets.maxCollectionItems
+                    $sentUtc = [DateTime]::UtcNow
+                    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+                    $result = $null
+                    $transportOutcome = 'response'
+                    $stopReason = $null
+                    try {
+                        $result = Invoke-ProbeWorker -Process $worker -Request $request -Timeout $TimeoutSeconds
+                        $stopReason = Get-ApplyResultStopReason `
+                            -Result $result `
+                            -CaseId $caseId `
+                            -CaseInstanceId ([string]$request.vciMutationProbe.caseInstanceId)
+                        if ($null -ne $stopReason) { $transportOutcome = $stopReason }
+                    }
+                    catch {
+                        $message = [string]$_.Exception.Message
+                        $transportOutcome = switch ($message) {
+                            'worker_request_timed_out' { 'timed_out'; break }
+                            'worker_process_lost' { 'process_lost'; break }
+                            default { 'protocol_error' }
+                        }
+                        $stopReason = $transportOutcome
+                    }
+                    $stopwatch.Stop()
+                    $receivedUtc = [DateTime]::UtcNow
+                    $filesystemCaseAfter = Get-FilesystemSnapshot -Root $Inputs.workspaceRoot -MaxFiles $script:Budgets.maxCollectionItems
+                    if (-not [bool]$filesystemCaseBefore.complete -or -not [bool]$filesystemCaseAfter.complete) {
+                        $transportOutcome = 'incomplete_evidence'
+                        $stopReason = 'incomplete_filesystem_evidence'
+                    }
+                    $exitCode = if ($worker.HasExited) { $worker.ExitCode } else { $null }
+                    $record = [ordered]@{
+                        schemaVersion = 'vci-phase1-mutation-case-evidence/v1'
+                        terminal = $true
+                        sequence = $sequence
+                        runId = $runId
+                        scenarioId = $scenarioId
+                        caseId = $caseId
+                        caseInstanceId = [string]$request.vciMutationProbe.caseInstanceId
+                        planHash = [string]$PlanEvidence.planHash
+                        project = [ordered]@{ role = $role; projectPath = $projectPath; projectSha256 = Get-Sha256File -Path $projectPath }
+                        transport = [ordered]@{
+                            outcome = $transportOutcome
+                            workerPid = $worker.Id
+                            sentUtc = $sentUtc.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
+                            receivedUtc = $receivedUtc.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
+                            elapsedMilliseconds = $stopwatch.ElapsedMilliseconds
+                            exitCode = $exitCode
+                        }
+                        filesystemBeforeSnapshotId = [string]$filesystemCaseBefore.snapshotId
+                        filesystemAfterSnapshotId = [string]$filesystemCaseAfter.snapshotId
+                        workerResult = $result
+                        stopReason = $stopReason
+                    }
+                    $writer.WriteLine((ConvertTo-CompactJson -Value $record))
+                    $records += $record
+                    if ($null -ne $result) {
+                        $snapshotBefore += [ordered]@{ scenarioId = $scenarioId; caseId = $caseId; snapshot = $result.before }
+                        $snapshotAfter += [ordered]@{ scenarioId = $scenarioId; caseId = $caseId; snapshot = $result.after }
+                    }
+                    if ($null -ne $stopReason) {
+                        $familyStopped = $true
+                        $stoppedFamilies += [ordered]@{ scenarioId = $scenarioId; caseId = $caseId; reason = $stopReason }
+                    }
+                }
+            }
+            catch {
+                $familyStopped = $true
+                $stoppedFamilies += [ordered]@{ scenarioId = $scenarioId; caseId = $null; reason = 'worker_start_failed' }
+            }
+            finally { Stop-ProbeWorker -Process $worker }
+        }
+    }
+    finally {
+        $writer.Dispose()
+        $stream.Dispose()
+    }
+
+    $filesystemAfter = Get-FilesystemSnapshot -Root $Inputs.workspaceRoot -MaxFiles $script:Budgets.maxCollectionItems
+    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'snapshot-before.json')) -Value ([ordered]@{
+        schemaVersion = 'vci-phase1-mutation-snapshots/v1'; snapshots = $snapshotBefore
+    })
+    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'snapshot-after.json')) -Value ([ordered]@{
+        schemaVersion = 'vci-phase1-mutation-snapshots/v1'; snapshots = $snapshotAfter
+    })
+    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'filesystem-after.json')) -Value $filesystemAfter
+    $mismatches = @(Compare-EquivalentEvidence `
+        -CurrentEvidenceRoot $Inputs.evidenceRoot `
+        -CurrentManifestEvidence $manifestEvidence `
+        -OtherEvidenceRoot $EquivalentEvidenceRoot)
+    $plannedCount = @($PlanEvidence.canonicalPlan.scenarios | ForEach-Object { @($_.caseIds).Count } | Measure-Object -Sum).Sum
+    $overallPass = $stoppedFamilies.Count -eq 0 -and
+        $records.Count -eq $plannedCount -and
+        [bool]$filesystemAfter.complete -and
+        $mismatches.Count -eq 0
+    $summary = [ordered]@{
+        schemaVersion = 'vci-phase1-mutation-summary/v1'
+        runId = $runId
+        planHash = [string]$PlanEvidence.planHash
+        workspaceRoot = $Inputs.workspaceRoot
+        plannedCaseCount = $plannedCount
+        requestedCaseCount = $records.Count
+        stoppedFamilies = $stoppedFamilies
+        normalizedMismatches = $mismatches
+        filesystemEvidenceComplete = [bool]$filesystemAfter.complete
+        overallPass = $overallPass
+    }
+    Write-JsonFile -Path ([IO.Path]::Combine($Inputs.evidenceRoot, 'summary.json')) -Value $summary
+    return $summary
 }
 
 function Get-DescribeDocument {
@@ -589,8 +1194,9 @@ function Get-DescribeDocument {
         [ordered]@{ name = 'WorkerAccessMode'; type = 'read-write|read-only'; default = 'read-write' },
         [ordered]@{ name = 'AllowMutation'; type = 'switch'; default = $false },
         [ordered]@{ name = 'Acknowledgement'; type = 'exact text'; default = $null },
-        [ordered]@{ name = 'PlanHash'; type = 'SHA-256 hex'; default = $null },
-        [ordered]@{ name = 'NonInteractiveAcceptance'; type = 'switch'; default = $false }
+        [ordered]@{ name = 'ExpectedPlanHash'; type = 'SHA-256 hex'; default = $null },
+        [ordered]@{ name = 'NonInteractiveAcceptance'; type = 'switch'; default = $false },
+        [ordered]@{ name = 'EquivalentEvidenceRoot'; type = 'absolute completed evidence path'; default = $null }
     )
     return [ordered]@{
         schemaVersion = $script:HarnessSchema
@@ -638,5 +1244,8 @@ if ([string]::Equals($Mode, 'Inventory', [StringComparison]::Ordinal)) {
     exit 0
 }
 
-Assert-ApplyGuards -Inputs $inputs
-throw 'apply_not_implemented_until_task_8'
+$plan = Assert-ApplyGuards -Inputs $inputs -RepositoryRoot $repositoryRoot
+$applyResult = Invoke-Apply -Inputs $inputs -PlanEvidence $plan
+[Console]::Out.WriteLine((ConvertTo-CompactJson -Value $applyResult))
+if (-not [bool]$applyResult.overallPass) { exit 2 }
+exit 0
