@@ -192,30 +192,28 @@ internal static class VciMutationContractProbeService
         }
 
         result.Before = CaptureSnapshot(project, request, result);
-        if (!TryAcquireRoot(project, result, out _, out var root)
-            || request.Workspace is null)
+        if (!TryAcquireRoot(project, result, out _, out var root))
         {
             SetNotObservableUnlessTerminal(result, "selected_workspace_not_found");
             return;
         }
 
-        var workspace = ResolveWorkspace(root!, request.Workspace);
-        if (workspace is null)
-        {
-            SetNotObservable(result, "selected_workspace_not_found");
-            return;
-        }
-
         var readRequest = ToReadRequest(request);
-        var objectResolution = VciProbeEngineeringObjectResolver.Resolve(
-            project,
-            readRequest,
-            request.EngineeringObject!);
-        if (objectResolution.Candidate?.EngineeringObject is not IEngineeringObject engineeringObject)
+        var catalog = VciProbeEngineeringObjectCatalog.Enumerate(project, readRequest);
+        result.Omissions.AddRange(catalog.Omissions);
+        var objectMatches = catalog.Candidates
+            .Where(candidate => StructuralPathsEqual(
+                candidate.Selector.StructuralPath,
+                request.EngineeringObject!.StructuralPath))
+            .Take(2)
+            .ToList();
+        if (objectMatches.Count != 1
+            || objectMatches[0].EngineeringObject is not IEngineeringObject engineeringObject)
         {
             SetNotObservable(result, "selected_engineering_object_not_found");
             return;
         }
+        var objectCandidate = objectMatches[0];
 
         var selectedSimulationDb = request.EngineeringObject!.StructuralPath.Count > 0
             && string.Equals(
@@ -232,16 +230,19 @@ internal static class VciMutationContractProbeService
 
         try
         {
-            var formats = workspace.GetSupportedFileFormats(engineeringObject).ToList();
-            var supportsSimaticMl = formats.Contains("SimaticML", StringComparer.Ordinal);
-            AddCheck(result.Preconditions, "exact_SimaticML_supported", supportsSimaticMl, null);
-            if (!supportsSimaticMl)
+            var workspaceSelection = FindInventoryWorkspace(
+                root!,
+                engineeringObject,
+                request,
+                result.Omissions);
+            if (workspaceSelection is null)
             {
-                SetNotObservable(result, "selected_format_not_supported");
+                SetNotObservable(result, "selected_workspace_not_found");
                 return;
             }
 
-            result.Return = ToReturnInfo(formats, request.MaxCollectionItems, result.Omissions);
+            AddCheck(result.Preconditions, "exact_SimaticML_supported", true, null);
+            result.Return = InventoryReturn(objectCandidate, workspaceSelection);
             result.Outcome = "returned";
         }
         catch (NonRecoverableException)
@@ -262,6 +263,201 @@ internal static class VciMutationContractProbeService
             result.StopScenarioFamily = true;
         }
     }
+
+    private static bool StructuralPathsEqual(
+        IReadOnlyList<VciEngineeringObjectPathSegmentInfo> left,
+        IReadOnlyList<VciEngineeringObjectPathSegmentInfo> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < left.Count; index++)
+        {
+            if (left[index].Index != right[index].Index
+                || !string.Equals(left[index].Name, right[index].Name, StringComparison.Ordinal)
+                || !string.Equals(left[index].ObjectType, right[index].ObjectType, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static InventoryWorkspaceSelection? FindInventoryWorkspace(
+        WorkspaceSystemGroup root,
+        IEngineeringObject engineeringObject,
+        VciMutationProbeRequestInfo request,
+        List<VciProbeOmissionInfo> omissions)
+    {
+        var groupsVisited = 0;
+        var workspacesVisited = 0;
+        return FindInventoryWorkspaceInGroup(
+            root,
+            engineeringObject,
+            request,
+            omissions,
+            new List<VciGroupPathSegmentInfo>(),
+            depth: 0,
+            ref groupsVisited,
+            ref workspacesVisited);
+    }
+
+    private static InventoryWorkspaceSelection? FindInventoryWorkspaceInGroup(
+        WorkspaceGroup group,
+        IEngineeringObject engineeringObject,
+        VciMutationProbeRequestInfo request,
+        List<VciProbeOmissionInfo> omissions,
+        List<VciGroupPathSegmentInfo> groupPath,
+        int depth,
+        ref int groupsVisited,
+        ref int workspacesVisited)
+    {
+        foreach (var workspace in group.Workspaces)
+        {
+            if (workspacesVisited >= request.MaxWorkspaces)
+            {
+                omissions.Add(new VciProbeOmissionInfo
+                {
+                    Reason = "Inventory workspace discovery stopped at the configured workspace budget.",
+                    BudgetName = nameof(VciMutationProbeRequestInfo.MaxWorkspaces),
+                    BudgetValue = request.MaxWorkspaces,
+                    ObservedCount = workspacesVisited,
+                });
+                return null;
+            }
+
+            workspacesVisited++;
+            var formats = new List<string>();
+            foreach (var format in workspace.GetSupportedFileFormats(engineeringObject))
+            {
+                if (formats.Count >= request.MaxCollectionItems)
+                {
+                    omissions.Add(new VciProbeOmissionInfo
+                    {
+                        Reason = "Supported-format enumeration stopped at the configured collection budget.",
+                        BudgetName = nameof(VciMutationProbeRequestInfo.MaxCollectionItems),
+                        BudgetValue = request.MaxCollectionItems,
+                        ObservedCount = formats.Count,
+                    });
+                    break;
+                }
+
+                formats.Add(format);
+            }
+
+            if (formats.Contains("SimaticML", StringComparer.Ordinal))
+            {
+                return new InventoryWorkspaceSelection(
+                    workspace,
+                    new VciWorkspaceSelectorInfo
+                    {
+                        GroupPath = new List<VciGroupPathSegmentInfo>(groupPath),
+                        WorkspaceName = workspace.Name,
+                        CanonicalRootPath = CanonicalPath(workspace.RootPath),
+                    },
+                    formats);
+            }
+        }
+
+        if (depth >= request.MaxGroupDepth)
+        {
+            omissions.Add(new VciProbeOmissionInfo
+            {
+                Reason = "Inventory workspace discovery stopped at the configured group depth.",
+                BudgetName = nameof(VciMutationProbeRequestInfo.MaxGroupDepth),
+                BudgetValue = request.MaxGroupDepth,
+                ObservedCount = depth,
+            });
+            return null;
+        }
+
+        var siblingNameOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
+        var groupIndex = 0;
+        foreach (var child in group.Groups)
+        {
+            if (groupsVisited >= request.MaxGroups)
+            {
+                omissions.Add(new VciProbeOmissionInfo
+                {
+                    Reason = "Inventory workspace discovery stopped at the configured group budget.",
+                    BudgetName = nameof(VciMutationProbeRequestInfo.MaxGroups),
+                    BudgetValue = request.MaxGroups,
+                    ObservedCount = groupsVisited,
+                });
+                return null;
+            }
+
+            siblingNameOrdinals.TryGetValue(child.Name, out var sameNameOrdinal);
+            siblingNameOrdinals[child.Name] = sameNameOrdinal + 1;
+            groupsVisited++;
+            var childPath = new List<VciGroupPathSegmentInfo>(groupPath)
+            {
+                new()
+                {
+                    Index = groupIndex,
+                    Name = child.Name,
+                    SameNameOrdinal = sameNameOrdinal,
+                },
+            };
+            var match = FindInventoryWorkspaceInGroup(
+                child,
+                engineeringObject,
+                request,
+                omissions,
+                childPath,
+                depth + 1,
+                ref groupsVisited,
+                ref workspacesVisited);
+            if (match is not null)
+            {
+                return match;
+            }
+
+            groupIndex++;
+        }
+
+        return null;
+    }
+
+    private static VciProbeReturnInfo InventoryReturn(
+        VciProbeEngineeringObjectCandidate objectCandidate,
+        InventoryWorkspaceSelection workspaceSelection)
+    {
+        var result = new VciProbeReturnInfo
+        {
+            ClrTypeName = typeof(InventoryWorkspaceSelection).FullName ?? nameof(InventoryWorkspaceSelection),
+        };
+        result.Members.Add(Member("workspace.name", workspaceSelection.Selector.WorkspaceName));
+        result.Members.Add(Member("workspace.canonicalRootPath", workspaceSelection.Selector.CanonicalRootPath));
+        result.Members.Add(Member("workspace.groupPath", RenderGroupPath(workspaceSelection.Selector.GroupPath)));
+        result.Members.Add(Member("engineeringObject.runtimeType", objectCandidate.RuntimeTypeName));
+        result.Members.Add(Member("engineeringObject.stableIdentifier", objectCandidate.Selector.StableIdentifier));
+        result.Members.Add(Member("engineeringObject.fingerprint", objectCandidate.Fingerprint));
+        result.Members.Add(Member("engineeringObject.structuralPath", RenderStructuralPath(objectCandidate.Selector.StructuralPath)));
+        for (var index = 0; index < workspaceSelection.Formats.Count; index++)
+        {
+            result.Members.Add(Member("fileFormat[" + index + "]", workspaceSelection.Formats[index]));
+        }
+
+        return result;
+    }
+
+    private static string RenderGroupPath(IReadOnlyList<VciGroupPathSegmentInfo> path)
+        => string.Join(
+            "/",
+            path.Select(segment => segment.Index.ToString(CultureInfo.InvariantCulture)
+                + ":" + segment.SameNameOrdinal.ToString(CultureInfo.InvariantCulture)
+                + ":" + segment.Name));
+
+    private static string RenderStructuralPath(IReadOnlyList<VciEngineeringObjectPathSegmentInfo> path)
+        => string.Join(
+            "/",
+            path.Select(segment => segment.Index.ToString(CultureInfo.InvariantCulture)
+                + ":" + segment.ObjectType
+                + ":" + segment.Name));
 
     private static void RunCanaryCase(
         Project project,
@@ -2204,6 +2400,23 @@ internal static class VciMutationContractProbeService
         {
             SetNotObservable(result, reason);
         }
+    }
+
+    private sealed class InventoryWorkspaceSelection
+    {
+        public InventoryWorkspaceSelection(
+            Workspace workspace,
+            VciWorkspaceSelectorInfo selector,
+            List<string> formats)
+        {
+            Workspace = workspace;
+            Selector = selector;
+            Formats = formats;
+        }
+
+        public Workspace Workspace { get; }
+        public VciWorkspaceSelectorInfo Selector { get; }
+        public List<string> Formats { get; }
     }
 
     private sealed class ScenarioIdentity

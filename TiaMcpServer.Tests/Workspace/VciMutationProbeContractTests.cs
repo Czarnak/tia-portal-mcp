@@ -240,14 +240,12 @@ public class VciMutationProbeContractTests
     }
 
     [Fact]
-    public void Validate_RequiresTheEvidenceSelectedWorkspaceForInventory()
+    public void Validate_AllowsInventoryToRediscoverTheWorkspaceFromProjectEvidence()
     {
         var request = ValidRequest();
         request.Workspace = null;
 
-        Assert.Equal(
-            "'workspace' is required for case 'P-INVENTORY'.",
-            VciMutationProbeContract.Validate(request));
+        Assert.Null(VciMutationProbeContract.Validate(request));
     }
 
     [Fact]
@@ -298,7 +296,7 @@ public class VciMutationProbeContractTests
             Mode = caseId == "P-INVENTORY" ? "Inventory" : "Apply",
             WorkspaceRoot = Path.GetFullPath(Path.Combine("build", "vci-probe", "run")),
             RollbackTransaction = caseId.StartsWith("M-TX-", StringComparison.Ordinal),
-            Workspace = caseId == "P-INVENTORY" ? new VciWorkspaceSelectorInfo() : null,
+            Workspace = null,
             EngineeringObject = caseId is "P-INVENTORY" or "M-EXPORT" or "M-TX-EXPORT"
                 ? new VciEngineeringObjectSelectorInfo()
                 : null,

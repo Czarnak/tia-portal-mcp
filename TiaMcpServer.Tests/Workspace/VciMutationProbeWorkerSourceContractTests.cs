@@ -57,12 +57,17 @@ public class VciMutationProbeWorkerSourceContractTests
     {
         var source = ServiceSource();
         var inventory = SliceMethod(source, "private static void RunInventory", "private static");
+        var inventoryDiscovery = SliceMethod(
+            source,
+            "private static InventoryWorkspaceSelection? FindInventoryWorkspace",
+            "private static VciProbeReturnInfo InventoryReturn");
         var canary = SliceMethod(source, "private static void RunCanaryCase", "private static");
 
-        Assert.Contains("GetSupportedFileFormats", inventory, StringComparison.Ordinal);
-        Assert.Contains("StringComparer.Ordinal", inventory, StringComparison.Ordinal);
-        Assert.Contains("\"SimaticML\"", inventory, StringComparison.Ordinal);
-        Assert.Contains("VciProbeEngineeringObjectResolver.Resolve", inventory, StringComparison.Ordinal);
+        Assert.Contains("GetSupportedFileFormats", inventoryDiscovery, StringComparison.Ordinal);
+        Assert.Contains("StringComparer.Ordinal", inventoryDiscovery, StringComparison.Ordinal);
+        Assert.Contains("\"SimaticML\"", inventoryDiscovery, StringComparison.Ordinal);
+        Assert.Contains("VciProbeEngineeringObjectCatalog.Enumerate", inventory, StringComparison.Ordinal);
+        Assert.Contains("FindInventoryWorkspace", inventory, StringComparison.Ordinal);
         Assert.DoesNotContain("ExclusiveAccess", inventory, StringComparison.Ordinal);
         Assert.DoesNotContain("Transaction", inventory, StringComparison.Ordinal);
         Assert.DoesNotContain("Directory.Create", inventory, StringComparison.Ordinal);

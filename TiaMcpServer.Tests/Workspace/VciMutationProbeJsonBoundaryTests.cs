@@ -9,7 +9,6 @@ public class VciMutationProbeJsonBoundaryTests
         "{\"schemaVersion\":\"vci-mutation-probe/v1\",\"runId\":\"r\",\"sessionId\":\"s\"," +
         "\"scenarioId\":\"scenario\",\"caseId\":\"P-INVENTORY\",\"caseInstanceId\":\"i\"," +
         "\"mode\":\"Inventory\",\"workspaceRoot\":\"C:\\\\vci-root\"," +
-        "\"workspace\":{\"groupPath\":[],\"workspaceName\":\"ws\",\"canonicalRootPath\":\"C:\\\\existing-ws\"}," +
         "\"engineeringObject\":{\"structuralPath\":[]},\"fileFormat\":\"SimaticML\"}";
 
     [Fact]
@@ -120,10 +119,7 @@ public class VciMutationProbeJsonBoundaryTests
     public void Validate_RejectsNonObjectSelectors(string field, string value)
     {
         var probe = field == "workspace"
-            ? ValidProbe.Replace(
-                "\"workspace\":{\"groupPath\":[],\"workspaceName\":\"ws\",\"canonicalRootPath\":\"C:\\\\existing-ws\"}",
-                $"\"workspace\":{value}",
-                StringComparison.Ordinal)
+            ? ValidProbe.Insert(ValidProbe.Length - 1, $",\"workspace\":{value}")
             : ValidProbe.Insert(ValidProbe.Length - 1, $",\"{field}\":{value}");
 
         var error = VciMutationProbeJsonBoundary.Validate(Wrap(probe));
@@ -140,10 +136,7 @@ public class VciMutationProbeJsonBoundaryTests
     {
         var probe = unknownField switch
         {
-            "methodName" => ValidProbe.Replace(
-                "\"workspace\":{\"groupPath\":[],\"workspaceName\":\"ws\",\"canonicalRootPath\":\"C:\\\\existing-ws\"}",
-                selector,
-                StringComparison.Ordinal),
+            "methodName" => ValidProbe.Insert(ValidProbe.Length - 1, "," + selector),
             "propertyName" => ValidProbe.Replace(
                 "\"engineeringObject\":{\"structuralPath\":[]}",
                 selector,
