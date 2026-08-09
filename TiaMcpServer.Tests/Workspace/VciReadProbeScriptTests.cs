@@ -138,7 +138,37 @@ public sealed class VciReadProbeScriptTests
         Assert.True(result.ExitCode == 0, result.StandardError);
         using var document = JsonDocument.Parse(result.StandardOutput);
         var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
-        Assert.Equal(new[] { true, false, false, false, false }, outcomes);
+        Assert.Equal(
+            new[]
+            {
+                true, true, true,
+                false, false, false, false,
+                false, false, false, false, false, false, false, false,
+            },
+            outcomes);
+    }
+
+    [Fact]
+    public void WorkspaceRootDiscovery_FailsClosedWhenAnyDiscoveredRootIsMissing()
+    {
+        var result = RunWorkspaceRootDiscoverySmokeTest();
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.True(document.RootElement.GetProperty("completeRootsAccepted").GetBoolean());
+        Assert.True(document.RootElement.GetProperty("nullRootRejected").GetBoolean());
+        Assert.True(document.RootElement.GetProperty("blankRootRejected").GetBoolean());
+    }
+
+    [Fact]
+    public void TerminalCoverage_RequiresTheExactExpectedCaseInstanceIdSet()
+    {
+        var result = RunTerminalCoverageSmokeTest();
+
+        Assert.True(result.ExitCode == 0, result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var outcomes = document.RootElement.EnumerateArray().Select(item => item.GetBoolean()).ToArray();
+        Assert.Equal(new[] { true, true, true, true }, outcomes);
     }
 
     [Fact]
@@ -253,7 +283,10 @@ public sealed class VciReadProbeScriptTests
         Assert.Equal("R-REP", evidence.GetProperty("penultimateCase").GetString());
         Assert.Equal("R-CANARY", evidence.GetProperty("lastCase").GetString());
         Assert.Equal(1, evidence.GetProperty("formatCaseCount").GetInt32());
-        Assert.Equal(13, evidence.GetProperty("negativeCaseCount").GetInt32());
+        Assert.Equal(27, evidence.GetProperty("negativeCaseCount").GetInt32());
+        Assert.Equal(9, evidence.GetProperty("formatNegativeCaseCount").GetInt32());
+        Assert.Equal(8, evidence.GetProperty("groupNegativeCaseCount").GetInt32());
+        Assert.Equal(8, evidence.GetProperty("workspaceNegativeCaseCount").GetInt32());
     }
 
     [Fact]
@@ -390,7 +423,15 @@ public sealed class VciReadProbeScriptTests
             $harnessPath = 'REPLACE_HARNESS_PATH'
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
-            foreach ($functionName in @('ConvertFrom-JsonHashtable', 'Test-WorkerPayload')) {
+            foreach ($functionName in @(
+                    'ConvertFrom-JsonHashtable', 'Assert-JsonObjectShape', 'Assert-JsonArray',
+                    'Assert-JsonString', 'Assert-JsonNullableString', 'Assert-JsonBoolean',
+                    'Assert-JsonInteger', 'Assert-VciProbeException', 'Assert-VciProbeMember',
+                    'Assert-VciProbeReturn', 'Assert-VciWorkspaceSelector',
+                    'Assert-VciEngineeringObjectSelector', 'Assert-VciMappingSelector',
+                    'Assert-VciProbeSnapshot', 'Assert-VciProbeRepeatability',
+                    'Assert-VciProbeProjectState', 'Assert-VciProbeOmission',
+                    'Assert-VciProbePayload', 'Test-WorkerPayload')) {
                 $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
                 if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
                 Invoke-Expression $functionAst.Extent.Text
@@ -407,9 +448,49 @@ public sealed class VciReadProbeScriptTests
                 schemaVersion = 'vci-read-probe/v1'
                 runId = 'run'; sessionId = 'session-1'; caseId = 'R-SVC'; caseInstanceId = 'case-1'
                 outcome = 'returned'
-                snapshot = [ordered]@{}
+                snapshot = [ordered]@{
+                    members = @([ordered]@{
+                        name = 'Name'; clrTypeName = 'System.String'; stringValue = 'value'
+                        isNull = $false
+                    })
+                    service = [ordered]@{
+                        serviceAvailable = $true; rootGroupAvailable = $true; rootGroupCount = 1
+                    }
+                    groups = @([ordered]@{
+                        enumerationIndex = 0; canonicalKey = 'root/0:0:G'; name = 'G'; depth = 1
+                        childGroupCount = 0; workspaceCount = 1
+                    })
+                    workspaces = @([ordered]@{
+                        enumerationIndex = 0; canonicalKey = 'root/0:0:G/workspace:0:W'; name = 'W'
+                        rootPath = 'C:\W'; deleteUnusedTypeVersionFromLibrary = $false; mappedObjectCount = 1
+                    })
+                    mappings = @([ordered]@{
+                        enumerationIndex = 0; canonicalKey = 'mapping:0'
+                        selector = [ordered]@{
+                            workspace = [ordered]@{
+                                groupPath = @([ordered]@{ index = 0; name = 'G'; sameNameOrdinal = 0 })
+                                workspaceName = 'W'; canonicalRootPath = 'C:\W'
+                            }
+                            engineeringObject = [ordered]@{
+                                stableIdentifier = 'id'
+                                structuralPath = @([ordered]@{ index = 0; name = 'Obj'; objectType = 'Block' })
+                                fingerprint = 'fingerprint'
+                            }
+                            relativeDirectory = 'src'; fileName = 'Obj.xml'; format = 'xml'
+                        }
+                        status = 'Current'; statusProperty = 'Current'; getStatus = 'Current'; childStatus = 'Current'
+                    })
+                    candidates = @([ordered]@{
+                        enumerationIndex = 0; canonicalKey = 'candidate:0'; description = 'XML'
+                        runtimeTypeName = 'System.String'; isNull = $false
+                    })
+                    candidateCollectionRuntimeType = 'System.String[]'
+                }
                 projectState = [ordered]@{ isModifiedBefore = $false; isModifiedAfter = $false }
-                omissions = @()
+                omissions = @([ordered]@{
+                    reason = 'budget'; budgetName = 'maxGroups'; budgetValue = 1; observedCount = 1
+                    traversalPath = 'root'
+                })
             }
             function New-Envelope([object] $Payload) {
                 return [ordered]@{
@@ -427,17 +508,156 @@ public sealed class VciReadProbeScriptTests
                     return $false
                 }
             }
+            function Copy-Fixture([object] $Value) {
+                return ($Value | ConvertTo-Json -Compress -Depth 100) | ConvertFrom-Json -AsHashtable -Depth 100
+            }
 
-            $wrongSchema = $basePayload.Clone(); $wrongSchema.schemaVersion = 'wrong/v1'
-            $unknownField = $basePayload.Clone(); $unknownField.extra = 1
-            $workerTimeout = $basePayload.Clone(); $workerTimeout.outcome = 'timed_out'
-            $missingOmissions = $basePayload.Clone(); $missingOmissions.Remove('omissions')
+            $wrongSchema = Copy-Fixture $basePayload; $wrongSchema.schemaVersion = 'wrong/v1'
+            $unknownField = Copy-Fixture $basePayload; $unknownField.extra = 1
+            $workerTimeout = Copy-Fixture $basePayload; $workerTimeout.outcome = 'timed_out'
+            $missingOmissions = Copy-Fixture $basePayload; $missingOmissions.Remove('omissions')
+
+            $validReturn = Copy-Fixture $basePayload; $validReturn.Remove('snapshot')
+            $validReturn.return = [ordered]@{
+                clrTypeName = 'System.String'; isNull = $false; stringValue = 'value'
+                members = @([ordered]@{ name = 'Length'; clrTypeName = 'System.Int32'; stringValue = '5'; isNull = $false })
+            }
+            $validReturn.repeatability = [ordered]@{ observations = @($validReturn.return); isIdentical = $true }
+
+            $validException = Copy-Fixture $basePayload; $validException.Remove('snapshot'); $validException.outcome = 'threw'
+            $validException.exception = [ordered]@{
+                exceptionTypeName = 'System.InvalidOperationException'; message = 'outer'; hResult = -1
+                innerException = [ordered]@{
+                    exceptionTypeName = 'System.Exception'; message = 'inner'; hResult = -2
+                }
+            }
+
+            $malformedWorkspaceArray = Copy-Fixture $basePayload
+            $malformedWorkspaceArray.snapshot.workspaces = 'not-an-array'
+
+            $malformedGroup = Copy-Fixture $basePayload
+            $malformedGroup.snapshot.groups = @([ordered]@{
+                enumerationIndex = 'zero'; canonicalKey = 'root/0:0:G'; name = 'G'; depth = 1
+                childGroupCount = 0; workspaceCount = 1
+            })
+
+            $outOfRangeInteger = Copy-Fixture $basePayload
+            $outOfRangeInteger.snapshot.groups[0].enumerationIndex = 2147483648
+
+            $malformedMapping = Copy-Fixture $basePayload
+            $malformedMapping.snapshot.mappings = @([ordered]@{
+                enumerationIndex = 0; canonicalKey = 'mapping:0'
+                selector = [ordered]@{
+                    workspace = [ordered]@{ groupPath = 'not-an-array'; workspaceName = 'W' }
+                    engineeringObject = [ordered]@{ structuralPath = @() }
+                }
+            })
+
+            $malformedReturn = Copy-Fixture $validReturn
+            $malformedReturn.return.members = 'not-an-array'
+
+            $malformedException = Copy-Fixture $validException
+            $malformedException.exception.innerException = 'not-an-object'
+
+            $malformedRepeatability = Copy-Fixture $validReturn; $malformedRepeatability.repeatability = [ordered]@{
+                observations = 'not-an-array'; isIdentical = $true
+            }
+
+            $malformedOmission = Copy-Fixture $basePayload; $malformedOmission.omissions = @([ordered]@{
+                reason = 'budget'; budgetName = 'maxGroups'; budgetValue = 'one'; observedCount = 1
+            })
             @(
                 (Test-Fixture -Payload $basePayload),
+                (Test-Fixture -Payload $validReturn),
+                (Test-Fixture -Payload $validException),
                 (Test-Fixture -Payload $wrongSchema),
                 (Test-Fixture -Payload $unknownField),
                 (Test-Fixture -Payload $workerTimeout),
-                (Test-Fixture -Payload $missingOmissions)
+                (Test-Fixture -Payload $missingOmissions),
+                (Test-Fixture -Payload $malformedWorkspaceArray),
+                (Test-Fixture -Payload $malformedGroup),
+                (Test-Fixture -Payload $outOfRangeInteger),
+                (Test-Fixture -Payload $malformedMapping),
+                (Test-Fixture -Payload $malformedReturn),
+                (Test-Fixture -Payload $malformedException),
+                (Test-Fixture -Payload $malformedRepeatability),
+                (Test-Fixture -Payload $malformedOmission)
+            ) | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunWorkspaceRootDiscoverySmokeTest()
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-WorkspaceRoots' }, $true)
+            if ($null -eq $functionAst) { throw 'Get-WorkspaceRoots was not found.' }
+            Invoke-Expression $functionAst.Extent.Text
+
+            function New-Record([object[]] $Workspaces) {
+                return [ordered]@{
+                    caseId = 'R-WS'
+                    workerPayload = [ordered]@{ snapshot = [ordered]@{ workspaces = $Workspaces } }
+                }
+            }
+            function Test-Rejected([object] $RootPath) {
+                try {
+                    $null = Get-WorkspaceRoots -SnapshotRecords @((New-Record -Workspaces @(
+                        [ordered]@{ canonicalKey = 'root/workspace:0:Complete'; name = 'Complete'; rootPath = 'C:\Complete' },
+                        [ordered]@{ canonicalKey = 'root/workspace:1:Incomplete'; name = 'Incomplete'; rootPath = $RootPath }
+                    )))
+                    return $false
+                }
+                catch {
+                    return $_.Exception.Message.StartsWith('filesystem_hashing_incomplete:', [StringComparison]::Ordinal)
+                }
+            }
+
+            [ordered]@{
+                completeRootsAccepted = @(Get-WorkspaceRoots -SnapshotRecords @((New-Record -Workspaces @(
+                    [ordered]@{ canonicalKey = 'root/workspace:0:A'; name = 'A'; rootPath = 'C:\A' },
+                    [ordered]@{ canonicalKey = 'root/workspace:1:B'; name = 'B'; rootPath = 'C:\B' }
+                )))).Count -eq 2
+                nullRootRejected = Test-Rejected -RootPath $null
+                blankRootRejected = Test-Rejected -RootPath '   '
+            } | ConvertTo-Json -Compress -Depth 10
+            """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
+        return RunPowerShell("-Command", command);
+    }
+
+    private static ScriptResult RunTerminalCoverageSmokeTest()
+    {
+        var command = """
+            $harnessPath = 'REPLACE_HARNESS_PATH'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($harnessPath, [ref] $tokens, [ref] $errors)
+            $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-TerminalCoverage' }, $true)
+            if ($null -eq $functionAst) { throw 'Assert-TerminalCoverage was not found.' }
+            Invoke-Expression $functionAst.Extent.Text
+
+            function New-Record([string] $Id) {
+                return [ordered]@{
+                    schemaVersion = 'vci-phase1-read-case-evidence/v1'; terminal = $true
+                    sessionId = 'session-1'; caseId = $Id; caseInstanceId = $Id
+                }
+            }
+            function Test-Coverage([object[]] $Records, [AllowNull()] [string] $ExpectedError) {
+                try {
+                    Assert-TerminalCoverage -Records $Records -SessionId 'session-1' -ExpectedCaseInstanceIds @('A', 'B')
+                    return [string]::IsNullOrEmpty($ExpectedError)
+                }
+                catch {
+                    return -not [string]::IsNullOrEmpty($ExpectedError) -and $_.Exception.Message.StartsWith($ExpectedError, [StringComparison]::Ordinal)
+                }
+            }
+            @(
+                (Test-Coverage -Records @((New-Record 'A'), (New-Record 'B')) -ExpectedError $null),
+                (Test-Coverage -Records @((New-Record 'A')) -ExpectedError 'missing_case_instance_id:'),
+                (Test-Coverage -Records @((New-Record 'A'), (New-Record 'A'), (New-Record 'B')) -ExpectedError 'duplicate_case_instance_id:'),
+                (Test-Coverage -Records @((New-Record 'A'), (New-Record 'B'), (New-Record 'C')) -ExpectedError 'unexpected_case_instance_id:')
             ) | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);
@@ -511,7 +731,8 @@ public sealed class VciReadProbeScriptTests
             foreach ($functionName in @(
                     'ConvertTo-CanonicalValue', 'ConvertTo-CanonicalJson', 'Get-Sha256Text',
                     'New-CaseDefinition', 'Get-CaseInstanceId', 'New-ProbeWorkerRequest',
-                    'Get-FormatPairs', 'New-CaseMatrix')) {
+                    'Get-FormatPairs', 'Get-GroupPathInventory', 'Get-WorkspaceInventory',
+                    'New-CaseMatrix')) {
                 $functionAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $true)
                 if ($null -eq $functionAst) { throw "Function '$functionName' was not found." }
                 Invoke-Expression $functionAst.Extent.Text
@@ -531,7 +752,16 @@ public sealed class VciReadProbeScriptTests
             $workspace = [ordered]@{ groupPath = @(); workspaceName = 'W'; canonicalRootPath = 'C:\W' }
             $engineeringObject = [ordered]@{ stableIdentifier = 'id'; structuralPath = @(); fingerprint = 'fingerprint' }
             $mapping = [ordered]@{ selector = [ordered]@{ workspace = $workspace; engineeringObject = $engineeringObject } }
-            $matrix = @(New-CaseMatrix -Mappings @($mapping, $mapping) -SecondaryProjectPath $null)
+            $groups = @([ordered]@{
+                enumerationIndex = 0; canonicalKey = 'root/0:0:G'; name = 'G'; depth = 1
+                parentCanonicalKey = $null; childGroupCount = 0; workspaceCount = 1
+            })
+            $workspaces = @(
+                [ordered]@{ enumerationIndex = 0; canonicalKey = 'root/workspace:0:W'; name = 'W'; rootPath = 'C:\W' },
+                [ordered]@{ enumerationIndex = 1; canonicalKey = 'root/workspace:1:NoMapRoot'; name = 'NoMapRoot'; rootPath = 'C:\NoMapRoot' },
+                [ordered]@{ enumerationIndex = 2; canonicalKey = 'root/0:0:G/workspace:0:NoMapGroup'; name = 'NoMapGroup'; rootPath = 'C:\NoMapGroup' }
+            )
+            $matrix = @(New-CaseMatrix -Mappings @($mapping, $mapping) -GroupSnapshots $groups -WorkspaceSnapshots $workspaces -SecondaryProjectPath $null)
             $definition = $matrix[0]
             $request1 = New-ProbeWorkerRequest -RunId 'run' -SessionId 'session-1' -ProjectPath 'C:\P.ap21' -Definition $definition
             $request2 = New-ProbeWorkerRequest -RunId 'run' -SessionId 'session-2' -ProjectPath 'C:\P.ap21' -Definition $definition
@@ -543,6 +773,9 @@ public sealed class VciReadProbeScriptTests
                 lastCase = $matrix[$matrix.Count - 1].caseId
                 formatCaseCount = @($matrix | Where-Object { $_.caseId -eq 'R-FMT' }).Count
                 negativeCaseCount = @($matrix | Where-Object { $_.caseId.StartsWith('N-', [StringComparison]::Ordinal) }).Count
+                formatNegativeCaseCount = @($matrix | Where-Object { $_.caseId.StartsWith('N-FMT-', [StringComparison]::Ordinal) }).Count
+                groupNegativeCaseCount = @($matrix | Where-Object { $_.caseId.StartsWith('N-GRP-', [StringComparison]::Ordinal) }).Count
+                workspaceNegativeCaseCount = @($matrix | Where-Object { $_.caseId.StartsWith('N-WS-', [StringComparison]::Ordinal) }).Count
             } | ConvertTo-Json -Compress -Depth 10
             """.Replace("REPLACE_HARNESS_PATH", ScriptPath.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal);
         return RunPowerShell("-Command", command);

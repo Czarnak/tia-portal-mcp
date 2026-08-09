@@ -518,9 +518,116 @@ function Get-FormatPairs {
     return $pairs.ToArray()
 }
 
+function Get-GroupPathInventory {
+    param([AllowNull()] [object[]] $GroupSnapshots)
+
+    $inventory = [Collections.Generic.List[object]]::new()
+    $pathsByKey = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::Ordinal)
+    $rootPath = @()
+    $pathsByKey.Add('root', $rootPath)
+    $inventory.Add([ordered]@{
+            canonicalKey = 'root'
+            selector = [ordered]@{ groupPath = $rootPath; workspaceName = ''; canonicalRootPath = $null }
+        })
+
+    foreach ($group in @($GroupSnapshots)) {
+        $canonicalKey = [string] $group.canonicalKey
+        $parentKey = if ([string]::IsNullOrWhiteSpace([string] $group.parentCanonicalKey)) {
+            'root'
+        }
+        else {
+            [string] $group.parentCanonicalKey
+        }
+        if ([string]::IsNullOrWhiteSpace($canonicalKey) -or $pathsByKey.ContainsKey($canonicalKey)) {
+            throw 'malformed_worker_payload: group inventory contains a missing or duplicate canonicalKey.'
+        }
+        if (-not $pathsByKey.ContainsKey($parentKey)) {
+            throw 'malformed_worker_payload: group inventory is not in parent-before-child order.'
+        }
+
+        $prefix = $parentKey + '/'
+        if (-not $canonicalKey.StartsWith($prefix, [StringComparison]::Ordinal)) {
+            throw 'malformed_worker_payload: group canonicalKey does not match parentCanonicalKey.'
+        }
+        $segmentText = $canonicalKey.Substring($prefix.Length)
+        $firstColon = $segmentText.IndexOf(':')
+        $secondColon = if ($firstColon -ge 0) { $segmentText.IndexOf(':', $firstColon + 1) } else { -1 }
+        [int] $index = 0
+        [int] $sameNameOrdinal = 0
+        if ($firstColon -le 0 -or $secondColon -le ($firstColon + 1) -or
+            -not [int]::TryParse($segmentText.Substring(0, $firstColon), [ref] $index) -or
+            -not [int]::TryParse($segmentText.Substring($firstColon + 1, $secondColon - $firstColon - 1), [ref] $sameNameOrdinal) -or
+            $segmentText.Substring($secondColon + 1) -cne [string] $group.name) {
+            throw 'malformed_worker_payload: group canonicalKey cannot be converted to a complete selector.'
+        }
+
+        $groupPath = @($pathsByKey[$parentKey]) + ,([ordered]@{
+                index = $index
+                name = [string] $group.name
+                sameNameOrdinal = $sameNameOrdinal
+            })
+        $pathsByKey.Add($canonicalKey, $groupPath)
+        $inventory.Add([ordered]@{
+                canonicalKey = $canonicalKey
+                selector = [ordered]@{ groupPath = $groupPath; workspaceName = ''; canonicalRootPath = $null }
+            })
+    }
+    return $inventory.ToArray()
+}
+
+function Get-WorkspaceInventory {
+    param(
+        [AllowNull()] [object[]] $WorkspaceSnapshots,
+        [Parameter(Mandatory)] [object[]] $GroupPathInventory
+    )
+
+    $inventory = [Collections.Generic.List[object]]::new()
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($workspace in @($WorkspaceSnapshots)) {
+        $canonicalKey = [string] $workspace.canonicalKey
+        if ([string]::IsNullOrWhiteSpace($canonicalKey) -or -not $seen.Add($canonicalKey)) {
+            throw 'malformed_worker_payload: workspace inventory contains a missing or duplicate canonicalKey.'
+        }
+
+        $owner = $null
+        foreach ($candidate in $GroupPathInventory) {
+            $prefix = [string] $candidate.canonicalKey + '/workspace:'
+            if ($canonicalKey.StartsWith($prefix, [StringComparison]::Ordinal) -and
+                ($null -eq $owner -or ([string] $candidate.canonicalKey).Length -gt ([string] $owner.canonicalKey).Length)) {
+                $owner = $candidate
+            }
+        }
+        if ($null -eq $owner) {
+            throw 'malformed_worker_payload: workspace canonicalKey has no discovered owning group.'
+        }
+
+        $workspacePrefix = [string] $owner.canonicalKey + '/workspace:'
+        $workspaceSegment = $canonicalKey.Substring($workspacePrefix.Length)
+        $nameSeparator = $workspaceSegment.IndexOf(':')
+        [int] $workspaceIndex = 0
+        if ($nameSeparator -le 0 -or
+            -not [int]::TryParse($workspaceSegment.Substring(0, $nameSeparator), [ref] $workspaceIndex) -or
+            $workspaceSegment.Substring($nameSeparator + 1) -cne [string] $workspace.name) {
+            throw 'malformed_worker_payload: workspace canonicalKey cannot be converted to a complete selector.'
+        }
+
+        $inventory.Add([ordered]@{
+                canonicalKey = $canonicalKey
+                selector = [ordered]@{
+                    groupPath = @($owner.selector.groupPath)
+                    workspaceName = [string] $workspace.name
+                    canonicalRootPath = if ($null -eq $workspace.rootPath) { $null } else { [string] $workspace.rootPath }
+                }
+            })
+    }
+    return $inventory.ToArray()
+}
+
 function New-CaseMatrix {
     param(
         [AllowNull()] [object[]] $Mappings,
+        [AllowNull()] [object[]] $GroupSnapshots,
+        [AllowNull()] [object[]] $WorkspaceSnapshots,
         [AllowNull()] [string] $SecondaryProjectPath
     )
 
@@ -537,28 +644,23 @@ function New-CaseMatrix {
         }
     }
 
-    $applicableWorkspaces = [Collections.Generic.List[object]]::new()
-    $workspaceKeys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    foreach ($pair in $formatPairs) {
-        $workspaceKey = ConvertTo-CanonicalJson -Value $pair.workspace
-        if ($workspaceKeys.Add($workspaceKey)) {
-            $applicableWorkspaces.Add($pair.workspace)
-        }
-    }
-    if ($applicableWorkspaces.Count -eq 0) {
-        $applicableWorkspaces.Add($null)
-    }
+    $groupInventory = @(Get-GroupPathInventory -GroupSnapshots $GroupSnapshots)
+    $workspaceInventory = @(Get-WorkspaceInventory -WorkspaceSnapshots $WorkspaceSnapshots -GroupPathInventory $groupInventory)
+    $nullSelector = [object[]]::new(1)
+    $nullSelector[0] = $null
+    $formatWorkspaces = if ($workspaceInventory.Count -eq 0) { $nullSelector } else { @($workspaceInventory | ForEach-Object { $_.selector }) }
+    $parentSelectors = @($groupInventory | ForEach-Object { $_.selector })
 
     foreach ($caseId in $negativeCaseIds) {
-        $perWorkspace = $caseId.StartsWith('N-FMT-', [StringComparison]::Ordinal) -or
-            $caseId.StartsWith('N-GRP-', [StringComparison]::Ordinal) -or
-            $caseId.StartsWith('N-WS-', [StringComparison]::Ordinal)
-        if ($perWorkspace) {
-            $workspaces = $applicableWorkspaces.ToArray()
+        if ($caseId.StartsWith('N-FMT-', [StringComparison]::Ordinal)) {
+            $workspaces = $formatWorkspaces
+        }
+        elseif ($caseId.StartsWith('N-GRP-', [StringComparison]::Ordinal) -or
+            $caseId.StartsWith('N-WS-', [StringComparison]::Ordinal)) {
+            $workspaces = $parentSelectors
         }
         else {
-            $workspaces = [object[]]::new(1)
-            $workspaces[0] = $null
+            $workspaces = $nullSelector
         }
         foreach ($workspace in $workspaces) {
             $secondary = if ($caseId -eq 'N-FMT-FOREIGN') { $SecondaryProjectPath } else { $null }
@@ -666,6 +768,414 @@ function ConvertFrom-JsonHashtable {
     return $value
 }
 
+function Assert-JsonObjectShape {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label,
+        [Parameter(Mandatory)] [string[]] $RequiredFields,
+        [AllowNull()] [string[]] $OptionalFields = @()
+    )
+
+    if ($Value -isnot [Collections.IDictionary]) {
+        throw "malformed_worker_payload: $Label must be an object."
+    }
+    $allowed = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($field in @($RequiredFields) + @($OptionalFields)) {
+        [void] $allowed.Add($field)
+    }
+    foreach ($field in $Value.Keys) {
+        if (-not $allowed.Contains([string] $field)) {
+            throw "malformed_worker_payload: $Label contains unknown field '$field'."
+        }
+    }
+    foreach ($field in $RequiredFields) {
+        if (-not $Value.Contains($field)) {
+            throw "malformed_worker_payload: $Label is missing field '$field'."
+        }
+    }
+}
+
+function Assert-JsonArray {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    if ($null -eq $Value -or $Value -is [string] -or
+        $Value -is [Collections.IDictionary] -or $Value -isnot [Collections.IEnumerable]) {
+        throw "malformed_worker_payload: $Label must be an array."
+    }
+}
+
+function Assert-JsonString {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    if ($Value -isnot [string]) {
+        throw "malformed_worker_payload: $Label must be a string."
+    }
+}
+
+function Assert-JsonNullableString {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    if ($null -ne $Value -and $Value -isnot [string]) {
+        throw "malformed_worker_payload: $Label must be null or a string."
+    }
+}
+
+function Assert-JsonBoolean {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    if ($Value -isnot [bool]) {
+        throw "malformed_worker_payload: $Label must be a boolean."
+    }
+}
+
+function Assert-JsonInteger {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    if ($null -eq $Value -or [Type]::GetTypeCode($Value.GetType()) -notin @(
+            [TypeCode]::SByte, [TypeCode]::Byte, [TypeCode]::Int16, [TypeCode]::UInt16,
+            [TypeCode]::Int32, [TypeCode]::UInt32, [TypeCode]::Int64, [TypeCode]::UInt64)) {
+        throw "malformed_worker_payload: $Label must be an integer."
+    }
+    try {
+        [long] $integer = [Convert]::ToInt64($Value, [Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        throw "malformed_worker_payload: $Label must fit a CLR Int32."
+    }
+    if ($integer -lt [int]::MinValue -or $integer -gt [int]::MaxValue) {
+        throw "malformed_worker_payload: $Label must fit a CLR Int32."
+    }
+}
+
+function Assert-VciProbeException {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label,
+        [int] $Depth = 0
+    )
+
+    if ($Depth -gt 32) {
+        throw "malformed_worker_payload: $Label exceeds the supported nested exception depth."
+    }
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('exceptionTypeName', 'message', 'hResult') `
+        -OptionalFields @('innerException')
+    Assert-JsonString -Value $Value.exceptionTypeName -Label "$Label.exceptionTypeName"
+    Assert-JsonString -Value $Value.message -Label "$Label.message"
+    Assert-JsonInteger -Value $Value.hResult -Label "$Label.hResult"
+    if ($Value.Contains('innerException')) {
+        Assert-VciProbeException -Value $Value.innerException -Label "$Label.innerException" -Depth ($Depth + 1)
+    }
+}
+
+function Assert-VciProbeMember {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('name', 'clrTypeName', 'isNull') `
+        -OptionalFields @('stringValue', 'exception')
+    Assert-JsonString -Value $Value.name -Label "$Label.name"
+    Assert-JsonString -Value $Value.clrTypeName -Label "$Label.clrTypeName"
+    Assert-JsonBoolean -Value $Value.isNull -Label "$Label.isNull"
+    if ($Value.Contains('stringValue')) {
+        Assert-JsonNullableString -Value $Value.stringValue -Label "$Label.stringValue"
+    }
+    if ($Value.Contains('exception')) {
+        Assert-VciProbeException -Value $Value.exception -Label "$Label.exception"
+    }
+}
+
+function Assert-VciProbeReturn {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('clrTypeName', 'isNull', 'members') `
+        -OptionalFields @('stringValue')
+    Assert-JsonString -Value $Value.clrTypeName -Label "$Label.clrTypeName"
+    Assert-JsonBoolean -Value $Value.isNull -Label "$Label.isNull"
+    if ($Value.Contains('stringValue')) {
+        Assert-JsonNullableString -Value $Value.stringValue -Label "$Label.stringValue"
+    }
+    Assert-JsonArray -Value $Value.members -Label "$Label.members"
+    $index = 0
+    foreach ($member in @($Value.members)) {
+        Assert-VciProbeMember -Value $member -Label "$Label.members[$index]"
+        $index++
+    }
+}
+
+function Assert-VciWorkspaceSelector {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('groupPath', 'workspaceName') `
+        -OptionalFields @('canonicalRootPath')
+    Assert-JsonArray -Value $Value.groupPath -Label "$Label.groupPath"
+    $index = 0
+    foreach ($segment in @($Value.groupPath)) {
+        $segmentLabel = "$Label.groupPath[$index]"
+        Assert-JsonObjectShape -Value $segment -Label $segmentLabel `
+            -RequiredFields @('index', 'name', 'sameNameOrdinal') -OptionalFields @()
+        Assert-JsonInteger -Value $segment.index -Label "$segmentLabel.index"
+        Assert-JsonString -Value $segment.name -Label "$segmentLabel.name"
+        Assert-JsonInteger -Value $segment.sameNameOrdinal -Label "$segmentLabel.sameNameOrdinal"
+        $index++
+    }
+    Assert-JsonString -Value $Value.workspaceName -Label "$Label.workspaceName"
+    if ($Value.Contains('canonicalRootPath')) {
+        Assert-JsonNullableString -Value $Value.canonicalRootPath -Label "$Label.canonicalRootPath"
+    }
+}
+
+function Assert-VciEngineeringObjectSelector {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('structuralPath') `
+        -OptionalFields @('stableIdentifier', 'fingerprint')
+    foreach ($field in @('stableIdentifier', 'fingerprint')) {
+        if ($Value.Contains($field)) {
+            Assert-JsonNullableString -Value $Value[$field] -Label "$Label.$field"
+        }
+    }
+    Assert-JsonArray -Value $Value.structuralPath -Label "$Label.structuralPath"
+    $index = 0
+    foreach ($segment in @($Value.structuralPath)) {
+        $segmentLabel = "$Label.structuralPath[$index]"
+        Assert-JsonObjectShape -Value $segment -Label $segmentLabel `
+            -RequiredFields @('index', 'name', 'objectType') -OptionalFields @()
+        Assert-JsonInteger -Value $segment.index -Label "$segmentLabel.index"
+        Assert-JsonString -Value $segment.name -Label "$segmentLabel.name"
+        Assert-JsonString -Value $segment.objectType -Label "$segmentLabel.objectType"
+        $index++
+    }
+}
+
+function Assert-VciMappingSelector {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('workspace', 'engineeringObject') `
+        -OptionalFields @('relativeDirectory', 'fileName', 'format')
+    Assert-VciWorkspaceSelector -Value $Value.workspace -Label "$Label.workspace"
+    Assert-VciEngineeringObjectSelector -Value $Value.engineeringObject -Label "$Label.engineeringObject"
+    foreach ($field in @('relativeDirectory', 'fileName', 'format')) {
+        if ($Value.Contains($field)) {
+            Assert-JsonNullableString -Value $Value[$field] -Label "$Label.$field"
+        }
+    }
+}
+
+function Assert-VciProbeSnapshot {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('members', 'groups', 'workspaces', 'mappings', 'candidates') `
+        -OptionalFields @('service', 'candidateCollectionRuntimeType')
+
+    Assert-JsonArray -Value $Value.members -Label "$Label.members"
+    $index = 0
+    foreach ($member in @($Value.members)) {
+        Assert-VciProbeMember -Value $member -Label "$Label.members[$index]"
+        $index++
+    }
+
+    if ($Value.Contains('service')) {
+        Assert-JsonObjectShape -Value $Value.service -Label "$Label.service" `
+            -RequiredFields @('serviceAvailable', 'rootGroupAvailable', 'rootGroupCount') -OptionalFields @()
+        Assert-JsonBoolean -Value $Value.service.serviceAvailable -Label "$Label.service.serviceAvailable"
+        Assert-JsonBoolean -Value $Value.service.rootGroupAvailable -Label "$Label.service.rootGroupAvailable"
+        Assert-JsonInteger -Value $Value.service.rootGroupCount -Label "$Label.service.rootGroupCount"
+    }
+
+    Assert-JsonArray -Value $Value.groups -Label "$Label.groups"
+    $index = 0
+    foreach ($group in @($Value.groups)) {
+        $itemLabel = "$Label.groups[$index]"
+        Assert-JsonObjectShape -Value $group -Label $itemLabel `
+            -RequiredFields @('enumerationIndex', 'canonicalKey', 'name', 'depth', 'childGroupCount', 'workspaceCount') `
+            -OptionalFields @('parentCanonicalKey')
+        foreach ($field in @('enumerationIndex', 'depth', 'childGroupCount', 'workspaceCount')) {
+            Assert-JsonInteger -Value $group[$field] -Label "$itemLabel.$field"
+        }
+        Assert-JsonString -Value $group.canonicalKey -Label "$itemLabel.canonicalKey"
+        Assert-JsonString -Value $group.name -Label "$itemLabel.name"
+        if ($group.Contains('parentCanonicalKey')) {
+            Assert-JsonNullableString -Value $group.parentCanonicalKey -Label "$itemLabel.parentCanonicalKey"
+        }
+        $index++
+    }
+
+    Assert-JsonArray -Value $Value.workspaces -Label "$Label.workspaces"
+    $index = 0
+    foreach ($workspace in @($Value.workspaces)) {
+        $itemLabel = "$Label.workspaces[$index]"
+        Assert-JsonObjectShape -Value $workspace -Label $itemLabel `
+            -RequiredFields @('enumerationIndex', 'canonicalKey', 'name', 'deleteUnusedTypeVersionFromLibrary', 'mappedObjectCount') `
+            -OptionalFields @('rootPath', 'comment', 'workspaceLanguage', 'globalLibraryPath')
+        Assert-JsonInteger -Value $workspace.enumerationIndex -Label "$itemLabel.enumerationIndex"
+        Assert-JsonString -Value $workspace.canonicalKey -Label "$itemLabel.canonicalKey"
+        Assert-JsonString -Value $workspace.name -Label "$itemLabel.name"
+        Assert-JsonBoolean -Value $workspace.deleteUnusedTypeVersionFromLibrary -Label "$itemLabel.deleteUnusedTypeVersionFromLibrary"
+        Assert-JsonInteger -Value $workspace.mappedObjectCount -Label "$itemLabel.mappedObjectCount"
+        foreach ($field in @('rootPath', 'comment', 'workspaceLanguage', 'globalLibraryPath')) {
+            if ($workspace.Contains($field)) {
+                Assert-JsonNullableString -Value $workspace[$field] -Label "$itemLabel.$field"
+            }
+        }
+        $index++
+    }
+
+    Assert-JsonArray -Value $Value.mappings -Label "$Label.mappings"
+    $index = 0
+    foreach ($mapping in @($Value.mappings)) {
+        $itemLabel = "$Label.mappings[$index]"
+        Assert-JsonObjectShape -Value $mapping -Label $itemLabel `
+            -RequiredFields @('enumerationIndex', 'canonicalKey', 'selector') `
+            -OptionalFields @('status', 'statusProperty', 'getStatus', 'childStatus')
+        Assert-JsonInteger -Value $mapping.enumerationIndex -Label "$itemLabel.enumerationIndex"
+        Assert-JsonString -Value $mapping.canonicalKey -Label "$itemLabel.canonicalKey"
+        Assert-VciMappingSelector -Value $mapping.selector -Label "$itemLabel.selector"
+        foreach ($field in @('status', 'statusProperty', 'getStatus', 'childStatus')) {
+            if ($mapping.Contains($field)) {
+                Assert-JsonNullableString -Value $mapping[$field] -Label "$itemLabel.$field"
+            }
+        }
+        $index++
+    }
+
+    Assert-JsonArray -Value $Value.candidates -Label "$Label.candidates"
+    $index = 0
+    foreach ($candidate in @($Value.candidates)) {
+        $itemLabel = "$Label.candidates[$index]"
+        Assert-JsonObjectShape -Value $candidate -Label $itemLabel `
+            -RequiredFields @('enumerationIndex', 'canonicalKey', 'description', 'runtimeTypeName', 'isNull') `
+            -OptionalFields @()
+        Assert-JsonInteger -Value $candidate.enumerationIndex -Label "$itemLabel.enumerationIndex"
+        Assert-JsonString -Value $candidate.canonicalKey -Label "$itemLabel.canonicalKey"
+        Assert-JsonString -Value $candidate.description -Label "$itemLabel.description"
+        Assert-JsonString -Value $candidate.runtimeTypeName -Label "$itemLabel.runtimeTypeName"
+        Assert-JsonBoolean -Value $candidate.isNull -Label "$itemLabel.isNull"
+        $index++
+    }
+    if ($Value.Contains('candidateCollectionRuntimeType')) {
+        Assert-JsonNullableString -Value $Value.candidateCollectionRuntimeType -Label "$Label.candidateCollectionRuntimeType"
+    }
+}
+
+function Assert-VciProbeRepeatability {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('observations', 'isIdentical') -OptionalFields @()
+    Assert-JsonArray -Value $Value.observations -Label "$Label.observations"
+    $index = 0
+    foreach ($observation in @($Value.observations)) {
+        Assert-VciProbeReturn -Value $observation -Label "$Label.observations[$index]"
+        $index++
+    }
+    Assert-JsonBoolean -Value $Value.isIdentical -Label "$Label.isIdentical"
+}
+
+function Assert-VciProbeProjectState {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('isModifiedBefore', 'isModifiedAfter') -OptionalFields @()
+    Assert-JsonBoolean -Value $Value.isModifiedBefore -Label "$Label.isModifiedBefore"
+    Assert-JsonBoolean -Value $Value.isModifiedAfter -Label "$Label.isModifiedAfter"
+}
+
+function Assert-VciProbeOmission {
+    param(
+        [AllowNull()] [object] $Value,
+        [Parameter(Mandatory)] [string] $Label
+    )
+
+    Assert-JsonObjectShape -Value $Value -Label $Label `
+        -RequiredFields @('reason', 'budgetName', 'budgetValue', 'observedCount') `
+        -OptionalFields @('traversalPath')
+    Assert-JsonString -Value $Value.reason -Label "$Label.reason"
+    Assert-JsonString -Value $Value.budgetName -Label "$Label.budgetName"
+    Assert-JsonInteger -Value $Value.budgetValue -Label "$Label.budgetValue"
+    Assert-JsonInteger -Value $Value.observedCount -Label "$Label.observedCount"
+    if ($Value.Contains('traversalPath')) {
+        Assert-JsonNullableString -Value $Value.traversalPath -Label "$Label.traversalPath"
+    }
+}
+
+function Assert-VciProbePayload {
+    param([AllowNull()] [object] $Value)
+
+    Assert-JsonObjectShape -Value $Value -Label 'payload' `
+        -RequiredFields @('schemaVersion', 'runId', 'sessionId', 'caseId', 'caseInstanceId', 'outcome', 'projectState', 'omissions') `
+        -OptionalFields @('return', 'snapshot', 'exception', 'repeatability', 'notObservableReason')
+    foreach ($field in @('schemaVersion', 'runId', 'sessionId', 'caseId', 'caseInstanceId', 'outcome')) {
+        Assert-JsonString -Value $Value[$field] -Label "payload.$field"
+    }
+    if ($Value.Contains('return')) {
+        Assert-VciProbeReturn -Value $Value.return -Label 'payload.return'
+    }
+    if ($Value.Contains('snapshot')) {
+        Assert-VciProbeSnapshot -Value $Value.snapshot -Label 'payload.snapshot'
+    }
+    if ($Value.Contains('exception')) {
+        Assert-VciProbeException -Value $Value.exception -Label 'payload.exception'
+    }
+    if ($Value.Contains('repeatability')) {
+        Assert-VciProbeRepeatability -Value $Value.repeatability -Label 'payload.repeatability'
+    }
+    if ($Value.Contains('notObservableReason')) {
+        Assert-JsonNullableString -Value $Value.notObservableReason -Label 'payload.notObservableReason'
+    }
+    Assert-VciProbeProjectState -Value $Value.projectState -Label 'payload.projectState'
+    Assert-JsonArray -Value $Value.omissions -Label 'payload.omissions'
+    $index = 0
+    foreach ($omission in @($Value.omissions)) {
+        Assert-VciProbeOmission -Value $omission -Label "payload.omissions[$index]"
+        $index++
+    }
+}
+
 function Test-WorkerPayload {
     param(
         [Parameter(Mandatory)] [string] $ResponseText,
@@ -688,6 +1198,9 @@ function Test-WorkerPayload {
     if ($envelope.payload -isnot [string] -or [string]::IsNullOrWhiteSpace($envelope.payload)) {
         throw 'malformed_worker_payload: successful worker envelope has no typed payload.'
     }
+    if ($envelope.Contains('resolvedProjectPath')) {
+        Assert-JsonNullableString -Value $envelope.resolvedProjectPath -Label 'envelope.resolvedProjectPath'
+    }
     if ($envelope.Contains('resolvedProjectPath') -and
         -not [string]::IsNullOrWhiteSpace([string] $envelope.resolvedProjectPath) -and
         -not ([string] $envelope.resolvedProjectPath).Equals($ExpectedProjectPath, [StringComparison]::OrdinalIgnoreCase)) {
@@ -695,16 +1208,7 @@ function Test-WorkerPayload {
     }
 
     $payload = ConvertFrom-JsonHashtable -Json $envelope.payload -FailureMessage 'malformed_worker_payload: typed payload is not a JSON object.'
-    $allowedPayloadFields = @(
-        'schemaVersion', 'runId', 'sessionId', 'caseId', 'caseInstanceId', 'outcome',
-        'return', 'snapshot', 'exception', 'repeatability', 'notObservableReason',
-        'projectState', 'omissions'
-    )
-    foreach ($name in $payload.Keys) {
-        if ($name -notin $allowedPayloadFields) {
-            throw "malformed_worker_payload: unknown typed payload field '$name'."
-        }
-    }
+    Assert-VciProbePayload -Value $payload
     if (-not $payload.Contains('schemaVersion') -or $payload.schemaVersion -ne 'vci-read-probe/v1') {
         throw 'schema_mismatch: worker payload schema is not vci-read-probe/v1.'
     }
@@ -716,11 +1220,6 @@ function Test-WorkerPayload {
     if ($payload.outcome -notin $validWorkerOutcomes) {
         throw "malformed_worker_payload: worker outcome '$($payload.outcome)' is not a worker outcome."
     }
-    if (-not $payload.Contains('projectState') -or $payload.projectState -isnot [Collections.IDictionary] -or
-        $payload.projectState.isModifiedBefore -isnot [bool] -or
-        $payload.projectState.isModifiedAfter -isnot [bool]) {
-        throw 'malformed_worker_payload: projectState is missing or invalid.'
-    }
     if ($payload.outcome -eq 'threw' -and
         (-not $payload.Contains('exception') -or $payload.exception -isnot [Collections.IDictionary])) {
         throw 'malformed_worker_payload: threw outcome has no typed exception evidence.'
@@ -729,15 +1228,13 @@ function Test-WorkerPayload {
         (-not $payload.Contains('notObservableReason') -or [string]::IsNullOrWhiteSpace([string] $payload.notObservableReason))) {
         throw 'malformed_worker_payload: not_observable outcome has no reason.'
     }
-    if (-not $payload.Contains('omissions') -or $payload.omissions -is [string] -or
-        $payload.omissions -isnot [Collections.IEnumerable]) {
-        throw 'malformed_worker_payload: omissions must be an array.'
-    }
-
     $warnings = @()
     if ($envelope.Contains('warnings') -and $null -ne $envelope.warnings) {
-        if ($envelope.warnings -is [string] -or $envelope.warnings -isnot [Collections.IEnumerable]) {
-            throw 'malformed_worker_payload: warnings must be an array.'
+        Assert-JsonArray -Value $envelope.warnings -Label 'envelope.warnings'
+        $warningIndex = 0
+        foreach ($warning in @($envelope.warnings)) {
+            Assert-JsonString -Value $warning -Label "envelope.warnings[$warningIndex]"
+            $warningIndex++
         }
         $warnings = @($envelope.warnings)
     }
@@ -887,7 +1384,7 @@ function Get-WorkspaceRoots {
         }
         foreach ($workspace in @($record.workerPayload.snapshot.workspaces)) {
             if ([string]::IsNullOrWhiteSpace([string] $workspace.rootPath)) {
-                continue
+                throw 'filesystem_hashing_incomplete: a discovered workspace has no usable rootPath.'
             }
             try {
                 $root = [IO.Path]::GetFullPath([string] $workspace.rootPath)
@@ -916,6 +1413,36 @@ function Get-MappingSnapshots {
         }
     }
     return $mappings.ToArray()
+}
+
+function Get-GroupSnapshots {
+    param([Parameter(Mandatory)] [object[]] $SnapshotRecords)
+
+    $groups = [Collections.Generic.List[object]]::new()
+    foreach ($record in $SnapshotRecords) {
+        if ($record.caseId -ne 'R-GRP' -or $null -eq $record.workerPayload.snapshot) {
+            continue
+        }
+        foreach ($group in @($record.workerPayload.snapshot.groups)) {
+            $groups.Add($group)
+        }
+    }
+    return $groups.ToArray()
+}
+
+function Get-WorkspaceSnapshots {
+    param([Parameter(Mandatory)] [object[]] $SnapshotRecords)
+
+    $workspaces = [Collections.Generic.List[object]]::new()
+    foreach ($record in $SnapshotRecords) {
+        if ($record.caseId -ne 'R-WS' -or $null -eq $record.workerPayload.snapshot) {
+            continue
+        }
+        foreach ($workspace in @($record.workerPayload.snapshot.workspaces)) {
+            $workspaces.Add($workspace)
+        }
+    }
+    return $workspaces.ToArray()
 }
 
 function Get-FilesystemSnapshot {
@@ -1071,16 +1598,46 @@ function Compare-FilesystemSnapshots {
 function Assert-TerminalCoverage {
     param(
         [Parameter(Mandatory)] [object[]] $Records,
-        [Parameter(Mandatory)] [string] $SessionId
+        [Parameter(Mandatory)] [string] $SessionId,
+        [Parameter(Mandatory)] [string[]] $ExpectedCaseInstanceIds
     )
 
     $sessionRecords = @($Records | Where-Object { $_.sessionId -eq $SessionId })
-    $duplicate = @($sessionRecords | Group-Object caseInstanceId | Where-Object { $_.Count -ne 1 })
-    if ($duplicate.Count -gt 0) {
-        throw 'duplicate_case_instance_id: a session contains duplicate terminal identifiers.'
-    }
     if ($sessionRecords.Count -eq 0 -or @($sessionRecords | Where-Object { [string]::IsNullOrWhiteSpace([string] $_.caseInstanceId) }).Count -gt 0) {
         throw 'missing_case_instance_id: a session terminal record has no identifier.'
+    }
+    $actualIdCounts = @{}
+    foreach ($record in $sessionRecords) {
+        $caseInstanceId = [string] $record.caseInstanceId
+        if ($actualIdCounts.ContainsKey($caseInstanceId)) {
+            throw 'duplicate_case_instance_id: a session contains duplicate terminal identifiers.'
+        }
+        $actualIdCounts[$caseInstanceId] = 1
+    }
+    if ($ExpectedCaseInstanceIds.Count -eq 0 -or
+        @($ExpectedCaseInstanceIds | Where-Object { [string]::IsNullOrWhiteSpace([string] $_) }).Count -gt 0) {
+        throw 'missing_case_instance_id: the expected terminal identifier set is empty or malformed.'
+    }
+    $duplicateExpected = @($ExpectedCaseInstanceIds | Group-Object | Where-Object { $_.Count -ne 1 })
+    if ($duplicateExpected.Count -gt 0) {
+        throw 'duplicate_case_instance_id: the expected terminal identifier set contains duplicates.'
+    }
+
+    $actualIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($record in $sessionRecords) {
+        [void] $actualIds.Add([string] $record.caseInstanceId)
+    }
+    $expectedIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($caseInstanceId in $ExpectedCaseInstanceIds) {
+        [void] $expectedIds.Add($caseInstanceId)
+        if (-not $actualIds.Contains($caseInstanceId)) {
+            throw "missing_case_instance_id: session '$SessionId' has no terminal record for expected identifier '$caseInstanceId'."
+        }
+    }
+    foreach ($caseInstanceId in $actualIds) {
+        if (-not $expectedIds.Contains($caseInstanceId)) {
+            throw "unexpected_case_instance_id: session '$SessionId' contains unexpected terminal identifier '$caseInstanceId'."
+        }
     }
     foreach ($caseId in $caseIds) {
         if (@($sessionRecords | Where-Object { $_.caseId -eq $caseId }).Count -eq 0) {
@@ -1211,6 +1768,7 @@ function Invoke-ProbeSession {
     $baselineRecords = [Collections.Generic.List[object]]::new()
     $matrixRecords = [Collections.Generic.List[object]]::new()
     $afterCanaryRecords = [Collections.Generic.List[object]]::new()
+    $expectedCaseInstanceIds = [Collections.Generic.List[string]]::new()
     $snapshotFailure = $null
     try {
         $worker = Start-JsonLineProcess -Executable $WorkerExecutable -Arguments $WorkerArguments
@@ -1221,6 +1779,7 @@ function Invoke-ProbeSession {
                 -SessionId $SessionId `
                 -ProjectPath $ProjectPath `
                 -Definition $definition
+            $expectedCaseInstanceIds.Add([string] $request.vciProbe.caseInstanceId)
             $record = Invoke-ProbeRequest `
                 -Worker $worker `
                 -Request $request `
@@ -1233,6 +1792,8 @@ function Invoke-ProbeSession {
 
         $workspaceRoots = @(Get-WorkspaceRoots -SnapshotRecords $baselineRecords.ToArray())
         $mappings = @(Get-MappingSnapshots -SnapshotRecords $baselineRecords.ToArray())
+        $groups = @(Get-GroupSnapshots -SnapshotRecords $baselineRecords.ToArray())
+        $workspaces = @(Get-WorkspaceSnapshots -SnapshotRecords $baselineRecords.ToArray())
         $filesystemBefore = $null
         if ($CaptureFilesystemBefore) {
             $filesystemBefore = Get-FilesystemSnapshot `
@@ -1244,13 +1805,18 @@ function Invoke-ProbeSession {
             }
         }
 
-        $matrix = @(New-CaseMatrix -Mappings $mappings -SecondaryProjectPath $SecondaryProjectPath)
+        $matrix = @(New-CaseMatrix `
+                -Mappings $mappings `
+                -GroupSnapshots $groups `
+                -WorkspaceSnapshots $workspaces `
+                -SecondaryProjectPath $SecondaryProjectPath)
         foreach ($definition in $matrix) {
             $request = New-ProbeWorkerRequest `
                 -RunId $RunId `
                 -SessionId $SessionId `
                 -ProjectPath $ProjectPath `
                 -Definition $definition
+            $expectedCaseInstanceIds.Add([string] $request.vciProbe.caseInstanceId)
             $record = Invoke-ProbeRequest `
                 -Worker $worker `
                 -Request $request `
@@ -1298,6 +1864,7 @@ function Invoke-ProbeSession {
                 terminalRecords = $afterCanaryRecords.ToArray()
             }
             afterCanaryRecords = $afterCanaryRecords.ToArray()
+            expectedCaseInstanceIds = $expectedCaseInstanceIds.ToArray()
             workspaceRoots = $workspaceRoots
             filesystemBefore = $filesystemBefore
             failure = $snapshotFailure
@@ -1421,6 +1988,7 @@ $sessionResults = [Collections.Generic.List[object]]::new()
 $snapshotBeforeEntries = [Collections.Generic.List[object]]::new()
 $snapshotAfterEntries = [Collections.Generic.List[object]]::new()
 $afterCanaryRecords = [Collections.Generic.List[object]]::new()
+$expectedCaseInstanceIdsBySession = @{}
 $workspaceRoots = @()
 $filesystemBefore = $null
 $filesystemAfter = $null
@@ -1439,6 +2007,7 @@ try {
             -CasesWriter $casesWriter `
             -CaptureFilesystemBefore ($sessionId -eq 'session-1')
         $sessionResults.Add($sessionResult)
+        $expectedCaseInstanceIdsBySession[$sessionId] = @($sessionResult.expectedCaseInstanceIds)
         $snapshotBeforeEntries.Add($sessionResult.snapshotBefore)
         $snapshotAfterEntries.Add($sessionResult.snapshotAfter)
         foreach ($record in @($sessionResult.afterCanaryRecords)) {
@@ -1527,7 +2096,16 @@ catch {
 $terminalCoverageComplete = $true
 foreach ($sessionId in $sessionIds) {
     try {
-        Assert-TerminalCoverage -Records $caseRecords -SessionId $sessionId
+        [string[]] $expectedCaseInstanceIds = if ($expectedCaseInstanceIdsBySession.ContainsKey($sessionId)) {
+            @($expectedCaseInstanceIdsBySession[$sessionId])
+        }
+        else {
+            @()
+        }
+        Assert-TerminalCoverage `
+            -Records $caseRecords `
+            -SessionId $sessionId `
+            -ExpectedCaseInstanceIds $expectedCaseInstanceIds
         $sessionCases = @($caseRecords | Where-Object { $_.sessionId -eq $sessionId })
         if ($sessionCases.Count -eq 0 -or $sessionCases[$sessionCases.Count - 1].caseId -ne 'R-CANARY') {
             throw 'missing_case_instance_id: R-CANARY is not the final cases.jsonl record for the session.'
