@@ -641,7 +641,6 @@ function Invoke-Inventory {
                 maxCollectionItems = $script:Budgets.maxCollectionItems
             }
             $request = [ordered]@{
-                requestId = $requestId
                 method = 'probe_vci_mutation_contract'
                 projectPath = [string]$Inputs.projectPaths[$role]
                 vciMutationProbe = $probe
@@ -932,7 +931,6 @@ function New-ApplyWorkerRequest {
         maxCollectionItems = [int]$PlanEvidence.canonicalPlan.budgets.maxCollectionItems
     }
     return [ordered]@{
-        requestId = "apply-$Sequence"
         method = 'probe_vci_mutation_contract'
         projectPath = $ProjectPath
         vciMutationProbe = $probe

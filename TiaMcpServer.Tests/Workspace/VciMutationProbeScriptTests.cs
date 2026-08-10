@@ -162,6 +162,19 @@ public sealed class VciMutationProbeScriptTests
     }
 
     [Fact]
+    public void Inventory_SendsOnlyProductionWorkerRequestFields()
+    {
+        using var fixture = new HarnessFixture();
+
+        var result = fixture.Run("Inventory");
+
+        AssertSuccess(result);
+        Assert.All(
+            File.ReadLines(fixture.WorkerLogPath),
+            line => Assert.False(JsonDocument.Parse(line).RootElement.TryGetProperty("requestId", out _)));
+    }
+
+    [Fact]
     public void Apply_RejectsAbsentAcknowledgementAndPlanHashMismatchBeforeWorkerInvocation()
     {
         using var fixture = new HarnessFixture();
@@ -758,6 +771,16 @@ public sealed class VciMutationProbeScriptTests
                 $request = $line | ConvertFrom-Json -Depth 100
                 $request | Add-Member -NotePropertyName fakeWorkerInstanceId -NotePropertyValue $workerInstanceId
                 Add-Content -LiteralPath $env:VCI_MUTATION_TEST_WORKER_LOG -Value ($request | ConvertTo-Json -Compress -Depth 100) -Encoding utf8
+                if (@($request.PSObject.Properties.Name) -contains 'requestId') {
+                    $response = [ordered]@{
+                        success = $false
+                        payload = $null
+                        error = "root contains unknown field 'requestId'."
+                    }
+                    [Console]::Out.WriteLine(($response | ConvertTo-Json -Compress -Depth 100))
+                    [Console]::Out.Flush()
+                    continue
+                }
                 $projectName = [IO.Path]::GetFileNameWithoutExtension([string]$request.projectPath)
                 $caseId = [string]$request.vciMutationProbe.caseId
                 $caseInstanceId = [string]$request.vciMutationProbe.caseInstanceId
