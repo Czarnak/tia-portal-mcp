@@ -24,7 +24,7 @@ public static class ProjectMetadataReader
     /// Portal keeps the full history; the worker preserves the oldest entries in order and sets
     /// <see cref="ProjectMetadataInfo.HistoryTruncated"/> when Openness reported more than this.
     /// </summary>
-    public const int MaxHistoryEntries = 1000;
+    public const int MaxHistoryEntries = 200;
 
     public static ProjectMetadataInfo Read(Project project)
     {

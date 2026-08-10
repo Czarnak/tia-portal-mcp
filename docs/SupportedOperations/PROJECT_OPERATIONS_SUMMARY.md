@@ -21,7 +21,7 @@ object carrying the extended read-only project metadata:
 | `family` | Project family, verbatim from Openness. |
 | `comment` | Multilingual project comment: `translations` list of `{ culture, text }` in the order Openness reports them, preserving every translation. `culture` is the language culture name (for example `en-US`). |
 | `languageSettings` | `languages` and `activeLanguages` as culture-name lists; `editingLanguage` and `referenceLanguage` culture names (null when unset). |
-| `historyEntries` | Text and date-time of each history entry, in Openness order, verbatim and not deduplicated. Capped at `1000` entries (oldest first); when Openness reports more, `historyTruncated` is `true`. When history could not be read, both `historyEntries` and `historyTruncated` are `null` (omitted) — `historyTruncated` is `false` only when history was read completely. |
+| `historyEntries` | Text and date-time of each history entry, in Openness order, verbatim and not deduplicated. Capped at `200` entries (oldest first); when Openness reports more, `historyTruncated` is `true`. When history could not be read, both `historyEntries` and `historyTruncated` are `null` (omitted) — `historyTruncated` is `false` only when history was read completely. |
 | `usedProducts` | `{ name, version }` for every product Openness records, no inference and no deduplication. |
 | `compilationSettings` | V21 block-compilation toggles read through `PlcSimulationSettingsProvider` and `VirtualPlcSettingsProvider`: `isSimulationDuringBlockCompilationEnabled` and `isVirtualPlcDuringBlockCompilationEnabled`. A value is `null` (omitted) when its provider or value is unavailable, reported as a response warning — never a fabricated `false`. |
 

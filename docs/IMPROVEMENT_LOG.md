@@ -342,7 +342,7 @@ safety-token binding are byte-for-byte unchanged.
 New fields: `copyright`, `family`, multilingual `comment` (all translations, culture name per
 translation, source order preserved), `languageSettings` (`languages` / `activeLanguages` as
 culture names, nullable `editingLanguage` / `referenceLanguage`), `historyEntries` (text and
-date-time, verbatim, no dedup, deterministically capped at 1000 with an explicit
+date-time, verbatim, no dedup, deterministically capped at 200 with an explicit
 `historyTruncated` flag), `usedProducts` (`{name, version}`, no inference or silent dedup), and
 `compilationSettings` (`isCompilationEnabled` reads of `PlcSimulationSettingsProvider` and
 `VirtualPlcSettingsProvider` via `GetService<T>()`). An unavailable provider/value degrades to null
@@ -359,4 +359,5 @@ rest; the successful `get_project_status` response is capped by the existing sta
 character budget with an explicit truncation marker; and lifecycle post-write verification now uses
 a narrowly-scoped internal basic-status read (`get_basic_project_status` /
 `GetBasicStatusReadOnly`) so `open_project`, `create_project`, `save_project`, `save_project_as`,
-and `archive_project` never perform the extended metadata read after a write.
+and `archive_project` never perform the extended metadata read after a write. The history cap was
+lowered from 1000 to 200 entries so a full history payload stays well inside the response budget.

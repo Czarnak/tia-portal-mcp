@@ -95,7 +95,7 @@ public class ProjectMetadataWorkerContractTests
     {
         var source = ReaderSource;
 
-        Assert.Contains("public const int MaxHistoryEntries = 1000;", source, StringComparison.Ordinal);
+        Assert.Contains("public const int MaxHistoryEntries = 200;", source, StringComparison.Ordinal);
         Assert.Contains("entries.Count >= MaxHistoryEntries", source, StringComparison.Ordinal);
         Assert.Contains("truncated = true;", source, StringComparison.Ordinal);
         Assert.Contains("HistoryTruncated = truncated", source, StringComparison.Ordinal);
