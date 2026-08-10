@@ -14,7 +14,12 @@ public class ProjectReadTools
     public static async Task<string> GetProjectStatus(
         OpennessWorkerClient workerClient,
         [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
-        => (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToEnvelopeText();
+    {
+        var result = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
+        return StandaloneToolResultFormatter.Format(
+            result,
+            "Extended metadata (history, comments, languages) was too large to return in full.");
+    }
 
     [McpServerTool(Name = "browse_project_tree", ReadOnly = true, Destructive = false, OpenWorld = false)]
     [Description("Browse the active TIA Portal project hierarchy. Use depth and startPath to bound large projects.")]

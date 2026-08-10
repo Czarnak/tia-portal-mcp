@@ -143,6 +143,7 @@ internal static class Program
                 "delete_user_constant" => DeleteUserConstant(request),
                 "get_project_status"  => GetProjectStatus(request),
                 "probe_project_status_for_lifecycle" => ProbeProjectStatusForLifecycle(request),
+                "get_basic_project_status" => GetBasicProjectStatus(request),
                 "create_block"        => CreateBlock(request),
                 "delete_block"        => DeleteBlock(request),
                 "create_block_group"  => CreateBlockGroup(request),
@@ -1012,6 +1013,28 @@ internal static class Program
         return ProjectLifecycle(request, session =>
         {
             var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath);
+            return new ProjectLifecycleResultInfo
+            {
+                Operation = "get_project_status",
+                ProjectPath = status.Path,
+                Project = status
+            };
+        }, requiresConfirm: false);
+    }
+
+    /// <summary>
+    /// Basic-status variant of <see cref="GetProjectStatus"/> for lifecycle post-write
+    /// verification: returns the plain status (no extended metadata) with the same
+    /// <c>get_project_status</c> result shape, so lifecycle write payloads stay unchanged while
+    /// the metadata read (history, settings providers) is never performed after a write. Never
+    /// registered as an MCP tool; callable only via the host's
+    /// <c>OpennessWorkerClient.GetBasicProjectStatusAsync</c>.
+    /// </summary>
+    private static WorkerResponse GetBasicProjectStatus(WorkerRequest request)
+    {
+        return ProjectLifecycle(request, session =>
+        {
+            var status = ProjectLifecycleService.GetBasicStatusReadOnly(session, request.ProjectPath);
             return new ProjectLifecycleResultInfo
             {
                 Operation = "get_project_status",

@@ -103,6 +103,14 @@ public class ProjectLifecycleToolTests
         Assert.NotNull(probeMethod);
         Assert.False(probeMethod!.IsPublic);
         Assert.Equal(typeof(Task<WorkerCallResult>), probeMethod.ReturnType);
+
+        var basicStatusMethod = type.GetMethod(
+            "GetBasicProjectStatusAsync",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(basicStatusMethod);
+        Assert.False(basicStatusMethod!.IsPublic);
+        Assert.Equal(typeof(Task<WorkerCallResult>), basicStatusMethod.ReturnType);
     }
 
     [Fact]

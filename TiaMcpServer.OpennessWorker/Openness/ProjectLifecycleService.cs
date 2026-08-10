@@ -15,6 +15,37 @@ public static class ProjectLifecycleService
     /// </summary>
     public static ProjectStatusInfo GetStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)
     {
+        // ProjectOpenDecision.OpenRequested (nothing attached, a path was requested) is
+        // deliberately NOT acted on here, unlike EnsureRequestedProjectOpen: a read must report
+        // IsOpen=false rather than open the requested project as a side effect.
+        var project = ResolveProjectForRead(session, requestedProjectPath);
+        return project is null
+            ? new ProjectStatusInfo { IsOpen = false }
+            : ReadStatusWithMetadata(project);
+    }
+
+    /// <summary>
+    /// The basic-status variant of <see cref="GetStatusReadOnly"/> used by lifecycle post-write
+    /// verification (<c>get_basic_project_status</c>): identical binding-policy behavior, but
+    /// returns plain <see cref="ReadStatus"/> with no extended metadata. Post-write verification
+    /// must never enumerate history or query the V21 settings providers, so lifecycle writes stay
+    /// on the same payloads they produced before the metadata surface existed.
+    /// </summary>
+    public static ProjectStatusInfo GetBasicStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)
+    {
+        var project = ResolveProjectForRead(session, requestedProjectPath);
+        return project is null
+            ? new ProjectStatusInfo { IsOpen = false }
+            : ReadStatus(project);
+    }
+
+    /// <summary>
+    /// Shared gate for the two read-only status reads: refuses a divergent project like every
+    /// other read-only worker operation, but never opens a project. Returns the currently open
+    /// project, or <c>null</c> when none is open.
+    /// </summary>
+    private static Project? ResolveProjectForRead(TiaPortalSession session, string? requestedProjectPath)
+    {
         session.EnsureConnected();
 
         var currentPath = session.CurrentProjectPath;
@@ -25,12 +56,19 @@ public static class ProjectLifecycleService
                 ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
         }
 
-        // ProjectOpenDecision.OpenRequested (nothing attached, a path was requested) is
-        // deliberately NOT acted on here, unlike EnsureRequestedProjectOpen: a read must report
-        // IsOpen=false rather than open the requested project as a side effect.
-        return session.Project is null
-            ? new ProjectStatusInfo { IsOpen = false }
-            : ReadStatus(session.Project);
+        return session.Project;
+    }
+
+    /// <summary>
+    /// The read-only status read (above) carries the extended metadata surface; the write-side
+    /// probes (<see cref="ProbeStatusForLifecycle"/> and lifecycle result/close payloads) stay on
+    /// plain <see cref="ReadStatus"/> so their payloads and safety-token binding remain unchanged.
+    /// </summary>
+    private static ProjectStatusInfo ReadStatusWithMetadata(Project project)
+    {
+        var status = ReadStatus(project);
+        status.Metadata = ProjectMetadataReader.Read(project);
+        return status;
     }
 
     /// <summary>

@@ -297,6 +297,28 @@ while ((line = Console.In.ReadLine()) is not null)
             // was requested: isOpen:false, no resolvedProjectPath - nothing was opened.
             Respond("""{"success":true,"payload":"{\"isOpen\":false}"}""");
             break;
+        case "status-with-metadata":
+            // Simulates the real worker's GetStatusReadOnly WITH the extended metadata surface,
+            // exercising every collection/section of ProjectMetadataInfo so host-side contract
+            // tests can assert the full additive metadata schema over the real IPC pipe. Built
+            // from the shared Contracts DTO so a contract change here is a compile error, never
+            // a silently stale hand-written literal.
+            Respond(ReadMethod(line) == "get_project_status"
+                ? Success(ToCamelCaseJson(StatusWithMetadataFixture()))
+                : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
+            break;
+        case "status-oversized":
+        {
+            // A get_project_status payload well over the standalone response budget (60000 chars),
+            // proving ProjectStandaloneToolTests that the direct status tool is capped by the
+            // shared StandaloneToolResultFormatter like every other standalone read.
+            var oversizedPayload = "{\"isOpen\":true,\"metadata\":{\"comment\":{\"text\":\""
+                + new string('x', 70_000) + "\"}}}";
+            Respond(ReadMethod(line) == "get_project_status"
+                ? Success(oversizedPayload)
+                : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
+            break;
+        }
         case "lifecycle-probe-only":
             // Guards against a regression where a save/save-as/archive/close current-state
             // read reverts to the direct status operation: fails ONLY when the request used
@@ -467,6 +489,60 @@ void Respond(string json)
     Console.Out.WriteLine(json);
     Console.Out.Flush();
 }
+
+// A complete ProjectStatusInfo carrying every extended metadata section, modelling what the real
+// GetStatusReadOnly produces on V21. History has fewer entries than the reader's cap so
+// historyTruncated=0, and the compilation settings read as real booleans (not null), so tests
+// can assert the full non-degraded schema.
+ProjectStatusInfo StatusWithMetadataFixture() => new()
+{
+    IsOpen = true,
+    Name = "Ground",
+    Path = @"C:\Projects\Ground\Ground.ap21",
+    Version = "V21",
+    Author = "TiaBot",
+    IsModified = false,
+    CreationTime = new DateTime(2026, 1, 10, 8, 30, 0),
+    LastModified = new DateTime(2026, 2, 14, 17, 5, 0),
+    LastModifiedBy = "TiaBot",
+    Size = 2048,
+    Metadata = new ProjectMetadataInfo
+    {
+        Copyright = "© ACME Controls",
+        Family = "Lines",
+        Comment = new ProjectCommentInfo
+        {
+            Translations = new List<ProjectCommentTranslationInfo>
+            {
+                new() { Culture = "en-US", Text = "Ground line" },
+                new() { Culture = "pt-BR", Text = "Linha de piso" },
+            },
+        },
+        LanguageSettings = new ProjectLanguageSettingsInfo
+        {
+            Languages = new List<string> { "en-US", "de-DE", "pt-BR" },
+            ActiveLanguages = new List<string> { "en-US", "pt-BR" },
+            EditingLanguage = "en-US",
+            ReferenceLanguage = "de-DE",
+        },
+        HistoryEntries = new List<ProjectHistoryEntryInfo>
+        {
+            new() { Text = "Project created", DateTime = new DateTime(2026, 1, 10, 8, 0, 0) },
+            new() { Text = "Line imported", DateTime = new DateTime(2026, 1, 12, 9, 30, 0) },
+        },
+        HistoryTruncated = false,
+        UsedProducts = new List<ProjectUsedProductInfo>
+        {
+            new() { Name = "S7-1500", Version = "V4.5" },
+            new() { Name = "WinCC", Version = "V7.4" },
+        },
+        CompilationSettings = new ProjectCompilationSettingsInfo
+        {
+            IsSimulationDuringBlockCompilationEnabled = true,
+            IsVirtualPlcDuringBlockCompilationEnabled = false,
+        },
+    },
+};
 
 // Wraps a payload document as a successful worker response. Serializing beats hand-escaping once a
 // payload is more than a few members: the escaping is what a hand-written literal gets wrong, and a

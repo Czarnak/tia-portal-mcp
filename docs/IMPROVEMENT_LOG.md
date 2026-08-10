@@ -331,3 +331,33 @@ ten-tool public surface, self-previewing lifecycle writes, non-binding status re
 `save_project_as(rebind:true)`, categorized failures, separate warnings, and verified block-write
 behavior. The installed plugin cache was not modified. The Phase 5 exit still requires the Plan 4
 graph/review and final automated acceptance gates; Phase 6 exclusions below remain unchanged.
+
+## Complete read-only project metadata for get_project_status - DONE 2026-08-08
+
+`get_project_status` now returns the extended read-only project metadata surface on TIA Portal V21.
+`ProjectStatusInfo.Metadata` is additive and backward compatible (absent when no project is open),
+populated only by the direct read path: the write-side lifecycle probe payloads and their
+safety-token binding are byte-for-byte unchanged.
+
+New fields: `copyright`, `family`, multilingual `comment` (all translations, culture name per
+translation, source order preserved), `languageSettings` (`languages` / `activeLanguages` as
+culture names, nullable `editingLanguage` / `referenceLanguage`), `historyEntries` (text and
+date-time, verbatim, no dedup, deterministically capped at 200 with an explicit
+`historyTruncated` flag), `usedProducts` (`{name, version}`, no inference or silent dedup), and
+`compilationSettings` (`isCompilationEnabled` reads of `PlcSimulationSettingsProvider` and
+`VirtualPlcSettingsProvider` via `GetService<T>()`). An unavailable provider/value degrades to null
+with a response warning rather than a fabricated default; only `EngineeringException` is caught for
+degradation; unrelated errors fail normally. Read-only enforced by source contract: the reader
+never saves, sets attributes, deletes, opens, closes, or uses `ExclusiveAccess`, and compile/build
+pass both against the CI stubs (`/p:UseTiaPortalReferenceStubs=true`) and the real V21 assemblies.
+Full suite green at this tip: 1980/1980.
+
+Review fixes (PR #24, review 4892632840): `historyTruncated` is now tri-state — `false` (read,
+below cap), `true` (read, capped), `null` (history unavailable/could not be read); the history
+reader `break`s as soon as the first entry beyond the cap is detected instead of enumerating the
+rest; the successful `get_project_status` response is capped by the existing standalone 60000
+character budget with an explicit truncation marker; and lifecycle post-write verification now uses
+a narrowly-scoped internal basic-status read (`get_basic_project_status` /
+`GetBasicStatusReadOnly`) so `open_project`, `create_project`, `save_project`, `save_project_as`,
+and `archive_project` never perform the extended metadata read after a write. The history cap was
+lowered from 1000 to 200 entries so a full history payload stays well inside the response budget.
