@@ -210,15 +210,21 @@ internal static class VciMutationContractProbeService
             return;
         }
 
+        TraceProgress(request, "before_snapshot:start");
         result.Before = CaptureSnapshot(project, request, result);
+        TraceProgress(request, "before_snapshot:complete");
+        TraceProgress(request, "workspace_root:start");
         if (!TryAcquireRoot(project, result, out _, out var root))
         {
             SetNotObservableUnlessTerminal(result, "selected_workspace_not_found");
             return;
         }
+        TraceProgress(request, "workspace_root:complete");
 
         var readRequest = ToReadRequest(request);
+        TraceProgress(request, "engineering_object_catalog:start");
         var catalog = VciProbeEngineeringObjectCatalog.Enumerate(project, readRequest);
+        TraceProgress(request, "engineering_object_catalog:complete");
         result.Omissions.AddRange(catalog.Omissions);
         var objectMatches = catalog.Candidates
             .Where(candidate => StructuralPathsEqual(
@@ -249,11 +255,13 @@ internal static class VciMutationContractProbeService
 
         try
         {
+            TraceProgress(request, "supported_format_discovery:start");
             var workspaceSelection = FindInventoryWorkspace(
                 root!,
                 engineeringObject,
                 request,
                 result.Omissions);
+            TraceProgress(request, "supported_format_discovery:complete");
             if (workspaceSelection is null)
             {
                 SetNotObservable(result, "selected_workspace_not_found");
@@ -273,7 +281,9 @@ internal static class VciMutationContractProbeService
             RecordException(result, exception);
         }
 
+        TraceProgress(request, "after_snapshot:start");
         result.After = CaptureSnapshot(project, request, result);
+        TraceProgress(request, "after_snapshot:complete");
         var rootAbsentAfter = !Directory.Exists(request.WorkspaceRoot) && !File.Exists(request.WorkspaceRoot);
         AddCheck(result.SafetyInvariants, "workspace_root_absent_after_inventory", rootAbsentAfter, null);
         if (!rootAbsentAfter)
@@ -2144,6 +2154,17 @@ internal static class VciMutationContractProbeService
         read.Snapshot.Members.AddRange(read.Members);
         result.Omissions.AddRange(read.Omissions);
         return read.Snapshot;
+    }
+
+    private static void TraceProgress(VciMutationProbeRequestInfo request, string stage)
+    {
+        Console.Error.WriteLine(
+            "[vci-mutation-progress] utc={0:O} caseId={1} caseInstanceId={2} stage={3}",
+            DateTimeOffset.UtcNow,
+            request.CaseId,
+            request.CaseInstanceId,
+            stage);
+        Console.Error.Flush();
     }
 
     private static VciProbeRequestInfo ToReadRequest(VciMutationProbeRequestInfo request)

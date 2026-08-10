@@ -120,6 +120,33 @@ public class VciMutationProbeWorkerSourceContractTests
     }
 
     [Fact]
+    public void Service_InventoryReportsProgressAroundEveryPotentiallyBlockingOpennessBoundary()
+    {
+        var source = ServiceSource();
+        var inventory = SliceMethod(source, "private static void RunInventory", "private static");
+
+        AssertOrdered(
+            inventory,
+            "TraceProgress(request, \"before_snapshot:start\")",
+            "result.Before = CaptureSnapshot",
+            "TraceProgress(request, \"before_snapshot:complete\")",
+            "TraceProgress(request, \"workspace_root:start\")",
+            "TryAcquireRoot",
+            "TraceProgress(request, \"workspace_root:complete\")",
+            "TraceProgress(request, \"engineering_object_catalog:start\")",
+            "VciProbeEngineeringObjectCatalog.Enumerate",
+            "TraceProgress(request, \"engineering_object_catalog:complete\")",
+            "TraceProgress(request, \"supported_format_discovery:start\")",
+            "FindInventoryWorkspace",
+            "TraceProgress(request, \"supported_format_discovery:complete\")",
+            "TraceProgress(request, \"after_snapshot:start\")",
+            "result.After = CaptureSnapshot",
+            "TraceProgress(request, \"after_snapshot:complete\")");
+        Assert.Contains("Console.Error.WriteLine", source, StringComparison.Ordinal);
+        Assert.Contains("caseInstanceId", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Service_CompletesSnapshotsAndCanaryForPreconditionDrivenApplyObservations()
     {
         var source = ServiceSource();
