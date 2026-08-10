@@ -151,6 +151,17 @@ public sealed class VciMutationProbeScriptTests
     }
 
     [Fact]
+    public void Inventory_AcceptsTheProductionWorkerEnvelopeWithoutRequestId()
+    {
+        using var fixture = new HarnessFixture();
+
+        var result = fixture.Run("Inventory");
+
+        AssertSuccess(result);
+        Assert.True(File.Exists(fixture.PlanPath));
+    }
+
+    [Fact]
     public void Apply_RejectsAbsentAcknowledgementAndPlanHashMismatchBeforeWorkerInvocation()
     {
         using var fixture = new HarnessFixture();
@@ -881,7 +892,6 @@ public sealed class VciMutationProbeScriptTests
                     omissions = @()
                 }
                 $response = [ordered]@{
-                    requestId = [string]$request.requestId
                     success = $true
                     payload = ($result | ConvertTo-Json -Compress -Depth 100)
                 }

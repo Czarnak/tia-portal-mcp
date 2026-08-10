@@ -480,9 +480,6 @@ function Invoke-ProbeWorker {
     $line = $readTask.GetAwaiter().GetResult()
     if ([string]::IsNullOrWhiteSpace($line)) { throw 'worker_process_lost' }
     try { $response = $line | ConvertFrom-Json -Depth 100 } catch { throw 'worker_response_malformed' }
-    if (-not [string]::Equals([string]$response.requestId, [string]$Request.requestId, [StringComparison]::Ordinal)) {
-        throw 'worker_response_request_id_mismatch'
-    }
     if (-not [bool]$response.success) { throw "worker_failure:$($response.error)" }
     if ($response.payload -is [string]) {
         try { return [string]$response.payload | ConvertFrom-Json -Depth 100 } catch { throw 'worker_payload_malformed' }
