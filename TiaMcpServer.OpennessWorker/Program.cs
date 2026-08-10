@@ -30,6 +30,8 @@ internal static class Program
     private static readonly McpAccessMode _accessMode = WorkerOperationAuthorization.ParseAccessMode(
         Environment.GetCommandLineArgs());
 
+    private static readonly TimeSpan ProjectOpenSettlementDelay = TimeSpan.FromSeconds(60);
+
     static Program()
     {
         AssemblyResolver.Register();
@@ -390,8 +392,11 @@ internal static class Program
 
         _sharedSession.RequestWorkerOpenedProjectCloseOnDispose();
         return WithProject(request, (tiaPortal, project) =>
-            Success(VciMutationContractProbeService.Execute(
-                tiaPortal, project, request.VciMutationProbe)),
+        {
+            _sharedSession.WaitForWorkerOpenedProjectSettlement(ProjectOpenSettlementDelay);
+            return Success(VciMutationContractProbeService.Execute(
+                tiaPortal, project, request.VciMutationProbe));
+        },
             allowWorkerOwnedProjectRebind: true);
     }
 

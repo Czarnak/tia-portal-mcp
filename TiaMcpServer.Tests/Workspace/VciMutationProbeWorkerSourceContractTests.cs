@@ -54,6 +54,19 @@ public class VciMutationProbeWorkerSourceContractTests
     }
 
     [Fact]
+    public void WorkerProgram_MutationProbeWaitsSixtySecondsAfterEachWorkerOwnedProjectOpen()
+    {
+        var program = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        var mutationHandler = SliceMethod(program, "private static WorkerResponse ProbeVciMutationContract", "private static");
+
+        Assert.Contains("TimeSpan.FromSeconds(60)", program, StringComparison.Ordinal);
+        AssertOrdered(
+            mutationHandler,
+            "WaitForWorkerOpenedProjectSettlement(ProjectOpenSettlementDelay)",
+            "VciMutationContractProbeService.Execute");
+    }
+
+    [Fact]
     public void Service_DispatchesEveryLockedCaseAndRejectsUnknownCases()
     {
         var source = ServiceSource();

@@ -13,6 +13,7 @@ public class TiaPortalSession : IDisposable
     private bool _disposed;
     private bool _projectOpenedByWorker;
     private bool _closeWorkerOpenedProjectOnDispose;
+    private DateTimeOffset? _workerProjectOpenedAtUtc;
 
     public TiaPortalSession(bool allowTiaConfirmations = false)
     {
@@ -36,6 +37,19 @@ public class TiaPortalSession : IDisposable
     internal void RequestWorkerOpenedProjectCloseOnDispose()
         => _closeWorkerOpenedProjectOnDispose = true;
 
+    internal void WaitForWorkerOpenedProjectSettlement(TimeSpan minimumDwell)
+    {
+        if (!_projectOpenedByWorker || _workerProjectOpenedAtUtc is null)
+        {
+            throw new InvalidOperationException(
+                "The project-settling delay is only valid for a project opened by this worker.");
+        }
+
+        ProjectOpenSettlingGuard.WaitForMinimumDwell(
+            _workerProjectOpenedAtUtc.Value,
+            minimumDwell);
+    }
+
     public void Connect()
     {
         ThrowIfDisposed();
@@ -57,6 +71,7 @@ public class TiaPortalSession : IDisposable
         _tiaPortal.Disposed += OnDisposed;
         // Projects present when we attach belong to the TIA Portal UI, never this worker.
         _projectOpenedByWorker = false;
+        _workerProjectOpenedAtUtc = null;
         Project = _tiaPortal.Projects.FirstOrDefault();
 
         Console.Error.WriteLine("Connected to running TIA Portal instance.");
@@ -98,8 +113,10 @@ public class TiaPortalSession : IDisposable
                         {
                             Project = null;
                             _projectOpenedByWorker = false;
+                            _workerProjectOpenedAtUtc = null;
                             Project = _tiaPortal!.Projects.Open(new FileInfo(requestedPath));
                             _projectOpenedByWorker = true;
+                            _workerProjectOpenedAtUtc = DateTimeOffset.UtcNow;
                         });
                     return;
                 }
@@ -117,10 +134,12 @@ public class TiaPortalSession : IDisposable
 
             Project = null;
             _projectOpenedByWorker = false;
+            _workerProjectOpenedAtUtc = null;
         }
 
         Project = _tiaPortal!.Projects.Open(new FileInfo(requestedPath));
         _projectOpenedByWorker = true;
+        _workerProjectOpenedAtUtc = DateTimeOffset.UtcNow;
     }
 
     /// <summary>Absolute path of the attached project, or null when nothing is attached.</summary>
@@ -142,6 +161,7 @@ public class TiaPortalSession : IDisposable
             // Stale handle: the project was closed in the TIA Portal UI since we opened it.
             Project = null;
             _projectOpenedByWorker = false;
+            _workerProjectOpenedAtUtc = null;
             return null;
         }
     }
@@ -150,6 +170,7 @@ public class TiaPortalSession : IDisposable
     {
         Project = null;
         _projectOpenedByWorker = false;
+        _workerProjectOpenedAtUtc = null;
     }
 
     public void EnsureConnected()
@@ -180,6 +201,7 @@ public class TiaPortalSession : IDisposable
         _tiaPortal = null;
         Project = null;
         _projectOpenedByWorker = false;
+        _workerProjectOpenedAtUtc = null;
     }
 
     private void Dispose(bool disposing)
@@ -213,6 +235,7 @@ public class TiaPortalSession : IDisposable
 
         Project = null;
         _projectOpenedByWorker = false;
+        _workerProjectOpenedAtUtc = null;
         _tiaPortal?.Dispose();
         _tiaPortal = null;
     }
