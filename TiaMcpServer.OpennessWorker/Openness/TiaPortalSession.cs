@@ -153,6 +153,17 @@ public class TiaPortalSession : IDisposable
         if (!IsConnected)
         {
             Connect();
+            return;
+        }
+
+        if (Project is null)
+        {
+            // Already attached to the TIA Portal process, but nothing is bound. A project may
+            // have been opened in the TIA Portal UI after we connected (or after the previously
+            // attached project was closed) — re-scan instead of requiring a worker restart to
+            // pick it up. Mirrors the same Projects.FirstOrDefault() lookup Connect() performs.
+            Project = _tiaPortal!.Projects.FirstOrDefault();
+            _projectOpenedByWorker = false;
         }
     }
 
