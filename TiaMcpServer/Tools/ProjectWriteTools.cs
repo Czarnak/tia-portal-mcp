@@ -29,7 +29,7 @@ public class ProjectWriteTools
         var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("open_project"), "open_project", projectPath, target, requestedInput, () => Task.FromResult(WorkerCallResult.Ok(WriteSafetyTooling.DescribePathState(projectPath)))).ConfigureAwait(false);
         if (!safetyContext.IsValid) return SafetyFailure("open_project", safetyContext);
         var result = await workerClient.OpenProjectAsync(projectPath, forceRebind).ConfigureAwait(false);
-        var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
+        var status = result.Success ? (await workerClient.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
         safety.AppendAudit("open_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
         return WriteSafetyTooling.BuildApplyResult("open_project", result, "get_project_status", status);
     }
@@ -45,7 +45,7 @@ public class ProjectWriteTools
         var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("create_project"), "create_project", null, target, requestedInput, () => Task.FromResult(WorkerCallResult.Ok(WriteSafetyTooling.DescribeProjectCreationState(projectDirectory, projectName)))).ConfigureAwait(false);
         if (!safetyContext.IsValid) return SafetyFailure("create_project", safetyContext);
         var result = await workerClient.CreateProjectAsync(projectDirectory, projectName, author, comment).ConfigureAwait(false);
-        var status = result.Success ? (await workerClient.GetProjectStatusAsync(null).ConfigureAwait(false)).ToText() : null;
+        var status = result.Success ? (await workerClient.GetBasicProjectStatusAsync(null).ConfigureAwait(false)).ToText() : null;
         safety.AppendAudit("create_project", null, target, requestedInput, safetyContext.CurrentState, result.ToText());
         return WriteSafetyTooling.BuildApplyResult("create_project", result, "get_project_status", status);
     }
@@ -61,7 +61,7 @@ public class ProjectWriteTools
         var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project"), "save_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
         if (!safetyContext.IsValid) return SafetyFailure("save_project", safetyContext);
         var result = await workerClient.SaveProjectAsync(projectPath).ConfigureAwait(false);
-        var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
+        var status = result.Success ? (await workerClient.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
         safety.AppendAudit("save_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
         return WriteSafetyTooling.BuildApplyResult("save_project", result, "get_project_status", status);
     }
@@ -84,7 +84,7 @@ public class ProjectWriteTools
         var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("save_project_as"), "save_project_as", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath)).ConfigureAwait(false);
         if (!safetyContext.IsValid) return SafetyFailure("save_project_as", safetyContext);
         var result = await workerClient.SaveProjectAsAsync(projectPath, targetDirectory, targetName, rebind).ConfigureAwait(false);
-        var status = result.Success ? (await workerClient.GetProjectStatusAsync(rebind ? null : projectPath).ConfigureAwait(false)).ToText() : null;
+        var status = result.Success ? (await workerClient.GetBasicProjectStatusAsync(rebind ? null : projectPath).ConfigureAwait(false)).ToText() : null;
         safety.AppendAudit("save_project_as", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
         return WriteSafetyTooling.BuildApplyResult("save_project_as", result, "get_project_status", status);
     }
@@ -103,7 +103,7 @@ public class ProjectWriteTools
         var safetyContext = await WriteSafetyTooling.ValidateForApplyAsync(safety, safetyToken, PreviewHint("archive_project"), "archive_project", projectPath, target, requestedInput, async () => RejectIfArchiveDirectoryWithinProjectFolder(await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), archiveDirectory)).ConfigureAwait(false);
         if (!safetyContext.IsValid) return SafetyFailure("archive_project", safetyContext);
         var result = await workerClient.ArchiveProjectAsync(projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive).ConfigureAwait(false);
-        var status = result.Success ? (await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
+        var status = result.Success ? (await workerClient.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
         safety.AppendAudit("archive_project", projectPath, target, requestedInput, safetyContext.CurrentState, result.ToText());
         return WriteSafetyTooling.BuildApplyResult("archive_project", result, "get_project_status", status);
     }

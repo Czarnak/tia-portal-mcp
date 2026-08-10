@@ -561,6 +561,35 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task PostWriteVerification_UsesBasicStatusRead_NotExtendedMetadataRead()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateClient();
+        const string projectPath = "lifecycle-probe-only";
+
+        var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
+        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+
+        var applied = await ProjectLifecycleTools.SaveProject(
+            client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
+        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
+
+        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+
+        // Post-write verification must read the BASIC status ({"isOpen":true}). The
+        // "lifecycle-probe-only" scenario rejects get_project_status - the extended-metadata read -
+        // so had verification regressed to it, verification.result would carry that rejection error
+        // text instead of a parseable basic status payload.
+        var verification = appliedDoc.RootElement.GetProperty("verification");
+        Assert.Equal("get_project_status", verification.GetProperty("name").GetString());
+        using var verificationDoc = System.Text.Json.JsonDocument.Parse(
+            verification.GetProperty("result").GetString()!);
+        Assert.True(verificationDoc.RootElement.GetProperty("isOpen").GetBoolean());
+    }
+
+    [Fact]
     public async Task SaveProjectAs_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();

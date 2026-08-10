@@ -93,7 +93,7 @@ public static class ProjectMetadataReader
         }
     }
 
-    private static List<ProjectHistoryEntryInfo>? ReadHistory(Project project, out bool truncated)
+    private static List<ProjectHistoryEntryInfo>? ReadHistory(Project project, out bool? truncated)
     {
         truncated = false;
         try
@@ -104,7 +104,7 @@ public static class ProjectMetadataReader
                 if (entries.Count >= MaxHistoryEntries)
                 {
                     truncated = true;
-                    continue;
+                    break;
                 }
 
                 entries.Add(new ProjectHistoryEntryInfo
@@ -119,6 +119,7 @@ public static class ProjectMetadataReader
         catch (EngineeringException ex)
         {
             Console.Error.WriteLine($"Could not read project history: {ex.Message}");
+            truncated = null;
             return null;
         }
     }

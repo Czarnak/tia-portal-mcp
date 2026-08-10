@@ -307,6 +307,18 @@ while ((line = Console.In.ReadLine()) is not null)
                 ? Success(ToCamelCaseJson(StatusWithMetadataFixture()))
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
             break;
+        case "status-oversized":
+        {
+            // A get_project_status payload well over the standalone response budget (60000 chars),
+            // proving ProjectStandaloneToolTests that the direct status tool is capped by the
+            // shared StandaloneToolResultFormatter like every other standalone read.
+            var oversizedPayload = "{\"isOpen\":true,\"metadata\":{\"comment\":{\"text\":\""
+                + new string('x', 70_000) + "\"}}}";
+            Respond(ReadMethod(line) == "get_project_status"
+                ? Success(oversizedPayload)
+                : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
+            break;
+        }
         case "lifecycle-probe-only":
             // Guards against a regression where a save/save-as/archive/close current-state
             // read reverts to the direct status operation: fails ONLY when the request used

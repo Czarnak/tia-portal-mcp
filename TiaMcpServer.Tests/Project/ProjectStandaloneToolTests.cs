@@ -148,4 +148,17 @@ public class ProjectStandaloneToolTests
         Assert.Contains("[TRUNCATED", payload);
         Assert.Contains("plcName or blockPath", payload);
     }
+
+    [Fact]
+    public async Task GetProjectStatus_OversizedSuccess_IsCappedAtMaxItemChars()
+    {
+        using var client = CreateClient(FakeWorkerLocator.Locate());
+
+        var response = await ProjectReadTools.GetProjectStatus(client, projectPath: "status-oversized");
+        var payload = PayloadFromEnvelope(response);
+
+        Assert.Equal(OperationBatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Contains("[TRUNCATED", payload);
+        Assert.Contains("Extended metadata", payload);
+    }
 }

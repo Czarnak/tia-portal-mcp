@@ -692,6 +692,25 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
+    /// <summary>
+    /// Internal basic-status read used only for lifecycle post-write verification (open / create /
+    /// save / save-as / archive apply paths). Backed by the worker's
+    /// <c>get_basic_project_status</c> operation, which returns the plain
+    /// <see cref="ProjectStatusInfo"/> with no extended metadata - so a lifecycle write never
+    /// enumerates history, queries the V21 settings providers, or surfaces metadata warnings
+    /// after the write. Exactly like <see cref="GetProjectStatusAsync"/> and
+    /// <see cref="ProbeProjectStatusForLifecycleAsync"/>, this is <see cref="BindingTransition.None"/>.
+    /// Never exposed as an MCP tool; callable only from lifecycle-write apply paths.
+    /// </summary>
+    internal Task<WorkerCallResult> GetBasicProjectStatusAsync(string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "get_basic_project_status",
+            projectPath,
+            _ => { },
+            "{}");
+    }
+
     public async Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
     {
         // A blank/whitespace path is caller input error, not a binding conflict — check it

@@ -21,13 +21,19 @@ object carrying the extended read-only project metadata:
 | `family` | Project family, verbatim from Openness. |
 | `comment` | Multilingual project comment: `translations` list of `{ culture, text }` in the order Openness reports them, preserving every translation. `culture` is the language culture name (for example `en-US`). |
 | `languageSettings` | `languages` and `activeLanguages` as culture-name lists; `editingLanguage` and `referenceLanguage` culture names (null when unset). |
-| `historyEntries` | Text and date-time of each history entry, in Openness order, verbatim and not deduplicated. Capped at `1000` entries (oldest first); when Openness reports more, `historyTruncated` is `true`. |
+| `historyEntries` | Text and date-time of each history entry, in Openness order, verbatim and not deduplicated. Capped at `1000` entries (oldest first); when Openness reports more, `historyTruncated` is `true`. When history could not be read, both `historyEntries` and `historyTruncated` are `null` (omitted) — `historyTruncated` is `false` only when history was read completely. |
 | `usedProducts` | `{ name, version }` for every product Openness records, no inference and no deduplication. |
 | `compilationSettings` | V21 block-compilation toggles read through `PlcSimulationSettingsProvider` and `VirtualPlcSettingsProvider`: `isSimulationDuringBlockCompilationEnabled` and `isVirtualPlcDuringBlockCompilationEnabled`. A value is `null` (omitted) when its provider or value is unavailable, reported as a response warning — never a fabricated `false`. |
 
 All metadata is readable in both access modes; nothing here opens, closes, switches, saves, or
 confirms anything. Unavailable sections degrade to a warning and `null` output rather than a
 fabricated default; unrelated errors still fail the call normally.
+
+The successful `get_project_status` response is subject to the standalone response budget
+(60000 characters, like every other standalone read): an oversized status is truncated with an
+explicit `TRUNCATED` marker naming the limit. Lifecycle post-write verification (after
+`open_project`, `create_project`, `save_project`, `save_project_as`, and `archive_project`) reads
+the plain project status only — it never enumerates history or the extended metadata surface.
 
 ## Lifecycle operations
 

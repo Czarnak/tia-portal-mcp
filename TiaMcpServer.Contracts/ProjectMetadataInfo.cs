@@ -23,11 +23,13 @@ public class ProjectMetadataInfo
     public List<ProjectHistoryEntryInfo>? HistoryEntries { get; set; }
 
     /// <summary>
-    /// True only when Openness reported more history entries than the reader exposes; the
-    /// oldest entries are kept in order and the response carries this flag instead of silently
-    /// hiding the remainder.
+    /// Distinguishes the three possible history-read outcomes: <c>false</c> when history was
+    /// read successfully and did not exceed <see cref="ProjectMetadataReader.MaxHistoryEntries"/>,
+    /// <c>true</c> when history was read successfully and exceeded the cap (the oldest entries are
+    /// kept in order and the response carries this flag instead of silently hiding the remainder),
+    /// and <c>null</c> when history was unavailable or could not be read at all.
     /// </summary>
-    public bool HistoryTruncated { get; set; }
+    public bool? HistoryTruncated { get; set; }
 
     public List<ProjectUsedProductInfo>? UsedProducts { get; set; }
 

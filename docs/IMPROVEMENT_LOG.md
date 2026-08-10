@@ -351,3 +351,12 @@ degradation; unrelated errors fail normally. Read-only enforced by source contra
 never saves, sets attributes, deletes, opens, closes, or uses `ExclusiveAccess`, and compile/build
 pass both against the CI stubs (`/p:UseTiaPortalReferenceStubs=true`) and the real V21 assemblies.
 Full suite green at this tip: 1980/1980.
+
+Review fixes (PR #24, review 4892632840): `historyTruncated` is now tri-state — `false` (read,
+below cap), `true` (read, capped), `null` (history unavailable/could not be read); the history
+reader `break`s as soon as the first entry beyond the cap is detected instead of enumerating the
+rest; the successful `get_project_status` response is capped by the existing standalone 60000
+character budget with an explicit truncation marker; and lifecycle post-write verification now uses
+a narrowly-scoped internal basic-status read (`get_basic_project_status` /
+`GetBasicStatusReadOnly`) so `open_project`, `create_project`, `save_project`, `save_project_as`,
+and `archive_project` never perform the extended metadata read after a write.

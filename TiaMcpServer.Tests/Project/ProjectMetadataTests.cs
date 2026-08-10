@@ -127,6 +127,44 @@ public class ProjectMetadataTests
     }
 
     [Fact]
+    public void Metadata_UnavailableHistory_OmitsHistoryAndHistoryTruncatedAsNull()
+    {
+        var metadata = new ProjectMetadataInfo
+        {
+            Copyright = "© ACME",
+            HistoryEntries = null,
+            HistoryTruncated = null,
+        };
+
+        var json = JsonSerializer.Serialize(new ProjectStatusInfo { Metadata = metadata }, JsonOptions);
+        using var document = JsonDocument.Parse(json);
+        var meta = document.RootElement.GetProperty("metadata");
+
+        // History unavailable: both members are null and must be omitted - never a fabricated
+        // empty list or a hard-coded false that would be indistinguishable from a complete read.
+        Assert.False(meta.TryGetProperty("historyEntries", out _));
+        Assert.False(meta.TryGetProperty("historyTruncated", out _));
+        Assert.Equal("© ACME", meta.GetProperty("copyright").GetString());
+    }
+
+    [Fact]
+    public void Metadata_CappedHistory_SerializesHistoryTruncatedTrue()
+    {
+        var metadata = new ProjectMetadataInfo
+        {
+            HistoryEntries = new List<ProjectHistoryEntryInfo>
+            {
+                new() { Text = "created" },
+            },
+            HistoryTruncated = true,
+        };
+
+        var json = JsonSerializer.Serialize(new ProjectStatusInfo { Metadata = metadata }, JsonOptions);
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.GetProperty("metadata").GetProperty("historyTruncated").GetBoolean());
+    }
+
+    [Fact]
     public async Task GetProjectStatus_FullMetadata_RoundTripsOverTheRealIpcPipe()
     {
         using var client = CreateClient(FakeWorkerLocator.Locate());

@@ -99,6 +99,16 @@ public class ProjectMetadataWorkerContractTests
         Assert.Contains("entries.Count >= MaxHistoryEntries", source, StringComparison.Ordinal);
         Assert.Contains("truncated = true;", source, StringComparison.Ordinal);
         Assert.Contains("HistoryTruncated = truncated", source, StringComparison.Ordinal);
+
+        // Once the first entry beyond the cap is detected, enumeration must STOP (break), never
+        // keep walking the whole Openness history collection just to discard every remaining entry.
+        var afterTruncated = source.Substring(
+            source.IndexOf("truncated = true;", StringComparison.Ordinal));
+        Assert.Contains("break;", afterTruncated, StringComparison.Ordinal);
+
+        // The three-outcome contract: false (read, below cap), true (read, capped), null (failed).
+        Assert.Contains("out bool? truncated", source, StringComparison.Ordinal);
+        Assert.Contains("truncated = null;", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -139,6 +149,49 @@ public class ProjectMetadataWorkerContractTests
         // binding are byte-for-byte unchanged.
         Assert.Contains("ProbeStatusForLifecycle", source, StringComparison.Ordinal);
         Assert.Contains("private static ProjectStatusInfo ReadStatus(Project project)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LifecycleService_PostWriteVerificationRead_IsBasicStatusOnly()
+    {
+        var source = LifecycleServiceSource;
+
+        // Lifecycle post-write verification uses GetBasicStatusReadOnly - the same binding-policy
+        // gate as GetStatusReadOnly but returning plain ReadStatus, so a write never enumerates
+        // history, queries the V21 settings providers, or surfaces metadata warnings.
+        Assert.Contains("GetBasicStatusReadOnly", source, StringComparison.Ordinal);
+        Assert.Contains("public static ProjectStatusInfo GetBasicStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)", source, StringComparison.Ordinal);
+
+        // The metadata reader is invoked in exactly one place (ReadStatusWithMetadata, reachable
+        // only from GetStatusReadOnly): the basic-status read and the lifecycle probe cannot
+        // perform the extended metadata read.
+        Assert.Equal(1, CountOccurrences(source, "ProjectMetadataReader.Read"));
+
+        // The basic-status read must return plain ReadStatus, never the metadata-bearing variant.
+        var basicStatusBody = source.Substring(
+            source.IndexOf("public static ProjectStatusInfo GetBasicStatusReadOnly", StringComparison.Ordinal),
+            source.IndexOf("private static Project? ResolveProjectForRead", StringComparison.Ordinal)
+                - source.IndexOf("public static ProjectStatusInfo GetBasicStatusReadOnly", StringComparison.Ordinal));
+        Assert.DoesNotContain("ProjectMetadataReader", basicStatusBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LifecycleWriteTools_PostWriteVerification_UsesBasicStatusReadNotMetadataRead()
+    {
+        var writeToolsSource = File.ReadAllText(
+            FindRepositoryFile("TiaMcpServer", "Tools", "ProjectWriteTools.cs"));
+        var lifecycleToolsSource = File.ReadAllText(
+            FindRepositoryFile("TiaMcpServer", "Tools", "ProjectLifecycleTools.cs"));
+
+        // The five write tools (open/create/save/save-as/archive) verify with the basic-status
+        // read only: ProjectWriteTools never calls GetProjectStatusAsync (the extended-metadata
+        // read) at all; ProjectLifecycleTools calls it exactly once, and only in its direct-read
+        // GetProjectStatus method - never in a post-write verification path. Each write tool uses
+        // GetBasicProjectStatusAsync exactly once.
+        Assert.Equal(0, CountOccurrences(writeToolsSource, "GetProjectStatusAsync"));
+        Assert.Equal(1, CountOccurrences(lifecycleToolsSource, "GetProjectStatusAsync"));
+        Assert.Equal(5, CountOccurrences(writeToolsSource, "GetBasicProjectStatusAsync"));
+        Assert.Equal(5, CountOccurrences(lifecycleToolsSource, "GetBasicProjectStatusAsync"));
     }
 
     private static int CountOccurrences(string source, string value)
