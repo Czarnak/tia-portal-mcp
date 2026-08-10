@@ -156,12 +156,24 @@ public class TiaPortalSession : IDisposable
             return;
         }
 
+        if (Project is not null)
+        {
+            // The bound project may have been closed in the TIA Portal UI since we last read
+            // it. Detect that now, in the same call, instead of leaving it for whichever call
+            // happens to touch Project.Path next (e.g. CurrentProjectPath) — otherwise a caller
+            // sees one stale response (nothing bound) before a *second* request finally
+            // rescans and picks up whatever project is open now. Openness has no "project
+            // closed" event to push this proactively, so detect-then-rescan has to happen
+            // within a single EnsureConnected() call.
+            TryReadCurrentProjectPath();
+        }
+
         if (Project is null)
         {
-            // Already attached to the TIA Portal process, but nothing is bound. A project may
-            // have been opened in the TIA Portal UI after we connected (or after the previously
-            // attached project was closed) — re-scan instead of requiring a worker restart to
-            // pick it up. Mirrors the same Projects.FirstOrDefault() lookup Connect() performs.
+            // Nothing bound — either there never was a project, or the probe above just found
+            // the previous handle stale. A project may have been opened in the TIA Portal UI —
+            // re-scan instead of requiring a worker restart to pick it up. Mirrors the same
+            // Projects.FirstOrDefault() lookup Connect() performs.
             Project = _tiaPortal!.Projects.FirstOrDefault();
             _projectOpenedByWorker = false;
         }
