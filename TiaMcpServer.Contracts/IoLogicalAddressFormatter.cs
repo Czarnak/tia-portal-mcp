@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace TiaMcpServer.Contracts;
@@ -76,8 +77,8 @@ public static class IoLogicalAddressFormatter
 
     /// <summary>
     /// Parses any supported absolute I/O spelling into its normalized area + bit interval.
-    /// Returns false — with no fabricated identity — for <c>%M</c>, DB, symbolic, misaligned, or
-    /// unrecognized text.
+    /// Returns false — with no fabricated identity — for <c>%M</c>, DB, symbolic, misaligned,
+    /// out-of-range, or unrecognized text. Culture-invariant and non-throwing.
     /// </summary>
     public static bool TryParse(string? text, out IoAbsoluteIoAddress? address)
     {
@@ -92,56 +93,86 @@ public static class IoLogicalAddressFormatter
         var bitMatch = BitRegex.Match(normalized);
         if (bitMatch.Success)
         {
-            var byteNumber = int.Parse(bitMatch.Groups["byte"].Value);
-            var bitNumber = int.Parse(bitMatch.Groups["bit"].Value);
+            if (!int.TryParse(bitMatch.Groups["byte"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var byteNumber)
+                || !int.TryParse(bitMatch.Groups["bit"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var bitNumber))
+            {
+                return false;
+            }
+
             if (bitNumber is < 0 or > 7)
             {
                 return false;
             }
 
+            if (byteNumber < 0 || byteNumber > (int.MaxValue - bitNumber) / 8)
+            {
+                return false;
+            }
+
+            var startBit = byteNumber * 8 + bitNumber;
             address = new IoAbsoluteIoAddress(
                 bitMatch.Groups["area"].Value,
-                new IoAbsoluteBitInterval(byteNumber * 8 + bitNumber, 1));
+                new IoAbsoluteBitInterval(startBit, 1));
             return true;
         }
 
         var byteMatch = ByteRegex.Match(normalized);
         if (byteMatch.Success)
         {
-            var byteNumber = int.Parse(byteMatch.Groups["byte"].Value);
+            if (!int.TryParse(byteMatch.Groups["byte"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var byteNumber))
+            {
+                return false;
+            }
+
+            if (byteNumber < 0 || byteNumber > (int.MaxValue - 8) / 8)
+            {
+                return false;
+            }
+
+            var startBit = byteNumber * 8;
             address = new IoAbsoluteIoAddress(
                 byteMatch.Groups["area"].Value,
-                new IoAbsoluteBitInterval(byteNumber * 8, 8));
+                new IoAbsoluteBitInterval(startBit, 8));
             return true;
         }
 
         var wordMatch = WordRegex.Match(normalized);
         if (wordMatch.Success)
         {
-            var byteNumber = int.Parse(wordMatch.Groups["byte"].Value);
-            if (byteNumber % 2 != 0)
+            if (!int.TryParse(wordMatch.Groups["byte"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var byteNumber))
             {
                 return false;
             }
 
+            if (byteNumber < 0 || byteNumber % 2 != 0 || byteNumber > (int.MaxValue - 16) / 8)
+            {
+                return false;
+            }
+
+            var startBit = byteNumber * 8;
             address = new IoAbsoluteIoAddress(
                 wordMatch.Groups["area"].Value,
-                new IoAbsoluteBitInterval(byteNumber * 8, 16));
+                new IoAbsoluteBitInterval(startBit, 16));
             return true;
         }
 
         var dwordMatch = DWordRegex.Match(normalized);
         if (dwordMatch.Success)
         {
-            var byteNumber = int.Parse(dwordMatch.Groups["byte"].Value);
-            if (byteNumber % 4 != 0)
+            if (!int.TryParse(dwordMatch.Groups["byte"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var byteNumber))
             {
                 return false;
             }
 
+            if (byteNumber < 0 || byteNumber % 4 != 0 || byteNumber > (int.MaxValue - 32) / 8)
+            {
+                return false;
+            }
+
+            var startBit = byteNumber * 8;
             address = new IoAbsoluteIoAddress(
                 dwordMatch.Groups["area"].Value,
-                new IoAbsoluteBitInterval(byteNumber * 8, 32));
+                new IoAbsoluteBitInterval(startBit, 32));
             return true;
         }
 

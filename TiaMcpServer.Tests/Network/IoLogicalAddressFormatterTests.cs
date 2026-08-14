@@ -82,6 +82,68 @@ public class IoLogicalAddressFormatterTests
         Assert.False(IoLogicalAddressFormatter.TryParse("%Q4.9", out _));
     }
 
+    [Theory]
+    [InlineData("%I9999999999999999999999999999999999999999999999999999999999999999.0")]
+    [InlineData("%IB9999999999999999999999999999999999999999999999999999999999999999")]
+    [InlineData("%IW9999999999999999999999999999999999999999999999999999999999999999")]
+    [InlineData("%ID9999999999999999999999999999999999999999999999999999999999999999")]
+    [InlineData("%I0.9999999999999999999999999999999999999999999999999999999999999999")]
+    public void TryParse_ExtremelyLongDigitSequences_ReturnsFalseWithoutThrowing(string text)
+    {
+        Assert.False(IoLogicalAddressFormatter.TryParse(text, out var address));
+        Assert.Null(address);
+    }
+
+    [Theory]
+    [InlineData("%I2147483647.0")]
+    [InlineData("%IB2147483647")]
+    [InlineData("%IW2147483646")]
+    [InlineData("%ID2147483644")]
+    [InlineData("%I1000000000.0")]
+    [InlineData("%IB1000000000")]
+    [InlineData("%IW1000000000")]
+    [InlineData("%ID1000000000")]
+    public void TryParse_OversizedByteValues_ReturnsFalseWithoutThrowing(string text)
+    {
+        Assert.False(IoLogicalAddressFormatter.TryParse(text, out var address));
+        Assert.Null(address);
+    }
+
+    [Fact]
+    public void TryParse_BoundariesAroundIntMaxValueDiv8_AcceptsMaxRepresentableBitAndRejectsOverflow()
+    {
+        // 268435455 * 8 + 7 = 2147483647 (int.MaxValue)
+        Assert.True(IoLogicalAddressFormatter.TryParse("%I268435455.7", out var maxBit));
+        Assert.NotNull(maxBit);
+        Assert.Equal(int.MaxValue, maxBit!.Value.Interval.StartBit);
+        Assert.Equal(1u, maxBit.Value.Interval.BitCount);
+
+        // 268435456 * 8 = 2147483648 > int.MaxValue
+        Assert.False(IoLogicalAddressFormatter.TryParse("%I268435456.0", out var overflowBit));
+        Assert.Null(overflowBit);
+
+        // Byte: (int.MaxValue - 8) / 8 = 268435454 -> startBit = 2147483632
+        Assert.True(IoLogicalAddressFormatter.TryParse("%IB268435454", out var maxByte));
+        Assert.NotNull(maxByte);
+        Assert.Equal(2147483632, maxByte!.Value.Interval.StartBit);
+        Assert.Equal(8u, maxByte.Value.Interval.BitCount);
+        Assert.False(IoLogicalAddressFormatter.TryParse("%IB268435455", out _));
+
+        // Word: (int.MaxValue - 16) / 8 = 268435453 (even: 268435452) -> startBit = 2147483616
+        Assert.True(IoLogicalAddressFormatter.TryParse("%IW268435452", out var maxWord));
+        Assert.NotNull(maxWord);
+        Assert.Equal(2147483616, maxWord!.Value.Interval.StartBit);
+        Assert.Equal(16u, maxWord.Value.Interval.BitCount);
+        Assert.False(IoLogicalAddressFormatter.TryParse("%IW268435454", out _));
+
+        // DWord: (int.MaxValue - 32) / 8 = 268435451 (divisible by 4: 268435448) -> startBit = 2147483584
+        Assert.True(IoLogicalAddressFormatter.TryParse("%ID268435448", out var maxDWord));
+        Assert.NotNull(maxDWord);
+        Assert.Equal(2147483584, maxDWord!.Value.Interval.StartBit);
+        Assert.Equal(32u, maxDWord.Value.Interval.BitCount);
+        Assert.False(IoLogicalAddressFormatter.TryParse("%ID268435452", out _));
+    }
+
     // ---------------------------------------------------------------------
     // Area normalization
     // ---------------------------------------------------------------------

@@ -17,14 +17,14 @@ public class NetworkIoMapPayloadContractTests
 {
     private const string LeakToken = "io-map-leak-canary";
 
-    private static StructuredOperationItem Project(string payload)
+    private static StructuredOperationItem Project(string payload, bool includeIoDetails = true)
         => NetworkPayloadContract.Project(
-            new NetworkOperationRequest { OperationId = "op-1", Operation = "read_hardware_config" },
+            new NetworkOperationRequest { OperationId = "op-1", Operation = "read_hardware_config", IncludeIoDetails = includeIoDetails },
             WorkerCallResult.Ok(payload));
 
-    private static StructuredOperationItem ProjectWithDiagnostic(string payload, List<string> diagnostics)
+    private static StructuredOperationItem ProjectWithDiagnostic(string payload, List<string> diagnostics, bool includeIoDetails = true)
         => NetworkPayloadContract.Project(
-            new NetworkOperationRequest { OperationId = "op-1", Operation = "read_hardware_config" },
+            new NetworkOperationRequest { OperationId = "op-1", Operation = "read_hardware_config", IncludeIoDetails = includeIoDetails },
             WorkerCallResult.Ok(payload),
             diagnostics.Add);
 
@@ -507,6 +507,384 @@ public class NetworkIoMapPayloadContractTests
         Assert.DoesNotContain(LeakToken, diagnostic, StringComparison.Ordinal);
         Assert.InRange(diagnostic.Length, 1, 512);
         Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure?.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsMissingIoDetailsWhenRequested()
+    {
+        const string payloadWithoutIoDetails = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"]
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payloadWithoutIoDetails, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsMissingIoDetailsOnNestedDeviceItemWhenRequested()
+    {
+        const string payloadWithMissingNestedIoDetails = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": { "addresses": [], "channels": [] },
+                      "items": [
+                        {
+                          "networkInterfaces": [],
+                          "communicationConnections": [],
+                          "items": [],
+                          "selectable": false,
+                          "selector": null,
+                          "selectorDiagnostics": ["unavailable"]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payloadWithMissingNestedIoDetails, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsUnexpectedIoDetailsWhenNotRequested()
+    {
+        var item = Project(ValidIoDetailsPayload, includeIoDetails: false);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsUnexpectedIoDetailsOnNestedDeviceItemWhenNotRequested()
+    {
+        const string payloadWithNestedIoDetails = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "items": [
+                        {
+                          "networkInterfaces": [],
+                          "communicationConnections": [],
+                          "items": [],
+                          "selectable": false,
+                          "selector": null,
+                          "selectorDiagnostics": ["unavailable"],
+                          "ioDetails": { "addresses": [], "channels": [] }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payloadWithNestedIoDetails, includeIoDetails: false);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsOmittedAddressesInsideIoDetails()
+    {
+        const string payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "channels": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsOmittedChannelsInsideIoDetails()
+    {
+        const string payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsEmptyObjectIoDetails()
+    {
+        const string payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {}
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsOmittedControllerNamesOnAddress()
+    {
+        const string payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [
+                          { "ioType": "Input", "startAddress": 0, "length": 2 }
+                        ],
+                        "channels": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsOmittedTagMatchesOnChannel()
+    {
+        const string payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [],
+                        "channels": [
+                          { "number": 0, "ioType": "Input", "type": "Digital" }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Theory]
+    [InlineData("""{"dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"Start","logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"Start","dataType":"Bool","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"Start","dataType":"Bool","logicalAddress":"%I4.0","folderPath":"/"}""")]
+    [InlineData("""{"name":"Start","dataType":"Bool","logicalAddress":"%I4.0","tableName":"T"}""")]
+    public void Project_RejectsOmittedRequiredMemberInsideTagMatch(string tagMatchJson)
+    {
+        var payload = $$"""
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [],
+                        "channels": [{"number": 0, "ioType": "Input", "tagMatches": [{{tagMatchJson}}]}]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_AcceptsValidNestedDeviceItemsWithIoDetails()
+    {
+        const string payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": { "addresses": [], "channels": [] },
+                      "items": [
+                        {
+                          "networkInterfaces": [],
+                          "communicationConnections": [],
+                          "items": [],
+                          "selectable": false,
+                          "selector": null,
+                          "selectorDiagnostics": ["unavailable"],
+                          "ioDetails": { "addresses": [], "channels": [] }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Null(item.Failure);
     }
 
     [Fact]

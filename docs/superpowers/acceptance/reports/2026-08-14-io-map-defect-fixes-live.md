@@ -2,7 +2,7 @@
 
 **Target:** `feat/io-map-extraction` (PR https://github.com/allanmarum/tia-portal-mcp/pull/1)
 **Date:** 2026-08-14
-**Runtime:** Real TIA Portal V21, live project `C:\Users\allan\OneDrive\Documents\Automation\Project20\Project20.ap21`
+**Runtime:** Real TIA Portal V21, live project `<TIA_PROJECT_PATH>\Project20.ap21`
 **Harness:** `scripts/live-test-network-io-map.ps1` (read-only, separately authorized, never run by automated tests)
 **Boundary:** Read-only. No write tool, no project save, no compile, no commissioning action was performed.
 
@@ -20,7 +20,7 @@ against Project20.ap21 exposed two genuine defects, which this delivery fixes:
 
 ## Fixes
 
-- **Worker** (`HardwareConfigReader.cs`): new `ReadOptionalNonNegativeInt` normalizes negative
+- **Worker** (`HardwareIoMapReader.cs`): new `ReadOptionalNonNegativeInt` normalizes negative
   `StartAddress`/`Length` to null with a non-fatal `messages` entry (`...the reported value was negative.`).
   The strict host contract (`NetworkPayloadContract.ValidateIoDetails`) is unchanged.
 - **Worker** (`DynamicNumericAttribute.cs`, new): pure, Siemens-free `CoerceInt32`/`CoerceUInt32`

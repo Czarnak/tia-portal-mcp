@@ -171,7 +171,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void HardwareReader_NormalizesNegativeIoAddressesAndCoercesDynamic64BitChannelAttributes()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs"));
 
         // Diagnosis-type addresses can report StartAddress = -1 (and Length = -1) on V21; the
         // worker turns those into null plus a messages entry, never a negative payload member.
