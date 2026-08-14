@@ -8,9 +8,14 @@ public static class NetworkWorkerInvoker
 {
     public static Task<WorkerCallResult> InvokeReadAsync(
         OpennessWorkerClient client,
-        NetworkOperationRequest operation) => operation.Operation switch
+        NetworkOperationRequest operation)         => operation.Operation switch
         {
-            "read_hardware_config" => client.ReadHardwareConfigAsync(operation.ProjectPath),
+            "read_hardware_config" => client.ReadHardwareConfigAsync(
+                operation.ProjectPath,
+                operation.DeviceName,
+                operation.PlcName,
+                operation.IncludeIoDetails ?? false,
+                operation.IncludeTagMatches ?? false),
             "search_equipment_catalog" => client.SearchEquipmentCatalogAsync(
                 operation.Query!, operation.ProjectPath, operation.MaxResults),
             "list_network_objects" => client.ListNetworkObjectsAsync(

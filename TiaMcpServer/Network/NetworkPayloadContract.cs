@@ -215,6 +215,11 @@ public static class NetworkPayloadContract
             path,
             NetworkObjectKinds.DeviceItem);
 
+        if (item.IoDetails is { } ioDetails)
+        {
+            ValidateIoDetails(ioDetails, $"{path}.ioDetails");
+        }
+
         foreach (var connection in item.CommunicationConnections)
         {
             RequireNotNull(connection, $"{path}.communicationConnections[]");
@@ -255,6 +260,58 @@ public static class NetworkPayloadContract
         foreach (var child in item.Items)
         {
             ValidateDeviceItem(child, $"{path}.items[]");
+        }
+    }
+
+    /// <summary>
+    /// The I/O map is present only when a read requested <c>includeIoDetails</c>, and when present
+    /// its collections are declared non-null. An explicit null collection (which CLR
+    /// initialization cannot produce) must fail the contract here; every nested object is checked
+    /// so a null element cannot reach a consumer walking the tree.
+    /// </summary>
+    private static void ValidateIoDetails(DeviceItemIoDetailsInfo ioDetails, string path)
+    {
+        RequireNotNull(ioDetails.Addresses, $"{path}.addresses");
+        RequireNotNull(ioDetails.Channels, $"{path}.channels");
+
+        foreach (var address in ioDetails.Addresses)
+        {
+            RequireNotNull(address, $"{path}.addresses[]");
+            RequireNotNull(address!.ControllerNames, $"{path}.addresses[].controllerNames");
+            if (address.StartAddress < 0)
+            {
+                throw new JsonException($"'{path}.addresses[].startAddress' must not be negative.");
+            }
+
+            if (address.Length < 0)
+            {
+                throw new JsonException($"'{path}.addresses[].length' must not be negative.");
+            }
+        }
+
+        foreach (var channel in ioDetails.Channels)
+        {
+            RequireNotNull(channel, $"{path}.channels[]");
+            RequireNotNull(channel!.TagMatches, $"{path}.channels[].tagMatches");
+            if (channel.Number < 0)
+            {
+                throw new JsonException($"'{path}.channels[].number' must not be negative.");
+            }
+
+            if (channel.ChannelAddressBits < 0)
+            {
+                throw new JsonException($"'{path}.channels[].channelAddressBits' must not be negative.");
+            }
+
+            foreach (var tagMatch in channel.TagMatches)
+            {
+                RequireNotNull(tagMatch, $"{path}.channels[].tagMatches[]");
+                RequireNotNull(tagMatch!.Name, $"{path}.channels[].tagMatches[].name");
+                RequireNotNull(tagMatch.DataType, $"{path}.channels[].tagMatches[].dataType");
+                RequireNotNull(tagMatch.LogicalAddress, $"{path}.channels[].tagMatches[].logicalAddress");
+                RequireNotNull(tagMatch.TableName, $"{path}.channels[].tagMatches[].tableName");
+                RequireNotNull(tagMatch.FolderPath, $"{path}.channels[].tagMatches[].folderPath");
+            }
         }
     }
 

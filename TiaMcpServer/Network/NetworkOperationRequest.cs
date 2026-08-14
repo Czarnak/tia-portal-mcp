@@ -45,11 +45,20 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
     [Description("Exact equipment catalog type identifier. Required by add_network_device.")]
     public string? TypeIdentifier { get; set; }
 
-    [Description("Name for the new network device or device-scoped filter for list_network_objects. Required by add_network_device; for list_network_objects it is allowed only when every requested kind is deviceItem, networkInterface, node, or communicationConnection.")]
+    [Description("Name for the new network device or device-scoped filter for list_network_objects. Required by add_network_device; for list_network_objects it is allowed only when every requested kind is deviceItem, networkInterface, node, or communicationConnection. For read_hardware_config: optional ordinal-ignore-case device filter — exactly one match reads only that device; zero or multiple matches report a non-fatal message and no devices.")]
     public string? DeviceName { get; set; }
 
     [Description("Optional device item name for add_network_device; defaults to deviceName when omitted.")]
     public string? DeviceItemName { get; set; }
+
+    [Description("Optional PLC software name for read_hardware_config tag matching. Exact ordinal match; when omitted, tag matching uses a PLC only when exactly one PLC exists. Blank when supplied is rejected.")]
+    public string? PlcName { get; set; }
+
+    [Description("Optional read_hardware_config flag: when true, each device item carries structured ioDetails (addresses and channels). Defaults to false; detailed output can be large, so prefer deviceName filtering or split calls.")]
+    public bool? IncludeIoDetails { get; set; }
+
+    [Description("Optional read_hardware_config flag: when true, each channel carries tagMatches resolved against the selected PLC's tag tables. Requires includeIoDetails=true; defaults to false.")]
+    public bool? IncludeTagMatches { get; set; }
 
     [Description("Exact existing object to configure or inspect. Required by configure_network_device and inspect_network_object.")]
     public NetworkObjectTarget? Target { get; set; }

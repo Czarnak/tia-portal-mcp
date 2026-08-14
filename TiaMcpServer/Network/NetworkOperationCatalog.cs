@@ -55,6 +55,9 @@ public static class NetworkOperationCatalog
         ("typeIdentifier", operation => operation.TypeIdentifier is not null),
         ("deviceName", operation => operation.DeviceName is not null),
         ("deviceItemName", operation => operation.DeviceItemName is not null),
+        ("plcName", operation => operation.PlcName is not null),
+        ("includeIoDetails", operation => operation.IncludeIoDetails is not null),
+        ("includeTagMatches", operation => operation.IncludeTagMatches is not null),
         ("target", operation => operation.Target is not null),
         ("changes", operation => operation.Changes is not null),
         ("objectKinds", operation => operation.ObjectKinds is not null),
@@ -248,6 +251,11 @@ public static class NetworkOperationCatalog
                 ValidateListNetworkObjects(operation, errors);
             }
 
+            if (spec.Name == "read_hardware_config")
+            {
+                ValidateReadHardwareConfig(operation, errors);
+            }
+
             if (spec.Name == "inspect_network_object")
             {
                 ValidateInspectNetworkObject(operation, errors);
@@ -297,6 +305,7 @@ public static class NetworkOperationCatalog
         "query" => !string.IsNullOrWhiteSpace(operation.Query),
         "typeIdentifier" => !string.IsNullOrWhiteSpace(operation.TypeIdentifier),
         "deviceName" => !string.IsNullOrWhiteSpace(operation.DeviceName),
+        "plcName" => !string.IsNullOrWhiteSpace(operation.PlcName),
         "target" => operation.Target is not null,
         "changes" => operation.Changes is not null,
         "objectKinds" => operation.ObjectKinds is not null,
@@ -309,6 +318,33 @@ public static class NetworkOperationCatalog
     // ---------------------------------------------------------------------------
     // Operation-specific validation
     // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// The optional I/O-map knobs of <c>read_hardware_config</c>: tag matching is meaningless
+    /// without I/O details, and a supplied <c>deviceName</c>/<c>plcName</c> must be nonblank —
+    /// a blank value names nothing and would be silently ignored by an ordinal filter.
+    /// </summary>
+    private static void ValidateReadHardwareConfig(NetworkOperationRequest operation, List<string> errors)
+    {
+        var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
+
+        if (operation.IncludeTagMatches == true && operation.IncludeIoDetails != true)
+        {
+            errors.Add(
+                $"{prefix} 'includeTagMatches' requires 'includeIoDetails' to also be true: tag "
+                + "matches are attached to channels, which only exist inside ioDetails.");
+        }
+
+        if (operation.DeviceName is not null && string.IsNullOrWhiteSpace(operation.DeviceName))
+        {
+            errors.Add($"{prefix} 'deviceName' must not be blank when supplied.");
+        }
+
+        if (operation.PlcName is not null && string.IsNullOrWhiteSpace(operation.PlcName))
+        {
+            errors.Add($"{prefix} 'plcName' must not be blank when supplied.");
+        }
+    }
 
     private static void ValidateListNetworkObjects(NetworkOperationRequest operation, List<string> errors)
     {
@@ -888,7 +924,7 @@ public static class NetworkOperationCatalog
     {
         var specs = new[]
         {
-            new NetworkOperationSpec("read_hardware_config", NetworkOperationCategory.Read, None, None),
+            new NetworkOperationSpec("read_hardware_config", NetworkOperationCategory.Read, None, new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches" }),
             new NetworkOperationSpec("search_equipment_catalog", NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new NetworkOperationSpec("add_network_device", NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
             new NetworkOperationSpec("configure_network_device", NetworkOperationCategory.Write, new[] { "target", "changes" }, None),
