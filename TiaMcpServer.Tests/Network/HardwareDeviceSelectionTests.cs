@@ -26,11 +26,16 @@ public class HardwareDeviceSelectionTests
             $"Could not find repository file '{Path.Combine(pathSegments)}' from '{AppContext.BaseDirectory}'.");
     }
 
+    private static string ReadRepositorySource(params string[] pathSegments)
+    {
+        return File.ReadAllText(FindRepositoryFile(pathSegments)).Replace("\r\n", "\n");
+    }
+
     [Fact]
     public void HardwareConfigReader_SelectDevices_ReadsNameOnceIntoEvidence()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
 
         // Name evidence is read once in SelectDevices using ReadTypedIdentityString
         Assert.Contains("var nameEvidence = ReadTypedIdentityString(() => device.Name, \"Device name\");", source, StringComparison.Ordinal);
@@ -44,8 +49,8 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareConfigReader_SelectDevices_UnfilteredReadTraversesAllDevicesEvenWhenNameIsUnreadable()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
 
         // When deviceName is null, SelectDevices returns all candidates
         Assert.Contains("if (deviceName is null)\n        {\n            return candidates;\n        }", source, StringComparison.Ordinal);
@@ -58,8 +63,8 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareConfigReader_SelectDevices_FilteredReadMatchesOrdinalIgnoreCaseOnUsableNames()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
 
         // Matches only usable names with OrdinalIgnoreCase, never unreadable evidence
         Assert.Contains("candidate.NameEvidence.IsUsable", source, StringComparison.Ordinal);
@@ -73,8 +78,8 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareConfigReader_DelegatesIoMapAndTagIndexToFocusedComponents()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
 
         Assert.Contains("HardwareIoMapReader.Read(item, itemDescription, messages, tagIndex)", source, StringComparison.Ordinal);
         Assert.Contains("HardwareTagIndexResolver.Resolve(project, plcName, result.Messages)", source, StringComparison.Ordinal);
@@ -91,10 +96,10 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareIoMapReader_And_HardwareTagIndexResolver_RemainFocusedUnderSizeThresholds()
     {
-        var ioMapSource = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs"));
-        var tagIndexSource = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareTagIndexResolver.cs"));
+        var ioMapSource = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs");
+        var tagIndexSource = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareTagIndexResolver.cs");
 
         var ioMapLines = ioMapSource.Split('\n').Length;
         var tagIndexLines = tagIndexSource.Split('\n').Length;
