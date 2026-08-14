@@ -960,22 +960,6 @@ public static class HardwareConfigReader
         }
     }
 
-    private static uint? ReadOptionalUInt(
-        Func<uint> read,
-        string description,
-        List<string> messages)
-    {
-        try
-        {
-            return read();
-        }
-        catch (EngineeringException exception)
-        {
-            messages.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
-
     /// <summary>
     /// Reads the dynamic Openness <c>Context</c> attribute of an address (an
     /// <c>AddressContext</c> enum value exposed as a dynamic attribute). Unreadable or absent
