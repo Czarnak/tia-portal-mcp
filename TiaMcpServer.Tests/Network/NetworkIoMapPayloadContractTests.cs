@@ -293,12 +293,12 @@ public class NetworkIoMapPayloadContractTests
     }
 
     [Theory]
-    [InlineData("name", """{"name":null,"dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
-    [InlineData("dataType", """{"name":"StartButton","dataType":null,"logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
-    [InlineData("logicalAddress", """{"name":"StartButton","dataType":"Bool","logicalAddress":null,"tableName":"T","folderPath":"/"}""")]
-    [InlineData("tableName", """{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":null,"folderPath":"/"}""")]
-    [InlineData("folderPath", """{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":null}""")]
-    public void Project_RejectsNullDeclaredStringMemberInsideATagMatch(string member, string tagMatchJson)
+    [InlineData("""{"name":null,"dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":null,"logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":null,"tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":null,"folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":null}""")]
+    public void Project_RejectsNullDeclaredStringMemberInsideATagMatch(string tagMatchJson)
     {
         var payload = $$"""
             {
