@@ -146,6 +146,54 @@ public class NetworkIoMapPayloadContractTests
     }
 
     [Fact]
+    public void Project_AcceptsADiagnosisAddressWithNullStartAndLength()
+    {
+        // V21 reports a negative start address (and length) for Diagnosis-type addresses; the
+        // worker normalizes those to null, which is the normalized shape the host accepts. Only an
+        // actual negative VALUE is still rejected below.
+        var payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [
+                          {"ioType": "Diagnosis", "startAddress": null, "length": null, "context": null, "controllerNames": []}
+                        ],
+                        "channels": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Null(item.Failure);
+        var address = item.Result!.Value
+            .GetProperty("devices")[0]
+            .GetProperty("items")[0]
+            .GetProperty("ioDetails")
+            .GetProperty("addresses")[0];
+        Assert.Equal("Diagnosis", address.GetProperty("ioType").GetString());
+        Assert.Equal(JsonValueKind.Null, address.GetProperty("startAddress").ValueKind);
+        Assert.Equal(JsonValueKind.Null, address.GetProperty("length").ValueKind);
+    }
+
+    [Fact]
     public void Project_RejectsExplicitNullIoDetailsAddressesCollection()
     {
         var payload = """

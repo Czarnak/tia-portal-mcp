@@ -1,0 +1,755 @@
+{
+  "devices": [
+    {
+      "items": [
+        {
+          "address": null,
+          "communicationConnections": [],
+          "ioDetails": {
+            "addresses": [],
+            "channels": []
+          },
+          "items": [],
+          "name": "Rack_0",
+          "networkInterfaces": [],
+          "positionNumber": 0,
+          "selectable": true,
+          "selector": {
+            "connectionIndex": null,
+            "connectionType": null,
+            "deviceName": "S7-1200 station_1",
+            "interfaceName": null,
+            "interfaceOperatingMode": null,
+            "interfaceType": null,
+            "ioSystemIndex": null,
+            "ioSystemName": null,
+            "itemPath": [
+              {
+                "index": 0,
+                "name": "Rack_0",
+                "positionNumber": 0,
+                "typeIdentifier": "System:Rack.S71200"
+              }
+            ],
+            "kind": "deviceItem",
+            "localConnectionId": null,
+            "localConnectionName": null,
+            "nodeId": null,
+            "nodeIndex": null,
+            "number": null,
+            "subnetId": null
+          },
+          "selectorDiagnostics": [],
+          "typeIdentifier": "System:Rack.S71200"
+        },
+        {
+          "address": null,
+          "communicationConnections": [],
+          "ioDetails": {
+            "addresses": [],
+            "channels": []
+          },
+          "items": [
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [],
+                "channels": []
+              },
+              "items": [],
+              "name": "Card reader/writer",
+              "networkInterfaces": [],
+              "positionNumber": 4,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'Card reader/writer' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [],
+                    "ioType": "Diagnosis",
+                    "length": 0,
+                    "startAddress": null
+                  }
+                ],
+                "channels": []
+              },
+              "items": [
+                {
+                  "address": null,
+                  "communicationConnections": [],
+                  "ioDetails": {
+                    "addresses": [
+                      {
+                        "context": null,
+                        "controllerNames": [],
+                        "ioType": "Diagnosis",
+                        "length": 0,
+                        "startAddress": null
+                      }
+                    ],
+                    "channels": []
+                  },
+                  "items": [],
+                  "name": "Port_1",
+                  "networkInterfaces": [],
+                  "positionNumber": 32769,
+                  "selectable": false,
+                  "selector": null,
+                  "selectorDiagnostics": [
+                    "Device item 'PROFINET interface_1' type identifier was null; selector not available.",
+                    "Device item 'Port_1' type identifier was null; selector not available."
+                  ],
+                  "typeIdentifier": null
+                }
+              ],
+              "name": "PROFINET interface_1",
+              "networkInterfaces": [
+                {
+                  "name": "PROFINET interface_1",
+                  "nodes": [
+                    {
+                      "ioSystemName": null,
+                      "ipAddress": "192.168.0.1",
+                      "name": "X1 : PN(LAN)",
+                      "nodeId": "E1",
+                      "nodeType": "Ethernet",
+                      "pnDeviceName": "plc_1",
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": "S7-1200 station_1",
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": null,
+                        "kind": "node",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": "E1",
+                        "nodeIndex": null,
+                        "number": null,
+                        "subnetId": null
+                      },
+                      "selectorDiagnostics": [],
+                      "subnetMask": "255.255.255.0",
+                      "subnetName": null
+                    }
+                  ],
+                  "selectable": false,
+                  "selector": null,
+                  "selectorDiagnostics": [
+                    "Device item 'PROFINET interface_1' type identifier was null; selector not available."
+                  ]
+                }
+              ],
+              "positionNumber": 32768,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'PROFINET interface_1' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 32,
+                    "startAddress": 1000
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "HSC_1",
+              "networkInterfaces": [],
+              "positionNumber": 16,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'HSC_1' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 32,
+                    "startAddress": 1004
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "HSC_2",
+              "networkInterfaces": [],
+              "positionNumber": 17,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'HSC_2' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 32,
+                    "startAddress": 1008
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "HSC_3",
+              "networkInterfaces": [],
+              "positionNumber": 18,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'HSC_3' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 32,
+                    "startAddress": 1012
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "HSC_4",
+              "networkInterfaces": [],
+              "positionNumber": 19,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'HSC_4' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 32,
+                    "startAddress": 1016
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "HSC_5",
+              "networkInterfaces": [],
+              "positionNumber": 20,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'HSC_5' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 32,
+                    "startAddress": 1020
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "HSC_6",
+              "networkInterfaces": [],
+              "positionNumber": 21,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'HSC_6' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 32,
+                    "startAddress": 64
+                  }
+                ],
+                "channels": [
+                  {
+                    "channelAddressBits": 512,
+                    "channelWidthBits": 16,
+                    "ioType": "Input",
+                    "logicalAddress": "%IW64",
+                    "number": 0,
+                    "tagMatches": [],
+                    "type": "Analog"
+                  },
+                  {
+                    "channelAddressBits": 528,
+                    "channelWidthBits": 16,
+                    "ioType": "Input",
+                    "logicalAddress": "%IW66",
+                    "number": 1,
+                    "tagMatches": [],
+                    "type": "Analog"
+                  }
+                ]
+              },
+              "items": [],
+              "name": "AI 2_1",
+              "networkInterfaces": [],
+              "positionNumber": 2,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'AI 2_1' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Input",
+                    "length": 8,
+                    "startAddress": 0
+                  },
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Output",
+                    "length": 8,
+                    "startAddress": 0
+                  }
+                ],
+                "channels": [
+                  {
+                    "channelAddressBits": 0,
+                    "channelWidthBits": 1,
+                    "ioType": "Input",
+                    "logicalAddress": "%I0.0",
+                    "number": 0,
+                    "tagMatches": [
+                      {
+                        "dataType": "Bool",
+                        "folderPath": "/",
+                        "logicalAddress": "%I0.0",
+                        "name": "Tag_1",
+                        "tableName": "Default tag table"
+                      }
+                    ],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 0,
+                    "channelWidthBits": 1,
+                    "ioType": "Output",
+                    "logicalAddress": "%Q0.0",
+                    "number": 0,
+                    "tagMatches": [
+                      {
+                        "dataType": "Bool",
+                        "folderPath": "/",
+                        "logicalAddress": "%Q0.0",
+                        "name": "Tag_3",
+                        "tableName": "Default tag table"
+                      }
+                    ],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 1,
+                    "channelWidthBits": 1,
+                    "ioType": "Input",
+                    "logicalAddress": "%I0.1",
+                    "number": 1,
+                    "tagMatches": [
+                      {
+                        "dataType": "Bool",
+                        "folderPath": "/",
+                        "logicalAddress": "%I0.1",
+                        "name": "Tag_2",
+                        "tableName": "Default tag table"
+                      }
+                    ],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 1,
+                    "channelWidthBits": 1,
+                    "ioType": "Output",
+                    "logicalAddress": "%Q0.1",
+                    "number": 1,
+                    "tagMatches": [],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 2,
+                    "channelWidthBits": 1,
+                    "ioType": "Input",
+                    "logicalAddress": "%I0.2",
+                    "number": 2,
+                    "tagMatches": [],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 2,
+                    "channelWidthBits": 1,
+                    "ioType": "Output",
+                    "logicalAddress": "%Q0.2",
+                    "number": 2,
+                    "tagMatches": [],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 3,
+                    "channelWidthBits": 1,
+                    "ioType": "Input",
+                    "logicalAddress": "%I0.3",
+                    "number": 3,
+                    "tagMatches": [],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 3,
+                    "channelWidthBits": 1,
+                    "ioType": "Output",
+                    "logicalAddress": "%Q0.3",
+                    "number": 3,
+                    "tagMatches": [],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 4,
+                    "channelWidthBits": 1,
+                    "ioType": "Input",
+                    "logicalAddress": "%I0.4",
+                    "number": 4,
+                    "tagMatches": [],
+                    "type": "Digital"
+                  },
+                  {
+                    "channelAddressBits": 5,
+                    "channelWidthBits": 1,
+                    "ioType": "Input",
+                    "logicalAddress": "%I0.5",
+                    "number": 5,
+                    "tagMatches": [],
+                    "type": "Digital"
+                  }
+                ]
+              },
+              "items": [],
+              "name": "DI 6/DQ 4_1",
+              "networkInterfaces": [],
+              "positionNumber": 1,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'DI 6/DQ 4_1' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [],
+                "channels": []
+              },
+              "items": [],
+              "name": "OPC UA",
+              "networkInterfaces": [],
+              "positionNumber": 254,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'OPC UA' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Output",
+                    "length": 16,
+                    "startAddress": 1000
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "Pulse_1",
+              "networkInterfaces": [],
+              "positionNumber": 32,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'Pulse_1' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Output",
+                    "length": 16,
+                    "startAddress": 1002
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "Pulse_2",
+              "networkInterfaces": [],
+              "positionNumber": 33,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'Pulse_2' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Output",
+                    "length": 16,
+                    "startAddress": 1004
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "Pulse_3",
+              "networkInterfaces": [],
+              "positionNumber": 34,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'Pulse_3' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            },
+            {
+              "address": null,
+              "communicationConnections": [],
+              "ioDetails": {
+                "addresses": [
+                  {
+                    "context": null,
+                    "controllerNames": [
+                      "S7-1200 station_1"
+                    ],
+                    "ioType": "Output",
+                    "length": 16,
+                    "startAddress": 1006
+                  }
+                ],
+                "channels": []
+              },
+              "items": [],
+              "name": "Pulse_4",
+              "networkInterfaces": [],
+              "positionNumber": 35,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": [
+                "Device item 'Pulse_4' type identifier was null; selector not available."
+              ],
+              "typeIdentifier": null
+            }
+          ],
+          "name": "PLC_1",
+          "networkInterfaces": [],
+          "positionNumber": 1,
+          "selectable": true,
+          "selector": {
+            "connectionIndex": null,
+            "connectionType": null,
+            "deviceName": "S7-1200 station_1",
+            "interfaceName": null,
+            "interfaceOperatingMode": null,
+            "interfaceType": null,
+            "ioSystemIndex": null,
+            "ioSystemName": null,
+            "itemPath": [
+              {
+                "index": 1,
+                "name": "PLC_1",
+                "positionNumber": 1,
+                "typeIdentifier": "OrderNumber:6ES7 211-1AE40-0XB0/V4.7"
+              }
+            ],
+            "kind": "deviceItem",
+            "localConnectionId": null,
+            "localConnectionName": null,
+            "nodeId": null,
+            "nodeIndex": null,
+            "number": null,
+            "subnetId": null
+          },
+          "selectorDiagnostics": [],
+          "typeIdentifier": "OrderNumber:6ES7 211-1AE40-0XB0/V4.7"
+        }
+      ],
+      "name": "S7-1200 station_1",
+      "typeIdentifier": "System:Device.S71200"
+    }
+  ],
+  "messages": [
+    "Could not read device item 'Rack_0' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'PLC_1' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'Card reader/writer' type identifier: Device item 'Card reader/writer' type identifier was null; selector not available.",
+    "Could not read device item 'Card reader/writer' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'PROFINET interface_1' type identifier: Device item 'PROFINET interface_1' type identifier was null; selector not available.",
+    "Could not read device item 'PROFINET interface_1' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'PROFINET interface_1' address start address: the reported value was negative.",
+    "Could not read device item 'PROFINET interface_1' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'Port_1' type identifier: Device item 'Port_1' type identifier was null; selector not available.",
+    "Could not read device item 'Port_1' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'Port_1' address start address: the reported value was negative.",
+    "Could not read device item 'Port_1' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'HSC_1' type identifier: Device item 'HSC_1' type identifier was null; selector not available.",
+    "Could not read device item 'HSC_1' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'HSC_1' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'HSC_2' type identifier: Device item 'HSC_2' type identifier was null; selector not available.",
+    "Could not read device item 'HSC_2' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'HSC_2' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'HSC_3' type identifier: Device item 'HSC_3' type identifier was null; selector not available.",
+    "Could not read device item 'HSC_3' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'HSC_3' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'HSC_4' type identifier: Device item 'HSC_4' type identifier was null; selector not available.",
+    "Could not read device item 'HSC_4' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'HSC_4' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'HSC_5' type identifier: Device item 'HSC_5' type identifier was null; selector not available.",
+    "Could not read device item 'HSC_5' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'HSC_5' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'HSC_6' type identifier: Device item 'HSC_6' type identifier was null; selector not available.",
+    "Could not read device item 'HSC_6' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'HSC_6' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'AI 2_1' type identifier: Device item 'AI 2_1' type identifier was null; selector not available.",
+    "Could not read device item 'AI 2_1' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'AI 2_1' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'DI 6/DQ 4_1' type identifier: Device item 'DI 6/DQ 4_1' type identifier was null; selector not available.",
+    "Could not read device item 'DI 6/DQ 4_1' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'DI 6/DQ 4_1' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'DI 6/DQ 4_1' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'OPC UA' type identifier: Device item 'OPC UA' type identifier was null; selector not available.",
+    "Could not read device item 'OPC UA' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'Pulse_1' type identifier: Device item 'Pulse_1' type identifier was null; selector not available.",
+    "Could not read device item 'Pulse_1' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'Pulse_1' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'Pulse_2' type identifier: Device item 'Pulse_2' type identifier was null; selector not available.",
+    "Could not read device item 'Pulse_2' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'Pulse_2' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'Pulse_3' type identifier: Device item 'Pulse_3' type identifier was null; selector not available.",
+    "Could not read device item 'Pulse_3' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'Pulse_3' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'.",
+    "Could not read device item 'Pulse_4' type identifier: Device item 'Pulse_4' type identifier was null; selector not available.",
+    "Could not read device item 'Pulse_4' address: 'Address' is not supported by type 'Siemens.Engineering.HW.DeviceItemImpl'.",
+    "Could not read device item 'Pulse_4' address context: 'Context' is not supported by type 'Siemens.Engineering.HW.Address'."
+  ],
+  "subnets": []
+}

@@ -298,11 +298,11 @@ public static class HardwareConfigReader
                         () => address.IoType,
                         $"device item '{itemDescription}' address I/O type",
                         messages),
-                    StartAddress = ReadOptionalInt(
+                    StartAddress = ReadOptionalNonNegativeInt(
                         () => address.StartAddress,
                         $"device item '{itemDescription}' address start address",
                         messages),
-                    Length = ReadOptionalInt(
+                    Length = ReadOptionalNonNegativeInt(
                         () => address.Length,
                         $"device item '{itemDescription}' address length",
                         messages),
@@ -961,6 +961,34 @@ public static class HardwareConfigReader
     }
 
     /// <summary>
+    /// Reads an optional integer that must be non-negative. Openness reports <c>-1</c> for the
+    /// start address and length of some <c>Diagnosis</c>-type addresses; a negative value degrades
+    /// to null with a message, never a negative payload member.
+    /// </summary>
+    private static int? ReadOptionalNonNegativeInt(
+        Func<int> read,
+        string description,
+        List<string> messages)
+    {
+        try
+        {
+            var value = read();
+            if (value < 0)
+            {
+                messages.Add($"Could not read {description}: the reported value was negative.");
+                return null;
+            }
+
+            return value;
+        }
+        catch (EngineeringException exception)
+        {
+            messages.Add($"Could not read {description}: {exception.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Reads the dynamic Openness <c>Context</c> attribute of an address (an
     /// <c>AddressContext</c> enum value exposed as a dynamic attribute). Unreadable or absent
     /// context degrades to null with a message; a value is never fabricated.
@@ -986,8 +1014,8 @@ public static class HardwareConfigReader
     /// <summary>
     /// Reads a dynamic integer Openness attribute (for example <c>ChannelAddress</c>, which the
     /// SDK exposes as a dynamic attribute rather than a typed CLR property on every channel type).
-    /// A null or non-integer value degrades to null with a message; a value is never coerced from
-    /// a different CLR type.
+    /// A null or unrepresentable value degrades to null with a message; a value is never coerced
+    /// from a non-numeric CLR type.
     /// </summary>
     private static int? ReadDynamicIntAttribute(
         IEngineeringObject engineeringObject,
@@ -998,19 +1026,15 @@ public static class HardwareConfigReader
         try
         {
             var value = engineeringObject.GetAttribute(attributeName);
-            if (value is null)
+            var coerced = DynamicNumericAttribute.CoerceInt32(value);
+            if (coerced is null && value is not null)
             {
+                messages.Add(
+                    $"Could not read {description}: attribute '{attributeName}' had an unexpected CLR type or value.");
                 return null;
             }
 
-            if (value is int intValue)
-            {
-                return intValue;
-            }
-
-            messages.Add(
-                $"Could not read {description}: attribute '{attributeName}' had an unexpected CLR type.");
-            return null;
+            return coerced;
         }
         catch (EngineeringException exception)
         {
@@ -1021,7 +1045,8 @@ public static class HardwareConfigReader
 
     /// <summary>
     /// Reads a dynamic unsigned Openness attribute (for example <c>ChannelWidth</c>). Like
-    /// <see cref="ReadDynamicIntAttribute"/>, only the declared CLR type is accepted.
+    /// <see cref="ReadDynamicIntAttribute"/>, only numeric CLR types within the DTO range are
+    /// accepted.
     /// </summary>
     private static uint? ReadDynamicUIntAttribute(
         IEngineeringObject engineeringObject,
@@ -1032,19 +1057,15 @@ public static class HardwareConfigReader
         try
         {
             var value = engineeringObject.GetAttribute(attributeName);
-            if (value is null)
+            var coerced = DynamicNumericAttribute.CoerceUInt32(value);
+            if (coerced is null && value is not null)
             {
+                messages.Add(
+                    $"Could not read {description}: attribute '{attributeName}' had an unexpected CLR type or value.");
                 return null;
             }
 
-            if (value is uint uintValue)
-            {
-                return uintValue;
-            }
-
-            messages.Add(
-                $"Could not read {description}: attribute '{attributeName}' had an unexpected CLR type.");
-            return null;
+            return coerced;
         }
         catch (EngineeringException exception)
         {

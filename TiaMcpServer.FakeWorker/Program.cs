@@ -1440,6 +1440,18 @@ DeviceItemInfo IoMapDeviceItem(string itemName, bool includeIoDetails)
     {
         Addresses = new List<IoAddressInfo>
         {
+            // Diagnosis-type addresses on PROFINET interfaces report StartAddress = -1 (and
+            // Length = -1) on V21; the worker normalizes those to null, so the fixture models the
+            // normalized shape. Ordinal IoType order ("Diagnosis" < "Input" < "Output") mirrors
+            // the real worker's deterministic sort.
+            new()
+            {
+                IoType = "Diagnosis",
+                StartAddress = null,
+                Length = null,
+                Context = null,
+                ControllerNames = new List<string>(),
+            },
             new()
             {
                 IoType = "Input",

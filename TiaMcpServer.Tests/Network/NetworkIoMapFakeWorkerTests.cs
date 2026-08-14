@@ -70,12 +70,22 @@ public class NetworkIoMapFakeWorkerTests
         Assert.Equal(JsonValueKind.Object, ioDetails.ValueKind);
 
         var addresses = ioDetails.GetProperty("addresses");
-        Assert.Equal(2, addresses.GetArrayLength());
-        Assert.Equal("Input", addresses[0].GetProperty("ioType").GetString());
-        Assert.Equal(4, addresses[0].GetProperty("startAddress").GetInt32());
-        Assert.Equal(2, addresses[0].GetProperty("length").GetInt32());
-        Assert.Equal("Device", addresses[0].GetProperty("context").GetString());
-        Assert.Equal(new[] { "PLC_1" }, addresses[0].GetProperty("controllerNames").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal(3, addresses.GetArrayLength());
+
+        // Ordinal IoType order ("Diagnosis" < "Input" < "Output"): the V21 Diagnosis address
+        // reports a negative start/length that the worker normalizes to null, and it has no
+        // controller association — the whole read still succeeds.
+        Assert.Equal("Diagnosis", addresses[0].GetProperty("ioType").GetString());
+        Assert.Equal(JsonValueKind.Null, addresses[0].GetProperty("startAddress").ValueKind);
+        Assert.Equal(JsonValueKind.Null, addresses[0].GetProperty("length").ValueKind);
+        Assert.Equal(JsonValueKind.Null, addresses[0].GetProperty("context").ValueKind);
+        Assert.Empty(addresses[0].GetProperty("controllerNames").EnumerateArray());
+
+        Assert.Equal("Input", addresses[1].GetProperty("ioType").GetString());
+        Assert.Equal(4, addresses[1].GetProperty("startAddress").GetInt32());
+        Assert.Equal(2, addresses[1].GetProperty("length").GetInt32());
+        Assert.Equal("Device", addresses[1].GetProperty("context").GetString());
+        Assert.Equal(new[] { "PLC_1" }, addresses[1].GetProperty("controllerNames").EnumerateArray().Select(e => e.GetString()));
 
         var channels = ioDetails.GetProperty("channels");
         Assert.Equal(2, channels.GetArrayLength());

@@ -196,6 +196,10 @@ A device item with I/O details carries:
 - Unreadable scalars stay null (never `0`/empty-string defaults); unreadable members add a
   non-fatal `messages` entry. The payload contract additionally rejects an explicit null
   collection inside `ioDetails` as `protocol_error` without echoing the payload.
+- TIA V21 reports a negative start address (and length) for some `Diagnosis`-type addresses; the
+  worker normalizes these to null with a non-fatal `messages` entry. Channel `ChannelAddress`/
+  `ChannelWidth` dynamic attributes are accepted when Openness reports them as 64-bit integers
+  (`Int64`/`UInt64`) within the DTO range.
 
 ### Conservative tag matching
 
@@ -465,7 +469,9 @@ the Phase 3 read-only authorization does not authorize any Phase 2 write mode.
 structured I/O map. It drives `network_read` (`read_hardware_config`) with the I/O-map options
 through the real MCP protocol and contains no write path and no confirming call site; it is never
 run by automated tests (`TiaMcpServer.Tests/NetworkIoMapLiveHarnessContractTests.cs` proves that
-statically).
+statically). A live run completed on 2026-08-14 against a real TIA Portal V21 project
+(Project20.ap21); the results are recorded in
+[`../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md`](../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md).
 
 `scripts/live-test-network-phase4-subnets.ps1` is the separately authorized harness for the Phase 4
 subnet lifecycle operations. Its default `Inventory` mode is read-only; `Preview` constructs the
