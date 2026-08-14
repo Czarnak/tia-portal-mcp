@@ -361,3 +361,32 @@ a narrowly-scoped internal basic-status read (`get_basic_project_status` /
 `GetBasicStatusReadOnly`) so `open_project`, `create_project`, `save_project`, `save_project_as`,
 and `archive_project` never perform the extended metadata read after a write. The history cap was
 lowered from 1000 to 200 entries so a full history payload stays well inside the response budget.
+
+## Structured read-only PLC I/O map for read_hardware_config - DONE 2026-08-13
+
+`read_hardware_config` now supports opt-in, read-only structured I/O extraction. A default read
+(with no flags) is byte-identical to earlier versions: `DeviceItemInfo.IoDetails` is
+`JsonIgnore(WhenWritingNull)` so it is absent from default output and from internal network-write
+safety-token state hashes, which stay lightweight and unchanged.
+
+New request options: `deviceName` (ordinal-ignore-case, exactly-one-match device filter), `plcName`
+(exact ordinal PLC selection for tag matching), `includeIoDetails` (structured `ioDetails` with
+addresses and channels), and `includeTagMatches` (requires `includeIoDetails`). New Contracts DTOs
+`DeviceItemIoDetailsInfo`/`IoAddressInfo`/`IoChannelInfo`/`IoTagMatchInfo` carry raw Openness
+evidence: byte-based address `startAddress`/`length`, bit-based channel
+`channelAddressBits`/`channelWidthBits`, dynamic `context`, and ordinal `controllerNames`;
+unreadable scalars stay null and are never fabricated. Pure TIA-free `IoLogicalAddressFormatter`
+(bit/byte/word/dword parse + format with strict alignment and casing/whitespace normalization,
+rejecting `%M`/DB/symbolic-only) and `IoTagMatcher` (exact normalized interval + I/O-area equality,
+no overlap or first-match fallback, multiple tags per channel) live in `TiaMcpServer.Contracts`.
+
+The worker reads `DeviceItem.Addresses`/`Channels` and `AddressControllers` through the typed
+Openness API (present in the CI stubs), reads the dynamic `ChannelAddress`/`ChannelWidth`/`Context`
+attributes through guarded `GetAttribute`, resolves the PLC deterministically (exact `plcName`, or
+the single PLC when omitted), builds the tag index once per selected PLC via `TagTableReader`, and
+matches tags only when the controller association deterministically names the selected PLC — never
+across controllers. The payload contract validates every non-null collection and nested object
+inside `ioDetails` and rejects an explicit null collection as `protocol_error` without echoing the
+payload. FakeWorker scenarios, the read-only live harness
+`scripts/live-test-network-io-map.ps1` (never run by automated tests), and the full I/O-map test
+surface were added. Full suite green at this tip: 2136/2136.

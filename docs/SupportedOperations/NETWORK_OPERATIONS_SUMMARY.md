@@ -23,7 +23,7 @@ The MCP provides a bounded device and network-identity surface:
 
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
-| `network_read` | `read_hardware_config` | Reads devices and their network DTOs: interfaces, nodes, subnets, and IO systems where present. |
+| `network_read` | `read_hardware_config` | Reads devices and their network DTOs: interfaces, nodes, subnets, and IO systems where present. Optional `deviceName` filter, optional `plcName` tag-matching selector, and opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`) — see "Structured I/O map" below. |
 | `network_read` | `search_equipment_catalog` | Searches the hardware catalog for a device type before creation (`query`, optional `maxResults`). |
 | `network_read` | `list_network_objects` | Pages deterministic summaries for one or more `objectKinds`; accepts optional device-scoped filtering, `pageSize` 1-200, and an opaque continuation `cursor`. Complete identities include a selector that can be copied into inspection. |
 | `network_read` | `inspect_network_object` | Resolves one exact `target`, verifies its captured identity evidence, and returns modeled and generic attributes. Optional `attributeNames` is case-sensitive, duplicate-free, and limited to 200 names. |
@@ -107,6 +107,114 @@ ordered `attributes` array, and non-fatal `messages`. Every attribute independen
 An unknown or failed attribute does not fail the inspection and does not suppress later
 attributes. Successfully read CLR null is represented by a value with `kind:"null"`; an arbitrary
 CLR object is `unrepresentable` and is never published through `ToString()`.
+
+## Structured I/O map
+
+`read_hardware_config` can return a read-only, opt-in structured I/O map alongside the existing
+hardware tree. The legacy per-item `address` string is untouched; the structured map lives under a
+new `ioDetails` member that is **absent from a default read** (no flags), so every existing caller
+and every safety-token state hash sees byte-identical output.
+
+### Request
+
+```jsonc
+{
+  "operations": [
+    {
+      "operationId": "io-map",
+      "operation": "read_hardware_config",
+      "projectPath": "C:\\Sandbox\\Line.ap21",
+      "deviceName": "ET 200SP station_1",   // optional: ordinal-ignore-case, exactly one match
+      "plcName": "PLC_1",                   // optional: exact ordinal PLC name for tag matching
+      "includeIoDetails": true,             // required for any I/O map output
+      "includeTagMatches": true             // optional; requires includeIoDetails
+    }
+  ]
+}
+```
+
+- `deviceName` narrows to exactly one device. Zero or multiple matches report a non-fatal
+  `messages` entry and return no devices — never a first-match fallback.
+- `plcName` selects the PLC whose tag tables are matched, by exact ordinal name (PLC software name
+  or owning device name). When omitted, tag matching uses a PLC only when exactly one PLC exists in
+  the project; otherwise a non-fatal `messages` entry reports that no tag matches were produced.
+- `includeTagMatches` without `includeIoDetails` is rejected by request validation.
+
+### Response shape
+
+A device item with I/O details carries:
+
+```jsonc
+{
+  "name": "DI_16",
+  "typeIdentifier": "OrderNumber:TEST",
+  "address": "0..1",              // legacy string, unchanged
+  "ioDetails": {
+    "addresses": [
+      {
+        "ioType": "Input",        // AddressIoType: Input, Output, Substitute, Diagnosis
+        "startAddress": 4,        // raw Openness start, BYTES
+        "length": 2,              // raw Openness length, BYTES
+        "context": "Device",      // dynamic AddressContext where readable; null otherwise
+        "controllerNames": ["PLC_1"]  // ordinal, deduplicated owning device names
+      }
+    ],
+    "channels": [
+      {
+        "number": 0,
+        "ioType": "Input",        // ChannelIoType: Input, Output, Complex
+        "type": "Digital",        // ChannelType: Analog, Digital, Technology
+        "channelAddressBits": 32, // raw Openness start, BITS
+        "channelWidthBits": 1,    // raw Openness width, BITS
+        "logicalAddress": "%I4.0",// formatted ONLY when evidence is aligned; null otherwise
+        "tagMatches": [
+          {
+            "name": "StartButton",
+            "dataType": "Bool",
+            "logicalAddress": "%I4.0",
+            "tableName": "Tag table_1",
+            "folderPath": "/"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Unit and formatting semantics
+
+- `startAddress`/`length` on an address are **bytes** as reported by Openness.
+  `channelAddressBits`/`channelWidthBits` on a channel are **absolute bits** as reported by
+  Openness. The two unit families are never mixed or converted silently.
+- `logicalAddress` is formatted only when the channel's I/O type, bit start, and width are all
+  present and correctly aligned: width 1 → `%I4.0`/`%Q4.0` (any bit), width 8 → `%IB4`/`%QB4`
+  (byte boundary), width 16 → `%IW64`/`%QW64` (even byte), width 32 → `%ID64`/`%QD64`
+  (byte divisible by four). Any other combination leaves `logicalAddress` null while
+  `channelAddressBits`/`channelWidthBits` stay raw and untouched. `%M` memory, DB, and
+  symbolic-only addresses are never emitted.
+- Unreadable scalars stay null (never `0`/empty-string defaults); unreadable members add a
+  non-fatal `messages` entry. The payload contract additionally rejects an explicit null
+  collection inside `ioDetails` as `protocol_error` without echoing the payload.
+
+### Conservative tag matching
+
+- The tag index is built **once** per selected PLC from its tag tables (folder path preserved).
+- A tag matches a channel only when its normalized absolute I/O interval **exactly equals** the
+  channel's interval **and** the I/O areas agree (`I` vs `Q`). There is no overlap, containment, or
+  first-match fallback; several tags may match one channel (they all name the same interval).
+- The channel must belong to the selected PLC's controller per Openness association evidence
+  (`Address.AddressControllers` → owning device name). Tags are never matched across controllers.
+  If the controller association is unreadable or ambiguous, the channel keeps its evidence with an
+  empty `tagMatches` array and a clear non-fatal `messages` entry.
+- `%M`/DB/symbolic-only tags are skipped; harmless casing and surrounding whitespace in tag
+  addresses are normalized.
+
+### Payload size
+
+Detailed I/O output can be large. When a `read_hardware_config` result is omitted or truncated,
+the response guidance recommends narrowing with `deviceName`, disabling `includeIoDetails`/
+`includeTagMatches` where possible, or re-running the operation in its own `network_read` call.
 
 ## The single-layer JSON contract
 
@@ -275,7 +383,7 @@ Every network operation decodes its worker payload against exactly one declared 
 
 | Operation | Result type | Notable shape |
 |---|---|---|
-| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), and a payload-level `messages[]` for unreadable members. |
+| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), a payload-level `messages[]` for unreadable members, and — only when requested — `items[].ioDetails` (addresses, channels, tag matches). |
 | `search_equipment_catalog` | `CatalogEntryInfo[]` | `typeName`, `typeIdentifier`, optional `articleNumber`/`version`/`catalogPath`/`description`. |
 | `list_network_objects` | `NetworkObjectListInfo` | `items[]`, exact `totalCount`/`returnedCount`, and nullable `nextCursor`; each item preserves selector completeness and discovery diagnostics. |
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |
@@ -320,7 +428,10 @@ The current surface does not provide:
 - Node attributes beyond the device-configuration fields listed above.
 - PROFINET IO-system or DP master-system attribute editing.
 - Transfer-area creation or deletion.
-- Address objects, process-image settings, channels, or address-controller services.
+- Address-object, process-image, channel, or address-controller **writes**; the I/O map is a
+  read-only view (`ioDetails`), not an editing surface.
+- I/O-map reads beyond addresses and channels: diagnostics data, module-specific hardware
+  parameters, and hardware identifiers are not exposed.
 - IO connector timing, watchdog, RT class, sync role, send-clock, or isochronous settings.
 - S7, FDL, ISO, ISO-on-TCP, TCP, UDP, PTP, or HMI communication-connection management.
 - Online connection path selection, accessible-device discovery, gateways, or `ApplyConfiguration`.
@@ -349,6 +460,12 @@ warning remains visible and is not treated as selector or payload drift.
 The Phase 2 read/write harness remains at `scripts/live-test-network-phase2.ps1`. Its `Read`,
 `Preview`, and `Apply` modes require a disposable or backed-up project and separate authorization;
 the Phase 3 read-only authorization does not authorize any Phase 2 write mode.
+
+`scripts/live-test-network-io-map.ps1` is the separately authorized, read-only harness for the
+structured I/O map. It drives `network_read` (`read_hardware_config`) with the I/O-map options
+through the real MCP protocol and contains no write path and no confirming call site; it is never
+run by automated tests (`TiaMcpServer.Tests/NetworkIoMapLiveHarnessContractTests.cs` proves that
+statically).
 
 `scripts/live-test-network-phase4-subnets.ps1` is the separately authorized harness for the Phase 4
 subnet lifecycle operations. Its default `Inventory` mode is read-only; `Preview` constructs the
