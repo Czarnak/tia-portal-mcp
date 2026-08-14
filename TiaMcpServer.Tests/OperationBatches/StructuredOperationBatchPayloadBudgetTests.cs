@@ -357,9 +357,10 @@ public class StructuredOperationBatchPayloadBudgetTests
 
         var hardware = bounded.Operations[0].Omission!.Guidance;
         var catalog = bounded.Operations[1].Omission!.Guidance;
-        Assert.Contains("list_network_objects", hardware, StringComparison.Ordinal);
-        Assert.Contains("objectKinds", hardware, StringComparison.Ordinal);
         Assert.Contains("deviceName", hardware, StringComparison.Ordinal);
+        Assert.Contains("includeIoDetails", hardware, StringComparison.Ordinal);
+        Assert.Contains("includeTagMatches", hardware, StringComparison.Ordinal);
+        Assert.Contains("split the batch", hardware, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("network_read", hardware, StringComparison.Ordinal);
         Assert.Contains("query", catalog, StringComparison.Ordinal);
         Assert.Contains("maxResults", catalog, StringComparison.Ordinal);
@@ -408,7 +409,7 @@ public class StructuredOperationBatchPayloadBudgetTests
         var omission = Assert.Single(bounded.Operations, item => item.Status == OperationBatchStatus.Omitted).Omission!;
         Assert.Equal(StructuredOperationBatchPayloadBudget.DocumentLimitReason, omission.Reason);
         Assert.Equal("network_read", omission.RetryTool);
-        Assert.Contains("list_network_objects", omission.Guidance, StringComparison.Ordinal);
+        Assert.Contains("deviceName", omission.Guidance, StringComparison.Ordinal);
     }
 
     private static StructuredOperationBatch NetworkReadBatchWithDocumentChars(int target)

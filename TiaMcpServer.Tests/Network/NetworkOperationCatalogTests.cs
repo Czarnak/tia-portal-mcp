@@ -39,7 +39,7 @@ public class NetworkOperationCatalogTests
     {
         var expected = new Dictionary<string, (NetworkOperationCategory Category, string[] Required, string[] Optional)>
         {
-            ["read_hardware_config"] = (NetworkOperationCategory.Read, Array.Empty<string>(), Array.Empty<string>()),
+            ["read_hardware_config"] = (NetworkOperationCategory.Read, Array.Empty<string>(), new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches" }),
             ["search_equipment_catalog"] = (NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             ["add_network_device"] = (NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
             ["configure_network_device"] = (NetworkOperationCategory.Write, new[] { "target", "changes" }, Array.Empty<string>()),
