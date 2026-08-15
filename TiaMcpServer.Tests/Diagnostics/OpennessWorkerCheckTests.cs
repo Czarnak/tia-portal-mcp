@@ -12,7 +12,6 @@ public class OpennessWorkerCheckTests
         "TiaMcpServer.Contracts.dll",
         "Microsoft.Bcl.AsyncInterfaces.dll",
         "System.Buffers.dll",
-        "System.IO.Pipelines.dll",
         "System.Memory.dll",
         "System.Numerics.Vectors.dll",
         "System.Runtime.CompilerServices.Unsafe.dll",
@@ -111,27 +110,14 @@ public class OpennessWorkerCheckTests
     [Fact]
     public void RequiredCompanionFiles_CoverWorkerRuntimeAssets()
     {
-        var repositoryRoot = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", ".."));
-        var binRoot = Path.Combine(repositoryRoot, "TiaMcpServer.OpennessWorker", "bin");
-
         // NuGet's project.assets.json restore-graph shape (bare TFM vs.
         // RID-qualified targets, or something else entirely) varies across SDK
         // versions and OS, so it isn't a stable source of truth here. The build
         // output directory is: it's the exact set of files CopyOpennessWorker
         // copies into openness-worker/, so compare against that instead.
-        var outputDir = Directory.Exists(binRoot)
-            ? Directory.EnumerateDirectories(binRoot)
-                .Select(configDir => Path.Combine(configDir, "net48"))
-                .FirstOrDefault(dir => File.Exists(Path.Combine(dir, "TiaMcpServer.OpennessWorker.exe")))
-            : null;
+        var outputDir = FindBuiltWorkerOutput();
 
-        Assert.False(
-            string.IsNullOrEmpty(outputDir),
-            $"No built net48 output found under {binRoot}. Build TiaMcpServer.OpennessWorker before running this test.");
-
-        var builtDlls = Directory.EnumerateFiles(outputDir!, "*.dll", SearchOption.TopDirectoryOnly)
+        var builtDlls = Directory.EnumerateFiles(outputDir, "*.dll", SearchOption.TopDirectoryOnly)
             .Select(Path.GetFileName)
             .Where(name => !name!.StartsWith("Siemens.Engineering", StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -150,6 +136,46 @@ public class OpennessWorkerCheckTests
         Assert.DoesNotContain(
             OpennessWorkerCheck.RequiredCompanionFiles,
             file => file.EndsWith("runtimeconfig.json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void BuiltWorkerOutput_PassesDoctorCompanionCheck()
+    {
+        var outputDir = FindBuiltWorkerOutput();
+
+        var baseDir = Path.Combine(Path.GetTempPath(), "doctor-test-" + Guid.NewGuid().ToString("N"));
+        var workerDir = Path.Combine(baseDir, "openness-worker");
+        var appInfo = new FakeApplicationInfoService { BaseDirectory = baseDir };
+        var fileSystem = new FakeFileSystemService();
+
+        foreach (var builtFile in Directory.EnumerateFiles(outputDir, "*", SearchOption.TopDirectoryOnly))
+        {
+            fileSystem.AddFile(Path.Combine(workerDir, Path.GetFileName(builtFile)));
+        }
+
+        var result = new OpennessWorkerCheck(appInfo, fileSystem).Run();
+
+        Assert.Equal(DiagnosticStatus.Passed, result.Status);
+    }
+
+    private static string FindBuiltWorkerOutput()
+    {
+        var repositoryRoot = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", ".."));
+        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
+        Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
+
+        var outputDir = Path.Combine(
+            repositoryRoot,
+            "TiaMcpServer.OpennessWorker",
+            "bin",
+            configuration!,
+            "net48");
+        Assert.True(
+            File.Exists(Path.Combine(outputDir, "TiaMcpServer.OpennessWorker.exe")),
+            $"No built net48 output found under {outputDir}. Build TiaMcpServer.OpennessWorker before running this test.");
+        return outputDir;
     }
 
     [Fact]
