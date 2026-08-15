@@ -50,14 +50,20 @@ $requiredFiles = @(
     'TiaMcpServer.Contracts.dll',
     'Microsoft.Bcl.AsyncInterfaces.dll',
     'System.Buffers.dll',
-    'System.IO.Pipelines.dll',
     'System.Memory.dll',
     'System.Numerics.Vectors.dll',
     'System.Runtime.CompilerServices.Unsafe.dll',
     'System.Text.Encodings.Web.dll',
     'System.Text.Json.dll',
-    'System.Threading.Tasks.Extensions.dll'
+    'System.Threading.Tasks.Extensions.dll',
+    'System.ValueTuple.dll'
 )
+
+$requiredFileNames = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase)
+foreach ($requiredFile in $requiredFiles) {
+    [void] $requiredFileNames.Add($requiredFile)
+}
 
 foreach ($requiredFile in $requiredFiles) {
     $expectedEntry = $canonicalPrefix + $requiredFile
@@ -81,6 +87,18 @@ $siemensAssemblies = @($entries | Where-Object {
 })
 if ($siemensAssemblies.Count -gt 0) {
     throw "NuGet package must not include Siemens Openness assemblies: $($siemensAssemblies -join ', ')."
+}
+
+$unexpectedWorkerAssemblies = @($canonicalEntries | Where-Object {
+    if (-not $_.EndsWith('.dll', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+
+    $fileName = [System.IO.Path]::GetFileName($_)
+    return -not $requiredFileNames.Contains($fileName)
+})
+if ($unexpectedWorkerAssemblies.Count -gt 0) {
+    throw "NuGet package contains unexpected worker assemblies: $($unexpectedWorkerAssemblies -join ', ')."
 }
 
 Write-Host "Verified ${resolvedPackage}: one canonical worker subtree, $($requiredFiles.Count) required files, no worker runtimeconfig, no Siemens DLLs."
