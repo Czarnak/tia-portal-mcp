@@ -213,7 +213,11 @@ while ((line = Console.In.ReadLine()) is not null)
             // shared Contracts DTOs so a contract change here is a compile error, never a silently
             // stale hand-written literal.
             Respond(ReadMethod(line) == "read_hardware_config"
-                ? Success(ToCamelCaseJson(IoMapHardwareConfig(ReadBoolField(line, "includeIoDetails") == true)))
+                ? Success(ToCamelCaseJson(IoMapHardwareConfig(
+                    ReadBoolField(line, "includeIoDetails") == true,
+                    ReadBoolField(line, "includeTagMatches") == true,
+                    ReadField(line, "deviceName"),
+                    ReadField(line, "plcName"))))
                 : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
             break;
 
@@ -1409,25 +1413,42 @@ bool? ReadBoolField(string requestLine, string propertyName)
 // Builds the "network-io-map" hardware fixture. ioDetails is attached only when the read opted
 // in; otherwise the DeviceItemInfo.IoDetails JsonIgnore attribute omits the member entirely, so
 // a default read is byte-identical to the pre-I/O-map shape.
-HardwareConfigInfo IoMapHardwareConfig(bool includeIoDetails) => new()
+HardwareConfigInfo IoMapHardwareConfig(
+    bool includeIoDetails,
+    bool includeTagMatches,
+    string? deviceName,
+    string? plcName)
 {
-    Devices = new List<DeviceInfo>
-    {
-        new()
-        {
-            Name = "PLC_1",
-            TypeIdentifier = "OrderNumber:TEST",
-            Items = new List<DeviceItemInfo>
-            {
-                IoMapDeviceItem("DI_16", includeIoDetails),
-            },
-        },
-    },
-    Subnets = new List<SubnetInfo>(),
-    Messages = new List<string>(),
-};
+    var selectedDevice = deviceName is null
+        || string.Equals("PLC_1", deviceName, StringComparison.OrdinalIgnoreCase);
+    var selectedPlc = !includeTagMatches
+        || plcName is null
+        || string.Equals("PLC_1", plcName, StringComparison.Ordinal);
 
-DeviceItemInfo IoMapDeviceItem(string itemName, bool includeIoDetails)
+    return new HardwareConfigInfo
+    {
+        Devices = selectedDevice
+            ? new List<DeviceInfo>
+            {
+                new()
+                {
+                    Name = "PLC_1",
+                    TypeIdentifier = "OrderNumber:TEST",
+                    Items = new List<DeviceItemInfo>
+                    {
+                        IoMapDeviceItem("DI_16", includeIoDetails, includeTagMatches && selectedPlc),
+                    },
+                },
+            }
+            : new List<DeviceInfo>(),
+        Subnets = new List<SubnetInfo>(),
+        Messages = includeTagMatches && !selectedPlc
+            ? new List<string> { $"No PLC named '{plcName}' was found; no tag matches are reported." }
+            : new List<string>(),
+    };
+}
+
+DeviceItemInfo IoMapDeviceItem(string itemName, bool includeIoDetails, bool includeTagMatches)
 {
     var item = SelectableDeviceItem(
         "PLC_1", 0, itemName, "OrderNumber:TEST", 1, "PROFINET interface_1");
@@ -1479,13 +1500,15 @@ DeviceItemInfo IoMapDeviceItem(string itemName, bool includeIoDetails)
                 ChannelAddressBits = 32,
                 ChannelWidthBits = 1,
                 LogicalAddress = "%I4.0",
-                TagMatches = new List<IoTagMatchInfo>
-                {
-                    // Ordinal order (table, folder, name): mirrors the real worker's sort so the
-                    // fixture and production agree on deterministic output.
-                    new() { Name = "RunPermit", DataType = "Bool", LogicalAddress = "%I4.0", TableName = "Tag table_1", FolderPath = "/" },
-                    new() { Name = "StartButton", DataType = "Bool", LogicalAddress = "%I4.0", TableName = "Tag table_1", FolderPath = "/" },
-                },
+                TagMatches = includeTagMatches
+                    ? new List<IoTagMatchInfo>
+                    {
+                        // Ordinal order (table, folder, name): mirrors the real worker's sort so the
+                        // fixture and production agree on deterministic output.
+                        new() { Name = "RunPermit", DataType = "Bool", LogicalAddress = "%I4.0", TableName = "Tag table_1", FolderPath = "/" },
+                        new() { Name = "StartButton", DataType = "Bool", LogicalAddress = "%I4.0", TableName = "Tag table_1", FolderPath = "/" },
+                    }
+                    : new List<IoTagMatchInfo>(),
             },
             new()
             {
@@ -1495,10 +1518,12 @@ DeviceItemInfo IoMapDeviceItem(string itemName, bool includeIoDetails)
                 ChannelAddressBits = 512,
                 ChannelWidthBits = 16,
                 LogicalAddress = "%IW64",
-                TagMatches = new List<IoTagMatchInfo>
-                {
-                    new() { Name = "AnalogIn", DataType = "Int", LogicalAddress = "%IW64", TableName = "Tag table_1", FolderPath = "/" },
-                },
+                TagMatches = includeTagMatches
+                    ? new List<IoTagMatchInfo>
+                    {
+                        new() { Name = "AnalogIn", DataType = "Int", LogicalAddress = "%IW64", TableName = "Tag table_1", FolderPath = "/" },
+                    }
+                    : new List<IoTagMatchInfo>(),
             },
         },
     };

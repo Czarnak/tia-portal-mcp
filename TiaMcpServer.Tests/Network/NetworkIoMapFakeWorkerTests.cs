@@ -115,6 +115,79 @@ public class NetworkIoMapFakeWorkerTests
     }
 
     [Fact]
+    public async Task NetworkRead_IncludeIoDetailsWithoutTagMatchesReturnsEmptyTagMatchCollections()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[] { ReadHardware("no-tag-matches", Scenario, includeIoDetails: true, includeTagMatches: false) });
+
+        Assert.False(result.IsError);
+        var channels = AssertOneCanonicalDocument(result)
+            .GetProperty("batch")
+            .GetProperty("operations")[0]
+            .GetProperty("result")
+            .GetProperty("devices")[0]
+            .GetProperty("items")[0]
+            .GetProperty("ioDetails")
+            .GetProperty("channels");
+
+        Assert.All(
+            channels.EnumerateArray(),
+            channel => Assert.Empty(channel.GetProperty("tagMatches").EnumerateArray()));
+    }
+
+    [Fact]
+    public async Task NetworkRead_DeviceNameFilterExcludesTheNonMatchingFixtureDevice()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[] { ReadHardware("other-device", Scenario, deviceName: "OTHER_PLC") });
+
+        Assert.False(result.IsError);
+        var operation = AssertOneCanonicalDocument(result)
+            .GetProperty("batch")
+            .GetProperty("operations")[0];
+
+        Assert.Equal("succeeded", operation.GetProperty("status").GetString());
+        Assert.Empty(operation.GetProperty("result").GetProperty("devices").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task NetworkRead_PlcNameMismatchSuppressesTagMatches()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[]
+            {
+                ReadHardware("plc-name-mismatch", Scenario, includeIoDetails: true, includeTagMatches: true, plcName: "plc_1"),
+            });
+
+        Assert.False(result.IsError);
+        var resultElement = AssertOneCanonicalDocument(result)
+            .GetProperty("batch")
+            .GetProperty("operations")[0]
+            .GetProperty("result");
+        var channels = resultElement
+            .GetProperty("devices")[0]
+            .GetProperty("items")[0]
+            .GetProperty("ioDetails")
+            .GetProperty("channels");
+
+        Assert.All(
+            channels.EnumerateArray(),
+            channel => Assert.Empty(channel.GetProperty("tagMatches").EnumerateArray()));
+        Assert.Contains(
+            resultElement.GetProperty("messages").EnumerateArray().Select(message => message.GetString()),
+            message => message == "No PLC named 'plc_1' was found; no tag matches are reported.");
+    }
+
+    [Fact]
     public async Task NetworkRead_WithoutIncludeIoDetailsOmitsIoDetailsEntirely()
     {
         using var client = CreateClient();
