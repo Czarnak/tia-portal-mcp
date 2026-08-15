@@ -120,7 +120,7 @@ Add:
 
 ```csharp
 [Theory]
-[InlineData("Input", 2147483632, 8u)]
+[InlineData("Input", 2147483640, 8u)]
 [InlineData("Input", 2147483632, 16u)]
 [InlineData("Input", 2147483616, 32u)]
 public void FormatLogicalAddress_RejectsAlignedIntervalsTheParserCannotRepresent(

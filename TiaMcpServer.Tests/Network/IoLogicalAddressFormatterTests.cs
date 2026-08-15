@@ -224,6 +224,25 @@ public class IoLogicalAddressFormatterTests
     }
 
     [Theory]
+    [InlineData("Input", 2147483640, 8u)]
+    [InlineData("Input", 2147483632, 16u)]
+    [InlineData("Input", 2147483616, 32u)]
+    public void FormatLogicalAddress_RejectsAlignedIntervalsTheParserCannotRepresent(
+        string ioType,
+        int startBit,
+        uint widthBits)
+    {
+        Assert.Null(IoLogicalAddressFormatter.FormatLogicalAddress(ioType, startBit, widthBits));
+    }
+
+    [Fact]
+    public void EndBitExclusive_UsesNonOverflowingArithmeticAtTheMaximumParsedBit()
+    {
+        Assert.True(IoLogicalAddressFormatter.TryParse("%I268435455.7", out var address));
+        Assert.Equal(2147483648L, address!.Value.Interval.EndBitExclusive);
+    }
+
+    [Theory]
     [InlineData(null, 32, 1u)]
     [InlineData("Complex", 32, 1u)]
     [InlineData("Input", null, 1u)]

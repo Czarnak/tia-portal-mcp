@@ -11,7 +11,7 @@ namespace TiaMcpServer.Contracts;
 /// </summary>
 public readonly record struct IoAbsoluteBitInterval(int StartBit, uint BitCount)
 {
-    public int EndBitExclusive => StartBit + (int)BitCount;
+    public long EndBitExclusive => (long)StartBit + BitCount;
 }
 
 /// <summary>
@@ -196,18 +196,20 @@ public static class IoLogicalAddressFormatter
         var byteNumber = startBit.Value / 8;
         var bitNumber = startBit.Value % 8;
 
-        switch (widthBits.Value)
+        var candidate = widthBits.Value switch
         {
-            case 1:
-                return $"%{area}{byteNumber}.{bitNumber}";
-            case 8:
-                return bitNumber == 0 ? $"%{area}B{byteNumber}" : null;
-            case 16:
-                return bitNumber == 0 && byteNumber % 2 == 0 ? $"%{area}W{byteNumber}" : null;
-            case 32:
-                return bitNumber == 0 && byteNumber % 4 == 0 ? $"%{area}D{byteNumber}" : null;
-            default:
-                return null;
-        }
+            1 => $"%{area}{byteNumber}.{bitNumber}",
+            8 => bitNumber == 0 ? $"%{area}B{byteNumber}" : null,
+            16 => bitNumber == 0 && byteNumber % 2 == 0 ? $"%{area}W{byteNumber}" : null,
+            32 => bitNumber == 0 && byteNumber % 4 == 0 ? $"%{area}D{byteNumber}" : null,
+            _ => null,
+        };
+
+        var expected = new IoAbsoluteIoAddress(
+            area,
+            new IoAbsoluteBitInterval(startBit.Value, widthBits.Value));
+        return candidate is not null && TryParse(candidate, out var parsed) && parsed == expected
+            ? candidate
+            : null;
     }
 }
