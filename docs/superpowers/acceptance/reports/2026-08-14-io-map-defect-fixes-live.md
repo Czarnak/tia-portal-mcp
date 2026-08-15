@@ -37,8 +37,10 @@ against Project20.ap21 exposed two genuine defects, which this delivery fixes:
 - `dotnet test TiaMcpServer.Tests` → 2187 passed, 0 failed, 0 skipped.
 - Live harness:
   `pwsh -File scripts/live-test-network-io-map.ps1 -ProjectPath <Project20.ap21> -IncludeIoDetails -IncludeTagMatches -PlcName PLC_1`
-  → **succeeded**, read 1 device, 12 channels. Raw evidence:
-  `docs/superpowers/acceptance/evidence/2026-08-14-io-map-defect-fixes-live.json`.
+  → **reported as succeeded**, reading 1 device and 12 channels. The referenced raw JSON artifact,
+  `docs/superpowers/acceptance/evidence/2026-08-14-io-map-defect-fixes-live.json`, is absent from
+  this branch. The table below is a human-readable historical summary, not repository-auditable
+  raw evidence.
 
 ## Live results observed
 
@@ -65,5 +67,7 @@ against Project20.ap21 exposed two genuine defects, which this delivery fixes:
 
 ## Overall verdict
 
-**PASS.** Both live defects are resolved, regression tests pass, and the live harness output is
-recorded as evidence in this commit.
+**Historical run reported as passing; not repository-auditable.** The report records that both
+live defects were observed as resolved and that regression tests passed, but the raw live-harness
+artifact is not present in this branch. A fresh, separately authorized live rerun is required if
+merge acceptance depends on repository-auditable live proof.
