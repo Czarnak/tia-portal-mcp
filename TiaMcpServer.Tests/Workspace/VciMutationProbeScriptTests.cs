@@ -200,6 +200,24 @@ public sealed class VciMutationProbeScriptTests
     }
 
     [Fact]
+    public void Inventory_ReportsCompactDiagnosticWhenWorkerResultIsUnusable()
+    {
+        using var fixture = new HarnessFixture();
+
+        var result = fixture.Run("Inventory", behavior: "inventory_not_observable");
+
+        AssertFailureContains(result, "inventory_result_not_usable:");
+        AssertFailureContains(result, "\"caseInstanceId\":\"inventory-1\"");
+        AssertFailureContains(result, "\"outcome\":\"not_observable\"");
+        AssertFailureContains(result, "\"notObservableReason\":\"required_fixture_state_not_available\"");
+        AssertFailureContains(result, "\"exceptionTypeName\":\"System.InvalidOperationException\"");
+        AssertFailureContains(result, "\"preconditionFailures\":[\"fixture_ready\"]");
+        AssertFailureContains(result, "\"omissionCount\":1");
+        Assert.False(Directory.Exists(fixture.EvidenceRoot));
+        Assert.False(Directory.Exists(fixture.WorkspaceRoot));
+    }
+
+    [Fact]
     public void Inventory_InvokesOnlyInventoryOncePerDisposableCopyAndWritesHashedPlan()
     {
         using var fixture = new HarnessFixture();
