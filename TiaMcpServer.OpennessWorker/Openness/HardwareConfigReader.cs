@@ -30,7 +30,7 @@ public static class HardwareConfigReader
         IoTagIndex? tagIndex = null;
         if (includeTagMatches)
         {
-            tagIndex = HardwareTagIndexResolver.Resolve(project, plcName, result.Messages);
+            tagIndex = ResolveTagIndex(project, plcName, result.Messages);
         }
 
         var selectedDevices = SelectDevices(project, deviceName, result.Messages);
@@ -69,6 +69,19 @@ public static class HardwareConfigReader
             .ToList();
 
         return result;
+    }
+
+    private static IoTagIndex? ResolveTagIndex(Project project, string? plcName, List<string> messages)
+    {
+        try
+        {
+            return HardwareTagIndexResolver.Resolve(project, plcName, messages);
+        }
+        catch (EngineeringException exception)
+        {
+            messages.Add($"Could not build the PLC tag index: {exception.Message}; no tag matches are reported.");
+            return null;
+        }
     }
 
     /// <summary>

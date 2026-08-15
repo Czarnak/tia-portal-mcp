@@ -47,44 +47,52 @@ public static class HardwareIoMapReader
         DeviceItemIoDetailsInfo details,
         List<IoAddressRecord> addressRecords)
     {
-        foreach (Address address in item.Addresses)
+        try
         {
-            try
+            foreach (Address address in item.Addresses)
             {
-                var info = new IoAddressInfo
+                try
                 {
-                    IoType = ReadOptionalEnumName(
-                        () => address.IoType,
-                        $"device item '{itemDescription}' address I/O type",
-                        messages),
-                    StartAddress = ReadOptionalNonNegativeInt(
-                        () => address.StartAddress,
-                        $"device item '{itemDescription}' address start address",
-                        messages),
-                    Length = ReadOptionalNonNegativeInt(
-                        () => address.Length,
-                        $"device item '{itemDescription}' address length",
-                        messages),
-                    Context = ReadAddressContext(address, itemDescription, messages),
-                };
+                    var info = new IoAddressInfo
+                    {
+                        IoType = ReadOptionalEnumName(
+                            () => address.IoType,
+                            $"device item '{itemDescription}' address I/O type",
+                            messages),
+                        StartAddress = ReadOptionalNonNegativeInt(
+                            () => address.StartAddress,
+                            $"device item '{itemDescription}' address start address",
+                            messages),
+                        Length = ReadOptionalNonNegativeInt(
+                            () => address.Length,
+                            $"device item '{itemDescription}' address length",
+                            messages),
+                        Context = ReadAddressContext(address, itemDescription, messages),
+                    };
 
-                var record = new IoAddressRecord
+                    var record = new IoAddressRecord
+                    {
+                        IoType = info.IoType,
+                        StartAddress = info.StartAddress,
+                        Length = info.Length,
+                    };
+
+                    ReadAddressControllers(address, itemDescription, messages, info, record);
+
+                    details.Addresses.Add(info);
+                    addressRecords.Add(record);
+                }
+                catch (EngineeringException exception)
                 {
-                    IoType = info.IoType,
-                    StartAddress = info.StartAddress,
-                    Length = info.Length,
-                };
-
-                ReadAddressControllers(address, itemDescription, messages, info, record);
-
-                details.Addresses.Add(info);
-                addressRecords.Add(record);
+                    messages.Add(
+                        $"Skipped an address while reading device item '{itemDescription}': {exception.Message}");
+                }
             }
-            catch (EngineeringException exception)
-            {
-                messages.Add(
-                    $"Skipped an address while reading device item '{itemDescription}': {exception.Message}");
-            }
+        }
+        catch (EngineeringException exception)
+        {
+            messages.Add(
+                $"Could not enumerate addresses while reading device item '{itemDescription}': {exception.Message}");
         }
     }
 
@@ -135,54 +143,62 @@ public static class HardwareIoMapReader
         IReadOnlyList<IoAddressRecord> addressRecords,
         DeviceItemIoDetailsInfo details)
     {
-        foreach (Channel channel in item.Channels)
+        try
         {
-            try
+            foreach (Channel channel in item.Channels)
             {
-                var channelInfo = new IoChannelInfo
+                try
                 {
-                    Number = ReadOptionalInt(
-                        () => channel.Number,
-                        $"device item '{itemDescription}' channel number",
-                        messages),
-                    IoType = ReadOptionalEnumName(
-                        () => channel.IoType,
-                        $"device item '{itemDescription}' channel I/O type",
-                        messages),
-                    Type = ReadOptionalEnumName(
-                        () => channel.Type,
-                        $"device item '{itemDescription}' channel type",
-                        messages),
-                    ChannelAddressBits = ReadDynamicIntAttribute(
-                        (IEngineeringObject)channel,
-                        "ChannelAddress",
-                        $"device item '{itemDescription}' channel address",
-                        messages),
-                    ChannelWidthBits = ReadDynamicUIntAttribute(
-                        (IEngineeringObject)channel,
-                        "ChannelWidth",
-                        $"device item '{itemDescription}' channel width",
-                        messages),
-                };
-                channelInfo.LogicalAddress = IoLogicalAddressFormatter.FormatLogicalAddress(
-                    channelInfo.IoType,
-                    channelInfo.ChannelAddressBits,
-                    channelInfo.ChannelWidthBits);
+                    var channelInfo = new IoChannelInfo
+                    {
+                        Number = ReadOptionalInt(
+                            () => channel.Number,
+                            $"device item '{itemDescription}' channel number",
+                            messages),
+                        IoType = ReadOptionalEnumName(
+                            () => channel.IoType,
+                            $"device item '{itemDescription}' channel I/O type",
+                            messages),
+                        Type = ReadOptionalEnumName(
+                            () => channel.Type,
+                            $"device item '{itemDescription}' channel type",
+                            messages),
+                        ChannelAddressBits = ReadDynamicIntAttribute(
+                            (IEngineeringObject)channel,
+                            "ChannelAddress",
+                            $"device item '{itemDescription}' channel address",
+                            messages),
+                        ChannelWidthBits = ReadDynamicUIntAttribute(
+                            (IEngineeringObject)channel,
+                            "ChannelWidth",
+                            $"device item '{itemDescription}' channel width",
+                            messages),
+                    };
+                    channelInfo.LogicalAddress = IoLogicalAddressFormatter.FormatLogicalAddress(
+                        channelInfo.IoType,
+                        channelInfo.ChannelAddressBits,
+                        channelInfo.ChannelWidthBits);
 
-                channelInfo.TagMatches = ReadChannelTagMatches(
-                    channelInfo,
-                    addressRecords,
-                    tagIndex,
-                    itemDescription,
-                    messages);
+                    channelInfo.TagMatches = ReadChannelTagMatches(
+                        channelInfo,
+                        addressRecords,
+                        tagIndex,
+                        itemDescription,
+                        messages);
 
-                details.Channels.Add(channelInfo);
+                    details.Channels.Add(channelInfo);
+                }
+                catch (EngineeringException exception)
+                {
+                    messages.Add(
+                        $"Skipped a channel while reading device item '{itemDescription}': {exception.Message}");
+                }
             }
-            catch (EngineeringException exception)
-            {
-                messages.Add(
-                    $"Skipped a channel while reading device item '{itemDescription}': {exception.Message}");
-            }
+        }
+        catch (EngineeringException exception)
+        {
+            messages.Add(
+                $"Could not enumerate channels while reading device item '{itemDescription}': {exception.Message}");
         }
     }
 

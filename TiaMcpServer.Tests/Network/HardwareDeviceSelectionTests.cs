@@ -82,7 +82,7 @@ public class HardwareDeviceSelectionTests
             "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
 
         Assert.Contains("HardwareIoMapReader.Read(item, itemDescription, messages, tagIndex)", source, StringComparison.Ordinal);
-        Assert.Contains("HardwareTagIndexResolver.Resolve(project, plcName, result.Messages)", source, StringComparison.Ordinal);
+        Assert.Contains("return HardwareTagIndexResolver.Resolve(project, plcName, messages);", source, StringComparison.Ordinal);
 
         // HardwareConfigReader does not contain oversized internal TagIndex or ReadIoDetails
         Assert.DoesNotContain("private static DeviceItemIoDetailsInfo ReadIoDetails", source, StringComparison.Ordinal);
@@ -106,6 +106,30 @@ public class HardwareDeviceSelectionTests
 
         Assert.InRange(ioMapLines, 1, 800);
         Assert.InRange(tagIndexLines, 1, 800);
+    }
+
+    [Fact]
+    public void HardwareConfigReader_TagIndexFailureIsNonFatalOptionalEnrichment()
+    {
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+
+        Assert.Contains("private static IoTagIndex? ResolveTagIndex(", source, StringComparison.Ordinal);
+        Assert.Contains("catch (EngineeringException exception)", source, StringComparison.Ordinal);
+        Assert.Contains("no tag matches are reported", source, StringComparison.Ordinal);
+        Assert.Contains("tagIndex = ResolveTagIndex(project, plcName, result.Messages);", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HardwareIoMapReader_EnumerationFailuresStayInsideOptionalIoDetails()
+    {
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs");
+
+        Assert.Contains("try\n        {\n            foreach (Address address in item.Addresses)", source, StringComparison.Ordinal);
+        Assert.Contains("Could not enumerate addresses while reading device item", source, StringComparison.Ordinal);
+        Assert.Contains("try\n        {\n            foreach (Channel channel in item.Channels)", source, StringComparison.Ordinal);
+        Assert.Contains("Could not enumerate channels while reading device item", source, StringComparison.Ordinal);
     }
 
     [Fact]
