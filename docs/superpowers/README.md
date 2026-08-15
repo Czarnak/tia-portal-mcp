@@ -36,6 +36,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-15 | [PR #27 review fixes](plans/2026-08-15-pr27-review-fixes.md) |
 | 2026-08-06 | [Network Phase 4 — subnet lifecycle](plans/2026-08-06-network-phase4-subnet-lifecycle.md) |
 | 2026-08-04 | [Network Phase 3 — identity and introspection](plans/2026-08-04-network-operations-phase3-identity-introspection.md) |
 | 2026-08-02 | [Network Phase 2 — JSON contract](plans/2026-08-02-network-operations-phase2-json-contract.md) |
