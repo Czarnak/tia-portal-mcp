@@ -228,6 +228,28 @@ public class NetworkIoMapFakeWorkerTests
     }
 
     [Fact]
+    public async Task NetworkRead_DeviceNameFilterMatchesFixtureWithoutCaseSensitivity()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[]
+            {
+                ReadHardware("mixed-case-device", Scenario, deviceName: "plc_1"),
+            });
+
+        Assert.False(result.IsError);
+        var devices = AssertOneCanonicalDocument(result)
+            .GetProperty("batch")
+            .GetProperty("operations")[0]
+            .GetProperty("result")
+            .GetProperty("devices");
+        var device = Assert.Single(devices.EnumerateArray());
+        Assert.Equal("PLC_1", device.GetProperty("name").GetString());
+    }
+
+    [Fact]
     public async Task NetworkRead_MalformedIoDetailsPayloadBecomesProtocolErrorWithoutEchoingIt()
     {
         using var client = CreateClient();

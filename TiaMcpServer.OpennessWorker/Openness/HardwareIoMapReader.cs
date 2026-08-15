@@ -232,19 +232,22 @@ public static class HardwareIoMapReader
             return matches;
         }
 
-        foreach (var candidate in tagIndex.Candidates)
+        var channelArea = IoLogicalAddressFormatter.NormalizeArea(channelInfo.IoType);
+        if (channelArea is null
+            || channelInfo.ChannelAddressBits is null
+            || channelInfo.ChannelWidthBits is null
+            || channelInfo.ChannelAddressBits < 0)
         {
-            if (!IoLogicalAddressFormatter.TryParse(candidate.LogicalAddress, out var tagAddress)
-                || tagAddress is null
-                || !IoTagMatcher.MatchesChannel(
-                    tagAddress.Value,
-                    channelInfo.IoType,
-                    channelInfo.ChannelAddressBits,
-                    channelInfo.ChannelWidthBits))
-            {
-                continue;
-            }
+            return matches;
+        }
 
+        var channelAddress = new IoAbsoluteIoAddress(
+            channelArea,
+            new IoAbsoluteBitInterval(
+                channelInfo.ChannelAddressBits.Value,
+                channelInfo.ChannelWidthBits.Value));
+        foreach (var candidate in tagIndex.FindMatches(channelAddress))
+        {
             matches.Add(new IoTagMatchInfo
             {
                 Name = candidate.Name,
@@ -255,11 +258,7 @@ public static class HardwareIoMapReader
             });
         }
 
-        return matches
-            .OrderBy(match => match.TableName, StringComparer.Ordinal)
-            .ThenBy(match => match.FolderPath, StringComparer.Ordinal)
-            .ThenBy(match => match.Name, StringComparer.Ordinal)
-            .ToList();
+        return matches;
     }
 
     private static string? ReadAddressContext(
