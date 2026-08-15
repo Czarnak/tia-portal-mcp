@@ -48,7 +48,7 @@ public static class NetworkPayloadContract
         JsonElement result;
         try
         {
-            result = Decode(operation.Operation, workerResult.Payload);
+            result = Decode(operation, workerResult.Payload);
         }
         catch (JsonException exception)
         {
@@ -108,13 +108,13 @@ public static class NetworkPayloadContract
     /// </summary>
     public static HardwareConfigInfo DecodeHardwareConfig(string payload)
     {
-        ValidateRequiredHardwarePathMembers(payload);
-        return CanonicalJson.Normalize<HardwareConfigInfo>(payload, ValidateHardwareConfig).Value;
+        ValidateRequiredHardwarePathMembers(payload, includeIoDetails: null);
+        return CanonicalJson.Normalize<HardwareConfigInfo>(payload, cfg => ValidateHardwareConfig(cfg, includeIoDetails: null)).Value;
     }
 
-    private static JsonElement Decode(string operation, string payload) => operation switch
+    private static JsonElement Decode(NetworkOperationRequest operation, string payload) => operation.Operation switch
     {
-        "read_hardware_config" => DecodeHardwareConfigElement(payload),
+        "read_hardware_config" => DecodeHardwareConfigElement(payload, operation.IncludeIoDetails ?? false),
         "search_equipment_catalog" => Decode<CatalogEntryInfo[]>(payload, ValidateCatalogEntries),
         "add_network_device" => Decode<AddDeviceResultInfo>(payload, ValidateAddDeviceResult),
         "configure_network_device" =>
@@ -124,16 +124,16 @@ public static class NetworkPayloadContract
         "create_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
         "update_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
         "delete_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
-        _ => throw new JsonException($"No declared result contract for network operation '{operation}'."),
+        _ => throw new JsonException($"No declared result contract for network operation '{operation.Operation}'."),
     };
 
     private static JsonElement Decode<T>(string payload, Action<T> validate)
         => CanonicalJson.Normalize(payload, validate).Element;
 
-    private static JsonElement DecodeHardwareConfigElement(string payload)
+    private static JsonElement DecodeHardwareConfigElement(string payload, bool? includeIoDetails)
     {
-        ValidateRequiredHardwarePathMembers(payload);
-        return Decode<HardwareConfigInfo>(payload, ValidateHardwareConfig);
+        ValidateRequiredHardwarePathMembers(payload, includeIoDetails);
+        return Decode<HardwareConfigInfo>(payload, cfg => ValidateHardwareConfig(cfg, includeIoDetails));
     }
 
     private static JsonElement DecodeObjectList(string payload)
@@ -154,7 +154,7 @@ public static class NetworkPayloadContract
     // initialization already covers an ABSENT member. An EXPLICIT null does not go through the
     // initializer, so these validators are what keep a declared non-nullable member non-null.
 
-    private static void ValidateHardwareConfig(HardwareConfigInfo value)
+    private static void ValidateHardwareConfig(HardwareConfigInfo value, bool? includeIoDetails)
     {
         RequireNotNull(value.Devices, "devices");
         RequireNotNull(value.Subnets, "subnets");
@@ -166,7 +166,7 @@ public static class NetworkPayloadContract
             RequireNotNull(device.Items, "devices[].items");
             foreach (var item in device.Items)
             {
-                ValidateDeviceItem(item, "devices[].items[]");
+                ValidateDeviceItem(item, "devices[].items[]", includeIoDetails);
             }
         }
 
@@ -202,7 +202,7 @@ public static class NetworkPayloadContract
     /// A null element anywhere in that walk must fail the contract here rather than reach the
     /// resolver, which would otherwise dereference it.
     /// </summary>
-    private static void ValidateDeviceItem(DeviceItemInfo? item, string path)
+    private static void ValidateDeviceItem(DeviceItemInfo? item, string path, bool? includeIoDetails)
     {
         RequireNotNull(item, path);
         RequireNotNull(item!.NetworkInterfaces, $"{path}.networkInterfaces");
@@ -214,6 +214,26 @@ public static class NetworkPayloadContract
             item.SelectorDiagnostics,
             path,
             NetworkObjectKinds.DeviceItem);
+
+        if (includeIoDetails == true)
+        {
+            if (item.IoDetails is null)
+            {
+                throw new JsonException($"'{path}.ioDetails' is required when includeIoDetails is true.");
+            }
+        }
+        else if (includeIoDetails == false)
+        {
+            if (item.IoDetails is not null)
+            {
+                throw new JsonException($"'{path}.ioDetails' is unexpected when includeIoDetails is false or omitted.");
+            }
+        }
+
+        if (item.IoDetails is { } ioDetails)
+        {
+            ValidateIoDetails(ioDetails, $"{path}.ioDetails");
+        }
 
         foreach (var connection in item.CommunicationConnections)
         {
@@ -254,7 +274,59 @@ public static class NetworkPayloadContract
 
         foreach (var child in item.Items)
         {
-            ValidateDeviceItem(child, $"{path}.items[]");
+            ValidateDeviceItem(child, $"{path}.items[]", includeIoDetails);
+        }
+    }
+
+    /// <summary>
+    /// The I/O map is present only when a read requested <c>includeIoDetails</c>, and when present
+    /// its collections are declared non-null. An explicit null collection (which CLR
+    /// initialization cannot produce) must fail the contract here; every nested object is checked
+    /// so a null element cannot reach a consumer walking the tree.
+    /// </summary>
+    private static void ValidateIoDetails(DeviceItemIoDetailsInfo ioDetails, string path)
+    {
+        RequireNotNull(ioDetails.Addresses, $"{path}.addresses");
+        RequireNotNull(ioDetails.Channels, $"{path}.channels");
+
+        foreach (var address in ioDetails.Addresses)
+        {
+            RequireNotNull(address, $"{path}.addresses[]");
+            RequireNotNull(address!.ControllerNames, $"{path}.addresses[].controllerNames");
+            if (address.StartAddress < 0)
+            {
+                throw new JsonException($"'{path}.addresses[].startAddress' must not be negative.");
+            }
+
+            if (address.Length < 0)
+            {
+                throw new JsonException($"'{path}.addresses[].length' must not be negative.");
+            }
+        }
+
+        foreach (var channel in ioDetails.Channels)
+        {
+            RequireNotNull(channel, $"{path}.channels[]");
+            RequireNotNull(channel!.TagMatches, $"{path}.channels[].tagMatches");
+            if (channel.Number < 0)
+            {
+                throw new JsonException($"'{path}.channels[].number' must not be negative.");
+            }
+
+            if (channel.ChannelAddressBits < 0)
+            {
+                throw new JsonException($"'{path}.channels[].channelAddressBits' must not be negative.");
+            }
+
+            foreach (var tagMatch in channel.TagMatches)
+            {
+                RequireNotNull(tagMatch, $"{path}.channels[].tagMatches[]");
+                RequireNotNull(tagMatch!.Name, $"{path}.channels[].tagMatches[].name");
+                RequireNotNull(tagMatch.DataType, $"{path}.channels[].tagMatches[].dataType");
+                RequireNotNull(tagMatch.LogicalAddress, $"{path}.channels[].tagMatches[].logicalAddress");
+                RequireNotNull(tagMatch.TableName, $"{path}.channels[].tagMatches[].tableName");
+                RequireNotNull(tagMatch.FolderPath, $"{path}.channels[].tagMatches[].folderPath");
+            }
         }
     }
 
@@ -842,10 +914,155 @@ public static class NetworkPayloadContract
         }
     }
 
-    private static void ValidateRequiredHardwarePathMembers(string payload)
+    private static void ValidateRequiredHardwarePathMembers(string payload, bool? includeIoDetails)
     {
         using var document = JsonDocument.Parse(payload);
+        if (document.RootElement.ValueKind == JsonValueKind.Object
+            && document.RootElement.TryGetProperty("devices", out var devices)
+            && devices.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var device in devices.EnumerateArray())
+            {
+                if (device.ValueKind == JsonValueKind.Object
+                    && device.TryGetProperty("items", out var items)
+                    && items.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        ValidateDeviceItemJson(item, "read_hardware_config.devices[].items[]", includeIoDetails);
+                    }
+                }
+            }
+        }
+
         ValidateRequiredHardwarePathMembers(document.RootElement, "read_hardware_config");
+    }
+
+    private static void ValidateDeviceItemJson(JsonElement item, string path, bool? includeIoDetails)
+    {
+        if (item.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        if (includeIoDetails == true)
+        {
+            if (!item.TryGetProperty("ioDetails", out var ioDetails)
+                || ioDetails.ValueKind == JsonValueKind.Null
+                || ioDetails.ValueKind == JsonValueKind.Undefined)
+            {
+                throw new JsonException($"'{path}.ioDetails' is required when includeIoDetails is true.");
+            }
+        }
+        else if (includeIoDetails == false)
+        {
+            if (item.TryGetProperty("ioDetails", out var ioDetails)
+                && ioDetails.ValueKind != JsonValueKind.Undefined)
+            {
+                throw new JsonException($"'{path}.ioDetails' is unexpected when includeIoDetails is false or omitted.");
+            }
+        }
+
+        if (item.TryGetProperty("ioDetails", out var ioDetailsElement)
+            && ioDetailsElement.ValueKind != JsonValueKind.Undefined)
+        {
+            ValidateIoDetailsJson(ioDetailsElement, $"{path}.ioDetails");
+        }
+
+        if (item.TryGetProperty("items", out var childItems)
+            && childItems.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var child in childItems.EnumerateArray())
+            {
+                ValidateDeviceItemJson(child, $"{path}.items[]", includeIoDetails);
+            }
+        }
+    }
+
+    private static void ValidateIoDetailsJson(JsonElement ioDetails, string path)
+    {
+        if (ioDetails.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException($"'{path}' must be an object.");
+        }
+
+        RequireJsonMembers(ioDetails, path, "addresses", "channels");
+
+        var addresses = ioDetails.GetProperty("addresses");
+        if (addresses.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException($"'{path}.addresses' must be an array.");
+        }
+
+        foreach (var address in addresses.EnumerateArray())
+        {
+            if (address.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            RequireJsonMembers(address, $"{path}.addresses[]", "controllerNames");
+            var controllerNames = address.GetProperty("controllerNames");
+            if (controllerNames.ValueKind != JsonValueKind.Array)
+            {
+                throw new JsonException($"'{path}.addresses[].controllerNames' must be an array.");
+            }
+
+            foreach (var controllerName in controllerNames.EnumerateArray())
+            {
+                if (controllerName.ValueKind != JsonValueKind.String)
+                {
+                    throw new JsonException($"'{path}.addresses[].controllerNames[]' must be a string.");
+                }
+            }
+        }
+
+        var channels = ioDetails.GetProperty("channels");
+        if (channels.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException($"'{path}.channels' must be an array.");
+        }
+
+        foreach (var channel in channels.EnumerateArray())
+        {
+            if (channel.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            RequireJsonMembers(channel, $"{path}.channels[]", "tagMatches");
+            var tagMatches = channel.GetProperty("tagMatches");
+            if (tagMatches.ValueKind != JsonValueKind.Array)
+            {
+                throw new JsonException($"'{path}.channels[].tagMatches' must be an array.");
+            }
+
+            foreach (var tagMatch in tagMatches.EnumerateArray())
+            {
+                if (tagMatch.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                RequireJsonMembers(
+                    tagMatch,
+                    $"{path}.channels[].tagMatches[]",
+                    "name",
+                    "dataType",
+                    "logicalAddress",
+                    "tableName",
+                    "folderPath");
+
+                foreach (var member in new[] { "name", "dataType", "logicalAddress", "tableName", "folderPath" })
+                {
+                    var prop = tagMatch.GetProperty(member);
+                    if (prop.ValueKind != JsonValueKind.String)
+                    {
+                        throw new JsonException($"'{path}.channels[].tagMatches[].{member}' must be a string.");
+                    }
+                }
+            }
+        }
     }
 
     private static void ValidateRequiredHardwarePathMembers(JsonElement value, string prefix)

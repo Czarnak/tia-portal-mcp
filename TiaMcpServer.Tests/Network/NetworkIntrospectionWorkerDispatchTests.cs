@@ -168,6 +168,29 @@ public class NetworkIntrospectionWorkerDispatchTests
     }
 
     [Fact]
+    public void HardwareReader_NormalizesNegativeIoAddressesAndCoercesDynamic64BitChannelAttributes()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs"));
+
+        // Diagnosis-type addresses can report StartAddress = -1 (and Length = -1) on V21; the
+        // worker turns those into null plus a messages entry, never a negative payload member.
+        Assert.Contains("ReadOptionalNonNegativeInt", source, StringComparison.Ordinal);
+        Assert.Contains("() => address.StartAddress", source, StringComparison.Ordinal);
+        Assert.Contains("() => address.Length", source, StringComparison.Ordinal);
+        Assert.Contains("the reported value was negative", source, StringComparison.Ordinal);
+
+        // Dynamic ChannelAddress/ChannelWidth values are coerced through the pure helper (which
+        // accepts Int64/UInt64 within the DTO range) instead of an exact `is int`/`is uint` test.
+        Assert.Contains("DynamicNumericAttribute.CoerceInt32", source, StringComparison.Ordinal);
+        Assert.Contains("DynamicNumericAttribute.CoerceUInt32", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("value is int", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("value is uint", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("value.ToString()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.Reflection", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EngineeringAttributeInspector_UsesReadOnlyDynamicMetadataSurface()
     {
         var source = File.ReadAllText(FindRepositoryFile(

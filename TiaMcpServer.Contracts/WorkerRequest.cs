@@ -90,7 +90,8 @@ public class WorkerRequest
 
     /// <summary>
     /// Forwarded by: read_cross_references, compile_check, list_tag_tables, start_plc,
-    /// stop_plc, and every tag-table, tag, and user-constant operation.
+    /// stop_plc, read_hardware_config (optional — selects the PLC used for tag matching),
+    /// and every tag-table, tag, and user-constant operation.
     /// </summary>
     public string? PlcName { get; set; }
 
@@ -165,7 +166,7 @@ public class WorkerRequest
     /// <summary>Forwarded by: add_network_device.</summary>
     public string? TypeIdentifier { get; set; }
 
-    /// <summary>Forwarded by: add_network_device, configure_network_device.</summary>
+    /// <summary>Forwarded by: add_network_device, configure_network_device, read_hardware_config (optional device filter).</summary>
     public string? DeviceName { get; set; }
 
     /// <summary>
@@ -206,6 +207,25 @@ public class WorkerRequest
 
     /// <summary>Forwarded by: configure_network_device. The IO system's number within its subnet.</summary>
     public int? IoSystemNumber { get; set; }
+
+    #endregion
+
+    #region I/O map extraction (read_hardware_config)
+
+    /// <summary>
+    /// Forwarded by: read_hardware_config ONLY. When true, each device item carries structured
+    /// <c>ioDetails</c> (addresses and channels). Never set by the internal network-write
+    /// state snapshot, which stays lightweight and hash-identical.
+    /// </summary>
+    public bool IncludeIoDetails { get; set; }
+
+    /// <summary>
+    /// Forwarded by: read_hardware_config ONLY. When true, each channel carries deterministic
+    /// <c>tagMatches</c> against the PLC selected by <see cref="PlcName"/> (or the single PLC
+    /// when <see cref="PlcName"/> is omitted). Only meaningful together with
+    /// <see cref="IncludeIoDetails"/>.
+    /// </summary>
+    public bool IncludeTagMatches { get; set; }
 
     #endregion
 

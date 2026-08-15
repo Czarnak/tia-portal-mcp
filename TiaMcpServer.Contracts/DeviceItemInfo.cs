@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.Contracts;
 
@@ -11,6 +12,16 @@ public class DeviceItemInfo
     public int? PositionNumber { get; set; }
 
     public string? Address { get; set; }
+
+    /// <summary>
+    /// Structured I/O evidence (addresses, channels, and — when requested — tag matches) for this
+    /// device item. Only present when the read requested <c>includeIoDetails</c>; a default read
+    /// leaves it null and the <see cref="JsonIgnoreCondition.WhenWritingNull"/> decoration keeps
+    /// the default response byte-identical to earlier versions. <see cref="Address"/> is a
+    /// separate, untouched legacy string.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DeviceItemIoDetailsInfo? IoDetails { get; set; }
 
     /// <summary>
     /// True when a deterministic selector for this device item was successfully constructed.

@@ -70,9 +70,32 @@ public class OpennessWorkerClient : IDisposable
             "[]");
     }
 
-    public Task<WorkerCallResult> ReadHardwareConfigAsync(string? projectPath)
+    /// <summary>
+    /// Sends a <c>read_hardware_config</c> request to the worker. <paramref name="deviceName"/>
+    /// narrows to exactly one device, <paramref name="plcName"/> selects the PLC used for tag
+    /// matching, and <paramref name="includeIoDetails"/>/<paramref name="includeTagMatches"/> opt
+    /// into the structured I/O map. All four default to no-narrowing/no-details so internal
+    /// callers (notably <c>NetworkSafetySnapshot.ReadCurrentStateAsync</c>) stay lightweight and
+    /// hash-identical.
+    /// </summary>
+    public Task<WorkerCallResult> ReadHardwareConfigAsync(
+        string? projectPath,
+        string? deviceName = null,
+        string? plcName = null,
+        bool includeIoDetails = false,
+        bool includeTagMatches = false)
     {
-        return SendBoundProjectRequestAsync("read_hardware_config", projectPath, _ => { }, "{}");
+        return SendBoundProjectRequestAsync(
+            "read_hardware_config",
+            projectPath,
+            request =>
+            {
+                request.DeviceName = deviceName;
+                request.PlcName = plcName;
+                request.IncludeIoDetails = includeIoDetails;
+                request.IncludeTagMatches = includeTagMatches;
+            },
+            "{}");
     }
 
     public Task<WorkerCallResult> SearchEquipmentCatalogAsync(string query, string? projectPath, int? maxResults = null)

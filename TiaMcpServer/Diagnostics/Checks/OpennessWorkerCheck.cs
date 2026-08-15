@@ -16,7 +16,8 @@ public sealed class OpennessWorkerCheck : IDiagnosticCheck
         "System.Runtime.CompilerServices.Unsafe.dll",
         "System.Text.Encodings.Web.dll",
         "System.Text.Json.dll",
-        "System.Threading.Tasks.Extensions.dll"
+        "System.Threading.Tasks.Extensions.dll",
+        "System.ValueTuple.dll"
     };
 
     private readonly IApplicationInfoService _appInfo;

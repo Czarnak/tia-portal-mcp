@@ -204,6 +204,31 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(Success(ToCamelCaseJson(SingleNodeHardwareConfig(
                 "PLC_2", "if_1", "if_1", "n1", "node-1", messages: new[] { $"seq:{seq}" }))));
             break;
+
+        case "network-io-map":
+            // Structured I/O-map scenario: read_hardware_config returns ioDetails (addresses,
+            // channels, tag matches) ONLY when the request opted in with includeIoDetails=true.
+            // When not requested, IoDetails is null and the JsonIgnore attribute omits it, so the
+            // default read stays byte-identical to the legacy hardware shape. Built from the
+            // shared Contracts DTOs so a contract change here is a compile error, never a silently
+            // stale hand-written literal.
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(IoMapHardwareConfig(
+                    ReadBoolField(line, "includeIoDetails") == true,
+                    ReadBoolField(line, "includeTagMatches") == true,
+                    ReadField(line, "deviceName"),
+                    ReadField(line, "plcName"))))
+                : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
+            break;
+
+        case "network-io-map-malformed":
+            // The worker reports SUCCESS but the ioDetails payload carries an EXPLICIT null
+            // addresses collection, which CLR initialization can never produce. The declared
+            // contract must reject it as protocol_error rather than forwarding it.
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(IoMapMalformedHardwareConfig()))
+                : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
+            break;
         case "network-unresolvable-target":
             // A contract-valid, empty HardwareConfigInfo: no device can ever match a
             // configure_network_device target here, so a preview against this scenario proves
@@ -1368,6 +1393,178 @@ int? ReadIntField(string requestLine, string propertyName)
         return null;
     }
 }
+
+bool? ReadBoolField(string requestLine, string propertyName)
+{
+    try
+    {
+        using var doc = JsonDocument.Parse(requestLine);
+        return doc.RootElement.TryGetProperty(propertyName, out var value)
+            && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? value.GetBoolean()
+                : null;
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
+}
+
+// Builds the "network-io-map" hardware fixture. ioDetails is attached only when the read opted
+// in; otherwise the DeviceItemInfo.IoDetails JsonIgnore attribute omits the member entirely, so
+// a default read is byte-identical to the pre-I/O-map shape.
+HardwareConfigInfo IoMapHardwareConfig(
+    bool includeIoDetails,
+    bool includeTagMatches,
+    string? deviceName,
+    string? plcName)
+{
+    var selectedDevice = deviceName is null
+        || string.Equals("PLC_1", deviceName, StringComparison.OrdinalIgnoreCase);
+    var selectedPlc = !includeTagMatches
+        || plcName is null
+        || string.Equals("PLC_1", plcName, StringComparison.Ordinal);
+
+    return new HardwareConfigInfo
+    {
+        Devices = selectedDevice
+            ? new List<DeviceInfo>
+            {
+                new()
+                {
+                    Name = "PLC_1",
+                    TypeIdentifier = "OrderNumber:TEST",
+                    Items = new List<DeviceItemInfo>
+                    {
+                        IoMapDeviceItem("DI_16", includeIoDetails, includeTagMatches && selectedPlc),
+                    },
+                },
+            }
+            : new List<DeviceInfo>(),
+        Subnets = new List<SubnetInfo>(),
+        Messages = includeTagMatches && !selectedPlc
+            ? new List<string> { $"No PLC named '{plcName}' was found; no tag matches are reported." }
+            : new List<string>(),
+    };
+}
+
+DeviceItemInfo IoMapDeviceItem(string itemName, bool includeIoDetails, bool includeTagMatches)
+{
+    var item = SelectableDeviceItem(
+        "PLC_1", 0, itemName, "OrderNumber:TEST", 1, "PROFINET interface_1");
+    if (!includeIoDetails)
+    {
+        return item;
+    }
+
+    item.IoDetails = new DeviceItemIoDetailsInfo
+    {
+        Addresses = new List<IoAddressInfo>
+        {
+            // Diagnosis-type addresses on PROFINET interfaces report StartAddress = -1 (and
+            // Length = -1) on V21; the worker normalizes those to null, so the fixture models the
+            // normalized shape. Ordinal IoType order ("Diagnosis" < "Input" < "Output") mirrors
+            // the real worker's deterministic sort.
+            new()
+            {
+                IoType = "Diagnosis",
+                StartAddress = null,
+                Length = null,
+                Context = null,
+                ControllerNames = new List<string>(),
+            },
+            new()
+            {
+                IoType = "Input",
+                StartAddress = 4,
+                Length = 2,
+                Context = "Device",
+                ControllerNames = new List<string> { "PLC_1" },
+            },
+            new()
+            {
+                IoType = "Output",
+                StartAddress = 4,
+                Length = 2,
+                Context = "Device",
+                ControllerNames = new List<string> { "PLC_1" },
+            },
+        },
+        Channels = new List<IoChannelInfo>
+        {
+            new()
+            {
+                Number = 0,
+                IoType = "Input",
+                Type = "Digital",
+                ChannelAddressBits = 32,
+                ChannelWidthBits = 1,
+                LogicalAddress = "%I4.0",
+                TagMatches = includeTagMatches
+                    ? new List<IoTagMatchInfo>
+                    {
+                        // Ordinal order (table, folder, name): mirrors the real worker's sort so the
+                        // fixture and production agree on deterministic output.
+                        new() { Name = "RunPermit", DataType = "Bool", LogicalAddress = "%I4.0", TableName = "Tag table_1", FolderPath = "/" },
+                        new() { Name = "StartButton", DataType = "Bool", LogicalAddress = "%I4.0", TableName = "Tag table_1", FolderPath = "/" },
+                    }
+                    : new List<IoTagMatchInfo>(),
+            },
+            new()
+            {
+                Number = 1,
+                IoType = "Input",
+                Type = "Analog",
+                ChannelAddressBits = 512,
+                ChannelWidthBits = 16,
+                LogicalAddress = "%IW64",
+                TagMatches = includeTagMatches
+                    ? new List<IoTagMatchInfo>
+                    {
+                        new() { Name = "AnalogIn", DataType = "Int", LogicalAddress = "%IW64", TableName = "Tag table_1", FolderPath = "/" },
+                    }
+                    : new List<IoTagMatchInfo>(),
+            },
+        },
+    };
+    return item;
+}
+
+// Builds the "network-io-map-malformed" fixture: a structurally valid device item whose
+// ioDetails carries an EXPLICIT null addresses collection — the exact shape that must be
+// rejected as protocol_error by NetworkPayloadContract.
+HardwareConfigInfo IoMapMalformedHardwareConfig() => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new()
+        {
+            Name = "PLC_1",
+            TypeIdentifier = "OrderNumber:TEST",
+            Items = new List<DeviceItemInfo>
+            {
+                new()
+                {
+                    Name = "DI_16",
+                    TypeIdentifier = "OrderNumber:TEST",
+                    PositionNumber = 1,
+                    Selectable = false,
+                    SelectorDiagnostics = new List<string> { "No selector fixture for the malformed I/O-map item." },
+                    NetworkInterfaces = new List<NetworkInterfaceInfo>(),
+                    CommunicationConnections = new List<CommunicationConnectionInfo>(),
+                    Items = new List<DeviceItemInfo>(),
+                    IoDetails = new DeviceItemIoDetailsInfo
+                    {
+                        Addresses = null!, // explicit null collection -> protocol_error
+                        Channels = new List<IoChannelInfo>(),
+                    },
+                },
+            },
+        },
+    },
+    Subnets = new List<SubnetInfo>(),
+    Messages = new List<string>(),
+};
 
 /// <summary>Mutable process-local state for one subnet in the Phase 4 lifecycle scenarios.</summary>
 sealed class SubnetLifecycleSubnetState

@@ -20,7 +20,7 @@ public class NetworkReadTools
         OpenWorld = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(NetworkReadResponse))]
-    [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config, search_equipment_catalog (query), list_network_objects (objectKinds), and inspect_network_object (target). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls.")]
+    [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config, search_equipment_catalog (query), list_network_objects (objectKinds), and inspect_network_object (target). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls. read_hardware_config accepts optional deviceName (exact device filter), plcName (PLC for tag matching), includeIoDetails (structured addresses and channels), and includeTagMatches (requires includeIoDetails) — detailed output can be large, so filter by deviceName or split into separate calls.")]
     public static async Task<CallToolResult> NetworkRead(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of dedicated network read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] NetworkOperationRequest[] operations)
@@ -78,8 +78,9 @@ public class NetworkReadTools
                 + $"{ToolName} call.",
 
         "read_hardware_config" =>
-            "Use list_network_objects with narrower objectKinds and deviceName filters, or split "
-                + $"the batch: re-run this operationId in its own {ToolName} call.",
+            "Narrow with deviceName and disable includeIoDetails/includeTagMatches where possible, "
+                + "or split the batch: re-run this operationId in its own "
+                + $"{ToolName} call.",
 
         "inspect_network_object" =>
             "Request fewer attributeNames, or split the batch: re-run this operationId in its own "

@@ -193,7 +193,12 @@ internal static class Program
 
     private static WorkerResponse ReadHardwareConfig(WorkerRequest request)
     {
-        return WithProject(request, project => Success(HardwareConfigReader.Read(project)));
+        return WithProject(request, project => Success(HardwareConfigReader.Read(
+            project,
+            request.DeviceName,
+            request.PlcName,
+            request.IncludeIoDetails,
+            request.IncludeTagMatches)));
     }
 
     private static WorkerResponse ListNetworkObjects(WorkerRequest request)

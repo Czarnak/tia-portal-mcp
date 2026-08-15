@@ -1,4 +1,5 @@
 using Siemens.Engineering;
+using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Tags;
 using TiaMcpServer.Contracts;
 
@@ -6,10 +7,25 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class TagTableReader
 {
+    /// <summary>
+    /// Reads every tag table of the PLC software selected by <paramref name="plcName"/> via
+    /// <see cref="PlcSoftwareLocator.Find(Project, string)"/>. Kept for the tag-table tools;
+    /// the I/O-map path resolves the PLC deterministically first and calls
+    /// <see cref="ReadAll(PlcSoftware)"/> directly so it never depends on the first-match lookup.
+    /// </summary>
     public static List<TagTableInfo> ReadAll(Project project, string? plcName)
     {
         var plcSoftware = PlcSoftwareLocator.Find(project, plcName);
 
+        return ReadAll(plcSoftware);
+    }
+
+    /// <summary>
+    /// Reads every tag table of one already-selected <see cref="PlcSoftware"/>. The caller owns
+    /// deterministic PLC selection; this method only walks the tag-table tree.
+    /// </summary>
+    public static List<TagTableInfo> ReadAll(PlcSoftware plcSoftware)
+    {
         var result = new List<TagTableInfo>();
 
         CollectTablesFromGroup(plcSoftware.TagTableGroup, folderPath: "/", result);

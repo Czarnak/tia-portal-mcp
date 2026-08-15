@@ -10,15 +10,36 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class HardwareConfigReader
 {
+    /// <summary>
+    /// Lightweight default read used by the internal network-write state snapshot and the subnet
+    /// mutation probe: no device filter and no I/O map, so the snapshot stays byte-identical to
+    /// earlier versions and the safety-token hashes never change.
+    /// </summary>
     public static HardwareConfigInfo Read(Project project)
+        => Read(project, deviceName: null, plcName: null, includeIoDetails: false, includeTagMatches: false);
+
+    public static HardwareConfigInfo Read(
+        Project project,
+        string? deviceName,
+        string? plcName,
+        bool includeIoDetails,
+        bool includeTagMatches)
     {
         var result = new HardwareConfigInfo();
 
-        foreach (Device device in project.Devices)
+        IoTagIndex? tagIndex = null;
+        if (includeTagMatches)
+        {
+            tagIndex = ResolveTagIndex(project, plcName, result.Messages);
+        }
+
+        var selectedDevices = SelectDevices(project, deviceName, result.Messages);
+
+        foreach (var (device, nameEvidence) in selectedDevices)
         {
             try
             {
-                result.Devices.Add(ReadDevice(device, result.Messages));
+                result.Devices.Add(ReadDevice(device, nameEvidence, result.Messages, includeIoDetails, tagIndex));
             }
             catch (EngineeringException exception)
             {
@@ -50,9 +71,64 @@ public static class HardwareConfigReader
         return result;
     }
 
-    private static DeviceInfo ReadDevice(Device device, List<string> messages)
+    private static IoTagIndex? ResolveTagIndex(Project project, string? plcName, List<string> messages)
     {
-        var deviceName = ReadTypedIdentityString(() => device.Name, "Device name");
+        try
+        {
+            return HardwareTagIndexResolver.Resolve(project, plcName, messages);
+        }
+        catch (EngineeringException exception)
+        {
+            messages.Add($"Could not build the PLC tag index: {exception.Message}; no tag matches are reported.");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Applies the optional device filter. Unfiltered reads traverse every device. An unreadable
+    /// device name produces degradation evidence and preserves the device with Name = null.
+    /// Filtered reads match readable candidate names ordinal-ignore-case; exactly one match reads
+    /// only that device, while zero or multiple matches report a non-fatal message and no devices.
+    /// </summary>
+    private static IReadOnlyList<(Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)> SelectDevices(
+        Project project,
+        string? deviceName,
+        List<string> messages)
+    {
+        var candidates = new List<(Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)>();
+        foreach (Device device in project.Devices)
+        {
+            var nameEvidence = ReadTypedIdentityString(() => device.Name, "Device name");
+            candidates.Add((device, nameEvidence));
+        }
+
+        if (deviceName is null)
+        {
+            return candidates;
+        }
+
+        var matches = candidates
+            .Where(candidate => candidate.NameEvidence.IsUsable
+                && string.Equals(candidate.NameEvidence.Value, deviceName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (matches.Count == 1)
+        {
+            return matches;
+        }
+
+        messages.Add(matches.Count == 0
+            ? $"No device named '{deviceName}' was found; no devices are reported."
+            : $"More than one device matches '{deviceName}'; no devices are reported because the device filter is ambiguous.");
+        return Array.Empty<(Device, NetworkObjectDiscoveryEvidenceValue<string>)>();
+    }
+
+    private static DeviceInfo ReadDevice(
+        Device device,
+        NetworkObjectDiscoveryEvidenceValue<string> deviceName,
+        List<string> messages,
+        bool includeIoDetails,
+        IoTagIndex? tagIndex)
+    {
         AddReadMessage(messages, deviceName, "device name");
         var deviceDescription = deviceName.IsUsable ? deviceName.Value : "(unnamed)";
         var typeIdentifier = ReadOptionalString(
@@ -70,7 +146,9 @@ public static class HardwareConfigReader
             messages,
             deviceName,
             Array.Empty<DeviceItemPathSegmentInfo>(),
-            Array.Empty<string>());
+            Array.Empty<string>(),
+            includeIoDetails,
+            tagIndex);
         return deviceInfo;
     }
 
@@ -80,7 +158,9 @@ public static class HardwareConfigReader
         List<string> messages,
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> parentPath,
-        IReadOnlyList<string> parentPathDiagnostics)
+        IReadOnlyList<string> parentPathDiagnostics,
+        bool includeIoDetails,
+        IoTagIndex? tagIndex)
     {
         var result = new List<DeviceItemInfo>();
         var siblingIndex = 0;
@@ -95,7 +175,9 @@ public static class HardwareConfigReader
                     deviceName,
                     parentPath,
                     parentPathDiagnostics,
-                    siblingIndex));
+                    siblingIndex,
+                    includeIoDetails,
+                    tagIndex));
             }
             catch (EngineeringException exception)
             {
@@ -115,7 +197,9 @@ public static class HardwareConfigReader
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> parentPath,
         IReadOnlyList<string> parentPathDiagnostics,
-        int siblingIndex)
+        int siblingIndex,
+        bool includeIoDetails,
+        IoTagIndex? tagIndex)
     {
         var itemName = ReadTypedIdentityString(() => item.Name, "Device item name");
         var itemDescription = itemName.IsUsable ? itemName.Value : "(unnamed)";
@@ -162,6 +246,11 @@ public static class HardwareConfigReader
             itemInfo.Selector = NetworkSelectorFactory.DeviceItem(deviceName.Value, itemPath);
         }
 
+        if (includeIoDetails)
+        {
+            itemInfo.IoDetails = HardwareIoMapReader.Read(item, itemDescription, messages, tagIndex);
+        }
+
         itemInfo.CommunicationConnections = CommunicationConnectionReader
             .Read(item, deviceName.IsUsable ? deviceName.Value : null, itemPath, messages)
             .Select(readResult => readResult.Summary)
@@ -179,7 +268,9 @@ public static class HardwareConfigReader
             messages,
             deviceName,
             itemPath,
-            pathDiagnostics);
+            pathDiagnostics,
+            includeIoDetails,
+            tagIndex);
 
         return itemInfo;
     }
@@ -496,7 +587,7 @@ public static class HardwareConfigReader
         return null;
     }
 
-    private static string? FindParentDeviceName(
+    internal static string? FindParentDeviceName(
         IEngineeringObject? candidate,
         List<string> messages)
     {
