@@ -16,6 +16,8 @@ public class OpennessWorkerClient : IDisposable
     private readonly TimeSpan _requestTimeout;
     private readonly Safety.OperationAccessPolicy? _accessPolicy;
     private readonly object _transportLock = new();
+    private readonly SemaphoreSlim _bindingOperationGate = new(1, 1);
+    private readonly AsyncLocal<BindingOperationContext?> _bindingOperationContext = new();
     private PersistentWorkerTransport? _transport;
 
     public OpennessWorkerClient(
@@ -35,6 +37,117 @@ public class OpennessWorkerClient : IDisposable
     /// <summary>The current access mode policy, if set. Used by batch tools to validate
     /// operations before worker invocation.</summary>
     public Safety.OperationAccessPolicy? AccessPolicy => _accessPolicy;
+
+    /// <summary>Current immutable host binding snapshot, used by safety-token issuance.</summary>
+    public ProjectBindingSnapshot BindingSnapshot => _projectSessionBinding.CaptureSnapshot();
+
+    /// <summary>
+    /// Runs a complete preview/apply critical section against the exact host binding revision
+    /// retained by a safety token. Every nested worker request inherits that pinned identity, and
+    /// all other requests on this client wait until the section completes. This closes the gap
+    /// between token consumption and the Siemens-facing mutation.
+    /// </summary>
+    public async Task<PinnedBindingExecutionResult<T>> ExecuteWithPinnedBindingAsync<T>(
+        ProjectBindingSnapshot? expectedBinding,
+        Func<Task<T>> operation)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        if (expectedBinding is null)
+        {
+            return PinnedBindingExecutionResult<T>.Fail(WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "The safety token did not retain a project session binding."));
+        }
+
+        var ambient = _bindingOperationContext.Value;
+        if (ambient is not null)
+        {
+            if (ambient.PinnedBinding is not null &&
+                !ambient.PinnedBinding.SameBinding(expectedBinding))
+            {
+                return PinnedBindingExecutionResult<T>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    "A nested operation attempted to use a different pinned project binding."));
+            }
+
+            return await ExecutePinnedCoreAsync(expectedBinding, operation, ambient)
+                .ConfigureAwait(false);
+        }
+
+        await _bindingOperationGate.WaitAsync().ConfigureAwait(false);
+        var previous = _bindingOperationContext.Value;
+        var context = new BindingOperationContext(expectedBinding);
+        _bindingOperationContext.Value = context;
+        try
+        {
+            return await ExecutePinnedCoreAsync(expectedBinding, operation, context)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _bindingOperationContext.Value = previous;
+            _bindingOperationGate.Release();
+        }
+    }
+
+    private async Task<PinnedBindingExecutionResult<T>> ExecutePinnedCoreAsync<T>(
+        ProjectBindingSnapshot expectedBinding,
+        Func<Task<T>> operation,
+        BindingOperationContext context)
+        where T : class
+    {
+        var current = _projectSessionBinding.CaptureSnapshot();
+        if (!expectedBinding.SameBinding(current))
+        {
+            return PinnedBindingExecutionResult<T>.Fail(WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview."));
+        }
+
+        var previousPinned = context.PinnedBinding;
+        context.PinnedBinding = expectedBinding;
+        try
+        {
+            return PinnedBindingExecutionResult<T>.Ok(
+                await operation().ConfigureAwait(false));
+        }
+        finally
+        {
+            context.PinnedBinding = previousPinned;
+        }
+    }
+
+    /// <summary>
+    /// Fail-closed gate for every project-mutating preview/apply path. A startup --project value is
+    /// first grounded by one read-only status request; an ordinary unbound session is never
+    /// adopted implicitly and must use open_project.
+    /// </summary>
+    public async Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
+    {
+        if (_projectSessionBinding.TryGetVerified(projectPath, out _, out _))
+        {
+            return WorkerCallResult.Ok("{}");
+        }
+
+        var before = _projectSessionBinding.CaptureSnapshot();
+        if (string.Equals(
+                before.State,
+                ProjectBindingSnapshot.ConfiguredUnverifiedState,
+                StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(before.ProjectPath))
+        {
+            var verification = await GetProjectStatusAsync(before.ProjectPath).ConfigureAwait(false);
+            if (!verification.Success)
+            {
+                return verification;
+            }
+        }
+
+        return _projectSessionBinding.TryGetVerified(projectPath, out _, out var error)
+            ? WorkerCallResult.Ok("{}")
+            : WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, error!);
+    }
 
     /// <summary>
     /// How a completed (successful) worker call changes this session's project binding. Declared
@@ -666,7 +779,8 @@ public class OpennessWorkerClient : IDisposable
     public Task<WorkerCallResult> GetProjectStatusAsync(string? projectPath)
     {
         // BindingTransition.None (the default): a direct status read never binds an unbound
-        // session and never adopts a diverging worker path - it only warns on divergence.
+        // session. It may promote an explicitly configured path after an exact identity match;
+        // divergence from a verified/configured target is a hard binding failure.
         return SendBoundProjectRequestAsync(
             "get_project_status",
             projectPath,
@@ -711,7 +825,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public async Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
+    public Task<WorkerCallResult> OpenProjectAsync(string projectPath, bool forceRebind)
+        => ExecuteSerializedBindingOperationAsync(
+            () => OpenProjectCoreAsync(projectPath, forceRebind));
+
+    private async Task<WorkerCallResult> OpenProjectCoreAsync(string projectPath, bool forceRebind)
     {
         // A blank/whitespace path is caller input error, not a binding conflict — check it
         // separately so CanBind's single out-string ("Project path is required." vs. an
@@ -728,12 +846,21 @@ public class OpennessWorkerClient : IDisposable
             return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
         }
 
-        var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
+        var currentBinding = _projectSessionBinding.CaptureSnapshot();
+        var bindingBeforeCall = _bindingOperationContext.Value?.PinnedBinding ?? currentBinding;
+        if (_bindingOperationContext.Value?.PinnedBinding is not null &&
+            !bindingBeforeCall.SameBinding(currentBinding))
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.");
+        }
         var result = await InvokeWorkerAsync(
             new WorkerRequest
             {
                 Method = "open_project",
                 ProjectPath = projectPath,
+                ExpectedSessionIdentity = bindingBeforeCall.ToWorkerIdentity(),
                 Confirm = true,
                 ForceRebind = forceRebind,
                 AllowTiaConfirmations = true
@@ -749,7 +876,7 @@ public class OpennessWorkerClient : IDisposable
             BindingTransition.BindResolvedPath,
             result,
             requestedProjectPath: projectPath,
-            boundProjectPathBeforeCall,
+            bindingBeforeCall,
             bindForceRebind: forceRebind);
 
         if (!result.Success)
@@ -760,17 +887,34 @@ public class OpennessWorkerClient : IDisposable
         return string.IsNullOrEmpty(result.Payload) ? result with { Payload = "{}" } : result;
     }
 
-    public async Task<WorkerCallResult> CreateProjectAsync(
+    public Task<WorkerCallResult> CreateProjectAsync(
+        string projectDirectory,
+        string projectName,
+        string? author,
+        string? comment)
+        => ExecuteSerializedBindingOperationAsync(
+            () => CreateProjectCoreAsync(projectDirectory, projectName, author, comment));
+
+    private async Task<WorkerCallResult> CreateProjectCoreAsync(
         string projectDirectory,
         string projectName,
         string? author,
         string? comment)
     {
-        var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
+        var currentBinding = _projectSessionBinding.CaptureSnapshot();
+        var bindingBeforeCall = _bindingOperationContext.Value?.PinnedBinding ?? currentBinding;
+        if (_bindingOperationContext.Value?.PinnedBinding is not null &&
+            !bindingBeforeCall.SameBinding(currentBinding))
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.");
+        }
         var result = await InvokeWorkerAsync(
             new WorkerRequest
             {
                 Method = "create_project",
+                ExpectedSessionIdentity = bindingBeforeCall.ToWorkerIdentity(),
                 ProjectDirectory = projectDirectory,
                 ProjectName = projectName,
                 Author = author,
@@ -791,7 +935,7 @@ public class OpennessWorkerClient : IDisposable
             BindingTransition.BindResolvedPath,
             result,
             requestedProjectPath: null,
-            boundProjectPathBeforeCall,
+            bindingBeforeCall,
             bindForceRebind: true);
 
         if (!result.Success)
@@ -906,17 +1050,61 @@ public class OpennessWorkerClient : IDisposable
         Action<WorkerRequest> configure,
         string emptyPayload,
         BindingTransition transition = BindingTransition.None)
+        => await ExecuteSerializedBindingOperationAsync(
+            () => SendBoundProjectRequestCoreAsync(
+                method,
+                projectPath,
+                configure,
+                emptyPayload,
+                transition)).ConfigureAwait(false);
+
+    private async Task<WorkerCallResult> SendBoundProjectRequestCoreAsync(
+        string method,
+        string? projectPath,
+        Action<WorkerRequest> configure,
+        string emptyPayload,
+        BindingTransition transition)
     {
-        var boundProjectPathBeforeCall = _projectSessionBinding.BoundProjectPath;
-        if (!_projectSessionBinding.TryResolve(projectPath, out var effectiveProjectPath, out var bindingError))
+        var pinnedBinding = _bindingOperationContext.Value?.PinnedBinding;
+
+        // A configured --project is an assertion until the worker proves the live PID/path/session.
+        // Ground it with the one method that is allowed to start without ExpectedSessionIdentity
+        // before any ordinary read or write is dispatched in read-write mode.
+        var initial = _projectSessionBinding.CaptureSnapshot();
+        if (pinnedBinding is null &&
+            !string.Equals(method, "get_project_status", StringComparison.Ordinal) &&
+            string.Equals(initial.State, ProjectBindingSnapshot.ConfiguredUnverifiedState, StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(initial.ProjectPath))
+        {
+            var verification = await GetProjectStatusAsync(initial.ProjectPath).ConfigureAwait(false);
+            if (!verification.Success)
+            {
+                return verification;
+            }
+        }
+
+        if (!_projectSessionBinding.TryResolveWithSnapshot(
+                projectPath,
+                out var currentBinding,
+                out var effectiveProjectPath,
+                out var bindingError))
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
+        }
+
+        var bindingBeforeCall = pinnedBinding ?? currentBinding;
+        if (pinnedBinding is not null && !pinnedBinding.SameBinding(currentBinding))
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.");
         }
 
         var request = new WorkerRequest
         {
             Method = method,
-            ProjectPath = effectiveProjectPath
+            ProjectPath = effectiveProjectPath,
+            ExpectedSessionIdentity = bindingBeforeCall.ToWorkerIdentity()
         };
         configure(request);
 
@@ -929,7 +1117,7 @@ public class OpennessWorkerClient : IDisposable
                 transition,
                 result,
                 requestedProjectPath: projectPath,
-                boundProjectPathBeforeCall,
+                bindingBeforeCall,
                 bindForceRebind: true);
         }
 
@@ -938,11 +1126,33 @@ public class OpennessWorkerClient : IDisposable
             : result;
     }
 
+    private async Task<T> ExecuteSerializedBindingOperationAsync<T>(Func<Task<T>> operation)
+    {
+        var ambient = _bindingOperationContext.Value;
+        if (ambient is not null)
+        {
+            return await operation().ConfigureAwait(false);
+        }
+
+        await _bindingOperationGate.WaitAsync().ConfigureAwait(false);
+        var previous = _bindingOperationContext.Value;
+        _bindingOperationContext.Value = new BindingOperationContext(PinnedBinding: null);
+        try
+        {
+            return await operation().ConfigureAwait(false);
+        }
+        finally
+        {
+            _bindingOperationContext.Value = previous;
+            _bindingOperationGate.Release();
+        }
+    }
+
     /// <summary>
     /// Applies a call's declared <see cref="BindingTransition"/> to a SUCCESSFUL worker result.
     /// This is the single place a session binding changes as the result of a completed call, so
     /// the rule "bind only to worker ground truth, only on success" lives in exactly one method.
-    /// Returns the original result (possibly with a divergence warning appended), or a
+    /// Returns the original result, or a
     /// <c>postcondition_failed</c>/<c>binding_conflict</c> failure if a required bind could not
     /// be honored.
     /// </summary>
@@ -950,14 +1160,26 @@ public class OpennessWorkerClient : IDisposable
         BindingTransition transition,
         WorkerCallResult result,
         string? requestedProjectPath,
-        string? boundProjectPathBeforeCall,
+        ProjectBindingSnapshot bindingBeforeCall,
         bool bindForceRebind)
     {
         switch (transition)
         {
             case BindingTransition.BindResolvedPath:
-                return BindToResolvedProjectPath(result, bindForceRebind);
+                result = BindToResolvedSessionIdentity(result, bindingBeforeCall, bindForceRebind);
+                if (result.Success)
+                {
+                    RefreshAmbientPinnedBinding();
+                }
+
+                return result;
             case BindingTransition.Clear:
+                result = ValidateCloseSessionIdentity(result, bindingBeforeCall);
+                if (!result.Success)
+                {
+                    return result;
+                }
+
                 // Close leaves the session with nothing bound. Clear(requestedProjectPath) is the
                 // guarded path; if it refuses (a different project was actually open) fall back to
                 // the unconditional Clear(null) so no stale binding can survive a close.
@@ -966,10 +1188,11 @@ public class OpennessWorkerClient : IDisposable
                     _projectSessionBinding.Clear(null, out _);
                 }
 
+                RefreshAmbientPinnedBinding();
                 return result;
             case BindingTransition.None:
             default:
-                return WarnOnBindingDivergence(result, boundProjectPathBeforeCall);
+                return ValidateOrPromoteSessionIdentity(result, bindingBeforeCall);
         }
     }
 
@@ -978,19 +1201,55 @@ public class OpennessWorkerClient : IDisposable
     /// A success with no resolved path is a broken postcondition - it must NEVER fall back to the
     /// caller's requested path, a target directory/name, or anything parsed from payload text.
     /// </summary>
-    private WorkerCallResult BindToResolvedProjectPath(WorkerCallResult result, bool forceRebind)
+    private WorkerCallResult BindToResolvedSessionIdentity(
+        WorkerCallResult result,
+        ProjectBindingSnapshot bindingBeforeCall,
+        bool forceRebind)
     {
-        if (string.IsNullOrWhiteSpace(result.ResolvedProjectPath))
+        if (result.SessionIdentity is null)
         {
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.PostconditionFailed,
-                "The TIA Openness worker reported success but did not return the project path it "
-                + "opened, so this MCP session cannot be bound to it. Inspect the current project "
+                "The TIA Openness worker reported success but did not return its complete session "
+                + "identity, so this MCP session cannot be bound safely. Inspect the current project "
                 + "state in TIA Portal before retrying.",
                 result.Warnings);
         }
 
-        if (!_projectSessionBinding.Bind(result.ResolvedProjectPath!, forceRebind, out var bindError))
+        var resolvedPath = ProjectPathNormalization.Canonicalize(result.ResolvedProjectPath);
+        var identityPath = ProjectPathNormalization.Canonicalize(result.SessionIdentity.ProjectPath);
+        if (resolvedPath is null ||
+            identityPath is null ||
+            !string.Equals(resolvedPath, identityPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.PostconditionFailed,
+                "The TIA Openness worker returned inconsistent resolvedProjectPath and sessionIdentity.projectPath values, "
+                + "so this MCP session cannot be rebound safely.",
+                result.Warnings);
+        }
+
+        if (bindingBeforeCall.IsVerified)
+        {
+            var continuityError = ValidateBindingTransitionContinuity(
+                bindingBeforeCall,
+                result.SessionIdentity,
+                identityPath);
+            if (continuityError is not null)
+            {
+                _projectSessionBinding.TryInvalidate(bindingBeforeCall, continuityError);
+                return WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    continuityError,
+                    result.Warnings) with
+                {
+                    ResolvedProjectPath = result.ResolvedProjectPath,
+                    SessionIdentity = result.SessionIdentity
+                };
+            }
+        }
+
+        if (!_projectSessionBinding.BindVerified(result.SessionIdentity, forceRebind, out var bindError))
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindError!, result.Warnings);
         }
@@ -998,48 +1257,172 @@ public class OpennessWorkerClient : IDisposable
         return result;
     }
 
-    /// <summary>
-    /// For a <see cref="BindingTransition.None"/> call on an already-bound session, surfaces a
-    /// single divergence warning (without adopting the worker's path) when the worker reports it
-    /// operated on a different project than the one this session is bound to. Equivalent path
-    /// spellings produce no warning; the binding is left untouched.
-    /// </summary>
-    private WorkerCallResult WarnOnBindingDivergence(WorkerCallResult result, string? boundProjectPathBeforeCall)
+    private WorkerCallResult ValidateCloseSessionIdentity(
+        WorkerCallResult result,
+        ProjectBindingSnapshot bindingBeforeCall)
     {
-        if (boundProjectPathBeforeCall is null
-            || result.ResolvedProjectPath is null
-            || _projectSessionBinding.IsBoundTo(result.ResolvedProjectPath))
+        if (!bindingBeforeCall.IsVerified ||
+            string.IsNullOrWhiteSpace(bindingBeforeCall.WorkerSessionId) ||
+            bindingBeforeCall.PortalProcessId is null ||
+            bindingBeforeCall.SessionGeneration is null)
         {
-            // Unbound sessions never bind here (that is the intentional behavior change: only
-            // open/create/save-as bind), and an equivalent path is not a divergence.
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "close_project requires an existing verified worker/Portal/project binding.",
+                result.Warnings);
+        }
+
+        var identity = result.SessionIdentity;
+        var continuityError = identity is null
+            ? "close_project succeeded without returning the worker session identity required to prove which project was closed."
+            : !string.Equals(
+                bindingBeforeCall.WorkerSessionId,
+                identity.WorkerSessionId,
+                StringComparison.Ordinal)
+                ? "close_project returned a different worker session identity. The binding was not cleared."
+                : bindingBeforeCall.PortalProcessId != identity.PortalProcessId
+                    ? "close_project returned a different TIA Portal process identity. The binding was not cleared."
+                    : identity.SessionGeneration <= bindingBeforeCall.SessionGeneration.Value
+                        ? "close_project did not advance the project session generation. The binding was not cleared."
+                        : ProjectPathNormalization.Canonicalize(identity.ProjectPath) is not null ||
+                          ProjectPathNormalization.Canonicalize(result.ResolvedProjectPath) is not null
+                            ? "close_project reported that a project is still open. The binding was not cleared."
+                            : null;
+
+        if (continuityError is null)
+        {
             return result;
         }
 
-        // Containment only (see docs/superpowers/specs Round 4 design): the root cause - a
-        // zero-confirmation read tool able to attach a different project than the one this session
-        // is bound to - is deferred. Surface the divergence so the caller (and a human) can see it,
-        // rather than silently trusting the bound path.
-        //
-        // IsBoundTo lexically canonicalizes both sides with Path.GetFullPath (see
-        // ProjectPathNormalization) instead of comparing the caller's raw spelling. It does not
-        // resolve filesystem identity aliases such as 8.3 short names, junctions/symlinks, or UNC
-        // paths versus mapped drives.
-        _logger?.LogWarning(
-            "TIA Openness worker: session is bound to '{BoundProjectPath}' but the worker reports it "
-            + "operated on '{ResolvedProjectPath}'.",
-            boundProjectPathBeforeCall,
-            result.ResolvedProjectPath);
-
-        return result with
+        _projectSessionBinding.TryInvalidate(bindingBeforeCall, continuityError);
+        return WorkerCallResult.Fail(
+            WorkerFailureCategories.BindingConflict,
+            continuityError,
+            result.Warnings) with
         {
-            Warnings = AppendWarning(
-                result.Warnings,
-                $"This MCP session is bound to project '{boundProjectPathBeforeCall}', but the TIA Openness "
-                + $"worker reports it actually operated on '{result.ResolvedProjectPath}' for this call. "
-                + $"Treat this call's results as describing '{result.ResolvedProjectPath}', not the bound "
-                + "project. If this is unexpected, verify what is currently open in the TIA Portal UI "
-                + "before issuing any write, or start a new MCP session bound to the intended project.")
+            ResolvedProjectPath = result.ResolvedProjectPath,
+            SessionIdentity = result.SessionIdentity
         };
+    }
+
+    private static string? ValidateBindingTransitionContinuity(
+        ProjectBindingSnapshot bindingBeforeCall,
+        WorkerSessionIdentity identity,
+        string canonicalNewPath)
+    {
+        if (!string.Equals(
+                bindingBeforeCall.WorkerSessionId,
+                identity.WorkerSessionId,
+                StringComparison.Ordinal))
+        {
+            return "The lifecycle response came from a different worker session. The new project identity was not adopted.";
+        }
+
+        if (bindingBeforeCall.PortalProcessId != identity.PortalProcessId)
+        {
+            return "The lifecycle response came from a different TIA Portal process. The new project identity was not adopted.";
+        }
+
+        if (bindingBeforeCall.SessionGeneration is null ||
+            string.IsNullOrWhiteSpace(bindingBeforeCall.ProjectPath))
+        {
+            return "The prior verified binding was incomplete, so lifecycle identity continuity could not be proven.";
+        }
+
+        var samePath = string.Equals(
+            ProjectPathNormalization.Canonicalize(bindingBeforeCall.ProjectPath),
+            canonicalNewPath,
+            StringComparison.OrdinalIgnoreCase);
+        if (samePath && identity.SessionGeneration != bindingBeforeCall.SessionGeneration.Value)
+        {
+            return "The lifecycle response reused the same project path with a different generation, which indicates a close/reopen identity change.";
+        }
+
+        if (!samePath && identity.SessionGeneration <= bindingBeforeCall.SessionGeneration.Value)
+        {
+            return "The lifecycle response changed project path without advancing the session generation.";
+        }
+
+        return null;
+    }
+
+    private void RefreshAmbientPinnedBinding()
+    {
+        var context = _bindingOperationContext.Value;
+        if (context is not null)
+        {
+            context.PinnedBinding = _projectSessionBinding.CaptureSnapshot();
+        }
+    }
+
+    /// <summary>
+    /// Verifies worker identity for an existing binding, or promotes an explicitly configured
+    /// startup path after the first matching worker response. Ordinary unbound reads remain
+    /// non-binding. Divergence is a hard failure: a warning after a write would be too late.
+    /// </summary>
+    private WorkerCallResult ValidateOrPromoteSessionIdentity(
+        WorkerCallResult result,
+        ProjectBindingSnapshot bindingBeforeCall)
+    {
+        if (string.Equals(bindingBeforeCall.State, ProjectBindingSnapshot.UnboundState, StringComparison.Ordinal))
+        {
+            return result;
+        }
+
+        if (string.Equals(
+                bindingBeforeCall.State,
+                ProjectBindingSnapshot.ConfiguredUnverifiedState,
+                StringComparison.Ordinal))
+        {
+            if (_projectSessionBinding.TryPromoteConfigured(result.SessionIdentity, out var promoteError))
+            {
+                return result;
+            }
+
+            _projectSessionBinding.TryInvalidate(
+                bindingBeforeCall,
+                promoteError ?? "worker identity could not verify the configured project");
+            return WorkerCallResult.Fail(
+                result.SessionIdentity is null
+                    ? WorkerFailureCategories.PostconditionFailed
+                    : WorkerFailureCategories.BindingConflict,
+                promoteError ?? "The worker did not return a verifiable project identity.",
+                result.Warnings) with { SessionIdentity = result.SessionIdentity };
+        }
+
+        if (string.Equals(bindingBeforeCall.State, ProjectBindingSnapshot.VerifiedState, StringComparison.Ordinal))
+        {
+            var currentBinding = _projectSessionBinding.CaptureSnapshot();
+            if (!bindingBeforeCall.SameBinding(currentBinding))
+            {
+                return WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    "The MCP project binding changed while this worker request was in flight. "
+                    + "The response was discarded and the newer binding was left intact.",
+                    result.Warnings) with { SessionIdentity = result.SessionIdentity };
+            }
+
+            if (_projectSessionBinding.MatchesVerifiedIdentity(result.SessionIdentity, out var identityError))
+            {
+                return result;
+            }
+
+            _projectSessionBinding.TryInvalidate(
+                bindingBeforeCall,
+                identityError ?? "worker identity changed");
+            _logger?.LogError("TIA Openness worker binding divergence: {Error}", identityError);
+            return WorkerCallResult.Fail(
+                result.SessionIdentity is null
+                    ? WorkerFailureCategories.PostconditionFailed
+                    : WorkerFailureCategories.BindingConflict,
+                identityError ?? "The worker session identity changed.",
+                result.Warnings) with { SessionIdentity = result.SessionIdentity };
+        }
+
+        return WorkerCallResult.Fail(
+            WorkerFailureCategories.BindingConflict,
+            "The MCP project binding is invalidated. Rebind explicitly before continuing.",
+            result.Warnings);
     }
 
     private static IReadOnlyList<string> AppendWarning(IReadOnlyList<string> warnings, string warning)
@@ -1091,23 +1474,35 @@ public class OpennessWorkerClient : IDisposable
             {
                 return WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings) with
                 {
-                    ResolvedProjectPath = response.ResolvedProjectPath
+                    ResolvedProjectPath = response.ResolvedProjectPath,
+                    SessionIdentity = response.SessionIdentity
                 };
             }
 
             var failureCategory = WorkerFailureCategories.IsKnown(response.FailureCategory)
                 ? response.FailureCategory!
                 : WorkerFailureCategories.WorkerOperationFailed;
-            return WorkerCallResult.Fail(
+            var failure = WorkerCallResult.Fail(
                 failureCategory,
                 response.Error ?? "The TIA Openness worker failed without an error message.",
-                warnings);
+                warnings) with
+            {
+                ResolvedProjectPath = response.ResolvedProjectPath,
+                SessionIdentity = response.SessionIdentity
+            };
+            if (failureCategory == WorkerFailureCategories.BindingConflict && _projectSessionBinding.IsVerified)
+            {
+                _projectSessionBinding.Invalidate(failure.Error ?? "worker rejected the expected session identity");
+            }
+
+            return failure;
         }
         catch (Win32Exception ex)
         {
             // The worker process never started (e.g. missing/invalid executable): a distinct,
             // more actionable failure than a mid-request crash, so it keeps its own message and
             // the generic worker-operation-failed category rather than worker_crashed.
+            InvalidateVerifiedBinding("the Openness worker could not be started, so its prior session no longer exists");
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.WorkerOperationFailed,
                 $"Failed to launch the TIA Openness worker process ({ex.Message}). "
@@ -1116,14 +1511,31 @@ public class OpennessWorkerClient : IDisposable
         }
         catch (TimeoutException)
         {
+            InvalidateVerifiedBinding("the Openness worker timed out and its session outcome is unknown");
             return WorkerCallResult.Fail(WorkerFailureCategories.WorkerTimeout, InspectStateBeforeRetryGuidance);
+        }
+        catch (PersistentWorkerTransport.WorkerProtocolMismatchException ex)
+        {
+            InvalidateVerifiedBinding("the Openness worker protocol is incompatible with this host");
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.ProtocolError,
+                ex.Message);
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException)
         {
             // Broken pipe (IOException), a crashed/null response or a failed process launch
             // (InvalidOperationException), or malformed/protocol-desynced JSON (JsonException) —
             // all mean the worker cannot be trusted to have completed the request as sent.
+            InvalidateVerifiedBinding("the Openness worker crashed or its protocol stream was lost");
             return WorkerCallResult.Fail(WorkerFailureCategories.WorkerCrashed, InspectStateBeforeRetryGuidance);
+        }
+    }
+
+    private void InvalidateVerifiedBinding(string reason)
+    {
+        if (_projectSessionBinding.IsVerified)
+        {
+            _projectSessionBinding.Invalidate(reason);
         }
     }
 
@@ -1150,6 +1562,29 @@ public class OpennessWorkerClient : IDisposable
             _transport?.Dispose();
             _transport = null;
         }
+    }
+
+    private sealed class BindingOperationContext
+    {
+        public BindingOperationContext(ProjectBindingSnapshot? PinnedBinding)
+        {
+            this.PinnedBinding = PinnedBinding;
+        }
+
+        public ProjectBindingSnapshot? PinnedBinding { get; set; }
+    }
+
+    public sealed record PinnedBindingExecutionResult<T>(
+        bool Success,
+        T? Value,
+        WorkerCallResult? Failure)
+        where T : class
+    {
+        public static PinnedBindingExecutionResult<T> Ok(T value)
+            => new(true, value, Failure: null);
+
+        public static PinnedBindingExecutionResult<T> Fail(WorkerCallResult failure)
+            => new(false, Value: null, failure);
     }
 
     // A degraded read of a large project can emit hundreds of "Skipping X" lines; cap what

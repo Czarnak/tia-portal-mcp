@@ -105,7 +105,14 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
         var helperOccurrences = CountOccurrences(source, "WithSubnetLifecycleProject(request,");
         Assert.Equal(3, helperOccurrences);
         Assert.Contains("private static WorkerResponse WithSubnetLifecycleProject(", source, StringComparison.Ordinal);
-        Assert.Contains("session.EnsureConnected();", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
+        Assert.Contains(
+            "WithSession(request, session =>",
+            ExtractMethodBody(source, "WithSubnetLifecycleProject"),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_sharedSession.EnsureConnected(request.ProjectPath);",
+            ExtractMethodBody(source, "WithSession"),
+            StringComparison.Ordinal);
         Assert.Contains("session.TiaPortal", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
         Assert.Contains("session.Project", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
     }

@@ -12,11 +12,23 @@ namespace TiaMcpServer.Tests.Project;
 
 public class ProjectStandaloneToolTests
 {
-    private static OpennessWorkerClient CreateClient(string workerPath)
+    private static OpennessWorkerClient CreateClient(
+        string workerPath,
+        ProjectSessionBinding? binding = null)
         => new(
-            new ProjectSessionBinding(null),
+            binding ?? new ProjectSessionBinding(null),
             logger: null,
             workerExecutablePath: workerPath);
+
+    private static async Task VerifyBindingAsync(
+        OpennessWorkerClient client,
+        ProjectSessionBinding binding,
+        string projectPath)
+    {
+        var result = await client.GetProjectStatusAsync(projectPath);
+        Assert.True(result.Success, result.Error);
+        Assert.True(binding.IsVerified);
+    }
 
     private static JsonElement WorkerRequestFromEnvelope(string response)
     {
@@ -118,17 +130,20 @@ public class ProjectStandaloneToolTests
     [Fact]
     public async Task CompileCheck_ForwardsEveryArgument()
     {
-        using var client = CreateClient(FakeWorkerLocator.Locate());
+        const string projectPath = "echo";
+        var binding = new ProjectSessionBinding(projectPath);
+        using var client = CreateClient(FakeWorkerLocator.Locate(), binding);
+        await VerifyBindingAsync(client, binding, projectPath);
 
         var response = await ProjectEngineeringTools.CompileCheck(
             client,
-            projectPath: "echo",
+            projectPath,
             plcName: "PLC_1",
             blockPath: "PLC_1/Blocks/Main");
         var request = WorkerRequestFromEnvelope(response);
 
         Assert.Equal("compile_check", request.GetProperty("method").GetString());
-        Assert.Equal("echo", request.GetProperty("projectPath").GetString());
+        Assert.Equal(binding.BoundProjectPath, request.GetProperty("projectPath").GetString());
         Assert.Equal("PLC_1", request.GetProperty("plcName").GetString());
         Assert.Equal("PLC_1/Blocks/Main", request.GetProperty("blockPath").GetString());
     }
@@ -136,11 +151,14 @@ public class ProjectStandaloneToolTests
     [Fact]
     public async Task CompileCheck_OversizedSuccess_IsCappedAtMaxItemChars()
     {
-        using var client = CreateClient(FakeWorkerLocator.Locate());
+        const string projectPath = "echo";
+        var binding = new ProjectSessionBinding(projectPath);
+        using var client = CreateClient(FakeWorkerLocator.Locate(), binding);
+        await VerifyBindingAsync(client, binding, projectPath);
 
         var response = await ProjectEngineeringTools.CompileCheck(
             client,
-            projectPath: "echo",
+            projectPath,
             blockPath: new string('x', OperationBatchPayloadBudget.MaxItemChars + 100));
         var payload = PayloadFromEnvelope(response);
 

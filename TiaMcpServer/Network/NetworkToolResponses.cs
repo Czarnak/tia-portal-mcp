@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Network;
@@ -82,6 +83,7 @@ public sealed record NetworkWritePreview(
     string RequestedInputHash,
     DateTimeOffset ExpiresAtUtc,
     string SafetyToken,
+    ProjectBindingSnapshot ProjectBinding,
     JsonElement? Diff,
     string Instructions);
 

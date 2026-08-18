@@ -102,7 +102,9 @@ public class NetworkStructuredProtocolTests
     public async Task NetworkWrite_AdvertisesOutputSchemaAndKeepsEnvelopePhasesMutuallyExclusive()
     {
         using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
+            audit.Path,
+            startupProjectPath: "network-roundtrip");
 
         var tool = Assert.Single(
             await harness.Client.ListToolsAsync(),
@@ -132,7 +134,9 @@ public class NetworkStructuredProtocolTests
     public async Task NetworkWrite_ExecutedBatchWithAFailedItemIsNotAToolError()
     {
         using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
+            audit.Path,
+            startupProjectPath: "network-write-item-failure");
         var operations = WriteOperations("network-write-item-failure");
 
         var preview = AssertOneCanonicalDocument(await CallWriteAsync(harness, operations));
@@ -164,8 +168,10 @@ public class NetworkStructuredProtocolTests
     public async Task NetworkWrite_MultiHomedFlow_ReadSelectPreviewApplyRead_ChangesOnlySelectedPortAndLeavesTheOtherByteForByteUnchanged()
     {
         using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools, NetworkWriteTools>(audit.Path);
         const string scenario = "multi-homed-network";
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools, NetworkWriteTools>(
+            audit.Path,
+            startupProjectPath: scenario);
 
         var before = await ReadHardwareConfigAsync(harness, scenario);
         var beforePlc = FindNodeByNodeId(before, "node-plc");
@@ -222,7 +228,9 @@ public class NetworkStructuredProtocolTests
     public async Task NetworkWrite_PropertyReorderingOnlyStillValidatesAgainstTheSameToken()
     {
         using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
+            audit.Path,
+            startupProjectPath: "network-roundtrip");
 
         var previewOperation = new Dictionary<string, object?>
         {
@@ -312,7 +320,9 @@ public class NetworkStructuredProtocolTests
     public async Task NetworkWrite_InvalidSuccessPayloadBecomesProtocolErrorSkipsLaterWritesWarnsAndKeepsIsErrorFalse()
     {
         using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
+            audit.Path,
+            startupProjectPath: "invalid-network-success-payload");
         var operations = new object[]
         {
             new

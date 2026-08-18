@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -30,6 +31,12 @@ public class BlockCurrentStateReadTests
 
     private static OpennessWorkerClient CreateClient()
         => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding)
+        => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static WriteSafetyService CreateSafety(TempAuditDirectory audit, ProjectSessionBinding binding)
+        => new(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
 
     /// <summary>
     /// The "echo" scenario returns the received request verbatim, so the request the current-state
@@ -126,10 +133,19 @@ public class BlockCurrentStateReadTests
     public async Task PreviewAndApplyWriteBatch_UpdateBlockLogicWithSourceFormat_ReadsCurrentStateAsSource()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        const string projectPath = "block-source-roundtrip";
+        var binding = new ProjectSessionBinding(projectPath);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
 
-        var operations = new[] { UpdateBlockLogicOp(SourceFormatNames.Source, projectPath: "block-source-roundtrip") };
+        var verification = await client.GetBlockContentAsync(
+            BlockPath,
+            projectPath,
+            SourceFormatNames.Source);
+        Assert.True(verification.Success, verification.Error);
+        Assert.True(binding.IsVerified);
+
+        var operations = new[] { UpdateBlockLogicOp(SourceFormatNames.Source, projectPath) };
 
         var preview = await BatchTools.PreviewWriteBatch(client, safety, operations);
         using var previewDoc = JsonDocument.Parse(preview);

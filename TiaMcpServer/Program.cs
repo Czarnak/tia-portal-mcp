@@ -42,6 +42,11 @@ namespace TiaMcpServer
 
             var accessMode = accessModeResult.Mode;
             var accessPolicy = new OperationAccessPolicy(accessMode);
+            if (!TryResolveStartupProjectPath(args, out var startupProjectPath, out var projectPathError))
+            {
+                Console.Error.WriteLine($"Error: {projectPathError}");
+                return 1;
+            }
 
             Console.Error.WriteLine($"TIA MCP access mode: {accessMode.ToString().ToUpperInvariant()}");
             if (accessMode == McpAccessMode.ReadOnly)
@@ -55,8 +60,9 @@ namespace TiaMcpServer
             var builder = Host.CreateApplicationBuilder(
                 HostArgumentFilter.RemoveAccessModeArguments(args));
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
-            builder.Services.AddSingleton(new ProjectSessionBinding(ResolveStartupProjectPath(args)));
-            builder.Services.AddSingleton(new WriteSafetyService());
+            builder.Services.AddSingleton(new ProjectSessionBinding(startupProjectPath));
+            builder.Services.AddSingleton(sp => new WriteSafetyService(
+                sp.GetRequiredService<ProjectSessionBinding>()));
             builder.Services.AddSingleton(accessPolicy);
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
@@ -82,24 +88,58 @@ namespace TiaMcpServer
             return 0;
         }
 
-        private static string? ResolveStartupProjectPath(string[] args)
+        private static bool TryResolveStartupProjectPath(
+            string[] args,
+            out string? projectPath,
+            out string? error)
         {
+            projectPath = null;
+            error = null;
             for (int i = 0; i < args.Length; i++)
             {
-                if (string.Equals(args[i], "--project", StringComparison.OrdinalIgnoreCase) &&
-                    i + 1 < args.Length)
+                string? candidate = null;
+                if (string.Equals(args[i], "--project", StringComparison.OrdinalIgnoreCase))
                 {
-                    return args[i + 1];
+                    if (i + 1 >= args.Length ||
+                        string.IsNullOrWhiteSpace(args[i + 1]) ||
+                        args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    {
+                        error = "--project requires a value.";
+                        return false;
+                    }
+
+                    candidate = args[++i];
+                }
+                else
+                {
+                    const string projectPrefix = "--project=";
+                    if (args[i].StartsWith(projectPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        candidate = args[i].Substring(projectPrefix.Length);
+                        if (string.IsNullOrWhiteSpace(candidate))
+                        {
+                            error = "--project requires a value.";
+                            return false;
+                        }
+                    }
                 }
 
-                const string projectPrefix = "--project=";
-                if (args[i].StartsWith(projectPrefix, StringComparison.OrdinalIgnoreCase))
+                if (candidate is null)
                 {
-                    return args[i].Substring(projectPrefix.Length);
+                    continue;
                 }
+
+                if (projectPath is not null)
+                {
+                    error = "--project may be specified only once.";
+                    return false;
+                }
+
+                projectPath = candidate;
             }
 
-            return Environment.GetEnvironmentVariable("TIA_MCP_PROJECT_PATH");
+            projectPath ??= Environment.GetEnvironmentVariable("TIA_MCP_PROJECT_PATH");
+            return true;
         }
     }
 }

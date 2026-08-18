@@ -23,8 +23,22 @@ public class WorkerRequest
     /// <summary>Operation name, dispatched by the worker's switch in Program.cs.</summary>
     public string Method { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Exact wire protocol version. The worker checks it before authorization, Attach(), or any
+    /// Siemens API call. The hello request uses the same value.
+    /// </summary>
+    public string? ProtocolVersion { get; set; }
+
     /// <summary>Target project path. Resolved against the session binding before sending.</summary>
     public string? ProjectPath { get; set; }
+
+    /// <summary>
+    /// Exact worker/Portal/project identity the host has verified for this session. The worker
+    /// validates it before a bound operation, so a restarted worker or changed project fails
+    /// before any Siemens mutation. Null is allowed only for unbound reads and the explicit
+    /// open/create operations that establish a new binding.
+    /// </summary>
+    public WorkerSessionIdentity? ExpectedSessionIdentity { get; set; }
 
     /// <summary>
     /// Set by every write operation EXCEPT update_block_logic, which forwards only

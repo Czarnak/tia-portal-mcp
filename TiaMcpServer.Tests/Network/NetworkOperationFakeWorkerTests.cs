@@ -17,11 +17,23 @@ public class NetworkOperationFakeWorkerTests
 {
     private const string Scenario = "network-roundtrip";
 
-    private static OpennessWorkerClient CreateClient()
+    private static OpennessWorkerClient CreateClient(ProjectSessionBinding? binding = null)
         => new(
-            new ProjectSessionBinding(null),
+            binding ?? new ProjectSessionBinding(null),
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static OpennessWorkerClient CreateWriteClient(
+        TempAuditDirectory audit,
+        out WriteSafetyService safety,
+        string projectPath)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = CreateClient(binding);
+        NetworkVerifiedWriteFixture.VerifyAsync(client, binding, projectPath).GetAwaiter().GetResult();
+        safety = audit.CreateSafety(projectSessionBinding: binding);
+        return client;
+    }
 
     private static NetworkOperationRequest ReadHardware(string operationId) => new()
     {
@@ -124,8 +136,7 @@ public class NetworkOperationFakeWorkerTests
     public async Task NetworkWrite_UsesOneSnapshotPerAttemptAndEnforcesTokenLifecycle()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, Scenario);
         var operations = new[] { AddDevice("add"), ConfigureDevice("configure") };
 
         var preview = await NetworkWriteTools.NetworkWrite(client, safety, operations);
@@ -139,13 +150,13 @@ public class NetworkOperationFakeWorkerTests
 
         // Each result is the declared contract type as JSON, never a nested JSON string. The
         // scenario stamps its request sequence into the contract's own free-text members, so the
-        // apply is still provably the third and fourth worker requests of this round trip.
+        // request 1 verifies the configured project, so the writes are provably requests 4 and 5.
         Assert.Equal(JsonValueKind.Object, results[0].GetProperty("result").ValueKind);
-        Assert.Equal("seq:3", results[0].GetProperty("result").GetProperty("warnings")[0].GetString());
+        Assert.Equal("seq:4", results[0].GetProperty("result").GetProperty("warnings")[0].GetString());
         Assert.Equal("configure", results[1].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", results[1].GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Object, results[1].GetProperty("result").ValueKind);
-        Assert.Equal("seq:4", results[1].GetProperty("result").GetProperty("messages")[0].GetString());
+        Assert.Equal("seq:5", results[1].GetProperty("result").GetProperty("messages")[0].GetString());
 
         var replay = await NetworkWriteTools.NetworkWrite(client, safety, operations, confirm: true, safetyToken: token);
         Assert.True(replay.IsError);
@@ -177,9 +188,8 @@ public class NetworkOperationFakeWorkerTests
     public async Task NetworkWrite_ChangedNodeIdBetweenPreviewAndApplyIsRejectedAsADifferentTarget()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
         const string scenario = "multi-homed-network";
+        using var client = CreateWriteClient(audit, out var safety, scenario);
 
         static NetworkOperationRequest[] Operations(string scenario, string nodeId) => new[]
         {
@@ -213,8 +223,7 @@ public class NetworkOperationFakeWorkerTests
     public async Task NetworkWrite_AmbiguousNodeIdFailsClosedWithNoTokenIssued()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, "network-ambiguous-node");
 
         var result = await NetworkWriteTools.NetworkWrite(
             client,

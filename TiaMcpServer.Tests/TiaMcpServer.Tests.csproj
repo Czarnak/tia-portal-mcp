@@ -105,6 +105,8 @@
       Link="Host\Network\NetworkWriteTools.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectRebindCloseGuard.cs"
       Link="Worker\ProjectRebindCloseGuard.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalTargetSelector.cs"
+      Link="Worker\TiaPortalTargetSelector.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\AssemblyResolver.cs"
       Link="Worker\AssemblyResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerWarningMerger.cs"

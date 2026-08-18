@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -24,6 +25,19 @@ public class TypeOperationFakeWorkerTests
 
     private static OpennessWorkerClient CreateClient()
         => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding)
+        => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static WriteSafetyService CreateSafety(TempAuditDirectory audit, ProjectSessionBinding binding)
+        => new(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
+
+    private static async Task VerifyBindingAsync(OpennessWorkerClient client, ProjectSessionBinding binding)
+    {
+        var result = await client.GetTypeContentAsync(TypePath, format: null, projectPath: Scenario);
+        Assert.True(result.Success, result.Error);
+        Assert.True(binding.IsVerified);
+    }
 
     private static BatchOperationRequest UpdateTypeContentOp(string operationId) => new()
     {
@@ -63,8 +77,10 @@ public class TypeOperationFakeWorkerTests
     public async Task PreviewWriteBatch_UpdateTypeContent_ReturnsTokenAndDescriptivePreview()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(Scenario);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await VerifyBindingAsync(client, binding);
 
         var result = await BatchTools.PreviewWriteBatch(
             client,
@@ -84,8 +100,10 @@ public class TypeOperationFakeWorkerTests
     public async Task ApplyWriteBatch_UpdateTypeContent_SucceedsOnceThenRejectsReplayedToken()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(Scenario);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await VerifyBindingAsync(client, binding);
 
         var operations = new[] { UpdateTypeContentOp("w1") };
 
