@@ -104,6 +104,36 @@ internal static class Program
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Worker request was empty.");
             }
 
+            // Protocol compatibility is established before authorization, Attach(), or any
+            // Siemens API call. This prevents a stale same-major worker from performing a
+            // lifecycle mutation and only afterwards revealing that it cannot enforce identity.
+            if (string.Equals(request.Method, "hello", StringComparison.Ordinal))
+            {
+                if (!string.Equals(request.ProtocolVersion, WorkerProtocol.Version, StringComparison.Ordinal))
+                {
+                    return Failure(
+                        WorkerFailureCategories.ValidationError,
+                        $"Worker protocol mismatch. Host requested '{request.ProtocolVersion ?? "(missing)"}', "
+                        + $"worker requires '{WorkerProtocol.Version}'.");
+                }
+
+                return new WorkerResponse
+                {
+                    Success = true,
+                    Payload = "{}",
+                    ProtocolVersion = WorkerProtocol.Version,
+                    Capabilities = WorkerProtocol.RequiredCapabilities.ToList()
+                };
+            }
+
+            if (!string.Equals(request.ProtocolVersion, WorkerProtocol.Version, StringComparison.Ordinal))
+            {
+                return Failure(
+                    WorkerFailureCategories.ValidationError,
+                    $"Worker protocol mismatch. Request carried '{request.ProtocolVersion ?? "(missing)"}', "
+                    + $"worker requires '{WorkerProtocol.Version}'. No Siemens operation was performed.");
+            }
+
             // Defense in depth: authorize BEFORE the dispatch switch, before any handler
             // is called, and before any Siemens API call is made.
             var denial = WorkerOperationAuthorization.Authorize(_accessMode, request.Method);
@@ -415,12 +445,12 @@ internal static class Program
 
         return WithSession(request, session =>
         {
-            session.EnsureConnected();
             var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
             if (failure is not null)
             {
                 return failure;
             }
+            ValidateExpectedAfterProjectResolution(session, request);
             if (session.Project is null || session.TiaPortal is null)
             {
                 return Failure(
@@ -448,13 +478,12 @@ internal static class Program
 
         return WithSession(request, session =>
         {
-            session.EnsureConnected();
-
             var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
             if (failure is not null)
             {
                 return failure;
             }
+            ValidateExpectedAfterProjectResolution(session, request);
 
             if (session.TiaPortal is null)
             {
@@ -660,13 +689,12 @@ internal static class Program
     {
         return WithSession(request, session =>
         {
-            session.EnsureConnected();
-
             var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
             if (failure is not null)
             {
                 return failure;
             }
+            ValidateExpectedAfterProjectResolution(session, request);
 
             if (session.Project is null || session.TiaPortal is null)
             {
@@ -1098,7 +1126,10 @@ internal static class Program
     {
         return ProjectLifecycle(
             request,
-            session => ProjectLifecycleService.SaveProject(session, request.ProjectPath),
+            session => ProjectLifecycleService.SaveProject(
+                session,
+                request.ProjectPath,
+                request.ExpectedSessionIdentity),
             requiresConfirm: true);
     }
 
@@ -1111,7 +1142,8 @@ internal static class Program
                 request.ProjectPath,
                 request.TargetDirectory!,
                 request.TargetName!,
-                request.Rebind),
+                request.Rebind,
+                request.ExpectedSessionIdentity),
             requiresConfirm: true);
     }
 
@@ -1125,7 +1157,8 @@ internal static class Program
                 request.ArchiveDirectory!,
                 request.ArchiveName!,
                 request.ArchiveMode ?? ArchiveModeNames.Compressed,
-                request.SaveBeforeArchive),
+                request.SaveBeforeArchive,
+                request.ExpectedSessionIdentity),
             requiresConfirm: true);
     }
 
@@ -1133,7 +1166,11 @@ internal static class Program
     {
         return ProjectLifecycle(
             request,
-            session => ProjectLifecycleService.CloseProject(session, request.ProjectPath, request.SaveBeforeClose),
+            session => ProjectLifecycleService.CloseProject(
+                session,
+                request.ProjectPath,
+                request.SaveBeforeClose,
+                request.ExpectedSessionIdentity),
             requiresConfirm: true);
     }
 
@@ -1169,13 +1206,12 @@ internal static class Program
     {
         return WithSession(request, session =>
         {
-            session.EnsureConnected();
-
             var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
             if (failure is not null)
             {
                 return failure;
             }
+            ValidateExpectedAfterProjectResolution(session, request);
 
             if (session.Project is null)
             {
@@ -1248,11 +1284,46 @@ internal static class Program
         }
     }
 
+    /// <summary>
+    /// EnsureRequestedProjectOpen may legitimately open or switch a handle in read-write mode.
+    /// Re-check the caller's identity afterwards so no operation body can run on a generation that
+    /// was established only after the original precondition check.
+    /// </summary>
+    private static void ValidateExpectedAfterProjectResolution(
+        WorkerTiaPortalSession session,
+        WorkerRequest request)
+        => session.ValidateExpectedSessionIdentity(
+            request.ExpectedSessionIdentity,
+            AllowsMissingExpectedSessionIdentity(request.Method));
+
     /// <summary>Runs <paramref name="body"/> with the shared long-lived session.</summary>
     private static WorkerResponse WithSession(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
     {
-        return Execute(() => body(_sharedSession));
+        return Execute(() =>
+        {
+            var allowMissingExpectedIdentity = AllowsMissingExpectedSessionIdentity(request.Method);
+
+            // First compare against the cached identity. A request carrying an identity from a
+            // restarted worker is rejected before Attach() or any other Siemens call. Then refresh
+            // the live Portal/project handles and compare again so a UI-side close, reopen, or
+            // SaveAs cannot race into the requested engineering operation.
+            _sharedSession.ValidateExpectedSessionIdentity(
+                request.ExpectedSessionIdentity,
+                allowMissingExpectedIdentity);
+            _sharedSession.EnsureConnected(request.ProjectPath);
+            _sharedSession.ValidateExpectedSessionIdentity(
+                request.ExpectedSessionIdentity,
+                allowMissingExpectedIdentity);
+
+            return body(_sharedSession);
+        });
     }
+
+    private static bool AllowsMissingExpectedSessionIdentity(string method)
+        => _accessMode == McpAccessMode.ReadOnly
+            || string.Equals(method, "get_project_status", StringComparison.Ordinal)
+            || string.Equals(method, "open_project", StringComparison.Ordinal)
+            || string.Equals(method, "create_project", StringComparison.Ordinal);
 
     /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure and stamps completed operations with their resolved project path.</summary>
     private static WorkerResponse Execute(Func<WorkerResponse> body)
@@ -1295,6 +1366,7 @@ internal static class Program
         try
         {
             response.ResolvedProjectPath = _sharedSession.CurrentProjectPath;
+            response.SessionIdentity = _sharedSession.GetSessionIdentity();
         }
         catch (Exception ex)
         {

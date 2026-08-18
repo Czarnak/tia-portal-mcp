@@ -50,8 +50,9 @@ Every write goes through preview-then-apply. This is non-negotiable.
 - **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
 - **Network writes**: call `network_write` with `confirm=false` and no token to preview, then call the same tool with `confirm=true`, the unchanged ordered operation list, and the returned token
 - **Project lifecycle writes** (`open_project`, `create_project`, etc.): self-previewing — call the tool without `safetyToken` to get a preview + token, then call again with `confirm=true` + the token
-- Safety tokens are single-use, expire in 10 minutes, bound to exact tool name + project path + requested input + current project state
+- Safety tokens are single-use, expire in 10 minutes, and are bound to the exact tool name + host binding revision + requested input + current project state; project-scoped writes additionally require the complete verified project identity
 - Reordering, changing input, or project state changes invalidate the token
+- Apply-time state read, token consumption, mutation, verification, and audit run under one pinned project-binding lease; lifecycle rebinding uses the same lease
 - Successful writes append audit JSONL under `%LOCALAPPDATA%\TiaMcpServer\audit`
 
 ## Structured JSON contract rules (Network Phase 2 and beyond)

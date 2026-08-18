@@ -1,10 +1,17 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TiaMcpServer.Contracts;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
 // stdin closes. The test encodes the scenario in the request's projectPath field.
 var seq = 0;
+var workerSessionId = Guid.NewGuid().ToString("N");
+const int FakePortalProcessId = 4242;
+var fakeSessionGeneration = 1L;
+string? fakeProjectPath = null;
+string? currentProjectPath = null;
+string? currentMethod = null;
 
 // Process-local, mutable hardware state for the "multi-homed-network" scenario (see below): a
 // single PC station exposing two ports on separate interfaces. Declared once per FakeWorker
@@ -55,23 +62,47 @@ while ((line = Console.In.ReadLine()) is not null)
 {
     seq++;
     string? scenario = null;
+    currentProjectPath = null;
+    currentMethod = null;
     try
     {
         using var doc = JsonDocument.Parse(line);
         if (doc.RootElement.TryGetProperty("projectPath", out var p) && p.ValueKind == JsonValueKind.String)
         {
-            scenario = p.GetString();
+            currentProjectPath = p.GetString();
+            scenario = ScenarioKey(currentProjectPath);
         }
         else if (doc.RootElement.TryGetProperty("projectDirectory", out var d) && d.ValueKind == JsonValueKind.String)
         {
             // create_project carries no projectPath; its scenario key is the target directory so
             // create-specific IPC tests can drive the fake worker just like path-keyed scenarios.
-            scenario = d.GetString();
+            currentProjectPath = d.GetString();
+            scenario = ScenarioKey(currentProjectPath);
         }
+
+        currentMethod = doc.RootElement.TryGetProperty("method", out var method) && method.ValueKind == JsonValueKind.String
+            ? method.GetString()
+            : null;
     }
     catch (JsonException)
     {
         scenario = "malformed-request";
+    }
+
+    if (string.Equals(currentMethod, "hello", StringComparison.Ordinal))
+    {
+        // Handshake traffic is transport setup, not an engineering request; preserve the
+        // historical sequence values used by reuse/restart tests.
+        seq--;
+        Console.Out.WriteLine(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = true,
+            Payload = "{}",
+            ProtocolVersion = WorkerProtocol.Version,
+            Capabilities = WorkerProtocol.RequiredCapabilities.ToList()
+        }));
+        Console.Out.Flush();
+        continue;
     }
 
     switch (scenario)
@@ -79,6 +110,12 @@ while ((line = Console.In.ReadLine()) is not null)
         case "ok":
             // seq proves whether two requests hit the same process (2.1 reuse/restart tests).
             Respond($$"""{"success":true,"payload":"{\"seq\":{{seq}}}"}""");
+            break;
+        case "missing-session-identity":
+            // A structurally valid success that violates the new binding postcondition. Used to
+            // prove open/create never fall back to caller input or resolvedProjectPath when the
+            // worker omits its complete worker/Portal/project identity.
+            Respond("""{"success":true,"payload":"{}"}""", includeSessionIdentity: false);
             break;
         case "ok-with-resolved-path":
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
@@ -292,9 +329,10 @@ while ((line = Console.In.ReadLine()) is not null)
             // scenario key) is what has to pick the response.
             Respond(ReadMethod(line) switch
             {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 "get_type_content" => """{"success":true,"payload":"TYPE AnalogInputSettings STRUCT Value : Real; END_STRUCT END_TYPE"}""",
                 "update_type_content" => """{"success":true,"payload":"{}"}""",
-                _ => $$"""{"success":false,"error":"expected get_type_content or update_type_content, got '{{ReadMethod(line)}}'"}"""
+                _ => $$"""{"success":false,"error":"expected get_project_status, get_type_content, or update_type_content, got '{{ReadMethod(line)}}'"}"""
             });
             break;
         case "block-source-roundtrip":
@@ -305,6 +343,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // payload, and the round trip fails loudly instead of binding the wrong artifact.
             Respond((ReadMethod(line), ReadField(line, "format")) switch
             {
+                ("get_project_status", _) => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 ("get_block_content", "source") => """{"success":true,"payload":"DATA_BLOCK \"Recipe\"\r\nSTRUCT\r\nEND_STRUCT;\r\nBEGIN\r\nEND_DATA_BLOCK\r\n"}""",
                 ("update_block_logic", "source") => """{"success":true,"payload":"{}"}""",
                 var other => $$"""{"success":false,"error":"expected format 'source' for both methods, got method '{{other.Item1}}' with format '{{other.Item2}}'"}"""
@@ -509,10 +548,75 @@ while ((line = Console.In.ReadLine()) is not null)
     }
 }
 
-void Respond(string json)
+void Respond(string json, bool includeSessionIdentity = true)
 {
+    // Add the same structural identity contract as the real worker. Centralizing it here keeps
+    // every existing scripted scenario useful while making worker restarts observable: each fake
+    // process receives a fresh workerSessionId.
+    try
+    {
+        if (includeSessionIdentity && JsonNode.Parse(json) is JsonObject response)
+        {
+            var resolvedPath = response["resolvedProjectPath"]?.GetValue<string>();
+            var projectPath = string.Equals(currentMethod, "close_project", StringComparison.Ordinal)
+                ? null
+                : ProjectPathNormalization.Canonicalize(resolvedPath ?? currentProjectPath);
+
+            if (string.Equals(currentMethod, "close_project", StringComparison.Ordinal))
+            {
+                if (fakeProjectPath is not null)
+                {
+                    fakeSessionGeneration++;
+                }
+
+                fakeProjectPath = null;
+                response["resolvedProjectPath"] = null;
+            }
+            else if (projectPath is not null)
+            {
+                var isAuthorizedPathTransition =
+                    string.Equals(currentMethod, "open_project", StringComparison.Ordinal) ||
+                    string.Equals(currentMethod, "create_project", StringComparison.Ordinal) ||
+                    string.Equals(currentMethod, "save_project_as", StringComparison.Ordinal);
+                if (isAuthorizedPathTransition &&
+                    fakeProjectPath is not null &&
+                    !string.Equals(fakeProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    fakeSessionGeneration++;
+                }
+
+                fakeProjectPath = projectPath;
+            }
+
+            response["sessionIdentity"] = JsonSerializer.SerializeToNode(new WorkerSessionIdentity
+            {
+                WorkerSessionId = workerSessionId,
+                SessionGeneration = fakeSessionGeneration,
+                PortalProcessId = FakePortalProcessId,
+                ProjectPath = projectPath
+            });
+            json = response.ToJsonString();
+        }
+    }
+    catch (JsonException)
+    {
+        // Deliberately malformed protocol scenarios must remain malformed.
+    }
+
     Console.Out.WriteLine(json);
     Console.Out.Flush();
+}
+
+string? ScenarioKey(string? path)
+{
+    if (string.IsNullOrWhiteSpace(path) || path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
+    {
+        return path;
+    }
+
+    // ProjectPathNormalization turns test scenario keywords into absolute paths once a startup
+    // binding is configured. The final segment remains the scripted key.
+    return Path.GetFileName(path);
 }
 
 // A complete ProjectStatusInfo carrying every extended metadata section, modelling what the real

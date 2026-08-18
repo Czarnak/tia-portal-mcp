@@ -33,11 +33,23 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     private const string SecondItemFailureScenario = "network-subnet-lifecycle-second-item-failure";
     private const string StateDriftScenario = "network-subnet-lifecycle-state-drift";
 
-    private static OpennessWorkerClient CreateClient()
+    private static OpennessWorkerClient CreateClient(ProjectSessionBinding? binding = null)
         => new(
-            new ProjectSessionBinding(null),
+            binding ?? new ProjectSessionBinding(null),
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static OpennessWorkerClient CreateWriteClient(
+        TempAuditDirectory audit,
+        out WriteSafetyService safety,
+        string projectPath = Scenario)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = CreateClient(binding);
+        NetworkVerifiedWriteFixture.VerifyAsync(client, binding, projectPath).GetAwaiter().GetResult();
+        safety = audit.CreateSafety(projectSessionBinding: binding);
+        return client;
+    }
 
     private static NetworkOperationRequest CreateSubnetOp(
         string operationId,
@@ -164,8 +176,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task CreateSubnet_Ethernet_AppliesAndPostReadConfirmsIdentityWithUnchangedDeviceCount()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[] { CreateSubnetOp("create", "NewEthernetSubnet", SubnetLifecycleContract.Ethernet) };
 
         string? createdSubnetId = null;
@@ -197,8 +208,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task CreateSubnet_Profibus_WithHighestAddressAndTransmissionSpeed_Applies()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[]
         {
             CreateSubnetOp(
@@ -225,8 +235,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task UpdateSubnet_Ethernet_RenamesTheExactTargetAndLeavesTheOtherSubnetUntouched()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[]
         {
             UpdateSubnetOp("rename", "subnet-eth-1", new NetworkSubnetChanges { Name = "RenamedEthernet" }),
@@ -256,8 +265,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task UpdateSubnet_Profibus_RenamesHighestAddressAndBaudRateAndLeavesEthernetSubnetUntouched()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[]
         {
             UpdateSubnetOp(
@@ -293,8 +301,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task DeleteSubnet_EmptyNewlyCreatedSubnet_RemovesItAndLeavesDevicesUnchanged()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
 
         string createdSubnetId = null!;
         await PreviewAndApply(
@@ -327,8 +334,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task DeleteSubnet_ConnectedEthernetSubnet_SucceedsWithoutAnyDependencyBlocking()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
 
         await PreviewAndApply(
             client,
@@ -354,8 +360,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task DeleteSubnet_ConnectedProfibusSubnet_SucceedsWithoutAnyDependencyBlocking()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
 
         await PreviewAndApply(
             client,
@@ -383,8 +388,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecyclePreviewAndApply_TextBlockAndStructuredContentAreIdentical()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[] { CreateSubnetOp("create", "CanonicalSubnet", SubnetLifecycleContract.Ethernet) };
 
         var preview = await NetworkWrite(client, safety, operations);
@@ -399,8 +403,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleApply_AppendsOneAuditRecordMatchingTheExactResponse()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[] { DeleteSubnetOp("delete", "subnet-eth-1") };
         var token = SafetyToken(await NetworkWrite(client, safety, operations));
 
@@ -419,8 +422,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleApply_SingleUseTokenIsRejectedOnReplay()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         // update_subnet (not delete_subnet): the target must still exist after the first apply so
         // the replay is rejected for being CONSUMED, not because its own target vanished.
         var operations = new[]
@@ -441,8 +443,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleApply_BogusTokenIsRejectedBeforeAnyStateRead()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
 
         var result = await NetworkWrite(
             client,
@@ -460,8 +461,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleApply_ReorderedOperationsAreRejectedAsADifferentTarget()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[]
         {
             UpdateSubnetOp("rename-eth", "subnet-eth-1", new NetworkSubnetChanges { Name = "Reordered1" }),
@@ -479,8 +479,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleApply_ChangedSubnetChangesFieldIsRejectedAsInputMismatch()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var previewOperations = new[]
         {
             UpdateSubnetOp("rename", "subnet-eth-1", new NetworkSubnetChanges { Name = "OriginalRequestedName" }),
@@ -501,8 +500,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleApply_DifferentProjectPathIsRejectedAsBindingConflict()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
         var previewOperations = new[] { DeleteSubnetOp("delete", "subnet-eth-1", Scenario) };
         var token = SafetyToken(await NetworkWrite(client, safety, previewOperations));
 
@@ -516,15 +514,15 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         Assert.Equal(
             WorkerFailureCategories.BindingConflict,
             Structured(result).GetProperty("error").GetProperty("category").GetString());
-        Assert.Contains("different project path", Text(result));
+        Assert.Contains("already bound", Text(result));
+        Assert.Contains(AltPathScenario, Text(result));
     }
 
     [Fact]
     public async Task NetworkWrite_SubnetLifecycleApply_StateDriftBetweenPreviewAndApplyIsRejectedAsStateChanged()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, StateDriftScenario);
         var operations = new[] { DeleteSubnetOp("delete", "subnet-eth-1", StateDriftScenario) };
 
         // First read_hardware_config (inside preview) reports the initial connectedNodeNames.
@@ -550,8 +548,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecyclePostconditionFailed_PropagatesWithoutAnySuccessWording()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, PostconditionFailedScenario);
         var operations = new[]
         {
             CreateSubnetOp("create", "WillFailVerification", SubnetLifecycleContract.Ethernet, projectPath: PostconditionFailedScenario),
@@ -576,8 +573,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleMalformedVerboseSuccessPayload_BecomesProtocolErrorWithNoRawEcho()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, MalformedSuccessScenario);
         var operations = new[]
         {
             CreateSubnetOp("create", "WillBeMalformed", SubnetLifecycleContract.Ethernet, projectPath: MalformedSuccessScenario),
@@ -607,8 +603,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_SubnetLifecycleBatch_LaterFailureStopsButEarlierSuccessStaysAppliedAndDeviceCountUnchanged()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, SecondItemFailureScenario);
         var operations = new[]
         {
             CreateSubnetOp("first", "SurvivesTheFailure", SubnetLifecycleContract.Ethernet, projectPath: SecondItemFailureScenario),
@@ -653,8 +648,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     public async Task NetworkWrite_FullLifecycleBatch_CreateUpdateDelete_AllSucceedWithUnchangedRootDeviceCountEverywhere()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety);
 
         // One batch with all three lifecycle operation kinds together: create_subnet resolves from
         // the request alone (no existing-target dependency), so it can share a batch with an

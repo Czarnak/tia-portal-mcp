@@ -16,9 +16,16 @@ public class ProjectEngineeringTools
         [Description("Optional PLC software name to compile.")] string? plcName = null,
         [Description("Optional PLC block path to compile only that block.")] string? blockPath = null)
     {
-        var result = await workerClient
-            .CompileCheckAsync(blockPath, plcName, projectPath)
-            .ConfigureAwait(false);
+        var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+        if (!bindingGate.Success)
+        {
+            return StandaloneToolResultFormatter.Format(bindingGate, string.Empty);
+        }
+
+        var execution = await workerClient.ExecuteWithPinnedBindingAsync(
+            workerClient.BindingSnapshot,
+            () => workerClient.CompileCheckAsync(blockPath, plcName, projectPath)).ConfigureAwait(false);
+        var result = execution.Success ? execution.Value! : execution.Failure!;
         return StandaloneToolResultFormatter.Format(
             result,
             "Narrow the compile with plcName or blockPath.");

@@ -66,12 +66,28 @@ public class NetworkWriteTools
         }
 
         var projectPath = NetworkSafetySnapshot.ResolveProjectPath(operations);
-
-        return confirm
-            ? await ApplyAsync(workerClient, safety, operations, safetyToken, projectPath)
-                .ConfigureAwait(false)
-            : await PreviewAsync(workerClient, safety, operations, projectPath)
+        if (confirm)
+        {
+            return await ApplyAsync(workerClient, safety, operations, safetyToken, projectPath)
                 .ConfigureAwait(false);
+        }
+
+        var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+        if (!bindingGate.Success)
+        {
+            return Error(
+                bindingGate.FailureCategory ?? WorkerFailureCategories.BindingConflict,
+                bindingGate.Error ?? "A verified project binding is required.");
+        }
+
+        var previewExecution = await workerClient.ExecuteWithPinnedBindingAsync(
+            workerClient.BindingSnapshot,
+            () => PreviewAsync(workerClient, safety, operations, projectPath)).ConfigureAwait(false);
+        return previewExecution.Success
+            ? previewExecution.Value!
+            : Error(
+                previewExecution.Failure!.FailureCategory ?? WorkerFailureCategories.BindingConflict,
+                previewExecution.Failure.Error ?? "The project binding changed before the network preview could run.");
     }
 
     private static async Task<CallToolResult> PreviewAsync(
@@ -118,6 +134,7 @@ public class NetworkWriteTools
                     canonical.RequestedInputHash,
                     canonical.ExpiresAtUtc,
                     canonical.SafetyToken,
+                    canonical.ProjectBinding,
                     canonical.Diff,
                     canonical.Instructions),
                 Batch: null,
@@ -132,6 +149,20 @@ public class NetworkWriteTools
         string? safetyToken,
         string? projectPath)
     {
+        // Some targets can only be reconstructed from the fresh hardware snapshot. Validate every
+        // token field available now (including the exact worker/Portal/project binding), then use
+        // that binding to serialize state read, full target validation, consumption, and mutation.
+        var leaseEnvelope = safety.ValidateLeaseEnvelope(
+            safetyToken,
+            ToolName,
+            ToolName);
+        if (!leaseEnvelope.IsValid)
+        {
+            return Error(
+                leaseEnvelope.FailureCategory ?? WorkerFailureCategories.ValidationError,
+                leaseEnvelope.Error);
+        }
+
         // Cheap pre-check first, when it is possible: a batch of creation operations resolves its
         // target evidence from the request alone, so a dead token is rejected before the expensive
         // state read. A batch containing configure_network_device cannot resolve its evidence
@@ -153,47 +184,72 @@ public class NetworkWriteTools
             }
         }
 
-        var freshState = await NetworkSafetySnapshot.ReadCurrentStateAsync(workerClient, projectPath)
-            .ConfigureAwait(false);
-        if (!freshState.Success)
+        var execution = await workerClient.ExecuteWithPinnedBindingAsync(
+            leaseEnvelope.ProjectBinding,
+            async () =>
+            {
+                var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+                if (!bindingGate.Success)
+                {
+                    return Error(
+                        bindingGate.FailureCategory ?? WorkerFailureCategories.BindingConflict,
+                        bindingGate.Error ?? "A verified project binding is required.");
+                }
+
+                var freshState = await NetworkSafetySnapshot.ReadCurrentStateAsync(workerClient, projectPath)
+                    .ConfigureAwait(false);
+                if (!freshState.Success)
+                {
+                    return Error(
+                        freshState.FailureCategory!,
+                        $"Could not read current hardware state before write. Error: {freshState.Error}");
+                }
+
+                // Resolve again against the fresh snapshot inside the same critical section as the
+                // write. A concurrent apply cannot validate against the state this one is about to
+                // change and then run later with stale evidence.
+                var resolution = NetworkSafetySnapshot.BuildTargets(operations, freshState.State);
+                if (!resolution.Success)
+                {
+                    return Error(resolution.FailureCategory!, resolution.Error!);
+                }
+
+                var tokenValidation = safety.ValidateAndConsumeCanonical(
+                    safetyToken, ToolName, projectPath, resolution.Targets!, operations, freshState.State!, ToolName);
+                if (!tokenValidation.IsValid)
+                {
+                    return Error(
+                        tokenValidation.FailureCategory ?? WorkerFailureCategories.ValidationError,
+                        tokenValidation.Error);
+                }
+
+                var batch = await StructuredOperationBatchExecutionEngine.ApplyWritesAsync(
+                    operations,
+                    operation => NetworkWorkerInvoker.InvokeWriteAsync(workerClient, operation, projectPath),
+                    NetworkPayloadContract.Project).ConfigureAwait(false);
+
+                var response = Compose(ApplyBudget(WarnAboutPartialWrite(batch)));
+
+                // The audit entry carries the exact document the caller received and is appended
+                // before the binding lease is released.
+                safety.AppendCanonicalAudit(
+                    ToolName,
+                    projectPath,
+                    resolution.Targets!,
+                    operations,
+                    freshState.State!,
+                    response);
+
+                return StructuredToolResult.Create(response, isError: false);
+            }).ConfigureAwait(false);
+        if (!execution.Success)
         {
             return Error(
-                freshState.FailureCategory!,
-                $"Could not read current hardware state before write. Error: {freshState.Error}");
+                execution.Failure!.FailureCategory ?? WorkerFailureCategories.BindingConflict,
+                execution.Failure.Error ?? "The project binding changed before the network write could run.");
         }
 
-        // Resolved again here, against the FRESH snapshot, right before the token is consumed: if
-        // the project changed since preview in a way that breaks this operation's selector (renamed,
-        // removed, now ambiguous), resolution fails closed instead of writing to whatever matches now.
-        var resolution = NetworkSafetySnapshot.BuildTargets(operations, freshState.State);
-        if (!resolution.Success)
-        {
-            return Error(resolution.FailureCategory!, resolution.Error!);
-        }
-
-        var tokenValidation = safety.ValidateAndConsumeCanonical(
-            safetyToken, ToolName, projectPath, resolution.Targets!, operations, freshState.State!, ToolName);
-        if (!tokenValidation.IsValid)
-        {
-            return Error(
-                tokenValidation.FailureCategory ?? WorkerFailureCategories.ValidationError,
-                tokenValidation.Error);
-        }
-
-        var batch = await StructuredOperationBatchExecutionEngine.ApplyWritesAsync(
-            operations,
-            operation => NetworkWorkerInvoker.InvokeWriteAsync(workerClient, operation, projectPath),
-            NetworkPayloadContract.Project)
-            .ConfigureAwait(false);
-
-        var response = Compose(ApplyBudget(WarnAboutPartialWrite(batch)));
-
-        // The audit entry carries the exact document the caller received — not a re-rendering of it.
-        safety.AppendCanonicalAudit(ToolName, projectPath, resolution.Targets!, operations, freshState.State!, response);
-
-        // The batch RAN, so this is a successful MCP call even when an item inside it failed:
-        // isError stays reserved for "the tool could not run".
-        return StructuredToolResult.Create(response, isError: false);
+        return execution.Value!;
     }
 
     /// <summary>

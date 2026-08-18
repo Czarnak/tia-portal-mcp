@@ -38,26 +38,40 @@ public class WriteBatchTools
                 "Write batch operations are not permitted in read-only mode.");
         }
 
-        var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
-        if (snapshot.Error is not null)
+        var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
+        var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+        if (!bindingGate.Success)
         {
-            return OperationBatchResultFormatter.Error(PreviewToolName, snapshot.Error);
+            return OperationBatchResultFormatter.Error(PreviewToolName, bindingGate.Error!);
         }
 
-        var targets = BatchSafetySnapshot.BuildTargets(operations);
-        var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
-        var summary = $"Apply {operations.Length} write operation(s) sequentially; stops on first failure (no rollback). "
-            + "The current-state snapshot is read per item and is not an atomic point-in-time view.";
+        var previewExecution = await workerClient.ExecuteWithPinnedBindingAsync(
+            workerClient.BindingSnapshot,
+            async () =>
+            {
+                var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
+                if (snapshot.Error is not null)
+                {
+                    return OperationBatchResultFormatter.Error(PreviewToolName, snapshot.Error);
+                }
 
-        return safety.CreatePreview(
-            ApplyToolName,
-            projectPath,
-            targets,
-            summary,
-            operations,
-            snapshot.CombinedState,
-            diff: null,
-            instructions: "Preview only — nothing was changed. To apply, call apply_write_batch with the identical operations list, confirm=true, and this safetyToken.");
+                var targets = BatchSafetySnapshot.BuildTargets(operations);
+                var summary = $"Apply {operations.Length} write operation(s) sequentially; stops on first failure (no rollback). "
+                    + "The current-state snapshot is read per item and is not an atomic point-in-time view.";
+
+                return safety.CreatePreview(
+                    ApplyToolName,
+                    projectPath,
+                    targets,
+                    summary,
+                    operations,
+                    snapshot.CombinedState,
+                    diff: null,
+                    instructions: "Preview only — nothing was changed. To apply, call apply_write_batch with the identical operations list, confirm=true, and this safetyToken.");
+            }).ConfigureAwait(false);
+        return previewExecution.Success
+            ? previewExecution.Value!
+            : OperationBatchResultFormatter.Error(PreviewToolName, previewExecution.Failure!.Error!);
     }
 
     [McpServerTool(Name = "apply_write_batch")]
@@ -113,32 +127,52 @@ public class WriteBatchTools
             return OperationBatchResultFormatter.Error(ApplyToolName, envelope.Error);
         }
 
-        var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
-        if (snapshot.Error is not null)
+        // Preserve the cheap-rejection guarantee above, then serialize the complete apply
+        // critical section: exact binding gate, fresh-state read, token consumption, mutation,
+        // and audit. A second concurrent apply therefore reads state only after the first write.
+        var execution = await workerClient.ExecuteWithPinnedBindingAsync(
+            envelope.ProjectBinding,
+            async () =>
+            {
+                var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+                if (!bindingGate.Success)
+                {
+                    return OperationBatchResultFormatter.Error(ApplyToolName, bindingGate.Error!);
+                }
+
+                var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
+                if (snapshot.Error is not null)
+                {
+                    return OperationBatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
+                }
+
+                var tokenValidation = safety.ValidateAndConsume(
+                    safetyToken,
+                    ApplyToolName,
+                    projectPath,
+                    targets,
+                    operations,
+                    snapshot.CombinedState,
+                    PreviewToolName);
+                if (!tokenValidation.IsValid)
+                {
+                    return OperationBatchResultFormatter.Error(ApplyToolName, tokenValidation.Error);
+                }
+
+                var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
+                    operations,
+                    op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
+
+                var resultJson = OperationBatchResultFormatter.Apply(ApplyToolName, results);
+                safety.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);
+                return resultJson;
+            }).ConfigureAwait(false);
+        if (!execution.Success)
         {
-            return OperationBatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
+            return OperationBatchResultFormatter.Error(ApplyToolName, execution.Failure!.Error!);
         }
 
-        var tokenValidation = safety.ValidateAndConsume(
-            safetyToken,
-            ApplyToolName,
-            projectPath,
-            targets,
-            operations,
-            snapshot.CombinedState,
-            PreviewToolName);
-        if (!tokenValidation.IsValid)
-        {
-            return OperationBatchResultFormatter.Error(ApplyToolName, tokenValidation.Error);
-        }
-
-        var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
-            operations,
-            op => BatchWorkerInvoker.InvokeAsync(workerClient, op)).ConfigureAwait(false);
-
-        var resultJson = OperationBatchResultFormatter.Apply(ApplyToolName, results);
-        safety.AppendAudit(ApplyToolName, projectPath, targets, operations, snapshot.CombinedState, resultJson);
-        return resultJson;
+        return execution.Value!;
     }
 
     private static async Task<(string CombinedState, string? Error)> ReadCombinedCurrentStateAsync(

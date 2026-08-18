@@ -54,6 +54,19 @@ public class DoctorCliParserTests
     }
 
     [Fact]
+    public void Parse_DuplicateProjectArguments_ReturnsInvalidInsteadOfCheckingDifferentPathThanHost()
+    {
+        var result = DoctorCliParser.Parse(new[]
+        {
+            "--project", @"C:\Projects\A.ap21",
+            @"--project=C:\Projects\B.ap21"
+        });
+
+        Assert.False(result.Valid);
+        Assert.Contains("only once", result.ParseError, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Parse_CombinedFlags_AllSet()
     {
         var result = DoctorCliParser.Parse(new[] { "--json", "--verbose", "--project", "test.ap21" });

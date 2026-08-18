@@ -63,15 +63,19 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-After the first successful call, the session binds to the worker-reported active project. A later
-project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
-rebind the session, or start a new MCP session for a different customer project. Project-scoped read
-operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
-request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is read-only and non-binding: it never opens or switches projects, even
-when `projectPath` names a project that is not the one currently open. It is the human-approved Round 5
-deferral from the read-side switching policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
-projects. Use `open_project` for deliberate session switching.
+`--project` starts as a configured-but-unverified assertion. Before any guarded write preview, the
+host performs a read-only status check and accepts the binding only when the worker reports a complete,
+matching identity: worker process, TIA Portal PID, project generation, and canonical project path.
+`open_project` and `create_project` can establish that identity explicitly. Ordinary unbound reads do
+not silently bind the session.
+
+The worker never chooses the first running Portal or first open project. It selects an exact project
+path when one was supplied, or a sole candidate when there is genuinely only one. Multiple possible
+Portals/projects fail with `target_ambiguous` before Attach or mutation. A later path, PID, worker, or
+project-generation mismatch fails with `binding_conflict` and invalidates the binding; call
+`open_project` with `forceRebind=true`, or start a new MCP session. `get_project_status(projectPath)`
+is read-only and non-binding: do not use it to switch projects. Use `open_project` for deliberate
+session switching.
 
 ### Version flag
 
@@ -79,7 +83,9 @@ Run `tia-mcp --version` (or `tia-mcp -v`) to print the host version and exit wit
 
 ### Doctor command
 
-Run `tia-mcp doctor` to validate the runtime environment before using the MCP server. It checks the operating system, .NET runtimes, TIA Portal installation, Openness assemblies, user group membership, worker executable, host/worker version compatibility, running TIA Portal processes, and project binding.
+Run `tia-mcp doctor` to validate the runtime environment before using the MCP server. It checks the operating system, .NET runtimes, TIA Portal installation, Openness assemblies, user group membership, worker executable, host/worker version compatibility, running TIA Portal processes, and project-binding configuration.
+
+Doctor is non-invasive: it does not start the MCP host, attach to TIA Portal, open a project, or inspect project content. For an explicit binding it verifies that the value is an absolute path to an existing `.ap21` file. Process detection uses the Windows process list, so with multiple TIA Portal processes Doctor cannot prove which process has that file open; it reports that uncertainty instead of passing silently.
 
 ```powershell
 tia-mcp doctor
@@ -92,7 +98,19 @@ Options:
 
 - `--json` - emit a single JSON document to stdout.
 - `--verbose` - include diagnostic evidence for each check.
-- `--project` - informational project binding (does not start the MCP host).
+- `--project` - validate the exact absolute path of an existing `.ap21` project without opening or attaching to TIA Portal.
+
+Project-selection diagnostics are access-mode aware:
+
+- no project binding is a warning in read-only mode and a failure in read-write mode;
+- an invalid, relative, non-`.ap21`, or missing project path is a failure;
+- multiple TIA Portal processes are a warning when an explicit binding is configured, because Doctor cannot verify the live match without attaching;
+- multiple TIA Portal processes with no binding are a warning in read-only mode and a failure in read-write mode.
+
+Even an existing local project path remains a Doctor warning because Doctor deliberately does not
+Attach and cannot prove which Portal has it open. Before using project tools, open the exact project
+in the intended TIA Portal process. Runtime identity checks remain the authority for accepting or
+rejecting a request.
 
 Exit codes: `0` (no blocking failures), `1` (one or more checks failed), `2` (invalid arguments).
 

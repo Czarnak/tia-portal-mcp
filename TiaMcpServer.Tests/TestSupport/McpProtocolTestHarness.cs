@@ -5,6 +5,7 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 
@@ -67,9 +68,11 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
     /// <paramref name="auditDirectory"/> redirects write-safety audit records away from the real
     /// per-user audit location, so a protocol test that applies a write cannot pollute it.
     /// </summary>
-    public static Task<McpProtocolTestHarness> StartAsync<TTools>(string? auditDirectory = null)
+    public static Task<McpProtocolTestHarness> StartAsync<TTools>(
+        string? auditDirectory = null,
+        string? startupProjectPath = null)
         where TTools : class
-        => StartAsync(auditDirectory, builder => builder.WithTools<TTools>());
+        => StartAsync(auditDirectory, startupProjectPath, builder => builder.WithTools<TTools>());
 
     /// <summary>
     /// Starts a server exposing BOTH <typeparamref name="TTools1"/> and <typeparamref name="TTools2"/>
@@ -77,13 +80,19 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
     /// and a follow-up read against the same process-local scripted worker state (e.g. proving a
     /// multi-homed configure through network_write and observing it through network_read).
     /// </summary>
-    public static Task<McpProtocolTestHarness> StartAsync<TTools1, TTools2>(string? auditDirectory = null)
+    public static Task<McpProtocolTestHarness> StartAsync<TTools1, TTools2>(
+        string? auditDirectory = null,
+        string? startupProjectPath = null)
         where TTools1 : class
         where TTools2 : class
-        => StartAsync(auditDirectory, builder => builder.WithTools<TTools1>().WithTools<TTools2>());
+        => StartAsync(
+            auditDirectory,
+            startupProjectPath,
+            builder => builder.WithTools<TTools1>().WithTools<TTools2>());
 
     private static async Task<McpProtocolTestHarness> StartAsync(
         string? auditDirectory,
+        string? startupProjectPath,
         Action<IMcpServerBuilder> registerTools)
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
@@ -107,6 +116,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(accessPolicy);
         collection.AddSingleton(workerClient);
         collection.AddSingleton(new WriteSafetyService(
+            binding,
             () => DateTimeOffset.UtcNow,
             WriteSafetyService.DefaultTokenLifetime,
             auditDirectory));
@@ -124,6 +134,12 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
 
         var client = await McpClient.CreateAsync(
             new StreamClientTransport(serverInput: clientWrites, serverOutput: clientReads));
+
+        if (!string.IsNullOrWhiteSpace(startupProjectPath))
+        {
+            await NetworkVerifiedWriteFixture.VerifyAsync(workerClient, binding, startupProjectPath)
+                .ConfigureAwait(false);
+        }
 
         return new McpProtocolTestHarness(
             clientWrites,

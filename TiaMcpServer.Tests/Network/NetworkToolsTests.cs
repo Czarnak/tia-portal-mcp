@@ -62,12 +62,26 @@ public class NetworkToolsTests
         return await task!;
     }
 
-    private static OpennessWorkerClient CreateClient(McpAccessMode mode = McpAccessMode.ReadWrite)
+    private static OpennessWorkerClient CreateClient(
+        McpAccessMode mode = McpAccessMode.ReadWrite,
+        ProjectSessionBinding? binding = null)
         => new(
-            new ProjectSessionBinding(null),
+            binding ?? new ProjectSessionBinding(null),
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(mode));
+
+    private static OpennessWorkerClient CreateWriteClient(
+        TempAuditDirectory audit,
+        out WriteSafetyService safety,
+        string projectPath = StableScenario)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = CreateClient(binding: binding);
+        NetworkVerifiedWriteFixture.VerifyAsync(client, binding, projectPath).GetAwaiter().GetResult();
+        safety = audit.CreateSafety(projectSessionBinding: binding);
+        return client;
+    }
 
     private static NetworkOperationRequest ReadHardware(string id, string projectPath) => new()
     {
@@ -247,14 +261,14 @@ public class NetworkToolsTests
     public async Task NetworkWrite_PreviewBindsExactOrderedTargetsAndPerformsOnlyOneStateRead()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, "network-state-seq");
         var operations = new[]
         {
             AddDevice("first", "network-state-seq", "PLC_1"),
             ConfigureDevice("second", "network-state-seq", "PLC_2"),
         };
 
-        var preview = await NetworkWrite(client, audit.CreateSafety(), operations);
+        var preview = await NetworkWrite(client, safety, operations);
 
         var root = ReadStructured(preview);
         Assert.False(preview.IsError);
@@ -278,18 +292,17 @@ public class NetworkToolsTests
         Assert.False(string.IsNullOrWhiteSpace(target[1].GetProperty("networkInterfaceName").GetString()));
         Assert.NotEmpty(target[1].GetProperty("deviceItemPath").EnumerateArray());
 
-        // The scenario stamps its request sequence into the hardware payload, so the third request
-        // proves the preview issued exactly one state read.
+        // Request 1 verifies the configured project, request 2 is the preview snapshot, and this
+        // third request proves the preview itself still issued exactly one state read.
         var nextRead = await client.ReadHardwareConfigAsync("network-state-seq");
-        Assert.Contains("seq:2", nextRead.Payload);
+        Assert.Contains("seq:3", nextRead.Payload);
     }
 
     [Fact]
     public async Task NetworkWrite_PreviewFailsClosedWhenConfigureTargetCannotBeResolvedAndIssuesNoToken()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
-        var safety = audit.CreateSafety();
+        using var client = CreateWriteClient(audit, out var safety, "network-unresolvable-target");
 
         var result = await NetworkWrite(
             client,
@@ -310,8 +323,7 @@ public class NetworkToolsTests
     public async Task NetworkWrite_ApplyRejectsReorderedInput()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
-        var safety = audit.CreateSafety();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[] { AddDevice("first"), ConfigureDevice("second") };
         var token = SafetyToken(await NetworkWrite(client, safety, operations));
 
@@ -325,8 +337,7 @@ public class NetworkToolsTests
     public async Task NetworkWrite_ApplyRejectsChangedField()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
-        var safety = audit.CreateSafety();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[] { AddDevice("first", deviceItemName: "rack-original") };
         var token = SafetyToken(await NetworkWrite(client, safety, operations));
         var changed = new[] { AddDevice("first", deviceItemName: "rack-changed") };
@@ -393,11 +404,11 @@ public class NetworkToolsTests
     public async Task NetworkWrite_SnapshotFailureReturnsErrorWithoutWriting()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
+        using var client = CreateWriteClient(audit, out var safety, "worker-error");
 
         var result = await NetworkWrite(
             client,
-            audit.CreateSafety(),
+            safety,
             new[] { AddDevice("w1", "worker-error") });
 
         var root = ReadStructured(result);
@@ -411,8 +422,7 @@ public class NetworkToolsTests
     public async Task NetworkWrite_StateDecodeFailureIsAWholeToolErrorAndIssuesNoToken()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
-        var safety = audit.CreateSafety();
+        using var client = CreateWriteClient(audit, out var safety, "ok");
 
         // Scenario "ok" answers read_hardware_config with {"seq":N}, which is not a
         // HardwareConfigInfo: no token may be bound to a state that failed its contract.
@@ -432,8 +442,7 @@ public class NetworkToolsTests
     public async Task NetworkWrite_SuccessfulApplyAppendsOneAuditRecord()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
-        var safety = audit.CreateSafety();
+        using var client = CreateWriteClient(audit, out var safety);
         var operations = new[] { AddDevice("w1") };
         var token = SafetyToken(await NetworkWrite(client, safety, operations));
 
@@ -456,8 +465,7 @@ public class NetworkToolsTests
     public async Task NetworkWrite_ApplyFailureSkipsLaterOperationsAndWarnsThatNoRollbackWasAttempted()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
-        var safety = audit.CreateSafety();
+        using var client = CreateWriteClient(audit, out var safety, "network-write-item-failure");
         var operations = new[]
         {
             AddDevice("first", "network-write-item-failure"),

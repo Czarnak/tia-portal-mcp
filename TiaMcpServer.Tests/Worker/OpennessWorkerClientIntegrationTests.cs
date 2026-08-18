@@ -13,22 +13,152 @@ namespace TiaMcpServer.Tests.Worker;
 /// </summary>
 public class OpennessWorkerClientIntegrationTests
 {
-    private static OpennessWorkerClient CreateClient(string? workerPath = null, TimeSpan? requestTimeout = null)
+    private static OpennessWorkerClient CreateClient(
+        string? workerPath = null,
+        TimeSpan? requestTimeout = null,
+        ProjectSessionBinding? binding = null,
+        OperationAccessPolicy? accessPolicy = null)
         => new(
-            new ProjectSessionBinding(null),
+            binding ?? new ProjectSessionBinding(null),
             logger: null,
             workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(),
-            requestTimeout: requestTimeout);
+            requestTimeout: requestTimeout,
+            accessPolicy: accessPolicy);
 
     private const string InspectStateBeforeRetryGuidance =
         "The write outcome is unknown. Inspect current project state before retrying.";
 
     [Fact]
+    public async Task ExecuteWithPinnedBindingAsync_RejectsAStaleSnapshotWithoutInvokingTheOperation()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(
+            new WorkerSessionIdentity
+            {
+                WorkerSessionId = "worker-a",
+                SessionGeneration = 1,
+                PortalProcessId = 4242,
+                ProjectPath = "C:\\Projects\\A.ap21"
+            },
+            forceRebind: false,
+            out _));
+        var projectA = binding.CaptureSnapshot();
+
+        Assert.True(binding.BindVerified(
+            new WorkerSessionIdentity
+            {
+                WorkerSessionId = "worker-b",
+                SessionGeneration = 1,
+                PortalProcessId = 4343,
+                ProjectPath = "C:\\Projects\\B.ap21"
+            },
+            forceRebind: true,
+            out _));
+
+        using var client = CreateClient(binding: binding);
+        var invoked = false;
+
+        var execution = await client.ExecuteWithPinnedBindingAsync(
+            projectA,
+            () =>
+            {
+                invoked = true;
+                return Task.FromResult(WorkerCallResult.Ok("{}"));
+            });
+
+        Assert.False(execution.Success);
+        Assert.False(invoked);
+        Assert.Null(execution.Value);
+        Assert.NotNull(execution.Failure);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, execution.Failure!.FailureCategory);
+        Assert.Contains("changed after preview", execution.Failure.Error);
+    }
+
+    [Fact]
+    public async Task PinnedBindingLease_BlocksConcurrentRebindAndKeepsNestedReadsOnThePinnedProject()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+
+        var openedA = await client.OpenProjectAsync("C:\\stable\\Project.ap21", forceRebind: false);
+        Assert.True(openedA.Success, openedA.Error);
+        var projectA = binding.CaptureSnapshot();
+        Assert.True(projectA.IsVerified);
+
+        var enteredLease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runNestedRead = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseLease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nestedReadObserved = new TaskCompletionSource<WorkerCallResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var pinnedTask = client.ExecuteWithPinnedBindingAsync(
+            projectA,
+            async () =>
+            {
+                enteredLease.TrySetResult(true);
+                await runNestedRead.Task;
+                var nestedRead = await client.GetProjectStatusAsync(projectPath: null);
+                nestedReadObserved.TrySetResult(nestedRead);
+                await releaseLease.Task;
+                return nestedRead;
+            });
+
+        await enteredLease.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var rebindTask = client.OpenProjectAsync("C:\\open\\Line.ap21", forceRebind: true);
+
+        try
+        {
+            var earlyCompletion = await Task.WhenAny(rebindTask, Task.Delay(TimeSpan.FromMilliseconds(200)));
+            Assert.NotSame(rebindTask, earlyCompletion);
+
+            runNestedRead.TrySetResult(true);
+            var nestedRead = await nestedReadObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.True(nestedRead.Success, nestedRead.Error);
+            Assert.False(rebindTask.IsCompleted);
+            Assert.True(projectA.SameBinding(binding.CaptureSnapshot()));
+        }
+        finally
+        {
+            runNestedRead.TrySetResult(true);
+            releaseLease.TrySetResult(true);
+        }
+
+        var pinned = await pinnedTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(pinned.Success);
+        Assert.True(pinned.Value!.Success, pinned.Value.Error);
+
+        var rebound = await rebindTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(rebound.Success, rebound.Error);
+        Assert.Equal("C:\\open\\Line.ap21", binding.BoundProjectPath);
+        Assert.False(projectA.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Fact]
+    public async Task ReadWriteStartupProject_FirstBrowseAutoVerifiesWithStatusThenReads()
+    {
+        // The "ok" FakeWorker scenario reports a monotonically increasing sequence number.
+        // browse_project_tree must therefore return seq=2: seq=1 was the automatic read-only
+        // get_project_status call that promoted the configured startup path to Verified.
+        var binding = new ProjectSessionBinding("ok");
+        var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
+        using var client = CreateClient(binding: binding, accessPolicy: policy);
+
+        var result = await client.BrowseProjectTreeAsync(projectPath: null);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Equal("{\"seq\":2}", result.Payload);
+        Assert.True(binding.IsVerified);
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
+        Assert.NotNull(binding.CaptureSnapshot().ToWorkerIdentity());
+    }
+
+    [Fact]
     public async Task CollapsedOpenProject_PreviewThenApply_RoundTrips()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
 
         // "C:\\open\\Line.ap21" reports the same path back as resolvedProjectPath, so open can
         // bind to the worker's ground truth (open now requires a resolved path to bind - a bare
@@ -54,8 +184,9 @@ public class OpennessWorkerClientIntegrationTests
     public async Task CollapsedOpenProject_PreviewThenApply_WorkerFailureRendersFailureCategoryNeverSuccessShaped()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
 
         // "worker-error-with-category" is a FakeWorker scenario, not a real path; DescribePathState
         // just reports it as non-existent, so preview/apply token validation proceeds normally and
@@ -372,7 +503,7 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task AlreadyBoundSession_SurfacesAWarningWhenTheWorkerReportsADifferentProject()
+    public async Task ConfiguredSession_FailsClosedWhenWorkerReportsADifferentProject()
     {
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
@@ -385,14 +516,12 @@ public class OpennessWorkerClientIntegrationTests
         // scenario key IS the bound path (see the "C:\\bound\\Session.ap21" case).
         var result = await client.GetProjectStatusAsync(null);
 
-        Assert.True(result.Success);
-        // Finding 1 is containment only: the divergence is surfaced, the session binding itself
-        // is untouched (still bound to what it was bound to before this call).
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
         Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
-        Assert.Contains(
-            result.Warnings,
-            w => w.Contains("C:\\bound\\Session.ap21", StringComparison.Ordinal)
-                && w.Contains("C:\\actual\\Other.ap21", StringComparison.Ordinal));
+        Assert.Contains("C:\\bound\\Session.ap21", result.Error);
+        Assert.Contains("C:\\actual\\Other.ap21", result.Error);
     }
 
     [Fact]
@@ -412,6 +541,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.True(result.Success);
         Assert.Equal("C:\\stable\\Project.ap21", binding.BoundProjectPath);
         Assert.Empty(result.Warnings);
+        Assert.True(binding.IsVerified);
     }
 
     [Fact]
@@ -433,34 +563,60 @@ public class OpennessWorkerClientIntegrationTests
         Assert.True(result.Success);
         Assert.Equal("C:\\equivalent\\Project.ap21", binding.BoundProjectPath);
         Assert.Empty(result.Warnings);
+        Assert.True(binding.IsVerified);
+    }
+
+    [Fact]
+    public async Task RestartedWorkerInvalidatesVerifiedBindingEvenWhenProjectPathIsUnchanged()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var opened = await client.OpenProjectAsync("C:\\stable\\Project.ap21", forceRebind: false);
+        Assert.True(opened.Success, opened.Error);
+        var original = binding.CaptureSnapshot();
+        Assert.True(original.IsVerified);
+
+        // Disposing the persistent transport and reusing the client starts a fresh worker process.
+        // The path is identical, but workerSessionId is process-local and therefore must differ.
+        client.Dispose();
+        var afterRestart = await client.GetProjectStatusAsync(null);
+
+        Assert.False(afterRestart.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, afterRestart.FailureCategory);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.False(binding.TryGetVerified(original.ProjectPath, out _, out _));
     }
 
     [Fact]
     public async Task SaveProjectAsWithRebind_NoDivergenceWarningWhenTheWorkerReportsTheCopiedProjectPath()
     {
         var binding = new ProjectSessionBinding(null);
-        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
 
-        // Finding 1 regression: save_project_as with rebind=true deliberately changes which
-        // project is attached (the worker closes the original and opens the copy before this
-        // call returns). Reusing the "C:\\bound\\Session.ap21" FakeWorker scenario - which
-        // reports a genuinely different resolvedProjectPath ("C:\\actual\\Other.ap21") - proves
-        // this documented attachment change no longer produces the divergence warning that an
-        // ordinary bound call gets under the identical worker response (see
-        // AlreadyBoundSession_SurfacesAWarningWhenTheWorkerReportsADifferentProject below, which
-        // exercises the same scenario through GetProjectStatusAsync and still warns).
+        // Capture the fake process's exact worker identity, then model the already-verified
+        // binding an explicit open would have established. This scenario reports a genuinely
+        // different copied path for save_project_as, so the transition must replace the old
+        // binding without treating the deliberate attachment change as divergence.
+        var observed = await client.ProbeProjectStatusForLifecycleAsync("lifecycle-probe-only");
+        Assert.True(observed.Success, observed.Error);
+        Assert.True(binding.BindVerified(observed.SessionIdentity, forceRebind: false, out _));
+
         var result = await client.SaveProjectAsAsync(
             projectPath: null,
             targetDirectory: "C:\\Target",
             targetName: "Copy",
             rebind: true);
 
-        Assert.True(result.Success);
+        Assert.True(result.Success, result.Error);
         Assert.Empty(result.Warnings);
+        Assert.Equal("C:\\lifecycle\\Copy.ap21", binding.BoundProjectPath);
     }
 
     [Fact]
@@ -545,8 +701,9 @@ public class OpennessWorkerClientIntegrationTests
     public async Task SaveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
 
         var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
@@ -564,8 +721,9 @@ public class OpennessWorkerClientIntegrationTests
     public async Task PostWriteVerification_UsesBasicStatusRead_NotExtendedMetadataRead()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
 
         var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
@@ -593,8 +751,9 @@ public class OpennessWorkerClientIntegrationTests
     public async Task SaveProjectAs_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
 
         // rebind=true (the only supported mode): the "lifecycle-probe-only" scenario reports a
@@ -719,8 +878,9 @@ public class OpennessWorkerClientIntegrationTests
     public async Task ArchiveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
 
         var preview = await ProjectLifecycleTools.ArchiveProject(
@@ -740,8 +900,9 @@ public class OpennessWorkerClientIntegrationTests
     public async Task ArchiveProject_PreviewRejectsArchiveDirectoryInsideProjectFolder_WithoutIssuingSafetyToken()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
         const string projectPath = "C:\\Projects\\SimpleProject\\SimpleProject.ap21";
 
         var preview = await ProjectLifecycleTools.ArchiveProject(
@@ -772,9 +933,10 @@ public class OpennessWorkerClientIntegrationTests
     public async Task CloseProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
         const string projectPath = "lifecycle-probe-only";
+        var binding = new ProjectSessionBinding(projectPath);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = CreateClient(binding: binding);
 
         var preview = await ProjectLifecycleTools.CloseProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
@@ -876,10 +1038,10 @@ public class OpennessWorkerClientIntegrationTests
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
 
-        // "ok" succeeds but reports no resolvedProjectPath. Open requires one to bind, so this is
-        // a broken postcondition - never a silent fallback to the caller's path - and the session
-        // stays unbound.
-        var result = await client.OpenProjectAsync("ok", forceRebind: false);
+        // The fake succeeds but omits sessionIdentity. Open requires a complete worker/Portal/
+        // project identity to bind, so this is a broken postcondition - never a silent fallback to
+        // the caller's path or resolvedProjectPath - and the session stays unbound.
+        var result = await client.OpenProjectAsync("missing-session-identity", forceRebind: false);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
@@ -890,18 +1052,21 @@ public class OpennessWorkerClientIntegrationTests
     public async Task CloseSuccess_ClearsBinding()
     {
         var binding = new ProjectSessionBinding(null);
-        Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
 
         // Close is BindingTransition.Clear: a successful close leaves the session with nothing
-        // bound. The "C:\\bound\\Session.ap21" scenario (the bound path is forwarded when no
-        // explicit projectPath is given) returns success.
+        // bound. First retain the exact identity reported by this persistent fake worker so the
+        // close request exercises a real Verified precondition rather than an unverified path.
+        var observed = await client.GetProjectStatusAsync("C:\\stable\\Project.ap21");
+        Assert.True(observed.Success, observed.Error);
+        Assert.True(binding.BindVerified(observed.SessionIdentity, forceRebind: false, out _));
+
         var result = await client.CloseProjectAsync(projectPath: null, saveBeforeClose: false);
 
-        Assert.True(result.Success);
+        Assert.True(result.Success, result.Error);
         Assert.Null(binding.BoundProjectPath);
     }
 }

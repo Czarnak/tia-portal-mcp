@@ -197,9 +197,10 @@ public class WriteToolSafetyTokenTests
     public async Task WriteToolWithUsedToken_RendersValidationErrorEnvelope()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = new OpennessWorkerClient(
-            new ProjectSessionBinding(null),
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
 
