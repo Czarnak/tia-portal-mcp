@@ -11,6 +11,7 @@ installation that are surprising but expected.
 - No running TIA Portal instance: start TIA Portal V21 before calling tools that attach to the current project.
 - Access denied or attach failure: confirm the Windows user belongs to the `Siemens TIA Openness` user group, then sign out and back in.
 - `dotnet` selects the wrong SDK: install .NET SDK 8.0.4xx or update `global.json` to a locally installed .NET 8 SDK feature band.
+- `get_block_content` on an S7-300/S7-400 CPU returns a warning that the s7dcl rung text is unavailable: expected. Those CPU families do not support Siemens document export at all. The Simatic ML XML document is exported by a separate API and is present, so the payload is complete for reading and for `update_block_logic`; only the supplementary human-readable rung text is missing.
 
 ## Verified TIA Portal V21 behavior
 
@@ -24,6 +25,13 @@ uncertain worker outcome; inspect the current block instead.
 SCL `create_block` calls are verified: the generated SCL source contains a non-empty compile unit,
 the requested block resolves at its requested path, and `compile_check` confirms it compiles. The
 same guarded preview/token/apply flow applies to SCL and GlobalDB block creation.
+
+S7-300/S7-400 block reads are verified against a CPU 314C-2 PN/DP (`6ES7 314-6EH04-0AB0/V3.3`).
+`PlcBlock.ExportAsDocuments` is rejected outright by those CPU families, but `PlcBlock.Export`
+produces the authoritative Simatic ML XML for GlobalDB, InstanceDB, STL FC and LAD FC blocks on the
+same CPU. `get_block_content` therefore succeeds with `format=xml` and carries one warning naming
+the missing document package. `format=source` remains restricted to global data blocks and
+SCL-language FB/FC/OB.
 
 `save_project_as` with `rebind: false` is resolved: it is rejected up front with a
 `validation_error` response, before any preview, safety-token issuance, Siemens `SaveAs` call, or
