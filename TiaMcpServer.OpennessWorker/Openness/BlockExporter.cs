@@ -82,6 +82,7 @@ public static partial class BlockExporter
         try
         {
             var documents = new List<BlockImportDocument>();
+            var xmlExported = false;
 
             // Simatic ML XML (FlgNet) — the authoritative document for update_block_logic.
             // Export() requires a consistent block. When it fails we emit no XML document at
@@ -96,6 +97,7 @@ public static partial class BlockExporter
                     xmlName,
                     xmlName,
                     BlockXmlSanitizer.RemoveDocumentInfo(File.ReadAllText(xmlPath))));
+                xmlExported = true;
             }
             catch (Exception)
             {
@@ -103,17 +105,40 @@ public static partial class BlockExporter
                 // error when it finds no Simatic ML document in the bundle.
             }
 
-            // s7dcl documents package (human-readable rung text) — read-only context.
-            DocumentExportResult result = target.Block!.ExportAsDocuments(
-                new DirectoryInfo(tempDir), target.DocumentName);
-
-            if (result.State != DocumentResultState.Success)
-                throw new InvalidOperationException($"Export failed with state: {result.State}");
-
-            foreach (FileInfo file in result.ExportedDocuments)
+            // s7dcl documents package (human-readable rung text) — read-only context, and
+            // therefore not worth discarding the authoritative XML above for. S7-300/S7-400 CPUs
+            // reject document export outright, which used to fail the entire read for every block
+            // on those CPUs even when the XML had exported cleanly.
+            try
             {
-                documents.Add(new BlockImportDocument(
-                    file.Name, file.Name, File.ReadAllText(file.FullName)));
+                DocumentExportResult result = target.Block!.ExportAsDocuments(
+                    new DirectoryInfo(tempDir), target.DocumentName);
+
+                if (result.State != DocumentResultState.Success)
+                {
+                    throw new InvalidOperationException(
+                        $"TIA Portal returned document export state '{result.State}'.");
+                }
+
+                foreach (FileInfo file in result.ExportedDocuments)
+                {
+                    documents.Add(new BlockImportDocument(
+                        file.Name, file.Name, File.ReadAllText(file.FullName)));
+                }
+            }
+            catch (Exception exception)
+            {
+                var outcome = BlockDocumentPackagePolicy.Decide(
+                    xmlExported, address.ToDisplayPath(), exception.Message);
+
+                if (outcome.IsFatal)
+                {
+                    throw new WorkerOperationException(
+                        WorkerFailureCategories.WorkerOperationFailed, outcome.Message);
+                }
+
+                // Captured into the response's Warnings by HandleLineWithCapturedStderr.
+                Console.Error.WriteLine(outcome.Message);
             }
 
             return BlockBundleFormat.Compose(documents);
