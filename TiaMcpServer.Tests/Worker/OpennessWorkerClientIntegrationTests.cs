@@ -441,16 +441,23 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
 
         var succeeded = await client.ReadHardwareConfigAsync("ok-with-resolved-path");
         var differentProject = await client.ReadHardwareConfigAsync("ok");
 
         Assert.True(succeeded.Success);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.NotNull(succeeded.SessionIdentity);
         // "ok" would be an already-bound binding_conflict if the first read had bound the session
         // to "C:\\resolved\\Ground.ap21"; it succeeds, proving the session stayed unbound.
         Assert.True(differentProject.Success);
+        Assert.NotNull(differentProject.SessionIdentity);
+
+        var snapshot = binding.CaptureSnapshot();
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, snapshot.State);
+        Assert.False(snapshot.IsVerified);
+        Assert.Null(snapshot.ProjectPath);
     }
 
     [Fact]

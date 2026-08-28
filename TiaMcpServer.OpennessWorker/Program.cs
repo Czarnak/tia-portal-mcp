@@ -1320,10 +1320,7 @@ internal static class Program
     }
 
     private static bool AllowsMissingExpectedSessionIdentity(string method)
-        => _accessMode == McpAccessMode.ReadOnly
-            || string.Equals(method, "get_project_status", StringComparison.Ordinal)
-            || string.Equals(method, "open_project", StringComparison.Ordinal)
-            || string.Equals(method, "create_project", StringComparison.Ordinal);
+        => !OperationPolicyCatalog.RequiresExpectedSessionIdentity(method);
 
     /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure and stamps completed operations with their resolved project path.</summary>
     private static WorkerResponse Execute(Func<WorkerResponse> body)
