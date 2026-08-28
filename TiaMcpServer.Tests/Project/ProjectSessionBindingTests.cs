@@ -370,6 +370,43 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
+    public void ForceReassertingSamePathCreatesFreshConfiguredUnverifiedRevision()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(
+            new WorkerSessionIdentity
+            {
+                WorkerSessionId = "worker-a",
+                SessionGeneration = 3,
+                PortalProcessId = 4242,
+                ProjectPath = @"C:\Projects\Line.ap21"
+            },
+            forceRebind: false,
+            out _));
+        var before = binding.CaptureSnapshot();
+
+        Assert.True(binding.Bind(
+            "C:/Projects/Line.ap21",
+            forceRebind: true,
+            out var error));
+
+        Assert.Null(error);
+        var after = binding.CaptureSnapshot();
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, after.State);
+        Assert.False(after.IsVerified);
+        Assert.Equal(before.ProjectPath, after.ProjectPath);
+        Assert.NotEqual(before.BindingId, after.BindingId);
+        Assert.True(after.Revision > before.Revision);
+        Assert.Null(after.WorkerSessionId);
+        Assert.Null(after.SessionGeneration);
+        Assert.Null(after.PortalProcessId);
+        Assert.False(binding.TryGetVerified(
+            @"C:\Projects\Line.ap21",
+            out _,
+            out _));
+    }
+
+    [Fact]
     public void TryPromoteConfigured_AcceptsTheSameCompleteIdentityIdempotently()
     {
         var binding = new ProjectSessionBinding("C:\\Projects\\Line.ap21");

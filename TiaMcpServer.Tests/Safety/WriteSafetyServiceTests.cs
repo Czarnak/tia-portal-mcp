@@ -326,6 +326,50 @@ public class WriteSafetyServiceTests
         Assert.Contains("worker/Portal/project session binding", result.Error);
     }
 
+    [Fact]
+    public void TokenIsRejectedAfterSamePathForcedRebindBecomesUnverified()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(
+            new WorkerSessionIdentity
+            {
+                WorkerSessionId = "worker-a",
+                SessionGeneration = 1,
+                PortalProcessId = 4242,
+                ProjectPath = @"C:\p.ap21"
+            },
+            forceRebind: false,
+            out _));
+        var service = new WriteSafetyService(
+            binding,
+            () => DateTimeOffset.UtcNow,
+            TimeSpan.FromMinutes(10),
+            audit.Path);
+        var token = ReadToken(service.CreatePreview(
+            "apply_write_batch",
+            @"C:\p.ap21",
+            new { t = 1 },
+            "s",
+            new { i = 1 },
+            "state"));
+
+        Assert.True(binding.Bind(
+            @"C:\p.ap21",
+            forceRebind: true,
+            out _));
+
+        var result = service.ValidateEnvelope(
+            token,
+            "apply_write_batch",
+            @"C:\p.ap21",
+            new { t = 1 },
+            new { i = 1 });
+
+        Assert.False(result.IsValid);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
+    }
+
     // ---------------------------------------------------------------------------------------
     // Canonical (opt-in) entry points. The invariants below are the same ones the text path
     // guarantees; what changes is that binding is computed from canonical JSON, so a difference

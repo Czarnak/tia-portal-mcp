@@ -186,7 +186,8 @@ public sealed class ProjectSessionBinding
             }
 
             var current = _verifiedIdentity?.ProjectPath ?? _configuredProjectPath;
-            if ((_state == ProjectBindingSnapshot.ConfiguredUnverifiedState ||
+            if (!forceRebind &&
+                (_state == ProjectBindingSnapshot.ConfiguredUnverifiedState ||
                  _state == ProjectBindingSnapshot.VerifiedState) &&
                 current is not null &&
                 IsSameProject(current, canonical))
