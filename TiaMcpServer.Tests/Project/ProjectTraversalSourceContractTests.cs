@@ -18,6 +18,15 @@ public class ProjectTraversalSourceContractTests
         Assert.Contains("foreach (Device device in group.Devices)", source, StringComparison.Ordinal);
         Assert.Contains("foreach (DeviceUserGroup childGroup in group.Groups)", source, StringComparison.Ordinal);
         Assert.Contains("foreach (var device in Enumerate(childGroup))", source, StringComparison.Ordinal);
+
+        Assert.True(
+            source.IndexOf("foreach (Device device in project.Devices)", StringComparison.Ordinal) <
+            source.IndexOf("foreach (DeviceUserGroup group in project.DeviceGroups)", StringComparison.Ordinal),
+            "Direct project devices must be enumerated before project device groups.");
+        Assert.True(
+            source.IndexOf("foreach (Device device in group.Devices)", StringComparison.Ordinal) <
+            source.IndexOf("foreach (DeviceUserGroup childGroup in group.Groups)", StringComparison.Ordinal),
+            "Direct group devices must be enumerated before child device groups.");
     }
 
     [Fact]
