@@ -35,6 +35,33 @@ public class ProjectTraversalSourceContractTests
         Assert.Contains("rootNodes.Add(WalkDevice(device));", tree, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ProjectTreeWalker_TraversesEverySystemBlockGroupWithItsOwnTypedWalker()
+    {
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeWalker.cs");
+
+        Assert.Contains("group is PlcBlockSystemGroup systemGroup", source, StringComparison.Ordinal);
+        Assert.Contains("foreach (PlcSystemBlockGroup childGroup in systemGroup.SystemBlockGroups)", source, StringComparison.Ordinal);
+        Assert.Contains("WalkSystemBlockGroup(childGroup", source, StringComparison.Ordinal);
+        Assert.Contains("foreach (PlcBlock block in group.Blocks)", source, StringComparison.Ordinal);
+        Assert.Contains("foreach (PlcSystemBlockGroup childGroup in group.Groups)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectTreeWalker_MarksSystemMembershipWithoutChangingFunctionalBlockTypes()
+    {
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeWalker.cs");
+
+        Assert.Contains("NodeType = \"SystemBlockFolder\"", source, StringComparison.Ordinal);
+        Assert.Contains("details[\"IsSystemBlock\"] = \"true\";", source, StringComparison.Ordinal);
+        Assert.Contains("BuildBlockNode(block, path, softwareUnitName, isSystemBlock: false)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildBlockNode(block, path, softwareUnitName, isSystemBlock: true)", source, StringComparison.Ordinal);
+        Assert.Equal(1, source.Split("NodeType = block switch", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("HeaderAuthor", source, StringComparison.Ordinal);
+    }
+
     private static string ReadRepositorySource(params string[] pathSegments)
     {
         var current = AppContext.BaseDirectory;
