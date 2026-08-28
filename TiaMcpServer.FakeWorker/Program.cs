@@ -12,6 +12,10 @@ var fakeSessionGeneration = 1L;
 string? fakeProjectPath = null;
 string? currentProjectPath = null;
 string? currentMethod = null;
+var requestJsonOptions = new JsonSerializerOptions
+{
+    PropertyNameCaseInsensitive = true
+};
 
 // Process-local, mutable hardware state for the "multi-homed-network" scenario (see below): a
 // single PC station exposing two ports on separate interfaces. Declared once per FakeWorker
@@ -64,6 +68,7 @@ while ((line = Console.In.ReadLine()) is not null)
     string? scenario = null;
     currentProjectPath = null;
     currentMethod = null;
+    WorkerSessionIdentity? currentExpectedSessionIdentity = null;
     try
     {
         using var doc = JsonDocument.Parse(line);
@@ -83,6 +88,15 @@ while ((line = Console.In.ReadLine()) is not null)
         currentMethod = doc.RootElement.TryGetProperty("method", out var method) && method.ValueKind == JsonValueKind.String
             ? method.GetString()
             : null;
+
+        if (doc.RootElement.TryGetProperty(
+                "expectedSessionIdentity",
+                out var expectedIdentity) &&
+            expectedIdentity.ValueKind == JsonValueKind.Object)
+        {
+            currentExpectedSessionIdentity =
+                expectedIdentity.Deserialize<WorkerSessionIdentity>(requestJsonOptions);
+        }
     }
     catch (JsonException)
     {
@@ -102,6 +116,16 @@ while ((line = Console.In.ReadLine()) is not null)
             Capabilities = WorkerProtocol.RequiredCapabilities.ToList()
         }));
         Console.Out.Flush();
+        continue;
+    }
+
+    var identityFailure = ValidateExpectedSessionIdentity(
+        currentMethod,
+        currentProjectPath,
+        currentExpectedSessionIdentity);
+    if (identityFailure is not null)
+    {
+        Respond(JsonSerializer.Serialize(identityFailure), includeSessionIdentity: false);
         continue;
     }
 
@@ -606,6 +630,73 @@ void Respond(string json, bool includeSessionIdentity = true)
     Console.Out.WriteLine(json);
     Console.Out.Flush();
 }
+
+WorkerResponse? ValidateExpectedSessionIdentity(
+    string? method,
+    string? requestedProjectPath,
+    WorkerSessionIdentity? expected)
+{
+    var requiresIdentity =
+        OperationPolicyCatalog.RequiresExpectedSessionIdentity(method ?? string.Empty);
+
+    if (expected is null)
+    {
+        return requiresIdentity
+            ? BindingConflict(
+                "This operation requires expected worker/Portal/project session identity.")
+            : null;
+    }
+
+    var expectedPath =
+        ProjectPathNormalization.Canonicalize(expected.ProjectPath);
+    var activePath =
+        ProjectPathNormalization.Canonicalize(fakeProjectPath);
+
+    if (string.IsNullOrWhiteSpace(expected.WorkerSessionId) ||
+        expected.SessionGeneration < 0 ||
+        expected.PortalProcessId is null ||
+        expected.PortalProcessId <= 0 ||
+        expectedPath is null ||
+        activePath is null ||
+        !string.Equals(
+            expected.WorkerSessionId,
+            workerSessionId,
+            StringComparison.Ordinal) ||
+        expected.SessionGeneration != fakeSessionGeneration ||
+        expected.PortalProcessId != FakePortalProcessId ||
+        !string.Equals(expectedPath, activePath, StringComparison.OrdinalIgnoreCase))
+    {
+        return BindingConflict(
+            "The expected worker/Portal/project session identity does not match the FakeWorker session.");
+    }
+
+    var establishesProject =
+        string.Equals(method, "open_project", StringComparison.Ordinal) ||
+        string.Equals(method, "create_project", StringComparison.Ordinal);
+    var requestedPath =
+        ProjectPathNormalization.Canonicalize(requestedProjectPath);
+
+    if (!establishesProject &&
+        requestedPath is not null &&
+        !string.Equals(
+            expectedPath,
+            requestedPath,
+            StringComparison.OrdinalIgnoreCase))
+    {
+        return BindingConflict(
+            "The request project path does not match the expected project session identity.");
+    }
+
+    return null;
+}
+
+WorkerResponse BindingConflict(string error)
+    => new()
+    {
+        Success = false,
+        FailureCategory = WorkerFailureCategories.BindingConflict,
+        Error = error
+    };
 
 string? ScenarioKey(string? path)
 {
