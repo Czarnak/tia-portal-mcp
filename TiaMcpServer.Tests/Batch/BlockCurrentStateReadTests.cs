@@ -2,6 +2,7 @@ using System.Text.Json;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -44,7 +45,9 @@ public class BlockCurrentStateReadTests
     /// </summary>
     private static async Task<JsonElement> ReadCurrentStateRequestAsync(BatchOperationRequest op)
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, op.ProjectPath!);
         var result = await BatchWorkerInvoker.ReadCurrentStateAsync(client, op);
         Assert.True(result.Success, result.Error);
 
@@ -134,15 +137,10 @@ public class BlockCurrentStateReadTests
     {
         using var audit = new TempAuditDirectory();
         const string projectPath = "block-source-roundtrip";
-        var binding = new ProjectSessionBinding(projectPath);
+        var binding = new ProjectSessionBinding(null);
         var safety = CreateSafety(audit, binding);
         using var client = CreateClient(binding);
-
-        var verification = await client.GetBlockContentAsync(
-            BlockPath,
-            projectPath,
-            SourceFormatNames.Source);
-        Assert.True(verification.Success, verification.Error);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         Assert.True(binding.IsVerified);
 
         var operations = new[] { UpdateBlockLogicOp(SourceFormatNames.Source, projectPath) };

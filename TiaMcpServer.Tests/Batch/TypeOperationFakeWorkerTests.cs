@@ -2,6 +2,7 @@ using System.Text.Json;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -23,9 +24,6 @@ public class TypeOperationFakeWorkerTests
     // and the update_type_content write within one preview/apply round trip.
     private const string Scenario = "type-content-roundtrip";
 
-    private static OpennessWorkerClient CreateClient()
-        => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
-
     private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding)
         => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
 
@@ -34,8 +32,7 @@ public class TypeOperationFakeWorkerTests
 
     private static async Task VerifyBindingAsync(OpennessWorkerClient client, ProjectSessionBinding binding)
     {
-        var result = await client.GetTypeContentAsync(TypePath, format: null, projectPath: Scenario);
-        Assert.True(result.Success, result.Error);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
         Assert.True(binding.IsVerified);
     }
 
@@ -51,7 +48,9 @@ public class TypeOperationFakeWorkerTests
     [Fact]
     public async Task ExecuteReadBatch_GetTypeContent_ReturnsScriptedPayloadKeyedByOperationId()
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
 
         var result = await BatchTools.ExecuteReadBatch(
             client,
@@ -137,7 +136,9 @@ public class TypeOperationFakeWorkerTests
     [Fact]
     public async Task ExecuteReadBatch_OneItemWithInvalidFormat_FailsOnlyThatItemAndLeavesOthersSucceeding()
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var operations = new[]
         {

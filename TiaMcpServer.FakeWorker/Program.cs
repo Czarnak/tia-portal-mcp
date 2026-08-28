@@ -56,6 +56,8 @@ var subnetLifecycleState = new List<SubnetLifecycleSubnetState>
 var subnetLifecycleNextId = 1;
 var subnetLifecycleSecondFailureWriteCount = 0;
 var subnetLifecycleStateDriftReadCount = 0;
+var updateBlockPostconditionAttempt = 0;
+var createBlockPostconditionAttempt = 0;
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -142,7 +144,14 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond("""{"success":true,"payload":"{}"}""", includeSessionIdentity: false);
             break;
         case "ok-with-resolved-path":
-            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
+            // A canonical unbound status read is fixture bootstrap. The later protected save-as
+            // retains this scenario's original copied-path response.
+            Respond(ReadMethod(line) == "get_project_status" &&
+                    currentExpectedSessionIdentity is null &&
+                    currentProjectPath is not null &&
+                    Path.IsPathFullyQualified(currentProjectPath)
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : """{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
             break;
         case "open-resolved-differs":
             // Worker reports a resolved project path that differs from the caller-supplied path,
@@ -214,10 +223,28 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond("""{"success":false,"error":"target not found","failureCategory":"target_not_found"}""");
             break;
         case "update-block-postcondition-failed":
-            Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block update verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            // Fixture bootstrap must not consume the protected write's attempt sequence.
+            if (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
+            {
+                Respond("""{"success":true,"payload":"{\"isOpen\":true}"}""");
+            }
+            else
+            {
+                updateBlockPostconditionAttempt++;
+                Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block update verification failed on attempt {{updateBlockPostconditionAttempt}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            }
             break;
         case "create-block-postcondition-failed":
-            Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block creation verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            // Fixture bootstrap must not consume the protected write's attempt sequence.
+            if (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
+            {
+                Respond("""{"success":true,"payload":"{\"isOpen\":true}"}""");
+            }
+            else
+            {
+                createBlockPostconditionAttempt++;
+                Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block creation verification failed on attempt {{createBlockPostconditionAttempt}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            }
             break;
         case "malformed":
             Console.Out.WriteLine("this is not json");
@@ -424,14 +451,17 @@ while ((line = Console.In.ReadLine()) is not null)
         }
         case "lifecycle-probe-only":
             // Guards against a regression where a save/save-as/archive/close current-state
-            // read reverts to the direct status operation: fails ONLY when the request used
-            // get_project_status; every other operation (the probe itself, or the tool's own
-            // write call that follows) succeeds normally so the full preview/apply round trip
-            // can complete. save_project_as additionally needs a resolvedProjectPath so the
-            // rebind bind succeeds after the write.
+            // read reverts to the direct status operation. Only the unbound direct-status fixture
+            // bootstrap succeeds; a bound direct status still fails. Every other operation (the
+            // probe itself, or the tool's own write call that follows) succeeds normally so the
+            // full preview/apply round trip can complete. save_project_as additionally needs a
+            // resolvedProjectPath so the rebind bind succeeds after the write.
             Respond(ReadMethod(line) switch
             {
-                "get_project_status" => """{"success":false,"error":"current-state read must use probe_project_status_for_lifecycle, not get_project_status"}""",
+                "get_project_status" when currentExpectedSessionIdentity is null =>
+                    """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "get_project_status" =>
+                    """{"success":false,"error":"current-state read must use probe_project_status_for_lifecycle, not get_project_status"}""",
                 "save_project_as" => """{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\lifecycle\\Copy.ap21"}""",
                 _ => """{"success":true,"payload":"{\"isOpen\":true}"}"""
             });
@@ -439,13 +469,21 @@ while ((line = Console.In.ReadLine()) is not null)
         case "save-as-uncertain-state":
             // Simulates the real worker's postcondition_failed when save_project_as saved a copy
             // but could not confirm the active project is that copy: a failure carrying the
-            // uncertain-state warning. The host must surface it and never bind the session.
-            Respond("""{"success":false,"failureCategory":"postcondition_failed","error":"could not confirm the copied project path","warnings":["Project state may have changed; inspect the open project before retrying."]}""");
+            // uncertain-state warning. The unbound status bootstrap succeeds, but the protected
+            // save-as must surface the failure and retain its verified source binding.
+            Respond(ReadMethod(line) == "get_project_status" &&
+                    currentExpectedSessionIdentity is null
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : """{"success":false,"failureCategory":"postcondition_failed","error":"could not confirm the copied project path","warnings":["Project state may have changed; inspect the open project before retrying."]}""");
             break;
         case "C:\\bound\\FailingSave.ap21":
             // A bound-path scenario whose save_project_as call fails, proving a failed rebinding
-            // save-as leaves the pre-existing session binding untouched (no partial rebind).
-            Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"save failed"}""");
+            // save-as leaves the pre-existing session binding untouched (no partial rebind). Its
+            // unbound status call exists only to establish that exact verified fixture binding.
+            Respond(ReadMethod(line) == "get_project_status" &&
+                    currentExpectedSessionIdentity is null
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : """{"success":false,"failureCategory":"worker_operation_failed","error":"save failed"}""");
             break;
         case "C:\\Projects\\SimpleProject\\SimpleProject.ap21":
             // Used by the archive-directory-guard preview test: every request (including the

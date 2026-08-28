@@ -339,12 +339,15 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task UpdateBlockLogic_PostconditionFailure_SurfacesUncertainStateWarningWithoutRetry()
     {
-        using var client = CreateClient();
+        const string projectPath = "update-block-postcondition-failed";
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var result = await client.UpdateBlockLogicAsync(
             blockPath: "PLC/Blocks/Main",
             yamlContent: "<Main />",
-            projectPath: "update-block-postcondition-failed");
+            projectPath: projectPath);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
@@ -356,14 +359,17 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task CreateBlock_PostconditionFailure_SurfacesUncertainStateWarningWithoutRetry()
     {
-        using var client = CreateClient();
+        const string projectPath = "create-block-postcondition-failed";
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var result = await client.CreateBlockAsync(
             blockPath: "PLC/Blocks/Created",
             blockType: "FC",
             language: "SCL",
             obEventClass: null,
-            projectPath: "create-block-postcondition-failed");
+            projectPath: projectPath);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
@@ -607,13 +613,11 @@ public class OpennessWorkerClientIntegrationTests
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
 
-        // Capture the fake process's exact worker identity, then model the already-verified
-        // binding an explicit open would have established. This scenario reports a genuinely
+        // Retain the fake process's exact worker identity, matching the verified binding an
+        // explicit open would have established. This scenario reports a genuinely
         // different copied path for save_project_as, so the transition must replace the old
         // binding without treating the deliberate attachment change as divergence.
-        var observed = await client.ProbeProjectStatusForLifecycleAsync("lifecycle-probe-only");
-        Assert.True(observed.Success, observed.Error);
-        Assert.True(binding.BindVerified(observed.SessionIdentity, forceRebind: false, out _));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "lifecycle-probe-only");
 
         var result = await client.SaveProjectAsAsync(
             projectPath: null,
@@ -669,7 +673,9 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task ProbeProjectStatusForLifecycleAsync_SendsProbeOperationOnly()
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var result = await client.ProbeProjectStatusForLifecycleAsync("echo");
 
@@ -712,6 +718,7 @@ public class OpennessWorkerClientIntegrationTests
         var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
@@ -732,6 +739,7 @@ public class OpennessWorkerClientIntegrationTests
         var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
@@ -762,6 +770,7 @@ public class OpennessWorkerClientIntegrationTests
         var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         // rebind=true (the only supported mode): the "lifecycle-probe-only" scenario reports a
         // resolvedProjectPath for the save_project_as write so the rebind bind succeeds; the
@@ -816,6 +825,10 @@ public class OpennessWorkerClientIntegrationTests
             binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(
+            client,
+            binding,
+            "ok-with-resolved-path");
 
         // "ok-with-resolved-path" reports resolvedProjectPath "C:\\resolved\\Ground.ap21" - matching
         // neither the caller's targetDirectory nor targetName. rebind=true must bind the session to
@@ -842,6 +855,10 @@ public class OpennessWorkerClientIntegrationTests
             binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(
+            client,
+            binding,
+            "C:\\bound\\FailingSave.ap21");
 
         // The bound path's FakeWorker scenario fails the save_project_as call. A failed rebinding
         // save-as must leave the pre-existing binding exactly as it was - no partial rebind.
@@ -863,10 +880,15 @@ public class OpennessWorkerClientIntegrationTests
             binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(
+            client,
+            binding,
+            "save-as-uncertain-state");
+        var before = binding.CaptureSnapshot();
 
         // The worker reports it could not confirm the copied project path: a postcondition_failed
         // failure carrying the uncertain-state warning. The client must surface it unchanged and
-        // never bind the session.
+        // retain the verified source binding rather than adopting an unconfirmed copied path.
         var result = await client.SaveProjectAsAsync(
             projectPath: "save-as-uncertain-state",
             targetDirectory: "C:\\Target",
@@ -878,7 +900,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.Contains(
             result.Warnings,
             w => w.Contains("Project state may have changed", StringComparison.Ordinal));
-        Assert.Null(binding.BoundProjectPath);
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
     }
 
     [Fact]
@@ -889,6 +911,7 @@ public class OpennessWorkerClientIntegrationTests
         var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var preview = await ProjectLifecycleTools.ArchiveProject(
             client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath);
@@ -911,6 +934,7 @@ public class OpennessWorkerClientIntegrationTests
         var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "C:\\Projects\\SimpleProject\\SimpleProject.ap21";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var preview = await ProjectLifecycleTools.ArchiveProject(
             client, safety,
@@ -944,6 +968,7 @@ public class OpennessWorkerClientIntegrationTests
         var binding = new ProjectSessionBinding(projectPath);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var preview = await ProjectLifecycleTools.CloseProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
