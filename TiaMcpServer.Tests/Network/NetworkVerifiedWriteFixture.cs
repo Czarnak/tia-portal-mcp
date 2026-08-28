@@ -6,10 +6,9 @@ namespace TiaMcpServer.Tests.Network;
 
 /// <summary>
 /// Creates the worker-verified project binding required by production write gates while retaining
-/// the existing path-keyed FakeWorker scenarios. The neutral <c>ok</c> status request starts the
-/// FakeWorker and returns its real process-local identity; only the project path is then changed to
-/// the scenario under test. Every later response must still match the captured worker id, Portal
-/// PID, generation, and canonical project path.
+/// the existing path-keyed FakeWorker scenarios. The fixture reads the requested scenario path and
+/// keeps that exact worker-reported identity. Every later response must still match the captured
+/// worker id, Portal PID, generation, and canonical project path.
 /// </summary>
 internal sealed class NetworkVerifiedWriteFixture : IDisposable
 {
@@ -59,24 +58,43 @@ internal sealed class NetworkVerifiedWriteFixture : IDisposable
         ProjectSessionBinding binding,
         string projectPath)
     {
-        var probe = await client.GetProjectStatusAsync("ok").ConfigureAwait(false);
+        var requestedPath = ProjectPathNormalization.Canonicalize(projectPath);
+        if (requestedPath is null)
+        {
+            throw new InvalidOperationException(
+                "The FakeWorker target-project read requires a canonical project path.");
+        }
+
+        var probe = await client
+            .ReadHardwareConfigAsync(requestedPath)
+            .ConfigureAwait(false);
         if (!probe.Success || probe.SessionIdentity is null)
         {
             throw new InvalidOperationException(
-                $"The FakeWorker identity probe failed: {probe.Error ?? "missing session identity"}");
+                $"The FakeWorker target-project read failed: " +
+                $"{probe.Error ?? "missing session identity"}");
         }
 
-        var identity = new WorkerSessionIdentity
+        var reportedPath = ProjectPathNormalization.Canonicalize(
+            probe.SessionIdentity.ProjectPath);
+        if (reportedPath is null ||
+            !string.Equals(
+                requestedPath,
+                reportedPath,
+                StringComparison.OrdinalIgnoreCase))
         {
-            WorkerSessionId = probe.SessionIdentity.WorkerSessionId,
-            SessionGeneration = probe.SessionIdentity.SessionGeneration,
-            PortalProcessId = probe.SessionIdentity.PortalProcessId,
-            ProjectPath = ProjectPathNormalization.Canonicalize(projectPath)
-        };
+            throw new InvalidOperationException(
+                $"The FakeWorker reported project '{reportedPath ?? "<missing>"}' " +
+                $"for requested project '{requestedPath ?? "<missing>"}'.");
+        }
 
-        if (!binding.BindVerified(identity, forceRebind: true, out var error))
+        if (!binding.BindVerified(
+                probe.SessionIdentity,
+                forceRebind: false,
+                out var error))
         {
-            throw new InvalidOperationException($"Could not establish the FakeWorker project binding: {error}");
+            throw new InvalidOperationException(
+                $"Could not establish the FakeWorker project binding: {error}");
         }
     }
 

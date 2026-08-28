@@ -193,7 +193,15 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond("""{"success":true,"payload":"Error: literal payload text, not a failure"}""");
             break;
         case "worker-error":
-            Respond("""{"success":false,"error":"boom"}""");
+            // The write fixture canonicalizes its unbound bootstrap path before sending it, while
+            // the ordinary worker-error read test retains this scenario's relative path and must
+            // still observe the scripted failure.
+            Respond(ReadMethod(line) == "read_hardware_config" &&
+                    currentExpectedSessionIdentity is null &&
+                    currentProjectPath is not null &&
+                    Path.IsPathFullyQualified(currentProjectPath)
+                ? Success(HardwareConfigPayload())
+                : """{"success":false,"error":"boom"}""");
             break;
         case "worker-error-with-category":
             // Proves OpennessWorkerClient.InvokeWorkerAsync preserves an approved
@@ -255,6 +263,13 @@ while ((line = Console.In.ReadLine()) is not null)
                 "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"ipAddress\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
+            break;
+        case "network-binding-mismatch":
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? SuccessWithResolvedPath(
+                    HardwareConfigPayload(),
+                    @"C:\FakeWorker\Different.ap21")
+                : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
             break;
         case "network-state-seq":
             // A contract-valid HardwareConfigInfo that reports the request sequence in its own
@@ -552,8 +567,13 @@ while ((line = Console.In.ReadLine()) is not null)
             // current-state hash (state_changed), never via a "different target" mismatch, mirroring
             // the pure-safety-layer proof in NetworkIntrospectionSafetySnapshotTests at the full FakeWorker
             // level.
+            // Fixture bootstrap establishes a binding from the baseline without consuming the
+            // preview/apply drift sequence; only bound reads advance that sequence.
             Respond(ReadMethod(line) == "read_hardware_config"
-                ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(++subnetLifecycleStateDriftReadCount)))
+                ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(
+                    currentExpectedSessionIdentity is null
+                        ? 1
+                        : ++subnetLifecycleStateDriftReadCount)))
                 : $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-state-drift"}""");
             break;
 
@@ -768,6 +788,14 @@ ProjectStatusInfo StatusWithMetadataFixture() => new()
 // payload is more than a few members: the escaping is what a hand-written literal gets wrong, and a
 // mis-escaped payload would fail the strict Network contract for the wrong reason.
 string Success(string payload) => JsonSerializer.Serialize(new { success = true, payload });
+
+string SuccessWithResolvedPath(string payload, string resolvedProjectPath)
+    => JsonSerializer.Serialize(new
+    {
+        success = true,
+        payload,
+        resolvedProjectPath
+    });
 
 // A complete HardwareConfigInfo: every collection is present, and members that are genuinely
 // unset are explicit nulls rather than omitted, so the payload exercises the strict registry the
