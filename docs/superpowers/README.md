@@ -38,6 +38,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-28 | [Project enumeration completeness](plans/2026-08-28-project-enumeration-completeness.md) |
 | 2026-08-28 | [PR #29 binding findings repair](plans/2026-08-28-pr29-binding-findings-repair.md) |
 | 2026-08-15 | [PR #27 review fixes](plans/2026-08-15-pr27-review-fixes.md) |
 | 2026-08-06 | [Network Phase 4 — subnet lifecycle](plans/2026-08-06-network-phase4-subnet-lifecycle.md) |
