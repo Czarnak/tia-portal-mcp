@@ -60,6 +60,56 @@ public sealed class FakeWorkerIdentityEnforcementTests
         Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
     }
 
+    [Fact]
+    public async Task OptionalObserveRequestStillRejectsASuppliedMismatchedIdentity()
+    {
+        using var transport = CreateTransport();
+        var observed = await PrimeAsync(transport);
+
+        var response = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "get_project_status",
+            ProjectPath = "network-roundtrip",
+            ExpectedSessionIdentity = Change(observed, "workerSessionId")
+        });
+
+        Assert.False(response.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+    }
+
+    [Fact]
+    public async Task RejectedRequestDoesNotStampResponseOrMutateTheFakeWorkerSession()
+    {
+        using var transport = CreateTransport();
+        var observed = await PrimeAsync(transport);
+
+        var rejected = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "probe_project_status_for_lifecycle",
+            ProjectPath = "network-roundtrip-other",
+            ExpectedSessionIdentity = observed
+        });
+
+        Assert.False(rejected.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, rejected.FailureCategory);
+        Assert.Null(rejected.SessionIdentity);
+
+        var afterRejection = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "read_hardware_config",
+            ProjectPath = "network-roundtrip",
+            ExpectedSessionIdentity = observed
+        });
+
+        Assert.True(afterRejection.Success, afterRejection.Error);
+        var identityAfterRejection = Assert.IsType<WorkerSessionIdentity>(
+            afterRejection.SessionIdentity);
+        Assert.Equal(observed.WorkerSessionId, identityAfterRejection.WorkerSessionId);
+        Assert.Equal(observed.SessionGeneration, identityAfterRejection.SessionGeneration);
+        Assert.Equal(observed.PortalProcessId, identityAfterRejection.PortalProcessId);
+        Assert.Equal(observed.ProjectPath, identityAfterRejection.ProjectPath);
+    }
+
     private static PersistentWorkerTransport CreateTransport()
         => new(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5));
 
