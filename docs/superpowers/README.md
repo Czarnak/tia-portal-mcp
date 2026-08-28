@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-28 | [Issue #31 project completeness and hardware pagination](specs/2026-08-28-issue-31-project-completeness-pagination-design.md) |
 | 2026-08-28 | [PR #29 binding findings repair](specs/2026-08-28-pr29-binding-findings-repair-design.md) |
 | 2026-08-07 | [Documentation reorganization](specs/2026-08-07-docs-reorganization-design.md) |
 | 2026-08-06 | [Network Phase 4 — subnet lifecycle](specs/2026-08-06-network-phase4-subnet-lifecycle-design.md) |

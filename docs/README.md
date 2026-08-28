@@ -46,5 +46,6 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: [PR #29 binding findings repair design](superpowers/specs/2026-08-28-pr29-binding-findings-repair-design.md)
-and [implementation plan](superpowers/plans/2026-08-28-pr29-binding-findings-repair.md).
+Latest process entries: [issue #31 project completeness and hardware pagination design](superpowers/specs/2026-08-28-issue-31-project-completeness-pagination-design.md),
+[PR #29 binding findings repair design](superpowers/specs/2026-08-28-pr29-binding-findings-repair-design.md),
+and its [implementation plan](superpowers/plans/2026-08-28-pr29-binding-findings-repair.md).
