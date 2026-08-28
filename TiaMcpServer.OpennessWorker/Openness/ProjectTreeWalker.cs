@@ -17,28 +17,33 @@ public class ProjectTreeWalker
     {
         var rootNodes = new List<ProjectTreeNode>();
 
-        foreach (Device device in project.Devices)
+        foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
         {
-            var children = new List<ProjectTreeNode>();
-
-            foreach (var plcSoftware in PlcSoftwareLocator.FindInDevice(device))
-            {
-                children.Add(WalkPlcSoftware(device.Name, plcSoftware));
-            }
-
-            rootNodes.Add(new ProjectTreeNode
-            {
-                Name = device.Name,
-                NodeType = "Device",
-                Details = new Dictionary<string, string>
-                {
-                    ["Path"] = device.Name
-                },
-                Children = children
-            });
+            rootNodes.Add(WalkDevice(device));
         }
 
         return rootNodes;
+    }
+
+    private static ProjectTreeNode WalkDevice(Device device)
+    {
+        var children = new List<ProjectTreeNode>();
+
+        foreach (var plcSoftware in PlcSoftwareLocator.FindInDevice(device))
+        {
+            children.Add(WalkPlcSoftware(device.Name, plcSoftware));
+        }
+
+        return new ProjectTreeNode
+        {
+            Name = device.Name,
+            NodeType = "Device",
+            Details = new Dictionary<string, string>
+            {
+                ["Path"] = device.Name
+            },
+            Children = children
+        };
     }
 
     private static ProjectTreeNode WalkPlcSoftware(string deviceName, PlcSoftware plcSoftware)

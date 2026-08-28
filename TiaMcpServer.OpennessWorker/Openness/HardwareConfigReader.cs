@@ -96,7 +96,7 @@ public static class HardwareConfigReader
         List<string> messages)
     {
         var candidates = new List<(Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)>();
-        foreach (Device device in project.Devices)
+        foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
         {
             var nameEvidence = ReadTypedIdentityString(() => device.Name, "Device name");
             candidates.Add((device, nameEvidence));
