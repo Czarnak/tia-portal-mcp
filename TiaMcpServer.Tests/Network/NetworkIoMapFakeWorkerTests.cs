@@ -18,6 +18,7 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkIoMapFakeWorkerTests
 {
     private const string Scenario = "network-io-map";
+    private const string ProjectCompletenessScenario = "project-enumeration-completeness";
 
     private static OpennessWorkerClient CreateClient(McpAccessMode mode = McpAccessMode.ReadWrite)
         => new(
@@ -42,6 +43,29 @@ public class NetworkIoMapFakeWorkerTests
         IncludeIoDetails = includeIoDetails,
         IncludeTagMatches = includeTagMatches,
     };
+
+    [Fact]
+    public async Task NetworkRead_ProjectCompletenessFixtureReturnsGroupedDeviceAsOrdinaryHardware()
+    {
+        using var client = CreateClient();
+
+        var result = await NetworkReadTools.NetworkRead(
+            client,
+            new[] { ReadHardware("complete", ProjectCompletenessScenario) });
+
+        Assert.False(result.IsError);
+        var operation = AssertOneCanonicalDocument(result)
+            .GetProperty("batch")
+            .GetProperty("operations")[0];
+        Assert.Equal("succeeded", operation.GetProperty("status").GetString());
+
+        var devices = operation.GetProperty("result").GetProperty("devices");
+        Assert.Equal(2, devices.GetArrayLength());
+        var grouped = devices.EnumerateArray().Single(
+            device => device.GetProperty("name").GetString() == "Grouped ET200");
+        Assert.False(grouped.TryGetProperty("group", out _));
+        Assert.False(grouped.TryGetProperty("deviceFolder", out _));
+    }
 
     [Fact]
     public async Task NetworkRead_IncludeIoDetailsReturnsStructuredAddressesChannelsAndTagMatches()

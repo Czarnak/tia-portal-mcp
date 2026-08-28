@@ -332,6 +332,15 @@ while ((line = Console.In.ReadLine()) is not null)
                 ? Success(ToCamelCaseJson(IoMapMalformedHardwareConfig()))
                 : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
             break;
+
+        case "project-enumeration-completeness":
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(ProjectCompletenessHardware())),
+                "browse_project_tree" => Success(ToCamelCaseJson(ProjectCompletenessTree())),
+                _ => $$"""{"success":false,"error":"unexpected project completeness method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "network-unresolvable-target":
             // A contract-valid, empty HardwareConfigInfo: no device can ever match a
             // configure_network_device target here, so a preview against this scenario proves
@@ -921,6 +930,78 @@ HardwareConfigInfo RoundTripHardwareConfig() => new()
             "PN/IE_2", "subnet-2", "Ethernet", "Ethernet",
             Array.Empty<IoSystemInfo>(),
             new[] { "PC_System_1.E2" }),
+    },
+};
+
+HardwareConfigInfo ProjectCompletenessHardware() => new()
+{
+    Devices = new List<DeviceInfo>
+    {
+        new() { Name = "Direct PLC", TypeIdentifier = "OrderNumber:CPU" },
+        new() { Name = "Grouped ET200", TypeIdentifier = "OrderNumber:ET200" },
+    },
+};
+
+List<ProjectTreeNode> ProjectCompletenessTree() => new()
+{
+    new()
+    {
+        Name = "Direct PLC",
+        NodeType = "Device",
+        Details = new Dictionary<string, string> { ["Path"] = "Direct PLC" },
+        Children = new List<ProjectTreeNode>(),
+    },
+    new()
+    {
+        Name = "Grouped ET200",
+        NodeType = "Device",
+        Details = new Dictionary<string, string> { ["Path"] = "Grouped ET200" },
+        Children = new List<ProjectTreeNode>
+        {
+            new()
+            {
+                Name = "PLC_Grouped",
+                NodeType = "PlcSoftware",
+                Details = new Dictionary<string, string> { ["Path"] = "Grouped ET200" },
+                Children = new List<ProjectTreeNode>
+                {
+                    new()
+                    {
+                        Name = "Blocks",
+                        NodeType = "BlockFolder",
+                        Details = new Dictionary<string, string> { ["Path"] = "PLC_Grouped/Blocks" },
+                        Children = new List<ProjectTreeNode>
+                        {
+                            new()
+                            {
+                                Name = "System blocks",
+                                NodeType = "SystemBlockFolder",
+                                Details = new Dictionary<string, string>
+                                {
+                                    ["Path"] = "PLC_Grouped/Blocks/System blocks"
+                                },
+                                Children = new List<ProjectTreeNode>
+                                {
+                                    new()
+                                    {
+                                        Name = "SafeFB",
+                                        NodeType = "FB",
+                                        Details = new Dictionary<string, string>
+                                        {
+                                            ["Path"] = "PLC_Grouped/Blocks/System blocks/SafeFB",
+                                            ["Number"] = "200",
+                                            ["ProgrammingLanguage"] = "F_LAD",
+                                            ["IsSystemBlock"] = "true",
+                                        },
+                                        Children = new List<ProjectTreeNode>(),
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
     },
 };
 
