@@ -8,6 +8,10 @@
 | `browse_project_tree` | `browse_project_tree` | Optional `projectPath`, `depth`, and `startPath`; returns bounded project-tree data. |
 | `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, and `blockPath`; compiles the selected scope and returns compiler messages. Available only in read-write mode. |
 
+`browse_project_tree` returns grouped and ungrouped devices with the same flat `Device` shape. PLC system-block groups use `nodeType: "SystemBlockFolder"`; contained blocks keep their functional block type and carry `details.IsSystemBlock: "true"`. That marker records TIA hierarchy membership only and is not an author, vendor, library, or provenance claim.
+
+The tree remains a bare array. Per-item Openness failures are best-effort worker stderr diagnostics rather than caller-visible warning objects; use `depth` and `startPath` to bound large trees.
+
 `compile_check` is a standalone engineering operation. It is not marked read-only, does not use a safety token, and is exposed only in read-write mode.
 
 ### `get_project_status` metadata surface
