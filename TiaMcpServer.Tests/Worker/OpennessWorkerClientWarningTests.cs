@@ -61,12 +61,12 @@ public class OpennessWorkerClientWarningTests
     }
 
     [Fact]
-    public async Task DirectStatusDivergence_WarnsButDoesNotAdoptWorkerPath()
+    public async Task DirectStatusDivergence_FailsClosedAndInvalidatesBinding()
     {
         // Bound to A ("C:\\bound\\Session.ap21"); the FakeWorker scenario keyed by that path
         // reports it actually operated on B ("C:\\actual\\Other.ap21"). A direct status read is
-        // BindingTransition.None: it surfaces a single divergence warning naming both canonical
-        // paths but must NOT adopt B - the binding stays A.
+        // BindingTransition.None: the mismatch is a hard binding_conflict and invalidates the
+        // session. It must never be reduced to a warning after the worker has already run.
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
         using var client = new OpennessWorkerClient(
@@ -76,11 +76,11 @@ public class OpennessWorkerClientWarningTests
 
         var result = await client.GetProjectStatusAsync(null);
 
-        Assert.True(result.Success);
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
         Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
-        Assert.Contains(
-            result.Warnings,
-            w => w.Contains("C:\\bound\\Session.ap21", StringComparison.Ordinal)
-                && w.Contains("C:\\actual\\Other.ap21", StringComparison.Ordinal));
+        Assert.Contains("C:\\bound\\Session.ap21", result.Error);
+        Assert.Contains("C:\\actual\\Other.ap21", result.Error);
     }
 }

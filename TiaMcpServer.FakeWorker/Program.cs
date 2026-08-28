@@ -1,10 +1,21 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TiaMcpServer.Contracts;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
 // stdin closes. The test encodes the scenario in the request's projectPath field.
 var seq = 0;
+var workerSessionId = Guid.NewGuid().ToString("N");
+const int FakePortalProcessId = 4242;
+var fakeSessionGeneration = 1L;
+string? fakeProjectPath = null;
+string? currentProjectPath = null;
+string? currentMethod = null;
+var requestJsonOptions = new JsonSerializerOptions
+{
+    PropertyNameCaseInsensitive = true
+};
 
 // Process-local, mutable hardware state for the "multi-homed-network" scenario (see below): a
 // single PC station exposing two ports on separate interfaces. Declared once per FakeWorker
@@ -45,6 +56,8 @@ var subnetLifecycleState = new List<SubnetLifecycleSubnetState>
 var subnetLifecycleNextId = 1;
 var subnetLifecycleSecondFailureWriteCount = 0;
 var subnetLifecycleStateDriftReadCount = 0;
+var updateBlockPostconditionAttempt = 0;
+var createBlockPostconditionAttempt = 0;
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -55,23 +68,67 @@ while ((line = Console.In.ReadLine()) is not null)
 {
     seq++;
     string? scenario = null;
+    currentProjectPath = null;
+    currentMethod = null;
+    WorkerSessionIdentity? currentExpectedSessionIdentity = null;
     try
     {
         using var doc = JsonDocument.Parse(line);
         if (doc.RootElement.TryGetProperty("projectPath", out var p) && p.ValueKind == JsonValueKind.String)
         {
-            scenario = p.GetString();
+            currentProjectPath = p.GetString();
+            scenario = ScenarioKey(currentProjectPath);
         }
         else if (doc.RootElement.TryGetProperty("projectDirectory", out var d) && d.ValueKind == JsonValueKind.String)
         {
             // create_project carries no projectPath; its scenario key is the target directory so
             // create-specific IPC tests can drive the fake worker just like path-keyed scenarios.
-            scenario = d.GetString();
+            currentProjectPath = d.GetString();
+            scenario = ScenarioKey(currentProjectPath);
+        }
+
+        currentMethod = doc.RootElement.TryGetProperty("method", out var method) && method.ValueKind == JsonValueKind.String
+            ? method.GetString()
+            : null;
+
+        if (doc.RootElement.TryGetProperty(
+                "expectedSessionIdentity",
+                out var expectedIdentity) &&
+            expectedIdentity.ValueKind == JsonValueKind.Object)
+        {
+            currentExpectedSessionIdentity =
+                expectedIdentity.Deserialize<WorkerSessionIdentity>(requestJsonOptions);
         }
     }
     catch (JsonException)
     {
         scenario = "malformed-request";
+    }
+
+    if (string.Equals(currentMethod, "hello", StringComparison.Ordinal))
+    {
+        // Handshake traffic is transport setup, not an engineering request; preserve the
+        // historical sequence values used by reuse/restart tests.
+        seq--;
+        Console.Out.WriteLine(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = true,
+            Payload = "{}",
+            ProtocolVersion = WorkerProtocol.Version,
+            Capabilities = WorkerProtocol.RequiredCapabilities.ToList()
+        }));
+        Console.Out.Flush();
+        continue;
+    }
+
+    var identityFailure = ValidateExpectedSessionIdentity(
+        currentMethod,
+        currentProjectPath,
+        currentExpectedSessionIdentity);
+    if (identityFailure is not null)
+    {
+        Respond(JsonSerializer.Serialize(identityFailure), includeSessionIdentity: false);
+        continue;
     }
 
     switch (scenario)
@@ -80,8 +137,21 @@ while ((line = Console.In.ReadLine()) is not null)
             // seq proves whether two requests hit the same process (2.1 reuse/restart tests).
             Respond($$"""{"success":true,"payload":"{\"seq\":{{seq}}}"}""");
             break;
+        case "missing-session-identity":
+            // A structurally valid success that violates the new binding postcondition. Used to
+            // prove open/create never fall back to caller input or resolvedProjectPath when the
+            // worker omits its complete worker/Portal/project identity.
+            Respond("""{"success":true,"payload":"{}"}""", includeSessionIdentity: false);
+            break;
         case "ok-with-resolved-path":
-            Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
+            // A canonical unbound status read is fixture bootstrap. The later protected save-as
+            // retains this scenario's original copied-path response.
+            Respond(ReadMethod(line) == "get_project_status" &&
+                    currentExpectedSessionIdentity is null &&
+                    currentProjectPath is not null &&
+                    Path.IsPathFullyQualified(currentProjectPath)
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : """{"success":true,"payload":"{}","resolvedProjectPath":"C:\\resolved\\Ground.ap21"}""");
             break;
         case "open-resolved-differs":
             // Worker reports a resolved project path that differs from the caller-supplied path,
@@ -132,7 +202,15 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond("""{"success":true,"payload":"Error: literal payload text, not a failure"}""");
             break;
         case "worker-error":
-            Respond("""{"success":false,"error":"boom"}""");
+            // The write fixture canonicalizes its unbound bootstrap path before sending it, while
+            // the ordinary worker-error read test retains this scenario's relative path and must
+            // still observe the scripted failure.
+            Respond(ReadMethod(line) == "read_hardware_config" &&
+                    currentExpectedSessionIdentity is null &&
+                    currentProjectPath is not null &&
+                    Path.IsPathFullyQualified(currentProjectPath)
+                ? Success(HardwareConfigPayload())
+                : """{"success":false,"error":"boom"}""");
             break;
         case "worker-error-with-category":
             // Proves OpennessWorkerClient.InvokeWorkerAsync preserves an approved
@@ -145,10 +223,28 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond("""{"success":false,"error":"target not found","failureCategory":"target_not_found"}""");
             break;
         case "update-block-postcondition-failed":
-            Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block update verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            // Fixture bootstrap must not consume the protected write's attempt sequence.
+            if (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
+            {
+                Respond("""{"success":true,"payload":"{\"isOpen\":true}"}""");
+            }
+            else
+            {
+                updateBlockPostconditionAttempt++;
+                Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block update verification failed on attempt {{updateBlockPostconditionAttempt}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            }
             break;
         case "create-block-postcondition-failed":
-            Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block creation verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            // Fixture bootstrap must not consume the protected write's attempt sequence.
+            if (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
+            {
+                Respond("""{"success":true,"payload":"{\"isOpen\":true}"}""");
+            }
+            else
+            {
+                createBlockPostconditionAttempt++;
+                Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block creation verification failed on attempt {{createBlockPostconditionAttempt}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
+            }
             break;
         case "malformed":
             Console.Out.WriteLine("this is not json");
@@ -194,6 +290,13 @@ while ((line = Console.In.ReadLine()) is not null)
                 "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"ipAddress\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
+            break;
+        case "network-binding-mismatch":
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? SuccessWithResolvedPath(
+                    HardwareConfigPayload(),
+                    @"C:\FakeWorker\Different.ap21")
+                : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
             break;
         case "network-state-seq":
             // A contract-valid HardwareConfigInfo that reports the request sequence in its own
@@ -292,9 +395,10 @@ while ((line = Console.In.ReadLine()) is not null)
             // scenario key) is what has to pick the response.
             Respond(ReadMethod(line) switch
             {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 "get_type_content" => """{"success":true,"payload":"TYPE AnalogInputSettings STRUCT Value : Real; END_STRUCT END_TYPE"}""",
                 "update_type_content" => """{"success":true,"payload":"{}"}""",
-                _ => $$"""{"success":false,"error":"expected get_type_content or update_type_content, got '{{ReadMethod(line)}}'"}"""
+                _ => $$"""{"success":false,"error":"expected get_project_status, get_type_content, or update_type_content, got '{{ReadMethod(line)}}'"}"""
             });
             break;
         case "block-source-roundtrip":
@@ -305,6 +409,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // payload, and the round trip fails loudly instead of binding the wrong artifact.
             Respond((ReadMethod(line), ReadField(line, "format")) switch
             {
+                ("get_project_status", _) => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 ("get_block_content", "source") => """{"success":true,"payload":"DATA_BLOCK \"Recipe\"\r\nSTRUCT\r\nEND_STRUCT;\r\nBEGIN\r\nEND_DATA_BLOCK\r\n"}""",
                 ("update_block_logic", "source") => """{"success":true,"payload":"{}"}""",
                 var other => $$"""{"success":false,"error":"expected format 'source' for both methods, got method '{{other.Item1}}' with format '{{other.Item2}}'"}"""
@@ -346,14 +451,17 @@ while ((line = Console.In.ReadLine()) is not null)
         }
         case "lifecycle-probe-only":
             // Guards against a regression where a save/save-as/archive/close current-state
-            // read reverts to the direct status operation: fails ONLY when the request used
-            // get_project_status; every other operation (the probe itself, or the tool's own
-            // write call that follows) succeeds normally so the full preview/apply round trip
-            // can complete. save_project_as additionally needs a resolvedProjectPath so the
-            // rebind bind succeeds after the write.
+            // read reverts to the direct status operation. Only the unbound direct-status fixture
+            // bootstrap succeeds; a bound direct status still fails. Every other operation (the
+            // probe itself, or the tool's own write call that follows) succeeds normally so the
+            // full preview/apply round trip can complete. save_project_as additionally needs a
+            // resolvedProjectPath so the rebind bind succeeds after the write.
             Respond(ReadMethod(line) switch
             {
-                "get_project_status" => """{"success":false,"error":"current-state read must use probe_project_status_for_lifecycle, not get_project_status"}""",
+                "get_project_status" when currentExpectedSessionIdentity is null =>
+                    """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "get_project_status" =>
+                    """{"success":false,"error":"current-state read must use probe_project_status_for_lifecycle, not get_project_status"}""",
                 "save_project_as" => """{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\lifecycle\\Copy.ap21"}""",
                 _ => """{"success":true,"payload":"{\"isOpen\":true}"}"""
             });
@@ -361,13 +469,21 @@ while ((line = Console.In.ReadLine()) is not null)
         case "save-as-uncertain-state":
             // Simulates the real worker's postcondition_failed when save_project_as saved a copy
             // but could not confirm the active project is that copy: a failure carrying the
-            // uncertain-state warning. The host must surface it and never bind the session.
-            Respond("""{"success":false,"failureCategory":"postcondition_failed","error":"could not confirm the copied project path","warnings":["Project state may have changed; inspect the open project before retrying."]}""");
+            // uncertain-state warning. The unbound status bootstrap succeeds, but the protected
+            // save-as must surface the failure and retain its verified source binding.
+            Respond(ReadMethod(line) == "get_project_status" &&
+                    currentExpectedSessionIdentity is null
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : """{"success":false,"failureCategory":"postcondition_failed","error":"could not confirm the copied project path","warnings":["Project state may have changed; inspect the open project before retrying."]}""");
             break;
         case "C:\\bound\\FailingSave.ap21":
             // A bound-path scenario whose save_project_as call fails, proving a failed rebinding
-            // save-as leaves the pre-existing session binding untouched (no partial rebind).
-            Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"save failed"}""");
+            // save-as leaves the pre-existing session binding untouched (no partial rebind). Its
+            // unbound status call exists only to establish that exact verified fixture binding.
+            Respond(ReadMethod(line) == "get_project_status" &&
+                    currentExpectedSessionIdentity is null
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : """{"success":false,"failureCategory":"worker_operation_failed","error":"save failed"}""");
             break;
         case "C:\\Projects\\SimpleProject\\SimpleProject.ap21":
             // Used by the archive-directory-guard preview test: every request (including the
@@ -489,8 +605,13 @@ while ((line = Console.In.ReadLine()) is not null)
             // current-state hash (state_changed), never via a "different target" mismatch, mirroring
             // the pure-safety-layer proof in NetworkIntrospectionSafetySnapshotTests at the full FakeWorker
             // level.
+            // Fixture bootstrap establishes a binding from the baseline without consuming the
+            // preview/apply drift sequence; only bound reads advance that sequence.
             Respond(ReadMethod(line) == "read_hardware_config"
-                ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(++subnetLifecycleStateDriftReadCount)))
+                ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(
+                    currentExpectedSessionIdentity is null
+                        ? 1
+                        : ++subnetLifecycleStateDriftReadCount)))
                 : $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-state-drift"}""");
             break;
 
@@ -509,10 +630,142 @@ while ((line = Console.In.ReadLine()) is not null)
     }
 }
 
-void Respond(string json)
+void Respond(string json, bool includeSessionIdentity = true)
 {
+    // Add the same structural identity contract as the real worker. Centralizing it here keeps
+    // every existing scripted scenario useful while making worker restarts observable: each fake
+    // process receives a fresh workerSessionId.
+    try
+    {
+        if (includeSessionIdentity && JsonNode.Parse(json) is JsonObject response)
+        {
+            var resolvedPath = response["resolvedProjectPath"]?.GetValue<string>();
+            var projectPath = string.Equals(currentMethod, "close_project", StringComparison.Ordinal)
+                ? null
+                : ProjectPathNormalization.Canonicalize(resolvedPath ?? currentProjectPath);
+
+            if (string.Equals(currentMethod, "close_project", StringComparison.Ordinal))
+            {
+                if (fakeProjectPath is not null)
+                {
+                    fakeSessionGeneration++;
+                }
+
+                fakeProjectPath = null;
+                response["resolvedProjectPath"] = null;
+            }
+            else if (projectPath is not null)
+            {
+                var isAuthorizedPathTransition =
+                    string.Equals(currentMethod, "open_project", StringComparison.Ordinal) ||
+                    string.Equals(currentMethod, "create_project", StringComparison.Ordinal) ||
+                    string.Equals(currentMethod, "save_project_as", StringComparison.Ordinal);
+                if (isAuthorizedPathTransition &&
+                    fakeProjectPath is not null &&
+                    !string.Equals(fakeProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    fakeSessionGeneration++;
+                }
+
+                fakeProjectPath = projectPath;
+            }
+
+            response["sessionIdentity"] = JsonSerializer.SerializeToNode(new WorkerSessionIdentity
+            {
+                WorkerSessionId = workerSessionId,
+                SessionGeneration = fakeSessionGeneration,
+                PortalProcessId = FakePortalProcessId,
+                ProjectPath = projectPath
+            });
+            json = response.ToJsonString();
+        }
+    }
+    catch (JsonException)
+    {
+        // Deliberately malformed protocol scenarios must remain malformed.
+    }
+
     Console.Out.WriteLine(json);
     Console.Out.Flush();
+}
+
+WorkerResponse? ValidateExpectedSessionIdentity(
+    string? method,
+    string? requestedProjectPath,
+    WorkerSessionIdentity? expected)
+{
+    var requiresIdentity =
+        OperationPolicyCatalog.RequiresExpectedSessionIdentity(method ?? string.Empty);
+
+    if (expected is null)
+    {
+        return requiresIdentity
+            ? BindingConflict(
+                "This operation requires expected worker/Portal/project session identity.")
+            : null;
+    }
+
+    var expectedPath =
+        ProjectPathNormalization.Canonicalize(expected.ProjectPath);
+    var activePath =
+        ProjectPathNormalization.Canonicalize(fakeProjectPath);
+
+    if (string.IsNullOrWhiteSpace(expected.WorkerSessionId) ||
+        expected.SessionGeneration < 0 ||
+        expected.PortalProcessId is null ||
+        expected.PortalProcessId <= 0 ||
+        expectedPath is null ||
+        activePath is null ||
+        !string.Equals(
+            expected.WorkerSessionId,
+            workerSessionId,
+            StringComparison.Ordinal) ||
+        expected.SessionGeneration != fakeSessionGeneration ||
+        expected.PortalProcessId != FakePortalProcessId ||
+        !string.Equals(expectedPath, activePath, StringComparison.OrdinalIgnoreCase))
+    {
+        return BindingConflict(
+            "The expected worker/Portal/project session identity does not match the FakeWorker session.");
+    }
+
+    var establishesProject =
+        string.Equals(method, "open_project", StringComparison.Ordinal) ||
+        string.Equals(method, "create_project", StringComparison.Ordinal);
+    var requestedPath =
+        ProjectPathNormalization.Canonicalize(requestedProjectPath);
+
+    if (!establishesProject &&
+        requestedPath is not null &&
+        !string.Equals(
+            expectedPath,
+            requestedPath,
+            StringComparison.OrdinalIgnoreCase))
+    {
+        return BindingConflict(
+            "The request project path does not match the expected project session identity.");
+    }
+
+    return null;
+}
+
+WorkerResponse BindingConflict(string error)
+    => new()
+    {
+        Success = false,
+        FailureCategory = WorkerFailureCategories.BindingConflict,
+        Error = error
+    };
+
+string? ScenarioKey(string? path)
+{
+    if (string.IsNullOrWhiteSpace(path) || path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
+    {
+        return path;
+    }
+
+    // ProjectPathNormalization turns test scenario keywords into absolute paths once a startup
+    // binding is configured. The final segment remains the scripted key.
+    return Path.GetFileName(path);
 }
 
 // A complete ProjectStatusInfo carrying every extended metadata section, modelling what the real
@@ -573,6 +826,14 @@ ProjectStatusInfo StatusWithMetadataFixture() => new()
 // payload is more than a few members: the escaping is what a hand-written literal gets wrong, and a
 // mis-escaped payload would fail the strict Network contract for the wrong reason.
 string Success(string payload) => JsonSerializer.Serialize(new { success = true, payload });
+
+string SuccessWithResolvedPath(string payload, string resolvedProjectPath)
+    => JsonSerializer.Serialize(new
+    {
+        success = true,
+        payload,
+        resolvedProjectPath
+    });
 
 // A complete HardwareConfigInfo: every collection is present, and members that are genuinely
 // unset are explicit nulls rather than omitted, so the payload exercises the strict registry the

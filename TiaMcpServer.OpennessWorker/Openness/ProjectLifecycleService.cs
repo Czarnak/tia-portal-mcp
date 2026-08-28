@@ -46,7 +46,7 @@ public static class ProjectLifecycleService
     /// </summary>
     private static Project? ResolveProjectForRead(TiaPortalSession session, string? requestedProjectPath)
     {
-        session.EnsureConnected();
+        session.EnsureConnected(requestedProjectPath);
 
         var currentPath = session.CurrentProjectPath;
         if (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath) == ProjectOpenDecision.Refuse)
@@ -91,7 +91,7 @@ public static class ProjectLifecycleService
     {
         RequireAbsoluteFile(projectPath, "ProjectPath");
 
-        session.EnsureConnected();
+        session.EnsureConnected(projectPath);
         session.OpenProject(projectPath);
 
         return Result("open_project", session.Project);
@@ -107,7 +107,7 @@ public static class ProjectLifecycleService
         RequireAbsoluteDirectory(projectDirectory, "ProjectDirectory", mustExist: true);
         RequireName(projectName, "ProjectName");
 
-        session.EnsureConnected();
+        session.EnsureConnected(requestedProjectPath: null);
         if (session.TiaPortal is null)
         {
             throw new InvalidOperationException("No TIA Portal session is connected. Please start TIA Portal and try again.");
@@ -141,13 +141,17 @@ public static class ProjectLifecycleService
                 throw new InvalidOperationException($"TIA Portal did not return a project after creating '{projectName}'.");
         }
 
-        session.Project = project;
+        session.TrackWorkerOpenedProject(project);
         return Result("create_project", project);
     }
 
-    public static ProjectLifecycleResultInfo SaveProject(TiaPortalSession session, string? projectPath)
+    public static ProjectLifecycleResultInfo SaveProject(
+        TiaPortalSession session,
+        string? projectPath,
+        WorkerSessionIdentity? expectedSessionIdentity)
     {
         var project = EnsureProject(session, projectPath);
+        ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
         project.Save();
 
         return Result("save_project", project);
@@ -164,7 +168,8 @@ public static class ProjectLifecycleService
         string? projectPath,
         string targetDirectory,
         string targetName,
-        bool rebind)
+        bool rebind,
+        WorkerSessionIdentity? expectedSessionIdentity)
     {
         // Defense in depth (host layers reject first): rebind=false is unsupported. Reject before
         // any Siemens-touching call so a rejected mode can never mutate project state.
@@ -180,6 +185,7 @@ public static class ProjectLifecycleService
         RequireName(targetName, "TargetName");
 
         var copyDirectory = Path.Combine(targetDirectory, targetName);
+        ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
         project.SaveAs(new DirectoryInfo(copyDirectory));
 
         // Siemens SaveAs switches the active project to the copy in place. Do NOT close/reopen: a
@@ -187,10 +193,18 @@ public static class ProjectLifecycleService
         // projects. Instead, discover the copied .ap?? file and require the live active project to
         // BE that file. Program.Stamp then reports it as ResolvedProjectPath (from
         // session.CurrentProjectPath), and the host binds only from that verified field.
-        var copiedProjectPath = Directory.Exists(copyDirectory)
-            ? Directory.GetFiles(copyDirectory, "*.ap??", SearchOption.AllDirectories).FirstOrDefault()
-            : null;
         var activeProjectPath = session.CurrentProjectPath;
+        var discoveredProjectPaths = Directory.Exists(copyDirectory)
+            ? Directory.GetFiles(copyDirectory, "*.ap??", SearchOption.AllDirectories)
+            : Array.Empty<string>();
+        var matchingProjectPaths = string.IsNullOrWhiteSpace(activeProjectPath)
+            ? new List<string>()
+            : discoveredProjectPaths
+                .Where(path => ProjectPathsEqual(path, activeProjectPath!))
+                .ToList();
+        var copiedProjectPath = matchingProjectPaths.Count == 1
+            ? matchingProjectPaths[0]
+            : null;
 
         if (string.IsNullOrWhiteSpace(copiedProjectPath)
             || string.IsNullOrWhiteSpace(activeProjectPath)
@@ -199,10 +213,14 @@ public static class ProjectLifecycleService
             throw new WorkerOperationException(
                 WorkerFailureCategories.PostconditionFailed,
                 $"save_project_as saved under '{copyDirectory}' but could not confirm the active project "
-                + $"matches the copied project file (discovered copy: '{copiedProjectPath ?? "(none)"}', "
+                + $"matches exactly one copied project file (matching copies: {matchingProjectPaths.Count}, "
+                + $"discovered copies: {discoveredProjectPaths.Length}, "
+                + $"discovered copy: '{copiedProjectPath ?? "(none)"}', "
                 + $"active project: '{activeProjectPath ?? "(none)"}').",
                 warnings: new[] { "Project state may have changed; inspect the open project before retrying." });
         }
+
+        session.AcceptCurrentProjectIdentity();
 
         // session.Project is already the copy (Siemens switched it), so the payload is built from it
         // without any explicit close/reopen.
@@ -241,7 +259,8 @@ public static class ProjectLifecycleService
         string archiveDirectory,
         string archiveName,
         string archiveMode,
-        bool saveBeforeArchive)
+        bool saveBeforeArchive,
+        WorkerSessionIdentity? expectedSessionIdentity)
     {
         var project = EnsureProject(session, projectPath);
         // Existence is checked further down, AFTER the project-folder guard: a caller pointed at a
@@ -261,9 +280,14 @@ public static class ProjectLifecycleService
 
         if (saveBeforeArchive)
         {
+            ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
             project.Save();
         }
 
+        // Saving is itself a Siemens mutation and the TIA UI remains independently interactive.
+        // Re-check after Save and immediately before Archive so a same-handle UI SaveAs cannot
+        // redirect the archive to a different project generation in between the two calls.
+        ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
         project.Archive(new DirectoryInfo(archiveDirectory), resolvedArchiveName, mode);
 
         return Result("archive_project", project);
@@ -272,16 +296,21 @@ public static class ProjectLifecycleService
     public static ProjectLifecycleResultInfo CloseProject(
         TiaPortalSession session,
         string? projectPath,
-        bool saveBeforeClose)
+        bool saveBeforeClose,
+        WorkerSessionIdentity? expectedSessionIdentity)
     {
         var project = EnsureProject(session, projectPath);
         var status = ReadStatus(project);
 
         if (saveBeforeClose)
         {
+            ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
             project.Save();
         }
 
+        // ReadStatus/Save may take long enough for the independently operated TIA UI to change
+        // the live handle. Close only after a fresh identity comparison at the mutation boundary.
+        ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
         project.Close();
         session.MarkProjectClosed();
 
@@ -306,7 +335,7 @@ public static class ProjectLifecycleService
 
     private static Project EnsureProject(TiaPortalSession session, string? projectPath)
     {
-        session.EnsureConnected();
+        session.EnsureConnected(projectPath);
 
         if (!string.IsNullOrWhiteSpace(projectPath))
         {
@@ -315,6 +344,18 @@ public static class ProjectLifecycleService
 
         return session.Project ??
             throw new InvalidOperationException("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
+    }
+
+    private static void ValidateExpectedImmediatelyBeforeMutation(
+        TiaPortalSession session,
+        WorkerSessionIdentity? expectedSessionIdentity)
+    {
+        // EnsureProject may re-scan a handle after Program's first identity check. Re-check here,
+        // immediately before Save/SaveAs/Archive/Close, so a UI-side same-path close/reopen cannot
+        // make an old safety token act on a new project generation.
+        session.ValidateExpectedSessionIdentity(
+            expectedSessionIdentity,
+            allowMissingExpectedIdentity: false);
     }
 
     private static ProjectLifecycleResultInfo Result(string operation, Project? project)

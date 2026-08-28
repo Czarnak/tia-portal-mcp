@@ -4,6 +4,12 @@ namespace TiaMcpServer.Contracts;
 
 public class WorkerResponse
 {
+    /// <summary>Set by the pre-Siemens hello response.</summary>
+    public string? ProtocolVersion { get; set; }
+
+    /// <summary>Capabilities advertised by the pre-Siemens hello response.</summary>
+    public List<string>? Capabilities { get; set; }
+
     public bool Success { get; set; }
 
     public string? Payload { get; set; }
@@ -29,4 +35,11 @@ public class WorkerResponse
     /// path the caller requested, so a mistyped-but-real path cannot silently retarget a session.
     /// </summary>
     public string? ResolvedProjectPath { get; set; }
+
+    /// <summary>
+    /// Full identity of the worker/TIA/project session after this operation. A successful bound
+    /// operation without this value is a broken postcondition; the host must never fall back to
+    /// <see cref="ResolvedProjectPath"/> or caller input for guarded writes.
+    /// </summary>
+    public WorkerSessionIdentity? SessionIdentity { get; set; }
 }

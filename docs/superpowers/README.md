@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-28 | [PR #29 binding findings repair](specs/2026-08-28-pr29-binding-findings-repair-design.md) |
 | 2026-08-07 | [Documentation reorganization](specs/2026-08-07-docs-reorganization-design.md) |
 | 2026-08-06 | [Network Phase 4 — subnet lifecycle](specs/2026-08-06-network-phase4-subnet-lifecycle-design.md) |
 | 2026-08-03 | [Network Phase 3 — identity and introspection](specs/2026-08-03-network-operations-phase3-identity-introspection-design.md) |
@@ -36,6 +37,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-08-28 | [PR #29 binding findings repair](plans/2026-08-28-pr29-binding-findings-repair.md) |
 | 2026-08-15 | [PR #27 review fixes](plans/2026-08-15-pr27-review-fixes.md) |
 | 2026-08-06 | [Network Phase 4 — subnet lifecycle](plans/2026-08-06-network-phase4-subnet-lifecycle.md) |
 | 2026-08-04 | [Network Phase 3 — identity and introspection](plans/2026-08-04-network-operations-phase3-identity-introspection.md) |

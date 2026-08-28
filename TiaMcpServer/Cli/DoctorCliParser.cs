@@ -93,17 +93,30 @@ public static class DoctorCliParser
                     return new DoctorCliOptions(false, json, verbose, help, null, accessMode, "--project requires a value.");
                 }
 
+                if (projectPath is not null)
+                {
+                    return new DoctorCliOptions(false, json, verbose, help, projectPath, accessMode, "--project may be specified only once.");
+                }
+
                 projectPath = args[++i];
                 continue;
             }
 
             if (arg.StartsWith(ProjectPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                projectPath = arg.Substring(ProjectPrefix.Length);
-                if (string.IsNullOrWhiteSpace(projectPath))
+                var candidate = arg.Substring(ProjectPrefix.Length);
+                if (string.IsNullOrWhiteSpace(candidate))
                 {
                     return new DoctorCliOptions(false, json, verbose, help, null, accessMode, "--project requires a value.");
                 }
+
+
+                if (projectPath is not null)
+                {
+                    return new DoctorCliOptions(false, json, verbose, help, projectPath, accessMode, "--project may be specified only once.");
+                }
+
+                projectPath = candidate;
 
                 continue;
             }

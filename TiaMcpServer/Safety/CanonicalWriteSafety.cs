@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 
 namespace TiaMcpServer.Safety;
@@ -19,6 +20,7 @@ public sealed record CanonicalWritePreview<TTarget>(
     string RequestedInputHash,
     DateTimeOffset ExpiresAtUtc,
     string SafetyToken,
+    ProjectBindingSnapshot ProjectBinding,
     JsonElement? Diff,
     string Instructions);
 
@@ -60,6 +62,7 @@ public sealed partial class WriteSafetyService
             issued.RequestedInputHash,
             issued.ExpiresAtUtc,
             issued.Token,
+            issued.ProjectBinding,
             diff,
             instructions);
     }
@@ -125,6 +128,7 @@ public sealed partial class WriteSafetyService
                 timestamp,
                 toolName,
                 NormalizeProjectPath(projectPath),
+                _projectSessionBinding.CaptureSnapshot(),
                 Detach(targetText),
                 requestedInputHash,
                 currentStateHash,
@@ -142,6 +146,7 @@ public sealed partial class WriteSafetyService
         DateTimeOffset TimestampUtc,
         string ToolName,
         string ProjectPath,
+        ProjectBindingSnapshot ProjectBinding,
         JsonElement Target,
         string RequestedInputHash,
         string CurrentStateHash,

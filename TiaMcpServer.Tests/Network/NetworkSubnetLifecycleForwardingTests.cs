@@ -2,6 +2,7 @@ using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -16,8 +17,26 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public class NetworkSubnetLifecycleForwardingTests
 {
-    private static OpennessWorkerClient CreateClient()
-        => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+    private static readonly string EchoProjectPath = ProjectPathNormalization.Canonicalize("echo")!;
+
+    private static async Task<OpennessWorkerClient> CreateClientAsync()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+        try
+        {
+            await FakeWorkerBinding.BindVerifiedAsync(client, binding, EchoProjectPath);
+            return client;
+        }
+        catch
+        {
+            client.Dispose();
+            throw;
+        }
+    }
 
     #region Step 1: Access classification
 
@@ -119,7 +138,7 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "create-1",
             Operation = "create_subnet",
-            ProjectPath = "echo",
+            ProjectPath = EchoProjectPath,
             Subnet = new NetworkSubnetDefinition
             {
                 Name = "Subnet_1",
@@ -127,8 +146,8 @@ public class NetworkSubnetLifecycleForwardingTests
             },
         };
 
-        using var client = CreateClient();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
 
         Assert.True(result.Success, result.Error);
         Assert.NotEqual(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -141,13 +160,13 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "update-1",
             Operation = "update_subnet",
-            ProjectPath = "echo",
+            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-42" },
             SubnetChanges = new NetworkSubnetChanges { Name = "Renamed" },
         };
 
-        using var client = CreateClient();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
 
         Assert.True(result.Success, result.Error);
         Assert.NotEqual(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -160,12 +179,12 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "delete-1",
             Operation = "delete_subnet",
-            ProjectPath = "echo",
+            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-7" },
         };
 
-        using var client = CreateClient();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
 
         Assert.True(result.Success, result.Error);
         Assert.NotEqual(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -182,7 +201,7 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "create-2",
             Operation = "create_subnet",
-            ProjectPath = "echo",
+            ProjectPath = EchoProjectPath,
             Subnet = new NetworkSubnetDefinition
             {
                 Name = "Profibus_1",
@@ -192,15 +211,15 @@ public class NetworkSubnetLifecycleForwardingTests
             },
         };
 
-        using var client = CreateClient();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
         var root = document.RootElement;
 
         Assert.Equal("create_subnet", root.GetProperty("method").GetString());
-        Assert.Equal("echo", root.GetProperty("projectPath").GetString());
+        Assert.Equal(EchoProjectPath, root.GetProperty("projectPath").GetString());
         Assert.Equal("Profibus_1", root.GetProperty("subnetName").GetString());
         Assert.Equal(SubnetLifecycleContract.Profibus, root.GetProperty("subnetNetworkType").GetString());
         Assert.Equal(31, root.GetProperty("subnetHighestAddress").GetInt32());
@@ -221,20 +240,20 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "update-2",
             Operation = "update_subnet",
-            ProjectPath = "echo",
+            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-42" },
             SubnetChanges = new NetworkSubnetChanges { Name = "Renamed" },
         };
 
-        using var client = CreateClient();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
         var root = document.RootElement;
 
         Assert.Equal("update_subnet", root.GetProperty("method").GetString());
-        Assert.Equal("echo", root.GetProperty("projectPath").GetString());
+        Assert.Equal(EchoProjectPath, root.GetProperty("projectPath").GetString());
         Assert.Equal("subnet-42", root.GetProperty("subnetId").GetString());
         Assert.Equal("Renamed", root.GetProperty("subnetName").GetString());
         Assert.True(root.GetProperty("confirm").GetBoolean());
@@ -256,7 +275,7 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "update-3",
             Operation = "update_subnet",
-            ProjectPath = "echo",
+            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-99" },
             SubnetChanges = new NetworkSubnetChanges
             {
@@ -266,8 +285,8 @@ public class NetworkSubnetLifecycleForwardingTests
             },
         };
 
-        using var client = CreateClient();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -289,19 +308,19 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "delete-2",
             Operation = "delete_subnet",
-            ProjectPath = "echo",
+            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-7" },
         };
 
-        using var client = CreateClient();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
         var root = document.RootElement;
 
         Assert.Equal("delete_subnet", root.GetProperty("method").GetString());
-        Assert.Equal("echo", root.GetProperty("projectPath").GetString());
+        Assert.Equal(EchoProjectPath, root.GetProperty("projectPath").GetString());
         Assert.Equal("subnet-7", root.GetProperty("subnetId").GetString());
         Assert.True(root.GetProperty("confirm").GetBoolean());
         Assert.True(root.GetProperty("allowTiaConfirmations").GetBoolean());

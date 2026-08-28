@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 
 namespace TiaMcpServer.Tests;
@@ -22,8 +23,10 @@ public sealed class TempAuditDirectory : IDisposable
     /// </summary>
     public WriteSafetyService CreateSafety(
         Func<DateTimeOffset>? getUtcNow = null,
-        TimeSpan? tokenLifetime = null)
+        TimeSpan? tokenLifetime = null,
+        ProjectSessionBinding? projectSessionBinding = null)
         => new(
+            projectSessionBinding ?? new ProjectSessionBinding(null),
             getUtcNow ?? (() => DateTimeOffset.UtcNow),
             tokenLifetime ?? WriteSafetyService.DefaultTokenLifetime,
             Path);

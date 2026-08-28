@@ -160,6 +160,26 @@ public class ReadOnlyModeTests
     }
 
     [Theory]
+    [InlineData("read_hardware_config", false)]
+    [InlineData("get_block_content", false)]
+    [InlineData("open_project", false)]
+    [InlineData("create_project", false)]
+    [InlineData("compile_check", true)]
+    [InlineData("probe_project_status_for_lifecycle", true)]
+    [InlineData("update_block_logic", true)]
+    [InlineData("start_plc", true)]
+    [InlineData("unknown-operation", true)]
+    [InlineData("", true)]
+    public void ExpectedSessionIdentityPolicy_IsFailClosed(
+        string operation,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            OperationPolicyCatalog.RequiresExpectedSessionIdentity(operation));
+    }
+
+    [Theory]
     [InlineData("get_project_status")]
     [InlineData("browse_project_tree")]
     [InlineData("read_hardware_config")]

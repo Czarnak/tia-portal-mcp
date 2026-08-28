@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -149,10 +150,12 @@ public class BatchFieldForwardingTests
         Assert.True(BatchOperationCatalog.TryGetSpec(operationName, out var spec));
         var (request, expected) = Build(spec!);
 
+        var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
-            new ProjectSessionBinding(null),
+            binding,
             logger: null,
             workerExecutablePath: LocateFakeWorker());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var result = await BatchWorkerInvoker.InvokeAsync(client, request);
 

@@ -14,7 +14,9 @@ public class NetworkIntrospectionSafetyRegressionTests
     public async Task Phase2WriteToken_AcceptsIdenticalHardwareState()
     {
         using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
+            audit.Path,
+            startupProjectPath: "network-roundtrip");
         var operations = ConfigureOperation("network-roundtrip", "PLC_1", "node-1");
 
         var preview = AssertCanonical(await CallWriteAsync(harness, operations));
@@ -31,7 +33,9 @@ public class NetworkIntrospectionSafetyRegressionTests
     public async Task Phase2WriteToken_RejectsChangedHardwareState()
     {
         using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
+            audit.Path,
+            startupProjectPath: "network-state-seq");
         var operations = ConfigureOperation("network-state-seq", "PLC_2", "node-1");
 
         var preview = AssertCanonical(await CallWriteAsync(harness, operations));

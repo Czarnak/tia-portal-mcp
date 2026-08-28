@@ -42,6 +42,28 @@ public static class OperationPolicyCatalog
     }
 
     /// <summary>
+    /// True when a worker request must carry the exact currently verified
+    /// worker/Portal/project identity.
+    /// </summary>
+    public static bool RequiresExpectedSessionIdentity(string operation)
+    {
+        if (string.IsNullOrWhiteSpace(operation))
+        {
+            return true;
+        }
+
+        if (string.Equals(operation, "open_project", StringComparison.Ordinal) ||
+            string.Equals(operation, "create_project", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var capability = GetCapability(operation);
+        return capability != OperationCapability.Observe &&
+               capability != OperationCapability.TemporaryExport;
+    }
+
+    /// <summary>
     /// Every known operation name. Used by tests to verify completeness.
     /// </summary>
     public static IReadOnlyCollection<string> AllOperationNames => new List<string>(Classifications.Keys);

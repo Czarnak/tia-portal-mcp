@@ -1,6 +1,8 @@
 using System.Text.Json;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -22,8 +24,17 @@ public class TypeOperationFakeWorkerTests
     // and the update_type_content write within one preview/apply round trip.
     private const string Scenario = "type-content-roundtrip";
 
-    private static OpennessWorkerClient CreateClient()
-        => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+    private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding)
+        => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static WriteSafetyService CreateSafety(TempAuditDirectory audit, ProjectSessionBinding binding)
+        => new(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
+
+    private static async Task VerifyBindingAsync(OpennessWorkerClient client, ProjectSessionBinding binding)
+    {
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
+        Assert.True(binding.IsVerified);
+    }
 
     private static BatchOperationRequest UpdateTypeContentOp(string operationId) => new()
     {
@@ -37,7 +48,9 @@ public class TypeOperationFakeWorkerTests
     [Fact]
     public async Task ExecuteReadBatch_GetTypeContent_ReturnsScriptedPayloadKeyedByOperationId()
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
 
         var result = await BatchTools.ExecuteReadBatch(
             client,
@@ -63,8 +76,10 @@ public class TypeOperationFakeWorkerTests
     public async Task PreviewWriteBatch_UpdateTypeContent_ReturnsTokenAndDescriptivePreview()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(Scenario);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await VerifyBindingAsync(client, binding);
 
         var result = await BatchTools.PreviewWriteBatch(
             client,
@@ -84,8 +99,10 @@ public class TypeOperationFakeWorkerTests
     public async Task ApplyWriteBatch_UpdateTypeContent_SucceedsOnceThenRejectsReplayedToken()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(Scenario);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await VerifyBindingAsync(client, binding);
 
         var operations = new[] { UpdateTypeContentOp("w1") };
 
@@ -119,7 +136,9 @@ public class TypeOperationFakeWorkerTests
     [Fact]
     public async Task ExecuteReadBatch_OneItemWithInvalidFormat_FailsOnlyThatItemAndLeavesOthersSucceeding()
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var operations = new[]
         {

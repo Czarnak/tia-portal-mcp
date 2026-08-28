@@ -25,6 +25,9 @@ public sealed record WorkerCallResult(
     /// </summary>
     public string? ResolvedProjectPath { get; init; }
 
+    /// <summary>Complete worker/Portal/project identity observed for this response.</summary>
+    public WorkerSessionIdentity? SessionIdentity { get; init; }
+
     public static WorkerCallResult Ok(string payload, IReadOnlyList<string>? warnings = null)
         => new(true, payload, null, null, warnings ?? Array.Empty<string>());
 
@@ -67,7 +70,8 @@ public sealed record WorkerCallResult(
                 payload = Payload,
                 failureCategory = FailureCategory,
                 error = Error,
-                warnings = Warnings
+                warnings = Warnings,
+                sessionIdentity = SessionIdentity
             },
             TiaJson.Presentation);
 }

@@ -160,22 +160,30 @@ existing write workflow explicitly allows them.
 
 ## 5. Project attachment and binding
 
-`ProjectSessionBinding` is the host's view of the project associated with the
-MCP session. It can be seeded from `--project` or `TIA_MCP_PROJECT_PATH`.
-Successful lifecycle operations bind only to the resolved path returned by the
-worker, never to a path reconstructed from caller input.
+`ProjectSessionBinding` is a four-state host state machine: `unbound`,
+`configured_unverified`, `verified`, or `invalidated`. `--project` and
+`TIA_MCP_PROJECT_PATH` create only a configured assertion. A guarded write is
+not ready until a worker response supplies the matching worker id, Portal PID,
+project generation, and canonical path. Successful lifecycle operations bind
+only to that complete worker identity, never to caller input alone.
 
 `OpennessWorkerClient` owns binding transitions:
 
 - open, create, and rebinding save-as bind to worker-reported ground truth;
 - close clears the binding;
 - ordinary reads and writes do not implicitly bind an unbound session;
-- divergence between the host binding and the worker-reported project is
-  surfaced as a warning.
+- a configured path is promoted only after a matching status response;
+- timeout, crash, worker restart, PID/path/generation drift, or a missing
+  identity invalidates the binding and fails closed.
 
-On the worker side, `WithProject` first attaches to the running TIA Portal
-instance and then applies the project-open policy. In read-only mode it reuses
-only the project discovered during that attachment.
+On the worker side, `TiaPortalTargetSelector` enumerates `(PID, ProjectPath)`
+candidates before Attach. An exact requested path or a genuinely sole candidate
+may be selected; ambiguity returns `target_ambiguous` and no process is attached.
+The same exact-one rule selects a project inside the attached Portal, and Attach
+is followed by a PID postcondition check. Every bound request carries
+`ExpectedSessionIdentity`; the worker checks it both before refreshing live
+handles and immediately before the operation body. In read-only mode it reuses
+only the uniquely identified project discovered during attachment.
 
 ## 6. Worker transport and execution
 
@@ -183,6 +191,11 @@ only the project discovered during that attachment.
 a `SemaphoreSlim`. Each call writes one JSON line and reads one JSON response
 line. A timeout, crash, broken pipe, null response, or protocol desynchronization
 terminates the worker; the next request starts a fresh process.
+
+Before the first engineering request reaches a newly started worker, the host
+sends a `hello` request and requires an exact protocol version and capability
+set. A missing or incompatible handshake terminates that worker and returns
+`protocol_error`; the original engineering request is never forwarded to it.
 
 `OpennessWorkerClient` is the typed host facade. It constructs `WorkerRequest`
 objects, performs host authorization, invokes the transport, normalizes failure
@@ -405,10 +418,28 @@ self-previewing:
 1. The preview call (`preview_write_batch`, or the same lifecycle/network tool with no
    token and `confirm:false`) reads current state, produces a human-readable description,
    and creates a short-lived, single-use safety token bound to the tool,
-   project, requested input, and current-state hashes.
+   host binding revision, requested input, and current-state hashes. Project-scoped
+   writes require that revision to contain a complete verified worker/Portal/project
+   identity. `open_project` and `create_project` are the deliberate exception: their
+   token may retain an unbound/configured revision, and a successful response must then
+   establish a continuity-checked binding from worker ground truth.
 2. The apply call (`apply_write_batch`, or the same lifecycle/network tool) supplies
    `confirm=true` and the token. The server reads current
    state again and consumes the token only when every bound value still matches.
+
+The complete apply critical section is protected by a pinned binding lease:
+fresh-state read, token validation and consumption, Siemens mutation,
+post-verification, and audit capture all see the same worker id, Portal PID,
+project generation, and canonical path. Rebind, close, and save-as transitions
+use the same lease. This prevents a valid token for project A from being applied
+to project B, and prevents two concurrent applies based on the same old state
+from both succeeding.
+
+Lifecycle responses are also continuity-checked. An already verified session
+may change path or generation only through the authorized lifecycle transition,
+and the response must keep the same worker id and Portal PID. A restart, PID
+change, same-path close/reopen, or malformed close result is rejected rather
+than adopted as a new binding.
 
 Changed input, changed project state, wrong tool, wrong project, expiry, or token
 reuse causes rejection. Completed writes are appended to the audit log under
@@ -423,6 +454,15 @@ a valid token cannot override the access policy.
 MCP host. It supports text or JSON output and reports the resolved access mode.
 The command accepts the same access-mode options as normal startup, in addition
 to `TIA_MCP_ACCESS_MODE`.
+
+Doctor never attaches to TIA Portal or opens a project. Its project-binding check
+validates an absolute, existing `.ap21` file but reports a warning because no live
+project match was inspected. Its process check uses the Windows process list:
+one detected process can pass that process-only check, while multiple processes
+produce a warning, or a failure for an unbound read-write configuration. An
+unbound project check is a warning in read-only mode and a failure in read-write
+mode. These diagnostics prevent an absent path or ambiguous process set from
+being reported as fully ready without turning Doctor into an Openness client.
 
 ## 10. Testing
 

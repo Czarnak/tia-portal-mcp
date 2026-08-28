@@ -23,23 +23,39 @@ public sealed partial class WriteSafetyService
     public static readonly TimeSpan DefaultTokenLifetime = TimeSpan.FromMinutes(10);
 
     private readonly ConcurrentDictionary<string, SafetyTokenEntry> _tokens = new(StringComparer.Ordinal);
+    private readonly ProjectSessionBinding _projectSessionBinding;
     private readonly Func<DateTimeOffset> _getUtcNow;
     private readonly TimeSpan _tokenLifetime;
 
     private readonly string? _auditDirectoryOverride;
 
     public WriteSafetyService()
-        : this(() => DateTimeOffset.UtcNow, DefaultTokenLifetime)
+        : this(new ProjectSessionBinding(null), () => DateTimeOffset.UtcNow, DefaultTokenLifetime)
+    {
+    }
+
+    public WriteSafetyService(ProjectSessionBinding projectSessionBinding)
+        : this(projectSessionBinding, () => DateTimeOffset.UtcNow, DefaultTokenLifetime)
     {
     }
 
     public WriteSafetyService(Func<DateTimeOffset> getUtcNow)
-        : this(getUtcNow, DefaultTokenLifetime)
+        : this(new ProjectSessionBinding(null), getUtcNow, DefaultTokenLifetime)
     {
     }
 
     public WriteSafetyService(Func<DateTimeOffset> getUtcNow, TimeSpan tokenLifetime, string? auditDirectory = null)
+        : this(new ProjectSessionBinding(null), getUtcNow, tokenLifetime, auditDirectory)
     {
+    }
+
+    public WriteSafetyService(
+        ProjectSessionBinding projectSessionBinding,
+        Func<DateTimeOffset> getUtcNow,
+        TimeSpan tokenLifetime,
+        string? auditDirectory = null)
+    {
+        _projectSessionBinding = projectSessionBinding ?? throw new ArgumentNullException(nameof(projectSessionBinding));
         _getUtcNow = getUtcNow;
         _tokenLifetime = tokenLifetime;
         _auditDirectoryOverride = auditDirectory;
@@ -72,6 +88,7 @@ public sealed partial class WriteSafetyService
                 requestedInputHash = issued.RequestedInputHash,
                 expiresAtUtc = issued.ExpiresAtUtc,
                 safetyToken = issued.Token,
+                projectBinding = issued.ProjectBinding,
                 diff,
                 instructions
             },
@@ -98,6 +115,20 @@ public sealed partial class WriteSafetyService
             projectPath,
             ToStableJson(target),
             ToStableJson(requestedInput),
+            previewToolName);
+
+    /// <summary>
+    /// Validates only token existence, expiry, and tool identity, then returns the exact binding to
+    /// lease. Project path, target, input, and current-state validation remain mandatory inside the
+    /// lease; deferring them preserves target-resolution semantics for state-derived selectors.
+    /// </summary>
+    public WriteSafetyValidationResult ValidateLeaseEnvelope(
+        string? safetyToken,
+        string toolName,
+        string? previewToolName = null)
+        => ValidateLeaseEnvelopeCore(
+            safetyToken,
+            toolName,
             previewToolName);
 
     public WriteSafetyValidationResult ValidateAndConsume(
@@ -134,16 +165,18 @@ public sealed partial class WriteSafetyService
         var requestedInputHash = HashText(requestedInputJson);
         var currentStateHash = HashText(currentStateJson);
         var expiresAtUtc = _getUtcNow().Add(_tokenLifetime);
+        var projectBinding = _projectSessionBinding.CaptureSnapshot();
 
         _tokens[token] = new SafetyTokenEntry(
             ToolName: toolName,
-            ProjectPath: NormalizeProjectPath(projectPath),
+            ProjectPath: ResolveTokenProjectPath(projectPath, projectBinding),
+            ProjectBinding: projectBinding,
             TargetJson: targetJson,
             RequestedInputHash: requestedInputHash,
             CurrentStateHash: currentStateHash,
             ExpiresAtUtc: expiresAtUtc);
 
-        return new IssuedToken(token, requestedInputHash, currentStateHash, expiresAtUtc);
+        return new IssuedToken(token, requestedInputHash, currentStateHash, expiresAtUtc, projectBinding);
     }
 
     private WriteSafetyValidationResult ValidateEnvelopeCore(
@@ -166,6 +199,37 @@ public sealed partial class WriteSafetyService
 
         return MatchEntry(
             entry, toolName, projectPath, targetJson, requestedInputJson, currentStateJson: null, previewToolName);
+    }
+
+    private WriteSafetyValidationResult ValidateLeaseEnvelopeCore(
+        string? safetyToken,
+        string toolName,
+        string? previewToolName)
+    {
+        if (string.IsNullOrWhiteSpace(safetyToken))
+        {
+            return Rejected("Safety token required.", previewToolName, WorkerFailureCategories.ValidationError);
+        }
+
+        if (!_tokens.TryGetValue(safetyToken, out var entry))
+        {
+            return Rejected("Safety token expired, consumed, or unknown.", previewToolName, WorkerFailureCategories.ValidationError);
+        }
+
+        if (_getUtcNow() > entry.ExpiresAtUtc)
+        {
+            return Rejected("Safety token expired.", previewToolName, WorkerFailureCategories.ValidationError);
+        }
+
+        if (!string.Equals(entry.ToolName, toolName, StringComparison.Ordinal))
+        {
+            return Rejected("Safety token was issued for a different tool.", previewToolName, WorkerFailureCategories.ValidationError);
+        }
+
+        return WriteSafetyValidationResult.Valid(
+            entry.RequestedInputHash,
+            entry.CurrentStateHash,
+            entry.ProjectBinding);
     }
 
     private WriteSafetyValidationResult ValidateAndConsumeCore(
@@ -215,7 +279,19 @@ public sealed partial class WriteSafetyService
             return Rejected("Safety token was issued for a different tool.", previewToolName, WorkerFailureCategories.ValidationError);
         }
 
-        if (!string.Equals(entry.ProjectPath, NormalizeProjectPath(projectPath), StringComparison.OrdinalIgnoreCase))
+        var currentBinding = _projectSessionBinding.CaptureSnapshot();
+        if (!entry.ProjectBinding.SameBinding(currentBinding))
+        {
+            return Rejected(
+                "Safety token was issued for a different worker/Portal/project session binding.",
+                previewToolName,
+                WorkerFailureCategories.BindingConflict);
+        }
+
+        if (!string.Equals(
+                entry.ProjectPath,
+                ResolveTokenProjectPath(projectPath, currentBinding),
+                StringComparison.OrdinalIgnoreCase))
         {
             return Rejected("Safety token was issued for a different project path.", previewToolName, WorkerFailureCategories.BindingConflict);
         }
@@ -233,7 +309,10 @@ public sealed partial class WriteSafetyService
 
         if (currentStateJson is null)
         {
-            return WriteSafetyValidationResult.Valid(requestedInputHash, entry.CurrentStateHash);
+            return WriteSafetyValidationResult.Valid(
+                requestedInputHash,
+                entry.CurrentStateHash,
+                entry.ProjectBinding);
         }
 
         var currentStateHash = HashText(currentStateJson);
@@ -242,7 +321,10 @@ public sealed partial class WriteSafetyService
             return Rejected("Safety token current state no longer matches the project.", previewToolName, WorkerFailureCategories.StateChanged);
         }
 
-        return WriteSafetyValidationResult.Valid(requestedInputHash, currentStateHash);
+        return WriteSafetyValidationResult.Valid(
+            requestedInputHash,
+            currentStateHash,
+            entry.ProjectBinding);
     }
 
     /// <summary>Number of live (unconsumed, possibly expired) tokens. Test hook.</summary>
@@ -286,6 +368,7 @@ public sealed partial class WriteSafetyService
                 timestampUtc = timestamp,
                 toolName,
                 projectPath = NormalizeProjectPath(projectPath),
+                projectBinding = _projectSessionBinding.CaptureSnapshot(),
                 target,
                 requestedInputHash = HashText(ToStableJson(requestedInput)),
                 currentStateHash = HashText(currentState),
@@ -338,6 +421,21 @@ public sealed partial class WriteSafetyService
         }
     }
 
+    private static string ResolveTokenProjectPath(
+        string? requestedProjectPath,
+        ProjectBindingSnapshot binding)
+    {
+        if (binding.IsVerified && !string.IsNullOrWhiteSpace(binding.ProjectPath))
+        {
+            var requested = string.IsNullOrWhiteSpace(requestedProjectPath)
+                ? binding.ProjectPath
+                : NormalizeProjectPath(requestedProjectPath);
+            return requested!;
+        }
+
+        return NormalizeProjectPath(requestedProjectPath);
+    }
+
     public static string HashText(string value)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
@@ -362,11 +460,13 @@ public sealed partial class WriteSafetyService
         string Token,
         string RequestedInputHash,
         string CurrentStateHash,
-        DateTimeOffset ExpiresAtUtc);
+        DateTimeOffset ExpiresAtUtc,
+        ProjectBindingSnapshot ProjectBinding);
 
     private sealed record SafetyTokenEntry(
         string ToolName,
         string ProjectPath,
+        ProjectBindingSnapshot ProjectBinding,
         string TargetJson,
         string RequestedInputHash,
         string CurrentStateHash,
@@ -378,11 +478,21 @@ public sealed record WriteSafetyValidationResult(
     string Error,
     string? RequestedInputHash,
     string? CurrentStateHash,
-    string? FailureCategory = null)
+    string? FailureCategory = null,
+    ProjectBindingSnapshot? ProjectBinding = null)
 {
-    public static WriteSafetyValidationResult Valid(string requestedInputHash, string currentStateHash)
+    public static WriteSafetyValidationResult Valid(
+        string requestedInputHash,
+        string currentStateHash,
+        ProjectBindingSnapshot projectBinding)
     {
-        return new(true, string.Empty, requestedInputHash, currentStateHash);
+        return new(
+            true,
+            string.Empty,
+            requestedInputHash,
+            currentStateHash,
+            FailureCategory: null,
+            ProjectBinding: projectBinding);
     }
 
     /// <summary>
@@ -392,6 +502,6 @@ public sealed record WriteSafetyValidationResult(
     /// </summary>
     public static WriteSafetyValidationResult Invalid(string error, string failureCategory)
     {
-        return new(false, error, null, null, failureCategory);
+        return new(false, error, null, null, failureCategory, ProjectBinding: null);
     }
 }

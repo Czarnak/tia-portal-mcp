@@ -1,6 +1,8 @@
 using System.Text.Json;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -31,13 +33,21 @@ public class BlockCurrentStateReadTests
     private static OpennessWorkerClient CreateClient()
         => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
 
+    private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding)
+        => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static WriteSafetyService CreateSafety(TempAuditDirectory audit, ProjectSessionBinding binding)
+        => new(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
+
     /// <summary>
     /// The "echo" scenario returns the received request verbatim, so the request the current-state
     /// read actually sent is readable as JSON rather than inferred.
     /// </summary>
     private static async Task<JsonElement> ReadCurrentStateRequestAsync(BatchOperationRequest op)
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, op.ProjectPath!);
         var result = await BatchWorkerInvoker.ReadCurrentStateAsync(client, op);
         Assert.True(result.Success, result.Error);
 
@@ -126,10 +136,14 @@ public class BlockCurrentStateReadTests
     public async Task PreviewAndApplyWriteBatch_UpdateBlockLogicWithSourceFormat_ReadsCurrentStateAsSource()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-        using var client = CreateClient();
+        const string projectPath = "block-source-roundtrip";
+        var binding = new ProjectSessionBinding(null);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        Assert.True(binding.IsVerified);
 
-        var operations = new[] { UpdateBlockLogicOp(SourceFormatNames.Source, projectPath: "block-source-roundtrip") };
+        var operations = new[] { UpdateBlockLogicOp(SourceFormatNames.Source, projectPath) };
 
         var preview = await BatchTools.PreviewWriteBatch(client, safety, operations);
         using var previewDoc = JsonDocument.Parse(preview);
