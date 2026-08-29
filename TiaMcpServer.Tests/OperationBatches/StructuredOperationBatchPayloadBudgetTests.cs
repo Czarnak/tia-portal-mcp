@@ -82,6 +82,44 @@ public class StructuredOperationBatchPayloadBudgetTests
             maxDocumentChars);
 
     [Fact]
+    public async Task ExecuteReadsAsync_DirectItemsPreservesOrderAndContinuesAfterAFailedItem()
+    {
+        var operations = new[]
+        {
+            new NetworkOperationRequest { OperationId = "first", Operation = "read_hardware_config" },
+            new NetworkOperationRequest { OperationId = "failed", Operation = "read_hardware_config" },
+            new NetworkOperationRequest { OperationId = "last", Operation = "read_hardware_config" },
+        };
+
+        var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
+            operations,
+            operation => Task.FromResult(operation.OperationId == "failed"
+                ? Failed(operation.OperationId, "safe failure")
+                : Succeeded(operation.OperationId, Result(100))));
+
+        Assert.Equal(new[] { "first", "failed", "last" }, batch.Operations.Select(item => item.OperationId));
+        Assert.Equal(new StructuredOperationCounts(2, 1, 0, 0), batch.Counts);
+    }
+
+    [Fact]
+    public void NetworkReadBudget_StillAppliesTheIndependentDocumentLimitAfterPageProjection()
+    {
+        var projectedPages = Batch(
+            Succeeded("page-1", Result(50_000)),
+            Succeeded("page-2", Result(50_000)),
+            Succeeded("page-3", Result(50_000)),
+            Succeeded("page-4", Result(50_000)));
+
+        var bounded = NetworkReadTools.ApplyBudget(projectedPages);
+
+        var networkDocumentChars = CanonicalJson.Serialize(
+            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null)).Length;
+        Assert.True(networkDocumentChars <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        Assert.True(bounded.Counts.Omitted > 0);
+        Assert.NotNull(bounded.Truncation);
+    }
+
+    [Fact]
     public void Apply_LeavesABatchThatAlreadyFitsCompletelyUntouched()
     {
         var batch = Batch(Succeeded("a", Result(100)), Failed("b", "boom", warnings: new[] { "note" }));

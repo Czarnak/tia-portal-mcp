@@ -14,6 +14,28 @@ namespace TiaMcpServer.OperationBatches;
 /// </summary>
 public static class StructuredOperationBatchExecutionEngine
 {
+    public static Task<StructuredOperationBatch> ExecuteReadsAsync<T>(
+        IReadOnlyList<T> operations,
+        Func<T, Task<StructuredOperationItem>> execute)
+        where T : IOperationBatchItem
+        => ExecuteDirectReadsAsync(operations, execute);
+
+    private static async Task<StructuredOperationBatch> ExecuteDirectReadsAsync<T>(
+        IReadOnlyList<T> operations,
+        Func<T, Task<StructuredOperationItem>> execute)
+        where T : IOperationBatchItem
+    {
+        ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(execute);
+        var items = new List<StructuredOperationItem>(operations.Count);
+        foreach (var operation in operations)
+        {
+            items.Add(await execute(operation).ConfigureAwait(false));
+        }
+
+        return StructuredOperationBatch.FromItems(items);
+    }
+
     /// <summary>
     /// Executes reads in request order. Reads are independent: execution continues after a worker
     /// failure and after a payload projection failure, so one bad operation never hides the rest.

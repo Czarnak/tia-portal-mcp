@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
@@ -12,6 +13,10 @@ namespace TiaMcpServer.Network;
 public class NetworkReadTools
 {
     private const string ToolName = "network_read";
+    private static readonly ConditionalWeakTable<OpennessWorkerClient, NetworkReadOperationExecutor>
+        CompatibilityExecutors = new();
+    internal static HardwarePageCursorCodec ProcessCursorCodec { get; }
+        = HardwarePageCursorCodec.CreateProcessScoped();
 
     [McpServerTool(
         Name = ToolName,
@@ -38,10 +43,13 @@ public class NetworkReadTools
             return Error(WorkerFailureCategories.AccessDenied, string.Join("\n", accessErrors));
         }
 
+        var operationExecutor = CompatibilityExecutors.GetValue(
+            workerClient,
+            CreateCompatibilityExecutor);
+
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            operation => NetworkWorkerInvoker.InvokeReadAsync(workerClient, operation),
-            NetworkPayloadContract.Project)
+            operationExecutor.ExecuteAsync)
             .ConfigureAwait(false);
 
         var bounded = ApplyBudget(batch);
@@ -49,6 +57,26 @@ public class NetworkReadTools
         // A batch that ran is a successful MCP call even when items inside it failed: isError is
         // reserved for "the tool could not run", so the caller can tell those two cases apart.
         return StructuredToolResult.Create(Compose(bounded), isError: false);
+    }
+
+    internal static void RegisterExecutor(
+        OpennessWorkerClient workerClient,
+        NetworkReadOperationExecutor operationExecutor)
+    {
+        ArgumentNullException.ThrowIfNull(workerClient);
+        ArgumentNullException.ThrowIfNull(operationExecutor);
+        CompatibilityExecutors.Remove(workerClient);
+        CompatibilityExecutors.Add(workerClient, operationExecutor);
+    }
+
+    private static NetworkReadOperationExecutor CreateCompatibilityExecutor(OpennessWorkerClient workerClient)
+    {
+        var projector = new HardwarePageProjector(ProcessCursorCodec);
+        var coordinator = new HardwarePaginationCoordinator(
+            workerClient,
+            ProcessCursorCodec,
+            projector);
+        return new NetworkReadOperationExecutor(workerClient, coordinator);
     }
 
     /// <summary>

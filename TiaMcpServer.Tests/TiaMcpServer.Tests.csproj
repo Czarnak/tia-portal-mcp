@@ -93,6 +93,14 @@
       Link="Host\Network\HardwarePageCursorState.cs" />
     <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorCodec.cs"
       Link="Host\Network\HardwarePageCursorCodec.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePagePayloadContract.cs"
+      Link="Host\Network\HardwarePagePayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePageProjector.cs"
+      Link="Host\Network\HardwarePageProjector.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePaginationCoordinator.cs"
+      Link="Host\Network\HardwarePaginationCoordinator.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkReadOperationExecutor.cs"
+      Link="Host\Network\NetworkReadOperationExecutor.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationCatalog.cs"
       Link="Host\Network\NetworkOperationCatalog.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWorkerInvoker.cs"
