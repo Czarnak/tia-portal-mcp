@@ -119,6 +119,8 @@
       Link="Linked\Openness\WorkerOperationException.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationAuthorization.cs"
       Link="Linked\Openness\WorkerOperationAuthorization.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\HardwarePageDescriptorSet.cs"
+      Link="Worker\HardwarePageDescriptorSet.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDocument.cs"
       Link="Linked\Openness\BlockImportDocument.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ParsedBlockImportBundle.cs"
