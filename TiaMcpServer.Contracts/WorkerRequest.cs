@@ -241,6 +241,12 @@ public class WorkerRequest
     /// </summary>
     public bool IncludeTagMatches { get; set; }
 
+    /// <summary>Forwarded by: paged read_hardware_config only. Distinct from network object paging.</summary>
+    public int? HardwarePageSize { get; set; }
+
+    /// <summary>Forwarded by: paged read_hardware_config only. Opaque host-validated continuation evidence.</summary>
+    public HardwarePageContinuationInfo? HardwarePageContinuation { get; set; }
+
     #endregion
 
     #region Network object discovery and inspection (Phase 3)

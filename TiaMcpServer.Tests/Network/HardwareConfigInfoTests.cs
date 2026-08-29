@@ -28,6 +28,27 @@ public class HardwareConfigInfoTests
     }
 
     [Fact]
+    public void UnpagedConfig_OmitsPagination()
+    {
+        var json = JsonSerializer.Serialize(new HardwareConfigInfo(), JsonOptions);
+
+        Assert.DoesNotContain("pagination", json);
+    }
+
+    [Fact]
+    public void PagedConfig_SerializesPaginationMetadata()
+    {
+        var json = JsonSerializer.Serialize(
+            new HardwareConfigInfo
+            {
+                Pagination = new HardwarePaginationInfo(10, 3, 2, 1, null),
+            },
+            JsonOptions);
+
+        Assert.Contains("\"pagination\":{\"totalDevices\":10,\"totalSubnets\":3,\"returnedDevices\":2,\"returnedSubnets\":1}", json);
+    }
+
+    [Fact]
     public void RoundTripsFullDeviceTree()
     {
         var config = new HardwareConfigInfo

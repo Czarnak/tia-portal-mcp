@@ -89,6 +89,7 @@ public class WorkerResponseJsonTests
     [InlineData("cursor_filter_mismatch")]
     [InlineData("cursor_snapshot_mismatch")]
     [InlineData("cursor_out_of_range")]
+    [InlineData("cursor_binding_mismatch")]
     public void WorkerFailureCategories_RecognizesCursorFailureCategories(string category)
     {
         Assert.True(WorkerFailureCategories.IsKnown(category));

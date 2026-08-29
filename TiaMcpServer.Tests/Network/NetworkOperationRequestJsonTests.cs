@@ -9,6 +9,29 @@ public class NetworkOperationRequestJsonTests
     private static readonly JsonSerializerOptions WebOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void HardwarePaginationFields_BindFromCamelCaseJson()
+    {
+        const string json = """{"operationId":"op1","operation":"read_hardware_config","pageSize":25,"cursor":"opaque"}""";
+
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions);
+
+        Assert.NotNull(operation);
+        Assert.Equal(25, operation!.PageSize);
+        Assert.Equal("opaque", operation.Cursor);
+    }
+
+    [Fact]
+    public void UnknownTopLevelField_IsRejectedUnderTheStrictInputContract()
+    {
+        const string json = """{"operationId":"op1","operation":"read_hardware_config","unknownField":true}""";
+
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions));
+
+        Assert.Contains("unknownField", exception.Message);
+    }
+
+    [Fact]
     public void ConfigureTargetAndChanges_BindFromCamelCaseJson()
     {
         const string json = """

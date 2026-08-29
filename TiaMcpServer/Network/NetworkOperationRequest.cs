@@ -73,10 +73,10 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
     [Description("One or more network object kinds to enumerate. Required by list_network_objects. Valid values: deviceItem, networkInterface, node, subnet, ioSystem, communicationConnection.")]
     public IReadOnlyList<string>? ObjectKinds { get; set; }
 
-    [Description("Maximum number of objects to return in one page (1–200). Optional for list_network_objects.")]
+    [Description("Maximum number of objects to return in one page (1–200). Optional for read_hardware_config and list_network_objects.")]
     public int? PageSize { get; set; }
 
-    [Description("Opaque pagination cursor returned by a previous list_network_objects call. Optional for list_network_objects.")]
+    [Description("Opaque pagination cursor returned by a previous read_hardware_config or list_network_objects call. Optional for those operations.")]
     public string? Cursor { get; set; }
 
     [Description("Attribute names to read on the inspected object. Optional for inspect_network_object; must be non-empty when supplied and must contain at most 200 unique names.")]

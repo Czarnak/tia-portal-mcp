@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OperationBatches;
 
@@ -19,7 +20,14 @@ public sealed record StructuredOperationOmission(
     int? LimitChars,
     int OriginalChars,
     string RetryTool,
-    string Guidance);
+    string Guidance,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StructuredOperationOmissionSubject? Subject = null);
+
+/// <summary>Identifies the omitted result without changing existing omission wire shapes.</summary>
+public sealed record StructuredOperationOmissionSubject(
+    string Kind,
+    string Name,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Identifier);
 
 /// <summary>
 /// One operation's outcome. <see cref="Result"/> is always a detached <see cref="JsonElement"/>

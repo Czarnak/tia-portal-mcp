@@ -340,6 +340,11 @@ public static class NetworkOperationCatalog
             errors.Add($"{prefix} 'deviceName' must not be blank when supplied.");
         }
 
+        if (operation.PageSize is { } pageSize && (pageSize < 1 || pageSize > MaxPageSize))
+        {
+            errors.Add($"{prefix} 'pageSize' must be between 1 and {MaxPageSize} (received {pageSize}).");
+        }
+
         if (operation.PlcName is not null && string.IsNullOrWhiteSpace(operation.PlcName))
         {
             errors.Add($"{prefix} 'plcName' must not be blank when supplied.");
@@ -924,7 +929,7 @@ public static class NetworkOperationCatalog
     {
         var specs = new[]
         {
-            new NetworkOperationSpec("read_hardware_config", NetworkOperationCategory.Read, None, new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches" }),
+            new NetworkOperationSpec("read_hardware_config", NetworkOperationCategory.Read, None, new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches", "pageSize", "cursor" }),
             new NetworkOperationSpec("search_equipment_catalog", NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new NetworkOperationSpec("add_network_device", NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
             new NetworkOperationSpec("configure_network_device", NetworkOperationCategory.Write, new[] { "target", "changes" }, None),
