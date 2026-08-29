@@ -110,6 +110,12 @@ The read batch supports:
 - `list_network_objects`
 - `inspect_network_object`
 
+### Project enumeration completeness
+
+The net48 worker owns one ordered `ProjectDeviceEnumerator`: direct `Project.Devices` first, followed by a depth-first walk of `Project.DeviceGroups`. `HardwareConfigReader` and `ProjectTreeWalker` both consume it, preventing their definitions of a complete project from drifting. The public project tree deliberately flattens grouped devices into ordinary `Device` nodes.
+
+PLC user block groups and system block groups are different Openness types. `ProjectTreeWalker` therefore keeps separate recursive walkers and shares only block-node construction. `SystemBlockFolder` and `IsSystemBlock` encode system-hierarchy membership, not provenance. Hardware degradation uses `HardwareConfigInfo.Messages`; project-tree per-item failures retain the existing stderr-only best-effort boundary.
+
 ### Additional read-write tools
 
 | Tool | Purpose |

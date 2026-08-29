@@ -80,6 +80,52 @@ public class ProjectStandaloneToolTests
     }
 
     [Fact]
+    public async Task BrowseProjectTree_ProjectCompletenessFixtureKeepsDevicesFlatAndMarksSystemBlocks()
+    {
+        using var client = CreateClient(FakeWorkerLocator.Locate());
+
+        var response = await ProjectReadTools.BrowseProjectTree(
+            client,
+            projectPath: "project-enumeration-completeness");
+        using var document = JsonDocument.Parse(PayloadFromEnvelope(response));
+        var nodes = document.RootElement
+            .EnumerateArray()
+            .SelectMany(Descendants)
+            .ToArray();
+
+        Assert.Contains(nodes, node =>
+            node.GetProperty("nodeType").GetString() == "Device"
+            && node.GetProperty("name").GetString() == "Grouped ET200");
+        Assert.DoesNotContain(nodes, node => node.GetProperty("nodeType").GetString() == "DeviceFolder");
+
+        var systemFolder = Assert.Single(nodes.Where(
+            node => node.GetProperty("nodeType").GetString() == "SystemBlockFolder"));
+        Assert.Equal("System blocks", systemFolder.GetProperty("name").GetString());
+
+        var systemBlock = Assert.Single(nodes.Where(
+            node => node.GetProperty("name").GetString() == "SafeFB"));
+        Assert.Equal("FB", systemBlock.GetProperty("nodeType").GetString());
+        Assert.Equal("true", systemBlock.GetProperty("details").GetProperty("IsSystemBlock").GetString());
+    }
+
+    private static IEnumerable<JsonElement> Descendants(JsonElement node)
+    {
+        yield return node;
+        if (!node.TryGetProperty("children", out var children))
+        {
+            yield break;
+        }
+
+        foreach (var child in children.EnumerateArray())
+        {
+            foreach (var descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    [Fact]
     public async Task BrowseProjectTree_InvalidDepthFailsBeforeWorkerAccess()
     {
         using var client = CreateClient("missing-worker.exe");

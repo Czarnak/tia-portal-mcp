@@ -23,7 +23,7 @@ The MCP provides a bounded device and network-identity surface:
 
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
-| `network_read` | `read_hardware_config` | Reads devices and their network DTOs: interfaces, nodes, subnets, and IO systems where present. Optional `deviceName` filter, optional `plcName` tag-matching selector, and opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`) — see "Structured I/O map" below. |
+| `network_read` | `read_hardware_config` | Recursively discovers devices both at project root and in nested device groups, then reads their network DTOs: interfaces, nodes, subnets, and IO systems where present. Optional `deviceName` filter, optional `plcName` tag-matching selector, and opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`) — see "Structured I/O map" below. |
 | `network_read` | `search_equipment_catalog` | Searches the hardware catalog for a device type before creation (`query`, optional `maxResults`). |
 | `network_read` | `list_network_objects` | Pages deterministic summaries for one or more `objectKinds`; accepts optional device-scoped filtering, `pageSize` 1-200, and an opaque continuation `cursor`. Complete identities include a selector that can be copied into inspection. |
 | `network_read` | `inspect_network_object` | Resolves one exact `target`, verifies its captured identity evidence, and returns modeled and generic attributes. Optional `attributeNames` is case-sensitive, duplicate-free, and limited to 200 names. |
@@ -216,9 +216,7 @@ A device item with I/O details carries:
 
 ### Payload size
 
-Detailed I/O output can be large. When a `read_hardware_config` result is omitted or truncated,
-the response guidance recommends narrowing with `deviceName`, disabling `includeIoDetails`/
-`includeTagMatches` where possible, or re-running the operation in its own `network_read` call.
+Recursive group traversal can make an unfiltered hardware result substantially larger than earlier versions because previously omitted devices are now present. The current unpaged contract still applies the 60,000-character per-result budget and may omit the whole operation with `reason: "resultExceededItemCharLimit"`. Until a paged request is explicitly available, use `deviceName`, disable optional detail flags where possible, and place the hardware read in its own `network_read` call. No device is silently skipped merely to fit the budget.
 
 ## The single-layer JSON contract
 
@@ -387,7 +385,7 @@ Every network operation decodes its worker payload against exactly one declared 
 
 | Operation | Result type | Notable shape |
 |---|---|---|
-| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), a payload-level `messages[]` for unreadable members, and — only when requested — `items[].ioDetails` (addresses, channels, tag matches). |
+| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` includes project-root and recursively grouped devices (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), and a payload-level `messages[]` remains the hardware degradation channel; only when requested, `items[].ioDetails` contains addresses, channels, and tag matches. |
 | `search_equipment_catalog` | `CatalogEntryInfo[]` | `typeName`, `typeIdentifier`, optional `articleNumber`/`version`/`catalogPath`/`description`. |
 | `list_network_objects` | `NetworkObjectListInfo` | `items[]`, exact `totalCount`/`returnedCount`, and nullable `nextCursor`; each item preserves selector completeness and discovery diagnostics. |
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |

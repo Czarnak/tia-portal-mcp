@@ -17,28 +17,33 @@ public class ProjectTreeWalker
     {
         var rootNodes = new List<ProjectTreeNode>();
 
-        foreach (Device device in project.Devices)
+        foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
         {
-            var children = new List<ProjectTreeNode>();
-
-            foreach (var plcSoftware in PlcSoftwareLocator.FindInDevice(device))
-            {
-                children.Add(WalkPlcSoftware(device.Name, plcSoftware));
-            }
-
-            rootNodes.Add(new ProjectTreeNode
-            {
-                Name = device.Name,
-                NodeType = "Device",
-                Details = new Dictionary<string, string>
-                {
-                    ["Path"] = device.Name
-                },
-                Children = children
-            });
+            rootNodes.Add(WalkDevice(device));
         }
 
         return rootNodes;
+    }
+
+    private static ProjectTreeNode WalkDevice(Device device)
+    {
+        var children = new List<ProjectTreeNode>();
+
+        foreach (var plcSoftware in PlcSoftwareLocator.FindInDevice(device))
+        {
+            children.Add(WalkPlcSoftware(device.Name, plcSoftware));
+        }
+
+        return new ProjectTreeNode
+        {
+            Name = device.Name,
+            NodeType = "Device",
+            Details = new Dictionary<string, string>
+            {
+                ["Path"] = device.Name
+            },
+            Children = children
+        };
     }
 
     private static ProjectTreeNode WalkPlcSoftware(string deviceName, PlcSoftware plcSoftware)
@@ -113,33 +118,7 @@ public class ProjectTreeWalker
         {
             try
             {
-                var details = new Dictionary<string, string>
-                {
-                    ["Path"] = CombinePath(path, block.Name),
-                    ["Number"] = block.Number.ToString(),
-                    ["ProgrammingLanguage"] = block.ProgrammingLanguage.ToString()
-                };
-
-                if (softwareUnitName is not null)
-                {
-                    details["SoftwareUnit"] = softwareUnitName;
-                }
-
-                children.Add(new ProjectTreeNode
-                {
-                    Name = block.Name,
-                    NodeType = block switch
-                    {
-                        OB => "OB",
-                        FB => "FB",
-                        FC => "FC",
-                        GlobalDB => "GlobalDB",
-                        InstanceDB => "InstanceDB",
-                        ArrayDB => "ArrayDB",
-                        _ => "Block"
-                    },
-                    Details = details
-                });
+                children.Add(BuildBlockNode(block, path, softwareUnitName, isSystemBlock: false));
             }
             catch (EngineeringException ex)
             {
@@ -159,10 +138,114 @@ public class ProjectTreeWalker
             }
         }
 
+        if (group is PlcBlockSystemGroup systemGroup)
+        {
+            foreach (PlcSystemBlockGroup childGroup in systemGroup.SystemBlockGroups)
+            {
+                try
+                {
+                    children.Add(WalkSystemBlockGroup(childGroup, CombinePath(path, childGroup.Name), softwareUnitName));
+                }
+                catch (EngineeringException ex)
+                {
+                    Console.Error.WriteLine(
+                        $"Skipping a system block group while walking block group '{group.Name}': {ex.Message}");
+                }
+            }
+        }
+
         return new ProjectTreeNode
         {
             Name = group.Name,
             NodeType = "BlockFolder",
+            Details = new Dictionary<string, string>
+            {
+                ["Path"] = path
+            },
+            Children = children
+        };
+    }
+
+    private static ProjectTreeNode BuildBlockNode(
+        PlcBlock block,
+        string path,
+        string? softwareUnitName,
+        bool isSystemBlock)
+    {
+        var details = new Dictionary<string, string>
+        {
+            ["Path"] = CombinePath(path, block.Name),
+            ["Number"] = block.Number.ToString(),
+            ["ProgrammingLanguage"] = block.ProgrammingLanguage.ToString()
+        };
+
+        if (softwareUnitName is not null)
+        {
+            details["SoftwareUnit"] = softwareUnitName;
+        }
+
+        if (isSystemBlock)
+        {
+            details["IsSystemBlock"] = "true";
+        }
+
+        return new ProjectTreeNode
+        {
+            Name = block.Name,
+            NodeType = block switch
+            {
+                OB => "OB",
+                FB => "FB",
+                FC => "FC",
+                GlobalDB => "GlobalDB",
+                InstanceDB => "InstanceDB",
+                ArrayDB => "ArrayDB",
+                _ => "Block"
+            },
+            Details = details
+        };
+    }
+
+    private static ProjectTreeNode WalkSystemBlockGroup(
+        PlcSystemBlockGroup group,
+        string path,
+        string? softwareUnitName)
+    {
+        var children = new List<ProjectTreeNode>();
+
+        foreach (PlcBlock block in group.Blocks)
+        {
+            try
+            {
+                children.Add(BuildBlockNode(block, path, softwareUnitName, isSystemBlock: true));
+            }
+            catch (EngineeringException ex)
+            {
+                Console.Error.WriteLine(
+                    $"Skipping a block while walking system block group '{group.Name}': {ex.Message}");
+            }
+        }
+
+        foreach (PlcSystemBlockGroup childGroup in group.Groups)
+        {
+            try
+            {
+                children.Add(WalkSystemBlockGroup(
+                    childGroup,
+                    CombinePath(path, childGroup.Name),
+                    softwareUnitName));
+            }
+            catch (EngineeringException ex)
+            {
+                Console.Error.WriteLine(
+                    $"Skipping a nested system block group while walking system block group '{group.Name}': {ex.Message}");
+            }
+        }
+
+        return new ProjectTreeNode
+        {
+            Name = group.Name,
+            NodeType = "SystemBlockFolder",
             Details = new Dictionary<string, string>
             {
                 ["Path"] = path
