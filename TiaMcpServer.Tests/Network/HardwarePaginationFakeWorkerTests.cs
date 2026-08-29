@@ -72,7 +72,9 @@ public sealed class HardwarePaginationFakeWorkerTests
         Assert.Equal(
             WorkerFailureCategories.ProtocolError,
             operation.GetProperty("failure").GetProperty("category").GetString());
-        Assert.DoesNotContain("Nested locator fixture", operation.GetRawText(), StringComparison.Ordinal);
+        // The wrong-shape fixture's private payload sentinel must never be echoed by the public
+        // protocol_error document. This fails if the host starts forwarding rejected worker JSON.
+        Assert.DoesNotContain("not-public", operation.GetRawText(), StringComparison.Ordinal);
     }
 
     [Fact]
