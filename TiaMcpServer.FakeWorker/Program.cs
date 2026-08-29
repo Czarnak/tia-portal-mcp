@@ -341,6 +341,31 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected project completeness method '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "hardware-pagination":
+            // The host owns cursor authentication, binding, and public projection. This scenario
+            // deliberately mirrors only the internal typed candidate seam: duplicate device names,
+            // stable nested-group diagnostics, and device-first/subnet-second offsets make every
+            // public reconstruction assertion independent of the production worker implementation.
+            Respond(ReadMethod(line) == "read_hardware_page_candidates"
+                ? HardwarePaginationResponse(line)
+                : ReadMethod(line) == "read_hardware_config"
+                    ? Success(ToCamelCaseJson(HardwarePaginationUnpaged()))
+                    : $$"""{"success":false,"error":"expected read_hardware_page_candidates or read_hardware_config, got '{{ReadMethod(line)}}'"}""");
+            break;
+        case "hardware-pagination-missing-identity":
+            Respond(HardwarePaginationResponse(line), includeSessionIdentity: false);
+            break;
+        case "hardware-pagination-malformed-offset":
+        case "hardware-pagination-incoherent-counts":
+            Respond(ReadMethod(line) == "read_hardware_page_candidates"
+                ? HardwarePaginationResponse(line)
+                : $$"""{"success":false,"error":"expected read_hardware_page_candidates, got '{{ReadMethod(line)}}'"}""");
+            break;
+        case "hardware-pagination-wrong-payload":
+            Respond(ReadMethod(line) == "read_hardware_page_candidates"
+                ? """{"success":true,"payload":"{\"privateLocator\":\"not-public\"}"}"""
+                : $$"""{"success":false,"error":"expected read_hardware_page_candidates, got '{{ReadMethod(line)}}'"}""");
+            break;
         case "network-unresolvable-target":
             // A contract-valid, empty HardwareConfigInfo: no device can ever match a
             // configure_network_device target here, so a preview against this scenario proves
@@ -940,6 +965,105 @@ HardwareConfigInfo ProjectCompletenessHardware() => new()
         new() { Name = "Direct PLC", TypeIdentifier = "OrderNumber:CPU" },
         new() { Name = "Grouped ET200", TypeIdentifier = "OrderNumber:ET200" },
     },
+};
+
+HardwareConfigInfo HardwarePaginationUnpaged() => new()
+{
+    Devices = HardwarePaginationDevices().Select(candidate => candidate.Device).ToList(),
+    Subnets = HardwarePaginationSubnets().Select(candidate => candidate.Subnet).ToList(),
+    Messages = new List<string> { "Fixture page diagnostic." },
+};
+
+string HardwarePaginationResponse(string requestLine)
+{
+    var payload = HardwarePaginationCandidates(requestLine);
+    return JsonSerializer.Serialize(new
+    {
+        success = true,
+        payload = ToCamelCaseJson(payload),
+    });
+}
+
+HardwarePageCandidateResultInfo HardwarePaginationCandidates(string requestLine)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)
+        ?? throw new JsonException("Could not deserialize the hardware-page request.");
+    var pageSize = request.HardwarePageSize
+        ?? throw new JsonException("HardwarePageSize is required.");
+    var startOffset = request.HardwarePageContinuation?.Offset ?? 0;
+
+    var devices = HardwarePaginationDevices()
+        .Where(candidate => request.DeviceName is null
+            || string.Equals(candidate.Device.Name, request.DeviceName, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+    var subnets = HardwarePaginationSubnets();
+    var all = devices.Cast<HardwarePageFixtureCandidate>()
+        .Concat(subnets)
+        .ToArray();
+    var returned = all.Skip(startOffset).Take(pageSize).ToArray();
+
+    var returnedDevices = returned
+        .OfType<HardwarePageFixtureDevice>()
+        .Select((candidate, index) => new HardwareDevicePageCandidateInfo(
+            startOffset + index,
+            candidate.Device,
+            candidate.Messages))
+        .ToArray();
+    var returnedSubnets = returned
+        .OfType<HardwarePageFixtureSubnet>()
+        .Select((candidate, index) => new HardwareSubnetPageCandidateInfo(
+            startOffset + returnedDevices.Length + index,
+            candidate.Subnet,
+            candidate.Messages))
+        .ToArray();
+
+    var payload = new HardwarePageCandidateResultInfo(
+        OrderingVersion: 1,
+        QueryHash: HardwarePageEvidence.CreateQueryHash(
+            request.DeviceName,
+            request.PlcName,
+            request.IncludeIoDetails,
+            request.IncludeTagMatches),
+        SnapshotHash: "b3f6dbb2e1f86d7b9063c9d02b8b3f4fd4e565f4bf0b58830d5c34fc3c0ca1ee",
+        StartOffset: startOffset,
+        TotalDevices: devices.Count,
+        TotalSubnets: subnets.Count,
+        Messages: new[] { "Fixture page diagnostic." },
+        DeviceCandidates: returnedDevices,
+        SubnetCandidates: returnedSubnets);
+    return ScenarioKey(currentProjectPath) switch
+    {
+        "hardware-pagination-malformed-offset" => payload with { StartOffset = payload.StartOffset + 1 },
+        "hardware-pagination-incoherent-counts" => payload with { TotalDevices = 0 },
+        _ => payload,
+    };
+}
+
+List<HardwarePageFixtureDevice> HardwarePaginationDevices() => new()
+{
+    new(
+        new DeviceInfo { Name = "PLC_DUP", TypeIdentifier = "OrderNumber:CPU-1515", Items = new List<DeviceItemInfo>() },
+        new[] { "Nested locator fixture: Plant A/Cell 1/PLC_DUP." }),
+    new(
+        new DeviceInfo { Name = "PLC_DUP", TypeIdentifier = "OrderNumber:CPU-1516", Items = new List<DeviceItemInfo>() },
+        new[] { "Nested locator fixture: Plant A/Cell 2/PLC_DUP." }),
+    new(
+        new DeviceInfo { Name = "ET200_GROUPED", TypeIdentifier = "OrderNumber:ET200", Items = new List<DeviceItemInfo>() },
+        new[] { "Nested locator fixture: Plant A/Remote IO/ET200_GROUPED." }),
+};
+
+List<HardwarePageFixtureSubnet> HardwarePaginationSubnets() => new()
+{
+    new(
+        SelectableSubnet(
+            "PN/IE_MAIN", "subnet-main", "Ethernet", "Ethernet",
+            Array.Empty<IoSystemInfo>(), new[] { "PLC_DUP.X1" }),
+        new[] { "Candidate diagnostic: main subnet." }),
+    new(
+        SelectableSubnet(
+            "PN/IE_REMOTE", "subnet-remote", "Ethernet", "Ethernet",
+            Array.Empty<IoSystemInfo>(), new[] { "ET200_GROUPED.X1" }),
+        new[] { "Candidate diagnostic: remote subnet." }),
 };
 
 List<ProjectTreeNode> ProjectCompletenessTree() => new()
@@ -1937,3 +2061,13 @@ sealed class MultiHomedNode
 
     public string? PnDeviceName { get; set; }
 }
+
+abstract record HardwarePageFixtureCandidate(IReadOnlyList<string> Messages);
+
+sealed record HardwarePageFixtureDevice(
+    DeviceInfo Device,
+    IReadOnlyList<string> Messages) : HardwarePageFixtureCandidate(Messages);
+
+sealed record HardwarePageFixtureSubnet(
+    SubnetInfo Subnet,
+    IReadOnlyList<string> Messages) : HardwarePageFixtureCandidate(Messages);
