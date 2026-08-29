@@ -44,7 +44,7 @@ internal static class HardwarePageCandidateSourceFactory
                 var pageMessages = new List<string>();
                 if (includeTagMatches)
                 {
-                    tagIndex = HardwareConfigReader.ResolveTagIndex(project, plcName, pageMessages);
+                    tagIndex = HardwareConfigReader.ResolvePageTagIndex(project, plcName, pageMessages);
                 }
 
                 var descriptors = new List<HardwarePageDescriptor>();

@@ -91,7 +91,12 @@ public static class HardwareConfigReader
         return HardwarePageCandidateMaterialization.ForSubnet(materialized, messages);
     }
 
-    internal static IoTagIndex? ResolveTagIndex(Project project, string? plcName, List<string> messages)
+    internal static IoTagIndex? ResolvePageTagIndex(Project project, string? plcName, List<string> messages)
+    {
+        return ResolveTagIndex(project, plcName, messages);
+    }
+
+    private static IoTagIndex? ResolveTagIndex(Project project, string? plcName, List<string> messages)
     {
         try
         {
