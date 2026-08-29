@@ -1,8 +1,9 @@
 # Issue #31 Project Completeness and Hardware Pagination Design
 
 **Date:** 2026-08-28
+**Last updated:** 2026-08-29
 
-**Status:** Approved for implementation planning
+**Status:** PR 1 implemented; PR 2 design approved for implementation planning
 **Scope:** Complete grouped-device and system-block enumeration, then add opt-in,
 budget-aware pagination to `read_hardware_config`
 
@@ -22,8 +23,10 @@ The work is intentionally delivered as two separately reviewable pull requests:
 - **PR 2 — hardware pagination:** add opt-in, cursor-based, budget-aware pagination after the
   complete entity set is available on `main`.
 
-PR 2 starts from the updated `main` branch after PR 1 is merged. This keeps the traversal repair
-independently reviewable while making pagination operate on the corrected data set.
+The PR 2 implementation branch starts from the completed PR 1 tip, so pagination operates on the
+corrected data set. PR 2 remains logically dependent on PR 1 and must be rebased or retargeted onto
+updated `main` after PR 1 merges. This keeps the traversal repair independently reviewable without
+making PR 2 redevelop or temporarily duplicate it.
 
 ## Non-goals
 
@@ -36,6 +39,10 @@ independently reviewable while making pagination operate on the corrected data s
 - Providing a transactionally frozen TIA Portal snapshot across pages.
 - Paginating inside a device, subnet, warning, or other entity.
 - Changing write-safety, project-selection, or access-mode rules.
+- Adding a second public MCP tool or public operation name for paged hardware reads.
+- Migrating the existing worker-local `NetworkObjectCursorCodec` used by other network operations.
+- Caching TIA objects, descriptors, tag indexes, or cursor state across calls.
+- Allowing cursor-bound filters or detail flags to change within one page sequence.
 
 ## Current failure modes
 
@@ -134,6 +141,13 @@ and is outside this repair.
 The page size is not part of the cursor query binding. A caller may change it between pages
 without changing which logical snapshot the cursor addresses.
 
+The remaining query fields are cursor-bound: `deviceName`, `plcName`, `includeIoDetails`, and
+`includeTagMatches`. Changing any of them starts a new sequence without the old cursor. Paged mode
+preserves explicit-project reads while the host is otherwise unbound: the first call may supply a
+`projectPath`, a continuation may omit it because the cursor carries the worker-resolved path, and
+an explicitly repeated path must resolve to that cursor-bound path. Issuing or consuming a cursor
+never silently changes the ordinary host project binding.
+
 ### Response shape
 
 Unpaged responses do not contain pagination metadata. Paged `HardwareConfigInfo` responses add an
@@ -169,9 +183,22 @@ page's subnet list in page order.
 
 Messages are not cursor-addressed entities and do not affect the logical entity offset.
 
+The worker assigns every descriptor an internal structural locator derived from collection
+positions. Examples are `devices/0`, `deviceGroups/0/groups/2/devices/1`, and `subnets/3`.
+Descriptor identity combines the entity kind, structural locator, and sortable public identity.
+The locator distinguishes duplicate or unreadable display names without relying on undocumented
+Siemens object identifiers. It is internal evidence and is never exposed in the public page,
+cursor omission subject, or error text. Inserting, regrouping, or reordering an entity changes the
+locator evidence and therefore invalidates the stable-set hash as intended.
+
 ## PR 2 worker/host seam
 
-Use a cooperative worker/host implementation.
+Use a cooperative worker/host implementation with a dedicated internal paged method. The public
+`read_hardware_config` operation remains unchanged by name. The host routes unpaged calls through
+the existing worker method and projection, while paged calls route through a
+`HardwarePaginationCoordinator` and the internal worker method
+`read_hardware_page_candidates`. The internal method is dispatched only by the host client and
+worker switch; it is not registered in the public operation catalog.
 
 ### Worker responsibilities
 
@@ -179,24 +206,38 @@ The net48 worker:
 
 1. recursively enumerates the complete ordered top-level entity descriptors;
 2. computes a stable-set hash from their ordered identities and an ordering-version marker;
-3. validates the cursor's project, query, snapshot, and offset evidence;
+3. validates typed continuation evidence for the query, expected session, snapshot, and offset;
 4. materializes at most the requested candidate range starting at the cursor offset; and
-5. returns a typed internal contracts-layer payload containing the candidates, counts, stable-set
-   evidence, and worker-observed session identity.
+5. returns exactly one declared internal contracts-layer payload containing the candidates,
+   counts, starting offset, ordering version, stable-set evidence, and scoped messages.
 
 Descriptor identity includes the entity kind and a deterministic TIA container path or key so
 that grouped devices with the same display name remain distinguishable. Deep hardware attributes
 are excluded from the stable-set hash.
 
+The candidate payload separates page-level messages from per-candidate messages. The host exposes
+page-level messages plus messages belonging only to entities actually returned. Messages for a
+trimmed candidate are emitted when that candidate is returned on a later call. Unpaged mode
+continues to flatten its observations in the established order.
+
+The candidate payload does not duplicate worker session identity. The existing
+`WorkerResponse.SessionIdentity` / `WorkerCallResult.SessionIdentity` envelope remains the single
+authority for the complete worker-observed identity, and continuation requests use the existing
+`ExpectedSessionIdentity` guard. A missing or conflicting success identity fails closed.
+
 ### Host responsibilities
 
 The net8 host:
 
-1. decodes the internal payload as exactly the declared candidate type;
-2. builds the public `HardwareConfigInfo` document through the canonical JSON seam;
-3. measures the complete canonical operation result against the 60,000-character item limit;
-4. removes only trailing complete entities until the result fits; and
-5. emits a next cursor whose offset advances by the number of entities actually returned.
+1. validates request-owned evidence and authenticates a continuation cursor before worker access;
+2. invokes `read_hardware_page_candidates` with typed continuation evidence and, when necessary,
+   the cursor-carried expected session identity and resolved project path;
+3. decodes the internal payload as exactly the declared candidate type and validates its counts,
+   offsets, kinds, ordering evidence, and response-envelope identity;
+4. builds the public `HardwareConfigInfo` document through the canonical JSON seam;
+5. measures the complete canonical result against the 60,000-character item limit;
+6. removes only trailing complete entities and their scoped messages until the result fits; and
+7. emits a next cursor whose offset advances by the number of entities actually returned.
 
 Candidates trimmed by the host are not lost. Because the cursor advances only by actual progress,
 the worker materializes those candidates again on the next call.
@@ -204,6 +245,11 @@ the worker materializes those candidates again on the next call.
 The text content and `structuredContent` must continue to derive from the same
 `CanonicalJson.Serialize` result. The host must not estimate size from worker JSON or maintain a
 second serialization path.
+
+After the coordinator produces a normal public `HardwareConfigInfo`, the existing
+`NetworkPayloadContract`, structured batch execution, canonical final rendering, and independent
+180,000-character batch-document budget remain authoritative. This keeps the new seam isolated
+from unpaged callers and from the lightweight hardware snapshots used by network write safety.
 
 ### Why the seam is split
 
@@ -216,19 +262,30 @@ both failure modes.
 
 ### Cursor binding
 
-The cursor is opaque to callers and binds:
+The cursor is a versioned, self-contained, unpadded-base64url document authenticated with HMAC-SHA256
+under a process-local random key. The host validates its exact member set and signature before
+ordinary worker access. The cursor is not encrypted: its format is unsupported and opaque as an
+API contract, but a caller could decode its identity fields. Host restart rotates the key and
+intentionally invalidates outstanding cursors, which already cannot outlive the host binding and
+worker-session evidence they contain.
+
+The cursor binds:
 
 - a cursor schema version and hardware-ordering version;
-- the complete worker-observed project/session identity from the first page;
-- the host project-binding revision observed for that page;
+- the worker-resolved project path and complete worker-observed session identity from the first
+  page;
+- the host project-binding ID and revision observed for that page, including an unbound snapshot;
 - the query shape: `deviceName`, `plcName`, `includeIoDetails`, and `includeTagMatches`;
 - the ordered top-level entity stable-set hash; and
 - the next entity offset.
 
 The first page must return a complete worker-observed identity before a continuation cursor can be
-issued. Issuing a cursor does not silently change the host's project binding. Continuations use
-the cursor identity to ensure that the worker is still reading the same observed session, and a
-host binding revision change invalidates the sequence.
+issued. Issuing a cursor does not silently change the host's project binding. A continuation can
+therefore remain pinned to the first worker-observed identity even when the host was unbound: the
+host supplies the cursor identity as `ExpectedSessionIdentity` and uses the cursor's resolved
+project path when the caller omits it. Continuations verify both the current host binding snapshot
+and the new worker response identity. A host binding revision, resolved-path, or worker-session
+change invalidates the sequence. Page size is deliberately absent from the cursor query hash.
 
 ### Stable-set, non-transactional guarantee
 
@@ -242,24 +299,42 @@ hardware graph solely to validate every continuation.
 ## Validation and failure behavior
 
 Validate request fields and cursor structure before ordinary worker access where the necessary
-evidence is host-owned. Continuation failures are explicit and distinguish:
+evidence is host-owned. Use the closed failure vocabulary as follows:
 
-- malformed or unsupported cursor payload;
-- query/filter mismatch;
-- host binding or worker-observed project/session mismatch;
-- stable-set snapshot mismatch; and
-- offset outside the current entity set.
+| Boundary | Condition | Category |
+| --- | --- | --- |
+| Host request | Invalid page size or detail-field dependency | `validation_error` |
+| Host cursor codec | Malformed encoding, unsupported version, or bad signature | `invalid_cursor` |
+| Host continuation | Cursor-bound query fields differ | `cursor_filter_mismatch` |
+| Host/worker continuation | Binding revision, resolved path, or worker session differs | `cursor_binding_mismatch` |
+| Worker enumeration | Stable descriptor set or ordering version changed | `cursor_snapshot_mismatch` |
+| Worker enumeration | Offset is outside the current entity set | `cursor_out_of_range` |
+| Host projection | Identity is missing or the typed DTO is malformed or incoherent | `protocol_error` |
+
+`cursor_binding_mismatch` is the only new failure category. Its safe error text may distinguish a
+host-revision, path, or worker-identity mismatch without creating more public categories.
 
 No failure returns a partial page or advances the cursor.
 
 The host may trim only trailing complete entities. It must never cut serialized JSON, an entity,
-or a warning in half. A malformed typed candidate payload produces `protocol_error`; rejected
-worker-shaped data is not echoed to the caller.
+or a message in half. Removing a candidate also removes only its scoped messages. A malformed
+typed candidate payload produces `protocol_error`; rejected worker-shaped data is not echoed to
+the caller.
 
 If the canonical result containing one entity cannot fit within the item budget, return the
-operation as `omitted` with reason `hardwarePageEntityExceededItemCharLimit`. Include only a safe
-entity identity and guidance to retry the same cursor with narrower filters or fewer detail
-options. Do not return an empty successful page and do not skip the oversized entity.
+operation as `omitted` with reason `hardwarePageEntityExceededItemCharLimit`. Add an optional,
+machine-readable omission `subject` containing only the entity `kind`, display `name`, and public
+`identifier` when one exists; a subnet uses `SubnetId`, while a device has no additional
+identifier. The subject never exposes the structural locator, worker identity, or cursor fields.
+Other omission paths omit `subject`, preserving their current shape.
+
+If page-level diagnostics alone cannot fit, return `omitted` with reason
+`hardwarePageDiagnosticsExceededItemCharLimit` and no subject. Neither oversized case returns an
+empty successful page, skips an entity, or advances the logical offset. The retry guidance is:
+"Retry the unchanged request at the same cursor, or start a new sequence with narrower filters or
+fewer detail options." On the first page, retrying the unchanged request means repeating the same
+cursor-less request. Narrowing a filter or changing a detail flag never reuses the old cursor,
+because doing so would violate its query binding and create inconsistent reconstructed pages.
 
 Paged mode guarantees that a successful operation result is within the 60,000-character item
 limit. The existing 180,000-character batch-document limit still applies. A caller that batches
@@ -292,15 +367,27 @@ are implementation evidence, not proof that the real Openness collections behave
 
 Add failing tests before each production slice for:
 
-- request validation, the 1–200 page-size range, cursor-only defaulting, and unpaged compatibility;
-- cursor codec round trips and exact failures for malformed payloads, query mismatch, binding or
-  session mismatch, snapshot mismatch, and out-of-range offsets;
-- deterministic device/subnet ordering, segment crossing, totals, and returned counts;
-- host budget shrinking, actual-offset advancement, final-page behavior, and a single oversized
-  entity;
-- typed candidate decoding and `protocol_error` rejection;
-- canonical text/structured-content identity; and
-- FakeWorker multi-page reconstruction in which every top-level entity appears exactly once.
+- public request/response contracts: the 1–200 page-size range, cursor-only defaulting, optional
+  pagination metadata, strict unknown-field rejection, detail dependencies, and byte-compatible
+  unpaged JSON;
+- the host cursor codec: deterministic round trips under an injected test key, exact member
+  validation, tamper and process-key rejection, query mismatch, binding or session mismatch,
+  snapshot mismatch, and out-of-range offsets;
+- worker descriptors: recursive structural locators, deterministic device/subnet ordering,
+  duplicate-name tie-breaking, segment crossing, totals, snapshot hashing, and deep-attribute
+  exclusion;
+- the typed worker candidate payload: scoped messages, contiguous offsets, declared kinds and
+  counts, complete response-envelope identity, and `protocol_error` rejection without payload
+  echo;
+- host budget shrinking: exact canonical thresholds, removal of trailing candidates and their
+  messages, actual-offset advancement, final-page behavior, a single oversized entity, and
+  diagnostics-only overflow;
+- FakeWorker multi-page reconstruction in which every top-level entity appears exactly once,
+  including bound and unbound sequences, variable page sizes, and query/binding/session/snapshot
+  drift;
+- canonical text/structured-content identity and the independent batch-document budget; and
+- regressions for unpaged hardware shape, network safety snapshots, access-mode rules, existing
+  generic omissions, and every other network operation.
 
 Run a separately authorized read-only live TIA acceptance harness against a representative large
 project. It should iterate every page, reconstruct the full device and subnet sets exactly once,
@@ -329,9 +416,11 @@ PR 1 updates the current operation reference and relevant architecture text to d
 - `SystemBlockFolder` and the exact meaning of `IsSystemBlock`; and
 - the existing unpaged payload limitation and available filter/detail narrowing guidance.
 
-PR 2 updates the operation reference, tool description, architecture seam, troubleshooting or
-retry guidance, and engineering log to describe the opt-in request, page reconstruction, cursor
-invalidation, budget behavior, and oversized-entity response.
+PR 2 updates this authoritative design, the operation reference, tool description and package
+README, architecture seam, troubleshooting or retry guidance, engineering log, and documentation
+index where required. The documentation describes the opt-in request, page reconstruction,
+process-lifetime cursor invalidation, unbound cursor-pinned sequences, strict query binding,
+budget behavior, and both oversized-entity and diagnostics-only omissions.
 
 ## Acceptance criteria
 
@@ -354,6 +443,11 @@ invalidation, budget behavior, and oversized-entity response.
 - Concatenating a valid page sequence reconstructs every top-level device and subnet exactly once.
 - Cursor validation detects query, binding/session, stable-set, and offset drift without returning
   partial data.
-- A single oversized entity is reported explicitly without skipping it or advancing the cursor.
-- Worker payloads are typed and host text/structured content remain one canonical document.
+- Signed cursors support both bound and explicit-project unbound sequences without silently
+  changing the host binding, and a host restart invalidates them.
+- A single oversized entity and diagnostics-only overflow are reported explicitly without
+  skipping an entity or advancing the cursor.
+- Worker payloads are typed, worker identity has one response-envelope authority, and host text
+  and structured content remain one canonical document.
+- Unpaged reads, network safety snapshots, and unrelated cursor implementations remain unchanged.
 - The batch-document limit remains enforced independently and is documented for callers.
