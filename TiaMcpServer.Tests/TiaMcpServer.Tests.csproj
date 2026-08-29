@@ -87,6 +87,10 @@
     <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationRequest.cs"
       Link="Host\Network\NetworkOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorState.cs"
+      Link="Host\Network\HardwarePageCursorState.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorCodec.cs"
+      Link="Host\Network\HardwarePageCursorCodec.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationCatalog.cs"
       Link="Host\Network\NetworkOperationCatalog.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWorkerInvoker.cs"
