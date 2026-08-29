@@ -211,6 +211,239 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
+    /// <summary>
+    /// Sends the internal hardware-page candidate request under the same serialized host-binding
+    /// lease as ordinary bound calls. Continuations additionally pin the host snapshot and the
+    /// exact worker identity observed on the preceding response.
+    /// </summary>
+    public Task<HardwarePageWorkerCallResult> ReadHardwarePageCandidatesAsync(
+        string? projectPath,
+        string? deviceName,
+        string? plcName,
+        bool includeIoDetails,
+        bool includeTagMatches,
+        int pageSize,
+        HardwarePageContinuationInfo? continuation,
+        ProjectBindingSnapshot? requiredHostBinding,
+        WorkerSessionIdentity? expectedSessionIdentity)
+        => ExecuteSerializedBindingOperationAsync(
+            () => ReadHardwarePageCandidatesCoreAsync(
+                projectPath,
+                deviceName,
+                plcName,
+                includeIoDetails,
+                includeTagMatches,
+                pageSize,
+                continuation,
+                requiredHostBinding,
+                expectedSessionIdentity));
+
+    private async Task<HardwarePageWorkerCallResult> ReadHardwarePageCandidatesCoreAsync(
+        string? projectPath,
+        string? deviceName,
+        string? plcName,
+        bool includeIoDetails,
+        bool includeTagMatches,
+        int pageSize,
+        HardwarePageContinuationInfo? continuation,
+        ProjectBindingSnapshot? requiredHostBinding,
+        WorkerSessionIdentity? expectedSessionIdentity)
+    {
+        var isContinuation = continuation is not null;
+        var routingProjectPath = projectPath;
+        if (isContinuation)
+        {
+            if (!TryValidateCompleteSessionIdentity(
+                    expectedSessionIdentity,
+                    out var cursorProjectPath))
+            {
+                return HardwarePageFailure(
+                    _projectSessionBinding.CaptureSnapshot(),
+                    WorkerFailureCategories.CursorBindingMismatch,
+                    "The hardware-page continuation does not retain a complete worker session identity.");
+            }
+
+            var repeatedProjectPath = ProjectPathNormalization.Canonicalize(projectPath);
+            if (repeatedProjectPath is not null &&
+                !string.Equals(
+                    repeatedProjectPath,
+                    cursorProjectPath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return HardwarePageFailure(
+                    _projectSessionBinding.CaptureSnapshot(),
+                    WorkerFailureCategories.CursorBindingMismatch,
+                    "The requested project path does not match the hardware-page continuation.");
+            }
+
+            // The cursor identity is authoritative for continuation routing. This also lets an
+            // explicitly paged project continue while the ordinary host binding remains unbound.
+            routingProjectPath = cursorProjectPath;
+        }
+        else
+        {
+            // Preserve ordinary read semantics for a configured startup project: verify it before
+            // issuing the candidate read. An explicit project on an unbound host remains unbound.
+            var initial = _projectSessionBinding.CaptureSnapshot();
+            if (string.Equals(
+                    initial.State,
+                    ProjectBindingSnapshot.ConfiguredUnverifiedState,
+                    StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(initial.ProjectPath))
+            {
+                var verification = await GetProjectStatusAsync(initial.ProjectPath)
+                    .ConfigureAwait(false);
+                if (!verification.Success)
+                {
+                    return new HardwarePageWorkerCallResult(
+                        verification,
+                        _projectSessionBinding.CaptureSnapshot());
+                }
+            }
+        }
+
+        if (!_projectSessionBinding.TryResolveWithSnapshot(
+                routingProjectPath,
+                out var hostBinding,
+                out var effectiveProjectPath,
+                out var bindingError))
+        {
+            return HardwarePageFailure(
+                hostBinding,
+                isContinuation
+                    ? WorkerFailureCategories.CursorBindingMismatch
+                    : WorkerFailureCategories.BindingConflict,
+                bindingError!);
+        }
+
+        if (isContinuation &&
+            (requiredHostBinding is null || !requiredHostBinding.SameBinding(hostBinding)))
+        {
+            return HardwarePageFailure(
+                hostBinding,
+                WorkerFailureCategories.CursorBindingMismatch,
+                "The host project binding changed after the preceding hardware page.");
+        }
+
+        var request = new WorkerRequest
+        {
+            Method = "read_hardware_page_candidates",
+            ProjectPath = effectiveProjectPath,
+            ExpectedSessionIdentity = isContinuation
+                ? expectedSessionIdentity
+                : hostBinding.ToWorkerIdentity(),
+            DeviceName = deviceName,
+            PlcName = plcName,
+            IncludeIoDetails = includeIoDetails,
+            IncludeTagMatches = includeTagMatches,
+            HardwarePageSize = pageSize,
+            HardwarePageContinuation = continuation
+        };
+
+        var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
+        if (!result.Success)
+        {
+            return new HardwarePageWorkerCallResult(
+                MapHardwarePageContinuationFailure(result, isContinuation),
+                hostBinding);
+        }
+
+        if (!TryValidateCompleteSessionIdentity(result.SessionIdentity, out _))
+        {
+            return HardwarePageFailure(
+                hostBinding,
+                WorkerFailureCategories.ProtocolError,
+                "The hardware-page worker response did not include a complete session identity.",
+                result);
+        }
+
+        result = ValidateOrPromoteSessionIdentity(result, hostBinding);
+        if (!result.Success)
+        {
+            return new HardwarePageWorkerCallResult(
+                MapHardwarePageContinuationFailure(result, isContinuation),
+                hostBinding);
+        }
+
+        if (isContinuation &&
+            !SameSessionIdentity(expectedSessionIdentity!, result.SessionIdentity!))
+        {
+            return HardwarePageFailure(
+                hostBinding,
+                WorkerFailureCategories.CursorBindingMismatch,
+                "The hardware-page continuation no longer matches the live worker session.",
+                result);
+        }
+
+        return new HardwarePageWorkerCallResult(result, hostBinding);
+    }
+
+    private static WorkerCallResult MapHardwarePageContinuationFailure(
+        WorkerCallResult result,
+        bool isContinuation)
+    {
+        if (!isContinuation ||
+            (!string.Equals(
+                 result.FailureCategory,
+                 WorkerFailureCategories.BindingConflict,
+                 StringComparison.Ordinal) &&
+             !string.Equals(
+                 result.FailureCategory,
+                 WorkerFailureCategories.CursorBindingMismatch,
+                 StringComparison.Ordinal)))
+        {
+            return result;
+        }
+
+        return WorkerCallResult.Fail(
+            WorkerFailureCategories.CursorBindingMismatch,
+            result.Error ?? "The hardware-page continuation no longer matches the worker session.",
+            result.Warnings) with
+        {
+            ResolvedProjectPath = result.ResolvedProjectPath,
+            SessionIdentity = result.SessionIdentity
+        };
+    }
+
+    private static HardwarePageWorkerCallResult HardwarePageFailure(
+        ProjectBindingSnapshot hostBinding,
+        string failureCategory,
+        string error,
+        WorkerCallResult? source = null)
+        => new(
+            WorkerCallResult.Fail(failureCategory, error, source?.Warnings) with
+            {
+                ResolvedProjectPath = source?.ResolvedProjectPath,
+                SessionIdentity = source?.SessionIdentity
+            },
+            hostBinding);
+
+    private static bool TryValidateCompleteSessionIdentity(
+        WorkerSessionIdentity? identity,
+        out string? canonicalProjectPath)
+    {
+        canonicalProjectPath = ProjectPathNormalization.Canonicalize(identity?.ProjectPath);
+        return identity is not null &&
+               !string.IsNullOrWhiteSpace(identity.WorkerSessionId) &&
+               identity.SessionGeneration >= 0 &&
+               identity.PortalProcessId is > 0 &&
+               canonicalProjectPath is not null;
+    }
+
+    private static bool SameSessionIdentity(
+        WorkerSessionIdentity expected,
+        WorkerSessionIdentity actual)
+        => string.Equals(
+               expected.WorkerSessionId,
+               actual.WorkerSessionId,
+               StringComparison.Ordinal) &&
+           expected.SessionGeneration == actual.SessionGeneration &&
+           expected.PortalProcessId == actual.PortalProcessId &&
+           string.Equals(
+               ProjectPathNormalization.Canonicalize(expected.ProjectPath),
+               ProjectPathNormalization.Canonicalize(actual.ProjectPath),
+               StringComparison.OrdinalIgnoreCase);
+
     public Task<WorkerCallResult> SearchEquipmentCatalogAsync(string query, string? projectPath, int? maxResults = null)
     {
         return SendBoundProjectRequestAsync(
