@@ -107,7 +107,7 @@ public class HardwarePageProjectorTests
     }
 
     [Fact]
-    public void Project_OmitsAnOversizedFirstDeviceWithOnlyItsPublicSubject()
+    public void Project_OmitsAnOversizedFirstDeviceWithoutAnUnboundedSubject()
     {
         const string DeviceName = "oversized-device";
         var projector = Projector();
@@ -120,13 +120,12 @@ public class HardwarePageProjectorTests
 
         Assert.Equal(OperationBatchStatus.Omitted, item.Status);
         Assert.Equal(HardwarePageProjector.EntityLimitReason, item.Omission!.Reason);
-        Assert.Equal("device", item.Omission.Subject!.Kind);
-        Assert.StartsWith(DeviceName, item.Omission.Subject.Name, StringComparison.Ordinal);
-        Assert.Null(item.Omission.Subject.Identifier);
+        Assert.Null(item.Omission.Subject);
+        Assert.True(CanonicalJson.Serialize(item).Length <= ItemLimit);
     }
 
     [Fact]
-    public void Project_OmitsAnOversizedFirstSubnetWithItsPublicIdentifierOnly()
+    public void Project_OmitsAnOversizedFirstSubnetWithoutAnUnboundedSubject()
     {
         const string SubnetName = "oversized-subnet";
         var projector = Projector();
@@ -140,13 +139,71 @@ public class HardwarePageProjectorTests
 
         Assert.Equal(OperationBatchStatus.Omitted, item.Status);
         Assert.Equal(HardwarePageProjector.EntityLimitReason, item.Omission!.Reason);
-        Assert.Equal("subnet", item.Omission.Subject!.Kind);
-        Assert.StartsWith(SubnetName, item.Omission.Subject.Name, StringComparison.Ordinal);
-        Assert.StartsWith("id-", item.Omission.Subject.Identifier, StringComparison.Ordinal);
+        Assert.Null(item.Omission.Subject);
+        Assert.True(serialized.Length <= ItemLimit);
         Assert.DoesNotContain("locator", serialized, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(QueryHash, serialized, StringComparison.Ordinal);
         Assert.DoesNotContain(SnapshotHash, serialized, StringComparison.Ordinal);
         Assert.DoesNotContain("worker-session", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Project_KeepsTheFullEntitySubjectWhenItsCanonicalOmissionFitsExactlyTheLimit()
+    {
+        var warnings = new[] { "public warning" };
+        var subjectName = EntitySubjectNameAtExactLimit(warnings);
+        var item = Project(
+            Projector(),
+            Payload(
+                totalDevices: 1,
+                totalSubnets: 0,
+                devices: new[] { DeviceCandidate(0, subjectName, new string('m', ItemLimit)) }),
+            warnings);
+
+        Assert.Equal(OperationBatchStatus.Omitted, item.Status);
+        Assert.Equal(subjectName, item.Omission!.Subject!.Name);
+        Assert.Equal(warnings, item.Warnings);
+        Assert.Equal(ItemLimit, CanonicalJson.Serialize(item).Length);
+    }
+
+    [Fact]
+    public void Project_DropsTheEntitySubjectWhenItsCanonicalOmissionWouldExceedTheLimit()
+    {
+        var warnings = new[] { "public warning" };
+        var oversizedName = EntitySubjectNameAtExactLimit(warnings) + "x";
+        var item = Project(
+            Projector(),
+            Payload(
+                totalDevices: 1,
+                totalSubnets: 0,
+                devices: new[] { DeviceCandidate(0, oversizedName, new string('m', ItemLimit)) }),
+            warnings);
+
+        Assert.Equal(OperationBatchStatus.Omitted, item.Status);
+        Assert.Equal(HardwarePageProjector.EntityLimitReason, item.Omission!.Reason);
+        Assert.Null(item.Omission.Subject);
+        Assert.Equal(HardwarePageProjector.RetryGuidance, item.Omission.Guidance);
+        Assert.Equal(warnings, item.Warnings);
+        Assert.True(CanonicalJson.Serialize(item).Length <= ItemLimit);
+    }
+
+    [Fact]
+    public void Project_DropsWarningsThatCannotFitTheDiagnosticsOmission()
+    {
+        var warnings = new[] { new string('w', ItemLimit) };
+        var item = Project(
+            Projector(),
+            Payload(
+                totalDevices: 1,
+                totalSubnets: 0,
+                devices: new[] { DeviceCandidate(0, new string('d', ItemLimit)) }),
+            warnings);
+
+        Assert.Equal(OperationBatchStatus.Omitted, item.Status);
+        Assert.Equal(HardwarePageProjector.DiagnosticsLimitReason, item.Omission!.Reason);
+        Assert.Null(item.Omission.Subject);
+        Assert.Empty(item.Warnings);
+        Assert.True(CanonicalJson.Serialize(item).Length <= ItemLimit);
     }
 
     private static HardwarePageProjector Projector() => new(Codec());
@@ -155,15 +212,39 @@ public class HardwarePageProjectorTests
 
     private static StructuredOperationItem Project(
         HardwarePageProjector projector,
-        HardwarePageCandidateResultInfo payload)
+        HardwarePageCandidateResultInfo payload,
+        IReadOnlyList<string>? warnings = null)
         => projector.Project(
             Operation(),
             payload,
             ResolvedPath(),
             Identity(),
             Unbound(),
-            warnings: Array.Empty<string>(),
+            warnings ?? Array.Empty<string>(),
             maxItemChars: ItemLimit);
+
+    private static string EntitySubjectNameAtExactLimit(IReadOnlyList<string> warnings)
+    {
+        var operation = Operation();
+        var emptyNameOmission = new StructuredOperationItem(
+            operation.OperationId,
+            operation.Operation,
+            OperationBatchStatus.Omitted,
+            Result: null,
+            Failure: null,
+            new StructuredOperationOmission(
+                HardwarePageProjector.EntityLimitReason,
+                ItemLimit,
+                ItemLimit * 2,
+                "network_read",
+                HardwarePageProjector.RetryGuidance,
+                new StructuredOperationOmissionSubject("device", string.Empty, Identifier: null)),
+            SkipReason: null,
+            warnings);
+        var nameChars = ItemLimit - CanonicalJson.Serialize(emptyNameOmission).Length;
+        Assert.True(nameChars > 0);
+        return new string('n', nameChars);
+    }
 
     private static HardwarePageCandidateResultInfo Payload(
         int totalDevices,

@@ -105,6 +105,8 @@ public class NetworkReadTools
             "Narrow query or maxResults, or split the batch: re-run this operationId in its own "
                 + $"{ToolName} call.",
 
+        "read_hardware_config" when IsHardwarePage(item) => HardwarePageProjector.RetryGuidance,
+
         "read_hardware_config" =>
             "Narrow with deviceName and disable includeIoDetails/includeTagMatches where possible, "
                 + "or split the batch: re-run this operationId in its own "
@@ -116,6 +118,11 @@ public class NetworkReadTools
 
         _ => $"Split the batch: re-run this operationId in its own {ToolName} call.",
     };
+
+    private static bool IsHardwarePage(StructuredOperationItem item)
+        => item.Result is { ValueKind: System.Text.Json.JsonValueKind.Object } result
+            && result.TryGetProperty("pagination", out var pagination)
+            && pagination.ValueKind == System.Text.Json.JsonValueKind.Object;
 
     private static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(

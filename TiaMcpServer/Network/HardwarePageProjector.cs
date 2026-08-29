@@ -58,7 +58,7 @@ internal sealed class HardwarePageProjector
         var pageOnlyChars = ItemChars(pageOnly);
         if (pageOnlyChars > maxItemChars)
         {
-            return Omitted(
+            return BoundedOmission(
                 operation,
                 DiagnosticsLimitReason,
                 pageOnlyChars,
@@ -86,7 +86,7 @@ internal sealed class HardwarePageProjector
 
             if (returnedCount == 1)
             {
-                return Omitted(
+                return BoundedOmission(
                     operation,
                     EntityLimitReason,
                     prospectiveChars,
@@ -156,6 +156,52 @@ internal sealed class HardwarePageProjector
     }
 
     private static int ItemChars(StructuredOperationItem item) => CanonicalJson.Serialize(item).Length;
+
+    private static StructuredOperationItem BoundedOmission(
+        NetworkOperationRequest operation,
+        string reason,
+        int originalChars,
+        int limitChars,
+        StructuredOperationOmissionSubject? subject,
+        IReadOnlyList<string> warnings)
+    {
+        var omission = Omitted(
+            operation,
+            reason,
+            originalChars,
+            limitChars,
+            subject,
+            warnings);
+        if (ItemChars(omission) <= limitChars)
+        {
+            return omission;
+        }
+
+        if (subject is not null)
+        {
+            omission = Omitted(
+                operation,
+                reason,
+                originalChars,
+                limitChars,
+                subject: null,
+                warnings);
+            if (ItemChars(omission) <= limitChars)
+            {
+                return omission;
+            }
+        }
+
+        return warnings.Count == 0
+            ? omission
+            : Omitted(
+                operation,
+                reason,
+                originalChars,
+                limitChars,
+                subject: null,
+                warnings: Array.Empty<string>());
+    }
 
     private static StructuredOperationItem Omitted(
         NetworkOperationRequest operation,
