@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Collections.Generic;
 
 namespace TiaMcpServer.Contracts;
 
@@ -17,12 +18,12 @@ public static class HardwarePageEvidence
         bool? includeIoDetails,
         bool? includeTagMatches)
     {
-        var canonical = string.Concat(
-            "deviceName=", NormalizeOrdinalIgnoreCase(deviceName), "\n",
-            "plcName=", plcName ?? string.Empty, "\n",
-            "includeIoDetails=", (includeIoDetails ?? false) ? "true" : "false", "\n",
-            "includeTagMatches=", (includeTagMatches ?? false) ? "true" : "false", "\n");
-        return ComputeSha256(canonical);
+        var canonical = new List<byte>();
+        AppendLengthFramedUtf8(canonical, NormalizeOrdinalIgnoreCase(deviceName));
+        AppendLengthFramedUtf8(canonical, plcName ?? string.Empty);
+        AppendLengthFramedUtf8(canonical, (includeIoDetails ?? false) ? "true" : "false");
+        AppendLengthFramedUtf8(canonical, (includeTagMatches ?? false) ? "true" : "false");
+        return ComputeSha256(canonical.ToArray());
     }
 
     /// <summary>Creates deterministic snapshot evidence from a fixed canonical representation.</summary>
@@ -32,10 +33,23 @@ public static class HardwarePageEvidence
     private static string NormalizeOrdinalIgnoreCase(string? value)
         => value?.ToUpperInvariant() ?? string.Empty;
 
+    private static void AppendLengthFramedUtf8(List<byte> destination, string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        var length = bytes.Length;
+        destination.Add((byte)(length >> 24));
+        destination.Add((byte)(length >> 16));
+        destination.Add((byte)(length >> 8));
+        destination.Add((byte)length);
+        destination.AddRange(bytes);
+    }
+
     private static string ComputeSha256(string value)
+        => ComputeSha256(Encoding.UTF8.GetBytes(value));
+
+    private static string ComputeSha256(byte[] bytes)
     {
         using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(value);
         var hash = sha256.ComputeHash(bytes);
         var builder = new StringBuilder(hash.Length * 2);
         foreach (var valueByte in hash)

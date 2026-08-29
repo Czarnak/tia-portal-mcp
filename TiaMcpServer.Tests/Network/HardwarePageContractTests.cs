@@ -53,4 +53,21 @@ public class HardwarePageContractTests
 
         Assert.Equal(first, second);
     }
+
+    [Fact]
+    public void HardwarePageEvidence_UsesLengthFramedUtf8QueryFields()
+    {
+        var hash = HardwarePageEvidence.CreateQueryHash("A", "C", false, false);
+
+        Assert.Equal("a2bbc33c574303fd581b7c85b60d2b3e36452cbf852a6e3779bad4f6c9d7f0ca", hash);
+    }
+
+    [Fact]
+    public void HardwarePageEvidence_DistinguishesDelimiterInjectionTuples()
+    {
+        var first = HardwarePageEvidence.CreateQueryHash("a\nplcName=b", "c", false, false);
+        var second = HardwarePageEvidence.CreateQueryHash("a", "b\nplcName=c", false, false);
+
+        Assert.NotEqual(first, second);
+    }
 }
