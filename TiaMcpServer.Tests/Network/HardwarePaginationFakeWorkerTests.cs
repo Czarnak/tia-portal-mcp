@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -67,6 +68,87 @@ public sealed class HardwarePaginationFakeWorkerTests
         Assert.DoesNotContain("Nested locator fixture", operation.GetRawText(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task NetworkRead_ChangedCursorBoundFilterFailsBeforeTheWorker()
+    {
+        using var client = CreateClient();
+        var first = await ReadPage(client, 1, Scenario);
+        var operation = await ReadOperation(client, 1, cursor: Cursor(first), deviceName: "PLC_DUP");
+
+        Assert.Equal(WorkerFailureCategories.CursorFilterMismatch, FailureCategory(operation));
+    }
+
+    [Theory]
+    [InlineData("hardware-pagination-snapshot-drift", WorkerFailureCategories.CursorSnapshotMismatch)]
+    [InlineData("hardware-pagination-out-of-range", WorkerFailureCategories.CursorOutOfRange)]
+    [InlineData("hardware-pagination-binding-drift", WorkerFailureCategories.CursorBindingMismatch)]
+    [InlineData("hardware-pagination-identity-drift", WorkerFailureCategories.CursorBindingMismatch)]
+    public async Task NetworkRead_ContinuationWorkerDriftUsesTheApprovedFailureCategory(string scenario, string category)
+    {
+        using var client = CreateClient();
+        var first = await ReadPage(client, 1, scenario);
+        var operation = await ReadOperation(client, 1, cursor: Cursor(first));
+
+        Assert.Equal(category, FailureCategory(operation));
+    }
+
+    [Fact]
+    public async Task NetworkRead_CursorSignedByAnotherProcessScopedCodecIsInvalid()
+    {
+        string cursor;
+        using (var firstClient = CreateClient())
+        {
+            cursor = Cursor(await ReadPage(firstClient, 1, Scenario));
+        }
+
+        var exception = Assert.Throws<HardwarePageCursorException>(
+            () => new HardwarePageCursorCodec(new byte[32]).Decode(cursor));
+
+        Assert.Equal(WorkerFailureCategories.InvalidCursor, exception.Category);
+    }
+
+    [Fact]
+    public async Task NetworkRead_UnpagedFixtureIsCanonicalAndPagedContinuationStaysUnbound()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        var unpaged = await ReadPage(client, 50, Scenario, paged: false);
+        var first = await ReadPage(client, 1, Scenario);
+        var second = await ReadPage(client, 4, cursor: Cursor(first));
+
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, client.BindingSnapshot.State);
+        Assert.Equal(
+            CanonicalJson.Serialize(CanonicalJson.Deserialize<HardwareConfigInfo>(unpaged.GetRawText())),
+            CanonicalJson.Serialize(new HardwareConfigInfo
+            {
+                Devices = first.GetProperty("devices").EnumerateArray().Concat(second.GetProperty("devices").EnumerateArray())
+                    .Select(element => CanonicalJson.Deserialize<DeviceInfo>(element.GetRawText())).ToList(),
+                Subnets = first.GetProperty("subnets").EnumerateArray().Concat(second.GetProperty("subnets").EnumerateArray())
+                    .Select(element => CanonicalJson.Deserialize<SubnetInfo>(element.GetRawText())).ToList(),
+                Messages = new List<string> { "Fixture page diagnostic." },
+            }));
+    }
+
+    [Fact]
+    public async Task NetworkRead_CanonicalItemTrimmingResumesWithTheUnemittedCandidatesAndDiagnostics()
+    {
+        using var client = CreateClient();
+        var first = await ReadPage(client, 6, "hardware-pagination-trimming");
+        var second = await ReadPage(client, 6, cursor: Cursor(first));
+
+        var firstReturned = first.GetProperty("pagination").GetProperty("returnedDevices").GetInt32()
+            + first.GetProperty("pagination").GetProperty("returnedSubnets").GetInt32();
+        Assert.InRange(firstReturned, 1, 5);
+        Assert.Equal(4, first.GetProperty("pagination").GetProperty("totalDevices").GetInt32());
+        Assert.Contains(
+            second.GetProperty("messages").EnumerateArray().Select(message => message.GetString()),
+            message => string.Equals(message, "Nested locator fixture: Plant A/Cell 1/PLC_DUP.", StringComparison.Ordinal));
+        Assert.Equal(
+            6,
+            first.GetProperty("devices").GetArrayLength() + first.GetProperty("subnets").GetArrayLength()
+                + second.GetProperty("devices").GetArrayLength() + second.GetProperty("subnets").GetArrayLength());
+    }
+
     private static OpennessWorkerClient CreateClient()
         => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
 
@@ -74,9 +156,11 @@ public sealed class HardwarePaginationFakeWorkerTests
         OpennessWorkerClient client,
         int pageSize,
         string? projectPath = null,
-        string? cursor = null)
+        string? cursor = null,
+        string? deviceName = null,
+        bool paged = true)
     {
-        var operation = await ReadOperation(client, pageSize, projectPath, cursor);
+        var operation = await ReadOperation(client, pageSize, projectPath, cursor, deviceName, paged);
         Assert.True(
             string.Equals("succeeded", operation.GetProperty("status").GetString(), StringComparison.Ordinal),
             operation.GetRawText());
@@ -87,7 +171,9 @@ public sealed class HardwarePaginationFakeWorkerTests
         OpennessWorkerClient client,
         int pageSize,
         string? projectPath = null,
-        string? cursor = null)
+        string? cursor = null,
+        string? deviceName = null,
+        bool paged = true)
     {
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -98,8 +184,9 @@ public sealed class HardwarePaginationFakeWorkerTests
                     OperationId = "hardware",
                     Operation = "read_hardware_config",
                     ProjectPath = projectPath,
-                    PageSize = pageSize,
+                    PageSize = paged ? pageSize : null,
                     Cursor = cursor,
+                    DeviceName = deviceName,
                 },
             });
 
@@ -112,4 +199,10 @@ public sealed class HardwarePaginationFakeWorkerTests
 
     private static string Text(ModelContextProtocol.Protocol.CallToolResult result)
         => string.Join("\n", result.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(block => block.Text));
+
+    private static string Cursor(JsonElement page)
+        => page.GetProperty("pagination").GetProperty("nextCursor").GetString()!;
+
+    private static string FailureCategory(JsonElement operation)
+        => operation.GetProperty("failure").GetProperty("category").GetString()!;
 }

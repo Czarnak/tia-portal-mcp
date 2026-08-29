@@ -58,6 +58,8 @@ var subnetLifecycleSecondFailureWriteCount = 0;
 var subnetLifecycleStateDriftReadCount = 0;
 var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
+var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
+var hardwarePaginationIdentityDrift = false;
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -364,6 +366,25 @@ while ((line = Console.In.ReadLine()) is not null)
         case "hardware-pagination-wrong-payload":
             Respond(ReadMethod(line) == "read_hardware_page_candidates"
                 ? """{"success":true,"payload":"{\"privateLocator\":\"not-public\"}"}"""
+                : $$"""{"success":false,"error":"expected read_hardware_page_candidates, got '{{ReadMethod(line)}}'"}""");
+            break;
+        case "hardware-pagination-snapshot-drift":
+            Respond(HardwarePaginationDriftResponse(line, WorkerFailureCategories.CursorSnapshotMismatch));
+            break;
+        case "hardware-pagination-out-of-range":
+            Respond(HardwarePaginationDriftResponse(line, WorkerFailureCategories.CursorOutOfRange));
+            break;
+        case "hardware-pagination-binding-drift":
+            Respond(HardwarePaginationDriftResponse(line, WorkerFailureCategories.CursorBindingMismatch));
+            break;
+        case "hardware-pagination-identity-drift":
+            hardwarePaginationIdentityDrift = NextHardwarePaginationScenarioCall("hardware-pagination-identity-drift") > 1;
+            Respond(HardwarePaginationResponse(line));
+            hardwarePaginationIdentityDrift = false;
+            break;
+        case "hardware-pagination-trimming":
+            Respond(ReadMethod(line) == "read_hardware_page_candidates"
+                ? HardwarePaginationResponse(line)
                 : $$"""{"success":false,"error":"expected read_hardware_page_candidates, got '{{ReadMethod(line)}}'"}""");
             break;
         case "network-unresolvable-target":
@@ -706,7 +727,7 @@ void Respond(string json, bool includeSessionIdentity = true)
 
             response["sessionIdentity"] = JsonSerializer.SerializeToNode(new WorkerSessionIdentity
             {
-                WorkerSessionId = workerSessionId,
+                WorkerSessionId = hardwarePaginationIdentityDrift ? "drifted-worker-session" : workerSessionId,
                 SessionGeneration = fakeSessionGeneration,
                 PortalProcessId = FakePortalProcessId,
                 ProjectPath = projectPath
@@ -984,6 +1005,19 @@ string HardwarePaginationResponse(string requestLine)
     });
 }
 
+string HardwarePaginationDriftResponse(string requestLine, string category)
+    => NextHardwarePaginationScenarioCall(ScenarioKey(currentProjectPath)!) == 1
+        ? HardwarePaginationResponse(requestLine)
+        : JsonSerializer.Serialize(new { success = false, failureCategory = category, error = "deliberate hardware-page continuation drift" });
+
+int NextHardwarePaginationScenarioCall(string scenario)
+{
+    hardwarePaginationScenarioCalls.TryGetValue(scenario, out var calls);
+    calls++;
+    hardwarePaginationScenarioCalls[scenario] = calls;
+    return calls;
+}
+
 HardwarePageCandidateResultInfo HardwarePaginationCandidates(string requestLine)
 {
     var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)
@@ -1039,18 +1073,35 @@ HardwarePageCandidateResultInfo HardwarePaginationCandidates(string requestLine)
     };
 }
 
-List<HardwarePageFixtureDevice> HardwarePaginationDevices() => new()
+List<HardwarePageFixtureDevice> HardwarePaginationDevices()
 {
-    new(
-        new DeviceInfo { Name = "PLC_DUP", TypeIdentifier = "OrderNumber:CPU-1515", Items = new List<DeviceItemInfo>() },
-        new[] { "Nested locator fixture: Plant A/Cell 1/PLC_DUP." }),
-    new(
-        new DeviceInfo { Name = "PLC_DUP", TypeIdentifier = "OrderNumber:CPU-1516", Items = new List<DeviceItemInfo>() },
-        new[] { "Nested locator fixture: Plant A/Cell 2/PLC_DUP." }),
-    new(
-        new DeviceInfo { Name = "ET200_GROUPED", TypeIdentifier = "OrderNumber:ET200", Items = new List<DeviceItemInfo>() },
-        new[] { "Nested locator fixture: Plant A/Remote IO/ET200_GROUPED." }),
-};
+    var devices = new List<HardwarePageFixtureDevice>
+    {
+        new(
+            new DeviceInfo { Name = "PLC_DUP", TypeIdentifier = "OrderNumber:CPU-1515", Items = new List<DeviceItemInfo>() },
+            new[] { "Nested locator fixture: Plant A/Cell 1/PLC_DUP." }),
+        new(
+            new DeviceInfo { Name = "PLC_DUP", TypeIdentifier = "OrderNumber:CPU-1516", Items = new List<DeviceItemInfo>() },
+            new[] { "Nested locator fixture: Plant A/Cell 2/PLC_DUP." }),
+        new(
+            new DeviceInfo { Name = "ET200_GROUPED", TypeIdentifier = "OrderNumber:ET200", Items = new List<DeviceItemInfo>() },
+            new[] { "Nested locator fixture: Plant A/Remote IO/ET200_GROUPED." }),
+    };
+
+    if (string.Equals(ScenarioKey(currentProjectPath), "hardware-pagination-trimming", StringComparison.Ordinal))
+    {
+        devices.Insert(0, new HardwarePageFixtureDevice(
+            new DeviceInfo
+            {
+                Name = "LARGE_DEVICE",
+                TypeIdentifier = new string('L', 58_500),
+                Items = new List<DeviceItemInfo>(),
+            },
+            new[] { "Candidate diagnostic: large device." }));
+    }
+
+    return devices;
+}
 
 List<HardwarePageFixtureSubnet> HardwarePaginationSubnets() => new()
 {
