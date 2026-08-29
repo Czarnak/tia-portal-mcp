@@ -104,6 +104,12 @@ internal sealed class HardwarePageCursorCodec
             ValidateExactPayload(json);
             var state = CanonicalJson.Deserialize<HardwarePageCursorState>(json);
             ValidateState(state);
+            var canonicalPayloadBytes = Encoding.UTF8.GetBytes(CanonicalJson.Serialize(state));
+            if (!payloadBytes.AsSpan().SequenceEqual(canonicalPayloadBytes))
+            {
+                throw new JsonException("Cursor payload must use canonical JSON.");
+            }
+
             return state;
         }
         catch (Exception exception) when (exception is ArgumentException

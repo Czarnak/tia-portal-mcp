@@ -112,6 +112,32 @@ public class HardwarePageCursorCodecTests
         => AssertInvalidSignedPayload(ValidPayloadJson() + "{}");
 
     [Fact]
+    public void Decode_RejectsCorrectlySignedPayloadWithNoncanonicalPropertyOrder()
+    {
+        var canonical = ValidPayloadJson();
+        var noncanonical = "{\"offset\":3," + canonical[1..].Replace(",\"offset\":3", string.Empty, StringComparison.Ordinal);
+
+        AssertInvalidSignedPayload(noncanonical);
+    }
+
+    [Fact]
+    public void Decode_RejectsCorrectlySignedPayloadWithNoncanonicalWhitespace()
+    {
+        var canonical = ValidPayloadJson();
+
+        AssertInvalidSignedPayload("{ " + canonical[1..]);
+    }
+
+    [Fact]
+    public void Decode_RejectsCorrectlySignedPayloadWithAlternateJsonEscape()
+    {
+        var canonical = ValidPayloadJson();
+        var noncanonical = canonical.Replace("worker-1", "\\u0077orker-1", StringComparison.Ordinal);
+
+        AssertInvalidSignedPayload(noncanonical);
+    }
+
+    [Fact]
     public void Decode_RejectsBoundHostPathDifferentFromResolvedProject()
     {
         var state = State() with
