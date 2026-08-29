@@ -390,3 +390,25 @@ inside `ioDetails` and rejects an explicit null collection as `protocol_error` w
 payload. FakeWorker scenarios, the read-only live harness
 `scripts/live-test-network-io-map.ps1` (never run by automated tests), and the full I/O-map test
 surface were added. Full suite green at this tip: 2136/2136.
+
+## Opt-in hardware configuration pagination - DONE 2026-08-29
+
+`read_hardware_config` now has an opt-in paged path selected only by `pageSize` or `cursor`; the
+unpaged canonical request, worker method, and output remain unchanged. The public sequence counts
+stable devices followed by stable subnets, with separate arrays and exact totals. Host-process
+HMAC cursors bind filters, resolved project, bound/unbound host snapshot, worker session, candidate
+snapshot, and offset; continuation calls reuse the envelope-only worker session identity and can
+remain explicitly unbound.
+
+The worker enumerates the complete descriptor set before materializing a bounded window. The host
+strictly decodes that typed evidence and projects the largest complete canonical prefix at or below
+60,000 characters; the ordinary 180,000-character batch budget remains independent. Oversized
+diagnostics or a first oversized entity become bounded omissions with no offset advance. Entity
+subjects are all-or-nothing: the full approved subject is retained only when it fits.
+
+Offline contract and FakeWorker coverage includes exact reconstruction, duplicate names, nested
+diagnostics, trimming/resume behavior, cursor tamper/filter/binding/session/snapshot/offset
+failures, malformed worker payloads, process-key invalidation, and byte-for-byte unpaged
+equivalence. The separately authorized read-only harness
+`scripts/live-test-hardware-pagination.ps1` is contract-tested but has not been executed against
+live TIA Portal V21; live pagination acceptance remains unverified.

@@ -108,6 +108,84 @@ An unknown or failed attribute does not fail the inspection and does not suppres
 attributes. Successfully read CLR null is represented by a value with `kind:"null"`; an arbitrary
 CLR object is `unrepresentable` and is never published through `ToString()`.
 
+## Hardware configuration pagination
+
+`read_hardware_config` pagination is opt-in. Set `pageSize` (`1..200`) on the first request, or
+continue with an opaque `cursor`. A cursor-only continuation defaults to a page size of 50. A
+request with neither field stays on the original unpaged path and preserves its canonical public
+document byte-for-byte.
+
+```jsonc
+{
+  "operations": [
+    {
+      "operationId": "hardware-page",
+      "operation": "read_hardware_config",
+      "projectPath": "C:\\Sandbox\\Line.ap21",
+      "deviceName": "PLC_1",          // optional, cursor-bound
+      "plcName": "PLC_1",             // optional, cursor-bound
+      "includeIoDetails": true,        // optional, cursor-bound
+      "includeTagMatches": true,       // optional, cursor-bound
+      "pageSize": 50,
+      "cursor": null                   // omit on the first page
+    }
+  ]
+}
+```
+
+The logical sequence is every matching device in stable traversal order, followed by every
+matching subnet. `pageSize` counts across that combined sequence, while the public result keeps
+`devices[]` and `subnets[]` separate. Canonical size projection may return a smaller complete
+prefix than requested; progress and the next cursor advance only past entities actually returned.
+
+Paged results add:
+
+```jsonc
+{
+  "devices": [],
+  "subnets": [],
+  "messages": [],
+  "pagination": {
+    "totalDevices": 0,
+    "totalSubnets": 0,
+    "returnedDevices": 0,
+    "returnedSubnets": 0,
+    "nextCursor": "opaque-process-local-value"
+  }
+}
+```
+
+`nextCursor` is nullable and is omitted at the terminal page. Keep `projectPath`, `deviceName`,
+`plcName`, `includeIoDetails`, and `includeTagMatches` unchanged for a continuation. `pageSize` is
+not query identity and may change within `1..200`. A continuation may omit `projectPath`; the host
+then uses the cursor's resolved path. Repeating it is allowed only when it resolves to the same
+path. Explicit-project paging does not bind an otherwise unbound host.
+
+Cursors are authenticated with a host-process-lifetime key and intentionally stop working after a
+host restart. They also bind the resolved project, bound/unbound host snapshot, observed worker
+session, stable candidate snapshot, and combined offset. Recovery is category-specific:
+
+| Category | Meaning | Recovery |
+| --- | --- | --- |
+| `validation_error` | `pageSize` is outside `1..200`, or a dependent field is invalid. | Correct the first request and start a new sequence. |
+| `invalid_cursor` | Encoding, version, schema, canonical form, or signature is invalid; this also covers a cursor from a previous host process. | Start a new sequence without the old cursor. |
+| `cursor_filter_mismatch` | A cursor-bound filter or detail flag changed. | Retry the unchanged request at the same cursor, or start a new sequence with the new fields. |
+| `cursor_binding_mismatch` | The repeated project path differs, the host binding/path changed, or the observed worker session changed. | Re-read current project status, then start a new sequence; do not reuse the cursor. |
+| `cursor_snapshot_mismatch` | The stable matching device/subnet set or order changed. | Start a new sequence against the new snapshot. |
+| `cursor_out_of_range` | The saved combined offset is outside the current candidate set. | Start a new sequence. |
+| `protocol_error` | The worker omitted envelope identity or returned malformed/incoherent typed candidate evidence. | Treat the page as unusable; inspect diagnostics and retry only after correcting the host/worker mismatch. |
+
+Every successful or omitted operation item remains at most 60,000 canonical characters. Complete
+entities and diagnostic strings are never split. The host returns the largest complete prefix that
+fits. If page diagnostics alone exceed the limit, the operation is omitted with
+`hardwarePageDiagnosticsExceededItemCharLimit`, no subject, and no offset advance. If the first
+required entity cannot fit, the reason is `hardwarePageEntityExceededItemCharLimit`; its full
+optional `{ kind, name, identifier }` subject is retained only when that complete subject also
+fits, otherwise the entire subject is omitted (never truncated). Both omissions preserve safe
+guidance: retry the unchanged request at the same cursor, or start a new narrower sequence. The
+separate 180,000-character batch limit still applies; if it drops a hardware page, use that same
+guidance and never reuse an old cursor after changing bound fields.
+
 ## Structured I/O map
 
 `read_hardware_config` can return a read-only, opt-in structured I/O map alongside the existing
@@ -216,7 +294,7 @@ A device item with I/O details carries:
 
 ### Payload size
 
-Recursive group traversal can make an unfiltered hardware result substantially larger than earlier versions because previously omitted devices are now present. The current unpaged contract still applies the 60,000-character per-result budget and may omit the whole operation with `reason: "resultExceededItemCharLimit"`. Until a paged request is explicitly available, use `deviceName`, disable optional detail flags where possible, and place the hardware read in its own `network_read` call. No device is silently skipped merely to fit the budget.
+Recursive group traversal can make an unfiltered hardware result substantially larger than earlier versions because previously omitted devices are now present. The unchanged unpaged contract still applies the 60,000-character per-result budget and may omit the whole operation with `reason: "resultExceededItemCharLimit"`. For complete retrieval, use the paged request above, narrow `deviceName`, disable optional detail flags where possible, and place the hardware read in its own `network_read` call. No device is silently skipped merely to fit either path's budget.
 
 ## The single-layer JSON contract
 
@@ -381,11 +459,11 @@ in `TiaMcpServer.Tests/NetworkStructuredProtocolTests.cs`. Always perform this e
 
 ## The typed payload result types
 
-Every network operation decodes its worker payload against exactly one declared CLR contract in `TiaMcpServer/Network/NetworkPayloadContract.cs`. A payload that does not match its declared contract — malformed, unknown, wrongly cased, wrongly typed, or structurally invalid — becomes a **failed** item with category `protocol_error`; the rejected payload is never echoed back.
+Every direct public network worker result decodes against exactly one declared CLR contract in `TiaMcpServer/Network/NetworkPayloadContract.cs`. The private paged-hardware candidate result is decoded separately by `HardwarePagePayloadContract` before public projection. A payload that does not match its declared contract — malformed, unknown, wrongly cased, wrongly typed, or structurally invalid — becomes a **failed** item with category `protocol_error`; the rejected payload is never echoed back.
 
 | Operation | Result type | Notable shape |
 |---|---|---|
-| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` includes project-root and recursively grouped devices (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), and a payload-level `messages[]` remains the hardware degradation channel; only when requested, `items[].ioDetails` contains addresses, channels, and tag matches. |
+| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` includes project-root and recursively grouped devices (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), and a payload-level `messages[]` remains the hardware degradation channel; only when requested, `items[].ioDetails` contains addresses, channels, and tag matches. Opt-in pages add `HardwarePaginationInfo`; the worker candidate payload is decoded separately and never exposed. |
 | `search_equipment_catalog` | `CatalogEntryInfo[]` | `typeName`, `typeIdentifier`, optional `articleNumber`/`version`/`catalogPath`/`description`. |
 | `list_network_objects` | `NetworkObjectListInfo` | `items[]`, exact `totalCount`/`returnedCount`, and nullable `nextCursor`; each item preserves selector completeness and discovery diagnostics. |
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |
@@ -399,8 +477,9 @@ Every network operation decodes its worker payload against exactly one declared 
 
 Every response is bounded against the **exact canonical document** the caller receives (envelope, counts, and truncation record included), not against an unrelated per-payload serialization:
 
-- **Per-item limit** (~60,000 characters): a single oversized result is dropped **whole** and replaced with an `omission` — never cut mid-value, so the response can never contain a half-written JSON document. The omission carries `reason` (`resultExceededItemCharLimit` or `responseExceededDocumentCharLimit`), `limitChars`, `originalChars`, a `retryTool` (`network_read` — deliberately the read tool even for an omitted write result, since re-running a write to see what it returned would perform the write a second time), and per-operation `guidance`.
+- **Per-item limit** (~60,000 characters): a single oversized result is dropped **whole** and replaced with an `omission` — never cut mid-value, so the response can never contain a half-written JSON document. On the ordinary path the omission carries `reason` (`resultExceededItemCharLimit` or `responseExceededDocumentCharLimit`), `limitChars`, `originalChars`, a `retryTool` (`network_read` — deliberately the read tool even for an omitted write result, since re-running a write to see what it returned would perform the write a second time), and per-operation `guidance`. Paged hardware uses the bounded special reasons below.
 - **Whole-document limit** (~180,000 characters): if the document is still too large after per-item bounding, complete successful results are dropped whole, largest first (ties broken by request order), until it fits.
+- **Paged hardware special case**: canonical projection returns the largest complete device/subnet prefix at or below the per-item limit. Diagnostics-only overflow uses `hardwarePageDiagnosticsExceededItemCharLimit`; first-entity overflow uses `hardwarePageEntityExceededItemCharLimit` and retains its complete optional subject only if that subject fits. Neither omission advances the cursor offset. If either budget omits a page, retry the unchanged request at the same cursor or start a new narrower sequence; changing cursor-bound fields requires a new sequence.
 - Only after that: complete `warnings` entries are dropped, then failure messages are shortened as a last resort (a failure's `category` and `status` are never dropped).
 - `batch.truncation` (`StructuredBatchTruncation`) records whether anything was changed (`truncated`), the original vs. presented character counts, how many results/warnings were omitted, and the affected `operationId`s — so a caller always knows what it is missing and can retry precisely.
 
@@ -445,6 +524,14 @@ The current surface does not provide:
 Hardware configuration results and compile results are engineering data. They do not by themselves certify a live hardware configuration or commissioning outcome.
 
 ## Live acceptance harnesses
+
+`scripts/live-test-hardware-pagination.ps1` is the separately authorized, read-only PowerShell 7
+harness for the public hardware-pagination contract. It launches the real MCP host in read-only
+mode, follows `nextCursor` without changing bound query fields, verifies stable totals and exact
+device/subnet reconstruction, enforces the per-item limit, and records correctness separately from
+page timing. It stops with a clear artifact on cursor failure or omission. Contract tests inspect
+the script but never execute it. The harness has not yet been run against live TIA Portal V21, so
+live pagination behavior remains unverified.
 
 `scripts/live-test-network-phase3.ps1` is the separately authorized, read-only PowerShell 7
 harness for discovery and inspection. `Matrix`, `Repeatability`, and `MeasureListValue` launch the
