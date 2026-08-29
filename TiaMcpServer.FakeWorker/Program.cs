@@ -369,13 +369,8 @@ while ((line = Console.In.ReadLine()) is not null)
                 : $$"""{"success":false,"error":"expected read_hardware_page_candidates, got '{{ReadMethod(line)}}'"}""");
             break;
         case "hardware-pagination-snapshot-drift":
-            Respond(HardwarePaginationDriftResponse(line, WorkerFailureCategories.CursorSnapshotMismatch));
-            break;
         case "hardware-pagination-out-of-range":
-            Respond(HardwarePaginationDriftResponse(line, WorkerFailureCategories.CursorOutOfRange));
-            break;
-        case "hardware-pagination-binding-drift":
-            Respond(HardwarePaginationDriftResponse(line, WorkerFailureCategories.CursorBindingMismatch));
+            Respond(HardwarePaginationDerivedContinuationResponse(line));
             break;
         case "hardware-pagination-identity-drift":
             hardwarePaginationIdentityDrift = NextHardwarePaginationScenarioCall("hardware-pagination-identity-drift") > 1;
@@ -383,6 +378,7 @@ while ((line = Console.In.ReadLine()) is not null)
             hardwarePaginationIdentityDrift = false;
             break;
         case "hardware-pagination-trimming":
+        case "hardware-pagination-telemetry":
             Respond(ReadMethod(line) == "read_hardware_page_candidates"
                 ? HardwarePaginationResponse(line)
                 : $$"""{"success":false,"error":"expected read_hardware_page_candidates, got '{{ReadMethod(line)}}'"}""");
@@ -1005,10 +1001,25 @@ string HardwarePaginationResponse(string requestLine)
     });
 }
 
-string HardwarePaginationDriftResponse(string requestLine, string category)
-    => NextHardwarePaginationScenarioCall(ScenarioKey(currentProjectPath)!) == 1
-        ? HardwarePaginationResponse(requestLine)
-        : JsonSerializer.Serialize(new { success = false, failureCategory = category, error = "deliberate hardware-page continuation drift" });
+string HardwarePaginationDerivedContinuationResponse(string requestLine)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)
+        ?? throw new JsonException("Could not deserialize the hardware-page request.");
+    var payload = HardwarePaginationCandidates(requestLine);
+    var continuation = request.HardwarePageContinuation;
+    if (continuation is not null && !string.Equals(continuation.SnapshotHash, payload.SnapshotHash, StringComparison.Ordinal))
+    {
+        return JsonSerializer.Serialize(new { success = false, failureCategory = WorkerFailureCategories.CursorSnapshotMismatch, error = "Descriptor evidence changed after the preceding page." });
+    }
+
+    var total = payload.TotalDevices + payload.TotalSubnets;
+    if (continuation is not null && continuation.Offset > total)
+    {
+        return JsonSerializer.Serialize(new { success = false, failureCategory = WorkerFailureCategories.CursorOutOfRange, error = "Continuation offset is outside the current descriptor range." });
+    }
+
+    return HardwarePaginationResponse(requestLine);
+}
 
 int NextHardwarePaginationScenarioCall(string scenario)
 {
@@ -1062,16 +1073,23 @@ HardwarePageCandidateResultInfo HardwarePaginationCandidates(string requestLine)
         StartOffset: startOffset,
         TotalDevices: devices.Count,
         TotalSubnets: subnets.Count,
-        Messages: new[] { "Fixture page diagnostic." },
+        Messages: HardwarePaginationMessages(),
         DeviceCandidates: returnedDevices,
         SubnetCandidates: returnedSubnets);
     return ScenarioKey(currentProjectPath) switch
     {
-        "hardware-pagination-malformed-offset" => payload with { StartOffset = payload.StartOffset + 1 },
+        "hardware-pagination-malformed-offset" => payload with { DeviceCandidates = payload.DeviceCandidates.Select((candidate, index) => index == 0 ? candidate with { Offset = candidate.Offset + 1 } : candidate).ToArray() },
         "hardware-pagination-incoherent-counts" => payload with { TotalDevices = 0 },
+        "hardware-pagination-snapshot-drift" when request.HardwarePageContinuation is not null => payload with { SnapshotHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        "hardware-pagination-out-of-range" when request.HardwarePageContinuation is not null => payload with { TotalDevices = 0, TotalSubnets = 0, DeviceCandidates = Array.Empty<HardwareDevicePageCandidateInfo>(), SubnetCandidates = Array.Empty<HardwareSubnetPageCandidateInfo>() },
         _ => payload,
     };
 }
+
+IReadOnlyList<string> HardwarePaginationMessages()
+    => string.Equals(ScenarioKey(currentProjectPath), "hardware-pagination-telemetry", StringComparison.Ordinal)
+        ? new[] { "Fixture page diagnostic.", $"Worker candidate requests: {NextHardwarePaginationScenarioCall("hardware-pagination-telemetry")}." }
+        : new[] { "Fixture page diagnostic." };
 
 List<HardwarePageFixtureDevice> HardwarePaginationDevices()
 {

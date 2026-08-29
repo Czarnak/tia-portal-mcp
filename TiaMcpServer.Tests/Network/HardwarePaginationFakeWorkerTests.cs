@@ -30,12 +30,16 @@ public sealed class HardwarePaginationFakeWorkerTests
             pageSize: 2,
             cursor: second.GetProperty("pagination").GetProperty("nextCursor").GetString());
 
+        AssertPageCounters(first, 3, 2);
+        AssertPageCounters(second, 3, 2);
+        AssertPageCounters(third, 3, 2);
+
         Assert.Equal(
-            new[] { "PLC_DUP", "PLC_DUP", "ET200_GROUPED" },
+            new[] { "PLC_DUP:OrderNumber:CPU-1515", "PLC_DUP:OrderNumber:CPU-1516", "ET200_GROUPED:OrderNumber:ET200" },
             first.GetProperty("devices").EnumerateArray()
                 .Concat(second.GetProperty("devices").EnumerateArray())
                 .Concat(third.GetProperty("devices").EnumerateArray())
-                .Select(device => device.GetProperty("name").GetString())
+                .Select(device => $"{device.GetProperty("name").GetString()}:{device.GetProperty("typeIdentifier").GetString()}")
                 .ToArray());
         Assert.Equal(
             new[] { "PN/IE_MAIN", "PN/IE_REMOTE" },
@@ -47,6 +51,9 @@ public sealed class HardwarePaginationFakeWorkerTests
 
         Assert.Equal(3, first.GetProperty("pagination").GetProperty("totalDevices").GetInt32());
         Assert.Equal(2, first.GetProperty("pagination").GetProperty("totalSubnets").GetInt32());
+        Assert.Equal("Fixture page diagnostic.", first.GetProperty("messages")[0].GetString());
+        Assert.DoesNotContain("Candidate diagnostic: main subnet.", first.GetProperty("messages").EnumerateArray().Select(message => message.GetString()));
+        Assert.Contains("Candidate diagnostic: main subnet.", third.GetProperty("messages").EnumerateArray().Select(message => message.GetString()));
         Assert.False(third.GetProperty("pagination").TryGetProperty("nextCursor", out _));
     }
 
@@ -72,16 +79,29 @@ public sealed class HardwarePaginationFakeWorkerTests
     public async Task NetworkRead_ChangedCursorBoundFilterFailsBeforeTheWorker()
     {
         using var client = CreateClient();
-        var first = await ReadPage(client, 1, Scenario);
+        var first = await ReadPage(client, 1, "hardware-pagination-telemetry");
         var operation = await ReadOperation(client, 1, cursor: Cursor(first), deviceName: "PLC_DUP");
+        var resumed = await ReadPage(client, 1, cursor: Cursor(first));
 
         Assert.Equal(WorkerFailureCategories.CursorFilterMismatch, FailureCategory(operation));
+        Assert.Contains("Worker candidate requests: 2.", resumed.GetProperty("messages").EnumerateArray().Select(message => message.GetString()));
+    }
+
+    [Fact]
+    public async Task NetworkRead_ChangedCursorBoundDetailFlagFailsBeforeTheWorker()
+    {
+        using var client = CreateClient();
+        var first = await ReadPage(client, 1, "hardware-pagination-telemetry");
+        var operation = await ReadOperation(client, 1, cursor: Cursor(first), includeIoDetails: true);
+        var resumed = await ReadPage(client, 1, cursor: Cursor(first));
+
+        Assert.Equal(WorkerFailureCategories.CursorFilterMismatch, FailureCategory(operation));
+        Assert.Contains("Worker candidate requests: 2.", resumed.GetProperty("messages").EnumerateArray().Select(message => message.GetString()));
     }
 
     [Theory]
     [InlineData("hardware-pagination-snapshot-drift", WorkerFailureCategories.CursorSnapshotMismatch)]
     [InlineData("hardware-pagination-out-of-range", WorkerFailureCategories.CursorOutOfRange)]
-    [InlineData("hardware-pagination-binding-drift", WorkerFailureCategories.CursorBindingMismatch)]
     [InlineData("hardware-pagination-identity-drift", WorkerFailureCategories.CursorBindingMismatch)]
     public async Task NetworkRead_ContinuationWorkerDriftUsesTheApprovedFailureCategory(string scenario, string category)
     {
@@ -90,6 +110,19 @@ public sealed class HardwarePaginationFakeWorkerTests
         var operation = await ReadOperation(client, 1, cursor: Cursor(first));
 
         Assert.Equal(category, FailureCategory(operation));
+    }
+
+    [Fact]
+    public async Task NetworkRead_HostBindingChangeAfterTheFirstPageFailsBeforeTheWorker()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        var first = await ReadPage(client, 1, Scenario);
+        Assert.True(binding.Bind(@"C:\Different\Project.ap21", forceRebind: false, out var error), error);
+
+        var operation = await ReadOperation(client, 1, cursor: Cursor(first));
+
+        Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, FailureCategory(operation));
     }
 
     [Fact]
@@ -158,9 +191,10 @@ public sealed class HardwarePaginationFakeWorkerTests
         string? projectPath = null,
         string? cursor = null,
         string? deviceName = null,
+        bool? includeIoDetails = null,
         bool paged = true)
     {
-        var operation = await ReadOperation(client, pageSize, projectPath, cursor, deviceName, paged);
+        var operation = await ReadOperation(client, pageSize, projectPath, cursor, deviceName, includeIoDetails, paged);
         Assert.True(
             string.Equals("succeeded", operation.GetProperty("status").GetString(), StringComparison.Ordinal),
             operation.GetRawText());
@@ -173,6 +207,7 @@ public sealed class HardwarePaginationFakeWorkerTests
         string? projectPath = null,
         string? cursor = null,
         string? deviceName = null,
+        bool? includeIoDetails = null,
         bool paged = true)
     {
         var result = await NetworkReadTools.NetworkRead(
@@ -187,6 +222,7 @@ public sealed class HardwarePaginationFakeWorkerTests
                     PageSize = paged ? pageSize : null,
                     Cursor = cursor,
                     DeviceName = deviceName,
+                    IncludeIoDetails = includeIoDetails,
                 },
             });
 
@@ -205,4 +241,13 @@ public sealed class HardwarePaginationFakeWorkerTests
 
     private static string FailureCategory(JsonElement operation)
         => operation.GetProperty("failure").GetProperty("category").GetString()!;
+
+    private static void AssertPageCounters(JsonElement page, int totalDevices, int totalSubnets)
+    {
+        var pagination = page.GetProperty("pagination");
+        Assert.Equal(totalDevices, pagination.GetProperty("totalDevices").GetInt32());
+        Assert.Equal(totalSubnets, pagination.GetProperty("totalSubnets").GetInt32());
+        Assert.Equal(page.GetProperty("devices").GetArrayLength(), pagination.GetProperty("returnedDevices").GetInt32());
+        Assert.Equal(page.GetProperty("subnets").GetArrayLength(), pagination.GetProperty("returnedSubnets").GetInt32());
+    }
 }
