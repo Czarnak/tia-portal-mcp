@@ -206,6 +206,28 @@ public class HardwarePageProjectorTests
         Assert.True(CanonicalJson.Serialize(item).Length <= ItemLimit);
     }
 
+    [Fact]
+    public void Project_ThrowsIfEvenTheMinimalOmissionCannotFitTheItemLimit()
+    {
+        var operation = new NetworkOperationRequest
+        {
+            OperationId = new string('x', ItemLimit),
+            Operation = "read_hardware_config",
+            PageSize = 1,
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => Projector().Project(
+            operation,
+            Payload(totalDevices: 1, totalSubnets: 0, devices: new[] { DeviceCandidate(0, "d") }),
+            ResolvedPath(),
+            Identity(),
+            Unbound(),
+            Array.Empty<string>(),
+            maxItemChars: ItemLimit));
+
+        Assert.Contains("minimal hardware-page omission", exception.Message, StringComparison.Ordinal);
+    }
+
     private static HardwarePageProjector Projector() => new(Codec());
 
     private static HardwarePageCursorCodec Codec() => new(new byte[32]);

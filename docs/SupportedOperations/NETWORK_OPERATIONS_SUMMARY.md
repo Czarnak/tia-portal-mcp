@@ -36,6 +36,9 @@ The MCP provides a bounded device and network-identity surface:
 `configure_network_device` is not a general network-editor proxy. Its writable contract is limited to the listed `changes` fields, and every selector is exact — see "Selector resolution" below.
 `create_subnet`, `update_subnet`, and `delete_subnet` are the Phase 4 subnet lifecycle operations,
 detailed in [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+Every Network batch operation requires a unique, nonblank `operationId` of at most 256 characters.
+This deterministic bound preserves enough room for the fixed status/omission envelope under the
+per-item response limit; oversized identifiers are rejected before any worker call.
 
 ### Discovery and inspection requests
 
@@ -527,11 +530,14 @@ Hardware configuration results and compile results are engineering data. They do
 
 `scripts/live-test-hardware-pagination.ps1` is the separately authorized, read-only PowerShell 7
 harness for the public hardware-pagination contract. It launches the real MCP host in read-only
-mode, follows `nextCursor` without changing bound query fields, verifies stable totals and exact
-device/subnet reconstruction, enforces the per-item limit, and records correctness separately from
-page timing. It stops with a clear artifact on cursor failure or omission. Contract tests inspect
-the script but never execute it. The harness has not yet been run against live TIA Portal V21, so
-live pagination behavior remains unverified.
+mode, follows `nextCursor` without changing bound query fields, checks stable totals and
+device-before-subnet count/order consistency, persists the observed ordered public-entity
+identities and canonical fingerprints, enforces the per-item limit, and records correctness
+separately from page timing. Those observations are not an independent expected inventory, so the
+harness does not claim exact project reconstruction from returned counts alone. It stops with a
+clear artifact on cursor failure or omission. Contract tests inspect the script but never execute
+it. The harness has not yet been run against live TIA Portal V21, so live pagination behavior
+remains unverified.
 
 `scripts/live-test-network-phase3.ps1` is the separately authorized, read-only PowerShell 7
 harness for discovery and inspection. `Matrix`, `Repeatability`, and `MeasureListValue` launch the

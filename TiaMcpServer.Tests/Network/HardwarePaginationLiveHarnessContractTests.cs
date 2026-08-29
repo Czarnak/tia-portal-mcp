@@ -1,4 +1,8 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using TiaMcpServer.Json;
+using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -71,7 +75,7 @@ public class HardwarePaginationLiveHarnessContractTests
         var text = ReadScript();
 
         Assert.Contains("$script:ItemCharacterLimit = 60000", text, StringComparison.Ordinal);
-        Assert.Contains("Assert-CanonicalItemWithinLimit", text, StringComparison.Ordinal);
+        Assert.Contains("Get-CanonicalOperationItemEvidence", text, StringComparison.Ordinal);
         Assert.Contains("Assert-StableTotals", text, StringComparison.Ordinal);
         Assert.Contains("Assert-CombinedPageOrderAndSize", text, StringComparison.Ordinal);
         Assert.Contains("Assert-PageOffsets", text, StringComparison.Ordinal);
@@ -79,6 +83,76 @@ public class HardwarePaginationLiveHarnessContractTests
         Assert.Contains("deviceEndOffset", text, StringComparison.Ordinal);
         Assert.Contains("subnetStartOffset", text, StringComparison.Ordinal);
         Assert.Contains("subnetEndOffset", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Script_MeasuresTheExactCanonicalOperationItemFromContentText()
+    {
+        var text = ReadScript();
+        var toolCall = ExtractFunction(text, "Invoke-McpToolCall");
+        var measurement = ExtractFunction(text, "Get-CanonicalOperationItemEvidence");
+
+        Assert.Contains("content[0].text", toolCall, StringComparison.Ordinal);
+        Assert.Contains("[System.Text.Json.JsonDocument]::Parse", measurement, StringComparison.Ordinal);
+        Assert.Contains("GetRawText()", measurement, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConvertTo-Json", measurement, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CanonicalContentSelection_MatchesCanonicalItemLengthForUnicodeAndEscapedContent()
+    {
+        var item = new StructuredOperationItem(
+            "sprz\u0119t-\"quoted\"",
+            "read_hardware_config",
+            OperationBatchStatus.Succeeded,
+            CanonicalJson.ToElement(new { name = "Za\u017c\u00f3\u0142\u0107 \\\"line\\\" \\\\ path\nnext" }),
+            Failure: null,
+            Omission: null,
+            SkipReason: null,
+            Warnings: new[] { "ostrze\u017cenie \\\"quoted\\\" \\\\" });
+        var response = new NetworkReadResponse(
+            "network_read",
+            Success: true,
+            StructuredOperationBatch.FromItems(new[] { item }),
+            Error: null);
+        var contentText = CanonicalJson.Serialize(response);
+
+        using var document = JsonDocument.Parse(contentText);
+        var rawItem = document.RootElement
+            .GetProperty("batch")
+            .GetProperty("operations")
+            .EnumerateArray()
+            .Single()
+            .GetRawText();
+
+        Assert.Equal(CanonicalJson.Serialize(item), rawItem);
+        Assert.Equal(CanonicalJson.Serialize(item).Length, rawItem.Length);
+    }
+
+    [Fact]
+    public void Script_UsesAnAsyncReadBoundedByTheRemainingDeadlineForASilentChild()
+    {
+        var function = ExtractFunction(ReadScript(), "Read-McpResponse");
+
+        Assert.DoesNotContain("StandardOutput.ReadLine()", function, StringComparison.Ordinal);
+        Assert.Contains("StandardOutput.ReadLineAsync()", function, StringComparison.Ordinal);
+        Assert.Contains("$remaining = $deadline - (Get-Date)", function, StringComparison.Ordinal);
+        Assert.Contains("$readTask.WaitAsync($remaining)", function, StringComparison.Ordinal);
+        Assert.Contains("[System.TimeoutException]", function, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Script_PersistsObservedOrderedFingerprintsAndClaimsOnlyCountOrderConsistency()
+    {
+        var text = ReadScript();
+
+        Assert.Contains("$script:EntityFingerprintEvidence", text, StringComparison.Ordinal);
+        Assert.Contains("canonicalSha256", text, StringComparison.Ordinal);
+        Assert.Contains("count/order consistency", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "reconstructed every reported device and subnet exactly once",
+            text,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -153,6 +227,16 @@ public class HardwarePaginationLiveHarnessContractTests
     {
         Assert.True(File.Exists(ScriptPath), $"Expected the live harness at '{ScriptPath}'.");
         return File.ReadAllText(ScriptPath);
+    }
+
+    private static string ExtractFunction(string text, string name)
+    {
+        var match = Regex.Match(
+            text,
+            $@"(?ms)^function\s+{Regex.Escape(name)}\s*\{{.*?^\}}\s*$",
+            RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"Expected function '{name}' in the live harness.");
+        return match.Value;
     }
 
     private static string GetRepositoryRoot()

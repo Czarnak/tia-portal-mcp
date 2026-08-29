@@ -6,6 +6,8 @@ namespace TiaMcpServer.Tests.Network;
 
 public class NetworkOperationCatalogTests
 {
+    private const int ExpectedMaxOperationIdLength = 256;
+
     private static NetworkOperationRequest Op(
         string id,
         string operation,
@@ -98,6 +100,26 @@ public class NetworkOperationCatalogTests
         Assert.Contains("same", duplicates.Error);
         Assert.False(wrongCategory.IsValid);
         Assert.Contains("write", wrongCategory.Error);
+    }
+
+    [Fact]
+    public void ValidateRead_BoundsOperationIdBeforeItCanInflateAResponseItem()
+    {
+        var exact = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            // Control characters expand to six-character JSON escapes, so this exercises the
+            // worst practical canonical rendering while remaining inside the identifier bound.
+            Op(new string('\u0001', ExpectedMaxOperationIdLength), "read_hardware_config"),
+        });
+        var oversized = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            Op(new string('x', ExpectedMaxOperationIdLength + 1), "read_hardware_config"),
+        });
+
+        Assert.True(exact.IsValid, exact.Error);
+        Assert.False(oversized.IsValid);
+        Assert.Contains($"at most {ExpectedMaxOperationIdLength} characters", oversized.Error);
+        Assert.DoesNotContain(new string('x', ExpectedMaxOperationIdLength + 1), oversized.Error);
     }
 
     [Fact]

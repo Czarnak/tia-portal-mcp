@@ -6,8 +6,10 @@
 .DESCRIPTION
     Launches the real TiaMcpServer host in read-only mode and calls only the public network_read
     tool with read_hardware_config. It follows nextCursor until the terminal page, verifies the
-    public page counters and the 60,000-character operation-item limit, and writes correctness
-    and timing evidence to separate JSON artifacts.
+    public page counters, device-before-subnet order, observed ordered public-entity fingerprints,
+    and the 60,000-character operation-item limit. It writes count/order consistency and timing
+    evidence to separate JSON artifacts; without an independent expected inventory, it does not
+    claim exact project reconstruction from returned counts alone.
 
     THIS SCRIPT IS NOT RUN BY ANY AUTOMATED TEST OR CI GATE. Running it requires an explicit
     invocation, a running TIA Portal V21 instance, a suitable open project, and separate live-TIA
@@ -78,6 +80,7 @@ $script:ArtifactDirectory = $null
 $script:TranscriptPath = $null
 $script:PageEvidence = [System.Collections.Generic.List[object]]::new()
 $script:TimingEvidence = [System.Collections.Generic.List[object]]::new()
+$script:EntityFingerprintEvidence = [System.Collections.Generic.List[object]]::new()
 $script:ExpectedTotals = $null
 $script:DeviceOffset = 0
 $script:SubnetOffset = 0
@@ -204,7 +207,18 @@ function Read-McpResponse {
             throw "The MCP host exited with code $($script:HostProcess.ExitCode) before response id $Id."
         }
 
-        $line = $script:HostProcess.StandardOutput.ReadLine()
+        $remaining = $deadline - (Get-Date)
+        if ($remaining.TotalMilliseconds -le 0) {
+            break
+        }
+
+        $readTask = $script:HostProcess.StandardOutput.ReadLineAsync()
+        try {
+            $line = $readTask.WaitAsync($remaining).GetAwaiter().GetResult()
+        }
+        catch [System.TimeoutException] {
+            break
+        }
         if ($null -eq $line -or [string]::IsNullOrWhiteSpace($line)) {
             continue
         }
@@ -284,10 +298,17 @@ function Invoke-McpToolCall {
     if ($result.isError) {
         throw "Tool '$Name' returned isError:true."
     }
-    if ($null -ne $result.structuredContent) {
-        return $result.structuredContent
+    if ($null -eq $result.content -or @($result.content).Count -eq 0) {
+        throw "Tool '$Name' returned no text content."
     }
-    return ($result.content[0].text | ConvertFrom-Json -Depth 100)
+    $contentText = [string] $result.content[0].text
+    if ([string]::IsNullOrWhiteSpace($contentText)) {
+        throw "Tool '$Name' returned empty text content."
+    }
+    return [pscustomobject]@{
+        Response = ($contentText | ConvertFrom-Json -Depth 100)
+        ContentText = $contentText
+    }
 }
 
 function Assert-BoundQueryUnchanged {
@@ -329,23 +350,73 @@ function Invoke-HardwarePage {
 
     $readOperation = New-HardwareReadOperation -nextCursor $nextCursor
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $response = Invoke-McpToolCall -Name 'network_read' -Arguments @{ operations = @($readOperation) }
+    $toolCall = Invoke-McpToolCall -Name 'network_read' -Arguments @{ operations = @($readOperation) }
     $stopwatch.Stop()
     return [pscustomobject]@{
-        Response = $response
+        Response = $toolCall.Response
+        ContentText = $toolCall.ContentText
         ElapsedMilliseconds = $stopwatch.ElapsedMilliseconds
     }
 }
 
-function Assert-CanonicalItemWithinLimit {
-    param([Parameter(Mandatory)] $Item)
+function Get-CanonicalSha256 {
+    param([Parameter(Mandatory)] [string] $CanonicalText)
 
-    $canonicalItem = $Item | ConvertTo-Json -Compress -Depth 100
-    $characters = $canonicalItem.Length
-    if ($characters -gt $script:ItemCharacterLimit) {
-        throw "Canonical operation item length $characters exceeds $($script:ItemCharacterLimit)."
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($CanonicalText)
+    $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
+    return [System.Convert]::ToHexString($hash).ToLowerInvariant()
+}
+
+function Get-CanonicalOperationItemEvidence {
+    param([Parameter(Mandatory)] [string] $ContentText)
+
+    $document = [System.Text.Json.JsonDocument]::Parse($ContentText)
+    try {
+        $operations = $document.RootElement.GetProperty('batch').GetProperty('operations')
+        if ($operations.GetArrayLength() -ne 1) {
+            throw 'Canonical network_read content did not contain exactly one operation item.'
+        }
+
+        $item = $null
+        foreach ($candidate in $operations.EnumerateArray()) {
+            $item = $candidate
+            break
+        }
+        $itemText = $item.GetRawText()
+        $devices = [System.Collections.Generic.List[object]]::new()
+        $subnets = [System.Collections.Generic.List[object]]::new()
+        $result = $item.GetProperty('result')
+        if ($result.ValueKind -eq [System.Text.Json.JsonValueKind]::Object) {
+            foreach ($device in $result.GetProperty('devices').EnumerateArray()) {
+                $name = $device.GetProperty('name').GetString()
+                $devices.Add([pscustomobject]@{
+                    kind = 'device'
+                    name = $name
+                    identifier = $null
+                    canonicalSha256 = Get-CanonicalSha256 -CanonicalText ($device.GetRawText())
+                })
+            }
+            foreach ($subnet in $result.GetProperty('subnets').EnumerateArray()) {
+                $name = $subnet.GetProperty('name').GetString()
+                $identifier = $subnet.GetProperty('subnetId').GetString()
+                $subnets.Add([pscustomobject]@{
+                    kind = 'subnet'
+                    name = $name
+                    identifier = $identifier
+                    canonicalSha256 = Get-CanonicalSha256 -CanonicalText ($subnet.GetRawText())
+                })
+            }
+        }
+
+        return [pscustomobject]@{
+            ItemCharacters = $itemText.Length
+            Devices = @($devices)
+            Subnets = @($subnets)
+        }
     }
-    return $characters
+    finally {
+        $document.Dispose()
+    }
 }
 
 function Assert-StableTotals {
@@ -437,6 +508,7 @@ function Save-PartialEvidence {
     $correctness = [ordered]@{
         outcome = 'partial'
         testedCombination = $Combination
+        observedOrderedEntities = @($script:EntityFingerprintEvidence)
         pages = @($script:PageEvidence)
     }
     $timing = [ordered]@{ pages = @($script:TimingEvidence) }
@@ -468,7 +540,11 @@ try {
             throw 'network_read did not return exactly one operation item.'
         }
         $item = @($batch.operations)[0]
-        $itemCharacters = Assert-CanonicalItemWithinLimit -Item $item
+        $canonicalEvidence = Get-CanonicalOperationItemEvidence -ContentText $call.ContentText
+        $itemCharacters = $canonicalEvidence.ItemCharacters
+        if ($itemCharacters -gt $script:ItemCharacterLimit) {
+            throw "Canonical operation item length $itemCharacters exceeds $($script:ItemCharacterLimit)."
+        }
         $script:TimingEvidence.Add([ordered]@{
             pageIndex = $pageIndex
             elapsedMilliseconds = $call.ElapsedMilliseconds
@@ -504,6 +580,33 @@ try {
         Assert-StableTotals -Pagination $result.pagination
         Assert-CombinedPageOrderAndSize -Result $result -Pagination $result.pagination
         $offsets = Assert-PageOffsets -Result $result -Pagination $result.pagination
+        $pageEntities = [System.Collections.Generic.List[object]]::new()
+        $entityIndex = 0
+        foreach ($entity in @($canonicalEvidence.Devices)) {
+            $record = [ordered]@{
+                sequenceIndex = $offsets.deviceStartOffset + $entityIndex
+                kind = $entity.kind
+                name = $entity.name
+                identifier = $entity.identifier
+                canonicalSha256 = $entity.canonicalSha256
+            }
+            $script:EntityFingerprintEvidence.Add($record)
+            $pageEntities.Add($record)
+            $entityIndex++
+        }
+        $entityIndex = 0
+        foreach ($entity in @($canonicalEvidence.Subnets)) {
+            $record = [ordered]@{
+                sequenceIndex = [int] $result.pagination.totalDevices + $offsets.subnetStartOffset + $entityIndex
+                kind = $entity.kind
+                name = $entity.name
+                identifier = $entity.identifier
+                canonicalSha256 = $entity.canonicalSha256
+            }
+            $script:EntityFingerprintEvidence.Add($record)
+            $pageEntities.Add($record)
+            $entityIndex++
+        }
         $returnedCount = [int] $result.pagination.returnedDevices + [int] $result.pagination.returnedSubnets
         $nextCursorProperty = $result.pagination.PSObject.Properties['nextCursor']
         $hasNextCursor = $null -ne $nextCursorProperty -and $null -ne $nextCursorProperty.Value
@@ -522,6 +625,7 @@ try {
             deviceEndOffset = $offsets.deviceEndOffset
             subnetStartOffset = $offsets.subnetStartOffset
             subnetEndOffset = $offsets.subnetEndOffset
+            observedOrderedEntities = @($pageEntities)
             hasNextCursor = $hasNextCursor
         })
 
@@ -534,21 +638,22 @@ try {
 
     if ($script:DeviceOffset -ne $script:ExpectedTotals.totalDevices -or
         $script:SubnetOffset -ne $script:ExpectedTotals.totalSubnets) {
-        throw 'Terminal offsets did not reconstruct every device and subnet exactly once.'
+        throw 'Terminal offsets were inconsistent with the reported device and subnet totals.'
     }
 
     $correctness = [ordered]@{
         outcome = 'passed'
-        scope = 'Only the exact live project/filter/detail combination recorded here was tested.'
+        scope = 'Only the exact live project/filter/detail combination recorded here was tested; count/order consistency is observed evidence, not an independent expected inventory.'
         testedCombination = $testedCombination
         totalDevices = $script:ExpectedTotals.totalDevices
         totalSubnets = $script:ExpectedTotals.totalSubnets
+        observedOrderedEntities = @($script:EntityFingerprintEvidence)
         pages = @($script:PageEvidence)
     }
     $timing = [ordered]@{ pages = @($script:TimingEvidence) }
     $correctnessPath = Write-JsonArtifact -Name 'correctness.json' -Value $correctness
     $timingPath = Write-JsonArtifact -Name 'timing.json' -Value $timing
-    Write-Host 'PASS: read-only live pagination reconstructed every reported device and subnet exactly once.'
+    Write-Host 'PASS: read-only live pagination reported internally consistent counts, order, and observed entity fingerprints.'
     Write-Host 'This proves only the exact live project/filter/detail combination recorded in the artifact.'
     Write-Host "Correctness evidence: $correctnessPath"
     Write-Host "Timing evidence: $timingPath"

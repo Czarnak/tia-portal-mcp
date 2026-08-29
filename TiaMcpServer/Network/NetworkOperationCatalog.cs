@@ -29,6 +29,7 @@ public sealed record NetworkValidationResult(bool IsValid, string Error)
 public static class NetworkOperationCatalog
 {
     public const int MaxBatchSize = 50;
+    public const int MaxOperationIdLength = 256;
     public const int MaxPageSize = 200;
     public const int MaxAttributeNames = 200;
 
@@ -189,6 +190,15 @@ public static class NetworkOperationCatalog
             if (string.IsNullOrWhiteSpace(operation.OperationId))
             {
                 errors.Add("Each operation requires a unique operationId.");
+                continue;
+            }
+
+            // operationId is repeated in every public item and in truncation evidence. Bound it
+            // before any response construction so caller-controlled identity text cannot consume
+            // the entire per-item budget or make even the minimal omission impossible to render.
+            if (operation.OperationId.Length > MaxOperationIdLength)
+            {
+                errors.Add($"Each operationId must be at most {MaxOperationIdLength} characters.");
                 continue;
             }
 

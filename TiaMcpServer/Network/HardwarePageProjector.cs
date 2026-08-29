@@ -192,7 +192,7 @@ internal sealed class HardwarePageProjector
             }
         }
 
-        return warnings.Count == 0
+        var minimal = warnings.Count == 0
             ? omission
             : Omitted(
                 operation,
@@ -201,6 +201,16 @@ internal sealed class HardwarePageProjector
                 limitChars,
                 subject: null,
                 warnings: Array.Empty<string>());
+        if (ItemChars(minimal) > limitChars)
+        {
+            // Public catalog validation leaves ample room for this fixed envelope. Keep the
+            // internal seam fail-closed as well: a future bypass must not silently publish an
+            // operation item that violates the projector's promised limit.
+            throw new InvalidOperationException(
+                $"The minimal hardware-page omission cannot fit the {limitChars}-character item limit.");
+        }
+
+        return minimal;
     }
 
     private static StructuredOperationItem Omitted(
