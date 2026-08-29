@@ -47,16 +47,18 @@ public class HardwarePaginationWorkerSourceContractTests
     [Fact]
     public void SiemensWiring_EnumeratesDescriptorsAndUsesNarrowCandidateMaterializers()
     {
-        var source = ReadRepositorySource(
+        var factorySource = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwarePageCandidateSourceFactory.cs");
+        var readerSource = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
 
-        Assert.Contains("ProjectDeviceEnumerator", source, StringComparison.Ordinal);
-        Assert.Contains("EnumerateWithLocations(project)", source, StringComparison.Ordinal);
-        Assert.Contains("new HardwarePageDescriptorSet(descriptors)", source, StringComparison.Ordinal);
-        Assert.Contains("ReadDevicePageCandidate(", source, StringComparison.Ordinal);
-        Assert.Contains("ReadSubnetPageCandidate(", source, StringComparison.Ordinal);
-        Assert.Contains("ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex)", source, StringComparison.Ordinal);
-        Assert.Contains("ReadSubnet(subnet, subnetId, messages)", source, StringComparison.Ordinal);
+        Assert.Contains("ProjectDeviceEnumerator", factorySource, StringComparison.Ordinal);
+        Assert.Contains("EnumerateWithLocations(project)", factorySource, StringComparison.Ordinal);
+        Assert.Contains("new HardwarePageDescriptorSet(descriptors)", factorySource, StringComparison.Ordinal);
+        Assert.Contains("HardwareConfigReader.ReadDevicePageCandidate(", factorySource, StringComparison.Ordinal);
+        Assert.Contains("HardwareConfigReader.ReadSubnetPageCandidate(", factorySource, StringComparison.Ordinal);
+        Assert.Contains("ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex)", readerSource, StringComparison.Ordinal);
+        Assert.Contains("ReadSubnet(subnet, subnetId, messages)", readerSource, StringComparison.Ordinal);
     }
 
     private static void AssertBefore(string source, string first, string second)

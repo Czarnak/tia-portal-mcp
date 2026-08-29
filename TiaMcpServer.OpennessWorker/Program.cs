@@ -237,7 +237,7 @@ internal static class Program
         return WithProject(request, project =>
         {
             ValidateHardwarePageContinuationIdentity(request);
-            var source = HardwareConfigReader.CreatePageCandidateSource(
+            var source = HardwarePageCandidateSourceFactory.Create(
                 project,
                 request.DeviceName,
                 request.PlcName,
