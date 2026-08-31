@@ -9,6 +9,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Safety;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class WriteSafetyLeaseConcurrencyTests
 {
     [Fact]
