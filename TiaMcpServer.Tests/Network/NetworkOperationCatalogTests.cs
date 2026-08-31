@@ -6,6 +6,8 @@ namespace TiaMcpServer.Tests.Network;
 
 public class NetworkOperationCatalogTests
 {
+    private const int ExpectedMaxOperationIdLength = 256;
+
     private static NetworkOperationRequest Op(
         string id,
         string operation,
@@ -39,7 +41,7 @@ public class NetworkOperationCatalogTests
     {
         var expected = new Dictionary<string, (NetworkOperationCategory Category, string[] Required, string[] Optional)>
         {
-            ["read_hardware_config"] = (NetworkOperationCategory.Read, Array.Empty<string>(), new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches" }),
+            ["read_hardware_config"] = (NetworkOperationCategory.Read, Array.Empty<string>(), new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches", "pageSize", "cursor" }),
             ["search_equipment_catalog"] = (NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             ["add_network_device"] = (NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
             ["configure_network_device"] = (NetworkOperationCategory.Write, new[] { "target", "changes" }, Array.Empty<string>()),
@@ -98,6 +100,61 @@ public class NetworkOperationCatalogTests
         Assert.Contains("same", duplicates.Error);
         Assert.False(wrongCategory.IsValid);
         Assert.Contains("write", wrongCategory.Error);
+    }
+
+    [Fact]
+    public void ValidateRead_BoundsOperationIdBeforeItCanInflateAResponseItem()
+    {
+        var exact = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            // Control characters expand to six-character JSON escapes, so this exercises the
+            // worst practical canonical rendering while remaining inside the identifier bound.
+            Op(new string('\u0001', ExpectedMaxOperationIdLength), "read_hardware_config"),
+        });
+        var oversized = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            Op(new string('x', ExpectedMaxOperationIdLength + 1), "read_hardware_config"),
+        });
+
+        Assert.True(exact.IsValid, exact.Error);
+        Assert.False(oversized.IsValid);
+        Assert.Contains($"at most {ExpectedMaxOperationIdLength} characters", oversized.Error);
+        Assert.DoesNotContain(new string('x', ExpectedMaxOperationIdLength + 1), oversized.Error);
+    }
+
+    [Fact]
+    public void ValidateRead_HardwarePaginationAcceptsCursorOnlyAndBoundsPageSize()
+    {
+        var cursorOnly = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            Op("cursor", "read_hardware_config", operation => operation.Cursor = "opaque"),
+        });
+        var invalidPageSize = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            Op("bounds", "read_hardware_config", operation => operation.PageSize = 201),
+        });
+
+        Assert.True(cursorOnly.IsValid, cursorOnly.Error);
+        Assert.False(invalidPageSize.IsValid);
+        Assert.Contains("pageSize", invalidPageSize.Error);
+    }
+
+    [Fact]
+    public void ValidateRead_HardwarePaginationFieldsAreInvalidForOtherOperations()
+    {
+        var result = NetworkOperationCatalog.ValidateRead(new[]
+        {
+            Op("catalog", "search_equipment_catalog", operation =>
+            {
+                operation.Query = "CPU";
+                operation.PageSize = 10;
+                operation.Cursor = "opaque";
+            }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("pageSize", result.Error);
+        Assert.Contains("cursor", result.Error);
     }
 
     [Fact]

@@ -14,6 +14,8 @@ namespace TiaMcpServer.Tests.Network;
 
 public class NetworkToolsTests
 {
+    private const int ExpectedMaxOperationIdLength = 256;
+
     /// <summary>A FakeWorker scenario whose hardware read AND write payloads both satisfy their
     /// declared Phase 2 result contracts, and whose hardware state is stable across requests so a
     /// preview/apply round trip binds.</summary>
@@ -162,12 +164,40 @@ public class NetworkToolsTests
     }
 
     [Fact]
+    public void NetworkRead_DescriptionExplainsTheHardwarePaginationContract()
+    {
+        var description = RequiredToolMethod("NetworkReadTools", "NetworkRead")
+            .GetCustomAttribute<DescriptionAttribute>()?.Description;
+
+        Assert.NotNull(description);
+        Assert.Contains("pageSize", description, StringComparison.Ordinal);
+        Assert.Contains("cursor", description, StringComparison.Ordinal);
+        Assert.Contains("1..200", description, StringComparison.Ordinal);
+        Assert.Contains("defaults to 50", description, StringComparison.Ordinal);
+        Assert.Contains("devices first, then subnets", description, StringComparison.Ordinal);
+        Assert.Contains("must remain unchanged", description, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NetworkRead_RejectsEmptyBatchBeforeWorkerStartup()
     {
         var result = await NetworkRead(null, Array.Empty<NetworkOperationRequest>());
 
         Assert.True(result.IsError);
         Assert.Contains("at least one", ReadText(result));
+    }
+
+    [Fact]
+    public async Task NetworkRead_RejectsOversizedOperationIdBeforeWorkerStartup()
+    {
+        var operationId = new string('x', ExpectedMaxOperationIdLength + 1);
+
+        var result = await NetworkRead(null, new[] { ReadHardware(operationId, "unused") });
+
+        Assert.True(result.IsError);
+        var text = ReadText(result);
+        Assert.Contains($"at most {ExpectedMaxOperationIdLength} characters", text);
+        Assert.DoesNotContain(operationId, text, StringComparison.Ordinal);
     }
 
     [Fact]

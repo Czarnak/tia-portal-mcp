@@ -45,6 +45,8 @@
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
       Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\HardwarePageWorkerCallResult.cs"
+      Link="Host\HardwarePageWorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
     <Compile Include="..\TiaMcpServer\Json\CanonicalJson.cs" Link="Host\Json\CanonicalJson.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
@@ -87,6 +89,18 @@
     <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationRequest.cs"
       Link="Host\Network\NetworkOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorState.cs"
+      Link="Host\Network\HardwarePageCursorState.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorCodec.cs"
+      Link="Host\Network\HardwarePageCursorCodec.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePagePayloadContract.cs"
+      Link="Host\Network\HardwarePagePayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePageProjector.cs"
+      Link="Host\Network\HardwarePageProjector.cs" />
+    <Compile Include="..\TiaMcpServer\Network\HardwarePaginationCoordinator.cs"
+      Link="Host\Network\HardwarePaginationCoordinator.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkReadOperationExecutor.cs"
+      Link="Host\Network\NetworkReadOperationExecutor.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationCatalog.cs"
       Link="Host\Network\NetworkOperationCatalog.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWorkerInvoker.cs"
@@ -115,6 +129,10 @@
       Link="Linked\Openness\WorkerOperationException.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationAuthorization.cs"
       Link="Linked\Openness\WorkerOperationAuthorization.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\HardwarePageDescriptorSet.cs"
+      Link="Worker\HardwarePageDescriptorSet.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\HardwarePageCandidateReader.cs"
+      Link="Worker\HardwarePageCandidateReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDocument.cs"
       Link="Linked\Openness\BlockImportDocument.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ParsedBlockImportBundle.cs"

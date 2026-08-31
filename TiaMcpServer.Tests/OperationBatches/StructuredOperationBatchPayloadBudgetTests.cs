@@ -82,6 +82,76 @@ public class StructuredOperationBatchPayloadBudgetTests
             maxDocumentChars);
 
     [Fact]
+    public async Task ExecuteReadsAsync_DirectItemsPreservesOrderAndContinuesAfterAFailedItem()
+    {
+        var operations = new[]
+        {
+            new NetworkOperationRequest { OperationId = "first", Operation = "read_hardware_config" },
+            new NetworkOperationRequest { OperationId = "failed", Operation = "read_hardware_config" },
+            new NetworkOperationRequest { OperationId = "last", Operation = "read_hardware_config" },
+        };
+
+        var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
+            operations,
+            operation => Task.FromResult(operation.OperationId == "failed"
+                ? Failed(operation.OperationId, "safe failure")
+                : Succeeded(operation.OperationId, Result(100))));
+
+        Assert.Equal(new[] { "first", "failed", "last" }, batch.Operations.Select(item => item.OperationId));
+        Assert.Equal(new StructuredOperationCounts(2, 1, 0, 0), batch.Counts);
+    }
+
+    [Fact]
+    public void NetworkReadBudget_StillAppliesTheIndependentDocumentLimitAfterPageProjection()
+    {
+        var projectedPages = Batch(
+            Succeeded("page-1", Result(50_000)),
+            Succeeded("page-2", Result(50_000)),
+            Succeeded("page-3", Result(50_000)),
+            Succeeded("page-4", Result(50_000)));
+
+        var bounded = NetworkReadTools.ApplyBudget(projectedPages);
+
+        var networkDocumentChars = CanonicalJson.Serialize(
+            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null)).Length;
+        Assert.True(networkDocumentChars <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        Assert.True(bounded.Counts.Omitted > 0);
+        Assert.NotNull(bounded.Truncation);
+    }
+
+    [Fact]
+    public void NetworkReadBudget_UsesPaginationSafeGuidanceWhenTheDocumentLimitDropsAPage()
+    {
+        const int DocumentLimit = 2_000;
+        var page = new HardwareConfigInfo
+        {
+            Devices = new List<DeviceInfo>(),
+            Subnets = new List<SubnetInfo>(),
+            Messages = new List<string> { new string('m', 4_000) },
+            Pagination = new HardwarePaginationInfo(
+                TotalDevices: 2,
+                TotalSubnets: 0,
+                ReturnedDevices: 1,
+                ReturnedSubnets: 0,
+                NextCursor: "opaque-cursor"),
+        };
+
+        var bounded = NetworkReadTools.ApplyBudget(
+            Batch(Succeeded("page", CanonicalJson.ToElement(page))),
+            maxItemChars: StructuredOperationBatchPayloadBudget.MaxItemChars,
+            maxDocumentChars: DocumentLimit);
+
+        var item = Assert.Single(bounded.Operations);
+        Assert.Equal(OperationBatchStatus.Omitted, item.Status);
+        Assert.Equal(StructuredOperationBatchPayloadBudget.DocumentLimitReason, item.Omission!.Reason);
+        Assert.Equal(HardwarePageProjector.RetryGuidance, item.Omission.Guidance);
+        Assert.True(
+            CanonicalJson.Serialize(
+                new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null)).Length
+                <= DocumentLimit);
+    }
+
+    [Fact]
     public void Apply_LeavesABatchThatAlreadyFitsCompletelyUntouched()
     {
         var batch = Batch(Succeeded("a", Result(100)), Failed("b", "boom", warnings: new[] { "note" }));

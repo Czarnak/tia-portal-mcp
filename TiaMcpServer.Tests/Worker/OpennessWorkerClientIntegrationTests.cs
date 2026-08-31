@@ -29,6 +29,35 @@ public class OpennessWorkerClientIntegrationTests
         "The write outcome is unknown. Inspect current project state before retrying.";
 
     [Fact]
+    public async Task ReadHardwarePageCandidatesAsync_ForwardsTheDedicatedInternalRequest()
+    {
+        using var client = CreateClient();
+
+        var call = await client.ReadHardwarePageCandidatesAsync(
+            projectPath: "echo",
+            deviceName: "PLC_1",
+            plcName: "CPU_1",
+            includeIoDetails: true,
+            includeTagMatches: true,
+            pageSize: 17,
+            continuation: null,
+            requiredHostBinding: null,
+            expectedSessionIdentity: null);
+
+        Assert.True(call.WorkerResult.Success, call.WorkerResult.Error);
+        using var request = System.Text.Json.JsonDocument.Parse(call.WorkerResult.Payload);
+        Assert.Equal(
+            "read_hardware_page_candidates",
+            request.RootElement.GetProperty("method").GetString());
+        Assert.Equal("PLC_1", request.RootElement.GetProperty("deviceName").GetString());
+        Assert.Equal("CPU_1", request.RootElement.GetProperty("plcName").GetString());
+        Assert.True(request.RootElement.GetProperty("includeIoDetails").GetBoolean());
+        Assert.True(request.RootElement.GetProperty("includeTagMatches").GetBoolean());
+        Assert.Equal(17, request.RootElement.GetProperty("hardwarePageSize").GetInt32());
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, call.HostBinding.State);
+    }
+
+    [Fact]
     public async Task ExecuteWithPinnedBindingAsync_RejectsAStaleSnapshotWithoutInvokingTheOperation()
     {
         var binding = new ProjectSessionBinding(null);

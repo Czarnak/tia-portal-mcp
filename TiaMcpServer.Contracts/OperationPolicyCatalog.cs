@@ -76,6 +76,7 @@ public static class OperationPolicyCatalog
             ["get_project_status"] = OperationCapability.Observe,
             ["browse_project_tree"] = OperationCapability.Observe,
             ["read_hardware_config"] = OperationCapability.Observe,
+            ["read_hardware_page_candidates"] = OperationCapability.Observe,
             ["search_equipment_catalog"] = OperationCapability.Observe,
             ["read_cross_references"] = OperationCapability.Observe,
             ["list_tag_tables"] = OperationCapability.Observe,

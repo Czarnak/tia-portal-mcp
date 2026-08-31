@@ -13,11 +13,15 @@ public class ProjectTraversalSourceContractTests
         var source = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker", "Openness", "ProjectDeviceEnumerator.cs");
 
+        Assert.Contains("EnumerateWithLocations(project)", source, StringComparison.Ordinal);
+        Assert.Contains("foreach (LocatedProjectDevice locatedDevice in EnumerateWithLocations(project))", source, StringComparison.Ordinal);
         Assert.Contains("foreach (Device device in project.Devices)", source, StringComparison.Ordinal);
         Assert.Contains("foreach (DeviceUserGroup group in project.DeviceGroups)", source, StringComparison.Ordinal);
         Assert.Contains("foreach (Device device in group.Devices)", source, StringComparison.Ordinal);
         Assert.Contains("foreach (DeviceUserGroup childGroup in group.Groups)", source, StringComparison.Ordinal);
-        Assert.Contains("foreach (var device in Enumerate(childGroup))", source, StringComparison.Ordinal);
+        Assert.Contains("devices/{deviceIndex}", source, StringComparison.Ordinal);
+        Assert.Contains("deviceGroups/{groupIndex}", source, StringComparison.Ordinal);
+        Assert.Contains("groups/{childGroupIndex}", source, StringComparison.Ordinal);
 
         Assert.True(
             source.IndexOf("foreach (Device device in project.Devices)", StringComparison.Ordinal) <
@@ -27,6 +31,18 @@ public class ProjectTraversalSourceContractTests
             source.IndexOf("foreach (Device device in group.Devices)", StringComparison.Ordinal) <
             source.IndexOf("foreach (DeviceUserGroup childGroup in group.Groups)", StringComparison.Ordinal),
             "Direct group devices must be enumerated before child device groups.");
+    }
+
+    [Fact]
+    public void ProjectDeviceEnumerator_KeepsStructuralLocatorsInternalToTheWorkerTraversal()
+    {
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "ProjectDeviceEnumerator.cs");
+
+        Assert.Contains("internal sealed class LocatedProjectDevice", source, StringComparison.Ordinal);
+        Assert.Contains("StructuralLocator", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("HardwareConfigInfo", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SubnetInfo", source, StringComparison.Ordinal);
     }
 
     [Fact]

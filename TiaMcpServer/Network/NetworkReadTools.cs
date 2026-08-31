@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
@@ -12,6 +13,10 @@ namespace TiaMcpServer.Network;
 public class NetworkReadTools
 {
     private const string ToolName = "network_read";
+    private static readonly ConditionalWeakTable<OpennessWorkerClient, NetworkReadOperationExecutor>
+        CompatibilityExecutors = new();
+    internal static HardwarePageCursorCodec ProcessCursorCodec { get; }
+        = HardwarePageCursorCodec.CreateProcessScoped();
 
     [McpServerTool(
         Name = ToolName,
@@ -20,7 +25,7 @@ public class NetworkReadTools
         OpenWorld = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(NetworkReadResponse))]
-    [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config, search_equipment_catalog (query), list_network_objects (objectKinds), and inspect_network_object (target). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls. read_hardware_config accepts optional deviceName (exact device filter), plcName (PLC for tag matching), includeIoDetails (structured addresses and channels), and includeTagMatches (requires includeIoDetails) — detailed output can be large, so filter by deviceName or split into separate calls.")]
+    [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config, search_equipment_catalog (query), list_network_objects (objectKinds), and inspect_network_object (target). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls. read_hardware_config accepts optional deviceName (exact device filter), plcName (PLC for tag matching), includeIoDetails (structured addresses and channels), and includeTagMatches (requires includeIoDetails). For bounded hardware pagination, supply pageSize (1..200) or cursor; cursor alone defaults to 50. Page size counts one combined sequence, devices first, then subnets, while the result keeps separate arrays. On continuation, deviceName, plcName, includeIoDetails, and includeTagMatches must remain unchanged. Detailed output can be large, so filter by deviceName or split into separate calls.")]
     public static async Task<CallToolResult> NetworkRead(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of dedicated network read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] NetworkOperationRequest[] operations)
@@ -38,10 +43,13 @@ public class NetworkReadTools
             return Error(WorkerFailureCategories.AccessDenied, string.Join("\n", accessErrors));
         }
 
+        var operationExecutor = CompatibilityExecutors.GetValue(
+            workerClient,
+            CreateCompatibilityExecutor);
+
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            operation => NetworkWorkerInvoker.InvokeReadAsync(workerClient, operation),
-            NetworkPayloadContract.Project)
+            operationExecutor.ExecuteAsync)
             .ConfigureAwait(false);
 
         var bounded = ApplyBudget(batch);
@@ -49,6 +57,26 @@ public class NetworkReadTools
         // A batch that ran is a successful MCP call even when items inside it failed: isError is
         // reserved for "the tool could not run", so the caller can tell those two cases apart.
         return StructuredToolResult.Create(Compose(bounded), isError: false);
+    }
+
+    internal static void RegisterExecutor(
+        OpennessWorkerClient workerClient,
+        NetworkReadOperationExecutor operationExecutor)
+    {
+        ArgumentNullException.ThrowIfNull(workerClient);
+        ArgumentNullException.ThrowIfNull(operationExecutor);
+        CompatibilityExecutors.Remove(workerClient);
+        CompatibilityExecutors.Add(workerClient, operationExecutor);
+    }
+
+    private static NetworkReadOperationExecutor CreateCompatibilityExecutor(OpennessWorkerClient workerClient)
+    {
+        var projector = new HardwarePageProjector(ProcessCursorCodec);
+        var coordinator = new HardwarePaginationCoordinator(
+            workerClient,
+            ProcessCursorCodec,
+            projector);
+        return new NetworkReadOperationExecutor(workerClient, coordinator);
     }
 
     /// <summary>
@@ -77,6 +105,8 @@ public class NetworkReadTools
             "Narrow query or maxResults, or split the batch: re-run this operationId in its own "
                 + $"{ToolName} call.",
 
+        "read_hardware_config" when IsHardwarePage(item) => HardwarePageProjector.RetryGuidance,
+
         "read_hardware_config" =>
             "Narrow with deviceName and disable includeIoDetails/includeTagMatches where possible, "
                 + "or split the batch: re-run this operationId in its own "
@@ -88,6 +118,11 @@ public class NetworkReadTools
 
         _ => $"Split the batch: re-run this operationId in its own {ToolName} call.",
     };
+
+    private static bool IsHardwarePage(StructuredOperationItem item)
+        => item.Result is { ValueKind: System.Text.Json.JsonValueKind.Object } result
+            && result.TryGetProperty("pagination", out var pagination)
+            && pagination.ValueKind == System.Text.Json.JsonValueKind.Object;
 
     private static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(

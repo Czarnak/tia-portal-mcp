@@ -68,6 +68,16 @@ namespace TiaMcpServer
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>(),
                 accessPolicy: sp.GetRequiredService<OperationAccessPolicy>()));
+            builder.Services.AddSingleton(NetworkReadTools.ProcessCursorCodec);
+            builder.Services.AddSingleton(sp => new HardwarePageProjector(
+                sp.GetRequiredService<HardwarePageCursorCodec>()));
+            builder.Services.AddSingleton(sp => new HardwarePaginationCoordinator(
+                sp.GetRequiredService<OpennessWorkerClient>(),
+                sp.GetRequiredService<HardwarePageCursorCodec>(),
+                sp.GetRequiredService<HardwarePageProjector>()));
+            builder.Services.AddSingleton(sp => new NetworkReadOperationExecutor(
+                sp.GetRequiredService<OpennessWorkerClient>(),
+                sp.GetRequiredService<HardwarePaginationCoordinator>()));
 
             var mcp = builder.Services
                 .AddMcpServer()
@@ -84,7 +94,11 @@ namespace TiaMcpServer
                    .WithTools<NetworkWriteTools>();
             }
 
-            await builder.Build().RunAsync();
+            using var host = builder.Build();
+            NetworkReadTools.RegisterExecutor(
+                host.Services.GetRequiredService<OpennessWorkerClient>(),
+                host.Services.GetRequiredService<NetworkReadOperationExecutor>());
+            await host.RunAsync();
             return 0;
         }
 

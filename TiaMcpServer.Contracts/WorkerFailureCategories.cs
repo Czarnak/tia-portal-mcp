@@ -67,6 +67,9 @@ public static class WorkerFailureCategories
     /// <summary>The cursor points beyond the available result range.</summary>
     public const string CursorOutOfRange = "cursor_out_of_range";
 
+    /// <summary>The cursor was issued for a different verified worker/project binding.</summary>
+    public const string CursorBindingMismatch = "cursor_binding_mismatch";
+
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
         ValidationError,
@@ -85,7 +88,8 @@ public static class WorkerFailureCategories
         InvalidCursor,
         CursorFilterMismatch,
         CursorSnapshotMismatch,
-        CursorOutOfRange
+        CursorOutOfRange,
+        CursorBindingMismatch
     };
 
     /// <summary>True when <paramref name="value"/> is exactly one of the approved category constants.</summary>

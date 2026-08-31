@@ -29,6 +29,7 @@ public sealed record NetworkValidationResult(bool IsValid, string Error)
 public static class NetworkOperationCatalog
 {
     public const int MaxBatchSize = 50;
+    public const int MaxOperationIdLength = 256;
     public const int MaxPageSize = 200;
     public const int MaxAttributeNames = 200;
 
@@ -192,6 +193,15 @@ public static class NetworkOperationCatalog
                 continue;
             }
 
+            // operationId is repeated in every public item and in truncation evidence. Bound it
+            // before any response construction so caller-controlled identity text cannot consume
+            // the entire per-item budget or make even the minimal omission impossible to render.
+            if (operation.OperationId.Length > MaxOperationIdLength)
+            {
+                errors.Add($"Each operationId must be at most {MaxOperationIdLength} characters.");
+                continue;
+            }
+
             if (!seenIds.Add(operation.OperationId))
             {
                 errors.Add($"Duplicate operationId '{operation.OperationId}'.");
@@ -338,6 +348,11 @@ public static class NetworkOperationCatalog
         if (operation.DeviceName is not null && string.IsNullOrWhiteSpace(operation.DeviceName))
         {
             errors.Add($"{prefix} 'deviceName' must not be blank when supplied.");
+        }
+
+        if (operation.PageSize is { } pageSize && (pageSize < 1 || pageSize > MaxPageSize))
+        {
+            errors.Add($"{prefix} 'pageSize' must be between 1 and {MaxPageSize} (received {pageSize}).");
         }
 
         if (operation.PlcName is not null && string.IsNullOrWhiteSpace(operation.PlcName))
@@ -924,7 +939,7 @@ public static class NetworkOperationCatalog
     {
         var specs = new[]
         {
-            new NetworkOperationSpec("read_hardware_config", NetworkOperationCategory.Read, None, new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches" }),
+            new NetworkOperationSpec("read_hardware_config", NetworkOperationCategory.Read, None, new[] { "deviceName", "plcName", "includeIoDetails", "includeTagMatches", "pageSize", "cursor" }),
             new NetworkOperationSpec("search_equipment_catalog", NetworkOperationCategory.Read, new[] { "query" }, new[] { "maxResults" }),
             new NetworkOperationSpec("add_network_device", NetworkOperationCategory.Write, new[] { "typeIdentifier", "deviceName" }, new[] { "deviceItemName" }),
             new NetworkOperationSpec("configure_network_device", NetworkOperationCategory.Write, new[] { "target", "changes" }, None),

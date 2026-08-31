@@ -701,7 +701,7 @@ git commit -m "test: cover complete project enumeration shapes"
 In `DEVICES_OPERATIONS_SUMMARY.md`, make the two read rows state:
 
 ```markdown
-| `execute_read_batch` / `network_read` | `read_hardware_config` | Recursively discovers devices both at project root and in nested device groups, then reads device items, network interfaces, nodes, subnets, and IO systems. Optional `deviceName` filter and opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`) — see [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md). |
+| `execute_read_batch` / `network_read` | `read_hardware_config` | Recursively discovers devices both at project root and in nested device groups, then reads device items, network interfaces, nodes, subnets, and IO systems. Optional `deviceName` filter and opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`) — see [NETWORK_OPERATIONS_SUMMARY.md](../../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md). |
 | `browse_project_tree` | `browse_project_tree` | Recursively discovers the same direct and grouped devices as flat `Device` nodes; accepts optional `projectPath`, `depth`, and `startPath`. |
 ```
 

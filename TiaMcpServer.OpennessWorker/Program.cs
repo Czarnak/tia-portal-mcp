@@ -146,6 +146,7 @@ internal static class Program
             {
                 "browse_project_tree" => BrowseProjectTree(request),
                 "read_hardware_config" => ReadHardwareConfig(request),
+                "read_hardware_page_candidates" => ReadHardwarePageCandidates(request),
                 "list_network_objects" => ListNetworkObjects(request),
                 "inspect_network_object" => InspectNetworkObject(request),
                 "probe_network_object_attributes" => ProbeNetworkObjectAttributes(request),
@@ -229,6 +230,28 @@ internal static class Program
             request.PlcName,
             request.IncludeIoDetails,
             request.IncludeTagMatches)));
+    }
+
+    private static WorkerResponse ReadHardwarePageCandidates(WorkerRequest request)
+    {
+        return WithProject(request, project =>
+        {
+            ValidateHardwarePageContinuationIdentity(request);
+            var source = HardwarePageCandidateSourceFactory.Create(
+                project,
+                request.DeviceName,
+                request.PlcName,
+                request.IncludeIoDetails,
+                request.IncludeTagMatches);
+            return Success(HardwarePageCandidateReader.Read(
+                source,
+                request.DeviceName,
+                request.PlcName,
+                request.IncludeIoDetails,
+                request.IncludeTagMatches,
+                request.HardwarePageSize,
+                request.HardwarePageContinuation));
+        });
     }
 
     private static WorkerResponse ListNetworkObjects(WorkerRequest request)
@@ -1292,9 +1315,48 @@ internal static class Program
     private static void ValidateExpectedAfterProjectResolution(
         WorkerTiaPortalSession session,
         WorkerRequest request)
-        => session.ValidateExpectedSessionIdentity(
-            request.ExpectedSessionIdentity,
+        => ValidateExpectedSessionIdentityForRequest(
+            session,
+            request,
             AllowsMissingExpectedSessionIdentity(request.Method));
+
+    private static void ValidateHardwarePageContinuationIdentity(WorkerRequest request)
+    {
+        if (request.HardwarePageContinuation is null)
+        {
+            return;
+        }
+
+        ValidateExpectedSessionIdentityForRequest(
+            _sharedSession,
+            request,
+            allowMissingExpectedIdentity: false);
+    }
+
+    private static void ValidateExpectedSessionIdentityForRequest(
+        WorkerTiaPortalSession session,
+        WorkerRequest request,
+        bool allowMissingExpectedIdentity)
+    {
+        try
+        {
+            session.ValidateExpectedSessionIdentity(
+                request.ExpectedSessionIdentity,
+                allowMissingExpectedIdentity);
+        }
+        catch (WorkerOperationException exception) when (
+            request.HardwarePageContinuation is not null
+            && string.Equals(request.Method, "read_hardware_page_candidates", StringComparison.Ordinal)
+            && string.Equals(
+                exception.FailureCategory,
+                WorkerFailureCategories.BindingConflict,
+                StringComparison.Ordinal))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.CursorBindingMismatch,
+                "The hardware-page continuation no longer matches the live worker session.");
+        }
+    }
 
     /// <summary>Runs <paramref name="body"/> with the shared long-lived session.</summary>
     private static WorkerResponse WithSession(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
@@ -1307,12 +1369,14 @@ internal static class Program
             // restarted worker is rejected before Attach() or any other Siemens call. Then refresh
             // the live Portal/project handles and compare again so a UI-side close, reopen, or
             // SaveAs cannot race into the requested engineering operation.
-            _sharedSession.ValidateExpectedSessionIdentity(
-                request.ExpectedSessionIdentity,
+            ValidateExpectedSessionIdentityForRequest(
+                _sharedSession,
+                request,
                 allowMissingExpectedIdentity);
             _sharedSession.EnsureConnected(request.ProjectPath);
-            _sharedSession.ValidateExpectedSessionIdentity(
-                request.ExpectedSessionIdentity,
+            ValidateExpectedSessionIdentityForRequest(
+                _sharedSession,
+                request,
                 allowMissingExpectedIdentity);
 
             return body(_sharedSession);

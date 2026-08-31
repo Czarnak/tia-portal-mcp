@@ -71,6 +71,31 @@ public static class HardwareConfigReader
         return result;
     }
 
+    internal static HardwarePageCandidateMaterialization ReadDevicePageCandidate(
+        Device device,
+        NetworkObjectDiscoveryEvidenceValue<string> nameEvidence,
+        bool includeIoDetails,
+        IoTagIndex? tagIndex)
+    {
+        var messages = new List<string>();
+        var materialized = ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex);
+        return HardwarePageCandidateMaterialization.ForDevice(materialized, messages);
+    }
+
+    internal static HardwarePageCandidateMaterialization ReadSubnetPageCandidate(
+        Subnet subnet,
+        NetworkObjectDiscoveryEvidenceValue<string> subnetId)
+    {
+        var messages = new List<string>();
+        var materialized = ReadSubnet(subnet, subnetId, messages);
+        return HardwarePageCandidateMaterialization.ForSubnet(materialized, messages);
+    }
+
+    internal static IoTagIndex? ResolvePageTagIndex(Project project, string? plcName, List<string> messages)
+    {
+        return ResolveTagIndex(project, plcName, messages);
+    }
+
     private static IoTagIndex? ResolveTagIndex(Project project, string? plcName, List<string> messages)
     {
         try
@@ -417,6 +442,26 @@ public static class HardwareConfigReader
             (IEngineeringObject)subnet,
             "SubnetId",
             $"Subnet '{subnetDescription}' identity");
+        return ReadSubnet(subnet, subnetName, subnetDescription, subnetId, messages);
+    }
+
+    private static SubnetInfo ReadSubnet(
+        Subnet subnet,
+        NetworkObjectDiscoveryEvidenceValue<string> subnetId,
+        List<string> messages)
+    {
+        var subnetName = ReadOptionalString(() => subnet.Name, "subnet name", messages);
+        var subnetDescription = subnetName ?? "(unnamed)";
+        return ReadSubnet(subnet, subnetName, subnetDescription, subnetId, messages);
+    }
+
+    private static SubnetInfo ReadSubnet(
+        Subnet subnet,
+        string? subnetName,
+        string subnetDescription,
+        NetworkObjectDiscoveryEvidenceValue<string> subnetId,
+        List<string> messages)
+    {
         AddReadMessage(messages, subnetId, $"subnet '{subnetDescription}' identity");
         var selectorDiagnostics = CombineDiagnostics(
             Array.Empty<string>(),
@@ -613,7 +658,7 @@ public static class HardwareConfigReader
         return null;
     }
 
-    private static NetworkObjectDiscoveryEvidenceValue<string> ReadTypedIdentityString(
+    internal static NetworkObjectDiscoveryEvidenceValue<string> ReadTypedIdentityString(
         Func<string?> read,
         string field)
     {
@@ -646,7 +691,7 @@ public static class HardwareConfigReader
         }
     }
 
-    private static NetworkObjectDiscoveryEvidenceValue<string> ReadExactStringIdentityAttribute(
+    internal static NetworkObjectDiscoveryEvidenceValue<string> ReadExactStringIdentityAttribute(
         IEngineeringObject engineeringObject,
         string attributeName,
         string field)

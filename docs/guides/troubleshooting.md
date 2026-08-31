@@ -13,6 +13,22 @@ installation that are surprising but expected.
 - `dotnet` selects the wrong SDK: install .NET SDK 8.0.4xx or update `global.json` to a locally installed .NET 8 SDK feature band.
 - `get_block_content` on an S7-300/S7-400 CPU returns a warning that the s7dcl rung text is unavailable: expected. Those CPU families do not support Siemens document export at all. The Simatic ML XML document is exported by a separate API and is present, so the payload is complete for reading and for `update_block_logic`; only the supplementary human-readable rung text is missing.
 
+### Hardware pagination cursor failures
+
+- `invalid_cursor`: the cursor is malformed, has an unsupported shape/version, failed signature validation, or came from a previous MCP host process. Host restarts intentionally invalidate every hardware cursor. Start again without the cursor.
+- `cursor_filter_mismatch`: `deviceName`, `plcName`, `includeIoDetails`, or `includeTagMatches` changed. Retry the unchanged request at the same cursor, or start a new sequence with the new fields; never combine the old cursor with changed fields.
+- `cursor_binding_mismatch`: a repeated `projectPath` differs, the host binding/path changed, or the live worker session changed. Confirm the current project and start a new sequence.
+- `cursor_snapshot_mismatch`: matching devices/subnets or their stable order changed. Start a new sequence against the new project snapshot.
+- `cursor_out_of_range`: the saved combined offset is no longer valid. Start a new sequence.
+- `protocol_error`: the worker response omitted its authoritative session identity or returned malformed/incoherent page evidence. Do not use the page; inspect host/worker diagnostics before starting over.
+
+An omitted hardware page has not advanced. For `hardwarePageDiagnosticsExceededItemCharLimit` or
+`hardwarePageEntityExceededItemCharLimit`, retry the unchanged request at the same cursor, or
+start a new sequence with narrower filters or fewer detail options. A page may contain fewer
+entities than `pageSize` because the host keeps only the largest complete canonical prefix at or
+below 60,000 characters; continue until `nextCursor` is absent. The independent 180,000-character
+batch limit can also omit a complete page, so place large hardware reads in their own call.
+
 ## Verified TIA Portal V21 behavior
 
 The Phase 5 acceptance record documents the verified recovery guidance for these previously

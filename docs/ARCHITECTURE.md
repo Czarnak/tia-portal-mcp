@@ -272,8 +272,8 @@ than inventing a parallel one.
 
 ### Typed Network payload registry
 
-`TiaMcpServer/Network/NetworkPayloadContract.cs` is the only decoder of Network worker success
-payloads. It maps each of the nine network operations to exactly one declared CLR result type
+`TiaMcpServer/Network/NetworkPayloadContract.cs` is the decoder of direct public Network worker
+success payloads. It maps each of the nine network operations to exactly one declared CLR result type
 (`HardwareConfigInfo`, `CatalogEntryInfo[]`, `AddDeviceResultInfo`,
 `ConfigureNetworkDeviceResultInfo`, `NetworkObjectListInfo`, `NetworkObjectInspectionInfo`, and
 `SubnetLifecycleResultInfo` — the last shared by `create_subnet`, `update_subnet`, and
@@ -281,6 +281,57 @@ payloads. It maps each of the nine network operations to exactly one declared CL
 unknown, wrongly cased, or wrongly typed payload becomes a failed item with category
 `protocol_error` rather than being forwarded under a schema that does not describe it. The
 rejected payload is never echoed back to the caller.
+
+The paged hardware seam described next is the deliberate exception: its private candidate response
+is decoded by `HardwarePagePayloadContract` before projection into the same public
+`HardwareConfigInfo` shape. The private candidate DTO is never a public operation result.
+
+### Hardware configuration pagination seam
+
+`read_hardware_config` selects a dedicated pagination seam only when `pageSize` or `cursor` is
+present. Requests with neither field still use the original worker method, typed
+`HardwareConfigInfo` decoder, serialization, and payload-budget path unchanged.
+
+The paged path has one public operation but two internal phases:
+
+```text
+NetworkReadOperationExecutor
+        -> HardwarePaginationCoordinator
+        -> OpennessWorkerClient.ReadHardwarePageCandidatesAsync (serialized worker lease)
+        -> internal read_hardware_page_candidates worker method
+        -> HardwarePageDescriptorSet (stable devices, then subnets)
+        -> HardwarePageCandidateReader (materialize the requested descriptor window)
+        -> HardwarePagePayloadContract + HardwarePageProjector
+        -> public HardwareConfigInfo + HardwarePaginationInfo
+```
+
+Siemens objects and traversal remain inside the net48 worker. Structural locators are internal
+evidence used to materialize the selected descriptor window; they are never emitted in the public
+page, cursor, omission, error, or log. The internal worker method is authorized by the worker
+policy but is absent from `NetworkOperationCatalog`, the MCP schema, tool descriptions, and public
+host dispatch.
+
+Worker-session identity has one authority: the `WorkerResponse.SessionIdentity` observed in the
+`WorkerCallResult`/`HardwarePageWorkerCallResult` envelope. Candidate payloads do not duplicate
+it. The serialized client call returns that envelope identity together with the bound or unbound
+host snapshot captured under the same lease; continuations pin the worker call through the
+existing `ExpectedSessionIdentity` field. Explicit-project pagination is therefore valid while
+the host remains unbound and does not create or rotate a binding merely to read pages.
+
+The host signs opaque cursors with a random process-lifetime HMAC-SHA256 key. Cursor state binds
+the normalized `deviceName`, exact `plcName`, detail flags, resolved project path, host binding
+snapshot, worker session, ordered descriptor snapshot, and next combined offset. `pageSize` is not
+query identity and may change between pages. Restarting the host discards the key, so every old
+cursor becomes `invalid_cursor` by design. Cursors are authenticated, not encrypted, and no
+decoded state or key material is returned in failures or diagnostics.
+
+The worker counts the requested window across matching devices followed by matching subnets. The
+host keeps those entities in separate arrays and projects only the largest complete canonical
+prefix whose operation item is at most 60,000 characters, so actual progress may be smaller than
+`pageSize`. It never splits an entity or diagnostic string. Diagnostics-only overflow and a first
+oversized entity produce bounded omissions with no offset advance; the full optional entity
+subject is retained only when the complete subject fits. The ordinary 180,000-character batch
+budget then runs independently with pagination-safe retry guidance.
 
 ### Canonical safety flow (network writes)
 
@@ -496,6 +547,15 @@ The read-only test suite covers:
 Manual integration testing with a live TIA Portal remains necessary to validate
 Siemens-specific attachment, confirmation, project-path, packaging, and worker
 launch behavior.
+
+`scripts/live-test-hardware-pagination.ps1` is the separately authorized, read-only PowerShell 7
+harness for the public paged `read_hardware_config` path. It launches the real MCP host in
+read-only mode, follows the cursor sequence without changing bound fields, checks stable totals,
+exact device/subnet reconstruction, and the 60,000-character item limit, and records correctness
+separately from per-page timing. It stops with a failure artifact on an omission or cursor
+category. `HardwarePaginationLiveHarnessContractTests` checks its source contract without running
+it, and no automated test or CI gate invokes it. The harness has not yet been run against live TIA
+Portal; stub, offline, and FakeWorker evidence are not live acceptance.
 
 `scripts/live-test-network-phase2.ps1` is a separately authorized PowerShell 7 harness that
 launches the real MCP host and drives the actual `initialize`/`tools/list`/`tools/call` sequence
