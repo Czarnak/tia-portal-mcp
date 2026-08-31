@@ -1108,11 +1108,17 @@ List<HardwarePageFixtureDevice> HardwarePaginationDevices()
 
     if (string.Equals(ScenarioKey(currentProjectPath), "hardware-pagination-trimming", StringComparison.Ordinal))
     {
+        // Sized so a single LARGE_DEVICE candidate lands just under HardwarePageProjector's
+        // 60,000-char page budget (~60 chars of headroom) while LARGE_DEVICE plus the next
+        // candidate lands just over it (~60 chars over): exactly one device is kept per page.
+        // Calibrated against HardwarePaginationFakeWorkerTests.TrimmingScenarioProjectPath, which
+        // is a fixed, already-rooted literal — see the comment there for why the path must be
+        // fixed for this size to be portable across machines/checkouts.
         devices.Insert(0, new HardwarePageFixtureDevice(
             new DeviceInfo
             {
                 Name = "LARGE_DEVICE",
-                TypeIdentifier = new string('L', 58_500),
+                TypeIdentifier = new string('L', 58_747),
                 Items = new List<DeviceItemInfo>(),
             },
             new[] { "Candidate diagnostic: large device." }));

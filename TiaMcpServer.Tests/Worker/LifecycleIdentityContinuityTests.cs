@@ -7,6 +7,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class LifecycleIdentityContinuityTests
 {
     private const string ProjectA = "C:\\Projects\\A.ap21";

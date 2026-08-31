@@ -7,6 +7,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class HardwarePageWorkerClientTests
 {
     private const string ProjectPath = @"C:\fixtures\echo";

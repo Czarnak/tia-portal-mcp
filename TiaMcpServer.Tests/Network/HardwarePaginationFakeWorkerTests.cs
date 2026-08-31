@@ -15,6 +15,18 @@ public sealed class HardwarePaginationFakeWorkerTests
 {
     private const string Scenario = "hardware-pagination";
 
+    // The trimming scenario below deliberately sits close to HardwarePageProjector's 60,000-char
+    // page budget to prove the "only complete trailing candidates" trimming behavior. A bare
+    // scenario key (e.g. "hardware-pagination-trimming") gets absolutized by
+    // ProjectPathNormalization.Canonicalize (Path.GetFullPath) against the FakeWorker process's
+    // current working directory, and that resolved path is itself embedded in the page's
+    // nextCursor. Its length therefore varies with wherever the repository happens to be checked
+    // out, which silently shifts the trimming boundary — this is what made the assertion below
+    // pass on some machines/checkouts and fail on others (observed: CI). Using an already-rooted
+    // literal makes Canonicalize a no-op, so the resolved path — and the boundary — stop depending
+    // on the checkout location.
+    private const string TrimmingScenarioProjectPath = @"C:\FakeWorker\hardware-pagination-trimming";
+
     [Fact]
     public async Task NetworkRead_PagedHardwareReconstructsTheStableDeviceThenSubnetSequence()
     {
@@ -168,7 +180,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     public async Task NetworkRead_CanonicalItemTrimmingResumesWithTheUnemittedCandidatesAndDiagnostics()
     {
         using var client = CreateClient();
-        var first = await ReadPage(client, 6, "hardware-pagination-trimming");
+        var first = await ReadPage(client, 6, TrimmingScenarioProjectPath);
         var second = await ReadPage(client, 6, cursor: Cursor(first));
 
         var firstReturned = first.GetProperty("pagination").GetProperty("returnedDevices").GetInt32()
