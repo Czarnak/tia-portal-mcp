@@ -8,7 +8,7 @@ namespace TiaMcpServer.Tests.Safety;
 
 /// <summary>
 /// The tool layer must never reach a process-wide audit directory. Before dependency injection
-/// was introduced, ProjectLifecycleTools resolved a single process-wide WriteSafetyService
+/// was introduced, the lifecycle tools resolved a single process-wide WriteSafetyService
 /// instance, so 39 of 42 records in a real machine's audit trail came from `dotnet test`.
 /// </summary>
 public class AuditIsolationTests
@@ -24,7 +24,7 @@ public class AuditIsolationTests
             : 0;
 
     [Fact]
-    public async Task LifecycleTool_WritesAuditOnlyToTheInjectedDirectory()
+    public async Task ProjectWriteTool_WritesAuditOnlyToTheInjectedDirectory()
     {
         var defaultDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -41,11 +41,11 @@ public class AuditIsolationTests
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
 
-        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "ok");
+        var preview = await ProjectWriteTools.OpenProject(client, safety, projectPath: "ok");
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        await ProjectLifecycleTools.OpenProject(
+        await ProjectWriteTools.OpenProject(
             client,
             safety,
             projectPath: "ok",
@@ -79,11 +79,11 @@ public class AuditIsolationTests
         // Real token from a preview, then apply against a DIFFERENT project path: rejected as
         // binding_conflict before any worker call or audit append. A safety-rejected apply must
         // never be audit-recorded nor rendered as success.
-        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: "C:\\open\\Line.ap21");
+        var preview = await ProjectWriteTools.OpenProject(client, safety, projectPath: "C:\\open\\Line.ap21");
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.OpenProject(
+        var applied = await ProjectWriteTools.OpenProject(
             client, safety, projectPath: "C:\\other\\Line.ap21", confirm: true, safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
@@ -111,7 +111,7 @@ public class AuditIsolationTests
 
         // rebind=false is rejected as validation_error before any audit append. workerClient: null!
         // additionally proves the worker was never invoked (any call would NullReferenceException).
-        var response = await ProjectLifecycleTools.SaveProjectAs(
+        var response = await ProjectWriteTools.SaveProjectAs(
             workerClient: null!,
             safety,
             targetDirectory: "C:\\Target",

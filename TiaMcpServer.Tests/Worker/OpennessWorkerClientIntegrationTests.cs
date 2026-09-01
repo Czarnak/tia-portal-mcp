@@ -193,11 +193,11 @@ public class OpennessWorkerClientIntegrationTests
         // bind to the worker's ground truth (open now requires a resolved path to bind - a bare
         // success with none is postcondition_failed).
         const string projectPath = "C:\\open\\Line.ap21";
-        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: projectPath);
+        var preview = await ProjectWriteTools.OpenProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.OpenProject(
+        var applied = await ProjectWriteTools.OpenProject(
             client,
             safety,
             projectPath: projectPath,
@@ -222,11 +222,11 @@ public class OpennessWorkerClientIntegrationTests
         // only the worker call itself (inside apply) fails.
         const string projectPath = "worker-error-with-category";
 
-        var preview = await ProjectLifecycleTools.OpenProject(client, safety, projectPath: projectPath);
+        var preview = await ProjectWriteTools.OpenProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.OpenProject(
+        var applied = await ProjectWriteTools.OpenProject(
             client,
             safety,
             projectPath: projectPath,
@@ -749,11 +749,11 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
-        var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
+        var preview = await ProjectWriteTools.SaveProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.SaveProject(
+        var applied = await ProjectWriteTools.SaveProject(
             client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
@@ -770,11 +770,11 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
-        var preview = await ProjectLifecycleTools.SaveProject(client, safety, projectPath: projectPath);
+        var preview = await ProjectWriteTools.SaveProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.SaveProject(
+        var applied = await ProjectWriteTools.SaveProject(
             client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
@@ -804,12 +804,12 @@ public class OpennessWorkerClientIntegrationTests
         // rebind=true (the only supported mode): the "lifecycle-probe-only" scenario reports a
         // resolvedProjectPath for the save_project_as write so the rebind bind succeeds; the
         // current-state reads still route through the probe, never get_project_status.
-        var preview = await ProjectLifecycleTools.SaveProjectAs(
+        var preview = await ProjectWriteTools.SaveProjectAs(
             client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: true);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.SaveProjectAs(
+        var applied = await ProjectWriteTools.SaveProjectAs(
             client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: true,
             confirm: true, safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
@@ -942,12 +942,12 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
-        var preview = await ProjectLifecycleTools.ArchiveProject(
+        var preview = await ProjectWriteTools.ArchiveProject(
             client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.ArchiveProject(
+        var applied = await ProjectWriteTools.ArchiveProject(
             client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath,
             confirm: true, safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
@@ -965,7 +965,7 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "C:\\Projects\\SimpleProject\\SimpleProject.ap21";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
-        var preview = await ProjectLifecycleTools.ArchiveProject(
+        var preview = await ProjectWriteTools.ArchiveProject(
             client, safety,
             archiveDirectory: "C:\\Projects\\SimpleProject\\Sub",
             archiveName: "Backup",
@@ -999,11 +999,11 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient(binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
-        var preview = await ProjectLifecycleTools.CloseProject(client, safety, projectPath: projectPath);
+        var preview = await ProjectWriteTools.CloseProject(client, safety, projectPath: projectPath);
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var applied = await ProjectLifecycleTools.CloseProject(
+        var applied = await ProjectWriteTools.CloseProject(
             client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
         using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
