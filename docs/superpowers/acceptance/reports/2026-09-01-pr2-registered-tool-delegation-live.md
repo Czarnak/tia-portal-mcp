@@ -25,7 +25,8 @@ The first attached run as `S1614W\LCZ` used the supplied example path `PLC_1/Typ
 
 ## Tool List Evidence
 
-The host returned the exact nine-name registered census required by the harness:
+The harness confirmed that all nine required registered tool names were present in the host's
+`tools/list` response:
 
 ```text
 apply_write_batch
@@ -39,7 +40,10 @@ save_project
 save_project_as
 ```
 
-The eight write-tool names were therefore present exactly as registered. `execute_read_batch` was also present and was used only for the baseline non-mutating `get_type_content` read. That operation completed successfully.
+The eight required write-tool names were therefore present. `execute_read_batch` was also present
+and was used only for the baseline non-mutating `get_type_content` read. That operation completed
+successfully. The harness filters the complete response to this required-name allowlist, so this
+evidence does not claim that the host's complete read-write surface contains only these nine tools.
 
 ## Generic Batch Preview Evidence
 
