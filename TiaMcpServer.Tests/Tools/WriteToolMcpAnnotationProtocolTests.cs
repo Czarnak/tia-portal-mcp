@@ -32,6 +32,18 @@ public class WriteToolMcpAnnotationProtocolTests
         "save_project_as",
     };
 
+    private static readonly (string Name, bool ReadOnly, bool Destructive, bool OpenWorld)[] ExpectedWriteToolAnnotations =
+    {
+        ("preview_write_batch", true, false, false),
+        ("apply_write_batch", false, true, false),
+        ("open_project", false, true, false),
+        ("create_project", false, true, false),
+        ("save_project", false, true, false),
+        ("save_project_as", false, true, false),
+        ("archive_project", false, true, false),
+        ("close_project", false, true, false),
+    };
+
     [Fact]
     public async Task ToolsList_ReadWriteProductionSurface_ExposesExactNamesCountsAnnotations_AndRepresentativeSchemas()
     {
@@ -42,23 +54,14 @@ public class WriteToolMcpAnnotationProtocolTests
         Assert.Equal(ReadWriteToolNames, tools.Select(tool => tool.Name));
         Assert.Equal(14, tools.Length);
 
-        var previewAnnotations = byName["preview_write_batch"].ProtocolTool.Annotations;
-        Assert.NotNull(previewAnnotations);
-        Assert.True(previewAnnotations!.ReadOnlyHint);
-        Assert.False(previewAnnotations.DestructiveHint);
-        Assert.False(previewAnnotations.OpenWorldHint);
-
-        var applyAnnotations = byName["apply_write_batch"].ProtocolTool.Annotations;
-        Assert.NotNull(applyAnnotations);
-        Assert.False(applyAnnotations!.ReadOnlyHint);
-        Assert.True(applyAnnotations.DestructiveHint);
-        Assert.False(applyAnnotations.OpenWorldHint);
-
-        var openAnnotations = byName["open_project"].ProtocolTool.Annotations;
-        Assert.NotNull(openAnnotations);
-        Assert.False(openAnnotations!.ReadOnlyHint);
-        Assert.True(openAnnotations.DestructiveHint);
-        Assert.False(openAnnotations.OpenWorldHint);
+        foreach (var expected in ExpectedWriteToolAnnotations)
+        {
+            var annotations = byName[expected.Name].ProtocolTool.Annotations;
+            Assert.NotNull(annotations);
+            Assert.Equal(expected.ReadOnly, annotations!.ReadOnlyHint);
+            Assert.Equal(expected.Destructive, annotations.DestructiveHint);
+            Assert.Equal(expected.OpenWorld, annotations.OpenWorldHint);
+        }
 
         Assert.Contains("\"operations\"", byName["preview_write_batch"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
         Assert.Contains("\"projectPath\"", byName["open_project"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
