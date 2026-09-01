@@ -412,3 +412,16 @@ failures, malformed worker payloads, process-key invalidation, and byte-for-byte
 equivalence. The separately authorized read-only harness
 `scripts/live-test-hardware-pagination.ps1` is contract-tested but has not been executed against
 live TIA Portal V21; live pagination acceptance remains unverified.
+
+## PR 1 explicit MCP tool annotations — live acceptance completed (2026-09-01)
+
+The registered 4-tool read-only and 14-tool read-write MCP surfaces now expose the approved
+client-facing write metadata, with the server-enforced preview/token/apply safety model unchanged.
+The separately authorized, non-mutating host-level harness completed with exit code `0` against
+the current-branch read-only and read-write hosts. Its live evidence is recorded at
+[`docs/superpowers/acceptance/reports/2026-09-01-pr1-explicit-mcp-tool-annotations-live.md`](superpowers/acceptance/reports/2026-09-01-pr1-explicit-mcp-tool-annotations-live.md).
+
+This completion applies only to the exact host, attached TIA Portal session, and disposable
+project documented in that report. Offline, stub, FakeWorker, and static harness-contract evidence
+remain separate development evidence; neither evidence class substitutes for the other. PLC
+`start_plc` and `stop_plc` remain deferred and out of scope.

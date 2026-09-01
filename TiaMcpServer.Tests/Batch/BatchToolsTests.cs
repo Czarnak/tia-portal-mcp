@@ -39,6 +39,27 @@ public class BatchToolsTests
         Assert.Equal(expectedToolName, toolAttribute!.Name);
     }
 
+    [Theory]
+    [InlineData(nameof(WriteBatchTools.PreviewWriteBatch), "preview_write_batch", true, false, false)]
+    [InlineData(nameof(WriteBatchTools.ApplyWriteBatch), "apply_write_batch", false, true, false)]
+    public void WriteBatchTools_RegisteredMethodsExposeExplicitMcpAnnotations(
+        string methodName,
+        string expectedToolName,
+        bool readOnly,
+        bool destructive,
+        bool openWorld)
+    {
+        var method = typeof(WriteBatchTools).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        var toolAttribute = method!.GetCustomAttribute<McpServerToolAttribute>();
+        Assert.NotNull(toolAttribute);
+        Assert.Equal(expectedToolName, toolAttribute!.Name);
+        Assert.Equal(readOnly, toolAttribute.ReadOnly);
+        Assert.Equal(destructive, toolAttribute.Destructive);
+        Assert.Equal(openWorld, toolAttribute.OpenWorld);
+    }
+
     [Fact]
     public async Task ExecuteReadBatch_RejectsWriteOperation()
     {

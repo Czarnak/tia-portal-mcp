@@ -472,6 +472,16 @@ status.
 Generic batch data writes use a two-tool flow; lifecycle and network writes are
 self-previewing:
 
+### MCP tool annotations
+
+The MCP `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations are explicit,
+client-facing metadata. They are untrusted advisory hints for a client deciding how to present a
+tool; they neither authorize a request nor relax server behavior. In particular,
+`preview_write_batch` is marked as a non-destructive preview even though the follow-up
+`apply_write_batch` is destructive, and lifecycle writes carry conservative mutating hints even
+though their first call remains a preview. The access policy, safety-token validation, pinned
+binding lease, current-state re-read, and audit trail below remain the server-enforced authority.
+
 1. The preview call (`preview_write_batch`, or the same lifecycle/network tool with no
    token and `confirm:false`) reads current state, produces a human-readable description,
    and creates a short-lived, single-use safety token bound to the tool,
