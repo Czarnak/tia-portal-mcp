@@ -52,6 +52,15 @@ the plain project status only — it never enumerates history or the extended me
 
 Supported archive modes are `None`, `DiscardRestorableData`, `Compressed`, and `DiscardRestorableDataAndCompressed`. Lifecycle tools are single-tool operations and cannot be included in a batch.
 
+### MCP client hints
+
+`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, and
+`close_project` are advertised with conservative mutating MCP hints: `readOnlyHint: false`,
+`destructiveHint: true`, and `openWorldHint: false`. These are client-facing metadata only; they
+do not bypass the safety model. The first lifecycle call still returns a preview and single-use
+safety token. It applies only on a later call with the unchanged input, `confirm=true`, and that
+token.
+
 ## Safety and session binding
 
 - A lifecycle call without a safety token returns a preview and a single-use token. Applying the change requires the same tool input, `confirm=true`, and that token.

@@ -8,6 +8,19 @@ plus manual verification of the highest-stakes claims. Test suite at authoring t
 (pure-logic tests only; no integration coverage of the worker or IPC layer). As of 2026-07-20 the
 suite is 341/341 green and does cover the worker/IPC layer via the fake-worker harness.
 
+## PR 1 explicit MCP tool annotations — live acceptance pending (2026-09-01)
+
+The registered 4-tool read-only and 14-tool read-write MCP surfaces now expose the approved
+client-facing write metadata, with the server-enforced preview/token/apply safety model unchanged.
+The separately authorized, non-mutating host-level harness is ready at
+`scripts/live-test-write-tool-metadata.ps1`; its intended evidence destination is
+[`docs/superpowers/acceptance/reports/2026-09-01-pr1-explicit-mcp-tool-annotations-live.md`](superpowers/acceptance/reports/2026-09-01-pr1-explicit-mcp-tool-annotations-live.md).
+
+This entry is deliberately **not** a completion record: no live TIA Portal V21 harness run has
+been recorded, so PR 1 remains incomplete. Offline, stub, FakeWorker, and static harness-contract
+evidence do not substitute for the pending live run. PLC `start_plc` and `stop_plc` remain
+deferred and out of scope.
+
 ## Overall verdict
 
 Solid foundation: the batch-tool consolidation (45 → 16 tools), typed batch item schema with

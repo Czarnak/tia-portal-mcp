@@ -59,10 +59,19 @@ Task-level implementation plans derived from the specs above.
 
 ## Acceptance reports
 
-Evidence from live runs against TIA Portal V21.
+Evidence from completed live runs against TIA Portal V21.
 
 | Date | Document |
 | --- | --- |
 | 2026-08-14 | [Structured I/O map defect fixes — live](acceptance/reports/2026-08-14-io-map-defect-fixes-live.md) |
 | 2026-08-01 | [Network Phase 1 — rerun](acceptance/reports/2026-08-01-16-56-00-network-operations-phase1-rerun.md) |
 | 2026-08-01 | [Network Phase 1](acceptance/reports/2026-08-01-16-48-48-network-operations-phase1.md) |
+
+## Pending live acceptance evidence
+
+These dated templates are intentionally not evidence of a completed live run. They state the
+required evidence boundary and are replaced by their separately authorized harness when run.
+
+| Date | Document |
+| --- | --- |
+| 2026-09-01 | [PR 1 — explicit MCP tool annotations (pending)](acceptance/reports/2026-09-01-pr1-explicit-mcp-tool-annotations-live.md) |
