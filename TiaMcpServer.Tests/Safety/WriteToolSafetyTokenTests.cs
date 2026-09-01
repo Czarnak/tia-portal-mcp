@@ -58,7 +58,7 @@ public class WriteToolSafetyTokenTests
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
 
-        var result = await ProjectLifecycleTools.OpenProject(
+        var result = await ProjectWriteTools.OpenProject(
             workerClient: null!,
             safety,
             projectPath: "C:\\Projects\\Line.ap21");
@@ -103,7 +103,7 @@ public class WriteToolSafetyTokenTests
 
         // confirm=false is caller input error: it must render as a categorized validation_error
         // envelope (never a raw string), so a small model reads success/category, not prose.
-        var result = await ProjectLifecycleTools.CloseProject(
+        var result = await ProjectWriteTools.CloseProject(
             workerClient: null!,
             safety,
             confirm: false,
@@ -126,7 +126,7 @@ public class WriteToolSafetyTokenTests
 
         // An unknown token is a validation_error: it must render as a categorized envelope whose
         // error still points back at the tokenless preview call.
-        var result = await ProjectLifecycleTools.OpenProject(
+        var result = await ProjectWriteTools.OpenProject(
             workerClient: null!,
             safety,
             projectPath: "C:\\Projects\\Line.ap21",
@@ -150,11 +150,11 @@ public class WriteToolSafetyTokenTests
 
         // Token issued for project A; applying against project B is a project-path mismatch. That
         // is binding_conflict (reason 5), rejected before any worker call (workerClient null!).
-        var preview = await ProjectLifecycleTools.OpenProject(
+        var preview = await ProjectWriteTools.OpenProject(
             workerClient: null!, safety, projectPath: "C:\\Projects\\A.ap21");
         var token = ReadToken(preview);
 
-        var applied = await ProjectLifecycleTools.OpenProject(
+        var applied = await ProjectWriteTools.OpenProject(
             workerClient: null!,
             safety,
             projectPath: "C:\\Projects\\B.ap21",
@@ -175,11 +175,11 @@ public class WriteToolSafetyTokenTests
 
         // Same project path and target, but a changed non-path input field (forceRebind flips
         // false -> true) is a reordered/changed-input mismatch (reason 7): validation_error.
-        var preview = await ProjectLifecycleTools.OpenProject(
+        var preview = await ProjectWriteTools.OpenProject(
             workerClient: null!, safety, projectPath: "C:\\Projects\\A.ap21");
         var token = ReadToken(preview);
 
-        var applied = await ProjectLifecycleTools.OpenProject(
+        var applied = await ProjectWriteTools.OpenProject(
             workerClient: null!,
             safety,
             projectPath: "C:\\Projects\\A.ap21",
@@ -208,16 +208,16 @@ public class WriteToolSafetyTokenTests
         // succeeds and consumes the token. Replaying the SAME token is a consumed-token mismatch
         // (reason 2): validation_error, rendered as an envelope, worker never re-invoked.
         const string projectPath = "C:\\open\\Line.ap21";
-        var token = ReadToken(await ProjectLifecycleTools.OpenProject(client, safety, projectPath: projectPath));
+        var token = ReadToken(await ProjectWriteTools.OpenProject(client, safety, projectPath: projectPath));
 
-        var firstApply = await ProjectLifecycleTools.OpenProject(
+        var firstApply = await ProjectWriteTools.OpenProject(
             client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
         using (var firstDoc = JsonDocument.Parse(firstApply))
         {
             Assert.True(firstDoc.RootElement.GetProperty("success").GetBoolean());
         }
 
-        var secondApply = await ProjectLifecycleTools.OpenProject(
+        var secondApply = await ProjectWriteTools.OpenProject(
             client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
         using var secondDoc = JsonDocument.Parse(secondApply);
         var root = secondDoc.RootElement;
@@ -237,12 +237,12 @@ public class WriteToolSafetyTokenTests
         var projectPath = Path.Combine(Path.GetTempPath(), $"tia-state-{Guid.NewGuid():N}.ap21");
         try
         {
-            var token = ReadToken(await ProjectLifecycleTools.OpenProject(
+            var token = ReadToken(await ProjectWriteTools.OpenProject(
                 workerClient: null!, safety, projectPath: projectPath));
 
             await File.WriteAllTextAsync(projectPath, "the project now exists on disk");
 
-            var applied = await ProjectLifecycleTools.OpenProject(
+            var applied = await ProjectWriteTools.OpenProject(
                 workerClient: null!, safety, projectPath: projectPath, confirm: true, safetyToken: token);
 
             using var doc = JsonDocument.Parse(applied);

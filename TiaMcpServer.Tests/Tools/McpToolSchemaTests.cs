@@ -103,6 +103,21 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("safety", properties);
     }
 
+    [Theory]
+    [InlineData(nameof(ProjectWriteTools.OpenProject))]
+    [InlineData(nameof(ProjectWriteTools.CreateProject))]
+    [InlineData(nameof(ProjectWriteTools.SaveProject))]
+    [InlineData(nameof(ProjectWriteTools.SaveProjectAs))]
+    [InlineData(nameof(ProjectWriteTools.ArchiveProject))]
+    [InlineData(nameof(ProjectWriteTools.CloseProject))]
+    public void ProjectWriteTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
+    {
+        var properties = SchemaPropertyNames(typeof(ProjectWriteTools), methodName);
+
+        Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("safety", properties);
+    }
+
     /// <summary>
     /// Whole-assembly enumeration (not a hardcoded/spot-checked list of tool classes): finds
     /// every type carrying <see cref="McpServerToolTypeAttribute"/> in the same assembly
@@ -185,6 +200,16 @@ public class McpToolSchemaTests
         Assert.Contains("safetyToken", properties);
     }
 
+    [Fact]
+    public void OpenProject_SchemaStillExposesProjectPathAsAModelArgument_OnRegisteredTool()
+    {
+        var properties = SchemaPropertyNames(typeof(ProjectWriteTools), nameof(ProjectWriteTools.OpenProject));
+
+        Assert.Contains("projectPath", properties);
+        Assert.Contains("confirm", properties);
+        Assert.Contains("safetyToken", properties);
+    }
+
     [Theory]
     [InlineData(nameof(BatchTools.PreviewWriteBatch))]
     [InlineData(nameof(BatchTools.ApplyWriteBatch))]
@@ -195,6 +220,44 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("safety", properties);
         Assert.Contains("operations", properties);
+    }
+
+    [Theory]
+    [InlineData(nameof(WriteBatchTools.PreviewWriteBatch))]
+    [InlineData(nameof(WriteBatchTools.ApplyWriteBatch))]
+    public void WriteBatchTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
+    {
+        var properties = SchemaPropertyNames(typeof(WriteBatchTools), methodName);
+
+        Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("safety", properties);
+        Assert.Contains("operations", properties);
+    }
+
+    [Fact]
+    public void RegisteredWriteToolSurface_ExposesExactlyEightApprovedTools()
+    {
+        var toolNames = new[] { typeof(ProjectWriteTools), typeof(WriteBatchTools) }
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
+            .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
+            .Where(attribute => attribute is not null)
+            .Select(attribute => attribute!.Name)
+            .OrderBy(name => name)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "apply_write_batch",
+                "archive_project",
+                "close_project",
+                "create_project",
+                "open_project",
+                "preview_write_batch",
+                "save_project",
+                "save_project_as"
+            },
+            toolNames);
     }
 
     [Fact]

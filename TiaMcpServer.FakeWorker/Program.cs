@@ -58,6 +58,7 @@ var subnetLifecycleSecondFailureWriteCount = 0;
 var subnetLifecycleStateDriftReadCount = 0;
 var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
+var orderedTypeWriteCount = 0;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -452,6 +453,20 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"expected get_project_status, get_type_content, or update_type_content, got '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "type-content-ordered-protocol-failure":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "get_type_content" => """{"success":true,"payload":"TYPE AnalogInputSettings STRUCT Value : Real; END_STRUCT END_TYPE"}""",
+                "update_type_content" => ++orderedTypeWriteCount switch
+                {
+                    1 => """{"success":true,"payload":"{}"}""",
+                    2 => "this is not json",
+                    _ => """{"success":false,"error":"third write should have been skipped"}"""
+                },
+                _ => $$"""{"success":false,"error":"expected get_project_status, get_type_content, or update_type_content, got '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "block-source-roundtrip":
             // Used by BlockCurrentStateReadTests to drive a full format=source preview/apply round
             // trip for update_block_logic. Dispatches on method AND format: the current-state read
@@ -520,10 +535,11 @@ while ((line = Console.In.ReadLine()) is not null)
         case "save-as-uncertain-state":
             // Simulates the real worker's postcondition_failed when save_project_as saved a copy
             // but could not confirm the active project is that copy: a failure carrying the
-            // uncertain-state warning. The unbound status bootstrap succeeds, but the protected
-            // save-as must surface the failure and retain its verified source binding.
-            Respond(ReadMethod(line) == "get_project_status" &&
-                    currentExpectedSessionIdentity is null
+            // uncertain-state warning. The unbound status bootstrap and the protected lifecycle
+            // probe succeed so a registered save-as preview can issue its safety token; only the
+            // protected save-as apply returns the failure and retains its verified source binding.
+            Respond(ReadMethod(line) is "probe_project_status_for_lifecycle" ||
+                    (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
                 ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
                 : """{"success":false,"failureCategory":"postcondition_failed","error":"could not confirm the copied project path","warnings":["Project state may have changed; inspect the open project before retrying."]}""");
             break;

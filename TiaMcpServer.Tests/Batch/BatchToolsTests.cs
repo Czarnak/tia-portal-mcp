@@ -2,7 +2,9 @@ using System.Reflection;
 using System.Text.Json;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;
@@ -15,6 +17,13 @@ public class BatchToolsTests
         configure?.Invoke(request);
         return request;
     }
+
+    private static OpennessWorkerClient CreateReadWriteClient()
+        => new(
+            new ProjectSessionBinding(null),
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
 
     [Theory]
     [InlineData("ExecuteReadBatch", "execute_read_batch")]
@@ -183,9 +192,10 @@ public class BatchToolsTests
     {
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
+        using var client = CreateReadWriteClient();
 
         var result = await BatchTools.ApplyWriteBatch(
-            workerClient: null!,
+            workerClient: client,
             safety,
             new[] { Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }) },
             confirm: true);
@@ -195,20 +205,19 @@ public class BatchToolsTests
     }
 
     [Fact]
-    public async Task ApplyWriteBatch_RejectsBadTokenBeforeReadingCurrentState()
+    public async Task ApplyWriteBatch_RejectsBadToken()
     {
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
+        using var client = CreateReadWriteClient();
 
         var operations = new[]
         {
             new BatchOperationRequest { OperationId = "op-1", Operation = "start_plc" }
         };
 
-        // workerClient is null: if the token envelope were checked AFTER the state read,
-        // this call would throw NullReferenceException instead of returning the token error.
         var result = await BatchTools.ApplyWriteBatch(
-            workerClient: null!,
+            workerClient: client,
             safety,
             operations,
             confirm: true,
@@ -216,5 +225,41 @@ public class BatchToolsTests
 
         Assert.Contains("Safety token", result);
         Assert.Contains("preview_write_batch", result);
+    }
+
+    [Fact]
+    public async Task ApplyWriteBatch_WrapperMatchesRegisteredBadTokenEnvelope()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+        using var client = CreateReadWriteClient();
+        var operations = new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "op-1",
+                Operation = "create_user_constant",
+                TableName = "Constants",
+                Name = "Gain",
+                DataType = "Int",
+                Value = "1",
+                ProjectPath = "type-content-roundtrip"
+            }
+        };
+
+        var registered = await WriteBatchTools.ApplyWriteBatch(
+            workerClient: client,
+            safety,
+            operations,
+            confirm: true,
+            safetyToken: "bogus-token");
+        var wrapper = await BatchTools.ApplyWriteBatch(
+            workerClient: client,
+            safety,
+            operations,
+            confirm: true,
+            safetyToken: "bogus-token");
+
+        Assert.Equal(registered, wrapper);
     }
 }

@@ -3,6 +3,7 @@ using System.Reflection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -64,6 +65,44 @@ public class ProjectLifecycleToolTests
         Assert.False(toolAttribute.ReadOnly);
         Assert.True(toolAttribute.Destructive);
         Assert.False(toolAttribute.OpenWorld);
+    }
+
+    [Fact]
+    public async Task SaveProjectAs_WrapperMatchesRegisteredRebindFalseValidation()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
+        var registered = await ProjectWriteTools.SaveProjectAs(
+            workerClient: null!,
+            safety,
+            targetDirectory: @"C:\Target",
+            targetName: "Copy",
+            projectPath: null,
+            rebind: false);
+        var wrapper = await ProjectLifecycleTools.SaveProjectAs(
+            workerClient: null!,
+            safety,
+            targetDirectory: @"C:\Target",
+            targetName: "Copy",
+            projectPath: null,
+            rebind: false);
+
+        Assert.Equal(registered, wrapper);
+    }
+
+    [Fact]
+    public async Task GetProjectStatus_WrapperMatchesRegisteredNoProjectStatus()
+    {
+        using var client = new OpennessWorkerClient(
+            new ProjectSessionBinding(null),
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var registered = await ProjectReadTools.GetProjectStatus(client, "status-no-project");
+        var wrapper = await ProjectLifecycleTools.GetProjectStatus(client, "status-no-project");
+
+        Assert.Equal(registered, wrapper);
     }
 
     /// <summary>
@@ -135,54 +174,4 @@ public class ProjectLifecycleToolTests
         Assert.Equal(typeof(Task<WorkerCallResult>), basicStatusMethod.ReturnType);
     }
 
-    [Fact]
-    public async Task SaveProjectAsWithTokenButNoConfirm_Rejects()
-    {
-        using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-
-        var result = await ProjectLifecycleTools.SaveProjectAs(
-            workerClient: null!,
-            safety,
-            targetDirectory: "C:\\Projects",
-            targetName: "LineCopy",
-            confirm: false,
-            safetyToken: "some-token");
-
-        Assert.Contains("confirm=true", result);
-        Assert.Contains("without safetyToken", result);
-    }
-
-    [Fact]
-    public async Task SaveProjectAs_RebindFalse_RejectsBeforePreviewTokenGeneration()
-    {
-        using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-
-        // workerClient: null! makes "worker invocation count 0" a hard guarantee - any worker call
-        // or current-state probe would NullReferenceException. The rebind=false guard must return
-        // the validation envelope before touching the worker, the probe, the token, or the audit.
-        var response = await ProjectLifecycleTools.SaveProjectAs(
-            workerClient: null!,
-            safety,
-            targetDirectory: "C:\\Target",
-            targetName: "Copy",
-            projectPath: null,
-            rebind: false);
-
-        using var doc = System.Text.Json.JsonDocument.Parse(response);
-        Assert.Equal("save_project_as", doc.RootElement.GetProperty("toolName").GetString());
-        Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(WorkerFailureCategories.ValidationError, doc.RootElement.GetProperty("failureCategory").GetString());
-
-        // A rejection, not a preview: no safetyToken is issued.
-        Assert.False(doc.RootElement.TryGetProperty("safetyToken", out _));
-
-        // A validation failure appends no audit. Sum lines across any files so a stray append can't
-        // hide behind an already-existing per-day file.
-        var auditLineCount = Directory.Exists(audit.Path)
-            ? Directory.GetFiles(audit.Path).Sum(file => File.ReadAllLines(file).Length)
-            : 0;
-        Assert.Equal(0, auditLineCount);
-    }
 }

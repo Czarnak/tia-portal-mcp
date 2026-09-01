@@ -425,3 +425,20 @@ This completion applies only to the exact host, attached TIA Portal session, and
 project documented in that report. Offline, stub, FakeWorker, and static harness-contract evidence
 remain separate development evidence; neither evidence class substitutes for the other. PLC
 `start_plc` and `stop_plc` remain deferred and out of scope.
+
+## PR 2 registered-tool delegation — live acceptance completed (2026-09-01)
+
+`Program.cs` now registers the split `ProjectReadTools`, `ReadBatchTools`,
+`ProjectWriteTools`, and `WriteBatchTools` owners directly. The legacy
+`ProjectLifecycleTools` and `BatchTools` types remain compatibility wrappers only.
+The separately authorized preview-only harness completed against the real TIA Portal V21 host,
+proving that all nine required registered tool names were present, a successful
+`execute_read_batch` baseline read, and token-bearing generic-batch and lifecycle previews without
+applying either token. The harness filters `tools/list` to the required-name allowlist; this is not
+a claim that the complete read-write host surface contains only nine tools. The
+sanitized live evidence is recorded in the
+[`PR 2 registered-tool delegation acceptance report`](superpowers/acceptance/reports/2026-09-01-pr2-registered-tool-delegation-live.md).
+
+This completion does not authorize or complete compatibility-wrapper deletion. PLC `start_plc`
+and `stop_plc` safety hardening also remains deferred. No apply, project save, PLC mode change,
+production acceptance, or plant acceptance is claimed.
