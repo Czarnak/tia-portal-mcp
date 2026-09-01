@@ -44,6 +44,28 @@ public class ProjectLifecycleToolTests
         }
     }
 
+    [Theory]
+    [InlineData(nameof(ProjectWriteTools.OpenProject), "open_project")]
+    [InlineData(nameof(ProjectWriteTools.CreateProject), "create_project")]
+    [InlineData(nameof(ProjectWriteTools.SaveProject), "save_project")]
+    [InlineData(nameof(ProjectWriteTools.SaveProjectAs), "save_project_as")]
+    [InlineData(nameof(ProjectWriteTools.ArchiveProject), "archive_project")]
+    [InlineData(nameof(ProjectWriteTools.CloseProject), "close_project")]
+    public void ProjectWriteTools_RegisteredMethodsExposeExplicitMutatingAnnotations(
+        string methodName,
+        string expectedToolName)
+    {
+        var method = typeof(ProjectWriteTools).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        var toolAttribute = method!.GetCustomAttribute<McpServerToolAttribute>();
+        Assert.NotNull(toolAttribute);
+        Assert.Equal(expectedToolName, toolAttribute!.Name);
+        Assert.False(toolAttribute.ReadOnly);
+        Assert.True(toolAttribute.Destructive);
+        Assert.False(toolAttribute.OpenWorld);
+    }
+
     /// <summary>
     /// Single source of truth for the public project-lifecycle surface of
     /// <see cref="OpennessWorkerClient"/> - both the per-name Theory below and the exact-count
