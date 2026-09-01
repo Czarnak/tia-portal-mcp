@@ -5,6 +5,10 @@
 **Harness:** `scripts/live-test-write-safety-pr2-registered-tools.ps1`
 **Boundary:** Preview only. No `apply_write_batch`, no lifecycle apply call, no project save, and no PLC mode change were performed.
 
+The successful live run exercised host source revision `1c13604007ad9eb6d056d7b6c0406daa7816375c`.
+Subsequent commits through the current HEAD changed documentation only; this report does not claim
+a live rerun after those documentation changes.
+
 ## Purpose
 
 Document that the real host advertises the registered write surface and that both a generic batch preview and a self-previewing lifecycle call succeed without mutation.
