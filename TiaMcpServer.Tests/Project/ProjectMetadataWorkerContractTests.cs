@@ -183,15 +183,15 @@ public class ProjectMetadataWorkerContractTests
         var lifecycleToolsSource = File.ReadAllText(
             FindRepositoryFile("TiaMcpServer", "Tools", "ProjectLifecycleTools.cs"));
 
-        // The five write tools (open/create/save/save-as/archive) verify with the basic-status
-        // read only: ProjectWriteTools never calls GetProjectStatusAsync (the extended-metadata
-        // read) at all; ProjectLifecycleTools calls it exactly once, and only in its direct-read
-        // GetProjectStatus method - never in a post-write verification path. Each write tool uses
-        // GetBasicProjectStatusAsync exactly once.
+        // The five registered write tools (open/create/save/save-as/archive) verify with the
+        // basic-status read only: ProjectWriteTools never calls GetProjectStatusAsync (the
+        // extended-metadata read) at all and each write tool uses GetBasicProjectStatusAsync
+        // exactly once. ProjectLifecycleTools is a thin compatibility wrapper, so it owns
+        // neither direct status reads nor post-write verification reads.
         Assert.Equal(0, CountOccurrences(writeToolsSource, "GetProjectStatusAsync"));
-        Assert.Equal(1, CountOccurrences(lifecycleToolsSource, "GetProjectStatusAsync"));
+        Assert.Equal(0, CountOccurrences(lifecycleToolsSource, "GetProjectStatusAsync"));
         Assert.Equal(5, CountOccurrences(writeToolsSource, "GetBasicProjectStatusAsync"));
-        Assert.Equal(5, CountOccurrences(lifecycleToolsSource, "GetBasicProjectStatusAsync"));
+        Assert.Equal(0, CountOccurrences(lifecycleToolsSource, "GetBasicProjectStatusAsync"));
     }
 
     private static int CountOccurrences(string source, string value)

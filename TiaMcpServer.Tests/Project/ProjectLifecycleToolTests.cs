@@ -3,6 +3,7 @@ using System.Reflection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -64,6 +65,44 @@ public class ProjectLifecycleToolTests
         Assert.False(toolAttribute.ReadOnly);
         Assert.True(toolAttribute.Destructive);
         Assert.False(toolAttribute.OpenWorld);
+    }
+
+    [Fact]
+    public async Task SaveProjectAs_WrapperMatchesRegisteredRebindFalseValidation()
+    {
+        using var audit = new TempAuditDirectory();
+        var safety = audit.CreateSafety();
+
+        var registered = await ProjectWriteTools.SaveProjectAs(
+            workerClient: null!,
+            safety,
+            targetDirectory: @"C:\Target",
+            targetName: "Copy",
+            projectPath: null,
+            rebind: false);
+        var wrapper = await ProjectLifecycleTools.SaveProjectAs(
+            workerClient: null!,
+            safety,
+            targetDirectory: @"C:\Target",
+            targetName: "Copy",
+            projectPath: null,
+            rebind: false);
+
+        Assert.Equal(registered, wrapper);
+    }
+
+    [Fact]
+    public async Task GetProjectStatus_WrapperMatchesRegisteredNoProjectStatus()
+    {
+        using var client = new OpennessWorkerClient(
+            new ProjectSessionBinding(null),
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var registered = await ProjectReadTools.GetProjectStatus(client, "status-no-project");
+        var wrapper = await ProjectLifecycleTools.GetProjectStatus(client, "status-no-project");
+
+        Assert.Equal(registered, wrapper);
     }
 
     /// <summary>
