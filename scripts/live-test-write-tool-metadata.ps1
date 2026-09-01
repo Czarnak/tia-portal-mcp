@@ -339,20 +339,93 @@ function Get-ToolResultText {
     return $text
 }
 
-function Get-TiaPortalVersion {
-    param([string] $ProjectStatusText)
+function Get-RequiredBooleanProperty {
+    param([object] $Object, [string] $Name, [bool] $ExpectedValue)
 
-    try { $payload = $ProjectStatusText | ConvertFrom-Json -Depth 80 } catch {
+    $value = Get-PropertyValue -Object $Object -Name $Name
+    if ($value -isnot [bool] -or $value -ne $ExpectedValue) {
+        throw "get_project_status public field '$Name' must be boolean '$ExpectedValue'; actual '$value'."
+    }
+
+    return $value
+}
+
+function Get-RequiredNormalizedPathProperty {
+    param([object] $Object, [string] $Name, [string] $ExpectedPath)
+
+    $value = Get-PropertyValue -Object $Object -Name $Name
+    if ([string]::IsNullOrWhiteSpace([string] $value)) {
+        throw "get_project_status public field '$Name' must contain the requested project path."
+    }
+
+    try {
+        $normalizedActualPath = [System.IO.Path]::GetFullPath([string] $value)
+    }
+    catch {
+        throw "get_project_status public field '$Name' is not a valid path: $($_.Exception.Message)"
+    }
+
+    if (-not [string]::Equals($normalizedActualPath, $ExpectedPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "get_project_status public field '$Name' did not match the requested project path. Expected '$ExpectedPath', actual '$normalizedActualPath'."
+    }
+
+    return $normalizedActualPath
+}
+
+function Get-ProjectStatusEvidence {
+    param([object] $ToolResult, [string] $ExpectedProjectPath)
+
+    $projectStatusText = Get-ToolResultText -ToolResult $ToolResult
+
+    try { $statusEnvelope = $projectStatusText | ConvertFrom-Json -Depth 80 } catch {
         throw "Could not parse the benign get_project_status result as JSON: $($_.Exception.Message)"
     }
 
-    $identity = Get-PropertyValue -Object $payload -Name 'sessionIdentity'
-    $portalProcessId = Get-PropertyValue -Object $identity -Name 'portalProcessId'
-    if ($null -eq $portalProcessId) {
-        throw 'get_project_status did not return a portalProcessId from which to record the attached TIA Portal version.'
+    Get-RequiredBooleanProperty -Object $statusEnvelope -Name 'success' -ExpectedValue $true | Out-Null
+
+    $payloadText = Get-PropertyValue -Object $statusEnvelope -Name 'payload'
+    if ([string]::IsNullOrWhiteSpace([string] $payloadText)) {
+        throw 'get_project_status did not return a payload JSON document.'
     }
 
-    $portalProcess = Get-Process -Id ([int] $portalProcessId) -ErrorAction Stop
+    try { $statusPayload = $payloadText | ConvertFrom-Json -Depth 80 } catch {
+        throw "Could not parse the get_project_status payload as JSON: $($_.Exception.Message)"
+    }
+
+    $resolvedExpectedProjectPath = [System.IO.Path]::GetFullPath($ExpectedProjectPath)
+    Get-RequiredBooleanProperty -Object $statusPayload -Name 'isOpen' -ExpectedValue $true | Out-Null
+    $payloadPath = Get-RequiredNormalizedPathProperty -Object $statusPayload -Name 'path' -ExpectedPath $resolvedExpectedProjectPath
+
+    $sessionIdentity = Get-PropertyValue -Object $statusEnvelope -Name 'sessionIdentity'
+    if ($null -eq $sessionIdentity) {
+        throw 'get_project_status did not return a sessionIdentity.'
+    }
+
+    $identityProjectPath = Get-RequiredNormalizedPathProperty -Object $sessionIdentity -Name 'projectPath' -ExpectedPath $resolvedExpectedProjectPath
+    $portalProcessId = Get-PropertyValue -Object $sessionIdentity -Name 'portalProcessId'
+    try { [int] $normalizedPortalProcessId = $portalProcessId } catch {
+        throw 'get_project_status did not return a valid portalProcessId.'
+    }
+
+    if ($normalizedPortalProcessId -le 0) {
+        throw 'get_project_status did not return a positive portalProcessId.'
+    }
+
+    return [pscustomobject] [ordered]@{
+        success         = $true
+        isOpen          = $true
+        path            = $payloadPath
+        sessionIdentity = [pscustomobject] [ordered]@{
+            projectPath     = $identityProjectPath
+            portalProcessId = $normalizedPortalProcessId
+        }
+    }
+}
+
+function Get-TiaPortalVersion {
+    param([int] $PortalProcessId)
+
+    $portalProcess = Get-Process -Id $PortalProcessId -ErrorAction Stop
     $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($portalProcess.Path).ProductVersion
     if ([string]::IsNullOrWhiteSpace($version)) {
         throw "The attached TIA Portal process '$($portalProcess.ProcessName)' did not expose a ProductVersion."
@@ -383,7 +456,7 @@ function Invoke-LiveSession {
         $toolNames = Assert-ToolSurface -Mode $Mode -ActualNames @($tools | ForEach-Object { $_.name }) -ExpectedNames $ExpectedNames -ExpectedCount $ExpectedCount
 
         $projectStatus = Invoke-McpToolCall -Name 'get_project_status' -Arguments @{ projectPath = $resolvedProjectPath }
-        $projectStatusText = Get-ToolResultText -ToolResult $projectStatus
+        $projectStatusSummary = Get-ProjectStatusEvidence -ToolResult $projectStatus -ExpectedProjectPath $resolvedProjectPath
 
         return [pscustomobject] [ordered]@{
             mode                = $Mode
@@ -392,8 +465,8 @@ function Invoke-LiveSession {
             toolCount           = $toolNames.Count
             toolNames           = $toolNames
             writeToolAnnotations = if ($Mode -eq 'read-write') { Get-ToolAnnotationEvidence -Tools $tools } else { @() }
-            projectStatusResult = $projectStatusText
-            tiaPortalVersion    = Get-TiaPortalVersion -ProjectStatusText $projectStatusText
+            projectStatusSummary = $projectStatusSummary
+            tiaPortalVersion      = Get-TiaPortalVersion -PortalProcessId $projectStatusSummary.sessionIdentity.portalProcessId
         }
     }
     finally {
@@ -412,6 +485,10 @@ $readWriteSession = Invoke-LiveSession -Mode 'read-write' -AccessModeArgument '-
 
 if (-not [string]::Equals($readOnlySession.tiaPortalVersion, $readWriteSession.tiaPortalVersion, [System.StringComparison]::Ordinal)) {
     throw "The two host sessions resolved different TIA Portal product versions ('$($readOnlySession.tiaPortalVersion)' and '$($readWriteSession.tiaPortalVersion)')."
+}
+
+if ($readOnlySession.projectStatusSummary.sessionIdentity.portalProcessId -ne $readWriteSession.projectStatusSummary.sessionIdentity.portalProcessId) {
+    throw "The two host sessions resolved different TIA Portal process ids ('$($readOnlySession.projectStatusSummary.sessionIdentity.portalProcessId)' and '$($readWriteSession.projectStatusSummary.sessionIdentity.portalProcessId)')."
 }
 
 $reportLines = @(
@@ -437,7 +514,7 @@ $reportLines = @(
     '',
     'Benign call: `tools/call` for `get_project_status` with the project copy path. Result summary:',
     '',
-    (Convert-ToMarkdownCodeBlock -Value ($readOnlySession.projectStatusResult | ConvertFrom-Json -Depth 80)),
+    (Convert-ToMarkdownCodeBlock -Value $readOnlySession.projectStatusSummary),
     '',
     '## Read-write MCP surface',
     '',
@@ -451,7 +528,7 @@ $reportLines = @(
     '',
     'Benign call: `tools/call` for `get_project_status` with the project copy path. Result summary:',
     '',
-    (Convert-ToMarkdownCodeBlock -Value ($readWriteSession.projectStatusResult | ConvertFrom-Json -Depth 80)),
+    (Convert-ToMarkdownCodeBlock -Value $readWriteSession.projectStatusSummary),
     '',
     '## Non-mutation and evidence boundary',
     '',

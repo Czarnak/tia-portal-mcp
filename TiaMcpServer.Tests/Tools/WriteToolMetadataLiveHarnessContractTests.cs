@@ -152,6 +152,32 @@ public class WriteToolMetadataLiveHarnessContractTests
     }
 
     [Fact]
+    public void Script_FailsClosedOnInvalidProjectStatusEvidence_AndRecordsOnlySanitizedSummary()
+    {
+        var text = ReadScript();
+        var parser = ReadScriptFunction("Get-ProjectStatusEvidence");
+
+        Assert.Matches(
+            new Regex(@"Get-RequiredBooleanProperty\s+-Object\s+\$statusEnvelope\s+-Name\s+'success'\s+-ExpectedValue\s+\$true"),
+            parser);
+        Assert.Matches(
+            new Regex(@"Get-RequiredBooleanProperty\s+-Object\s+\$statusPayload\s+-Name\s+'isOpen'\s+-ExpectedValue\s+\$true"),
+            parser);
+        Assert.Matches(
+            new Regex(@"Get-RequiredNormalizedPathProperty\s+-Object\s+\$statusPayload\s+-Name\s+'path'\s+-ExpectedPath\s+\$resolvedExpectedProjectPath"),
+            parser);
+        Assert.Matches(
+            new Regex(@"Get-RequiredNormalizedPathProperty\s+-Object\s+\$sessionIdentity\s+-Name\s+'projectPath'\s+-ExpectedPath\s+\$resolvedExpectedProjectPath"),
+            parser);
+        Assert.Contains("throw", parser, StringComparison.Ordinal);
+        Assert.DoesNotContain("metadata", parser, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains("projectStatusSummary", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("projectStatusResult", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConvertFrom-Json -Depth 80)),", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NoOrdinaryTestInvokesTheLiveHarnessScript()
     {
         var testDirectory = Path.Combine(GetRepositoryRoot(), "TiaMcpServer.Tests");
@@ -185,6 +211,16 @@ public class WriteToolMetadataLiveHarnessContractTests
 
         var nextFact = source.IndexOf("\n    [Fact]", methodStart + 1, StringComparison.Ordinal);
         return nextFact >= 0 ? source[methodStart..nextFact] : source[methodStart..];
+    }
+
+    private static string ReadScriptFunction(string functionName)
+    {
+        var text = ReadScript();
+        var functionStart = text.IndexOf($"function {functionName}", StringComparison.Ordinal);
+        Assert.True(functionStart >= 0, $"Expected PowerShell function '{functionName}'.");
+
+        var nextFunction = text.IndexOf("\nfunction ", functionStart + 1, StringComparison.Ordinal);
+        return nextFunction >= 0 ? text[functionStart..nextFunction] : text[functionStart..];
     }
 
     private static string GetRepositoryRoot()
