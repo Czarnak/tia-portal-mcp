@@ -179,6 +179,15 @@ public class WriteToolMetadataLiveHarnessContractTests
         Assert.Matches(
             new Regex(@"Get-RequiredNormalizedPathProperty\s+-Object\s+\$sessionIdentity\s+-Name\s+'projectPath'\s+-ExpectedPath\s+\$resolvedExpectedProjectPath"),
             parser);
+        Assert.Matches(
+            new Regex(@"try\s*\{\s*\[int\]\s+\$normalizedPortalProcessId\s*=\s+\$portalProcessId\s*\}\s*catch"),
+            parser);
+        Assert.Matches(
+            new Regex(@"if\s*\(\$normalizedPortalProcessId\s+-le\s+0\)\s*\{\s*throw\s+'get_project_status did not return a positive portalProcessId\.'"),
+            parser);
+        Assert.Matches(
+            new Regex(@"portalProcessId\s*=\s+\$normalizedPortalProcessId"),
+            parser);
         Assert.Contains("throw", parser, StringComparison.Ordinal);
         Assert.DoesNotContain("metadata", parser, StringComparison.OrdinalIgnoreCase);
 
