@@ -58,6 +58,7 @@ var subnetLifecycleSecondFailureWriteCount = 0;
 var subnetLifecycleStateDriftReadCount = 0;
 var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
+var orderedTypeWriteCount = 0;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -449,6 +450,20 @@ while ((line = Console.In.ReadLine()) is not null)
                 "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 "get_type_content" => """{"success":true,"payload":"TYPE AnalogInputSettings STRUCT Value : Real; END_STRUCT END_TYPE"}""",
                 "update_type_content" => """{"success":true,"payload":"{}"}""",
+                _ => $$"""{"success":false,"error":"expected get_project_status, get_type_content, or update_type_content, got '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "type-content-ordered-protocol-failure":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "get_type_content" => """{"success":true,"payload":"TYPE AnalogInputSettings STRUCT Value : Real; END_STRUCT END_TYPE"}""",
+                "update_type_content" => ++orderedTypeWriteCount switch
+                {
+                    1 => """{"success":true,"payload":"{}"}""",
+                    2 => "this is not json",
+                    _ => """{"success":false,"error":"third write should have been skipped"}"""
+                },
                 _ => $$"""{"success":false,"error":"expected get_project_status, get_type_content, or update_type_content, got '{{ReadMethod(line)}}'"}"""
             });
             break;

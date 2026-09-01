@@ -81,7 +81,7 @@ public class TypeOperationFakeWorkerTests
         using var client = CreateClient(binding);
         await VerifyBindingAsync(client, binding);
 
-        var result = await BatchTools.PreviewWriteBatch(
+        var result = await WriteBatchTools.PreviewWriteBatch(
             client,
             safety,
             new[] { UpdateTypeContentOp("w1") });
@@ -106,17 +106,17 @@ public class TypeOperationFakeWorkerTests
 
         var operations = new[] { UpdateTypeContentOp("w1") };
 
-        var preview = await BatchTools.PreviewWriteBatch(client, safety, operations);
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
         var token = JsonDocument.Parse(preview).RootElement.GetProperty("safetyToken").GetString();
 
-        var firstApply = await BatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
+        var firstApply = await WriteBatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
         using (var firstDoc = JsonDocument.Parse(firstApply))
         {
             Assert.True(firstDoc.RootElement.GetProperty("success").GetBoolean());
         }
 
         // Tokens are single-use: replaying the same token must be rejected, not re-applied.
-        var secondApply = await BatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
+        var secondApply = await WriteBatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
         using var secondDoc = JsonDocument.Parse(secondApply);
         Assert.False(secondDoc.RootElement.GetProperty("success").GetBoolean());
         Assert.Contains("Safety token", secondDoc.RootElement.GetProperty("error").GetString());

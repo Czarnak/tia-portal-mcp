@@ -133,7 +133,7 @@ public class BlockCurrentStateReadTests
     /// PreviewWriteBatch/ApplyWriteBatch with a format-bearing write item.
     /// </summary>
     [Fact]
-    public async Task PreviewAndApplyWriteBatch_UpdateBlockLogicWithSourceFormat_ReadsCurrentStateAsSource()
+    public async Task PreviewAndApplyWriteBatch_UpdateBlockLogicWithSourceFormat_ReadsCurrentStateAsSource_ThroughRegisteredTool()
     {
         using var audit = new TempAuditDirectory();
         const string projectPath = "block-source-roundtrip";
@@ -145,12 +145,12 @@ public class BlockCurrentStateReadTests
 
         var operations = new[] { UpdateBlockLogicOp(SourceFormatNames.Source, projectPath) };
 
-        var preview = await BatchTools.PreviewWriteBatch(client, safety, operations);
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
         using var previewDoc = JsonDocument.Parse(preview);
         var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
         Assert.False(string.IsNullOrWhiteSpace(token));
 
-        var apply = await BatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
+        var apply = await WriteBatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
         using var applyDoc = JsonDocument.Parse(apply);
         Assert.True(
             applyDoc.RootElement.GetProperty("success").GetBoolean(),
