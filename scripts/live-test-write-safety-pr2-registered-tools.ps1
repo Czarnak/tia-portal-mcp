@@ -74,7 +74,9 @@ function Stop-McpHost {
 
             if (-not $script:HostProcess.WaitForExit(5000)) {
                 $script:HostProcess.Kill($true)
-                [void] $script:HostProcess.WaitForExit(5000)
+                if (-not $script:HostProcess.WaitForExit(5000)) {
+                    throw 'The MCP host process tree did not exit within 5 seconds after forced termination.'
+                }
             }
         }
     }

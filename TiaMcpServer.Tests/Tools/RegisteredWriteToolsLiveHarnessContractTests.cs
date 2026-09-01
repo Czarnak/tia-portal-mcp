@@ -58,6 +58,10 @@ public sealed class RegisteredWriteToolsLiveHarnessContractTests
         => AssertCleanupContract(ReadScript());
 
     [Fact]
+    public void Script_ForcedCleanupChecksPostKillExit_AndFailsLoudlyBeforeDisposing()
+        => AssertForcedCleanupFailureContract(ReadScript());
+
+    [Fact]
     public void CompleteContract_RejectsRepresentativeBoundaryBypasses()
     {
         var text = ReadScript();
@@ -112,6 +116,14 @@ public sealed class RegisteredWriteToolsLiveHarnessContractTests
             (
                 "missing finally cleanup",
                 ReplaceOnce(text, "finally {\n    Stop-McpHost\n}", "finally {\n}")),
+            (
+                "unchecked post-kill wait",
+                ReplaceOnce(
+                    text,
+                    "                if (-not $script:HostProcess.WaitForExit(5000)) {\n"
+                    + "                    throw 'The MCP host process tree did not exit within 5 seconds after forced termination.'\n"
+                    + "                }",
+                    "                [void] $script:HostProcess.WaitForExit(5000)")),
         };
 
         foreach (var (name, mutation) in mutations)
@@ -312,6 +324,23 @@ public sealed class RegisteredWriteToolsLiveHarnessContractTests
         Assert.Contains("Kill($true)", stopHelper, StringComparison.Ordinal);
         Assert.Contains("$script:HostProcess.Dispose()", stopHelper, StringComparison.Ordinal);
         Assert.Contains("$script:HostProcess = $null", stopHelper, StringComparison.Ordinal);
+        AssertForcedCleanupFailureContract(text);
+    }
+
+    private static void AssertForcedCleanupFailureContract(string text)
+    {
+        var stopHelper = ExtractTopLevelFunction(text, "Stop-McpHost");
+        Assert.Contains(
+            "                $script:HostProcess.Kill($true)\n"
+            + "                if (-not $script:HostProcess.WaitForExit(5000)) {\n"
+            + "                    throw 'The MCP host process tree did not exit within 5 seconds after forced termination.'\n"
+            + "                }",
+            stopHelper,
+            StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(
+                @"(?s)try\s*\{.*?Kill\(\$true\).*?throw 'The MCP host process tree did not exit within 5 seconds after forced termination\.'.*?\}\s*finally\s*\{\s*\$script:HostProcess\.Dispose\(\)\s*\$script:HostProcess\s*=\s*\$null\s*\}"),
+            stopHelper);
     }
 
     private static string[] ExtractExpectedToolNames(string text)

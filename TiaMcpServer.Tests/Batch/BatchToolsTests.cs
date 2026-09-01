@@ -205,7 +205,7 @@ public class BatchToolsTests
     }
 
     [Fact]
-    public async Task ApplyWriteBatch_RejectsBadTokenBeforeReadingCurrentState()
+    public async Task ApplyWriteBatch_RejectsBadToken()
     {
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();

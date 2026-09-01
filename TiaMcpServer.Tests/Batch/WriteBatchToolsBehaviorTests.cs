@@ -75,7 +75,13 @@ public sealed class WriteBatchToolsBehaviorTests
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding);
+        var nonStartableWorkerPath = Path.Combine(audit.Path, "worker-must-not-start.exe");
+        Assert.False(File.Exists(nonStartableWorkerPath));
+        using var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: nonStartableWorkerPath,
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
 
         var result = await WriteBatchTools.PreviewWriteBatch(
             client,
@@ -83,8 +89,13 @@ public sealed class WriteBatchToolsBehaviorTests
             new[] { CreateUserConstantOp("op-1") });
 
         using var doc = JsonDocument.Parse(result);
+        Assert.Equal("preview_write_batch", doc.RootElement.GetProperty("tool").GetString());
         Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
-        Assert.False(string.IsNullOrWhiteSpace(doc.RootElement.GetProperty("error").GetString()));
+        Assert.Equal(
+            "A worker-verified project binding is required before previewing or executing a write. "
+            + "Configure --project and verify it, or call open_project explicitly first.",
+            doc.RootElement.GetProperty("error").GetString());
+        Assert.Equal(3, doc.RootElement.EnumerateObject().Count());
         Assert.False(doc.RootElement.TryGetProperty("safetyToken", out _));
     }
 
