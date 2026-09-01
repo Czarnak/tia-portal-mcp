@@ -1,38 +1,144 @@
 # PR 1 Explicit MCP Tool Annotations — Live TIA Portal V21 Acceptance
 
-## Status
+## Evidence status
 
-**Pending live acceptance.** This is an evidence template, not a live-run report. The harness has
-not been run against TIA Portal V21, no project path or version is recorded here, and PR 1 remains
-incomplete until a separately authorized non-mutating live run replaces this template.
+Live acceptance completed by this separately authorized, non-mutating run. This evidence proves only the exact live TiaMcpServer host, attached TIA Portal session, and disposable project path recorded below. It does not replace offline, stub, or FakeWorker evidence, and those evidence classes do not replace this live run.
 
-## Intended harness and report path
+- Harness exit code: `0`
+- Host modes: current-branch `--read-only` and `--read-write` sessions
 
-- Harness: `scripts/live-test-write-tool-metadata.ps1`
-- Intended report path: `docs/superpowers/acceptance/reports/2026-09-01-pr1-explicit-mcp-tool-annotations-live.md`
-- Required inputs: an approved disposable `.ap21` project path and the explicit report path above.
+## Tested environment
 
-## Required live evidence
+- TIA Portal product version: 2100.0.121.1
+- Project copy path: `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`
+- Harness report path: `C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\docs\superpowers\acceptance\reports\2026-09-01-pr1-explicit-mcp-tool-annotations-live.md`
+- Read-only server: TiaMcpServer 1.0.0.0
+- Read-write server: TiaMcpServer 1.0.0.0
+- Attached Portal PID: 3152 in both sanitized status summaries
 
-The authorized harness must launch the real `TiaMcpServer` host in both `--read-only` and
-`--read-write` modes, use the public `initialize`, `notifications/initialized`, `tools/list`, and
-benign `get_project_status` protocol calls, and record:
+## Read-only MCP surface
 
-- exact TIA Portal V21 product version and tested project-copy path;
-- the exact 4-tool read-only and 14-tool read-write surfaces;
-- emitted annotation hints for `preview_write_batch`, `apply_write_batch`, `open_project`,
-  `create_project`, `save_project`, `save_project_as`, `archive_project`, and `close_project`;
-- a result summary for the benign `get_project_status` call in each access mode; and
-- the evidence boundary: only that host/project/session combination is live-proven.
+Expected and observed exactly 4 tools:
 
-## Non-mutation and deferred scope
+```json
+[
+  "browse_project_tree",
+  "execute_read_batch",
+  "get_project_status",
+  "network_read"
+]
+```
 
-The harness must not call a write, preview, apply, compile, network-write, or PLC-control route.
-It proves metadata and a benign read only; it does not weaken the server-enforced preview/token/
-apply safety model. PLC `start_plc` and `stop_plc` remain deferred.
+Benign call: `tools/call` for `get_project_status` with the project copy path. Result summary:
 
-## Evidence boundary
+```json
+{
+  "success": true,
+  "isOpen": true,
+  "path": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+  "sessionIdentity": {
+    "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+    "portalProcessId": 3152
+  }
+}
+```
 
-Offline, reference-stub, FakeWorker, and static source-contract checks are necessary development
-evidence but are not live TIA Portal V21 acceptance. No live result, tool surface, annotation value,
-TIA Portal version, or project path is asserted by this pending template.
+## Read-write MCP surface
+
+Expected and observed exactly 14 tools:
+
+```json
+[
+  "apply_write_batch",
+  "archive_project",
+  "browse_project_tree",
+  "close_project",
+  "compile_check",
+  "create_project",
+  "execute_read_batch",
+  "get_project_status",
+  "network_read",
+  "network_write",
+  "open_project",
+  "preview_write_batch",
+  "save_project",
+  "save_project_as"
+]
+```
+
+Emitted annotations for the approved write-tool matrix:
+
+```json
+[
+  {
+    "name": "preview_write_batch",
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "openWorldHint": false
+  },
+  {
+    "name": "apply_write_batch",
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": false
+  },
+  {
+    "name": "open_project",
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": false
+  },
+  {
+    "name": "create_project",
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": false
+  },
+  {
+    "name": "save_project",
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": false
+  },
+  {
+    "name": "save_project_as",
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": false
+  },
+  {
+    "name": "archive_project",
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": false
+  },
+  {
+    "name": "close_project",
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": false
+  }
+]
+```
+
+Benign call: `tools/call` for `get_project_status` with the project copy path. Result summary:
+
+```json
+{
+  "success": true,
+  "isOpen": true,
+  "path": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+  "sessionIdentity": {
+    "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+    "portalProcessId": 3152
+  }
+}
+```
+
+## Non-mutation and evidence boundary
+
+The harness sent only `initialize`, `notifications/initialized`, `tools/list`, and one `get_project_status` `tools/call` per access mode. It did not call any lifecycle, preview, apply, compilation, network-write, or PLC-control operation; no project mutation was performed. PLC `start_plc` and `stop_plc` remain deferred.
+
+A post-run read-only status check reported `isModified:false` for the project copy.
+
+The explicit MCP annotations are client-facing, untrusted metadata. Server-enforced access policy, preview/token/apply validation, binding checks, and auditing remain the write-safety authority.
