@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-01 | [Write-safety preview and registered-surface hardening](specs/2026-09-01-write-safety-hardening-design.md) |
 | 2026-08-28 | [Issue #31 project completeness and hardware pagination](specs/2026-08-28-issue-31-project-completeness-pagination-design.md) |
 | 2026-08-28 | [PR #29 binding findings repair](specs/2026-08-28-pr29-binding-findings-repair-design.md) |
 | 2026-08-07 | [Documentation reorganization](specs/2026-08-07-docs-reorganization-design.md) |
@@ -38,6 +39,12 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-01 | [PR 1 — explicit MCP tool annotations](plans/2026-09-01-pr1-explicit-mcp-tool-annotations.md) |
+| 2026-09-01 | [PR 2 — registered-tool delegation](plans/2026-09-01-pr2-registered-tool-delegation.md) |
+| 2026-09-01 | [PR 3 — exact `update_tag` safety snapshot](plans/2026-09-01-pr3-update-tag-safety-snapshot.md) |
+| 2026-09-01 | [PR 4 — bounded structured preview diff](plans/2026-09-01-pr4-structured-preview-diff.md) |
+| 2026-09-01 | [PR 5 — tag-operation safety scopes](plans/2026-09-01-pr5-tag-operation-safety-scopes.md) |
+| 2026-09-01 | [PR 6 — project-tree safety scopes](plans/2026-09-01-pr6-project-tree-safety-scopes.md) |
 | 2026-08-29 | [Hardware configuration pagination](plans/2026-08-29-hardware-pagination.md) |
 | 2026-08-28 | [Project enumeration completeness](plans/2026-08-28-project-enumeration-completeness.md) |
 | 2026-08-28 | [PR #29 binding findings repair](plans/2026-08-28-pr29-binding-findings-repair.md) |
