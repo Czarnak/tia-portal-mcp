@@ -4,9 +4,12 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Network;
 using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tests;
@@ -72,7 +75,11 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         string? auditDirectory = null,
         string? startupProjectPath = null)
         where TTools : class
-        => StartAsync(auditDirectory, startupProjectPath, builder => builder.WithTools<TTools>());
+        => StartAsync(
+            McpAccessMode.ReadWrite,
+            builder => builder.WithTools<TTools>(),
+            auditDirectory,
+            startupProjectPath);
 
     /// <summary>
     /// Starts a server exposing BOTH <typeparamref name="TTools1"/> and <typeparamref name="TTools2"/>
@@ -86,14 +93,46 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         where TTools1 : class
         where TTools2 : class
         => StartAsync(
+            McpAccessMode.ReadWrite,
+            builder => builder.WithTools<TTools1>().WithTools<TTools2>(),
             auditDirectory,
-            startupProjectPath,
-            builder => builder.WithTools<TTools1>().WithTools<TTools2>());
+            startupProjectPath);
 
-    private static async Task<McpProtocolTestHarness> StartAsync(
+    public static Task<McpProtocolTestHarness> StartAsync(
+        McpAccessMode accessMode,
+        Action<IMcpServerBuilder> registerTools,
+        string? auditDirectory = null,
+        string? startupProjectPath = null)
+        => StartCoreAsync(accessMode, registerTools, auditDirectory, startupProjectPath);
+
+    public static Task<McpProtocolTestHarness> StartProductionSurfaceAsync(
+        McpAccessMode accessMode,
+        string? auditDirectory = null,
+        string? startupProjectPath = null)
+        => StartAsync(
+            accessMode,
+            builder =>
+            {
+                builder.WithTools<ProjectReadTools>()
+                       .WithTools<ReadBatchTools>()
+                       .WithTools<NetworkReadTools>();
+
+                if (accessMode == McpAccessMode.ReadWrite)
+                {
+                    builder.WithTools<ProjectEngineeringTools>()
+                           .WithTools<ProjectWriteTools>()
+                           .WithTools<WriteBatchTools>()
+                           .WithTools<NetworkWriteTools>();
+                }
+            },
+            auditDirectory,
+            startupProjectPath);
+
+    private static async Task<McpProtocolTestHarness> StartCoreAsync(
+        McpAccessMode accessMode,
+        Action<IMcpServerBuilder> registerTools,
         string? auditDirectory,
-        string? startupProjectPath,
-        Action<IMcpServerBuilder> registerTools)
+        string? startupProjectPath)
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
         var serverReads = new AnonymousPipeClientStream(
@@ -103,7 +142,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             PipeDirection.In, serverWrites.ClientSafePipeHandle);
 
         var binding = new ProjectSessionBinding(null);
-        var accessPolicy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
+        var accessPolicy = new OperationAccessPolicy(accessMode);
         var workerClient = new OpennessWorkerClient(
             binding,
             logger: null,
