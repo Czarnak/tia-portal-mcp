@@ -49,7 +49,7 @@ public class WriteToolMetadataLiveHarnessContractTests
     {
         var text = ReadScript();
 
-        Assert.DoesNotMatch(new Regex(@"confirm\s*=\s*\$true"), text);
+        Assert.DoesNotMatch(new Regex(@"confirm\s*=\s*\$true", RegexOptions.IgnoreCase), text);
     }
 
     [Fact]
@@ -57,12 +57,57 @@ public class WriteToolMetadataLiveHarnessContractTests
     {
         var text = ReadScript();
 
-        Assert.Matches(new Regex(@"Invoke-McpToolCall\s+-Name\s+'get_project_status'"), text);
+        var toolsCallRequests = Regex.Matches(
+            text,
+            "Invoke-McpRequest\\s+-Method\\s+['\\\"]tools/call['\\\"]",
+            RegexOptions.IgnoreCase);
+        Assert.Single(toolsCallRequests);
+
+        Assert.Matches(
+            new Regex(@"Invoke-McpToolCall\s+-Name\s+'get_project_status'", RegexOptions.IgnoreCase),
+            text);
         Assert.True(
-            Regex.Matches(text, @"Invoke-McpToolCall\s+-Name\s+'([^']+)'")
+            Regex.Matches(text, @"Invoke-McpToolCall\s+-Name\s+'([^']+)'", RegexOptions.IgnoreCase)
                 .Cast<Match>()
-                .All(match => string.Equals(match.Groups[1].Value, "get_project_status", StringComparison.Ordinal)),
+                .All(match => string.Equals(match.Groups[1].Value, "get_project_status", StringComparison.OrdinalIgnoreCase)),
             "The harness may call only get_project_status through tools/call.");
+    }
+
+    [Fact]
+    public void Script_FailsClosedOnAnyApprovedWriteAnnotationMismatch()
+    {
+        var text = ReadScript();
+
+        Assert.Contains("$script:ExpectedWriteToolAnnotations", text, StringComparison.Ordinal);
+        Assert.Contains("function Assert-ToolAnnotationEvidence", text, StringComparison.Ordinal);
+
+        foreach (var (toolName, readOnlyHint, destructiveHint, openWorldHint) in new[]
+                 {
+                     ("preview_write_batch", true, false, false),
+                     ("apply_write_batch", false, true, false),
+                     ("open_project", false, true, false),
+                     ("create_project", false, true, false),
+                     ("save_project", false, true, false),
+                     ("save_project_as", false, true, false),
+                     ("archive_project", false, true, false),
+                     ("close_project", false, true, false),
+                 })
+        {
+            var expected = $@"(?s)'{toolName}'\s*=\s*@\{{.*?readOnlyHint\s*=\s*\${readOnlyHint.ToString().ToLowerInvariant()}.*?destructiveHint\s*=\s*\${destructiveHint.ToString().ToLowerInvariant()}.*?openWorldHint\s*=\s*\${openWorldHint.ToString().ToLowerInvariant()}";
+            Assert.Matches(new Regex(expected), text);
+        }
+    }
+
+    [Fact]
+    public void StaticSafetyGuard_IsCaseInsensitiveAndCountsEveryToolsCallRequest()
+    {
+        var confirmingWriteGuard = ReadThisTestMethod("Script_NeverIssuesConfirmingApply");
+        Assert.Contains("RegexOptions.IgnoreCase", confirmingWriteGuard, StringComparison.Ordinal);
+
+        var benignCallGuard = ReadThisTestMethod("Script_CallsOnlyBenignProjectStatusTool");
+        Assert.Contains("Invoke-McpRequest", benignCallGuard, StringComparison.Ordinal);
+        Assert.Contains("Assert.Single", benignCallGuard, StringComparison.Ordinal);
+        Assert.Contains("RegexOptions.IgnoreCase", benignCallGuard, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -126,6 +171,20 @@ public class WriteToolMetadataLiveHarnessContractTests
     {
         Assert.True(File.Exists(ScriptPath), $"Expected the live harness at '{ScriptPath}'.");
         return File.ReadAllText(ScriptPath);
+    }
+
+    private static string ReadThisTestMethod(string methodName)
+    {
+        var source = File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(),
+            "TiaMcpServer.Tests",
+            "Tools",
+            "WriteToolMetadataLiveHarnessContractTests.cs"));
+        var methodStart = source.IndexOf($"public void {methodName}()", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0, $"Expected test method '{methodName}'.");
+
+        var nextFact = source.IndexOf("\n    [Fact]", methodStart + 1, StringComparison.Ordinal);
+        return nextFact >= 0 ? source[methodStart..nextFact] : source[methodStart..];
     }
 
     private static string GetRepositoryRoot()

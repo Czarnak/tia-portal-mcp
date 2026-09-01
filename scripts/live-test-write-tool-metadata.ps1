@@ -77,6 +77,48 @@ $script:AnnotatedWriteToolNames = @(
     'archive_project',
     'close_project'
 )
+$script:ExpectedWriteToolAnnotations = @{
+    'preview_write_batch' = @{
+        readOnlyHint    = $true
+        destructiveHint = $false
+        openWorldHint   = $false
+    }
+    'apply_write_batch' = @{
+        readOnlyHint    = $false
+        destructiveHint = $true
+        openWorldHint   = $false
+    }
+    'open_project' = @{
+        readOnlyHint    = $false
+        destructiveHint = $true
+        openWorldHint   = $false
+    }
+    'create_project' = @{
+        readOnlyHint    = $false
+        destructiveHint = $true
+        openWorldHint   = $false
+    }
+    'save_project' = @{
+        readOnlyHint    = $false
+        destructiveHint = $true
+        openWorldHint   = $false
+    }
+    'save_project_as' = @{
+        readOnlyHint    = $false
+        destructiveHint = $true
+        openWorldHint   = $false
+    }
+    'archive_project' = @{
+        readOnlyHint    = $false
+        destructiveHint = $true
+        openWorldHint   = $false
+    }
+    'close_project' = @{
+        readOnlyHint    = $false
+        destructiveHint = $true
+        openWorldHint   = $false
+    }
+}
 
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $expectedReportPath = Join-Path $repositoryRoot 'docs\superpowers\acceptance\reports\2026-09-01-pr1-explicit-mcp-tool-annotations-live.md'
@@ -250,20 +292,35 @@ function Get-ToolAnnotationEvidence {
             throw "Read-write tools/list did not advertise required annotated tool '$toolName'."
         }
 
-        $annotations = Get-PropertyValue -Object $byName[$toolName] -Name 'annotations'
-        if ($null -eq $annotations) {
-            throw "Read-write tools/list omitted annotations for '$toolName'."
-        }
-
-        $records += [pscustomobject] [ordered]@{
-            name            = $toolName
-            readOnlyHint    = Get-PropertyValue -Object $annotations -Name 'readOnlyHint'
-            destructiveHint = Get-PropertyValue -Object $annotations -Name 'destructiveHint'
-            openWorldHint   = Get-PropertyValue -Object $annotations -Name 'openWorldHint'
-        }
+        $records += Assert-ToolAnnotationEvidence -ToolName $toolName -Annotations (Get-PropertyValue -Object $byName[$toolName] -Name 'annotations')
     }
 
     return $records
+}
+
+function Assert-ToolAnnotationEvidence {
+    param([string] $ToolName, [object] $Annotations)
+
+    if ($null -eq $Annotations) {
+        throw "Read-write tools/list omitted annotations for '$ToolName'."
+    }
+
+    if (-not $script:ExpectedWriteToolAnnotations.ContainsKey($ToolName)) {
+        throw "No approved annotation matrix entry exists for '$ToolName'."
+    }
+
+    $expected = $script:ExpectedWriteToolAnnotations[$ToolName]
+    $actual = [ordered]@{ name = $ToolName }
+    foreach ($hintName in @('readOnlyHint', 'destructiveHint', 'openWorldHint')) {
+        $actualValue = Get-PropertyValue -Object $Annotations -Name $hintName
+        if ($actualValue -isnot [bool] -or $actualValue -ne $expected[$hintName]) {
+            throw "Read-write tools/list annotation mismatch for '$ToolName.$hintName': expected '$($expected[$hintName])', actual '$actualValue'."
+        }
+
+        $actual[$hintName] = $actualValue
+    }
+
+    return [pscustomobject] $actual
 }
 
 function Get-ToolResultText {
