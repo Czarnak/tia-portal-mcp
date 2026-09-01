@@ -161,10 +161,20 @@ public class WriteToolMetadataLiveHarnessContractTests
             new Regex(@"Get-RequiredBooleanProperty\s+-Object\s+\$statusEnvelope\s+-Name\s+'success'\s+-ExpectedValue\s+\$true"),
             parser);
         Assert.Matches(
-            new Regex(@"Get-RequiredBooleanProperty\s+-Object\s+\$statusPayload\s+-Name\s+'isOpen'\s+-ExpectedValue\s+\$true"),
+            new Regex(@"Get-RequiredBooleanProperty\s+-Object\s+\$statusPayload\s+-Name\s+'success'\s+-ExpectedValue\s+\$true"),
             parser);
         Assert.Matches(
-            new Regex(@"Get-RequiredNormalizedPathProperty\s+-Object\s+\$statusPayload\s+-Name\s+'path'\s+-ExpectedPath\s+\$resolvedExpectedProjectPath"),
+            new Regex(@"Get-RequiredNormalizedPathProperty\s+-Object\s+\$statusPayload\s+-Name\s+'projectPath'\s+-ExpectedPath\s+\$resolvedExpectedProjectPath"),
+            parser);
+        Assert.Matches(
+            new Regex(@"\$project\s*=\s*Get-PropertyValue\s+-Object\s+\$statusPayload\s+-Name\s+'project'"),
+            parser);
+        Assert.Contains("$null -eq $project", parser, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"Get-RequiredBooleanProperty\s+-Object\s+\$project\s+-Name\s+'isOpen'\s+-ExpectedValue\s+\$true"),
+            parser);
+        Assert.Matches(
+            new Regex(@"Get-RequiredNormalizedPathProperty\s+-Object\s+\$project\s+-Name\s+'path'\s+-ExpectedPath\s+\$resolvedExpectedProjectPath"),
             parser);
         Assert.Matches(
             new Regex(@"Get-RequiredNormalizedPathProperty\s+-Object\s+\$sessionIdentity\s+-Name\s+'projectPath'\s+-ExpectedPath\s+\$resolvedExpectedProjectPath"),

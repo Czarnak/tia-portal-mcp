@@ -393,8 +393,16 @@ function Get-ProjectStatusEvidence {
     }
 
     $resolvedExpectedProjectPath = [System.IO.Path]::GetFullPath($ExpectedProjectPath)
-    Get-RequiredBooleanProperty -Object $statusPayload -Name 'isOpen' -ExpectedValue $true | Out-Null
-    $payloadPath = Get-RequiredNormalizedPathProperty -Object $statusPayload -Name 'path' -ExpectedPath $resolvedExpectedProjectPath
+    Get-RequiredBooleanProperty -Object $statusPayload -Name 'success' -ExpectedValue $true | Out-Null
+    Get-RequiredNormalizedPathProperty -Object $statusPayload -Name 'projectPath' -ExpectedPath $resolvedExpectedProjectPath | Out-Null
+
+    $project = Get-PropertyValue -Object $statusPayload -Name 'project'
+    if ($null -eq $project) {
+        throw 'get_project_status payload did not return a project.'
+    }
+
+    Get-RequiredBooleanProperty -Object $project -Name 'isOpen' -ExpectedValue $true | Out-Null
+    $projectPath = Get-RequiredNormalizedPathProperty -Object $project -Name 'path' -ExpectedPath $resolvedExpectedProjectPath
 
     $sessionIdentity = Get-PropertyValue -Object $statusEnvelope -Name 'sessionIdentity'
     if ($null -eq $sessionIdentity) {
@@ -414,7 +422,7 @@ function Get-ProjectStatusEvidence {
     return [pscustomobject] [ordered]@{
         success         = $true
         isOpen          = $true
-        path            = $payloadPath
+        path            = $projectPath
         sessionIdentity = [pscustomobject] [ordered]@{
             projectPath     = $identityProjectPath
             portalProcessId = $normalizedPortalProcessId
