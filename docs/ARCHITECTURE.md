@@ -87,6 +87,14 @@ This prevents write tools from appearing in MCP discovery when the server is
 read-only. Decorated tool classes that are not explicitly registered are not
 part of the active tool surface.
 
+`Program.cs` registers the split read/write owners directly: `ProjectReadTools`
+and `ReadBatchTools` in every mode, plus `ProjectWriteTools` and
+`WriteBatchTools` in read-write mode. `ProjectLifecycleTools` and `BatchTools`
+remain compatibility wrappers for existing internal callers and tests only;
+they are not registered MCP tool classes. The registered-surface delegation and
+preview-only live V21 evidence are recorded in the
+[PR 2 acceptance report](superpowers/acceptance/reports/2026-09-01-pr2-registered-tool-delegation-live.md).
+
 ### Read-only tool surface
 
 | Tool | Purpose |
