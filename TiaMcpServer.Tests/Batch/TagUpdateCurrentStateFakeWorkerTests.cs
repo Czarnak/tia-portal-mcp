@@ -84,9 +84,13 @@ public class TagUpdateCurrentStateFakeWorkerTests
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
 
         var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, new[] { UpdateTagOp(scenario) });
+        var observedState = await client.GetProjectStatusAsync(scenario);
 
         Assert.Contains("strict update-tag snapshot read failed", preview, StringComparison.Ordinal);
         Assert.DoesNotContain("\"safetyToken\":", preview, StringComparison.Ordinal);
+        Assert.True(observedState.Success, observedState.Error);
+        using var document = JsonDocument.Parse(observedState.Payload);
+        Assert.Equal(0, document.RootElement.GetProperty("strictSnapshotFailureBroadReadCount").GetInt32());
     }
 
     [Fact]

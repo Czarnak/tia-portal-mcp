@@ -60,6 +60,7 @@ var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
 var orderedTypeWriteCount = 0;
 var tagUpdateFlagDriftSnapshotReadCount = 0;
+var tagUpdateStrictSnapshotFailureBroadReadCount = 0;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -291,11 +292,22 @@ while ((line = Console.In.ReadLine()) is not null)
             });
             break;
         case "tag-update-snapshot-read-fails":
-            Respond(ReadMethod(line) == "read_update_tag_safety_snapshot"
-                ? """{"success":false,"failureCategory":"worker_operation_failed","error":"strict update-tag snapshot read failed"}"""
-                : ReadMethod(line) == "get_project_status"
-                    ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
-                    : """{"success":false,"error":"unexpected update-tag snapshot-failure fixture method"}""");
+            switch (ReadMethod(line))
+            {
+                case "read_update_tag_safety_snapshot":
+                    Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"strict update-tag snapshot read failed"}""");
+                    break;
+                case "list_tag_tables":
+                    tagUpdateStrictSnapshotFailureBroadReadCount++;
+                    Respond("""{"success":true,"payload":"{\"tables\":[]}"}""");
+                    break;
+                case "get_project_status":
+                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"strictSnapshotFailureBroadReadCount\":{{tagUpdateStrictSnapshotFailureBroadReadCount}}}"}""");
+                    break;
+                default:
+                    Respond("""{"success":false,"error":"unexpected update-tag snapshot-failure fixture method"}""");
+                    break;
+            }
             break;
         case "tag-update-broad-best-effort-omission":
             Respond(ReadMethod(line) switch
