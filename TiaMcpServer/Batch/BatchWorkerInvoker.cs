@@ -65,21 +65,10 @@ public static class BatchWorkerInvoker
             return strict;
         }
 
-        TagUpdateSafetySnapshot? snapshot;
-        try
-        {
-            snapshot = JsonSerializer.Deserialize<TagUpdateSafetySnapshot>(strict.Payload);
-        }
-        catch (JsonException ex)
+        if (!TryDecodeUpdateTagSafetySnapshot(strict.Payload, out var snapshot, out var decodeError))
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
-                $"Could not decode the update_tag safety snapshot. {ex.Message}");
-        }
-
-        if (snapshot is null)
-        {
-            return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
-                "Could not decode the update_tag safety snapshot.");
+                $"Could not decode the update_tag safety snapshot. {decodeError}");
         }
 
         var unavailableFlag = TagUpdateSafetyCurrentState.ValidateRequestedExternalFlags(op, snapshot);
@@ -115,6 +104,83 @@ public static class BatchWorkerInvoker
             ResolvedProjectPath = broad.ResolvedProjectPath,
             SessionIdentity = broad.SessionIdentity,
         };
+    }
+
+    private static bool TryDecodeUpdateTagSafetySnapshot(
+        string payload,
+        out TagUpdateSafetySnapshot snapshot,
+        out string error)
+    {
+        snapshot = null!;
+        error = string.Empty;
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                error = "Expected one JSON object.";
+                return false;
+            }
+
+            var expectedKinds = new Dictionary<string, JsonValueKind>(StringComparer.Ordinal)
+            {
+                ["plcName"] = JsonValueKind.String,
+                ["folderPath"] = JsonValueKind.String,
+                ["tableName"] = JsonValueKind.String,
+                ["tagName"] = JsonValueKind.String,
+                ["dataType"] = JsonValueKind.String,
+                ["logicalAddress"] = JsonValueKind.String,
+                ["externalAccessible"] = JsonValueKind.True,
+                ["externalVisible"] = JsonValueKind.True,
+                ["externalWritable"] = JsonValueKind.True,
+            };
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!expectedKinds.TryGetValue(property.Name, out var expectedKind))
+                {
+                    error = $"Unsupported member '{property.Name}'.";
+                    return false;
+                }
+                if (!seen.Add(property.Name))
+                {
+                    error = $"Duplicate member '{property.Name}'.";
+                    return false;
+                }
+
+                var actualKind = property.Value.ValueKind;
+                var validKind = expectedKind == JsonValueKind.String
+                    ? actualKind == JsonValueKind.String
+                    : actualKind is JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null;
+                if (!validKind)
+                {
+                    error = $"Member '{property.Name}' has an unsupported JSON type.";
+                    return false;
+                }
+            }
+
+            foreach (var member in expectedKinds.Keys)
+            {
+                if (!seen.Contains(member))
+                {
+                    error = $"Required member '{member}' is missing.";
+                    return false;
+                }
+            }
+
+            snapshot = document.RootElement.Deserialize<TagUpdateSafetySnapshot>()!;
+            if (snapshot is null)
+            {
+                error = "The snapshot object decoded to null.";
+                return false;
+            }
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
     }
 
     /// <summary>Executes a single read or write item against the worker.</summary>

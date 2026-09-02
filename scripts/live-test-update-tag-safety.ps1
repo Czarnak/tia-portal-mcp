@@ -37,28 +37,6 @@ $script:WorkerProcess = $null
 $script:NextRequestId = 0
 $script:WorkerSessionIdentity = $null
 
-if ($Mode -eq 'ApplyDrift' -and -not $AllowApply) {
-    throw "Mode 'ApplyDrift' requires -AllowApply. It changes one flag on a disposable project copy."
-}
-
-if ($Mode -eq 'ProbeUnavailable') {
-    foreach ($required in @('ProbeTableName', 'ProbeTagName', 'ProbeFlagName')) {
-        if ([string]::IsNullOrWhiteSpace([string](Get-Variable -Name $required -ValueOnly))) {
-            throw "Mode 'ProbeUnavailable' requires -$required. This optional probe uses a separate target."
-        }
-    }
-    Assert-OptionalProbeTargetIsDistinct
-}
-
-if ($null -eq $HostArguments -or $HostArguments.Count -eq 0) {
-    $hostDll = Join-Path $script:RepositoryRoot 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll'
-    $HostArguments = @($hostDll)
-}
-
-if ([string]::IsNullOrWhiteSpace($WorkerExecutable)) {
-    $WorkerExecutable = Join-Path $script:RepositoryRoot 'TiaMcpServer\bin\Debug\net8.0\openness-worker\TiaMcpServer.OpennessWorker.exe'
-}
-
 function Start-JsonLineProcess {
     param(
         [Parameter(Mandatory)][string]$Executable,
@@ -303,6 +281,16 @@ function Invoke-McpNotification {
     Send-JsonLine -Process $script:HostProcess -Message @{ jsonrpc = '2.0'; method = $Method; params = $Params }
 }
 
+function Test-McpToolResultIsError {
+    param([Parameter(Mandatory)][object]$Result)
+
+    $property = $Result.PSObject.Properties['isError']
+    if ($null -eq $property) {
+        return $false
+    }
+    return [bool]$property.Value
+}
+
 function Invoke-McpTool {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -314,7 +302,7 @@ function Invoke-McpTool {
     if ($null -eq $result) {
         throw "MCP tool '$Name' returned no result."
     }
-    if ($result.isError -and -not $AllowApplicationError) {
+    if ((Test-McpToolResultIsError -Result $result) -and -not $AllowApplicationError) {
         $errorText = if ($null -ne $result.content -and @($result.content).Count -gt 0) { [string]$result.content[0].text } else { 'no error content' }
         throw "MCP tool '$Name' returned an application error: $errorText"
     }
@@ -359,7 +347,7 @@ function New-UpdateTagOperation {
 function Get-PreviewToken {
     param([Parameter(Mandatory)][object]$ToolCall)
 
-    if ($ToolCall.Result.isError -or $null -eq $ToolCall.Document) {
+    if ((Test-McpToolResultIsError -Result $ToolCall.Result) -or $null -eq $ToolCall.Document) {
         throw "preview_write_batch failed before issuing a token: $($ToolCall.Text)"
     }
     $token = $ToolCall.Document.safetyToken
@@ -405,7 +393,7 @@ function Assert-PublicTagRowMatchesSnapshot {
         [Parameter(Mandatory)][object]$Snapshot
     )
 
-    if ($ToolCall.Result.isError -or $null -eq $ToolCall.Document -or -not $ToolCall.Document.success) {
+    if ((Test-McpToolResultIsError -Result $ToolCall.Result) -or $null -eq $ToolCall.Document -or -not $ToolCall.Document.success) {
         throw "list_tag_tables returned an application error: $($ToolCall.Text)"
     }
     $operations = @($ToolCall.Document.operations)
@@ -447,13 +435,36 @@ function Write-SnapshotEvidence {
     Write-Output "${FlagName}: $flag"
 }
 
-try {
-    $script:WorkerProcess = Start-JsonLineProcess -Executable $WorkerExecutable -Arguments @() -Label 'Openness worker'
-    Connect-Worker
-    Get-CompleteSessionIdentity
-    Start-McpHost
+function Invoke-Main {
+    if ($Mode -eq 'ApplyDrift' -and -not $AllowApply) {
+        throw "Mode 'ApplyDrift' requires -AllowApply. It changes one flag on a disposable project copy."
+    }
 
-    switch ($Mode) {
+    if ($Mode -eq 'ProbeUnavailable') {
+        foreach ($required in @('ProbeTableName', 'ProbeTagName', 'ProbeFlagName')) {
+            if ([string]::IsNullOrWhiteSpace([string](Get-Variable -Name $required -ValueOnly))) {
+                throw "Mode 'ProbeUnavailable' requires -$required. This optional probe uses a separate target."
+            }
+        }
+        Assert-OptionalProbeTargetIsDistinct
+    }
+
+    if ($null -eq $HostArguments -or $HostArguments.Count -eq 0) {
+        $hostDll = Join-Path $script:RepositoryRoot 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll'
+        $HostArguments = @($hostDll)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($WorkerExecutable)) {
+        $WorkerExecutable = Join-Path $script:RepositoryRoot 'TiaMcpServer\bin\Debug\net8.0\openness-worker\TiaMcpServer.OpennessWorker.exe'
+    }
+
+    try {
+        $script:WorkerProcess = Start-JsonLineProcess -Executable $WorkerExecutable -Arguments @() -Label 'Openness worker'
+        Connect-Worker
+        Get-CompleteSessionIdentity
+        Start-McpHost
+
+        switch ($Mode) {
         'Read' {
             $snapshot = Read-UpdateTagSafetySnapshot -RequestedTableName $TableName -RequestedTagName $TagName -RequestedPlcName $PlcName
             $null = Get-ReadableSnapshotFlag -Snapshot $snapshot -FlagName $DriftFlagName
@@ -489,7 +500,7 @@ try {
                 $intermediatePreview = Invoke-Preview -Operation $originalOperation
                 $intermediateToken = Get-PreviewToken -ToolCall $intermediatePreview
                 $intermediateApply = Invoke-Apply -Operation $originalOperation -SafetyToken $intermediateToken
-                if ($intermediateApply.Result.isError) {
+                if (Test-McpToolResultIsError -Result $intermediateApply.Result) {
                     throw "The authorized intermediate update_tag drift failed: $($intermediateApply.Text)"
                 }
 
@@ -515,7 +526,7 @@ try {
                     $restorePreview = Invoke-Preview -Operation $restoreOperation
                     $restoreToken = Get-PreviewToken -ToolCall $restorePreview
                     $restoreApply = Invoke-Apply -Operation $restoreOperation -SafetyToken $restoreToken
-                    if ($restoreApply.Result.isError) {
+                    if (Test-McpToolResultIsError -Result $restoreApply.Result) {
                         throw "The restoration update_tag failed: $($restoreApply.Text)"
                     }
                     Write-Output 'Restored the original flag value on the disposable copy.'
@@ -533,7 +544,7 @@ try {
             }
             $probeOperation = New-UpdateTagOperation -Snapshot $probeSnapshot -FlagName $ProbeFlagName -Value $true -OperationId 'update-tag-unavailable-flag-probe'
             $probePreview = Invoke-McpTool -Name 'preview_write_batch' -Arguments @{ operations = @($probeOperation) } -AllowApplicationError
-            if (-not $probePreview.Result.isError) {
+            if (-not (Test-McpToolResultIsError -Result $probePreview.Result)) {
                 throw "Optional unavailable probe unexpectedly issued a preview result: $($probePreview.Text)"
             }
             if ($null -ne $probePreview.Document -and -not [string]::IsNullOrWhiteSpace([string]$probePreview.Document.safetyToken)) {
@@ -541,9 +552,12 @@ try {
             }
             Write-Output 'Optional unavailable flag preview rejected before token issuance.'
         }
+        }
+    }
+    finally {
+        Stop-JsonLineProcess -Process $script:HostProcess
+        Stop-JsonLineProcess -Process $script:WorkerProcess
     }
 }
-finally {
-    Stop-JsonLineProcess -Process $script:HostProcess
-    Stop-JsonLineProcess -Process $script:WorkerProcess
-}
+
+Invoke-Main

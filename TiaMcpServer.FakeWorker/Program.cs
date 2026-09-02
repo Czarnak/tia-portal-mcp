@@ -61,6 +61,7 @@ var createBlockPostconditionAttempt = 0;
 var orderedTypeWriteCount = 0;
 var tagUpdateFlagDriftSnapshotReadCount = 0;
 var tagUpdateStrictSnapshotFailureBroadReadCount = 0;
+var tagUpdateInvalidSnapshotBroadReadCount = 0;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -306,6 +307,24 @@ while ((line = Console.In.ReadLine()) is not null)
                     break;
                 default:
                     Respond("""{"success":false,"error":"unexpected update-tag snapshot-failure fixture method"}""");
+                    break;
+            }
+            break;
+        case "tag-update-snapshot-invalid-payload":
+            switch (ReadMethod(line))
+            {
+                case "read_update_tag_safety_snapshot":
+                    Respond(InvalidTagUpdateSnapshotResponse(line));
+                    break;
+                case "list_tag_tables":
+                    tagUpdateInvalidSnapshotBroadReadCount++;
+                    Respond("""{"success":true,"payload":"{\"tables\":[]}"}""");
+                    break;
+                case "get_project_status":
+                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"invalidSnapshotBroadReadCount\":{{tagUpdateInvalidSnapshotBroadReadCount}}}"}""");
+                    break;
+                default:
+                    Respond("""{"success":false,"error":"unexpected update-tag invalid-snapshot fixture method"}""");
                     break;
             }
             break;
@@ -1999,6 +2018,57 @@ string TagUpdateDriftSnapshotResponse(int readCount)
 {
     var externalAccessible = readCount == 1 ? "false" : "true";
     return $$"""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":{{externalAccessible}},\"externalVisible\":true,\"externalWritable\":false}"}""";
+}
+
+string InvalidTagUpdateSnapshotResponse(string requestLine)
+{
+    var variant = ReadField(requestLine, "name") ?? "empty";
+    if (variant == "malformed")
+    {
+        return Success("{not valid json");
+    }
+    if (variant == "root-array")
+    {
+        return Success("[]");
+    }
+
+    var snapshot = new Dictionary<string, object?>(StringComparer.Ordinal)
+    {
+        ["plcName"] = "ResolvedPLC",
+        ["folderPath"] = "/",
+        ["tableName"] = "Default tag table",
+        ["tagName"] = "MotorReady",
+        ["dataType"] = "Bool",
+        ["logicalAddress"] = "%I0.0",
+        ["externalAccessible"] = false,
+        ["externalVisible"] = true,
+        ["externalWritable"] = false,
+    };
+
+    if (variant == "empty")
+    {
+        snapshot.Clear();
+    }
+    else if (variant.StartsWith("missing-", StringComparison.Ordinal))
+    {
+        snapshot.Remove(variant["missing-".Length..]);
+    }
+    else if (variant.StartsWith("wrong-", StringComparison.Ordinal))
+    {
+        snapshot[variant["wrong-".Length..]] = new { unsupported = true };
+    }
+
+    if (variant == "unknown-member")
+    {
+        snapshot["unexpected"] = true;
+    }
+
+    var payload = JsonSerializer.Serialize(snapshot);
+    if (variant == "duplicate-member")
+    {
+        payload = payload.Insert(1, "\"plcName\":\"Duplicate\",");
+    }
+    return Success(payload);
 }
 
 int? ReadIntField(string requestLine, string propertyName)
