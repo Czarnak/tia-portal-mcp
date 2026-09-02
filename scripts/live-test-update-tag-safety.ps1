@@ -47,6 +47,7 @@ if ($Mode -eq 'ProbeUnavailable') {
             throw "Mode 'ProbeUnavailable' requires -$required. This optional probe uses a separate target."
         }
     }
+    Assert-OptionalProbeTargetIsDistinct
 }
 
 if ($null -eq $HostArguments -or $HostArguments.Count -eq 0) {
@@ -278,7 +279,7 @@ function Start-McpHost {
     Invoke-McpNotification -Method 'notifications/initialized'
     $tools = Invoke-McpRequest -Method 'tools/list'
     $toolNames = @($tools.tools | ForEach-Object { $_.name })
-    foreach ($required in @('list_tag_tables', 'preview_write_batch', 'apply_write_batch')) {
+    foreach ($required in @('execute_read_batch', 'preview_write_batch', 'apply_write_batch')) {
         if ($toolNames -notcontains $required) {
             throw "The MCP host does not advertise '$required'."
         }
@@ -305,16 +306,33 @@ function Invoke-McpNotification {
 function Invoke-McpTool {
     param(
         [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][hashtable]$Arguments
+        [Parameter(Mandatory)][hashtable]$Arguments,
+        [switch]$AllowApplicationError
     )
 
     $result = Invoke-McpRequest -Method 'tools/call' -Params @{ name = $Name; arguments = $Arguments }
     if ($null -eq $result) {
         throw "MCP tool '$Name' returned no result."
     }
+    if ($result.isError -and -not $AllowApplicationError) {
+        $errorText = if ($null -ne $result.content -and @($result.content).Count -gt 0) { [string]$result.content[0].text } else { 'no error content' }
+        throw "MCP tool '$Name' returned an application error: $errorText"
+    }
     $text = if ($null -ne $result.content -and @($result.content).Count -gt 0) { [string]$result.content[0].text } else { $null }
     $document = if ([string]::IsNullOrWhiteSpace($text)) { $null } else { $text | ConvertFrom-Json -Depth 100 }
     return [pscustomobject]@{ Result = $result; Text = $text; Document = $document }
+}
+
+function Assert-OptionalProbeTargetIsDistinct {
+    # ProbeUnavailable has no independent PLC/folder selector. Its target therefore shares the
+    # mandatory target's $PlcName and root folder scope; table/tag must identify a second target.
+    $samePlcScope = $true
+    $sameFolderScope = $true
+    $sameTable = [string]::Equals($ProbeTableName, $TableName, [System.StringComparison]::Ordinal)
+    $sameTag = [string]::Equals($ProbeTagName, $TagName, [System.StringComparison]::Ordinal)
+    if ($samePlcScope -and $sameFolderScope -and $sameTable -and $sameTag) {
+        throw 'Mode ProbeUnavailable requires a second table/tag target distinct from the mandatory drift target.'
+    }
 }
 
 function New-UpdateTagOperation {
@@ -368,6 +386,55 @@ function Invoke-Apply {
     }
 }
 
+function Assert-SnapshotFlagEquals {
+    param(
+        [Parameter(Mandatory)][object]$Snapshot,
+        [Parameter(Mandatory)][string]$FlagName,
+        [Parameter(Mandatory)][bool]$ExpectedValue
+    )
+
+    $actualValue = Get-ReadableSnapshotFlag -Snapshot $Snapshot -FlagName $FlagName
+    if ($actualValue -ne $ExpectedValue) {
+        throw "Strict snapshot '$FlagName' was '$actualValue', expected original value '$ExpectedValue'."
+    }
+}
+
+function Assert-PublicTagRowMatchesSnapshot {
+    param(
+        [Parameter(Mandatory)][object]$ToolCall,
+        [Parameter(Mandatory)][object]$Snapshot
+    )
+
+    if ($ToolCall.Result.isError -or $null -eq $ToolCall.Document -or -not $ToolCall.Document.success) {
+        throw "list_tag_tables returned an application error: $($ToolCall.Text)"
+    }
+    $operations = @($ToolCall.Document.operations)
+    if ($operations.Count -ne 1 -or $operations[0].operation -ne 'list_tag_tables' -or $operations[0].status -ne 'succeeded') {
+        throw "list_tag_tables did not return exactly one successful operation: $($ToolCall.Text)"
+    }
+    $payload = $operations[0].result
+    if ($payload -is [string]) {
+        $payload = $payload | ConvertFrom-Json -Depth 100
+    }
+    if ($null -eq $payload -or $null -eq $payload.tables) {
+        throw "list_tag_tables returned no tables payload: $($ToolCall.Text)"
+    }
+    $tables = @($payload.tables)
+    $tables = @($tables | Where-Object {
+        $_.name -eq $Snapshot.tableName -and $_.folderPath -eq $Snapshot.folderPath
+    })
+    if ($tables.Count -ne 1) {
+        throw "list_tag_tables did not return exactly one matching table '$($Snapshot.tableName)'."
+    }
+    $tags = @($tables[0].tags | Where-Object { $_.name -eq $Snapshot.tagName })
+    if ($tags.Count -ne 1) {
+        throw "list_tag_tables did not return exactly one matching tag '$($Snapshot.tagName)'."
+    }
+    if ($tags[0].dataType -ne $Snapshot.dataType -or $tags[0].logicalAddress -ne $Snapshot.logicalAddress) {
+        throw "list_tag_tables tag values differ from the strict snapshot for '$($Snapshot.tagName)'."
+    }
+}
+
 function Write-SnapshotEvidence {
     param(
         [Parameter(Mandatory)][object]$Snapshot,
@@ -391,7 +458,13 @@ try {
             $snapshot = Read-UpdateTagSafetySnapshot -RequestedTableName $TableName -RequestedTagName $TagName -RequestedPlcName $PlcName
             $null = Get-ReadableSnapshotFlag -Snapshot $snapshot -FlagName $DriftFlagName
             Write-SnapshotEvidence -Snapshot $snapshot -FlagName $DriftFlagName
-            $listResult = Invoke-McpTool -Name 'list_tag_tables' -Arguments @{ projectPath = $ProjectPath; plcName = $PlcName }
+            $listResult = Invoke-McpTool -Name 'execute_read_batch' -Arguments @{ operations = @(@{
+                operationId = 'public-list-tag-tables'
+                operation = 'list_tag_tables'
+                projectPath = $ProjectPath
+                plcName = $PlcName
+            }) }
+            Assert-PublicTagRowMatchesSnapshot -ToolCall $listResult -Snapshot $snapshot
             Write-Output 'list_tag_tables public response:'
             Write-Output $listResult.Text
         }
@@ -410,7 +483,8 @@ try {
             $originalOperation = New-UpdateTagOperation -Snapshot $snapshot -FlagName $DriftFlagName -Value (-not $currentValue) -OperationId 'update-tag-stale-token'
             $originalPreview = Invoke-Preview -Operation $originalOperation
             $originalToken = Get-PreviewToken -ToolCall $originalPreview
-            $intermediateApplied = $false
+            $reconciliationIntent = New-UpdateTagOperation -Snapshot $snapshot -FlagName $DriftFlagName -Value $currentValue -OperationId 'update-tag-restore-original-flag'
+            $reconciliationRequired = $true
             try {
                 $intermediatePreview = Invoke-Preview -Operation $originalOperation
                 $intermediateToken = Get-PreviewToken -ToolCall $intermediatePreview
@@ -418,7 +492,6 @@ try {
                 if ($intermediateApply.Result.isError) {
                     throw "The authorized intermediate update_tag drift failed: $($intermediateApply.Text)"
                 }
-                $intermediateApplied = $true
 
                 $staleApply = Invoke-Apply -Operation $originalOperation -SafetyToken $originalToken
                 $failureCategory = if ($null -ne $staleApply.Document) { [string]$staleApply.Document.failureCategory } else { '' }
@@ -429,9 +502,16 @@ try {
                 Write-SnapshotEvidence -Snapshot (Read-UpdateTagSafetySnapshot -RequestedTableName $TableName -RequestedTagName $TagName -RequestedPlcName $PlcName) -FlagName $DriftFlagName
             }
             finally {
-                if ($intermediateApplied) {
-                    $restoreSnapshot = Read-UpdateTagSafetySnapshot -RequestedTableName $TableName -RequestedTagName $TagName -RequestedPlcName $PlcName
+                if (-not $reconciliationRequired) {
+                    throw 'ApplyDrift lost its required reconciliation plan before the intermediate mutation completed.'
+                }
+                $restoreSnapshot = Read-UpdateTagSafetySnapshot -RequestedTableName $TableName -RequestedTagName $TagName -RequestedPlcName $PlcName
+                $restoreValue = Get-ReadableSnapshotFlag -Snapshot $restoreSnapshot -FlagName $DriftFlagName
+                if ($restoreValue -ne $currentValue) {
                     $restoreOperation = New-UpdateTagOperation -Snapshot $restoreSnapshot -FlagName $DriftFlagName -Value $currentValue -OperationId 'update-tag-restore-original-flag'
+                    if ($restoreOperation.tableName -ne $reconciliationIntent.tableName -or $restoreOperation.folderPath -ne $reconciliationIntent.folderPath -or $restoreOperation.name -ne $reconciliationIntent.name) {
+                        throw 'The fresh reconciliation snapshot no longer identifies the originally planned tag target.'
+                    }
                     $restorePreview = Invoke-Preview -Operation $restoreOperation
                     $restoreToken = Get-PreviewToken -ToolCall $restorePreview
                     $restoreApply = Invoke-Apply -Operation $restoreOperation -SafetyToken $restoreToken
@@ -439,8 +519,10 @@ try {
                         throw "The restoration update_tag failed: $($restoreApply.Text)"
                     }
                     Write-Output 'Restored the original flag value on the disposable copy.'
-                    Write-SnapshotEvidence -Snapshot (Read-UpdateTagSafetySnapshot -RequestedTableName $TableName -RequestedTagName $TagName -RequestedPlcName $PlcName) -FlagName $DriftFlagName
                 }
+                $finalSnapshot = Read-UpdateTagSafetySnapshot -RequestedTableName $TableName -RequestedTagName $TagName -RequestedPlcName $PlcName
+                Assert-SnapshotFlagEquals -Snapshot $finalSnapshot -FlagName $DriftFlagName -ExpectedValue $currentValue
+                Write-SnapshotEvidence -Snapshot $finalSnapshot -FlagName $DriftFlagName
             }
         }
         'ProbeUnavailable' {
@@ -450,7 +532,7 @@ try {
                 throw "Optional unavailable probe is NOT RUN: '$ProbeFlagName' is readable on the supplied second target."
             }
             $probeOperation = New-UpdateTagOperation -Snapshot $probeSnapshot -FlagName $ProbeFlagName -Value $true -OperationId 'update-tag-unavailable-flag-probe'
-            $probePreview = Invoke-Preview -Operation $probeOperation
+            $probePreview = Invoke-McpTool -Name 'preview_write_batch' -Arguments @{ operations = @($probeOperation) } -AllowApplicationError
             if (-not $probePreview.Result.isError) {
                 throw "Optional unavailable probe unexpectedly issued a preview result: $($probePreview.Text)"
             }
