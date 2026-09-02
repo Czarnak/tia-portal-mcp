@@ -24,6 +24,7 @@ public sealed class TagUpdateSafetySnapshotIdentityEnforcementTests
 
         Assert.False(response.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+        Assert.Null(response.SessionIdentity);
     }
 
     [Theory]
@@ -48,6 +49,7 @@ public sealed class TagUpdateSafetySnapshotIdentityEnforcementTests
 
         Assert.False(response.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+        Assert.Null(response.SessionIdentity);
     }
 
     private static PersistentWorkerTransport CreateFakeWorkerTransport()

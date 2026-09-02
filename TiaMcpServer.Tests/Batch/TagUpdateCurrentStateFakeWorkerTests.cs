@@ -72,4 +72,53 @@ public class TagUpdateCurrentStateFakeWorkerTests
 
         Assert.Contains("\"failureCategory\":\"state_changed\"", apply, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task PreviewWriteBatch_UpdateTagStrictSnapshotFailurePreventsBroadReadAndTokenIssuance()
+    {
+        const string scenario = "tag-update-snapshot-read-fails";
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, new[] { UpdateTagOp(scenario) });
+
+        Assert.Contains("strict update-tag snapshot read failed", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"safetyToken\":", preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PreviewWriteBatch_UpdateTagAllowsBroadBestEffortWarningAfterStrictSnapshotSucceeds()
+    {
+        const string scenario = "tag-update-broad-best-effort-omission";
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        var operations = new[] { UpdateTagOp(scenario, externalVisible: false) };
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
+
+        Assert.Contains("\"safetyToken\":", preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PreviewWriteBatch_UpdateTagMalformedBroadPayloadFailsClosedWithProtocolError()
+    {
+        const string scenario = "tag-update-broad-malformed-payload";
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, new[] { UpdateTagOp(scenario) });
+
+        Assert.Contains("\"success\":false", preview, StringComparison.Ordinal);
+        Assert.Contains("\"failureCategory\":\"protocol_error\"", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"safetyToken\":", preview, StringComparison.Ordinal);
+    }
 }

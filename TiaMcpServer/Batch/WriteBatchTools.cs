@@ -56,7 +56,7 @@ public class WriteBatchTools
                 var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
                 if (snapshot.Error is not null)
                 {
-                    return OperationBatchResultFormatter.Error(PreviewToolName, snapshot.Error);
+                    return OperationBatchResultFormatter.Error(PreviewToolName, snapshot.Error, snapshot.FailureCategory);
                 }
 
                 var targets = BatchSafetySnapshot.BuildTargets(operations);
@@ -151,7 +151,10 @@ public class WriteBatchTools
                 var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
                 if (snapshot.Error is not null)
                 {
-                    return OperationBatchResultFormatter.Error(ApplyToolName, $"Could not read current state before write. {snapshot.Error}");
+                    return OperationBatchResultFormatter.Error(
+                        ApplyToolName,
+                        $"Could not read current state before write. {snapshot.Error}",
+                        snapshot.FailureCategory);
                 }
 
                 var tokenValidation = safety.ValidateAndConsume(
@@ -186,7 +189,7 @@ public class WriteBatchTools
         return execution.Value!;
     }
 
-    private static async Task<(string CombinedState, string? Error)> ReadCombinedCurrentStateAsync(
+    private static async Task<(string CombinedState, string? Error, string? FailureCategory)> ReadCombinedCurrentStateAsync(
         OpennessWorkerClient workerClient,
         BatchOperationRequest[] operations)
     {
@@ -196,12 +199,15 @@ public class WriteBatchTools
             var state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
             if (!state.Success)
             {
-                return (string.Empty, $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). Error: {state.Error}");
+                return (
+                    string.Empty,
+                    $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). Error: {state.Error}",
+                    state.FailureCategory);
             }
 
             states.Add(new OperationBatchCurrentState(op.OperationId, op.Operation, state.Payload));
         }
 
-        return (BatchSafetySnapshot.CombineCurrentState(states), null);
+        return (BatchSafetySnapshot.CombineCurrentState(states), null, null);
     }
 }

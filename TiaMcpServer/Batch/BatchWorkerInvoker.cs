@@ -95,8 +95,21 @@ public static class BatchWorkerInvoker
             return broad;
         }
 
+        string currentState;
+        try
+        {
+            currentState = TagUpdateSafetyCurrentState.Compose(snapshot, broad.Payload);
+        }
+        catch (JsonException ex)
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.ProtocolError,
+                $"Could not decode the update_tag broad tag-table safety state. {ex.Message}",
+                broad.Warnings);
+        }
+
         return WorkerCallResult.Ok(
-            TagUpdateSafetyCurrentState.Compose(snapshot, broad.Payload),
+            currentState,
             broad.Warnings) with
         {
             ResolvedProjectPath = broad.ResolvedProjectPath,

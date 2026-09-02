@@ -307,6 +307,15 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => """{"success":false,"error":"unexpected update-tag broad-omission fixture method"}"""
             });
             break;
+        case "tag-update-broad-malformed-payload":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{not valid json"}""",
+                _ => """{"success":false,"error":"unexpected update-tag malformed-broad fixture method"}"""
+            });
+            break;
         case "network-read-warnings":
             // A contract-valid hardware payload carried alongside worker warnings, so the network
             // read path can be proven to copy warnings onto the item it decoded successfully.

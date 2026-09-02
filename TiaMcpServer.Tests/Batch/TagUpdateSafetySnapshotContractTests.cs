@@ -20,6 +20,25 @@ public sealed class TagUpdateSafetySnapshotContractTests
     }
 
     [Fact]
+    public void Snapshot_SerializesTheCompleteResolvedExactTarget()
+    {
+        var json = JsonSerializer.Serialize(new TagUpdateSafetySnapshot(
+            "ResolvedPLC", "/Safety", "Default tag table", "MotorReady", "Bool", "%I0.0", false, null, true));
+
+        using var document = JsonDocument.Parse(json);
+        var target = document.RootElement;
+        Assert.Equal("ResolvedPLC", target.GetProperty("plcName").GetString());
+        Assert.Equal("/Safety", target.GetProperty("folderPath").GetString());
+        Assert.Equal("Default tag table", target.GetProperty("tableName").GetString());
+        Assert.Equal("MotorReady", target.GetProperty("tagName").GetString());
+        Assert.Equal("Bool", target.GetProperty("dataType").GetString());
+        Assert.Equal("%I0.0", target.GetProperty("logicalAddress").GetString());
+        Assert.False(target.GetProperty("externalAccessible").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, target.GetProperty("externalVisible").ValueKind);
+        Assert.True(target.GetProperty("externalWritable").GetBoolean());
+    }
+
+    [Fact]
     public void SnapshotRead_IsAReusableIdentityRequiredSafetyRead()
     {
         const string method = "read_update_tag_safety_snapshot";
