@@ -8,6 +8,11 @@ public static class OperationBatchResultFormatter
     public static string Error(string toolName, string error)
         => JsonSerializer.Serialize(new { tool = toolName, success = false, error }, TiaJson.Presentation);
 
+    public static string Error(string toolName, string error, string? failureCategory)
+        => failureCategory is null
+            ? Error(toolName, error)
+            : JsonSerializer.Serialize(new { tool = toolName, success = false, failureCategory, error }, TiaJson.Presentation);
+
     public static string Read(string toolName, IReadOnlyList<OperationBatchResult> results)
     {
         var failed = Count(results, OperationBatchStatus.Failed);

@@ -164,7 +164,10 @@ public class WriteBatchTools
                     PreviewToolName);
                 if (!tokenValidation.IsValid)
                 {
-                    return OperationBatchResultFormatter.Error(ApplyToolName, tokenValidation.Error);
+                    return OperationBatchResultFormatter.Error(
+                        ApplyToolName,
+                        tokenValidation.Error,
+                        tokenValidation.FailureCategory);
                 }
 
                 var results = await OperationBatchExecutionEngine.ApplyWritesAsync(

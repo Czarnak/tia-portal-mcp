@@ -59,6 +59,7 @@ var subnetLifecycleStateDriftReadCount = 0;
 var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
 var orderedTypeWriteCount = 0;
+var tagUpdateFlagDriftSnapshotReadCount = 0;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -268,6 +269,43 @@ while ((line = Console.In.ReadLine()) is not null)
             // Returns the received request verbatim so tests can assert which fields survived
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
+            break;
+        case "tag-update-snapshot-unavailable-visible":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":null,\"externalWritable\":false}"}""",
+                _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "tag-update-flag-drift":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                "read_update_tag_safety_snapshot" => TagUpdateDriftSnapshotResponse(++tagUpdateFlagDriftSnapshotReadCount),
+                _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "tag-update-snapshot-read-fails":
+            Respond(ReadMethod(line) == "read_update_tag_safety_snapshot"
+                ? """{"success":false,"failureCategory":"worker_operation_failed","error":"strict update-tag snapshot read failed"}"""
+                : ReadMethod(line) == "get_project_status"
+                    ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                    : """{"success":false,"error":"unexpected update-tag snapshot-failure fixture method"}""");
+            break;
+        case "tag-update-broad-best-effort-omission":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}","warnings":["Skipping unrelated tag table: access denied."]}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                _ => """{"success":false,"error":"unexpected update-tag broad-omission fixture method"}"""
+            });
             break;
         case "network-read-warnings":
             // A contract-valid hardware payload carried alongside worker warnings, so the network
@@ -1934,6 +1972,12 @@ string HandleSecondItemFailureWrite(string requestLine, List<SubnetLifecycleSubn
     return subnetLifecycleSecondFailureWriteCount == 1
         ? DispatchSubnetLifecycleWrite(requestLine, subnets)
         : $$"""{"success":false,"error":"deliberate second-item failure for network-subnet-lifecycle-second-item-failure"}""";
+}
+
+string TagUpdateDriftSnapshotResponse(int readCount)
+{
+    var externalAccessible = readCount == 1 ? "false" : "true";
+    return $$"""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":{{externalAccessible}},\"externalVisible\":true,\"externalWritable\":false}"}""";
 }
 
 int? ReadIntField(string requestLine, string propertyName)

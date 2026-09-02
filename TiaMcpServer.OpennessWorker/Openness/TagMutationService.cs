@@ -84,9 +84,9 @@ public static class TagMutationService
             throw new InvalidOperationException("Updating IsSafety is not supported by the available TIA Openness API.");
         }
 
-        var table = ResolveTable(project, plcName, tableName, folderPath);
-        var tag = table.Tags.Find(name) ??
-            throw new InvalidOperationException($"Tag '{name}' was not found in tag table '{tableName}'.");
+        var resolved = TagTargetResolver.Resolve(project, plcName, tableName, folderPath, name);
+        var table = resolved.Table;
+        var tag = resolved.Tag;
 
         if (!string.IsNullOrWhiteSpace(newName) &&
             !string.Equals(name, newName, StringComparison.OrdinalIgnoreCase) &&
@@ -125,7 +125,7 @@ public static class TagMutationService
             tag.ExternalWritable = externalWritable.Value;
         }
 
-        return Result("update_tag", project, plcName, table.Name, NormalizeFolderPath(folderPath), tag.Name, null);
+        return Result("update_tag", project, resolved.PlcName, table.Name, resolved.FolderPath, tag.Name, null);
     }
 
     public static TagMutationResultInfo DeleteTag(

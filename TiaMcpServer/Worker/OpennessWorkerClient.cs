@@ -729,6 +729,26 @@ public class OpennessWorkerClient : IDisposable
             "[]");
     }
 
+    public Task<WorkerCallResult> ReadUpdateTagSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name,
+        string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "read_update_tag_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+                request.Name = name;
+            },
+            "{}");
+    }
+
     public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(

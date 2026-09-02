@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
 
@@ -31,8 +32,9 @@ public static class BatchWorkerInvoker
         "update_type_content" => WithValidatedFormat(
             () => NormalizeFormat(op),
             format => client.GetTypeContentAsync(op.TypePath!, format, op.ProjectPath)),
+        "update_tag" => ReadUpdateTagCurrentStateAsync(client, op),
         "create_tag_table" or "delete_tag_table"
-            or "create_tag" or "update_tag" or "delete_tag"
+            or "create_tag" or "delete_tag"
             or "create_user_constant" or "update_user_constant" or "delete_user_constant"
             => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
         "create_block" or "create_block_group" or "delete_block_group"
@@ -47,6 +49,60 @@ public static class BatchWorkerInvoker
             WorkerFailureCategories.ValidationError,
             $"Unsupported batch write operation '{op.Operation}'.")),
     };
+
+    private static async Task<WorkerCallResult> ReadUpdateTagCurrentStateAsync(
+        OpennessWorkerClient client,
+        BatchOperationRequest op)
+    {
+        var strict = await client.ReadUpdateTagSafetySnapshotAsync(
+            op.PlcName,
+            op.TableName!,
+            op.FolderPath,
+            op.Name!,
+            op.ProjectPath).ConfigureAwait(false);
+        if (!strict.Success)
+        {
+            return strict;
+        }
+
+        TagUpdateSafetySnapshot? snapshot;
+        try
+        {
+            snapshot = JsonSerializer.Deserialize<TagUpdateSafetySnapshot>(strict.Payload);
+        }
+        catch (JsonException ex)
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                $"Could not decode the update_tag safety snapshot. {ex.Message}");
+        }
+
+        if (snapshot is null)
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                "Could not decode the update_tag safety snapshot.");
+        }
+
+        var unavailableFlag = TagUpdateSafetyCurrentState.ValidateRequestedExternalFlags(op, snapshot);
+        if (unavailableFlag is not null)
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError,
+                $"The current tag does not expose requested flag '{unavailableFlag}'.");
+        }
+
+        var broad = await client.ListTagTablesAsync(op.PlcName, op.ProjectPath).ConfigureAwait(false);
+        if (!broad.Success)
+        {
+            return broad;
+        }
+
+        return WorkerCallResult.Ok(
+            TagUpdateSafetyCurrentState.Compose(snapshot, broad.Payload),
+            broad.Warnings) with
+        {
+            ResolvedProjectPath = broad.ResolvedProjectPath,
+            SessionIdentity = broad.SessionIdentity,
+        };
+    }
 
     /// <summary>Executes a single read or write item against the worker.</summary>
     public static Task<WorkerCallResult> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
