@@ -9,6 +9,10 @@
 TIA Portal V21 harness mode has been authorized or run. PR 3 remains incomplete until the
 mandatory live acceptance is separately authorized and observed.
 
+**Offline-tested code-fix revision:** `3c7e8b29ca0b923877cf310cfd6d3a4e1fc5a0e1`
+(`fix: validate update tag safety snapshot`). The exact committed revision passed the full offline
+suite on 2026-09-02. This does not replace or satisfy any live acceptance row below.
+
 ## Mandatory Live Target
 
 - Project copy path: PENDING
@@ -47,8 +51,10 @@ pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath 'C:\Disposable\P
 
 | Criterion | Evidence source | Observed |
 |---|---|---|
-| Bound client sends a complete expected identity; worker rejects missing and mismatched identity as `binding_conflict` | `TagUpdateSafetySnapshotWorkerClientTests` plus `TagUpdateSafetySnapshotIdentityEnforcementTests` | PASS - fresh 2026-09-02 full offline suite (2,590/2,590) |
-| Requested unavailable flag fails before token issuance | `TagUpdateCurrentStateFakeWorkerTests` plus contract/worker tests | PASS - fresh 2026-09-02 full offline suite (2,590/2,590) |
+| Bound client sends a complete expected identity; worker rejects missing and mismatched identity as `binding_conflict` | `TagUpdateSafetySnapshotWorkerClientTests` plus `TagUpdateSafetySnapshotIdentityEnforcementTests` | PASS - revision `3c7e8b29ca0b923877cf310cfd6d3a4e1fc5a0e1`; fresh 2026-09-02 full offline suite (2,617/2,617) |
+| Requested unavailable flag fails before token issuance | `TagUpdateCurrentStateFakeWorkerTests` plus contract/worker tests | PASS - revision `3c7e8b29ca0b923877cf310cfd6d3a4e1fc5a0e1`; fresh 2026-09-02 full offline suite (2,617/2,617) |
+| Strict snapshot payload rejects `{}`, malformed/unsupported shapes, every omitted member, and wrong member types before broad fallback or token issuance | `TagUpdateCurrentStateFakeWorkerTests` | PASS - revision `3c7e8b29ca0b923877cf310cfd6d3a4e1fc5a0e1`; fresh 2026-09-02 full offline suite (2,617/2,617) |
+| Harness accepts a legal tool result with omitted `isError`, preserves explicit application-error handling, and defines the optional-probe guard before its entrypoint call | `TagUpdateSafetyLiveHarnessContractTests` | PASS - revision `3c7e8b29ca0b923877cf310cfd6d3a4e1fc5a0e1`; fresh 2026-09-02 full offline suite (2,617/2,617) |
 
 ## Optional Live Unavailable Probe
 
