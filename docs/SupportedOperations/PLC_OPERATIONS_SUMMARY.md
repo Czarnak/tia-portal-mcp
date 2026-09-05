@@ -43,11 +43,42 @@ The operations below run through `preview_write_batch` and `apply_write_batch`.
 - Import/update operations modify existing objects only. They do not create, rename, delete, or upsert the addressed object.
 - Deletes and PLC start/stop operations use the same confirmed write flow as other data writes.
 - A write batch is applied in order and stops on the first failure. Completed mutations are not rolled back.
-- `update_tag` preview combines its existing broad tag-table state with a strict exact-target
-  snapshot. If an update requests `externalAccessible`, `externalVisible`, or
+- Tag-related writes bind exact targets plus scoped name/address collision probes, replacing
+  the full table-list safety payload. Table deletion binds the exact table's normalized Simatic ML
+  export and digest; tag deletion binds exact tag state; constant deletion binds exact constant
+  state. Create operations bind the parent/table identity and relevant collisions. Updates also
+  bind the exact object's current state. See the [eight selector shapes](../ARCHITECTURE.md#8-write-safety)
+  for the complete contract. Identical selectors share reads only within one phase and expand
+  back into the original operation order; apply reads fresh state with no cross-phase cache.
+- If an `update_tag` requests `externalAccessible`, `externalVisible`, or
   `externalWritable` and that selected flag cannot be read for the exact tag, preview fails before
   token issuance. This safety condition does not change the public `list_tag_tables` contract:
   that read remains best-effort and may retain its existing skipped-read behavior.
+
+## Tag safety acceptance boundary
+
+PR 5 has offline/FakeWorker evidence and a statically checked
+[guarded live harness](../../scripts/live-test-tag-operation-safety-scopes.ps1). Mandatory live
+TIA Portal V21 acceptance remains pending; the harness has not been executed in any mode.
+Public previews expose hashes and ordered targets, so successful previews alone do not prove
+internal typed snapshot contents, worker read counts, or apply behavior.
+
+The harness requires PowerShell 7.2 or later, the built net8 host, an already-open exact
+disposable project copy, and explicit PLC/table/tag/user-constant fixture names and values.
+`PreviewOnly` is the non-mutating default. `DriftAndRestore` covers same-object drift, relevant
+name/address collision drift, and unrelated sibling tolerance. `ApplyAndRestore` performs one
+authorized feature apply. Both mutation modes require `-AllowMutation`, `-ConfirmDisposableCopy`, an
+`-AuthorizedProjectPath` equal to `-ProjectPath`, and `-CleanupStrategy Discard`, plus a pre-saved
+unmodified copy. The implemented cleanup is guarded `close_project` with `saveBeforeClose=false`;
+the mode names do not imply an implemented inverse-restore strategy. No project files are deleted
+and no save is issued. Acceptance must verify the on-disk copy remains clean. A failed or
+unconfirmed discard fails the run and requires manual no-save cleanup of the isolated copy.
+Each run retains redacted MCP and failure/cleanup JSON in a dedicated artifact directory; it does
+not automatically create a live acceptance report. Ordinary tests only inspect the script as text.
+
+Explicitly deferred: multilingual per-tag comment binding; public `list_tag_tables` completeness
+changes; broader snapshot narrowing; and PLC `start_plc` / `stop_plc` safety work. Existing PLC
+start/stop operations are not changed or qualified by PR 5.
 
 ## Current limits
 

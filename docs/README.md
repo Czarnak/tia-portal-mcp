@@ -62,3 +62,7 @@ its [PR 1 project enumeration completeness plan](superpowers/plans/2026-08-28-pr
 the [PR 2 hardware pagination plan](superpowers/plans/2026-08-29-hardware-pagination.md),
 [PR #29 binding findings repair design](superpowers/specs/2026-08-28-pr29-binding-findings-repair-design.md),
 and its [implementation plan](superpowers/plans/2026-08-28-pr29-binding-findings-repair.md).
+
+PR 5 has offline/FakeWorker evidence and a statically checked guarded harness, but no live run
+or acceptance report yet. See the [current tag-safety acceptance boundary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary)
+before any separately authorized live V21 work.

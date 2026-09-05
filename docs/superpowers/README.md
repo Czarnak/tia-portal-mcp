@@ -59,6 +59,11 @@ Task-level implementation plans derived from the specs above.
 
 ## Acceptance reports
 
+PR 5 tag-operation safety scopes has a prepared harness and offline/FakeWorker evidence only.
+No harness mode has run, and no PR 5 live acceptance report exists. The existing plan link above
+is retained; add an acceptance-report entry only after the authorized live run and report review.
+See the [current acceptance boundary](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary).
+
 Evidence from completed live runs against TIA Portal V21, plus prepared reports whose live gate is
 explicitly pending.
 
