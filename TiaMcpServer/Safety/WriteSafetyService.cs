@@ -68,7 +68,7 @@ public sealed partial class WriteSafetyService
        string summary,
        object requestedInput,
        string currentState,
-       string? diff = null,
+       object? diff = null,
        string? instructions = null)
     {
         var issued = IssueToken(

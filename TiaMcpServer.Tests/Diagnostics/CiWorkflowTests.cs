@@ -198,6 +198,19 @@ public class CiWorkflowTests
         Assert.Contains("SCL `create_block` calls are verified", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ImportExportSummary_DocumentsStructuredPreviewDiffBounds()
+    {
+        var text = File.ReadAllText(Path.Combine(GetRepositoryRoot(), "docs", "SupportedOperations", "IMPORT_EXPORT_OPTIONS_SUMMARY.md"));
+
+        Assert.Contains("update_block_logic", text, StringComparison.Ordinal);
+        Assert.Contains("update_type_content", text, StringComparison.Ordinal);
+        Assert.Contains("40 excerpt lines", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("8,192", text, StringComparison.Ordinal);
+        Assert.Contains("32,768", text, StringComparison.Ordinal);
+        Assert.Contains("line-ending-only", text, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static IEnumerable<string> EnumerateWorkflowFiles()
     {
         var workflowsDirectory = Path.Combine(GetRepositoryRoot(), ".github", "workflows");

@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
@@ -153,7 +152,7 @@ public static class WriteSafetyTooling
         string summary,
         object requestedInput,
         WorkerCallResult currentState,
-        string? diff = null,
+        object? diff = null,
         string? instructions = null)
     {
         if (!currentState.Success)
@@ -210,38 +209,6 @@ public static class WriteSafetyTooling
                     }
             },
             TiaJson.Presentation);
-    }
-
-    public static string CreateLineDiff(string before, string after)
-    {
-        var beforeLines = before.Replace("\r\n", "\n").Split('\n');
-        var afterLines = after.Replace("\r\n", "\n").Split('\n');
-        var builder = new StringBuilder();
-        builder.AppendLine("--- current");
-        builder.AppendLine("+++ requested");
-
-        var max = Math.Max(beforeLines.Length, afterLines.Length);
-        for (var i = 0; i < max; i++)
-        {
-            var oldLine = i < beforeLines.Length ? beforeLines[i] : null;
-            var newLine = i < afterLines.Length ? afterLines[i] : null;
-            if (string.Equals(oldLine, newLine, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (oldLine is not null)
-            {
-                builder.Append("- ").AppendLine(oldLine);
-            }
-
-            if (newLine is not null)
-            {
-                builder.Append("+ ").AppendLine(newLine);
-            }
-        }
-
-        return builder.ToString();
     }
 
     public static string DescribePathState(string path)

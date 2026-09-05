@@ -39,6 +39,25 @@ Updates are strict updates to an existing object:
 
 For block updates, the worker validates the document, performs the import, compiles the affected scope, and checks the postcondition by re-exporting the block. External-source global DB updates compile the PLC because changing a DB declaration can affect dependent blocks.
 
+### Preview evidence
+
+`preview_write_batch` may include a response-only structured `diff` object for
+`update_block_logic` and `update_type_content`. It compares already-bound exact-format current
+text with the submitted replacement text; it does not predict Siemens post-write state and is
+outside safety-token issuance and validation.
+
+- Each eligible operation has at most 40 excerpt lines and 8,192 excerpt characters per side.
+- When a changed span exceeds 40 lines, each excerpt contains the first 20 plus last 20 lines.
+- Each displayed line is limited to 512 characters.
+- The complete batch is limited to 320 excerpt lines and 32,768 excerpt characters in request
+  order. After that excerpt budget is exhausted, every eligible entry still retains its raw hashes,
+  counts, and equality flags.
+- Raw SHA-256, raw character count, and raw line count use the original text. For line-window
+  comparison only, line-ending normalization maps CRLF and CR to LF; it performs no other
+  normalization. The response also reports `rawTextEqual`, `normalizedLinesEqual`, and
+  `lineEndingOnly`; a line-ending-only difference has unequal raw text but equal normalized lines.
+- Every other operation has `diff: null`.
+
 ## Format matrix
 
 | Capability | Status |

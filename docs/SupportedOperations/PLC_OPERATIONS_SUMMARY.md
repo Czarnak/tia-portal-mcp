@@ -39,6 +39,7 @@ The operations below run through `preview_write_batch` and `apply_write_batch`.
 
 - Block updates validate the supplied document, import it into an existing block, compile the affected PLC scope, and verify the resulting block state through a postcondition/re-export check.
 - Type updates require an existing addressed type and a declaration whose name matches that target.
+- Block/type replacement previews can include bounded structured evidence that is current-versus-requested only, not predicted post-write state.
 - Import/update operations modify existing objects only. They do not create, rename, delete, or upsert the addressed object.
 - Deletes and PLC start/stop operations use the same confirmed write flow as other data writes.
 - A write batch is applied in order and stops on the first failure. Completed mutations are not rolled back.
