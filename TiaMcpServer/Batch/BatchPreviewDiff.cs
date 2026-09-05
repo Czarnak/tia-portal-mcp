@@ -232,7 +232,7 @@ public static class BatchPreviewDiff
         => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
     private static string Sha256(string text)
-        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
 
     private sealed record ComparedLines(
         string[] CurrentLines,
