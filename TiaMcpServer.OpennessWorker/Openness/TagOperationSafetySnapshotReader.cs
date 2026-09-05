@@ -2,6 +2,7 @@ using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
+using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Tags;
 using TiaMcpServer.Contracts;
 
@@ -14,11 +15,12 @@ internal static class TagOperationSafetySnapshotReader
     {
         RequireName(request.TableName, "TableName");
         var group = ResolveGroup(project, request);
-        var occupied = group.Group.TagTables.Find(request.TableName!);
-        var collisions = occupied is null ? Array.Empty<TagCollisionProbeInfo>() :
-            new[] { new TagCollisionProbeInfo("table-name", occupied.Name,
-                TagOperationSafetySnapshotBuilder.BuildTableIdentity(group.PlcName, group.FolderPath, occupied.Name).CanonicalPath,
-                null, false) };
+        var candidates = EnumerateTables(group.RootGroup, "/").Select(item =>
+            new TagCollisionProbeInfo("table-name", item.Table.Name,
+                TagOperationSafetySnapshotBuilder.BuildTableIdentity(group.PlcName, item.FolderPath, item.Table.Name).CanonicalPath,
+                null, false));
+        var collisions = TagOperationSafetySnapshotBuilder.SelectCollisions(
+            "table-name", candidates, request.TableName, null);
         return new CreateTagTableSafetySnapshotInfo(group.PlcName, group.FolderPath, request.TableName!, collisions);
     }
 
@@ -45,7 +47,7 @@ internal static class TagOperationSafetySnapshotReader
         RequireName(request.DataType, "DataType");
         var resolved = ResolveTable(project, request);
         var address = request.LogicalAddress ?? string.Empty;
-        var candidates = TagCandidates(resolved).ToArray();
+        var candidates = SymbolCandidates(resolved).ToArray();
         return new CreateTagSafetySnapshotInfo(resolved.Identity, request.Name!, address,
             TagOperationSafetySnapshotBuilder.SelectCollisions("tag-name", candidates, request.Name, null),
             TagOperationSafetySnapshotBuilder.SelectCollisions("logical-address", candidates, address, null));
@@ -57,7 +59,7 @@ internal static class TagOperationSafetySnapshotReader
         var target = ReadTag(resolved, request.Name);
         var name = string.IsNullOrWhiteSpace(request.NewName) ? target.TagName : request.NewName!;
         var address = request.LogicalAddress ?? target.LogicalAddress;
-        var candidates = TagCandidates(resolved).ToArray();
+        var candidates = SymbolCandidates(resolved).ToArray();
         return new UpdateTagSafetySnapshotInfo(resolved.Identity, target, name, address,
             TagOperationSafetySnapshotBuilder.SelectCollisions("tag-name", candidates, name, target.CanonicalPath),
             TagOperationSafetySnapshotBuilder.SelectCollisions("logical-address", candidates, address, target.CanonicalPath));
@@ -74,7 +76,7 @@ internal static class TagOperationSafetySnapshotReader
         RequireName(request.Name, "Name");
         var resolved = ResolveTable(project, request);
         return new CreateUserConstantSafetySnapshotInfo(resolved.Identity, request.Name!,
-            TagOperationSafetySnapshotBuilder.SelectCollisions("user-constant-name", ConstantCandidates(resolved), request.Name, null));
+            TagOperationSafetySnapshotBuilder.SelectCollisions("user-constant-name", SymbolCandidates(resolved), request.Name, null));
     }
 
     internal static UpdateUserConstantSafetySnapshotInfo ReadUpdateUserConstant(Project project, WorkerRequest request)
@@ -82,7 +84,7 @@ internal static class TagOperationSafetySnapshotReader
         var resolved = ResolveTable(project, request);
         var target = ReadConstant(resolved, request.Name);
         return new UpdateUserConstantSafetySnapshotInfo(resolved.Identity, target, target.ConstantName,
-            TagOperationSafetySnapshotBuilder.SelectCollisions("user-constant-name", ConstantCandidates(resolved), target.ConstantName, target.CanonicalPath));
+            TagOperationSafetySnapshotBuilder.SelectCollisions("user-constant-name", SymbolCandidates(resolved), target.ConstantName, target.CanonicalPath));
     }
 
     internal static DeleteUserConstantSafetySnapshotInfo ReadDeleteUserConstant(Project project, WorkerRequest request)
@@ -117,24 +119,43 @@ internal static class TagOperationSafetySnapshotReader
         catch (NotSupportedException) { return null; }
     }
 
-    private static IEnumerable<TagCollisionProbeInfo> TagCandidates(ResolvedTable resolved)
+    private static IEnumerable<TagCollisionProbeInfo> SymbolCandidates(ResolvedTable resolved)
     {
         foreach (var item in EnumerateTables(resolved.Group.RootGroup, "/"))
         {
             var table = TagOperationSafetySnapshotBuilder.BuildTableIdentity(resolved.Identity.PlcName, item.FolderPath, item.Table.Name);
             foreach (PlcTag tag in item.Table.Tags)
                 yield return new TagCollisionProbeInfo("tag-name", tag.Name, table.CanonicalPath + "/" + tag.Name, tag.LogicalAddress, false);
-        }
-    }
-
-    private static IEnumerable<TagCollisionProbeInfo> ConstantCandidates(ResolvedTable resolved)
-    {
-        foreach (var item in EnumerateTables(resolved.Group.RootGroup, "/"))
-        {
-            var table = TagOperationSafetySnapshotBuilder.BuildTableIdentity(resolved.Identity.PlcName, item.FolderPath, item.Table.Name);
             foreach (PlcUserConstant constant in item.Table.UserConstants)
                 yield return new TagCollisionProbeInfo("user-constant-name", constant.Name, table.CanonicalPath + "/" + constant.Name, null, false);
         }
+
+        // These operations address the unqualified CPU namespace. Software-unit
+        // namespaces require separate effective-name resolution and are not guessed here.
+        foreach (var block in BlockCandidates(resolved.Group.Plc.BlockGroup, resolved.Identity.PlcName + "/Program blocks"))
+            yield return block;
+    }
+
+    private static IEnumerable<TagCollisionProbeInfo> BlockCandidates(PlcBlockGroup group, string path)
+    {
+        foreach (PlcBlock block in group.Blocks)
+            yield return new TagCollisionProbeInfo("block-name", block.Name, path + "/" + block.Name, null, false);
+        foreach (PlcBlockGroup child in group.Groups)
+            foreach (var block in BlockCandidates(child, path + "/" + child.Name))
+                yield return block;
+        if (group is PlcBlockSystemGroup root)
+            foreach (PlcSystemBlockGroup child in root.SystemBlockGroups)
+                foreach (var block in SystemBlockCandidates(child, path + "/System blocks/" + child.Name))
+                    yield return block;
+    }
+
+    private static IEnumerable<TagCollisionProbeInfo> SystemBlockCandidates(PlcSystemBlockGroup group, string path)
+    {
+        foreach (PlcBlock block in group.Blocks)
+            yield return new TagCollisionProbeInfo("block-name", block.Name, path + "/" + block.Name, null, false);
+        foreach (PlcSystemBlockGroup child in group.Groups)
+            foreach (var block in SystemBlockCandidates(child, path + "/" + child.Name))
+                yield return block;
     }
 
     private static IEnumerable<TableInFolder> EnumerateTables(PlcTagTableGroup group, string folderPath)
@@ -169,7 +190,7 @@ internal static class TagOperationSafetySnapshotReader
                 ?? throw new InvalidOperationException($"Tag table folder '{request.FolderPath}' was not found.");
             actualSegments.Add(group.Name);
         }
-        return new ResolvedGroup(plc.Name, plc.TagTableGroup, group,
+        return new ResolvedGroup(plc.Name, plc.TagTableGroup, plc, group,
             actualSegments.Count == 0 ? "/" : "/" + string.Join("/", actualSegments));
     }
 
@@ -207,7 +228,8 @@ internal static class TagOperationSafetySnapshotReader
             throw new InvalidOperationException(field + " is required.");
     }
 
-    private sealed record ResolvedGroup(string PlcName, PlcTagTableGroup RootGroup, PlcTagTableGroup Group, string FolderPath);
+    private sealed record ResolvedGroup(string PlcName, PlcTagTableGroup RootGroup, PlcSoftware Plc,
+        PlcTagTableGroup Group, string FolderPath);
     private sealed record ResolvedTable(ResolvedGroup Group, PlcTagTable Table, TagTableSafetyIdentityInfo Identity);
     private sealed record TableInFolder(PlcTagTable Table, string FolderPath);
 }

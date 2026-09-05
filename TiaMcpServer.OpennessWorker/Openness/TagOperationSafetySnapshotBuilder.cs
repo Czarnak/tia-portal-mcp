@@ -54,13 +54,14 @@ internal static class TagOperationSafetySnapshotBuilder
     internal static IReadOnlyList<TagCollisionProbeInfo> SelectCollisions(
         string kind, IEnumerable<TagCollisionProbeInfo> candidates, string? requestedValue, string? targetPath)
         => string.IsNullOrEmpty(requestedValue) ? Array.Empty<TagCollisionProbeInfo>() :
-            OrderCollisions(candidates.Where(x => string.Equals(
+            OrderCollisions(candidates.Where(x => (kind != "logical-address" || x.Kind == "tag-name") && string.Equals(
                     kind == "logical-address" ? x.LogicalAddress : x.CandidateName,
                     requestedValue, StringComparison.OrdinalIgnoreCase))
                 .Select(x => x with
                 {
-                    Kind = kind,
-                    IsTarget = string.Equals(x.CanonicalPath, targetPath, StringComparison.Ordinal)
+                    Kind = kind == "logical-address" ? kind : x.Kind,
+                    IsTarget = (kind == "logical-address" ? x.Kind == "tag-name" : x.Kind == kind) &&
+                        string.Equals(x.CanonicalPath, targetPath, StringComparison.Ordinal)
                 }));
 
     internal static DeleteTagTableSafetySnapshotInfo BuildDeleteTagTableSnapshot(TagTableSafetyIdentityInfo table, string xml)

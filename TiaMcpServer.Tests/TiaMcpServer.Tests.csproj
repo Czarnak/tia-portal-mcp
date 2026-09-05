@@ -28,6 +28,10 @@
     <Compile Update="Batch\TagOperationPrerequisiteBaselineTests.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotBuilder.cs"
       Link="Linked\Openness\TagOperationSafetySnapshotBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotReader.cs"
+      Link="Linked\Openness\TagOperationSafetySnapshotReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectDeviceEnumerator.cs"
+      Link="Linked\Openness\ProjectDeviceEnumerator.cs" />
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj"
       ReferenceOutputAssembly="false" />

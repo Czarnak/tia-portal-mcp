@@ -531,19 +531,31 @@ The eight tag/table/user-constant writes bind typed, operation-specific safety s
 of the full `list_tag_tables` payload. All identities retain the resolved PLC, folder, table,
 and canonical object path. Collision probes retain matching candidate identity, kind, name,
 logical address where applicable, and whether the candidate is the target; unrelated candidate
-state is excluded. Table-name collisions are scoped to the selected parent folder. Tag-name,
-logical-address, and user-constant-name collisions search the selected PLC's tag tables and bind
-only relevant matches in deterministic order.
+state is excluded. Table-name collisions search the selected PLC's complete tag-table hierarchy,
+including sibling and nested folders, while retaining the exact destination-folder identity.
+Tag and user-constant name probes compare names case-insensitively across PLC tags, user constants,
+and blocks in the selected PLC's unqualified CPU namespace. They traverse all tag-table folders
+and the ordinary program-block hierarchy, including nested user groups and system-block groups.
+Each matching candidate retains its actual kind (`tag-name`, `user-constant-name`, or `block-name`)
+and canonical path; target marking requires both the kind and exact path. Logical-address probes
+remain tag-only. All probes bind only matching names/addresses in deterministic order, and traversal
+or discovery errors propagate even after a match has been found.
+
+These scopes follow the Siemens V21 rules for [PLC tag and tag-table names](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/rules-for-plc-tags/valid-names-of-plc-tags)
+and [global user-constant names](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/declaring-global-constants/rules-for-global-user-constants).
+Software Unit namespace resolution is not modeled by these operations: unit-local block names are
+not folded into the unqualified CPU namespace. Namespace-aware coverage remains a design/live
+qualification follow-up.
 
 | Operation / exact selector | Bound current state |
 | --- | --- |
-| `create_tag_table` | Resolved PLC and parent folder, requested table name, and same-folder table-name collisions |
+| `create_tag_table` | Resolved PLC and destination folder, requested table name, and matching table-name occupancy throughout that PLC's tag-table hierarchy |
 | `delete_tag_table` | Exact target-table identity and its normalized Simatic ML export, SHA-256, and character count |
-| `create_tag` | Exact target-table identity, effective name/address, and matching name/address collision probes |
-| `update_tag` | Exact target-table and tag identity/state, effective name/address, and matching name/address collision probes |
+| `create_tag` | Exact target-table identity, effective name/address, matching tag/constant/block names, and tag-only address probes |
+| `update_tag` | Exact target-table and tag identity/state, effective name/address, matching tag/constant/block names, and tag-only address probes |
 | `delete_tag` | Exact target-table and tag identity/state |
-| `create_user_constant` | Exact target-table identity, effective constant name, and matching constant-name collision probes |
-| `update_user_constant` | Exact target-table and constant identity/state, effective constant name, and matching constant-name collision probes |
+| `create_user_constant` | Exact target-table identity, effective constant name, and matching tag/constant/block names |
+| `update_user_constant` | Exact target-table and constant identity/state, effective constant name, and matching tag/constant/block names |
 | `delete_user_constant` | Exact target-table and constant identity/state |
 
 Tag state includes data type, logical address, and the three external access flags. Constant state
@@ -560,7 +572,11 @@ operation order before composing the combined state. Operation IDs and list orde
 The map is local to that one phase: **there is no cross-phase cache**. Apply always reads fresh
 state under the pinned binding lease. Deduplication does not make the sequential reads atomic.
 
-Offline and FakeWorker tests cover typed selectors, ordered expansion, within-phase deduplication,
+Offline tests execute the safety reader against test-only Siemens object graphs, including
+cross-kind name drift, nested user/system blocks, CPU-wide table-name occupancy, strict traversal
+failures, and unrelated-name tolerance. They pass those snapshots through the real typed decoder
+and token validator without loading Openness assemblies. Offline and FakeWorker tests also cover
+typed selectors, ordered expansion, within-phase deduplication,
 fresh apply reads, same-object/collision drift rejection, unrelated sibling tolerance, authorized
 apply, and replay rejection. Mandatory live TIA Portal V21 acceptance is still pending. The
 [guarded live harness](../scripts/live-test-tag-operation-safety-scopes.ps1) defaults to

@@ -50,6 +50,17 @@ The operations below run through `preview_write_batch` and `apply_write_batch`.
   bind the exact object's current state. See the [eight selector shapes](../ARCHITECTURE.md#8-write-safety)
   for the complete contract. Identical selectors share reads only within one phase and expand
   back into the original operation order; apply reads fresh state with no cross-phase cache.
+- Tag and user-constant create/update name probes include case-insensitive matches against PLC
+  tags, user constants, and blocks in the selected PLC's unqualified CPU namespace. Matching blocks
+  include nested user and system-block groups; each probe retains its symbol kind and exact path.
+  Logical-address probes remain tag-only. Table creation retains the exact destination folder but
+  probes matching table names across the PLC's entire tag-table hierarchy, including sibling and
+  nested folders. Unrelated names remain outside the snapshot; incomplete traversal fails closed.
+  These scopes follow Siemens V21's [tag-name rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/rules-for-plc-tags/valid-names-of-plc-tags),
+  [constant-name rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/declaring-global-constants/rules-for-global-user-constants),
+  and [table-creation rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/creating-and-managing-plc-tag-tables/creating-plc-tag-tables).
+  Software Unit namespace-aware block collision coverage remains a design/live qualification
+  follow-up; these operations do not treat unit-local names as unqualified CPU-global names.
 - If an `update_tag` requests `externalAccessible`, `externalVisible`, or
   `externalWritable` and that selected flag cannot be read for the exact tag, preview fails before
   token issuance. This safety condition does not change the public `list_tag_tables` contract:

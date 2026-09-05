@@ -103,4 +103,27 @@ public sealed class TagOperationSafetySnapshotContractTests
         Assert.Empty(result.CanonicalState);
         Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
     }
+
+    [Theory]
+    [InlineData("create_user_constant")]
+    [InlineData("update_user_constant")]
+    [InlineData("create_tag_table")]
+    public void UnknownCollisionKind_IsRejectedForConstantsAndTables(string operation)
+    {
+        var table = new TagTableSafetyIdentityInfo("PLC_1", "/", "Inputs", "PLC_1/Tag tables/Inputs");
+        var collisions = new[] { new TagCollisionProbeInfo("unexpected", "Start", "opaque", null, false) };
+        object snapshot = operation switch
+        {
+            "create_tag_table" => new CreateTagTableSafetySnapshotInfo("PLC_1", "/", "Inputs", collisions),
+            "create_user_constant" => new CreateUserConstantSafetySnapshotInfo(table, "Start", collisions),
+            _ => new UpdateUserConstantSafetySnapshotInfo(table,
+                new UserConstantSafetyIdentityInfo("PLC_1", "/", "Inputs", "Start", "PLC_1/Tag tables/Inputs/Start", "Int", "25"),
+                "Start", collisions)
+        };
+        var result = TagOperationSafetySnapshotContract.Decode(operation,
+            TiaMcpServer.Json.CanonicalJson.Serialize(snapshot));
+        Assert.False(result.Success);
+        Assert.Empty(result.CanonicalState);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
+    }
 }

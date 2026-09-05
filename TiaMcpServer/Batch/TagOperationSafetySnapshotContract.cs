@@ -49,7 +49,7 @@ internal static class TagOperationSafetySnapshotContract
         RequireText(snapshot.PlcName, "PLC name");
         RequireText(snapshot.FolderPath, "folder path", allowEmpty: true);
         RequireText(snapshot.RequestedTableName, "requested table name");
-        RequireCollisions(snapshot.TableNameCollisions, expectedKind: null);
+        RequireCollisions(snapshot.TableNameCollisions, "table-name");
     }
 
     private static void ValidateDeleteTagTable(DeleteTagTableSafetySnapshotInfo snapshot)
@@ -67,7 +67,7 @@ internal static class TagOperationSafetySnapshotContract
     {
         RequireTable(snapshot.TargetTable);
         RequireText(snapshot.EffectiveName, "effective tag name");
-        RequireCollisions(snapshot.NameCollisions, "tag-name");
+        RequireCollisions(snapshot.NameCollisions, "tag-name", "user-constant-name", "block-name");
         RequireCollisions(snapshot.AddressCollisions, "logical-address");
     }
 
@@ -76,7 +76,7 @@ internal static class TagOperationSafetySnapshotContract
         RequireTable(snapshot.TargetTable);
         RequireTag(snapshot.TargetTag, snapshot.TargetTable);
         RequireText(snapshot.EffectiveName, "effective tag name");
-        RequireCollisions(snapshot.NameCollisions, "tag-name");
+        RequireCollisions(snapshot.NameCollisions, "tag-name", "user-constant-name", "block-name");
         RequireCollisions(snapshot.AddressCollisions, "logical-address");
     }
 
@@ -90,7 +90,7 @@ internal static class TagOperationSafetySnapshotContract
     {
         RequireTable(snapshot.TargetTable);
         RequireText(snapshot.EffectiveName, "effective user-constant name");
-        RequireCollisions(snapshot.NameCollisions, expectedKind: null);
+        RequireCollisions(snapshot.NameCollisions, "tag-name", "user-constant-name", "block-name");
     }
 
     private static void ValidateUpdateUserConstant(UpdateUserConstantSafetySnapshotInfo snapshot)
@@ -98,7 +98,7 @@ internal static class TagOperationSafetySnapshotContract
         RequireTable(snapshot.TargetTable);
         RequireConstant(snapshot.TargetConstant, snapshot.TargetTable);
         RequireText(snapshot.EffectiveName, "effective user-constant name");
-        RequireCollisions(snapshot.NameCollisions, expectedKind: null);
+        RequireCollisions(snapshot.NameCollisions, "tag-name", "user-constant-name", "block-name");
     }
 
     private static void ValidateDeleteUserConstant(DeleteUserConstantSafetySnapshotInfo snapshot)
@@ -141,7 +141,7 @@ internal static class TagOperationSafetySnapshotContract
         RequireSameTable(constant.PlcName, constant.FolderPath, constant.TableName, table);
     }
 
-    private static void RequireCollisions(IReadOnlyList<TagCollisionProbeInfo>? collisions, string? expectedKind)
+    private static void RequireCollisions(IReadOnlyList<TagCollisionProbeInfo>? collisions, params string[] allowedKinds)
     {
         ArgumentNullException.ThrowIfNull(collisions);
         foreach (var collision in collisions)
@@ -150,7 +150,7 @@ internal static class TagOperationSafetySnapshotContract
             RequireText(collision.Kind, "collision kind");
             RequireText(collision.CandidateName, "collision candidate name");
             RequireText(collision.CanonicalPath, "collision canonical path");
-            if (expectedKind is not null && !string.Equals(collision.Kind, expectedKind, StringComparison.Ordinal))
+            if (!allowedKinds.Contains(collision.Kind, StringComparer.Ordinal))
             {
                 throw new JsonException($"Unsupported collision kind '{collision.Kind}'.");
             }
