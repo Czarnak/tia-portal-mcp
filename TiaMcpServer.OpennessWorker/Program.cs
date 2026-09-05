@@ -163,6 +163,7 @@ internal static class Program
                 "get_type_content"    => GetTypeContent(request),
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
+                "read_update_tag_safety_snapshot" => ReadUpdateTagSafetySnapshot(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -856,6 +857,17 @@ internal static class Program
     private static WorkerResponse ListTagTables(WorkerRequest request)
     {
         return WithProject(request, project => Success(TagTableReader.ReadAll(project, request.PlcName)));
+    }
+
+    private static WorkerResponse ReadUpdateTagSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagUpdateSafetySnapshotReader.Read(
+                project,
+                request.PlcName,
+                request.TableName!,
+                request.FolderPath,
+                request.Name!)));
     }
 
     private static WorkerResponse CompileCheck(WorkerRequest request)

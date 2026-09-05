@@ -23,7 +23,7 @@ public static class OperationPolicyCatalog
 
     /// <summary>
     /// True when <paramref name="operation"/> is allowed under the given access mode.
-    /// Read-only mode allows only Observe and TemporaryExport.
+    /// Read-only mode allows Observe, TemporaryExport, and side-effect-free SafetyRead.
     /// </summary>
     public static bool IsAllowed(McpAccessMode mode, string operation)
     {
@@ -38,7 +38,9 @@ public static class OperationPolicyCatalog
             return false;
         }
 
-        return cap.Value is OperationCapability.Observe or OperationCapability.TemporaryExport;
+        return cap.Value is OperationCapability.Observe
+            or OperationCapability.TemporaryExport
+            or OperationCapability.SafetyRead;
     }
 
     /// <summary>
@@ -58,9 +60,13 @@ public static class OperationPolicyCatalog
             return false;
         }
 
-        var capability = GetCapability(operation);
-        return capability != OperationCapability.Observe &&
-               capability != OperationCapability.TemporaryExport;
+        return GetCapability(operation) switch
+        {
+            OperationCapability.Observe => false,
+            OperationCapability.TemporaryExport => false,
+            OperationCapability.SafetyRead => true,
+            _ => true
+        };
     }
 
     /// <summary>
@@ -83,6 +89,9 @@ public static class OperationPolicyCatalog
             ["list_network_objects"] = OperationCapability.Observe,
             ["inspect_network_object"] = OperationCapability.Observe,
             ["probe_network_object_attributes"] = OperationCapability.Observe,
+
+            // SafetyRead (read-only safe, but requires a verified expected identity)
+            ["read_update_tag_safety_snapshot"] = OperationCapability.SafetyRead,
 
             // TemporaryExport (read-only safe, temporary files with cleanup)
             ["get_block_content"] = OperationCapability.TemporaryExport,

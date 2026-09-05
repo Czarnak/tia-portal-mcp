@@ -413,6 +413,25 @@ equivalence. The separately authorized read-only harness
 `scripts/live-test-hardware-pagination.ps1` is contract-tested but has not been executed against
 live TIA Portal V21; live pagination acceptance remains unverified.
 
+## PR 3 update_tag exact safety snapshot — mandatory live acceptance completed (2026-09-05)
+
+The missing external-flag safety-state gap for `update_tag` is closed in the offline contract,
+worker, FakeWorker, and registered write path: a strict exact-target snapshot captures resolved
+PLC/table/tag identity and mutable values, requires the observed worker session identity, and
+rejects a requested unreadable external flag before a preview token can be issued. The legacy
+best-effort public `list_tag_tables` response is intentionally unchanged until PR 5.
+
+The guarded disposable-copy harness and its durable report are at
+[`scripts/live-test-update-tag-safety.ps1`](../scripts/live-test-update-tag-safety.ps1) and
+[`PR 3 update_tag safety snapshot acceptance report`](superpowers/acceptance/reports/2026-09-01-pr3-update-tag-safety-snapshot-live.md).
+The mandatory live V21 read, preview, authorized `ExternalVisible` flag-only drift, stale-token
+`state_changed` rejection, and restoration all passed. The optional unavailable-target probe was
+`NOT RUN` because no distinct target exposing an unavailable flag was established. The flag was
+restored to its original value, but TIA retained `isModified = true`; no save, close, or discard
+was performed.
+PR 5 selector narrowing, multilingual per-tag comment binding, and PLC `start_plc`/`stop_plc`
+work remain deferred.
+
 ## PR 1 explicit MCP tool annotations — live acceptance completed (2026-09-01)
 
 The registered 4-tool read-only and 14-tool read-write MCP surfaces now expose the approved

@@ -523,6 +523,19 @@ reuse causes rejection. Completed writes are appended to the audit log under
 Read-only mode is categorically stronger than this token flow: confirmation and
 a valid token cannot override the access policy.
 
+For `update_tag`, the preview state currently composes two complementary reads: one strict,
+exact-target `TagUpdateSafetySnapshot` and the legacy broad tag-table payload retained until PR 5
+narrows the remaining tag-operation scopes. The strict snapshot records the resolved PLC name
+(rather than a caller-supplied selector), folder, table, tag, and every property the mutator can
+change. In particular, a requested external flag whose current value is unreadable causes preview
+to fail before token issuance. The public `list_tag_tables` read remains best-effort and unchanged.
+
+Internal exact-target selectors use the shared `SafetyRead` capability. A `SafetyRead` is
+side-effect-free and allowed in read-only mode, but it is not an ordinary observe: every request
+must carry the complete, exact worker/Portal/project session identity previously observed from the
+worker. This prevents an internal safety read from silently moving to a different same-path
+session while a preview is assembled.
+
 ## 9. Diagnostics
 
 `tia-mcp doctor` runs the environment diagnostic pipeline without starting the

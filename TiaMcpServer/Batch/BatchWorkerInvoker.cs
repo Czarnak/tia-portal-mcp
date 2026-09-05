@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
 
@@ -31,8 +32,9 @@ public static class BatchWorkerInvoker
         "update_type_content" => WithValidatedFormat(
             () => NormalizeFormat(op),
             format => client.GetTypeContentAsync(op.TypePath!, format, op.ProjectPath)),
+        "update_tag" => ReadUpdateTagCurrentStateAsync(client, op),
         "create_tag_table" or "delete_tag_table"
-            or "create_tag" or "update_tag" or "delete_tag"
+            or "create_tag" or "delete_tag"
             or "create_user_constant" or "update_user_constant" or "delete_user_constant"
             => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
         "create_block" or "create_block_group" or "delete_block_group"
@@ -47,6 +49,139 @@ public static class BatchWorkerInvoker
             WorkerFailureCategories.ValidationError,
             $"Unsupported batch write operation '{op.Operation}'.")),
     };
+
+    private static async Task<WorkerCallResult> ReadUpdateTagCurrentStateAsync(
+        OpennessWorkerClient client,
+        BatchOperationRequest op)
+    {
+        var strict = await client.ReadUpdateTagSafetySnapshotAsync(
+            op.PlcName,
+            op.TableName!,
+            op.FolderPath,
+            op.Name!,
+            op.ProjectPath).ConfigureAwait(false);
+        if (!strict.Success)
+        {
+            return strict;
+        }
+
+        if (!TryDecodeUpdateTagSafetySnapshot(strict.Payload, out var snapshot, out var decodeError))
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                $"Could not decode the update_tag safety snapshot. {decodeError}");
+        }
+
+        var unavailableFlag = TagUpdateSafetyCurrentState.ValidateRequestedExternalFlags(op, snapshot);
+        if (unavailableFlag is not null)
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError,
+                $"The current tag does not expose requested flag '{unavailableFlag}'.");
+        }
+
+        var broad = await client.ListTagTablesAsync(op.PlcName, op.ProjectPath).ConfigureAwait(false);
+        if (!broad.Success)
+        {
+            return broad;
+        }
+
+        string currentState;
+        try
+        {
+            currentState = TagUpdateSafetyCurrentState.Compose(snapshot, broad.Payload);
+        }
+        catch (JsonException ex)
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.ProtocolError,
+                $"Could not decode the update_tag broad tag-table safety state. {ex.Message}",
+                broad.Warnings);
+        }
+
+        return WorkerCallResult.Ok(
+            currentState,
+            broad.Warnings) with
+        {
+            ResolvedProjectPath = broad.ResolvedProjectPath,
+            SessionIdentity = broad.SessionIdentity,
+        };
+    }
+
+    private static bool TryDecodeUpdateTagSafetySnapshot(
+        string payload,
+        out TagUpdateSafetySnapshot snapshot,
+        out string error)
+    {
+        snapshot = null!;
+        error = string.Empty;
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                error = "Expected one JSON object.";
+                return false;
+            }
+
+            var expectedKinds = new Dictionary<string, JsonValueKind>(StringComparer.Ordinal)
+            {
+                ["plcName"] = JsonValueKind.String,
+                ["folderPath"] = JsonValueKind.String,
+                ["tableName"] = JsonValueKind.String,
+                ["tagName"] = JsonValueKind.String,
+                ["dataType"] = JsonValueKind.String,
+                ["logicalAddress"] = JsonValueKind.String,
+                ["externalAccessible"] = JsonValueKind.True,
+                ["externalVisible"] = JsonValueKind.True,
+                ["externalWritable"] = JsonValueKind.True,
+            };
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!expectedKinds.TryGetValue(property.Name, out var expectedKind))
+                {
+                    error = $"Unsupported member '{property.Name}'.";
+                    return false;
+                }
+                if (!seen.Add(property.Name))
+                {
+                    error = $"Duplicate member '{property.Name}'.";
+                    return false;
+                }
+
+                var actualKind = property.Value.ValueKind;
+                var validKind = expectedKind == JsonValueKind.String
+                    ? actualKind == JsonValueKind.String
+                    : actualKind is JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null;
+                if (!validKind)
+                {
+                    error = $"Member '{property.Name}' has an unsupported JSON type.";
+                    return false;
+                }
+            }
+
+            foreach (var member in expectedKinds.Keys)
+            {
+                if (!seen.Contains(member))
+                {
+                    error = $"Required member '{member}' is missing.";
+                    return false;
+                }
+            }
+
+            snapshot = document.RootElement.Deserialize<TagUpdateSafetySnapshot>()!;
+            if (snapshot is null)
+            {
+                error = "The snapshot object decoded to null.";
+                return false;
+            }
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
 
     /// <summary>Executes a single read or write item against the worker.</summary>
     public static Task<WorkerCallResult> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch

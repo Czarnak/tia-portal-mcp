@@ -59,6 +59,11 @@ var subnetLifecycleStateDriftReadCount = 0;
 var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
 var orderedTypeWriteCount = 0;
+var tagUpdateFlagDriftSnapshotReadCount = 0;
+var tagUpdateBroadDriftReadCount = 0;
+var tagUpdateBroadDriftMutationCount = 0;
+var tagUpdateStrictSnapshotFailureBroadReadCount = 0;
+var tagUpdateInvalidSnapshotBroadReadCount = 0;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -268,6 +273,112 @@ while ((line = Console.In.ReadLine()) is not null)
             // Returns the received request verbatim so tests can assert which fields survived
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
+            break;
+        case "tag-update-snapshot-unavailable-visible":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":null,\"externalWritable\":false}"}""",
+                _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "tag-update-snapshot-unavailable-all":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":null,\"externalVisible\":null,\"externalWritable\":null}"}""",
+                _ => $$"""{"success":false,"error":"unexpected all-unavailable update-tag fixture method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "tag-update-flag-drift":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                "read_update_tag_safety_snapshot" => TagUpdateDriftSnapshotResponse(++tagUpdateFlagDriftSnapshotReadCount),
+                _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "tag-update-broad-drift":
+            switch (ReadMethod(line))
+            {
+                case "get_project_status":
+                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"broadDriftMutationCount\":{{tagUpdateBroadDriftMutationCount}}}"}""");
+                    break;
+                case "read_update_tag_safety_snapshot":
+                    Respond("""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""");
+                    break;
+                case "list_tag_tables":
+                    Respond(TagUpdateBroadDriftResponse(++tagUpdateBroadDriftReadCount));
+                    break;
+                case "update_tag":
+                    tagUpdateBroadDriftMutationCount++;
+                    Respond("""{"success":true,"payload":"{}"}""");
+                    break;
+                default:
+                    Respond("""{"success":false,"error":"unexpected broad-drift update-tag fixture method"}""");
+                    break;
+            }
+            break;
+        case "tag-update-snapshot-read-fails":
+            switch (ReadMethod(line))
+            {
+                case "read_update_tag_safety_snapshot":
+                    Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"strict update-tag snapshot read failed"}""");
+                    break;
+                case "list_tag_tables":
+                    tagUpdateStrictSnapshotFailureBroadReadCount++;
+                    Respond("""{"success":true,"payload":"{\"tables\":[]}"}""");
+                    break;
+                case "get_project_status":
+                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"strictSnapshotFailureBroadReadCount\":{{tagUpdateStrictSnapshotFailureBroadReadCount}}}"}""");
+                    break;
+                default:
+                    Respond("""{"success":false,"error":"unexpected update-tag snapshot-failure fixture method"}""");
+                    break;
+            }
+            break;
+        case "tag-update-snapshot-invalid-payload":
+            switch (ReadMethod(line))
+            {
+                case "read_update_tag_safety_snapshot":
+                    Respond(InvalidTagUpdateSnapshotResponse(line));
+                    break;
+                case "list_tag_tables":
+                    tagUpdateInvalidSnapshotBroadReadCount++;
+                    Respond("""{"success":true,"payload":"{\"tables\":[]}"}""");
+                    break;
+                case "get_project_status":
+                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"invalidSnapshotBroadReadCount\":{{tagUpdateInvalidSnapshotBroadReadCount}}}"}""");
+                    break;
+                default:
+                    Respond("""{"success":false,"error":"unexpected update-tag invalid-snapshot fixture method"}""");
+                    break;
+            }
+            break;
+        case "tag-update-broad-best-effort-omission":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}","warnings":["Skipping unrelated tag table: access denied."]}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                _ => """{"success":false,"error":"unexpected update-tag broad-omission fixture method"}"""
+            });
+            break;
+        case "tag-update-broad-malformed-payload":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{not valid json"}""",
+                _ => """{"success":false,"error":"unexpected update-tag malformed-broad fixture method"}"""
+            });
             break;
         case "network-read-warnings":
             // A contract-valid hardware payload carried alongside worker warnings, so the network
@@ -1934,6 +2045,71 @@ string HandleSecondItemFailureWrite(string requestLine, List<SubnetLifecycleSubn
     return subnetLifecycleSecondFailureWriteCount == 1
         ? DispatchSubnetLifecycleWrite(requestLine, subnets)
         : $$"""{"success":false,"error":"deliberate second-item failure for network-subnet-lifecycle-second-item-failure"}""";
+}
+
+string TagUpdateDriftSnapshotResponse(int readCount)
+{
+    var externalAccessible = readCount == 1 ? "false" : "true";
+    return $$"""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":{{externalAccessible}},\"externalVisible\":true,\"externalWritable\":false}"}""";
+}
+
+string TagUpdateBroadDriftResponse(int readCount)
+{
+    var payload = readCount == 1
+        ? """{"tables":[]}"""
+        : """{"tables":[{"name":"Unrelated","folderPath":"/","tags":[],"userConstants":[]}]}""";
+    return Success(payload);
+}
+
+string InvalidTagUpdateSnapshotResponse(string requestLine)
+{
+    var variant = ReadField(requestLine, "name") ?? "empty";
+    if (variant == "malformed")
+    {
+        return Success("{not valid json");
+    }
+    if (variant == "root-array")
+    {
+        return Success("[]");
+    }
+
+    var snapshot = new Dictionary<string, object?>(StringComparer.Ordinal)
+    {
+        ["plcName"] = "ResolvedPLC",
+        ["folderPath"] = "/",
+        ["tableName"] = "Default tag table",
+        ["tagName"] = "MotorReady",
+        ["dataType"] = "Bool",
+        ["logicalAddress"] = "%I0.0",
+        ["externalAccessible"] = false,
+        ["externalVisible"] = true,
+        ["externalWritable"] = false,
+    };
+
+    if (variant == "empty")
+    {
+        snapshot.Clear();
+    }
+    else if (variant.StartsWith("missing-", StringComparison.Ordinal))
+    {
+        snapshot.Remove(variant["missing-".Length..]);
+    }
+    else if (variant.StartsWith("wrong-", StringComparison.Ordinal))
+    {
+        snapshot[variant["wrong-".Length..]] = new { unsupported = true };
+    }
+
+    if (variant == "unknown-member")
+    {
+        snapshot["unexpected"] = true;
+    }
+
+    var payload = JsonSerializer.Serialize(snapshot);
+    if (variant == "duplicate-member")
+    {
+        payload = payload.Insert(1, "\"plcName\":\"Duplicate\",");
+    }
+    return Success(payload);
 }
 
 int? ReadIntField(string requestLine, string propertyName)

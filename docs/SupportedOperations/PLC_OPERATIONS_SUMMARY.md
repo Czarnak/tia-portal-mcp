@@ -42,6 +42,11 @@ The operations below run through `preview_write_batch` and `apply_write_batch`.
 - Import/update operations modify existing objects only. They do not create, rename, delete, or upsert the addressed object.
 - Deletes and PLC start/stop operations use the same confirmed write flow as other data writes.
 - A write batch is applied in order and stops on the first failure. Completed mutations are not rolled back.
+- `update_tag` preview combines its existing broad tag-table state with a strict exact-target
+  snapshot. If an update requests `externalAccessible`, `externalVisible`, or
+  `externalWritable` and that selected flag cannot be read for the exact tag, preview fails before
+  token issuance. This safety condition does not change the public `list_tag_tables` contract:
+  that read remains best-effort and may retain its existing skipped-read behavior.
 
 ## Current limits
 

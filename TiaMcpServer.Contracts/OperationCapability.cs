@@ -14,6 +14,10 @@ public enum OperationCapability
     /// output. Allowed in read-only mode when cleanup is guaranteed.</summary>
     TemporaryExport,
 
+    /// <summary>Side-effect-free internal safety-state read. Allowed in read-only mode but
+    /// bound to the verified worker/Portal/project identity.</summary>
+    SafetyRead,
+
     /// <summary>Invokes the Siemens compilation API. Not allowed in read-only mode because
     /// compilation may modify internal project state.</summary>
     Compile,
