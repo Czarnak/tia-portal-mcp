@@ -7,6 +7,20 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 // Siemens-free shaping: no parsing, rewriting, or removal of exported XML content.
 internal static class TagOperationSafetySnapshotBuilder
 {
+    // Consume discovery past the first match: a later match or discovery error must fail closed.
+    internal static T ResolveUniquePlc<T>(IEnumerable<T> matches)
+    {
+        using var enumerator = matches.GetEnumerator();
+        if (!enumerator.MoveNext())
+            throw new InvalidOperationException("No PLC software matched the safety-read selector.");
+
+        var match = enumerator.Current;
+        if (enumerator.MoveNext())
+            throw new InvalidOperationException("Multiple PLC software instances matched the safety-read selector. Specify an unambiguous PLC selector.");
+
+        return match;
+    }
+
     internal static string NormalizeFolderPath(string? folderPath)
     {
         var parts = (folderPath ?? string.Empty).Trim().Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);

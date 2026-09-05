@@ -6,6 +6,45 @@ namespace TiaMcpServer.Tests.Batch;
 
 public sealed class TagOperationSafetyBuilderTests
 {
+    [Fact]
+    public void StrictPlcResolution_RejectsZeroMatches()
+    {
+        Assert.Throws<InvalidOperationException>(() => ResolveUniquePlc(Array.Empty<object>()));
+    }
+
+    [Fact]
+    public void StrictPlcResolution_ReturnsTheOnlyMatch()
+    {
+        var expected = new object();
+        Assert.Same(expected, ResolveUniquePlc(new[] { expected }));
+    }
+
+    [Fact]
+    public void StrictPlcResolution_RejectsMultipleMatchesInsteadOfSelectingTheFirst()
+    {
+        Assert.Throws<InvalidOperationException>(() => ResolveUniquePlc(new[] { new object(), new object() }));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StrictPlcResolution_PropagatesDiscoveryFailureEvenAfterOneMatch(bool yieldMatchFirst)
+    {
+        var failure = new IOException("Discovery could not inspect a device item.");
+        var actual = Assert.Throws<IOException>(() => ResolveUniquePlc(FailingDiscovery()));
+        Assert.Same(failure, actual);
+
+        IEnumerable<object> FailingDiscovery()
+        {
+            if (yieldMatchFirst)
+                yield return new object();
+            throw failure;
+        }
+    }
+
+    private static object ResolveUniquePlc(IEnumerable<object> matches)
+        => TagOperationSafetySnapshotBuilder.ResolveUniquePlc(matches);
+
     [Theory]
     [InlineData(null, "/", "PLC_1/Tag tables/Inputs")]
     [InlineData(" /Area//Signals/ ", "/Area/Signals", "PLC_1/Tag tables/Area/Signals/Inputs")]

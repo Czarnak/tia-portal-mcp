@@ -1,4 +1,7 @@
 using Siemens.Engineering;
+using Siemens.Engineering.HW;
+using Siemens.Engineering.HW.Features;
+using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Tags;
 using TiaMcpServer.Contracts;
 
@@ -155,7 +158,8 @@ internal static class TagOperationSafetySnapshotReader
 
     private static ResolvedGroup ResolveGroup(Project project, WorkerRequest request)
     {
-        var plc = PlcSoftwareLocator.Find(project, request.PlcName);
+        var plc = TagOperationSafetySnapshotBuilder.ResolveUniquePlc(
+            DiscoverPlcSoftwareStrict(project, request.PlcName));
         PlcTagTableGroup group = plc.TagTableGroup;
         var actualSegments = new List<string>();
         foreach (var segment in TagOperationSafetySnapshotBuilder.NormalizeFolderPath(request.FolderPath)
@@ -167,6 +171,34 @@ internal static class TagOperationSafetySnapshotReader
         }
         return new ResolvedGroup(plc.Name, plc.TagTableGroup, group,
             actualSegments.Count == 0 ? "/" : "/" + string.Join("/", actualSegments));
+    }
+
+    private static IEnumerable<PlcSoftware> DiscoverPlcSoftwareStrict(Project project, string? plcName)
+    {
+        // Includes grouped devices and propagates incomplete-discovery errors.
+        foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
+        {
+            foreach (var software in DiscoverPlcSoftwareStrict(device.DeviceItems))
+            {
+                if (plcName is null ||
+                    string.Equals(software.Name, plcName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(device.Name, plcName, StringComparison.OrdinalIgnoreCase))
+                    yield return software;
+            }
+        }
+    }
+
+    private static IEnumerable<PlcSoftware> DiscoverPlcSoftwareStrict(DeviceItemComposition items)
+    {
+        foreach (DeviceItem item in items)
+        {
+            var container = item.GetService<SoftwareContainer>();
+            if (container?.Software is PlcSoftware software)
+                yield return software;
+
+            foreach (var child in DiscoverPlcSoftwareStrict(item.DeviceItems))
+                yield return child;
+        }
     }
 
     private static void RequireName(string? value, string field)

@@ -5,6 +5,17 @@ namespace TiaMcpServer.Tests.Batch;
 public sealed class TagOperationSafetyWorkerSourceContractTests
 {
     [Fact]
+    public void SafetyReader_UsesCompleteStrictDiscoveryAndTheTestedUniqueSelection()
+    {
+        var text = File.ReadAllText(Source("TiaMcpServer.OpennessWorker/Openness/TagOperationSafetySnapshotReader.cs"));
+        Assert.Contains("TagOperationSafetySnapshotBuilder.ResolveUniquePlc(", text, StringComparison.Ordinal);
+        Assert.Contains("ProjectDeviceEnumerator.Enumerate(project)", text, StringComparison.Ordinal);
+        Assert.Contains("item.GetService<SoftwareContainer>()", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlcSoftwareLocator.Find", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("catch (EngineeringException", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Program_DispatchesEveryInternalTagSafetyRead()
     {
         var text = File.ReadAllText(Source("TiaMcpServer.OpennessWorker/Program.cs"));
