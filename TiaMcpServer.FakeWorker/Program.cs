@@ -65,6 +65,14 @@ var tagUpdateTargetDriftMutationCount = 0;
 var tagUpdateStrictSnapshotFailureBroadReadCount = 0;
 var tagUpdateInvalidSnapshotBroadReadCount = 0;
 var tagSafetyDedupReadCount = 0;
+var tagSafetySnapshotReadCount = 0;
+var tagSafetyMutationCount = 0;
+var tagSafetySnapshotReadsAtMutation = 0;
+var tagSafetyBroadReadCount = 0;
+var tagSafetyTargetExists = true;
+var tagSafetyTargetTagName = "Start";
+var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Before",
+    "PLC_1/Tag tables/Outputs/Before", "Bool", "%Q0.0", true, true, false);
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -288,6 +296,20 @@ while ((line = Console.In.ReadLine()) is not null)
                 ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
                 : TagSafetyRouteResponse(line, scenario == "tag-safety-invalid-routes",
                     invalidCollision: scenario == "tag-safety-private-collision-kind"));
+            break;
+        case "tag-safety-same-object-drift":
+        case @"C:\FakeWorker\tag-safety-same-object-drift.ap21":
+        case "tag-safety-collision-drift":
+        case @"C:\FakeWorker\tag-safety-collision-drift.ap21":
+        case "tag-safety-unrelated-sibling":
+        case @"C:\FakeWorker\tag-safety-unrelated-sibling.ap21":
+        case "tag-safety-delete-table-export-drift":
+        case @"C:\FakeWorker\tag-safety-delete-table-export-drift.ap21":
+        case "tag-safety-reread":
+        case @"C:\FakeWorker\tag-safety-reread.ap21":
+        case "tag-safety-authorized-apply":
+        case @"C:\FakeWorker\tag-safety-authorized-apply.ap21":
+            Respond(TagSafetyBehaviorResponse(line, Path.GetFileNameWithoutExtension(scenario)));
             break;
         case "tag-safety-route-proof":
         case @"C:\FakeWorker\tag-safety-route-proof.ap21":
@@ -1033,6 +1055,121 @@ ProjectStatusInfo StatusWithMetadataFixture() => new()
 };
 
 // Exact-route fixtures reject wrong selectors before returning each operation's typed payload.
+string TagSafetyBehaviorResponse(string requestLine, string scenario)
+{
+    var method = ReadMethod(requestLine);
+    if (method == "get_project_status")
+    {
+        // Read-only observation: bootstrap and assertions never advance the snapshot phase.
+        return Success(ToCamelCaseJson(new
+        {
+            isOpen = true,
+            snapshotReadCount = tagSafetySnapshotReadCount,
+            mutationCount = tagSafetyMutationCount,
+            snapshotReadsAtMutation = tagSafetySnapshotReadsAtMutation,
+            broadReadCount = tagSafetyBroadReadCount,
+            targetExists = tagSafetyTargetExists,
+            targetTagName = tagSafetyTargetTagName,
+            siblingTableName = tagSafetySiblingTag.TableName,
+            siblingTagName = tagSafetySiblingTag.TagName
+        }));
+    }
+    if (method == "list_tag_tables")
+    {
+        tagSafetyBroadReadCount++;
+        return """{"success":false,"error":"wrong route: list_tag_tables"}""";
+    }
+
+    var expectedWrite = scenario switch
+    {
+        "tag-safety-same-object-drift" or "tag-safety-authorized-apply" => "update_tag",
+        "tag-safety-collision-drift" => "create_tag",
+        "tag-safety-unrelated-sibling" => "delete_tag",
+        "tag-safety-delete-table-export-drift" => "delete_tag_table",
+        "tag-safety-reread" => "create_user_constant",
+        _ => throw new InvalidOperationException("Unknown tag safety behavior scenario.")
+    };
+    var requestedName = ReadField(requestLine, "name");
+    if (ReadField(requestLine, "plcName") != "PLC_1" ||
+        ReadField(requestLine, "tableName") != "Inputs" ||
+        ReadField(requestLine, "folderPath") is not (null or "" or "/") ||
+        (expectedWrite is "update_tag" or "delete_tag" && requestedName != "Start") ||
+        (expectedWrite == "update_tag" && ReadField(requestLine, "newName") != "Start_1") ||
+        (expectedWrite == "create_tag" && (requestedName is not ("Start_1" or "AddressOnly") ||
+            ReadField(requestLine, "dataType") != "Bool" || ReadField(requestLine, "logicalAddress") != "%I0.1")) ||
+        (expectedWrite == "create_user_constant" && requestedName != "DebounceMs"))
+    {
+        return """{"success":false,"error":"wrong tag safety behavior selector"}""";
+    }
+    if (method == expectedWrite)
+    {
+        // Count every mutation attempt, including one the host should have rejected.
+        tagSafetyMutationCount++;
+        tagSafetySnapshotReadsAtMutation = tagSafetySnapshotReadCount;
+        if (expectedWrite == "update_tag")
+            tagSafetyTargetTagName = ReadField(requestLine, "newName")!;
+        if (expectedWrite is "delete_tag" or "delete_tag_table")
+            tagSafetyTargetExists = false;
+        return Success("{}");
+    }
+    if (method != $"read_{expectedWrite}_safety_snapshot")
+        return """{"success":false,"error":"unexpected tag safety behavior method"}""";
+
+    // Only an exact selector read advances state. The second read is apply, before mutation.
+    var applyPhase = ++tagSafetySnapshotReadCount > 1;
+    var table = new TagTableSafetyIdentityInfo("PLC_1", "/", "Inputs", "PLC_1/Tag tables/Inputs");
+    var tag = new TagSafetyIdentityInfo("PLC_1", "/", "Inputs", tagSafetyTargetTagName,
+        table.CanonicalPath + "/" + tagSafetyTargetTagName, "Bool", "%I0.0", true, true, false);
+    var empty = Array.Empty<TagCollisionProbeInfo>();
+    object payload;
+    switch (scenario)
+    {
+        case "tag-safety-same-object-drift":
+        case "tag-safety-authorized-apply":
+            if (applyPhase && scenario == "tag-safety-same-object-drift")
+                tag = tag with { ExternalVisible = false };
+            payload = new UpdateTagSafetySnapshotInfo(table, tag, "Start_1", "%I0.0", empty,
+                new[] { new TagCollisionProbeInfo("logical-address", tag.TagName, tag.CanonicalPath, "%I0.0", true) });
+            break;
+        case "tag-safety-collision-drift":
+            // Independent variants: same name at another address, or another name at the same address.
+            var nameCollisions = applyPhase && requestedName == "Start_1"
+                ? new[] { new TagCollisionProbeInfo("tag-name", "Start_1", table.CanonicalPath + "/Start_1", "%I0.2", false) }
+                : empty;
+            var addressCollisions = applyPhase && requestedName == "AddressOnly"
+                ? new[] { new TagCollisionProbeInfo("logical-address", "Other", table.CanonicalPath + "/Other", "%I0.1", false) }
+                : empty;
+            payload = new CreateTagSafetySnapshotInfo(table, requestedName!, "%I0.1", nameCollisions, addressCollisions);
+            break;
+        case "tag-safety-unrelated-sibling":
+            if (applyPhase)
+            {
+                // This Outputs-table tag would appear in the old broad inventory. It is outside
+                // the Inputs/Start selector, so the exact target snapshot remains byte-identical.
+                tagSafetySiblingTag = tagSafetySiblingTag with
+                {
+                    TagName = "After", CanonicalPath = "PLC_1/Tag tables/Outputs/After"
+                };
+            }
+            payload = new DeleteTagSafetySnapshotInfo(table, tag);
+            break;
+        case "tag-safety-delete-table-export-drift":
+            var xml = $"<Document><SW.Tags.PlcTagTable><Name>Inputs</Name><Comment>{(applyPhase ? "B" : "A")}</Comment></SW.Tags.PlcTagTable></Document>";
+            var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(xml))).ToLowerInvariant();
+            payload = new DeleteTagTableSafetySnapshotInfo(table, xml, digest, xml.Length);
+            break;
+        case "tag-safety-reread":
+            var constantCollisions = applyPhase
+                ? new[] { new TagCollisionProbeInfo("user-constant-name", "DebounceMs", table.CanonicalPath + "/DebounceMs", null, false) }
+                : empty;
+            payload = new CreateUserConstantSafetySnapshotInfo(table, "DebounceMs", constantCollisions);
+            break;
+        default:
+            throw new InvalidOperationException("Unknown tag safety snapshot scenario.");
+    }
+    return Success(ToCamelCaseJson(payload));
+}
+
 string TagSafetyRouteResponse(string requestLine, bool malformed, bool invalidCollision = false)
 {
     var method = ReadMethod(requestLine);
