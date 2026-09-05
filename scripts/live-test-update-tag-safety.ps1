@@ -405,10 +405,10 @@ function Assert-PublicTagRowMatchesSnapshot {
     if ($payload -is [string]) {
         $payload = $payload | ConvertFrom-Json -Depth 100
     }
-    if ($null -eq $payload -or $null -eq $payload.tables) {
+    if ($null -eq $payload) {
         throw "list_tag_tables returned no tables payload: $($ToolCall.Text)"
     }
-    $tables = @($payload.tables)
+    $tables = @($payload)
     $tables = @($tables | Where-Object {
         $_.name -eq $Snapshot.tableName -and $_.folderPath -eq $Snapshot.folderPath
     })

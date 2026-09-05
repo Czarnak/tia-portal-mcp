@@ -135,6 +135,64 @@ public class TagUpdateSafetyLiveHarnessContractTests
     }
 
     [Fact]
+    public async Task Script_PublicTagComparison_AcceptsDirectArrayResultAndRejectsSnapshotValueMismatches()
+    {
+        // Catches treating list_tag_tables' JSON array string as a { tables: ... } wrapper,
+        // or accepting a selected tag whose data type or logical address differs from the snapshot.
+        var text = ReadScript();
+        var errorReader = ExtractTopLevelFunction(text, "Test-McpToolResultIsError");
+        var comparison = ExtractTopLevelFunction(text, "Assert-PublicTagRowMatchesSnapshot");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            {{errorReader}}
+            {{comparison}}
+            $responseText = @'
+            {
+              "success": true,
+              "operations": [{
+                "operationId": "public-list",
+                "operation": "list_tag_tables",
+                "status": "succeeded",
+                "result": "[{\"name\":\"Outputs\",\"folderPath\":\"\",\"isDefault\":false,\"tags\":[],\"userConstants\":[]},{\"name\":\"Inputs\",\"folderPath\":\"Other\",\"isDefault\":false,\"tags\":[],\"userConstants\":[]},{\"name\":\"Inputs\",\"folderPath\":\"\",\"isDefault\":false,\"tags\":[{\"name\":\"OtherTag\",\"dataType\":\"Int\",\"logicalAddress\":\"%IW2\"},{\"name\":\"DI_Reserve_1_7\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I1.7\"}],\"userConstants\":[]}]"
+              }]
+            }
+            '@
+            $toolCall = [pscustomobject]@{
+                Result = [pscustomobject]@{ content = @([pscustomobject]@{ type = 'text'; text = $responseText }) }
+                Text = $responseText
+                Document = $responseText | ConvertFrom-Json -Depth 100
+            }
+            $snapshot = [pscustomobject]@{
+                tableName = 'Inputs'; folderPath = ''; tagName = 'DI_Reserve_1_7'
+                dataType = 'Bool'; logicalAddress = '%I1.7'
+            }
+            Assert-PublicTagRowMatchesSnapshot -ToolCall $toolCall -Snapshot $snapshot
+            foreach ($mismatch in @(
+                [pscustomobject]@{ tableName = 'Inputs'; folderPath = ''; tagName = 'DI_Reserve_1_7'; dataType = 'Int'; logicalAddress = '%I1.7' },
+                [pscustomobject]@{ tableName = 'Inputs'; folderPath = ''; tagName = 'DI_Reserve_1_7'; dataType = 'Bool'; logicalAddress = '%I1.6' }
+            )) {
+                $rejected = $false
+                try {
+                    Assert-PublicTagRowMatchesSnapshot -ToolCall $toolCall -Snapshot $mismatch
+                }
+                catch {
+                    if ($_.Exception.Message -notlike '*tag values differ from the strict snapshot*') { throw }
+                    $rejected = $true
+                }
+                if (-not $rejected) { throw 'A public tag value mismatch was accepted.' }
+            }
+            Write-Output 'public-tag-array-compared'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("public-tag-array-compared", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Script_InvokeMcpToolAcceptsOmittedIsErrorAndHonorsExplicitApplicationErrors()
     {
         var text = ReadScript();
