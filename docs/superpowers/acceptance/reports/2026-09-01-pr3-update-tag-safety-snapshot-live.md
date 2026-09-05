@@ -9,26 +9,30 @@
 probe was not run because no distinct second target was established to expose a truly unavailable
 external flag.
 
-**Source and live-tested revision:** `952f66f3627486e9d5ef0cb2d48bfcbd93a71c2e`.
+**Final reviewed source revision:** `475090a4248c2afc1c34784ad14e8ce5387a3889`.
+**Live-tested revision:** `952f66f3627486e9d5ef0cb2d48bfcbd93a71c2e`.
 **Production safety implementation revision:** `3c7e8b29ca0b923877cf310cfd6d3a4e1fc5a0e1`
 (`fix: validate update tag safety snapshot`). The live harness repairs after that production
 revision, including `5510e40`, `0feadf3`, and `952f66f`, were separately TDD-tested and scoped
-re-reviewed. The live runtime was TIA Portal V21 with portal PID `44176`.
+re-reviewed. Revision `475090a` is a post-live diagnostic-only harness fix that removes
+token-bearing raw text from failure messages and adds composed-path tests. It does not change
+production mutation or snapshot semantics, and no live TIA action was rerun for it. The live
+runtime was TIA Portal V21 with portal PID `44176`.
 
-**Offline-tested evidence:** Fresh final evidence at `952f66f` passed the serial reference-stub
+**Offline-tested evidence:** Fresh final evidence at `475090a` passed the serial reference-stub
 build with 0 warnings/0 errors, the focused `TagUpdateSafetyLiveHarnessContractTests` suite with
-18/18 tests, and the complete suite with 2,632/2,632 tests and 0 skipped. The complete passing run
+20/20 tests, and the complete suite with 2,634/2,634 tests and 0 skipped. The complete passing run
 used:
 
 ```powershell
-dotnet test TiaMcpServer.Tests --no-build --no-restore --nologo --verbosity minimal -- xunit.parallelizeTestCollections=false xunit.maxParallelThreads=1
+dotnet test TiaMcpServer.Tests --no-build --no-restore --nologo --verbosity minimal -- xUnit.ParallelizeTestCollections=false xUnit.MaxParallelThreads=1
 ```
 
 This supports the required offline/registered rows below; it does not replace the live
-acceptance. Before that sequential pass, two default-parallel attempts exposed unrelated existing
-timing failures outside PR 3: the first had a network smoke-test timeout plus fake-worker restart
-timing failures, and the second had only the network smoke-test timeout. The exact failing groups
-then passed in isolation (2/2 and 4/4).
+acceptance. xUnit inline RunSettings keys are case-sensitive. A lowercase-key attempt did not
+serialize the test collections and exposed the same unrelated timing-sensitive process-start and
+restart tests. The correctly cased command serialized the collections and passed the complete
+suite.
 
 ## Mandatory Live Target
 
@@ -78,10 +82,10 @@ and the token was discarded.
 
 | Criterion | Evidence source | Observed |
 |---|---|---|
-| Bound client sends a complete expected identity; worker rejects missing and mismatched identity as `binding_conflict` | `TagUpdateSafetySnapshotWorkerClientTests` plus `TagUpdateSafetySnapshotIdentityEnforcementTests` | PASS - revision `952f66f`; fresh final complete suite (2,632/2,632, 0 skipped) |
-| Requested unavailable flag fails before token issuance | `TagUpdateCurrentStateFakeWorkerTests` plus contract/worker tests | PASS - revision `952f66f`; registered matrix coverage includes `0feadf3`; fresh final complete suite (2,632/2,632, 0 skipped) |
-| Strict snapshot payload rejects `{}`, malformed/unsupported shapes, every omitted member, and wrong member types before broad fallback or token issuance | `TagUpdateCurrentStateFakeWorkerTests` | PASS - revision `952f66f`; fresh final complete suite (2,632/2,632, 0 skipped) |
-| Harness accepts legal registered token-only preview results, preserves explicit application-error handling, rejects invalid shapes without leaking tokens, and defines the optional-probe guard before its entrypoint call | `TagUpdateSafetyLiveHarnessContractTests` | PASS - revision `952f66f`; focused harness suite 18/18 and fresh final complete suite (2,632/2,632, 0 skipped) |
+| Bound client sends a complete expected identity; worker rejects missing and mismatched identity as `binding_conflict` | `TagUpdateSafetySnapshotWorkerClientTests` plus `TagUpdateSafetySnapshotIdentityEnforcementTests` | PASS - final source revision `475090a`; fresh final complete suite (2,634/2,634, 0 skipped) |
+| Requested unavailable flag fails before token issuance | `TagUpdateCurrentStateFakeWorkerTests` plus contract/worker tests | PASS - final source revision `475090a`; registered matrix coverage includes `0feadf3`; fresh final complete suite (2,634/2,634, 0 skipped) |
+| Strict snapshot payload rejects `{}`, malformed/unsupported shapes, every omitted member, and wrong member types before broad fallback or token issuance | `TagUpdateCurrentStateFakeWorkerTests` | PASS - final source revision `475090a`; fresh final complete suite (2,634/2,634, 0 skipped) |
+| Harness accepts legal registered token-only preview results, preserves explicit application-error handling, rejects invalid shapes without leaking tokens, and defines the optional-probe guard before its entrypoint call | `TagUpdateSafetyLiveHarnessContractTests` | PASS - final source revision `475090a`; focused harness suite 20/20 and fresh final complete suite (2,634/2,634, 0 skipped) |
 
 ## Optional Live Unavailable Probe
 
@@ -109,6 +113,10 @@ required offline/registered evidence.
   (registered token-only preview acceptance with fail-closed invalid-shape handling). The successful
   mandatory read preceded any preview/write; only the authorized `ApplyDrift -AllowApply` mutated
   TIA.
+- Post-live revision `475090a` removed token-bearing raw text from harness failure messages and
+  added composed-path tests. It was reviewed and offline-tested at the final source revision, but
+  it did not change production mutation or snapshot semantics and was not live-tested; no live TIA
+  action was rerun for it.
 - `ApplyDrift -AllowApply` changed only `ExternalVisible` from `True` to `False`; the original token
   was rejected with `failureCategory = state_changed`, and `finally` restored the flag to `True`.
   A separate final `Read` then passed the strict snapshot and public-row assertions with
