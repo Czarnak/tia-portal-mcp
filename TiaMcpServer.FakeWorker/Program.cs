@@ -283,9 +283,11 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "tag-safety-all-routes":
         case "tag-safety-invalid-routes":
+        case "tag-safety-private-collision-kind":
             Respond(ReadMethod(line) == "get_project_status"
                 ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
-                : TagSafetyRouteResponse(line, scenario == "tag-safety-invalid-routes"));
+                : TagSafetyRouteResponse(line, scenario == "tag-safety-invalid-routes",
+                    invalidCollision: scenario == "tag-safety-private-collision-kind"));
             break;
         case "tag-safety-route-proof":
         case @"C:\FakeWorker\tag-safety-route-proof.ap21":
@@ -1031,7 +1033,7 @@ ProjectStatusInfo StatusWithMetadataFixture() => new()
 };
 
 // Exact-route fixtures reject wrong selectors before returning each operation's typed payload.
-string TagSafetyRouteResponse(string requestLine, bool malformed)
+string TagSafetyRouteResponse(string requestLine, bool malformed, bool invalidCollision = false)
 {
     var method = ReadMethod(requestLine);
     if (ReadField(requestLine, "plcName") != "PLC_1" ||
@@ -1061,6 +1063,16 @@ string TagSafetyRouteResponse(string requestLine, bool malformed)
     if (payload is null || (!method!.Contains("tag_table", StringComparison.Ordinal) && ReadField(requestLine, "name") != "Start"))
     {
         return """{"success":false,"error":"wrong route or effective tag safety selector"}""";
+    }
+    if (invalidCollision && payload is UpdateTagSafetySnapshotInfo update)
+    {
+        payload = update with
+        {
+            NameCollisions = new[]
+            {
+                new TagCollisionProbeInfo("PRIVATE_SNAPSHOT_SENTINEL", "Run", "PLC_1/Area/Inputs/Run", null, false)
+            }
+        };
     }
     return Success(malformed ? "{}" : ToCamelCaseJson(payload));
 }

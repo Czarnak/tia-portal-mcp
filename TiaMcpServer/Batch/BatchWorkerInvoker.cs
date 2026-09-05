@@ -69,10 +69,11 @@ public static class BatchWorkerInvoker
         if (!result.Success) return result;
 
         var decoded = TagOperationSafetySnapshotContract.Decode(operation, result.Payload);
+        // Decoder diagnostics can contain rejected payload values; keep them out of public errors.
         return decoded.Success
             ? result with { Payload = decoded.CanonicalState }
             : WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
-                $"Could not decode the {operation} safety snapshot. {decoded.Error}", result.Warnings);
+                $"Could not decode the {operation} safety snapshot.", result.Warnings);
     }
 
     // Validation depends on each write's requested flags, which deliberately are not part of

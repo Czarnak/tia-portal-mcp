@@ -145,6 +145,18 @@ public sealed class TagOperationCurrentStateReadFakeWorkerTests
         Assert.DoesNotContain("\"safetyToken\":", preview, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task PreviewWriteBatch_InvalidCollisionKind_DoesNotEchoRejectedPayloadValue()
+    {
+        var preview = await PreviewRoute("update_tag", "tag-safety-private-collision-kind");
+
+        using var document = JsonDocument.Parse(preview);
+        Assert.Equal(WorkerFailureCategories.ProtocolError,
+            document.RootElement.GetProperty("failureCategory").GetString());
+        Assert.False(document.RootElement.TryGetProperty("safetyToken", out _));
+        Assert.DoesNotContain("PRIVATE_SNAPSHOT_SENTINEL", preview, StringComparison.Ordinal);
+    }
+
     private static async Task<string> PreviewRoute(string operation, string path)
     {
         using var audit = new TempAuditDirectory();
