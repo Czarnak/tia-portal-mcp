@@ -351,11 +351,15 @@ function Get-PreviewToken {
     if ((Test-McpToolResultIsError -Result $ToolCall.Result) -or $null -eq $ToolCall.Document) {
         throw "preview_write_batch failed before issuing a token: $($ToolCall.Text)"
     }
-    $token = $ToolCall.Document.safetyToken
-    if ([string]::IsNullOrWhiteSpace([string]$token)) {
+    $successProperty = $ToolCall.Document.PSObject.Properties['success']
+    if ($null -eq $successProperty -or $successProperty.Value -isnot [bool] -or -not [bool]$successProperty.Value) {
+        throw "preview_write_batch failed before issuing a token: $($ToolCall.Text)"
+    }
+    $tokenProperty = $ToolCall.Document.PSObject.Properties['safetyToken']
+    if ($null -eq $tokenProperty -or [string]::IsNullOrWhiteSpace([string]$tokenProperty.Value)) {
         throw 'preview_write_batch succeeded without a safetyToken.'
     }
-    return [string]$token
+    return [string]$tokenProperty.Value
 }
 
 function Invoke-Preview {
@@ -452,7 +456,7 @@ function Invoke-Main {
 
     if ($null -eq $HostArguments -or $HostArguments.Count -eq 0) {
         $hostDll = Join-Path $script:RepositoryRoot 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll'
-        $HostArguments = @($hostDll)
+        $HostArguments = @($hostDll, '--project', $ProjectPath)
     }
 
     if ([string]::IsNullOrWhiteSpace($WorkerExecutable)) {
@@ -545,11 +549,16 @@ function Invoke-Main {
             }
             $probeOperation = New-UpdateTagOperation -Snapshot $probeSnapshot -FlagName $ProbeFlagName -Value $true -OperationId 'update-tag-unavailable-flag-probe'
             $probePreview = Invoke-McpTool -Name 'preview_write_batch' -Arguments @{ operations = @($probeOperation) } -AllowApplicationError
-            if (-not (Test-McpToolResultIsError -Result $probePreview.Result)) {
-                throw "Optional unavailable probe unexpectedly issued a preview result: $($probePreview.Text)"
+            if ((Test-McpToolResultIsError -Result $probePreview.Result) -or $null -eq $probePreview.Document) {
+                throw "Optional unavailable probe did not return the expected validation document: $($probePreview.Text)"
             }
-            if ($null -ne $probePreview.Document -and -not [string]::IsNullOrWhiteSpace([string]$probePreview.Document.safetyToken)) {
-                throw 'Optional unavailable probe unexpectedly issued a safety token.'
+            $probeSuccess = $probePreview.Document.PSObject.Properties['success']
+            $probeFailureCategory = $probePreview.Document.PSObject.Properties['failureCategory']
+            $probeToken = $probePreview.Document.PSObject.Properties['safetyToken']
+            if ($null -eq $probeSuccess -or $probeSuccess.Value -isnot [bool] -or [bool]$probeSuccess.Value -or
+                $null -eq $probeFailureCategory -or [string]$probeFailureCategory.Value -ne 'validation_error' -or
+                $null -ne $probeToken) {
+                throw "Optional unavailable probe did not return success:false, failureCategory validation_error, and no safety token: $($probePreview.Text)"
             }
             Write-Output 'Optional unavailable flag preview rejected before token issuance.'
         }

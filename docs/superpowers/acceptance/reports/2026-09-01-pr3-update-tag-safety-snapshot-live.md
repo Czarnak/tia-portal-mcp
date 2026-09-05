@@ -45,17 +45,16 @@ supports the required offline/registered rows below; it does not replace the liv
 
 | Criterion | Command | Observed |
 |---|---|---|
-| Identity-bound internal safety read succeeds with the worker-stamped identity | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; $hostDll = (Resolve-Path 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll').Path; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read -HostArguments @($hostDll, '--project', $projectPath)` | PASS - direct worker hello/status established the complete worker-stamped session identity; the strict safety snapshot resolved the exact target and observed `ExternalVisible = True` |
-| Exact-target snapshot resolves PLC identity and the chosen drift flag is readable | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; $hostDll = (Resolve-Path 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll').Path; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read -HostArguments @($hostDll, '--project', $projectPath)` | PASS - resolved PLC `PLC_LAD`, root `/`, table `Inputs`, tag `DI_Reserve_1_7`; `ExternalVisible = True` |
-| Flag-only drift causes stale-token `state_changed` before mutation | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; $hostDll = (Resolve-Path 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll').Path; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode ApplyDrift -AllowApply -HostArguments @($hostDll, '--project', $projectPath)` | PASS - the authorized intermediate update changed only `ExternalVisible` `True` -> `False`; the original stale token was rejected with `failureCategory = state_changed`; reconciliation restored `True` |
-| Public `list_tag_tables` semantics remain unchanged | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; $hostDll = (Resolve-Path 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll').Path; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read -HostArguments @($hostDll, '--project', $projectPath)` | PASS - registered `execute_read_batch/list_tag_tables` returned one successful operation matching `Bool` / `%I1.7`; an independent final `Read` again observed `ExternalVisible = True` |
+| Identity-bound internal safety read succeeds with the worker-stamped identity | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read` | PASS - direct worker hello/status established the complete worker-stamped session identity; the strict safety snapshot resolved the exact target and observed `ExternalVisible = True` |
+| Exact-target snapshot resolves PLC identity and the chosen drift flag is readable | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read` | PASS - resolved PLC `PLC_LAD`, root `/`, table `Inputs`, tag `DI_Reserve_1_7`; `ExternalVisible = True` |
+| Flag-only drift causes stale-token `state_changed` before mutation | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode ApplyDrift -AllowApply` | PASS - the authorized intermediate update changed only `ExternalVisible` `True` -> `False`; the original stale token was rejected with `failureCategory = state_changed`; reconciliation restored `True` |
+| Public `list_tag_tables` semantics remain unchanged | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read` | PASS - registered `execute_read_batch/list_tag_tables` returned one successful operation matching `Bool` / `%I1.7`; an independent final `Read` again observed `ExternalVisible = True` |
 
 The mandatory non-mutating preview command passed without mutation:
 
 ```powershell
 $projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'
-$hostDll = (Resolve-Path 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll').Path
-pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode PreviewDrift -HostArguments @($hostDll, '--project', $projectPath)
+pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode PreviewDrift
 ```
 
 `PreviewDrift` observed `ExternalVisible = True` and issued a safety token. No mutation was made
@@ -82,10 +81,11 @@ required offline/registered evidence.
 
 ## Execution notes
 
-- The successful commands used the harness `HostArguments` extension point to bind the local host
-  exactly: `$hostDll = (Resolve-Path 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll').Path` and
-  `-HostArguments @($hostDll, '--project', $projectPath)`. Earlier abbreviated unbound commands are
-  not the accepted evidence.
+- The reproducible commands above use the harness default, which starts the local host DLL with the
+  exact `--project $ProjectPath` binding. The previously recorded native `pwsh -File` form with an
+  array-valued `-HostArguments` override was removed because native parameter binding consumed its
+  embedded `--project` as another harness argument. Earlier abbreviated unbound commands are not
+  the accepted evidence.
 - Earlier attempts all stopped before mutation: empty-array binder; missing worker protocol marker;
   Openness permission timeout; optional JSON-RPC error access; and wrong public payload wrapper. The
   corresponding harness repairs were `c07a624` (empty worker arguments), `594e304` (per-request

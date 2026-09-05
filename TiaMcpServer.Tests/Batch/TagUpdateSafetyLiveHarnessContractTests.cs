@@ -243,6 +243,187 @@ public class TagUpdateSafetyLiveHarnessContractTests
     }
 
     [Fact]
+    public async Task Script_InvokeMain_DefaultHostArgumentsBindTheExactProjectPath()
+    {
+        // Catches starting the host without --project or binding a path other than the harness target.
+        var main = ExtractTopLevelFunction(ReadScript(), "Invoke-Main");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $Mode = 'Fixture'
+            $AllowApply = $false
+            $ProjectPath = 'C:\fixture projects\bound target.ap21'
+            $TableName = 'Inputs'
+            $TagName = 'TargetTag'
+            $PlcName = 'PLC_1'
+            $HostArguments = $null
+            $WorkerExecutable = 'fixture-worker'
+            $script:RepositoryRoot = 'C:\fixture repo'
+            $script:HostProcess = $null
+            $script:WorkerProcess = $null
+            function Start-JsonLineProcess { return [pscustomobject]@{ Label = 'worker' } }
+            function Connect-Worker {}
+            function Get-CompleteSessionIdentity {}
+            function Start-McpHost {
+                $expectedHost = Join-Path $script:RepositoryRoot 'TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll'
+                if ($HostArguments.Count -ne 3 -or
+                    $HostArguments[0] -ne $expectedHost -or
+                    $HostArguments[1] -ne '--project' -or
+                    $HostArguments[2] -ne $ProjectPath) {
+                    throw "Default host arguments did not bind the exact project: $($HostArguments | ConvertTo-Json -Compress)"
+                }
+                Write-Output 'default-host-project-bound'
+            }
+            function Stop-JsonLineProcess {}
+            {{main}}
+            Invoke-Main
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("default-host-project-bound", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Script_ProbeUnavailable_AcceptsOnlyDocumentLevelValidationRejectionWithoutToken()
+    {
+        // Catches requiring MCP isError for the registered validation result, accepting the wrong
+        // document shape/category, or dereferencing absent properties under StrictMode.
+        var text = ReadScript();
+        var resultErrorReader = ExtractTopLevelFunction(text, "Test-McpToolResultIsError");
+        var main = ExtractTopLevelFunction(text, "Invoke-Main");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $Mode = 'ProbeUnavailable'
+            $AllowApply = $false
+            $ProjectPath = 'C:\fixture\bound.ap21'
+            $TableName = 'Inputs'
+            $TagName = 'TargetTag'
+            $PlcName = 'PLC_1'
+            $ProbeTableName = 'ProbeInputs'
+            $ProbeTagName = 'UnavailableTag'
+            $ProbeFlagName = 'ExternalVisible'
+            $HostArguments = @('fixture-host', '--project', $ProjectPath)
+            $WorkerExecutable = 'fixture-worker'
+            $script:RepositoryRoot = 'C:\fixture'
+            $script:HostProcess = $null
+            $script:WorkerProcess = $null
+            function Assert-OptionalProbeTargetIsDistinct {}
+            function Start-JsonLineProcess { return [pscustomobject]@{ Label = 'worker' } }
+            function Connect-Worker {}
+            function Get-CompleteSessionIdentity {}
+            function Start-McpHost {}
+            function Stop-JsonLineProcess {}
+            function Read-UpdateTagSafetySnapshot {
+                return [pscustomobject]@{
+                    plcName = 'PLC_1'; folderPath = '/'; tableName = 'ProbeInputs'; tagName = 'UnavailableTag'
+                    dataType = 'Bool'; logicalAddress = '%I0.0'; ExternalVisible = $null
+                }
+            }
+            function New-UpdateTagOperation { return [ordered]@{ operation = 'update_tag' } }
+            function Invoke-McpTool { return $script:NextToolCall }
+            {{resultErrorReader}}
+            {{main}}
+            $cases = @(
+                [pscustomobject]@{
+                    Name = 'expected validation rejection'; Accept = $true
+                    Call = [pscustomobject]@{
+                        Result = [pscustomobject]@{}
+                        Text = '{"success":false,"failureCategory":"validation_error","error":"requested flag is unavailable"}'
+                        Document = [pscustomobject]@{ success = $false; failureCategory = 'validation_error'; error = 'requested flag is unavailable' }
+                    }
+                },
+                [pscustomobject]@{
+                    Name = 'successful preview'; Accept = $false
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = '{"success":true}'; Document = [pscustomobject]@{ success = $true } }
+                },
+                [pscustomobject]@{
+                    Name = 'wrong failure category'; Accept = $false
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = '{"success":false,"failureCategory":"protocol_error"}'; Document = [pscustomobject]@{ success = $false; failureCategory = 'protocol_error' } }
+                },
+                [pscustomobject]@{
+                    Name = 'missing document'; Accept = $false
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = ''; Document = $null }
+                },
+                [pscustomobject]@{
+                    Name = 'missing success property'; Accept = $false
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = '{"failureCategory":"validation_error"}'; Document = [pscustomobject]@{ failureCategory = 'validation_error' } }
+                },
+                [pscustomobject]@{
+                    Name = 'rejection carrying a token'; Accept = $false
+                    Call = [pscustomobject]@{
+                        Result = [pscustomobject]@{}
+                        Text = '{"success":false,"failureCategory":"validation_error","safetyToken":"unsafe"}'
+                        Document = [pscustomobject]@{ success = $false; failureCategory = 'validation_error'; safetyToken = 'unsafe' }
+                    }
+                }
+            )
+            foreach ($case in $cases) {
+                $script:NextToolCall = $case.Call
+                $accepted = $true
+                try { Invoke-Main } catch { $accepted = $false }
+                if ($accepted -ne $case.Accept) {
+                    throw "ProbeUnavailable case '$($case.Name)' acceptance was '$accepted', expected '$($case.Accept)'."
+                }
+            }
+            Write-Output 'probe-result-matrix-enforced'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("probe-result-matrix-enforced", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Script_GetPreviewToken_PreservesTokenlessFailureDiagnosticUnderStrictMode()
+    {
+        // Catches reading Document.safetyToken before proving success and property presence.
+        var text = ReadScript();
+        var resultErrorReader = ExtractTopLevelFunction(text, "Test-McpToolResultIsError");
+        var tokenReader = ExtractTopLevelFunction(text, "Get-PreviewToken");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            {{resultErrorReader}}
+            {{tokenReader}}
+            $diagnostic = '{"success":false,"failureCategory":"validation_error","error":"controlled tokenless preview"}'
+            $failedCall = [pscustomobject]@{
+                Result = [pscustomobject]@{}
+                Text = $diagnostic
+                Document = $diagnostic | ConvertFrom-Json -Depth 10
+            }
+            $rejected = $false
+            try { $null = Get-PreviewToken -ToolCall $failedCall }
+            catch {
+                if ($_.Exception.Message -notlike "*$diagnostic*") { throw }
+                if ($_.Exception.Message -like "*property 'safetyToken' cannot be found*") { throw }
+                $rejected = $true
+            }
+            if (-not $rejected) { throw 'The tokenless failed preview was accepted.' }
+            $successfulCall = [pscustomobject]@{
+                Result = [pscustomobject]@{}
+                Text = '{"success":true,"safetyToken":"fixture-token"}'
+                Document = [pscustomobject]@{ success = $true; safetyToken = 'fixture-token' }
+            }
+            if ((Get-PreviewToken -ToolCall $successfulCall) -ne 'fixture-token') {
+                throw 'The successful preview token was not returned.'
+            }
+            Write-Output 'tokenless-preview-diagnostic-preserved'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("tokenless-preview-diagnostic-preserved", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Script_StartJsonLineProcess_DoesNotRejectTheWorkerStyleEmptyArgumentArrayAtParameterBinding()
     {
         var launcher = ExtractTopLevelFunction(ReadScript(), "Start-JsonLineProcess");
@@ -431,7 +612,12 @@ public class TagUpdateSafetyLiveHarnessContractTests
         var start = text.IndexOf($"function {name} {{", StringComparison.Ordinal);
         Assert.True(start >= 0, $"Expected function '{name}'.");
         var next = text.IndexOf("\nfunction ", start + 1, StringComparison.Ordinal);
-        return next >= 0 ? text[start..next] : text[start..];
+        if (next >= 0)
+        {
+            return text[start..next];
+        }
+        var entryPoint = text.IndexOf("\n\nInvoke-Main", start + 1, StringComparison.Ordinal);
+        return entryPoint >= 0 ? text[start..entryPoint] : text[start..];
     }
 
     private static string ExtractSwitchCase(string text, string name, string nextName)
