@@ -154,6 +154,7 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
 
 ## Testing gaps to close alongside
 
+- PR 4 structured preview diff live gate pending.
 - The fake-worker executable test harness now covers the timeout path and persistent-worker restart logic
   through `OpennessWorkerClientIntegrationTests` — DONE 2026-07-16. Stderr propagation, malformed JSON,
   and Win32Exception launch failure are also covered.
