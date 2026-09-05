@@ -50,4 +50,30 @@ public sealed class TagOperationSafetySelectorTests
 
         Assert.NotEqual(update.SelectorKind, delete.SelectorKind);
     }
+
+    [Fact]
+    public void Build_EquivalentProjectPathSpellings_UsesOneNormalizedKey()
+    {
+        var canonical = TagOperationSafetySelector.Build(new BatchOperationRequest
+        {
+            OperationId = "u1",
+            Operation = "update_tag",
+            ProjectPath = @"C:\Plant\Demo.ap21",
+            PlcName = "PLC_1",
+            TableName = "Inputs",
+            Name = "Start"
+        });
+        var equivalent = TagOperationSafetySelector.Build(new BatchOperationRequest
+        {
+            OperationId = "u2",
+            Operation = "update_tag",
+            ProjectPath = @" C:\Plant\.\Demo.ap21 ",
+            PlcName = "PLC_1",
+            TableName = "Inputs",
+            Name = "Start"
+        });
+
+        Assert.Equal(canonical.NormalizedProjectPath, equivalent.NormalizedProjectPath);
+        Assert.Equal(canonical, equivalent);
+    }
 }

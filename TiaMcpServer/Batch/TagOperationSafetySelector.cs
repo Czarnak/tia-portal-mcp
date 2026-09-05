@@ -1,3 +1,5 @@
+using TiaMcpServer.Contracts;
+
 namespace TiaMcpServer.Batch;
 
 internal sealed record TagOperationSafetySelectorKey(
@@ -42,7 +44,7 @@ internal static class TagOperationSafetySelector
 
         key = new(
             op.Operation,
-            string.IsNullOrWhiteSpace(op.ProjectPath) ? null : op.ProjectPath,
+            ProjectPathNormalization.Canonicalize(op.ProjectPath),
             op.PlcName ?? string.Empty,
             op.FolderPath ?? string.Empty,
             op.TableName ?? string.Empty,

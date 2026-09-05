@@ -58,4 +58,49 @@ public sealed class TagOperationSafetySnapshotContractTests
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
     }
+
+    [Fact]
+    public void OmittedRequiredSnapshotMembers_FailClosedAsProtocolError()
+    {
+        var result = TagOperationSafetySnapshotContract.Decode("create_tag", "{}");
+
+        Assert.False(result.Success);
+        Assert.Empty(result.CanonicalState);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
+    }
+
+    [Fact]
+    public void ExplicitNullRequiredSnapshotMember_FailsClosedAsProtocolError()
+    {
+        var result = TagOperationSafetySnapshotContract.Decode("delete_tag_table", """
+        {
+          "targetTable":null,
+          "exportedSimaticMl":"<Document />",
+          "exportSha256":"abc123",
+          "characterCount":12
+        }
+        """);
+
+        Assert.False(result.Success);
+        Assert.Empty(result.CanonicalState);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
+    }
+
+    [Fact]
+    public void UnsupportedCollisionKind_FailsClosedAsProtocolError()
+    {
+        var result = TagOperationSafetySnapshotContract.Decode("create_tag", """
+        {
+          "targetTable":{"plcName":"PLC_1","folderPath":"","tableName":"Inputs","canonicalPath":"PLC_1/Tag tables/Inputs"},
+          "effectiveName":"Start",
+          "effectiveLogicalAddress":null,
+          "nameCollisions":[{"kind":"unexpected","candidateName":"Start","canonicalPath":"PLC_1/Tag tables/Inputs/Start","logicalAddress":null,"isTarget":false}],
+          "addressCollisions":[]
+        }
+        """);
+
+        Assert.False(result.Success);
+        Assert.Empty(result.CanonicalState);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
+    }
 }

@@ -1,81 +1,83 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 public sealed record TagTableSafetyIdentityInfo(
-    string PlcName,
-    string FolderPath,
-    string TableName,
-    string CanonicalPath);
+    [property: JsonRequired] string PlcName,
+    [property: JsonRequired] string FolderPath,
+    [property: JsonRequired] string TableName,
+    [property: JsonRequired] string CanonicalPath);
 
 public sealed record TagSafetyIdentityInfo(
-    string PlcName,
-    string FolderPath,
-    string TableName,
-    string TagName,
-    string CanonicalPath,
-    string DataType,
+    [property: JsonRequired] string PlcName,
+    [property: JsonRequired] string FolderPath,
+    [property: JsonRequired] string TableName,
+    [property: JsonRequired] string TagName,
+    [property: JsonRequired] string CanonicalPath,
+    [property: JsonRequired] string DataType,
     string? LogicalAddress,
     bool? ExternalAccessible,
     bool? ExternalVisible,
     bool? ExternalWritable);
 
 public sealed record UserConstantSafetyIdentityInfo(
-    string PlcName,
-    string FolderPath,
-    string TableName,
-    string ConstantName,
-    string CanonicalPath,
-    string DataType,
-    string Value);
+    [property: JsonRequired] string PlcName,
+    [property: JsonRequired] string FolderPath,
+    [property: JsonRequired] string TableName,
+    [property: JsonRequired] string ConstantName,
+    [property: JsonRequired] string CanonicalPath,
+    [property: JsonRequired] string DataType,
+    [property: JsonRequired] string Value);
 
 public sealed record TagCollisionProbeInfo(
-    string Kind,
-    string CandidateName,
-    string CanonicalPath,
+    [property: JsonRequired] string Kind,
+    [property: JsonRequired] string CandidateName,
+    [property: JsonRequired] string CanonicalPath,
     string? LogicalAddress,
-    bool IsTarget);
+    [property: JsonRequired] bool IsTarget);
 
 public sealed record CreateTagTableSafetySnapshotInfo(
-    string PlcName,
-    string FolderPath,
-    string RequestedTableName,
-    IReadOnlyList<TagCollisionProbeInfo> TableNameCollisions);
+    [property: JsonRequired] string PlcName,
+    [property: JsonRequired] string FolderPath,
+    [property: JsonRequired] string RequestedTableName,
+    [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> TableNameCollisions);
 
 public sealed record DeleteTagTableSafetySnapshotInfo(
-    TagTableSafetyIdentityInfo TargetTable,
-    string ExportedSimaticMl,
-    string ExportSha256,
-    int CharacterCount);
+    [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
+    [property: JsonRequired] string ExportedSimaticMl,
+    [property: JsonRequired] string ExportSha256,
+    [property: JsonRequired] int CharacterCount);
 
 public sealed record CreateTagSafetySnapshotInfo(
-    TagTableSafetyIdentityInfo TargetTable,
-    string EffectiveName,
+    [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
+    [property: JsonRequired] string EffectiveName,
     string? EffectiveLogicalAddress,
-    IReadOnlyList<TagCollisionProbeInfo> NameCollisions,
-    IReadOnlyList<TagCollisionProbeInfo> AddressCollisions);
+    [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions,
+    [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> AddressCollisions);
 
 public sealed record UpdateTagSafetySnapshotInfo(
-    TagTableSafetyIdentityInfo TargetTable,
-    TagSafetyIdentityInfo TargetTag,
-    string EffectiveName,
+    [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
+    [property: JsonRequired] TagSafetyIdentityInfo TargetTag,
+    [property: JsonRequired] string EffectiveName,
     string? EffectiveLogicalAddress,
-    IReadOnlyList<TagCollisionProbeInfo> NameCollisions,
-    IReadOnlyList<TagCollisionProbeInfo> AddressCollisions);
+    [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions,
+    [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> AddressCollisions);
 
 public sealed record DeleteTagSafetySnapshotInfo(
-    TagTableSafetyIdentityInfo TargetTable,
-    TagSafetyIdentityInfo TargetTag);
+    [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
+    [property: JsonRequired] TagSafetyIdentityInfo TargetTag);
 
 public sealed record CreateUserConstantSafetySnapshotInfo(
-    TagTableSafetyIdentityInfo TargetTable,
-    string EffectiveName,
-    IReadOnlyList<TagCollisionProbeInfo> NameCollisions);
+    [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
+    [property: JsonRequired] string EffectiveName,
+    [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions);
 
 public sealed record UpdateUserConstantSafetySnapshotInfo(
-    TagTableSafetyIdentityInfo TargetTable,
-    UserConstantSafetyIdentityInfo TargetConstant,
-    string EffectiveName,
-    IReadOnlyList<TagCollisionProbeInfo> NameCollisions);
+    [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
+    [property: JsonRequired] UserConstantSafetyIdentityInfo TargetConstant,
+    [property: JsonRequired] string EffectiveName,
+    [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions);
 
 public sealed record DeleteUserConstantSafetySnapshotInfo(
-    TagTableSafetyIdentityInfo TargetTable,
-    UserConstantSafetyIdentityInfo TargetConstant);
+    [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
+    [property: JsonRequired] UserConstantSafetyIdentityInfo TargetConstant);
