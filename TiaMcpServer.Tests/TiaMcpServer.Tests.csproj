@@ -76,6 +76,10 @@
       Link="Host\Batch\BatchSafetySnapshot.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchPreviewDiff.cs"
       Link="Host\Batch\BatchPreviewDiff.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySnapshotContract.cs"
+      Link="Host\Batch\TagOperationSafetySnapshotContract.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySelector.cs"
+      Link="Host\Batch\TagOperationSafetySelector.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs" Link="Host\OperationBatches\IOperationBatchItem.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResult.cs" Link="Host\OperationBatches\OperationBatchResult.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchExecutionEngine.cs" Link="Host\OperationBatches\OperationBatchExecutionEngine.cs" />

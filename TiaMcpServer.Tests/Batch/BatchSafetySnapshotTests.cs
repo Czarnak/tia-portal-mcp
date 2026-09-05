@@ -25,13 +25,20 @@ public class BatchSafetySnapshotTests
     }
 
     [Fact]
-    public void DescribeOperation_DescribesTagCreateWithNameAndTable()
+    public void DescribeOperation_DescribesTagAndUserConstantOperationsWithNameAndTable()
     {
-        var summary = BatchSafetySnapshot.DescribeOperation(
+        var tagSummary = BatchSafetySnapshot.DescribeOperation(
             Op("a", "create_tag", r => { r.TableName = "Inputs"; r.Name = "Start"; r.DataType = "Bool"; }));
+        var tableSummary = BatchSafetySnapshot.DescribeOperation(
+            Op("b", "delete_tag_table", r => r.TableName = "Inputs"));
+        var constantSummary = BatchSafetySnapshot.DescribeOperation(
+            Op("c", "create_user_constant", r => { r.TableName = "Inputs"; r.Name = "MaxSpeed"; }));
 
-        Assert.Contains("Start", summary);
-        Assert.Contains("Inputs", summary);
+        Assert.Contains("Start", tagSummary);
+        Assert.Contains("Inputs", tagSummary);
+        Assert.Contains("Inputs", tableSummary);
+        Assert.Contains("MaxSpeed", constantSummary);
+        Assert.Contains("Inputs", constantSummary);
     }
 
     [Fact]
@@ -41,12 +48,13 @@ public class BatchSafetySnapshotTests
         {
             Op("first", "create_tag_table", r => r.TableName = "T1"),
             Op("second", "delete_tag_table", r => r.TableName = "T2"),
+            Op("third", "create_user_constant", r => { r.TableName = "T2"; r.Name = "MaxSpeed"; }),
         };
 
         var targets = BatchSafetySnapshot.BuildTargets(operations);
 
-        Assert.Equal(new[] { "first", "second" }, targets.Select(t => t.OperationId).ToArray());
-        Assert.Equal(new[] { "create_tag_table", "delete_tag_table" }, targets.Select(t => t.Operation).ToArray());
+        Assert.Equal(new[] { "first", "second", "third" }, targets.Select(t => t.OperationId).ToArray());
+        Assert.Equal(new[] { "create_tag_table", "delete_tag_table", "create_user_constant" }, targets.Select(t => t.Operation).ToArray());
         Assert.Equal(BatchSafetySnapshot.DescribeOperation(operations[0]), targets[0].Summary);
     }
 
