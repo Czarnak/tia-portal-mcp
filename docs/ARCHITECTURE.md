@@ -502,6 +502,10 @@ binding lease, current-state re-read, and audit trail below remain the server-en
    `confirm=true` and the token. The server reads current
    state again and consumes the token only when every bound value still matches.
 
+For `update_block_logic` and `update_type_content`, `preview_write_batch` may include a
+response-only structured `diff` object built from the already-bound exact-format current text and
+the submitted replacement text. This object is outside safety-token issuance and validation.
+
 The complete apply critical section is protected by a pinned binding lease:
 fresh-state read, token validation and consumption, Siemens mutation,
 post-verification, and audit capture all see the same worker id, Portal PID,

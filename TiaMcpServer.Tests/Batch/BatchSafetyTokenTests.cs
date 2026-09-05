@@ -170,4 +170,60 @@ public class BatchSafetyTokenTests
 
         Assert.False(result.IsValid);
     }
+
+    [Fact]
+    public void DisplayDiff_IsNotRequiredForTokenValidation()
+    {
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
+        var (ops, states) = TwoItemBatch();
+        var targets = BatchSafetySnapshot.BuildTargets(ops);
+        var combined = BatchSafetySnapshot.CombineCurrentState(
+            ops.Select((o, i) => new OperationBatchCurrentState(o.OperationId, o.Operation, states[i])).ToList());
+        var project = BatchSafetySnapshot.ResolveProjectPath(ops);
+
+        var preview = service.CreatePreview(
+            ApplyToolName,
+            project,
+            targets,
+            "summary",
+            ops,
+            combined,
+            diff: new { operations = new[] { new { operationId = "b", operation = "update_block_logic" } } });
+        var token = JsonDocument.Parse(preview).RootElement.GetProperty("safetyToken").GetString()!;
+
+        Assert.True(service.ValidateAndConsume(token, ApplyToolName, project, targets, ops, combined).IsValid);
+    }
+
+    [Fact]
+    public void DifferentDisplayDiffs_IssueTokensThatValidateAgainstTheSameState()
+    {
+        using var audit = new TempAuditDirectory();
+        var service = audit.CreateSafety();
+        var (ops, states) = TwoItemBatch();
+        var targets = BatchSafetySnapshot.BuildTargets(ops);
+        var combined = BatchSafetySnapshot.CombineCurrentState(
+            ops.Select((o, i) => new OperationBatchCurrentState(o.OperationId, o.Operation, states[i])).ToList());
+        var project = BatchSafetySnapshot.ResolveProjectPath(ops);
+
+        var first = JsonDocument.Parse(service.CreatePreview(
+            ApplyToolName,
+            project,
+            targets,
+            "summary",
+            ops,
+            combined,
+            diff: new { version = 1 }));
+        var second = JsonDocument.Parse(service.CreatePreview(
+            ApplyToolName,
+            project,
+            targets,
+            "summary",
+            ops,
+            combined,
+            diff: new { version = 2, extra = true }));
+
+        Assert.True(service.ValidateEnvelope(first.RootElement.GetProperty("safetyToken").GetString(), ApplyToolName, project, targets, ops).IsValid);
+        Assert.True(service.ValidateEnvelope(second.RootElement.GetProperty("safetyToken").GetString(), ApplyToolName, project, targets, ops).IsValid);
+    }
 }
