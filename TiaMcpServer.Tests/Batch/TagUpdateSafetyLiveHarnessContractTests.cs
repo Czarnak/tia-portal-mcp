@@ -400,7 +400,7 @@ public class TagUpdateSafetyLiveHarnessContractTests
             $rejected = $false
             try { $null = Get-PreviewToken -ToolCall $failedCall }
             catch {
-                if ($_.Exception.Message -notlike "*$diagnostic*") { throw }
+                if ($_.Exception.Message -notlike '*validation_error*' -or $_.Exception.Message -notlike '*controlled tokenless preview*') { throw }
                 if ($_.Exception.Message -like "*property 'safetyToken' cannot be found*") { throw }
                 $rejected = $true
             }
@@ -421,6 +421,118 @@ public class TagUpdateSafetyLiveHarnessContractTests
         Assert.True(result.ExitCode == 0,
             $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
         Assert.Contains("tokenless-preview-diagnostic-preserved", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Script_GetPreviewToken_AcceptsRegisteredSuccessShapeWithoutOptionalSuccessMember()
+    {
+        // Catches treating the optional success member as mandatory when the registered preview
+        // has already proved success by returning a nonblank top-level safetyToken.
+        var text = ReadScript();
+        var resultErrorReader = ExtractTopLevelFunction(text, "Test-McpToolResultIsError");
+        var tokenReader = ExtractTopLevelFunction(text, "Get-PreviewToken");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            {{resultErrorReader}}
+            {{tokenReader}}
+            $registeredPreviewText = '{"safetyToken":"registered-preview-token","expiresAt":"2026-09-05T12:00:00Z","summary":"Preview only"}'
+            $registeredPreview = [pscustomobject]@{
+                Result = [pscustomobject]@{}
+                Text = $registeredPreviewText
+                Document = $registeredPreviewText | ConvertFrom-Json -Depth 10
+            }
+            if ((Get-PreviewToken -ToolCall $registeredPreview) -ne 'registered-preview-token') {
+                throw 'The registered successful preview token was not returned.'
+            }
+            Write-Output 'registered-preview-token-accepted'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("registered-preview-token-accepted", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Script_GetPreviewToken_FailsClosedForInvalidShapesWithoutLeakingToken()
+    {
+        // Catches accepting application errors, invalid optional success members, or missing/blank
+        // tokens, and catches copying a returned token into an exception message.
+        var text = ReadScript();
+        var resultErrorReader = ExtractTopLevelFunction(text, "Test-McpToolResultIsError");
+        var tokenReader = ExtractTopLevelFunction(text, "Get-PreviewToken");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            {{resultErrorReader}}
+            {{tokenReader}}
+            $secret = 'fixture-secret-token'
+            $cases = @(
+                [pscustomobject]@{
+                    Name = 'MCP application error'; ExpectedDiagnostic = $null
+                    Call = [pscustomobject]@{
+                        Result = [pscustomobject]@{ isError = $true }
+                        Text = '{"safetyToken":"fixture-secret-token"}'
+                        Document = [pscustomobject]@{ safetyToken = $secret }
+                    }
+                },
+                [pscustomobject]@{
+                    Name = 'null document'; ExpectedDiagnostic = $null
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = $null; Document = $null }
+                },
+                [pscustomobject]@{
+                    Name = 'malformed document'; ExpectedDiagnostic = $null
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = '{not-json fixture-secret-token'; Document = $null }
+                },
+                [pscustomobject]@{
+                    Name = 'explicit failure'; ExpectedDiagnostic = 'validation_error'
+                    Call = [pscustomobject]@{
+                        Result = [pscustomobject]@{}
+                        Text = '{"success":false,"failureCategory":"validation_error","error":"controlled failure","safetyToken":"fixture-secret-token"}'
+                        Document = [pscustomobject]@{ success = $false; failureCategory = 'validation_error'; error = 'controlled failure'; safetyToken = $secret }
+                    }
+                },
+                [pscustomobject]@{
+                    Name = 'non-boolean success'; ExpectedDiagnostic = $null
+                    Call = [pscustomobject]@{
+                        Result = [pscustomobject]@{}
+                        Text = '{"success":"true","safetyToken":"fixture-secret-token"}'
+                        Document = [pscustomobject]@{ success = 'true'; safetyToken = $secret }
+                    }
+                },
+                [pscustomobject]@{
+                    Name = 'missing token'; ExpectedDiagnostic = $null
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = '{"summary":"preview"}'; Document = [pscustomobject]@{ summary = 'preview' } }
+                },
+                [pscustomobject]@{
+                    Name = 'blank token'; ExpectedDiagnostic = $null
+                    Call = [pscustomobject]@{ Result = [pscustomobject]@{}; Text = '{"safetyToken":"   "}'; Document = [pscustomobject]@{ safetyToken = '   ' } }
+                }
+            )
+            foreach ($case in $cases) {
+                $rejected = $false
+                try { $null = Get-PreviewToken -ToolCall $case.Call }
+                catch {
+                    $message = $_.Exception.Message
+                    if ($message -notlike '*preview_write_batch*') { throw }
+                    if ($message -like "*$secret*") { throw "Case '$($case.Name)' leaked a safety token." }
+                    if ($null -ne $case.ExpectedDiagnostic -and $message -notlike "*$($case.ExpectedDiagnostic)*") {
+                        throw "Case '$($case.Name)' lost its useful diagnostic."
+                    }
+                    $rejected = $true
+                }
+                if (-not $rejected) { throw "Case '$($case.Name)' was accepted." }
+            }
+            Write-Output 'invalid-preview-token-shapes-rejected'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("invalid-preview-token-shapes-rejected", result.StandardOutput, StringComparison.Ordinal);
     }
 
     [Fact]

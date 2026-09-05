@@ -348,16 +348,36 @@ function New-UpdateTagOperation {
 function Get-PreviewToken {
     param([Parameter(Mandatory)][object]$ToolCall)
 
-    if ((Test-McpToolResultIsError -Result $ToolCall.Result) -or $null -eq $ToolCall.Document) {
-        throw "preview_write_batch failed before issuing a token: $($ToolCall.Text)"
+    if (Test-McpToolResultIsError -Result $ToolCall.Result) {
+        throw 'preview_write_batch failed before issuing a token: MCP application error.'
+    }
+    if ($null -eq $ToolCall.Document) {
+        throw 'preview_write_batch failed before issuing a token: no valid result document.'
     }
     $successProperty = $ToolCall.Document.PSObject.Properties['success']
-    if ($null -eq $successProperty -or $successProperty.Value -isnot [bool] -or -not [bool]$successProperty.Value) {
-        throw "preview_write_batch failed before issuing a token: $($ToolCall.Text)"
+    if ($null -ne $successProperty -and $successProperty.Value -isnot [bool]) {
+        throw 'preview_write_batch failed before issuing a token: malformed success member.'
+    }
+    if ($null -ne $successProperty -and -not [bool]$successProperty.Value) {
+        $categoryProperty = $ToolCall.Document.PSObject.Properties['failureCategory']
+        $errorProperty = $ToolCall.Document.PSObject.Properties['error']
+        $category = if ($null -ne $categoryProperty -and -not [string]::IsNullOrWhiteSpace([string]$categoryProperty.Value)) {
+            [string]$categoryProperty.Value
+        }
+        else {
+            'unknown failure category'
+        }
+        $errorText = if ($null -ne $errorProperty -and -not [string]::IsNullOrWhiteSpace([string]$errorProperty.Value)) {
+            [string]$errorProperty.Value
+        }
+        else {
+            'no server diagnostic'
+        }
+        throw "preview_write_batch failed before issuing a token ($category): $errorText"
     }
     $tokenProperty = $ToolCall.Document.PSObject.Properties['safetyToken']
     if ($null -eq $tokenProperty -or [string]::IsNullOrWhiteSpace([string]$tokenProperty.Value)) {
-        throw 'preview_write_batch succeeded without a safetyToken.'
+        throw 'preview_write_batch failed before issuing a token: no nonblank safetyToken was returned.'
     }
     return [string]$tokenProperty.Value
 }
