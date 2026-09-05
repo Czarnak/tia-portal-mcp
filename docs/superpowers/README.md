@@ -65,6 +65,7 @@ explicitly pending.
 | Date | Document |
 | --- | --- |
 | 2026-09-05 | [PR 3 — exact `update_tag` safety snapshot — mandatory live PASS](acceptance/reports/2026-09-01-pr3-update-tag-safety-snapshot-live.md) |
+| 2026-09-01 | [PR 4 — structured preview diff — live pending](acceptance/reports/2026-09-01-pr4-structured-preview-diff-live.md) |
 | 2026-09-01 | [PR 2 — registered-tool delegation — live](acceptance/reports/2026-09-01-pr2-registered-tool-delegation-live.md) |
 | 2026-09-01 | [PR 1 — explicit MCP tool annotations — live](acceptance/reports/2026-09-01-pr1-explicit-mcp-tool-annotations-live.md) |
 | 2026-08-14 | [Structured I/O map defect fixes — live](acceptance/reports/2026-08-14-io-map-defect-fixes-live.md) |
