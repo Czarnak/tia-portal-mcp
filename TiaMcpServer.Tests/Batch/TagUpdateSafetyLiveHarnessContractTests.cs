@@ -284,6 +284,84 @@ public class TagUpdateSafetyLiveHarnessContractTests
         Assert.Contains("worker-protocol-version-forwarded", result.StandardOutput, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Script_InvokeMcpRequest_AcceptsOmittedErrorAndRejectsExplicitJsonRpcError(bool returnError)
+    {
+        var text = ReadScript();
+        var launcher = ExtractTopLevelFunction(text, "Start-JsonLineProcess");
+        var stopper = ExtractTopLevelFunction(text, "Stop-JsonLineProcess");
+        var sender = ExtractTopLevelFunction(text, "Send-JsonLine");
+        var reader = ExtractTopLevelFunction(text, "Read-JsonLine");
+        var requestInvoker = ExtractTopLevelFunction(text, "Invoke-McpRequest");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $TimeoutSeconds = 10
+            $script:NextRequestId = 0
+            {{launcher}}
+            {{stopper}}
+            {{sender}}
+            {{reader}}
+            {{requestInvoker}}
+            $hostFixture = @'
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $request = [Console]::In.ReadLine() | ConvertFrom-Json -Depth 10
+            if ($request.jsonrpc -ne '2.0' -or $request.method -ne 'fixture/read' -or $request.params.target -ne 'fixture-tag') {
+                throw 'The controlled child received an unexpected request.'
+            }
+            Write-Output (@{ jsonrpc = '2.0'; id = ($request.id + 100); result = @{ value = 'uncorrelated' } } | ConvertTo-Json -Compress)
+            if (${{returnError.ToString().ToLowerInvariant()}}) {
+                Write-Output (@{ jsonrpc = '2.0'; id = $request.id; error = @{ code = -32602; message = 'controlled invalid params'; data = @{ target = 'fixture-tag' } } } | ConvertTo-Json -Compress -Depth 10)
+            }
+            else {
+                Write-Output (@{ jsonrpc = '2.0'; id = $request.id; result = @{ value = 'correlated-success' } } | ConvertTo-Json -Compress)
+            }
+            $null = [Console]::In.ReadLine()
+            '@
+            $encodedHost = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($hostFixture))
+            $script:HostProcess = $null
+            try {
+                $script:HostProcess = Start-JsonLineProcess -Executable (Join-Path $PSHOME 'pwsh.exe') -Arguments @('-NoProfile', '-NonInteractive', '-EncodedCommand', $encodedHost) -Label 'controlled JSON-RPC fixture'
+                $rejected = $false
+                try {
+                    $result = Invoke-McpRequest -Method 'fixture/read' -Params @{ target = 'fixture-tag' }
+                    if (${{returnError.ToString().ToLowerInvariant()}}) {
+                        throw 'An explicit JSON-RPC error was accepted.'
+                    }
+                    if ($result.value -ne 'correlated-success') {
+                        throw 'The legal success result was not returned with response-ID correlation.'
+                    }
+                }
+                catch {
+                    if (-not ${{returnError.ToString().ToLowerInvariant()}}) { throw }
+                    $prefix = "MCP request 'fixture/read' failed: "
+                    if (-not $_.Exception.Message.StartsWith($prefix)) { throw }
+                    $errorDocument = $_.Exception.Message.Substring($prefix.Length) | ConvertFrom-Json -Depth 10
+                    if ($errorDocument.code -ne -32602 -or $errorDocument.message -ne 'controlled invalid params' -or $errorDocument.data.target -ne 'fixture-tag') {
+                        throw 'JSON-RPC error serialization did not preserve the error document.'
+                    }
+                    $rejected = $true
+                }
+                if (${{returnError.ToString().ToLowerInvariant()}} -and -not $rejected) {
+                    throw 'The explicit JSON-RPC error was not rejected.'
+                }
+                Write-Output 'json-rpc-response-handled'
+            }
+            finally {
+                Stop-JsonLineProcess -Process $script:HostProcess
+            }
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("json-rpc-response-handled", result.StandardOutput, StringComparison.Ordinal);
+    }
+
     private static string ReadScript()
     {
         Assert.True(File.Exists(ScriptPath), $"Expected live harness at {ScriptPath}.");

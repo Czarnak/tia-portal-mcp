@@ -270,7 +270,8 @@ function Invoke-McpRequest {
     $id = ++$script:NextRequestId
     Send-JsonLine -Process $script:HostProcess -Message @{ jsonrpc = '2.0'; id = $id; method = $Method; params = $Params }
     $response = Read-JsonLine -Process $script:HostProcess -ExpectedId $id
-    if ($null -ne $response.error) {
+    $errorProperty = $response.PSObject.Properties['error']
+    if ($null -ne $errorProperty -and $null -ne $errorProperty.Value) {
         throw "MCP request '$Method' failed: $($response.error | ConvertTo-Json -Compress -Depth 20)"
     }
     return $response.result
