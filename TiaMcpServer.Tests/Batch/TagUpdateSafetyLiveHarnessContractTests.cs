@@ -243,6 +243,51 @@ public class TagUpdateSafetyLiveHarnessContractTests
     }
 
     [Fact]
+    public async Task Script_InvokeMcpTool_ApplicationErrorDoesNotLeakReturnedSafetyToken()
+    {
+        // Catches composing arbitrary application-error content into the default exception path.
+        var text = ReadScript();
+        var resultErrorReader = ExtractTopLevelFunction(text, "Test-McpToolResultIsError");
+        var invokeMcpTool = ExtractTopLevelFunction(text, "Invoke-McpTool");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $secret = 'fixture-application-error-secret-token'
+            function Invoke-McpRequest {
+                param([string]$Method, [hashtable]$Params)
+                return [pscustomobject]@{
+                    isError = $true
+                    content = @([pscustomobject]@{
+                        text = '{"success":false,"failureCategory":"validation_error","safetyToken":"fixture-application-error-secret-token"}'
+                    })
+                }
+            }
+            {{resultErrorReader}}
+            {{invokeMcpTool}}
+            $rejected = $false
+            try {
+                $null = Invoke-McpTool -Name 'preview_write_batch' -Arguments @{}
+            }
+            catch {
+                $message = $_.Exception.Message
+                if ($message -notlike '*application error*') { throw }
+                if ($message -like "*$secret*") {
+                    throw 'Invoke-McpTool leaked the returned safety token.'
+                }
+                $rejected = $true
+            }
+            if (-not $rejected) { throw 'An explicit isError:true result was not rejected.' }
+            Write-Output 'application-error-token-redacted'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("application-error-token-redacted", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Script_InvokeMain_DefaultHostArgumentsBindTheExactProjectPath()
     {
         // Catches starting the host without --project or binding a path other than the harness target.
@@ -377,6 +422,75 @@ public class TagUpdateSafetyLiveHarnessContractTests
         Assert.True(result.ExitCode == 0,
             $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
         Assert.Contains("probe-result-matrix-enforced", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Script_ProbeUnavailable_UnexpectedDocumentDoesNotLeakReturnedSafetyToken()
+    {
+        // Catches composing the raw preview document into optional-probe shape diagnostics.
+        var text = ReadScript();
+        var resultErrorReader = ExtractTopLevelFunction(text, "Test-McpToolResultIsError");
+        var main = ExtractTopLevelFunction(text, "Invoke-Main");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $secret = 'fixture-probe-secret-token'
+            $Mode = 'ProbeUnavailable'
+            $AllowApply = $false
+            $ProjectPath = 'C:\fixture\bound.ap21'
+            $TableName = 'Inputs'
+            $TagName = 'TargetTag'
+            $PlcName = 'PLC_1'
+            $ProbeTableName = 'ProbeInputs'
+            $ProbeTagName = 'UnavailableTag'
+            $ProbeFlagName = 'ExternalVisible'
+            $HostArguments = @('fixture-host', '--project', $ProjectPath)
+            $WorkerExecutable = 'fixture-worker'
+            $script:RepositoryRoot = 'C:\fixture'
+            $script:HostProcess = $null
+            $script:WorkerProcess = $null
+            function Assert-OptionalProbeTargetIsDistinct {}
+            function Start-JsonLineProcess { return [pscustomobject]@{ Label = 'worker' } }
+            function Connect-Worker {}
+            function Get-CompleteSessionIdentity {}
+            function Start-McpHost {}
+            function Stop-JsonLineProcess {}
+            function Read-UpdateTagSafetySnapshot {
+                return [pscustomobject]@{
+                    plcName = 'PLC_1'; folderPath = '/'; tableName = 'ProbeInputs'; tagName = 'UnavailableTag'
+                    dataType = 'Bool'; logicalAddress = '%I0.0'; ExternalVisible = $null
+                }
+            }
+            function New-UpdateTagOperation { return [ordered]@{ operation = 'update_tag' } }
+            function Invoke-McpTool {
+                return [pscustomobject]@{
+                    Result = [pscustomobject]@{}
+                    Text = '{"failureCategory":"validation_error","safetyToken":"fixture-probe-secret-token"}'
+                    Document = [pscustomobject]@{ failureCategory = 'validation_error'; safetyToken = $secret }
+                }
+            }
+            {{resultErrorReader}}
+            {{main}}
+            $rejected = $false
+            try { Invoke-Main }
+            catch {
+                $message = $_.Exception.Message
+                if ($message -notlike '*expected validation document*' -and
+                    $message -notlike '*success:false*') { throw }
+                if ($message -like "*$secret*") {
+                    throw 'ProbeUnavailable leaked the returned safety token.'
+                }
+                $rejected = $true
+            }
+            if (-not $rejected) { throw 'The malformed optional-probe document was accepted.' }
+            Write-Output 'probe-error-token-redacted'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("probe-error-token-redacted", result.StandardOutput, StringComparison.Ordinal);
     }
 
     [Fact]

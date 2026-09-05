@@ -304,8 +304,7 @@ function Invoke-McpTool {
         throw "MCP tool '$Name' returned no result."
     }
     if ((Test-McpToolResultIsError -Result $result) -and -not $AllowApplicationError) {
-        $errorText = if ($null -ne $result.content -and @($result.content).Count -gt 0) { [string]$result.content[0].text } else { 'no error content' }
-        throw "MCP tool '$Name' returned an application error: $errorText"
+        throw "MCP tool '$Name' returned an application error."
     }
     $text = if ($null -ne $result.content -and @($result.content).Count -gt 0) { [string]$result.content[0].text } else { $null }
     $document = if ([string]::IsNullOrWhiteSpace($text)) { $null } else { $text | ConvertFrom-Json -Depth 100 }
@@ -570,7 +569,7 @@ function Invoke-Main {
             $probeOperation = New-UpdateTagOperation -Snapshot $probeSnapshot -FlagName $ProbeFlagName -Value $true -OperationId 'update-tag-unavailable-flag-probe'
             $probePreview = Invoke-McpTool -Name 'preview_write_batch' -Arguments @{ operations = @($probeOperation) } -AllowApplicationError
             if ((Test-McpToolResultIsError -Result $probePreview.Result) -or $null -eq $probePreview.Document) {
-                throw "Optional unavailable probe did not return the expected validation document: $($probePreview.Text)"
+                throw 'Optional unavailable probe did not return the expected validation document.'
             }
             $probeSuccess = $probePreview.Document.PSObject.Properties['success']
             $probeFailureCategory = $probePreview.Document.PSObject.Properties['failureCategory']
@@ -578,7 +577,7 @@ function Invoke-Main {
             if ($null -eq $probeSuccess -or $probeSuccess.Value -isnot [bool] -or [bool]$probeSuccess.Value -or
                 $null -eq $probeFailureCategory -or [string]$probeFailureCategory.Value -ne 'validation_error' -or
                 $null -ne $probeToken) {
-                throw "Optional unavailable probe did not return success:false, failureCategory validation_error, and no safety token: $($probePreview.Text)"
+                throw 'Optional unavailable probe did not return success:false, failureCategory validation_error, and no safety token.'
             }
             Write-Output 'Optional unavailable flag preview rejected before token issuance.'
         }
