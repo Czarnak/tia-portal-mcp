@@ -144,17 +144,17 @@ public sealed class BatchPreviewDiffTests
     [Fact]
     public void Build_UsesLiteral8192CharacterPerSideLimit()
     {
-        var current = string.Join("\r\n", Enumerable.Range(1, 16).Select(i => $"OLD {i}"));
-        var requested = string.Join("\r\n", Enumerable.Repeat(new string('x', 600), 16));
+        var current = string.Join("\r\n", Enumerable.Range(1, 32).Select(i => $"OLD {i}"));
+        var requested = string.Join("\r\n", Enumerable.Repeat(new string('x', 512), 32));
         var op = TypeOp("type-1", "PLC_1/Types/A", requested);
 
         var diff = BatchPreviewDiff.Build(new[] { op }, new[] { State(op, current) })!;
         var excerpt = Assert.Single(diff.Operations).Requested.Excerpt;
 
-        Assert.Equal(16, excerpt.Lines.Count);
-        Assert.All(excerpt.Lines, line => Assert.Equal(512, line.Text.Length));
+        Assert.Equal(32, excerpt.Lines.Count);
+        Assert.All(excerpt.Lines, line => Assert.Equal(256, line.Text.Length));
         Assert.Equal(8_192, excerpt.Lines.Sum(line => line.Text.Length));
-        Assert.Equal(1_408, excerpt.OmittedCharacterCount);
+        Assert.Equal(8_192, excerpt.OmittedCharacterCount);
     }
 
     [Fact]
