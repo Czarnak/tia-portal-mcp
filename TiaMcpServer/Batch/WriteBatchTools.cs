@@ -62,6 +62,7 @@ public class WriteBatchTools
                 var targets = BatchSafetySnapshot.BuildTargets(operations);
                 var summary = $"Apply {operations.Length} write operation(s) sequentially; stops on first failure (no rollback). "
                     + "The current-state snapshot is read per item and is not an atomic point-in-time view.";
+                var previewDiff = BatchPreviewDiff.Build(operations, snapshot.States);
 
                 return safety.CreatePreview(
                     ApplyToolName,
@@ -70,7 +71,7 @@ public class WriteBatchTools
                     summary,
                     operations,
                     snapshot.CombinedState,
-                    diff: null,
+                    diff: previewDiff,
                     instructions: "Preview only — nothing was changed. To apply, call apply_write_batch with the identical operations list, confirm=true, and this safetyToken.");
             }).ConfigureAwait(false);
         return previewExecution.Success
@@ -189,7 +190,7 @@ public class WriteBatchTools
         return execution.Value!;
     }
 
-    private static async Task<(string CombinedState, string? Error, string? FailureCategory)> ReadCombinedCurrentStateAsync(
+    private static async Task<(IReadOnlyList<OperationBatchCurrentState> States, string CombinedState, string? Error, string? FailureCategory)> ReadCombinedCurrentStateAsync(
         OpennessWorkerClient workerClient,
         BatchOperationRequest[] operations)
     {
@@ -200,6 +201,7 @@ public class WriteBatchTools
             if (!state.Success)
             {
                 return (
+                    Array.Empty<OperationBatchCurrentState>(),
                     string.Empty,
                     $"Could not read current state for operationId '{op.OperationId}' ({op.Operation}). Error: {state.Error}",
                     state.FailureCategory);
@@ -208,6 +210,6 @@ public class WriteBatchTools
             states.Add(new OperationBatchCurrentState(op.OperationId, op.Operation, state.Payload));
         }
 
-        return (BatchSafetySnapshot.CombineCurrentState(states), null, null);
+        return (states, BatchSafetySnapshot.CombineCurrentState(states), null, null);
     }
 }
