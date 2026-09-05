@@ -68,11 +68,15 @@ The operations below run through `preview_write_batch` and `apply_write_batch`.
 
 ## Tag safety acceptance boundary
 
-PR 5 has offline/FakeWorker evidence and a statically checked
-[guarded live harness](../../scripts/live-test-tag-operation-safety-scopes.ps1). Mandatory live
-TIA Portal V21 acceptance remains pending; the harness has not been executed in any mode.
-Public previews expose hashes and ordered targets, so successful previews alone do not prove
-internal typed snapshot contents, worker read counts, or apply behavior.
+PR 5 has completed offline/FakeWorker, static harness-contract, and guarded live TIA Portal V21
+evidence. The
+[live acceptance report](../superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
+records the exact host, PID, disposable copy, fixtures, artifacts, and saved-baseline/source cleanup.
+All eight operation previews and the ordered duplicate-selector check passed; same-object and
+name/address collision drift returned `state_changed`; unrelated sibling drift preserved the
+original target token; and one authorized unchanged-token apply succeeded. Public previews still
+expose hashes and ordered targets rather than internal typed snapshot contents or worker read
+counts, so those internal claims remain offline/FakeWorker evidence rather than live observations.
 
 The harness requires PowerShell 7.2 or later, the built net8 host, an already-open exact
 disposable project copy, and explicit PLC/table/tag/user-constant fixture names and values.
@@ -86,12 +90,15 @@ and no save is issued. Scenario mutations remain until that final discard; no in
 writes restore constants or delete collision tags between checks. Acceptance must verify the
 on-disk copy remains clean. A failed or
 unconfirmed discard fails the run and requires manual no-save cleanup of the isolated copy.
-Each run retains redacted MCP and failure/cleanup JSON in a dedicated artifact directory; it does
-not automatically create a live acceptance report. Ordinary tests only inspect the script as text.
+Each run retains redacted MCP and failure/cleanup JSON in a dedicated artifact directory. The
+completed report confirms that both mutation modes performed guarded no-save discard, the saved
+copy returned to its exact baseline, and the original source was left open and unmodified. The
+initial sandbox visibility failure and two deterministic lifecycle binding conflicts occurred
+before mutation and were not uncertain writes. Ordinary tests only inspect the script as text.
 
 Explicitly deferred: multilingual per-tag comment binding; public `list_tag_tables` completeness
-changes; broader snapshot narrowing; and PLC `start_plc` / `stop_plc` safety work. Existing PLC
-start/stop operations are not changed or qualified by PR 5.
+changes; broader snapshot narrowing; Software Unit namespace-aware collisions; and PLC `start_plc`
+and `stop_plc` safety work. Existing PLC start/stop operations are not changed or qualified by PR 5.
 
 ## Current limits
 

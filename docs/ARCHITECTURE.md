@@ -578,14 +578,17 @@ failures, and unrelated-name tolerance. They pass those snapshots through the re
 and token validator without loading Openness assemblies. Offline and FakeWorker tests also cover
 typed selectors, ordered expansion, within-phase deduplication,
 fresh apply reads, same-object/collision drift rejection, unrelated sibling tolerance, authorized
-apply, and replay rejection. Mandatory live TIA Portal V21 acceptance is still pending. The
-[guarded live harness](../scripts/live-test-tag-operation-safety-scopes.ps1) defaults to
-`PreviewOnly`; neither that mode nor either mutation mode has been run for PR 5. Static contracts
-and parser checks do not substitute for live evidence.
+apply, and replay rejection. The
+[guarded live TIA Portal V21 acceptance](superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
+completed against the exact recorded host, PID, disposable copy, and fixtures: all eight previews
+and ordered duplicate selection passed; same-object and name/address collision drift returned
+`state_changed`; unrelated sibling drift preserved the original token; one authorized unchanged-token
+apply succeeded; no-save discard preserved the saved baseline; and the clean source project was
+restored open. Static/offline and bounded live evidence remain separate, complementary claims.
 
 PR 5 explicitly defers multilingual per-tag comment binding, public `list_tag_tables`
-completeness changes, broader snapshot narrowing, and PLC `start_plc` / `stop_plc` safety work.
-The public table list remains best-effort and unchanged.
+completeness changes, broader snapshot narrowing, Software Unit namespace-aware collisions, and
+PLC `start_plc` / `stop_plc` safety work. The public table list remains best-effort and unchanged.
 
 Internal exact-target selectors use the shared `SafetyRead` capability. A `SafetyRead` is
 side-effect-free and allowed in read-only mode, but it is not an ordinary observe: every request

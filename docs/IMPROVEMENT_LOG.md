@@ -8,27 +8,6 @@ plus manual verification of the highest-stakes claims. Test suite at authoring t
 (pure-logic tests only; no integration coverage of the worker or IPC layer). As of 2026-07-20 the
 suite is 341/341 green and does cover the worker/IPC layer via the fake-worker harness.
 
-## PR 5 tag-operation safety scopes - live acceptance pending
-
-The [implementation plan](superpowers/plans/2026-09-01-pr5-tag-operation-safety-scopes.md) now
-has typed exact selectors for all eight tag/table/user-constant write operations, relevant
-collision probes, phase-local read deduplication with ordered expansion, and fresh apply reads
-without a cross-phase cache. Offline/FakeWorker checks cover drift rejection, unrelated sibling
-tolerance, successful authorized apply, and replay behavior. This is development evidence only.
-
-The [guarded live harness](../scripts/live-test-tag-operation-safety-scopes.ps1) and its static
-contracts are prepared. No PR 5 live harness mode has been executed and no live acceptance report
-exists. PR 5 remains open until separately authorized mandatory TIA Portal V21 acceptance produces
-reviewed evidence. The default is non-mutating `PreviewOnly`. Explicit mutation modes require a
-clean saved disposable copy, exact-path authorization, and the `Discard` cleanup strategy: guarded
-no-save close, with no filesystem deletion. Cleanup failure fails the run; live acceptance must
-verify the on-disk copy remains clean. This does not claim inverse restoration or plant acceptance.
-
-Deferred scope remains: multilingual per-tag comment binding; public `list_tag_tables`
-completeness changes; broader snapshot narrowing; and PLC `start_plc` / `stop_plc` safety work.
-The older PR 3 entry below records its historical scope; the public table-list contract remains
-unchanged by PR 5 as well.
-
 ## Overall verdict
 
 Solid foundation: the batch-tool consolidation (45 → 16 tools), typed batch item schema with
@@ -432,6 +411,26 @@ failures, malformed worker payloads, process-key invalidation, and byte-for-byte
 equivalence. A separately authorized read-only acceptance procedure was contract-tested but was
 not executed against live TIA Portal V21 before its removal; live pagination acceptance remains
 unverified.
+
+## PR 5 tag-operation safety scopes — mandatory live acceptance completed (2026-09-05)
+
+Typed exact selectors now cover all eight tag/table/user-constant write operations with relevant
+cross-kind/name/address collision probes, phase-local read deduplication and ordered expansion,
+fresh apply reads, and no cross-phase cache. Focused tests passed 83/83, current-state FakeWorker
+tests 24/24, harness contracts 7/7, the full offline suite 2691/2691, and both stub and real V21
+builds completed with 0 warnings/errors.
+
+The [guarded live acceptance report](superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
+records successful `PreviewOnly`, `DriftAndRestore`, and `ApplyAndRestore` modes against the exact
+disposable copy. Same-object and relevant name/address collision drift rejected stale tokens with
+`state_changed`; unrelated sibling drift preserved the original target token; one unchanged-token
+apply succeeded and observed `heaterStages=4`; no-save discard preserved the saved baseline; and
+the clean source project was restored open. The initial sandbox visibility failure and two
+deterministic lifecycle binding conflicts occurred before mutation and were not uncertain writes.
+
+Deferred scope remains explicit: multilingual per-tag comment binding; public `list_tag_tables`
+completeness changes; broader snapshot narrowing; Software Unit namespace-aware collisions; and
+PLC `start_plc` / `stop_plc` safety work. This bounded evidence is not plant acceptance.
 
 ## PR 3 update_tag exact safety snapshot — mandatory live acceptance completed (2026-09-05)
 
