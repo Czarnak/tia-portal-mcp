@@ -25,11 +25,10 @@ their automated gates pass — the stub build, `dotnet test TiaMcpServer.Tests`,
 protocol tests (including the multi-homed read-select-preview-apply-read proof and the
 protocol-error stop proof), and the schema/catalog/access-mode tests. It is **not** based on any
 live TIA Portal V21 acceptance run: per the plan's Global Constraints, "a compile, stub build,
-FakeWorker run, or contract test is not evidence of live TIA behavior." The separately authorized
-live harness at `scripts/live-test-network-phase2.ps1` (Task 8) is available to run under that
-separate authorization gate whenever live evidence is wanted, but its absence does not block this
-Phase 2 completion mark, and its presence does not itself constitute live-verified evidence until
-someone actually runs it against real TIA Portal V21 and records the result.
+FakeWorker run, or contract test is not evidence of live TIA behavior." The legacy acceptance
+procedure was removed without being run. This does not block the Phase 2 completion mark, but live
+evidence remains absent until a newly reviewed, separately authorized procedure is run against
+real TIA Portal V21 and its result is recorded.
 
 This document records the architectural direction and delivery sequence. It is not
 a detailed implementation plan. Task-level design, acceptance criteria, and file-by-file

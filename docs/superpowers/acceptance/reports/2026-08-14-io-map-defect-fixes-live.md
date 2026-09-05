@@ -3,7 +3,7 @@
 **Target:** `feat/io-map-extraction` (PR https://github.com/allanmarum/tia-portal-mcp/pull/1)
 **Date:** 2026-08-14
 **Runtime:** Real TIA Portal V21, live project `<TIA_PROJECT_PATH>\Project20.ap21`
-**Harness:** `scripts/live-test-network-io-map.ps1` (read-only, separately authorized, never run by automated tests)
+**Harness:** `<removed legacy network I/O-map acceptance harness>` (read-only, separately authorized, never run by automated tests)
 **Boundary:** Read-only. No write tool, no project save, no compile, no commissioning action was performed.
 
 ## Purpose
@@ -35,9 +35,10 @@ against Project20.ap21 exposed two genuine defects, which this delivery fixes:
 
 - `dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"` → 0 warnings, 0 errors.
 - `dotnet test TiaMcpServer.Tests` → 2187 passed, 0 failed, 0 skipped.
-- Live harness:
-  `pwsh -File scripts/live-test-network-io-map.ps1 -ProjectPath <Project20.ap21> -IncludeIoDetails -IncludeTagMatches -PlcName PLC_1`
-  → **reported as succeeded**, reading 1 device and 12 channels. The referenced raw JSON artifact,
+- The legacy read-only acceptance procedure, since removed, was run against `Project20.ap21` with
+  I/O details and tag matching enabled for `PLC_1`. It was **reported as succeeded**, reading 1
+  device and 12 channels. The original shell command is intentionally omitted because its script
+  no longer ships. The referenced raw JSON artifact,
   `docs/superpowers/acceptance/evidence/2026-08-14-io-map-defect-fixes-live.json`, is absent from
   this branch. The table below is a human-readable historical summary, not repository-auditable
   raw evidence.

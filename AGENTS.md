@@ -82,10 +82,6 @@ See `docs/ARCHITECTURE.md` §7a for the full seam description and the exact host
 selector boundary, and `docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md` for the concrete
 Network contract these rules describe in the abstract.
 
-A separately authorized live-TIA acceptance harness for the Network contract lives at
-`scripts/live-test-network-phase2.ps1` (PowerShell 7, `Read`/`Preview`/`Apply` modes). It is never
-run by an ordinary test or CI job — see `TiaMcpServer.Tests/NetworkLiveHarnessContractTests.cs`.
-
 ## Key conventions
 
 - **`global.json`** pins .NET SDK 8.0.400 with `rollForward: latestMajor` — use `dotnet` commands, not raw `dotnet8`

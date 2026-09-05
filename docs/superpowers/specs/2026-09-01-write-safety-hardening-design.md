@@ -426,7 +426,7 @@ git diff --check
 git status --short
 ```
 
-Each pull request adds or updates a scope-specific PowerShell 7 live harness with a safe
+Each pull request adds or updates a scope-specific PowerShell 7 legacy live acceptance procedure with a safe
 non-mutating default, an explicit mode for any authorized mutation, static harness-contract tests,
 and a dated report under `docs/superpowers/acceptance/reports/`. Reuse is acceptable only when an
 existing harness already exercises the exact milestone surface and records the milestone-specific

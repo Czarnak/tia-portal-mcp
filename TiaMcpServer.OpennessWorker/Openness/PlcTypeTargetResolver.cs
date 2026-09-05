@@ -233,7 +233,8 @@ internal sealed class ResolvedTypeTarget
 
     /// <summary>
     /// GenerateBlocksFromSource targets a PlcTypeUserGroup; the root PlcTypeSystemGroup is not one.
-    /// Live test L1.1 exists to establish whether the root case needs the group-less overload.
+    /// Callers must keep the root case distinguishable so they can use a group-less overload when
+    /// required.
     /// </summary>
     public PlcTypeUserGroup? UserGroup => Group as PlcTypeUserGroup;
 }

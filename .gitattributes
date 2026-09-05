@@ -2,8 +2,7 @@
 #
 # Without this, core.autocrlf=true stores LF in the index while working copies
 # may hold either ending. Two files can then differ on disk while `git diff`
-# reports nothing, because the index bytes are identical. That happened during
-# the live-test harness work: live-test-db.ps1 sat LF on disk while its twin
-# live-test-udt.ps1 was CRLF, and a byte-identity check between them went red
-# for a difference no committed content contained.
+# reports nothing, because the index bytes are identical. That happened when
+# two PowerShell acceptance scripts used different on-disk endings and a
+# byte-identity check went red for a difference no committed content contained.
 *.ps1 text eol=crlf

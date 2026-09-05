@@ -41,9 +41,9 @@ files free of `Siemens.Engineering` types (`BlockImportRouting`, `BlockSourceGen
 
 Consequence: every new component splits into a Siemens-free half that is unit-tested and a thin
 Siemens-calling shell that is not. No logic that could live on the free side may live in the shell.
-The live harness is the only coverage the shells will ever have, which is why it gates the phase.
+The legacy live acceptance procedure is the only coverage the shells will ever have, which is why it gates the phase.
 
-| | Siemens-free — linked into tests | Siemens-touching — live harness only |
+| | Siemens-free — linked into tests | Siemens-touching — legacy live acceptance procedure only |
 |---|---|---|
 | Phase 1 | `PlcTypeAddress`, `SourceFormatNames`, `PlcTypeSourcePreflight`, `SourceTextEncoding` | `PlcTypeTargetResolver`, `PlcTypeExporter`, `PlcTypeImporter`, `ExternalSourceScope` |
 | Phase 2 | `DbSourceOffsetColumn`, catalog and request changes | `BlockExporter` source branch, `BlockImporter` source route |
@@ -153,16 +153,18 @@ the unsupported combination.
 verbatim, offsets included, and import passes the caller's text through verbatim. A new Siemens-free
 `DbSourceOffsetColumn.cs` detects whether the submitted source carries an offset column and, if it
 does, records a warning that offsets are only valid for the member layout they were generated from.
-Live test L2.4 determines whether this default survives; its contingency is defined with the test.
+The design assigned the final decision on this default to historical live case L2.4; its
+contingency is defined with the case.
 
-## Live-test gates
+## Historical live gates
 
-Both harnesses are committed PowerShell scripts under `scripts/` that pipe newline-delimited JSON
-directly into the built `TiaMcpServer.OpennessWorker.exe` against an open project. They require no
-plugin install, are rerunnable, and serve as permanent regression evidence. They do not exercise
-the MCP layer above the worker; that is a deliberate trade accepted when choosing this approach.
+At the time of this design, both procedures were committed PowerShell scripts that piped
+newline-delimited JSON directly into the built `TiaMcpServer.OpennessWorker.exe` against an open
+project. They required no plugin install and were rerunnable, but they were later removed during
+repository cleanup. Their recorded results remain historical evidence; they do not provide a
+current regression gate and did not exercise the MCP layer above the worker.
 
-### `scripts/live-test-udt.ps1` — gates the start of Phase 2
+### `<removed legacy UDT acceptance harness>` — gates the start of Phase 2
 
 | ID | Check | Why it matters |
 |---|---|---|
@@ -177,7 +179,7 @@ the MCP layer above the worker; that is a deliberate trade accepted when choosin
 L1.1 and L1.4 are blocking: if either fails, Phase 2 does not start and the approach is
 reconsidered.
 
-### `scripts/live-test-db.ps1` — gates Phase 2 completion
+### `<removed legacy DB acceptance harness>` — gates Phase 2 completion
 
 Mirrors L1.1–L1.7 for a `GlobalDB`, plus:
 
@@ -219,8 +221,9 @@ into `TiaMcpServer.Tests/Fixtures/` rather than referenced from `priv/`.
 **Integration** — `TiaMcpServer.FakeWorker` scripts scripted responses for both new operations so
 the host-side batch path is covered end to end without TIA Portal.
 
-**Live** — the two harnesses above. They are the only coverage for `PlcTypeTargetResolver`,
-`PlcTypeExporter`, `PlcTypeImporter`, and `ExternalSourceScope`.
+**Historical live evidence** — the two removed procedures above were the only runtime coverage for
+`PlcTypeTargetResolver`, `PlcTypeExporter`, `PlcTypeImporter`, and `ExternalSourceScope` at the time
+of this design. They are not a current regression gate.
 
 The repo's 80% coverage threshold is measured over compiled test-project sources; the Siemens-
 touching shells are not part of that compilation and neither raise nor lower the number.

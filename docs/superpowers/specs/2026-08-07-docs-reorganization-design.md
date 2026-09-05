@@ -227,8 +227,8 @@ Each step leaves the repository in a consistent state.
   `docs/README.md` itself has at least one inbound link.
 - `README.md` is 160–180 lines and contains no relative markdown links.
 - `dotnet pack` succeeds and the packed README renders with working links (absolute URLs).
-- `scripts/live-test-network-phase2.ps1` still resolves — it cites `docs/ARCHITECTURE.md`,
-  a path this design does not move.
+- The legacy Network Phase 2 acceptance procedure resolved when this design was verified because
+  it cited `docs/ARCHITECTURE.md`, a path this design did not move. The procedure was later removed.
 - `git log --follow` works on each moved file, confirming history was preserved.
 
 ## Risks

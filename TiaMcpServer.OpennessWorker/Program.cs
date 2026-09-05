@@ -821,9 +821,9 @@ internal static class Program
     }
 
     /// <summary>
-    /// The host normalizes <see cref="WorkerRequest.Format"/> before sending, but the worker is
-    /// also driven directly by the live harness — so the type operations re-apply their own
-    /// default (source, i.e. .udt) rather than trusting the field to be set.
+    /// The host normalizes <see cref="WorkerRequest.Format"/> before sending, but internal
+    /// diagnostics and tests can invoke the worker directly. Type operations therefore re-apply
+    /// their own default (source, i.e. .udt) rather than trusting the field to be set.
     /// </summary>
     private static string NormalizeTypeFormat(string? format)
     {
