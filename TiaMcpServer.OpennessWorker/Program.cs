@@ -164,6 +164,13 @@ internal static class Program
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
                 "read_update_tag_safety_snapshot" => ReadUpdateTagSafetySnapshot(request),
+                "read_create_tag_table_safety_snapshot" => ReadCreateTagTableSafetySnapshot(request),
+                "read_delete_tag_table_safety_snapshot" => ReadDeleteTagTableSafetySnapshot(request),
+                "read_create_tag_safety_snapshot" => ReadCreateTagSafetySnapshot(request),
+                "read_delete_tag_safety_snapshot" => ReadDeleteTagSafetySnapshot(request),
+                "read_create_user_constant_safety_snapshot" => ReadCreateUserConstantSafetySnapshot(request),
+                "read_update_user_constant_safety_snapshot" => ReadUpdateUserConstantSafetySnapshot(request),
+                "read_delete_user_constant_safety_snapshot" => ReadDeleteUserConstantSafetySnapshot(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -862,12 +869,49 @@ internal static class Program
     private static WorkerResponse ReadUpdateTagSafetySnapshot(WorkerRequest request)
     {
         return WithProject(request, project => Success(
-            TagUpdateSafetySnapshotReader.Read(
-                project,
-                request.PlcName,
-                request.TableName!,
-                request.FolderPath,
-                request.Name!)));
+            TagOperationSafetySnapshotReader.ReadUpdateTag(project, request)));
+    }
+
+    private static WorkerResponse ReadCreateTagTableSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagOperationSafetySnapshotReader.ReadCreateTagTable(project, request)));
+    }
+
+    private static WorkerResponse ReadDeleteTagTableSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagOperationSafetySnapshotReader.ReadDeleteTagTable(project, request)));
+    }
+
+    private static WorkerResponse ReadCreateTagSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagOperationSafetySnapshotReader.ReadCreateTag(project, request)));
+    }
+
+    private static WorkerResponse ReadDeleteTagSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagOperationSafetySnapshotReader.ReadDeleteTag(project, request)));
+    }
+
+    private static WorkerResponse ReadCreateUserConstantSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagOperationSafetySnapshotReader.ReadCreateUserConstant(project, request)));
+    }
+
+    private static WorkerResponse ReadUpdateUserConstantSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagOperationSafetySnapshotReader.ReadUpdateUserConstant(project, request)));
+    }
+
+    private static WorkerResponse ReadDeleteUserConstantSafetySnapshot(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            TagOperationSafetySnapshotReader.ReadDeleteUserConstant(project, request)));
     }
 
     private static WorkerResponse CompileCheck(WorkerRequest request)

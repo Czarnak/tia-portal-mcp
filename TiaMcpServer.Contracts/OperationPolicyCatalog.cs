@@ -92,6 +92,13 @@ public static class OperationPolicyCatalog
 
             // SafetyRead (read-only safe, but requires a verified expected identity)
             ["read_update_tag_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_create_tag_table_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_delete_tag_table_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_create_tag_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_delete_tag_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_create_user_constant_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_update_user_constant_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_delete_user_constant_safety_snapshot"] = OperationCapability.SafetyRead,
 
             // TemporaryExport (read-only safe, temporary files with cleanup)
             ["get_block_content"] = OperationCapability.TemporaryExport,
