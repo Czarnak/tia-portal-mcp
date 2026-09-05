@@ -107,7 +107,13 @@ function Read-Binding {
     }
     $script:InitialIdentity = $signature
     $evidence.Binding = "PASS: exact project path and worker/session/Portal identity $signature"
-    $evidence.TiaVersion = "V21 prerequisite; project version reported: $($payload.project.version)"
+    $projectVersion = $payload.project.version
+    $evidence.TiaVersion = if ([string]::IsNullOrWhiteSpace($projectVersion)) {
+        'V21 prerequisite; project version not reported'
+    }
+    else {
+        "V21 prerequisite; project version reported: $projectVersion"
+    }
     return $payload.project
 }
 
