@@ -343,7 +343,7 @@ finally {
 
 - Outcome: $($evidence.Outcome)
 - Proven: only checks marked PASS in this run, through the real host MCP protocol.
-- Not proven: checks marked NOT RUN/INCOMPLETE; production or plant acceptance; disk project-byte identity; saved project state; semantic equivalence of replacements. Preview alone cannot qualify apply/restore/compile.
+- Not proven: $(if ($Mode -eq 'Preview') { 'checks marked NOT RUN/INCOMPLETE; production or plant acceptance; disk project-byte identity; saved project state; semantic equivalence of replacements. Preview alone cannot qualify apply/restore/compile.' } else { 'checks marked NOT RUN/INCOMPLETE; production or plant acceptance; disk project-byte identity; saved project state; semantic equivalence beyond the exact exported-text checks performed.' })
 "@
     [IO.File]::AppendAllText($reportPath, $report + [Environment]::NewLine, $utf8)
     Write-Host "Acceptance evidence appended to $reportPath"

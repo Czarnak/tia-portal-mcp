@@ -149,6 +149,77 @@ public sealed class WritePreviewDiffLiveHarnessContractTests
         Assert.Contains("tia-version-evidence-ok", result.StandardOutput, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Script_ReportNotProvenEvidenceIsModeSpecificWithoutRunningHarness()
+    {
+        const string fixture = """
+            param([Parameter(Mandatory)] [string] $HarnessPath)
+
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null
+            $parseErrors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+                $HarnessPath,
+                [ref] $tokens,
+                [ref] $parseErrors)
+            if ($parseErrors.Count -ne 0) {
+                throw "Harness parsing failed: $($parseErrors[0].Message)"
+            }
+
+            $reportAssignment = $ast.Find({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.AssignmentStatementAst] `
+                        -and $node.Left.Extent.Text -ceq '$report'
+                }, $true)
+            if ($null -eq $reportAssignment) {
+                throw "The report assignment was not found."
+            }
+
+            $runTime = 'fixture-time'
+            $HostDllPath = 'fixture-host.dll'
+            $hostHash = 'fixture-hash'
+            $ProjectPath = 'fixture-project.ap21'
+            $BlockPath = 'fixture-block'
+            $TypePath = 'fixture-type'
+            $runDirectory = 'fixture-evidence'
+            $evidence = @{
+                TiaVersion = 'fixture-version'; Binding = 'fixture-binding'
+                Block = 'fixture-block-preview'; Type = 'fixture-type-preview'
+                LineEnding = 'fixture-line-ending'; Oversized = 'fixture-oversized'
+                Authorization = 'fixture-authorization'; Applied = 'fixture-applied'
+                Restore = 'fixture-restore'; Bytes = 'fixture-bytes'; Compile = 'fixture-compile'
+                FinalState = 'fixture-final-state'; Outcome = 'fixture-outcome'
+            }
+            function Render-Report([string] $ModeValue) {
+                $Mode = $ModeValue
+                Invoke-Expression $reportAssignment.Extent.Text
+                return $report
+            }
+
+            $preview = Render-Report 'Preview'
+            $apply = Render-Report 'Apply'
+            $previewLimitation = '- Not proven: checks marked NOT RUN/INCOMPLETE; production or plant acceptance; disk project-byte identity; saved project state; semantic equivalence of replacements. Preview alone cannot qualify apply/restore/compile.'
+            $applyLimitation = '- Not proven: checks marked NOT RUN/INCOMPLETE; production or plant acceptance; disk project-byte identity; saved project state; semantic equivalence beyond the exact exported-text checks performed.'
+            if (-not $preview.Contains($previewLimitation)) {
+                throw 'Preview report lost its Preview-only limitation.'
+            }
+            if (-not $apply.Contains($applyLimitation)) {
+                throw "Apply report used the wrong limitation: '$apply'."
+            }
+            if ($apply.Contains('Preview alone cannot qualify apply/restore/compile.')) {
+                throw 'Apply report retained the Preview-only limitation.'
+            }
+            Write-Output 'mode-specific-not-proven-ok'
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("mode-specific-not-proven-ok", result.StandardOutput, StringComparison.Ordinal);
+    }
+
     private static string ReadScript()
     {
         Assert.True(File.Exists(ScriptPath), $"Expected the live harness at '{ScriptPath}'.");
