@@ -125,13 +125,13 @@ not written to this report or the artifacts.
 
 - Proven: for repository revision `2d6d071`, the host SHA-256 and TIA V21/PID/project identities
   above, all eight tag/table/user-constant operations produced stable exact-selector previews;
-  same-object, cross-kind name, and logical-address collision drift invalidated stale tokens;
+  same-object, tag-name, and logical-address collision drift invalidated stale tokens;
   unrelated sibling drift did not invalidate the scoped target; one unchanged-token apply
   succeeded; mutation-mode cleanup used confirmed no-save discard; the saved disposable baseline
   was intact; and the source project was restored open and unmodified. Offline tests separately
   prove typed snapshot shapes, exact worker dispatch, guarded `SafetyRead` identity policy,
-  phase-local deduplication with ordered expansion, fresh apply reads, and deterministic
-  delete-table export behavior.
+  cross-kind tag/constant/block name-collision candidates, phase-local deduplication with ordered
+  expansion, fresh apply reads, and deterministic delete-table export behavior.
 - Not proven: this is not plant or production acceptance and does not qualify physical PLC
   behavior. Multilingual per-tag comment binding remains deferred. Public `list_tag_tables`
   completeness and best-effort behavior remain unchanged. Broader snapshot narrowing beyond the
