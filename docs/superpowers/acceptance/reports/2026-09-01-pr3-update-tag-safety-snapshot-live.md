@@ -39,7 +39,7 @@ supports the required offline/registered rows below; it does not replace the liv
 - `preview_write_batch` - PASS; `PreviewDrift` observed `ExternalVisible = True` and issued a safety token; no mutation was made and the token was discarded
 - one authorized intermediate flag-only drift write on the disposable copy - PASS; `ApplyDrift -AllowApply` changed only `ExternalVisible` from `True` to `False`
 - stale-token `apply_write_batch` - PASS; applying the original stale token failed with `failureCategory = state_changed`
-- restoration or discard step - PASS; the harness `finally` reconciliation restored `ExternalVisible = True`; no save, close, or discard was performed
+- restoration step - PASS; the harness `finally` reconciliation restored `ExternalVisible = True`; no save, close, or discard was performed
 
 ## Mandatory Live Results
 
