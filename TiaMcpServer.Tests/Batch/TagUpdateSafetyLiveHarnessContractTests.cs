@@ -184,6 +184,48 @@ public class TagUpdateSafetyLiveHarnessContractTests
         Assert.Contains("fixture-ok", result.StandardOutput, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Script_StartJsonLineProcess_DoesNotRejectTheWorkerStyleEmptyArgumentArrayAtParameterBinding()
+    {
+        var launcher = ExtractTopLevelFunction(ReadScript(), "Start-JsonLineProcess");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            {{launcher}}
+            $child = $null
+            try {
+                $childExecutable = Join-Path $PSHOME 'pwsh.exe'
+                if (-not (Test-Path -LiteralPath $childExecutable -PathType Leaf)) {
+                    throw "Expected a harmless local child executable at $childExecutable."
+                }
+                $child = Start-JsonLineProcess -Executable $childExecutable -Arguments @() -Label 'empty-arguments regression fixture'
+                if ($null -eq $child -or $child.HasExited) {
+                    throw 'The local child did not start with an empty argument array.'
+                }
+                Write-Output 'empty-arguments-started'
+            }
+            finally {
+                if ($null -ne $child) {
+                    try {
+                        if (-not $child.HasExited) {
+                            $child.Kill($true)
+                            $child.WaitForExit()
+                        }
+                    }
+                    finally {
+                        $child.Dispose()
+                    }
+                }
+            }
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("empty-arguments-started", result.StandardOutput, StringComparison.Ordinal);
+    }
+
     private static string ReadScript()
     {
         Assert.True(File.Exists(ScriptPath), $"Expected live harness at {ScriptPath}.");

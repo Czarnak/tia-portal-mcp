@@ -40,7 +40,7 @@ $script:WorkerSessionIdentity = $null
 function Start-JsonLineProcess {
     param(
         [Parameter(Mandatory)][string]$Executable,
-        [Parameter(Mandatory)][string[]]$Arguments,
+        [string[]]$Arguments,
         [Parameter(Mandatory)][string]$Label
     )
 
