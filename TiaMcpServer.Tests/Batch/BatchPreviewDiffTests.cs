@@ -128,7 +128,7 @@ public sealed class BatchPreviewDiffTests
     [Fact]
     public void Build_TruncatesLongLinesAndReportsOmittedCharacters()
     {
-        var longLine = new string('x', BatchPreviewDiff.MaxExcerptCharsPerLine + 37);
+        var longLine = new string('x', 549);
         var current = "TYPE \"A\"\r\nEND_TYPE\r\n";
         var requested = $"TYPE \"A\"\r\n{longLine}\r\nEND_TYPE\r\n";
         var op = TypeOp("type-1", "PLC_1/Types/A", requested);
@@ -136,9 +136,46 @@ public sealed class BatchPreviewDiffTests
         var diff = BatchPreviewDiff.Build(new[] { op }, new[] { State(op, current) })!;
         var line = diff.Operations[0].Requested.Excerpt.Lines.Single(x => x.LineNumber == 2);
 
-        Assert.Equal(BatchPreviewDiff.MaxExcerptCharsPerLine, line.Text.Length);
+        Assert.Equal(512, line.Text.Length);
         Assert.Equal(37, line.OmittedCharacterCount);
         Assert.Equal(37, diff.Operations[0].Requested.Excerpt.OmittedCharacterCount);
+    }
+
+    [Fact]
+    public void Build_UsesLiteral8192CharacterPerSideLimit()
+    {
+        var current = string.Join("\r\n", Enumerable.Range(1, 16).Select(i => $"OLD {i}"));
+        var requested = string.Join("\r\n", Enumerable.Repeat(new string('x', 600), 16));
+        var op = TypeOp("type-1", "PLC_1/Types/A", requested);
+
+        var diff = BatchPreviewDiff.Build(new[] { op }, new[] { State(op, current) })!;
+        var excerpt = Assert.Single(diff.Operations).Requested.Excerpt;
+
+        Assert.Equal(16, excerpt.Lines.Count);
+        Assert.All(excerpt.Lines, line => Assert.Equal(512, line.Text.Length));
+        Assert.Equal(8_192, excerpt.Lines.Sum(line => line.Text.Length));
+        Assert.Equal(1_408, excerpt.OmittedCharacterCount);
+    }
+
+    [Fact]
+    public void Build_ExhaustsAtLiteral32768CharacterBatchLimit()
+    {
+        var current = string.Join("\r\n", Enumerable.Repeat(new string('a', 600), 16));
+        var requested = string.Join("\r\n", Enumerable.Repeat(new string('b', 600), 16));
+        var operations = Enumerable.Range(1, 3)
+            .Select(i => TypeOp($"type-{i}", $"PLC_1/Types/T{i}", requested))
+            .ToArray();
+        var states = operations.Select(op => State(op, current)).ToArray();
+
+        var diff = BatchPreviewDiff.Build(operations, states)!;
+
+        Assert.All(diff.Operations.Take(2), entry => Assert.False(entry.BatchBudgetExhausted));
+        Assert.Equal(32_768, diff.Operations.Take(2).Sum(entry =>
+            entry.Current.Excerpt.Lines.Sum(line => line.Text.Length)
+            + entry.Requested.Excerpt.Lines.Sum(line => line.Text.Length)));
+        Assert.True(diff.Operations[2].BatchBudgetExhausted);
+        Assert.Empty(diff.Operations[2].Current.Excerpt.Lines);
+        Assert.Empty(diff.Operations[2].Requested.Excerpt.Lines);
     }
 
     [Fact]
@@ -160,8 +197,15 @@ public sealed class BatchPreviewDiffTests
         Assert.True(diff.Operations[5].BatchBudgetExhausted);
         Assert.Empty(diff.Operations[5].Current.Excerpt.Lines);
         Assert.Empty(diff.Operations[5].Requested.Excerpt.Lines);
-        Assert.NotEmpty(diff.Operations[5].Requested.Sha256);
-        Assert.True(diff.Operations[5].Requested.LineCount > 0);
-        Assert.True(diff.Operations[5].Requested.CharacterCount > 0);
+        var exhausted = diff.Operations[5];
+        Assert.Equal(Sha256(current), exhausted.Current.Sha256);
+        Assert.Equal(current.Length, exhausted.Current.CharacterCount);
+        Assert.Equal(61, exhausted.Current.LineCount);
+        Assert.Equal(Sha256(requested), exhausted.Requested.Sha256);
+        Assert.Equal(requested.Length, exhausted.Requested.CharacterCount);
+        Assert.Equal(61, exhausted.Requested.LineCount);
+        Assert.False(exhausted.RawTextEqual);
+        Assert.False(exhausted.NormalizedLinesEqual);
+        Assert.False(exhausted.LineEndingOnly);
     }
 }
