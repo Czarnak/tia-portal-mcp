@@ -195,7 +195,9 @@ public sealed class WriteBatchPreviewDiffIntegrationTests
             Assert.True(diffOperations[8].GetProperty("batchBudgetExhausted").GetBoolean());
             Assert.Empty(diffOperations[8].GetProperty("current").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
             Assert.Empty(diffOperations[8].GetProperty("requested").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
-            Assert.NotEmpty(diffOperations[8].GetProperty("requested").GetProperty("sha256").GetString());
+            var requestedSha256 = diffOperations[8].GetProperty("requested").GetProperty("sha256").GetString();
+            Assert.NotNull(requestedSha256);
+            Assert.NotEmpty(requestedSha256);
             Assert.True(diffOperations[8].GetProperty("requested").GetProperty("lineCount").GetInt32() > 0);
             Assert.True(diffOperations[8].GetProperty("requested").GetProperty("characterCount").GetInt32() > 0);
         }
