@@ -22,6 +22,7 @@ public class TagUpdateCurrentStateFakeWorkerTests
     private static BatchOperationRequest UpdateTagOp(
         string projectPath,
         string name = TagName,
+        string? dataType = null,
         bool? externalAccessible = null,
         bool? externalVisible = null,
         bool? externalWritable = null) => new()
@@ -32,6 +33,7 @@ public class TagUpdateCurrentStateFakeWorkerTests
         TableName = TableName,
         FolderPath = "/",
         Name = name,
+        DataType = dataType,
         ExternalAccessible = externalAccessible,
         ExternalVisible = externalVisible,
         ExternalWritable = externalWritable,
@@ -53,6 +55,62 @@ public class TagUpdateCurrentStateFakeWorkerTests
 
         Assert.Contains("externalVisible", preview, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"safetyToken\":", preview, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("externalAccessible", true, null, null)]
+    [InlineData("externalVisible", null, true, null)]
+    [InlineData("externalWritable", null, null, true)]
+    public async Task PreviewWriteBatch_UpdateTagRejectsEachRequestedUnavailableFlagBeforeTokenIssuance(
+        string expectedFlag,
+        bool? externalAccessible,
+        bool? externalVisible,
+        bool? externalWritable)
+    {
+        const string scenario = "tag-update-snapshot-unavailable-all";
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        var operations = new[]
+        {
+            UpdateTagOp(
+                scenario,
+                externalAccessible: externalAccessible,
+                externalVisible: externalVisible,
+                externalWritable: externalWritable)
+        };
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
+
+        using var document = JsonDocument.Parse(preview);
+        Assert.False(document.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(
+            WorkerFailureCategories.ValidationError,
+            document.RootElement.GetProperty("failureCategory").GetString());
+        Assert.Contains(expectedFlag, document.RootElement.GetProperty("error").GetString(), StringComparison.Ordinal);
+        Assert.False(document.RootElement.TryGetProperty("safetyToken", out _));
+    }
+
+    [Fact]
+    public async Task PreviewWriteBatch_UpdateTagWithoutUnavailableFlagRequestStillIssuesToken()
+    {
+        const string scenario = "tag-update-snapshot-unavailable-all";
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(
+            client,
+            safety,
+            new[] { UpdateTagOp(scenario, dataType: "DInt") });
+
+        using var document = JsonDocument.Parse(preview);
+        Assert.True(document.RootElement.TryGetProperty("safetyToken", out var safetyToken), preview);
+        Assert.False(string.IsNullOrWhiteSpace(safetyToken.GetString()));
     }
 
     public static TheoryData<string> InvalidStrictSnapshotPayloads()
@@ -129,6 +187,39 @@ public class TagUpdateCurrentStateFakeWorkerTests
         var apply = await WriteBatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
 
         Assert.Contains("\"failureCategory\":\"state_changed\"", apply, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ApplyWriteBatch_UpdateTagBroadOnlyDriftFailsWithStateChangedBeforeMutation()
+    {
+        const string scenario = "tag-update-broad-drift";
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = CreateSafety(audit, binding);
+        using var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        var operations = new[] { UpdateTagOp(scenario, externalVisible: false) };
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
+        using var previewDocument = JsonDocument.Parse(preview);
+        var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
+
+        var apply = await WriteBatchTools.ApplyWriteBatch(
+            client,
+            safety,
+            operations,
+            confirm: true,
+            safetyToken: token);
+        var observedState = await client.GetProjectStatusAsync(scenario);
+
+        using var applyDocument = JsonDocument.Parse(apply);
+        Assert.False(applyDocument.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(
+            WorkerFailureCategories.StateChanged,
+            applyDocument.RootElement.GetProperty("failureCategory").GetString());
+        Assert.True(observedState.Success, observedState.Error);
+        using var stateDocument = JsonDocument.Parse(observedState.Payload);
+        Assert.Equal(0, stateDocument.RootElement.GetProperty("broadDriftMutationCount").GetInt32());
     }
 
     [Fact]

@@ -60,6 +60,8 @@ var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
 var orderedTypeWriteCount = 0;
 var tagUpdateFlagDriftSnapshotReadCount = 0;
+var tagUpdateBroadDriftReadCount = 0;
+var tagUpdateBroadDriftMutationCount = 0;
 var tagUpdateStrictSnapshotFailureBroadReadCount = 0;
 var tagUpdateInvalidSnapshotBroadReadCount = 0;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -282,6 +284,16 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "tag-update-snapshot-unavailable-all":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
+                "update_tag" => """{"success":true,"payload":"{}"}""",
+                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":null,\"externalVisible\":null,\"externalWritable\":null}"}""",
+                _ => $$"""{"success":false,"error":"unexpected all-unavailable update-tag fixture method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "tag-update-flag-drift":
             Respond(ReadMethod(line) switch
             {
@@ -291,6 +303,27 @@ while ((line = Console.In.ReadLine()) is not null)
                 "read_update_tag_safety_snapshot" => TagUpdateDriftSnapshotResponse(++tagUpdateFlagDriftSnapshotReadCount),
                 _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
             });
+            break;
+        case "tag-update-broad-drift":
+            switch (ReadMethod(line))
+            {
+                case "get_project_status":
+                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"broadDriftMutationCount\":{{tagUpdateBroadDriftMutationCount}}}"}""");
+                    break;
+                case "read_update_tag_safety_snapshot":
+                    Respond("""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""");
+                    break;
+                case "list_tag_tables":
+                    Respond(TagUpdateBroadDriftResponse(++tagUpdateBroadDriftReadCount));
+                    break;
+                case "update_tag":
+                    tagUpdateBroadDriftMutationCount++;
+                    Respond("""{"success":true,"payload":"{}"}""");
+                    break;
+                default:
+                    Respond("""{"success":false,"error":"unexpected broad-drift update-tag fixture method"}""");
+                    break;
+            }
             break;
         case "tag-update-snapshot-read-fails":
             switch (ReadMethod(line))
@@ -2018,6 +2051,14 @@ string TagUpdateDriftSnapshotResponse(int readCount)
 {
     var externalAccessible = readCount == 1 ? "false" : "true";
     return $$"""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":{{externalAccessible}},\"externalVisible\":true,\"externalWritable\":false}"}""";
+}
+
+string TagUpdateBroadDriftResponse(int readCount)
+{
+    var payload = readCount == 1
+        ? """{"tables":[]}"""
+        : """{"tables":[{"name":"Unrelated","folderPath":"/","tags":[],"userConstants":[]}]}""";
+    return Success(payload);
 }
 
 string InvalidTagUpdateSnapshotResponse(string requestLine)
