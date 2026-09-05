@@ -71,7 +71,9 @@ authorized feature apply. Both mutation modes require `-AllowMutation`, `-Confir
 `-AuthorizedProjectPath` equal to `-ProjectPath`, and `-CleanupStrategy Discard`, plus a pre-saved
 unmodified copy. The implemented cleanup is guarded `close_project` with `saveBeforeClose=false`;
 the mode names do not imply an implemented inverse-restore strategy. No project files are deleted
-and no save is issued. Acceptance must verify the on-disk copy remains clean. A failed or
+and no save is issued. Scenario mutations remain until that final discard; no inverse fixture
+writes restore constants or delete collision tags between checks. Acceptance must verify the
+on-disk copy remains clean. A failed or
 unconfirmed discard fails the run and requires manual no-save cleanup of the isolated copy.
 Each run retains redacted MCP and failure/cleanup JSON in a dedicated artifact directory; it does
 not automatically create a live acceptance report. Ordinary tests only inspect the script as text.

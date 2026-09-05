@@ -90,6 +90,23 @@ public sealed class TagOperationSafetyLiveHarnessContractTests
         Assert.DoesNotContain("Remove-Item -LiteralPath $ProjectPath", text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Script_DriftScenariosRetainMutationsUntilFinalDiscard()
+    {
+        var text = File.ReadAllText(ScriptPath);
+        var driftStart = text.IndexOf("function Test-Drift(", StringComparison.Ordinal);
+        var driftEnd = text.IndexOf("function Stop-McpHost", driftStart, StringComparison.Ordinal);
+        var driftCheck = text[driftStart..driftEnd];
+
+        Assert.DoesNotContain("$Restoration", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("reset-constant", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("remove-collision", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Invoke-AuthorizedChange", driftCheck, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex(
+            @"New-Operation[^\r\n]*'update_user_constant'[^\r\n]*value\s*=\s*\$(constant|siblingConstant)\.value"), text);
+        Assert.Contains("saveBeforeClose = $false", text, StringComparison.Ordinal);
+    }
+
     private static readonly string ScriptPath = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "scripts", "live-test-tag-operation-safety-scopes.ps1"));
 

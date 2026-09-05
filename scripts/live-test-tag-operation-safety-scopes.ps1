@@ -281,17 +281,13 @@ function Invoke-AuthorizedChange([array] $Operations) {
     $null = Invoke-Apply $Operations $preview
 }
 
-function Test-Drift([string] $Claim, [array] $Target, [array] $Mutation, [array] $Restoration) {
-    $before = Get-Preview $Target
-    Invoke-AuthorizedChange $Mutation
+function Test-Drift([string] $Claim, [array] $Target, $Before) {
     $after = Get-Preview $Target
-    Assert-Condition ($before.currentStateHash -cne $after.currentStateHash) "$Claim did not change the bound state hash."
-    $null = Invoke-Apply $Target $before -ExpectStateChanged
+    Assert-Condition ($Before.currentStateHash -cne $after.currentStateHash) "$Claim did not change the bound state hash."
+    $null = Invoke-Apply $Target $Before -ExpectStateChanged
     $rejected = Get-Preview $Target
     Assert-Condition ($after.currentStateHash -ceq $rejected.currentStateHash) "$Claim rejection changed target state."
-    $checks.Add(@{ claim = $Claim; result = 'PASS'; rejection = 'state_changed'; beforeHash = $before.currentStateHash; driftHash = $after.currentStateHash; unchangedAfterRejection = $true })
-    # Best-effort inverse fixture reset for the next scenario; final cleanup still discards the copy.
-    Invoke-AuthorizedChange $Restoration
+    $checks.Add(@{ claim = $Claim; result = 'PASS'; rejection = 'state_changed'; beforeHash = $Before.currentStateHash; driftHash = $after.currentStateHash; unchangedAfterRejection = $true })
 }
 
 function Stop-McpHost {
@@ -387,9 +383,7 @@ try {
     Write-Artifact 'baseline.json' @{ project = $initialProject; tables = $tables; limitation = 'Public list_tag_tables remains best-effort; strict safety reads and guarded applies remain authoritative.' }
 
     $updateConstant = New-Operation 'update-constant' 'update_user_constant' $TargetTable $TargetFolder @{ name = $TargetConstantName; value = $ChangedConstantValue }
-    $resetConstant = New-Operation 'reset-constant' 'update_user_constant' $TargetTable $TargetFolder @{ name = $TargetConstantName; value = $constant.value }
     $createTag = New-Operation 'create-tag' 'create_tag' $TargetTable $TargetFolder @{ name = $CollisionTagName; dataType = 'Bool' }
-    $deleteCollision = New-Operation 'remove-collision' 'delete_tag' $TargetTable $TargetFolder @{ name = $CollisionTagName }
     $operations = @(
         (New-Operation 'create-table' 'create_tag_table' $NewTableName $TargetFolder),
         (New-Operation 'delete-table' 'delete_tag_table' $TargetTable $TargetFolder),
@@ -412,18 +406,33 @@ try {
     $checks.Add(@{ claim = 'ordered duplicate selector preview'; result = 'PASS'; limitation = 'Within-phase worker read count is offline/FakeWorker evidence only.' })
 
     if ($Mode -eq 'DriftAndRestore') {
-        Test-Drift 'same-object drift' @($resetConstant) @($updateConstant) @($resetConstant)
-        Test-Drift 'relevant collision: name' @($createTag) @($createTag) @($deleteCollision)
+        # Leave every mutation in the disposable copy until the final no-save discard.
+        $sameObjectPreview = Get-Preview @($updateConstant)
+        Invoke-AuthorizedChange @($updateConstant)
+        Test-Drift 'same-object drift' @($updateConstant) $sameObjectPreview
+
+        # One tag creation supplies both collisions. Both tokens precede that creation,
+        # so the address scenario does not need a tag deletion or a second fixture name.
+        $namePreview = Get-Preview @($createTag)
+        $addressPreview = Get-Preview @($operations[3])
         $addressMutation = New-Operation 'create-address-collision' 'create_tag' $TargetTable $TargetFolder @{ name = $CollisionTagName; dataType = 'Bool'; logicalAddress = $CollisionLogicalAddress }
-        Test-Drift 'relevant collision: address' @($operations[3]) @($addressMutation) @($deleteCollision)
-        $tolerant = Get-Preview @($updateConstant)
+        Invoke-AuthorizedChange @($addressMutation)
+        Test-Drift 'relevant collision: name' @($createTag) $namePreview
+        Test-Drift 'relevant collision: address' @($operations[3]) $addressPreview
+
+        # A new constant gives the tolerance apply a real mutation without resetting
+        # the existing constant that already demonstrated same-object drift.
+        $siblingTarget = @($operations[5])
+        $tolerant = Get-Preview $siblingTarget
         $siblingMutation = New-Operation 'change-sibling' 'update_user_constant' $SiblingTable $SiblingFolder @{ name = $SiblingConstantName; value = $ChangedSiblingConstantValue }
         Invoke-AuthorizedChange @($siblingMutation)
         $afterSibling = Find-Constant (Find-Table (Read-Tables) $SiblingTable $SiblingFolder) $SiblingConstantName
         Assert-Condition ($afterSibling.value -ceq $ChangedSiblingConstantValue) 'Sibling mutation was not observed.'
-        $after = Get-Preview @($updateConstant)
+        $after = Get-Preview $siblingTarget
         Assert-Condition ($tolerant.currentStateHash -ceq $after.currentStateHash) 'Unrelated sibling invalidated the target snapshot.'
-        $null = Invoke-Apply @($updateConstant) $tolerant
+        $null = Invoke-Apply $siblingTarget $tolerant
+        $created = Find-Constant (Find-Table (Read-Tables) $TargetTable $TargetFolder) $NewConstantName
+        Assert-Condition ($created.value -ceq $constant.value) 'Tolerance apply did not create the requested new constant.'
         $checks.Add(@{ claim = 'unrelated sibling tolerance'; result = 'PASS'; unchangedTargetHash = $after.currentStateHash; originalTokenApplied = $true })
     }
     if ($Mode -eq 'ApplyAndRestore') {
