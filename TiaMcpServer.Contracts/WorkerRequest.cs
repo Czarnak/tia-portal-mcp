@@ -280,7 +280,7 @@ public class WorkerRequest
     /// <summary>
     /// Forwarded by: inspect_network_object, probe_network_object_attributes (optional). The
     /// public inspection path validates [1, 200] unique names; the internal probe repeats that
-    /// validation because it is called directly by the read-only live harness.
+    /// validation because direct probe callers bypass the public host validation path.
     /// </summary>
     public List<string>? NetworkAttributeNames { get; set; }
 

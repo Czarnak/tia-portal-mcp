@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-05
 **Runtime:** Real TIA Portal V21
-**Harness:** `scripts/live-test-update-tag-safety.ps1`
+**Harness:** `<removed legacy tag-safety acceptance harness>`
 **Boundary:** Disposable project copy; the mandatory live gate is exact-target read plus one authorized flag-only drift and stale-token rejection.
 
 **Status:** PASS. PR 3's mandatory live acceptance is complete. The optional unavailable-flag
@@ -12,7 +12,7 @@ external flag.
 **Final reviewed source revision:** `475090a4248c2afc1c34784ad14e8ce5387a3889`.
 **Live-tested revision:** `952f66f3627486e9d5ef0cb2d48bfcbd93a71c2e`.
 **Production safety implementation revision:** `3c7e8b29ca0b923877cf310cfd6d3a4e1fc5a0e1`
-(`fix: validate update tag safety snapshot`). The live harness repairs after that production
+(`fix: validate update tag safety snapshot`). The legacy live acceptance procedure repairs after that production
 revision, including `5510e40`, `0feadf3`, and `952f66f`, were separately TDD-tested and scoped
 re-reviewed. Revision `475090a` is a post-live diagnostic-only harness fix that removes
 token-bearing raw text from failure messages and adds composed-path tests. It does not change
@@ -20,7 +20,7 @@ production mutation or snapshot semantics, and no live TIA action was rerun for 
 runtime was TIA Portal V21 with portal PID `44176`.
 
 **Offline-tested evidence:** Fresh final evidence at `475090a` passed the serial reference-stub
-build with 0 warnings/0 errors, the focused `TagUpdateSafetyLiveHarnessContractTests` suite with
+build with 0 warnings/0 errors, the focused `<removed legacy tag-safety harness contract test>` suite with
 20/20 tests, and the complete suite with 2,634/2,634 tests and 0 skipped. The complete passing run
 used:
 
@@ -54,25 +54,22 @@ suite.
 - `preview_write_batch` - PASS; exact default-bound `PreviewDrift` accepted the registered token-only preview shape, observed `ExternalVisible = True`, and issued a safety token; no mutation was made and the token was discarded
 - one authorized intermediate flag-only drift write on the disposable copy - PASS; `ApplyDrift -AllowApply` changed only `ExternalVisible` from `True` to `False`
 - stale-token `apply_write_batch` - PASS; applying the original stale token failed with `failureCategory = state_changed`
-- restoration step - PASS; the harness `finally` reconciliation restored `ExternalVisible = True`; no save, close, or discard was performed
+- restoration step - PASS; the procedure's `finally` reconciliation restored `ExternalVisible = True`; no save, close, or discard was performed
 - separate final `Read` - PASS; strict snapshot and public-row assertions passed with `ExternalVisible = True`
 - direct final `get_project_status` - PASS; `SimpleProject.ap21` remained open with `isModified = true`; no save, close, or discard was performed
 
 ## Mandatory Live Results
 
-| Criterion | Command | Observed |
+| Criterion | Historical invocation | Observed |
 |---|---|---|
-| Identity-bound internal safety read succeeds with the worker-stamped identity | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read` | PASS - direct worker hello/status established the complete worker-stamped session identity; the strict safety snapshot resolved the exact target and observed `ExternalVisible = True` |
-| Exact-target snapshot resolves PLC identity and the chosen drift flag is readable | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read` | PASS - resolved PLC `PLC_LAD`, root `/`, table `Inputs`, tag `DI_Reserve_1_7`; `ExternalVisible = True` |
-| Flag-only drift causes stale-token `state_changed` before mutation | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode ApplyDrift -AllowApply` | PASS - the authorized intermediate update changed only `ExternalVisible` `True` -> `False`; the original stale token was rejected with `failureCategory = state_changed`; reconciliation restored `True` |
-| Public `list_tag_tables` semantics remain unchanged | `$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'; pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode Read` | PASS - registered `execute_read_batch/list_tag_tables` returned one successful operation matching `Bool` / `%I1.7`; an independent final `Read` again observed `ExternalVisible = True` |
+| Identity-bound internal safety read succeeds with the worker-stamped identity | Removed legacy procedure in `Read` mode against `SimpleProject.ap21`, PLC `PLC_LAD`, table `Inputs`, tag `DI_Reserve_1_7`, flag `ExternalVisible` | PASS - direct worker hello/status established the complete worker-stamped session identity; the strict safety snapshot resolved the exact target and observed `ExternalVisible = True` |
+| Exact-target snapshot resolves PLC identity and the chosen drift flag is readable | Same removed legacy `Read` procedure and target | PASS - resolved PLC `PLC_LAD`, root `/`, table `Inputs`, tag `DI_Reserve_1_7`; `ExternalVisible = True` |
+| Flag-only drift causes stale-token `state_changed` before mutation | Removed legacy procedure in explicitly authorized `ApplyDrift` mode against the same target | PASS - the authorized intermediate update changed only `ExternalVisible` `True` -> `False`; the original stale token was rejected with `failureCategory = state_changed`; reconciliation restored `True` |
+| Public `list_tag_tables` semantics remain unchanged | Same removed legacy `Read` procedure and target | PASS - registered `execute_read_batch/list_tag_tables` returned one successful operation matching `Bool` / `%I1.7`; an independent final `Read` again observed `ExternalVisible = True` |
 
-The mandatory non-mutating preview command passed without mutation:
-
-```powershell
-$projectPath = 'C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21'
-pwsh -File scripts/live-test-update-tag-safety.ps1 -ProjectPath $projectPath -PlcName 'PLC_LAD' -TableName 'Inputs' -TagName 'DI_Reserve_1_7' -DriftFlagName ExternalVisible -Mode PreviewDrift
-```
+The mandatory non-mutating preview used the removed legacy procedure's `PreviewDrift` mode against
+the same project, PLC, table, tag, and flag. Its original shell command is intentionally omitted
+because the script no longer ships.
 
 The exact default-bound `PreviewDrift` accepted the registered preview's token-only result shape,
 observed `ExternalVisible = True`, and issued a safety token. No mutation was made by this mode,
@@ -85,7 +82,7 @@ and the token was discarded.
 | Bound client sends a complete expected identity; worker rejects missing and mismatched identity as `binding_conflict` | `TagUpdateSafetySnapshotWorkerClientTests` plus `TagUpdateSafetySnapshotIdentityEnforcementTests` | PASS - final source revision `475090a`; fresh final complete suite (2,634/2,634, 0 skipped) |
 | Requested unavailable flag fails before token issuance | `TagUpdateCurrentStateFakeWorkerTests` plus contract/worker tests | PASS - final source revision `475090a`; registered matrix coverage includes `0feadf3`; fresh final complete suite (2,634/2,634, 0 skipped) |
 | Strict snapshot payload rejects `{}`, malformed/unsupported shapes, every omitted member, and wrong member types before broad fallback or token issuance | `TagUpdateCurrentStateFakeWorkerTests` | PASS - final source revision `475090a`; fresh final complete suite (2,634/2,634, 0 skipped) |
-| Harness accepts legal registered token-only preview results, preserves explicit application-error handling, rejects invalid shapes without leaking tokens, and defines the optional-probe guard before its entrypoint call | `TagUpdateSafetyLiveHarnessContractTests` | PASS - final source revision `475090a`; focused harness suite 20/20 and fresh final complete suite (2,634/2,634, 0 skipped) |
+| Legacy procedure accepted legal registered token-only preview results, preserved explicit application-error handling, rejected invalid shapes without leaking tokens, and defined the optional-probe guard before its entrypoint call | `<removed legacy tag-safety harness contract test>` | PASS - final source revision `475090a`; focused contract suite 20/20 and fresh final complete suite (2,634/2,634, 0 skipped) |
 
 ## Optional Live Unavailable Probe
 

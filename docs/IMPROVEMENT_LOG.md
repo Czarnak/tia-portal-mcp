@@ -387,9 +387,8 @@ the single PLC when omitted), builds the tag index once per selected PLC via `Ta
 matches tags only when the controller association deterministically names the selected PLC — never
 across controllers. The payload contract validates every non-null collection and nested object
 inside `ioDetails` and rejects an explicit null collection as `protocol_error` without echoing the
-payload. FakeWorker scenarios, the read-only live harness
-`scripts/live-test-network-io-map.ps1` (never run by automated tests), and the full I/O-map test
-surface were added. Full suite green at this tip: 2136/2136.
+payload. FakeWorker scenarios, a separately authorized read-only live acceptance run, and the full
+I/O-map test surface were added. Full suite green at this tip: 2136/2136.
 
 ## Opt-in hardware configuration pagination - DONE 2026-08-29
 
@@ -409,9 +408,9 @@ subjects are all-or-nothing: the full approved subject is retained only when it 
 Offline contract and FakeWorker coverage includes exact reconstruction, duplicate names, nested
 diagnostics, trimming/resume behavior, cursor tamper/filter/binding/session/snapshot/offset
 failures, malformed worker payloads, process-key invalidation, and byte-for-byte unpaged
-equivalence. The separately authorized read-only harness
-`scripts/live-test-hardware-pagination.ps1` is contract-tested but has not been executed against
-live TIA Portal V21; live pagination acceptance remains unverified.
+equivalence. A separately authorized read-only acceptance procedure was contract-tested but was
+not executed against live TIA Portal V21 before its removal; live pagination acceptance remains
+unverified.
 
 ## PR 3 update_tag exact safety snapshot — mandatory live acceptance completed (2026-09-05)
 
@@ -421,8 +420,7 @@ PLC/table/tag identity and mutable values, requires the observed worker session 
 rejects a requested unreadable external flag before a preview token can be issued. The legacy
 best-effort public `list_tag_tables` response is intentionally unchanged until PR 5.
 
-The guarded disposable-copy harness and its durable report are at
-[`scripts/live-test-update-tag-safety.ps1`](../scripts/live-test-update-tag-safety.ps1) and
+The guarded disposable-copy run is recorded in the
 [`PR 3 update_tag safety snapshot acceptance report`](superpowers/acceptance/reports/2026-09-01-pr3-update-tag-safety-snapshot-live.md).
 The mandatory live V21 read, preview, authorized `ExternalVisible` flag-only drift, stale-token
 `state_changed` rejection, and restoration all passed. The optional unavailable-target probe was

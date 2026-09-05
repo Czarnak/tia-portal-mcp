@@ -526,25 +526,15 @@ The current surface does not provide:
 
 Hardware configuration results and compile results are engineering data. They do not by themselves certify a live hardware configuration or commissioning outcome.
 
-## Live acceptance harnesses
+## Live acceptance evidence
 
-`scripts/live-test-hardware-pagination.ps1` is the separately authorized, read-only PowerShell 7
-harness for the public hardware-pagination contract. It launches the real MCP host in read-only
-mode, follows `nextCursor` without changing bound query fields, checks stable totals and
-device-before-subnet count/order consistency, persists the observed ordered public-entity
-identities and canonical fingerprints, enforces the per-item limit, and records correctness
-separately from page timing. Those observations are not an independent expected inventory, so the
-harness does not claim exact project reconstruction from returned counts alone. It stops with a
-clear artifact on cursor failure or omission. Contract tests inspect the script but never execute
-it. The harness has not yet been run against live TIA Portal V21, so live pagination behavior
-remains unverified.
+Legacy task-specific acceptance procedures and their source-inspection tests have been removed.
+Their removal does not change the evidence boundary: automated, stub, and FakeWorker results are
+not live TIA Portal acceptance.
 
-`scripts/live-test-network-phase3.ps1` is the separately authorized, read-only PowerShell 7
-harness for discovery and inspection. `Matrix`, `Repeatability`, and `MeasureListValue` launch the
-real MCP host and drive its actual `initialize`/`tools/list`/`tools/call` protocol. `RawProbe`
-starts the worker directly for an internal metadata diagnostic; that probe is read-only and is not
-a public MCP operation. The script is not run by automated tests or CI. The completed 2026-08-05
-run, including the decision to retain `list_network_objects`, is documented in
+Hardware pagination was not exercised against live TIA Portal before the legacy procedure was
+removed, so live pagination behavior remains unverified. The completed 2026-08-05 Phase 3 run,
+including the decision to retain `list_network_objects`, is documented in
 [NETWORK_PHASE3_LIVE_ACCEPTANCE.md](NETWORK_PHASE3_LIVE_ACCEPTANCE.md).
 
 Repeatability is evaluated over the canonical discovery payload (`result`, `omission`, and
@@ -552,25 +542,13 @@ Repeatability is evaluated over the canonical discovery payload (`result`, `omis
 first attachment reports the one-time warning `Connected to running TIA Portal instance.`; that
 warning remains visible and is not treated as selector or payload drift.
 
-The Phase 2 read/write harness remains at `scripts/live-test-network-phase2.ps1`. Its `Read`,
-`Preview`, and `Apply` modes require a disposable or backed-up project and separate authorization;
-the Phase 3 read-only authorization does not authorize any Phase 2 write mode.
-
-`scripts/live-test-network-io-map.ps1` is the separately authorized, read-only harness for the
-structured I/O map. It drives `network_read` (`read_hardware_config`) with the I/O-map options
-through the real MCP protocol and contains no write path and no confirming call site; it is never
-run by automated tests (`TiaMcpServer.Tests/NetworkIoMapLiveHarnessContractTests.cs` proves that
-statically). A live run completed on 2026-08-14 against a real TIA Portal V21 project
-(Project20.ap21); the results are recorded in
+Phase 2 live acceptance remains a separate authorization boundary; read-only authorization does
+not authorize a write preview or apply. A structured I/O-map live run completed on 2026-08-14
+against a real TIA Portal V21 project (Project20.ap21); the results are recorded in
 [`../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md`](../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md).
 
-`scripts/live-test-network-phase4-subnets.ps1` is the separately authorized harness for the Phase 4
-subnet lifecycle operations. Its default `Inventory` mode is read-only; `Preview` constructs the
-exact create/update/delete operations without applying; `Apply` is double-gated behind
-`-AllowMutation` plus an exact acknowledgement string and requires an explicit disposable `.ap21`
-project path. The script exists and its static contract is verified
-(`TiaMcpServer.Tests/NetworkPhase4SubnetLiveHarnessContractTests.cs`), but it has not yet been run
-against a live TIA Portal V21 project; see
+Phase 4 subnet lifecycle operations have not been exercised through the public MCP path against a
+live TIA Portal V21 project; see
 [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the outstanding
 public live acceptance gate.
 

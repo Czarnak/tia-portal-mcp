@@ -583,44 +583,12 @@ Manual integration testing with a live TIA Portal remains necessary to validate
 Siemens-specific attachment, confirmation, project-path, packaging, and worker
 launch behavior.
 
-`scripts/live-test-hardware-pagination.ps1` is the separately authorized, read-only PowerShell 7
-harness for the public paged `read_hardware_config` path. It launches the real MCP host in
-read-only mode, follows the cursor sequence without changing bound fields, checks stable totals,
-exact device/subnet reconstruction, and the 60,000-character item limit, and records correctness
-separately from per-page timing. It stops with a failure artifact on an omission or cursor
-category. `HardwarePaginationLiveHarnessContractTests` checks its source contract without running
-it, and no automated test or CI gate invokes it. The harness has not yet been run against live TIA
-Portal; stub, offline, and FakeWorker evidence are not live acceptance.
-
-`scripts/live-test-network-phase2.ps1` is a separately authorized PowerShell 7 harness that
-launches the real MCP host and drives the actual `initialize`/`tools/list`/`tools/call` sequence
-against `network_read`/`network_write` — proving the public protocol against real TIA Portal V21,
-not direct worker IPC as `live-test-db.ps1`/`live-test-udt.ps1` do. It is never run by any
-automated test or CI gate; `TiaMcpServer.Tests/NetworkLiveHarnessContractTests.cs` proves this,
-and every other harness invariant (PowerShell-7 requirement, non-mutating default mode, Preview's
-inability to reach a confirming apply call, Apply's explicit-switch-plus-identity gate), by
-reading the script's own source text rather than executing it.
-
-`scripts/live-test-network-phase3.ps1` is a separate, read-only acceptance harness for the
-Phase 3 identity/introspection seam. Its public-protocol `Matrix`, `Repeatability`, and
-`MeasureListValue` modes launch the real MCP host; its internal `RawProbe` mode launches the
-worker only to compare returned attribute metadata with raw Openness metadata. No mode invokes a
-network write, save, compile, download, or commissioning action, and no automated test or CI gate
-runs the script. `TiaMcpServer.Tests/NetworkPhase3LiveHarnessContractTests.cs` enforces those
-source-level invariants. The completed evidence and remaining live-coverage gaps are recorded in
-`docs/SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md`.
-
-`scripts/live-test-network-phase4-subnets.ps1` is the separately authorized harness for the Phase 4
-subnet lifecycle seam, driving the public `network_read`/`network_write` protocol exactly like the
-Phase 2 harness does. Its default `Inventory` mode is read-only; `Preview` builds the exact
-create/update/delete operations without applying; `Apply` is double-gated behind `-AllowMutation`
-plus an exact acknowledgement string and an explicit disposable `.ap21` project path, and performs
-process cleanup in `finally`. No automated test or CI gate runs the script, and it never calls
-project save or compile. `TiaMcpServer.Tests/NetworkPhase4SubnetLiveHarnessContractTests.cs`
-enforces those source-level invariants by reading the script's own text. The script exists and its
-static contract is verified, but it has not yet been run against a live TIA Portal V21 project —
-see `docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the outstanding public live
-acceptance gate.
+Earlier delivery phases used separately authorized, task-specific live acceptance procedures.
+Those legacy procedures and their source-inspection tests were removed after their durable
+evidence and limitations were recorded under `docs/superpowers/acceptance/reports/` and the
+relevant operation references. Their removal does not upgrade offline, stub, or FakeWorker results
+to live acceptance. Any future TIA Portal qualification requires a newly reviewed procedure,
+separate authorization, and a durable acceptance record.
 
 ## 11. Keeping this document current
 

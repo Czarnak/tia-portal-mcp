@@ -17,8 +17,8 @@ rather than a specific maintenance build.
 
 ## Execution and provenance
 
-The four modes of `scripts/live-test-network-phase3.ps1` were run sequentially against the active
-fixture. Every command exited 0 and wrote a timestamped JSON evidence file:
+The four modes of the now-removed legacy Phase 3 acceptance procedure were run sequentially
+against the active fixture. Every command exited 0 and wrote a timestamped JSON evidence file:
 
 | Mode | Evidence | Result |
 |---|---|---|

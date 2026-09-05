@@ -342,7 +342,7 @@ payload and discard most of it afterward.
 
 ### Live value gate
 
-The live harness records, for full hardware discovery and representative list queries:
+The legacy live acceptance procedure records, for full hardware discovery and representative list queries:
 
 - canonical response characters;
 - elapsed time;
@@ -591,7 +591,7 @@ The detailed implementation plan will preserve these responsibilities:
 - object adapters: modeled properties and canonical current evidence per kind;
 - engineering-attribute inspector: dynamic metadata and access-aware reads;
 - value normalizer: Siemens-free CLR-to-contract conversion; and
-- live harness: raw probe capture, normalized inspection, measurements, and evidence
+- legacy live acceptance procedure: raw probe capture, normalized inspection, measurements, and evidence
   matrix.
 
 Siemens-dependent shells remain thin. Pure selector, merge, normalization, validation,
@@ -663,7 +663,7 @@ live-unverified until fixtures exist. The common contract may stabilize after th
 minimum matrix passes, while each unobserved kind remains separately documented as
 unverified.
 
-The live harness performs no write, project save, compile, download, or commissioning
+The legacy live acceptance procedure performs no write, project save, compile, download, or commissioning
 operation.
 
 ## Documentation
@@ -675,7 +675,7 @@ Phase 3 implementation updates:
 - `docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md` with request/result examples,
   selector stability, availability semantics, and the live evidence matrix;
 - `docs/ARCHITECTURE.md` with the typed-adapter plus generic-inspector worker seam; and
-- the live harness usage documentation with its read-only authorization boundary.
+- the legacy live acceptance procedure usage documentation with its read-only authorization boundary.
 
 Documentation must distinguish installed metadata, static/stub verification, live TIA
 engineering evidence, and hardware commissioning. It must not describe a provisional or

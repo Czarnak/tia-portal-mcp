@@ -199,22 +199,21 @@ generic `FileInfo`/path rather than a type-specific extension selector.
 
 **Phase 0 progress as of 2026-07-26 (see `docs/superpowers/plans/2026-07-26-udt-db-external-source.md`).**
 The `GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip was proven live for
-UDTs by `scripts/live-test-udt.ps1` and for global DBs by `scripts/live-test-db.ps1`. The DB leg's
-live coverage includes a global DB inside a software unit, resolved through the owning unit's
-`ExternalSourceGroup` rather than the top-level one, also via `scripts/live-test-db.ps1`. The SCL
-leg was unproven at this point; see below for its closure.
+UDTs and global DBs by the recorded Phase 0 acceptance runs. The DB coverage includes a global DB
+inside a software unit, resolved through the owning unit's `ExternalSourceGroup` rather than the
+top-level one. The SCL leg was unproven at this point; see below for its closure.
 
 A non-optimized global DB's external-source export is **identical in shape** to an optimized one.
 There is no `Offset` column. The only difference is `S7_Optimized_Access := 'FALSE'` in the
 header. Optimized and non-optimized global DBs therefore take **one identical code path**; no
 offset parsing, no stale-offset detection, and no optimized/non-optimized branching is needed.
-Both are covered by `scripts/live-test-db.ps1`.
+Both were covered by the recorded DB acceptance run.
 
-**Phase 0 is closed.** The `GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip
-is proven live for UDTs (`scripts/live-test-udt.ps1`), global DBs (`scripts/live-test-db.ps1`), and
-SCL-language blocks (`scripts/live-test-scl.ps1`), including a block inside a software unit in each
-case. `GenerateOptions` is now passed explicitly on every export path rather than relying on the
-two-argument overload's undocumented default.
+**Phase 0 is closed.** Recorded acceptance runs prove the
+`GenerateSource → CreateFromFile → GenerateBlocksFromSource` round trip for UDTs, global DBs, and
+SCL-language blocks, including a block inside a software unit in each case. `GenerateOptions` is
+now passed explicitly on every export path rather than relying on the two-argument overload's
+undocumented default.
 
 ## Non-goals
 

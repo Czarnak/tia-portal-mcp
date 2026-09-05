@@ -2,8 +2,8 @@
 
 **LIVE ACCEPTANCE COMPLETE — dated Preview and Apply/restore/compile runs passed through the real
 host MCP protocol and TIA Portal V21 on the disposable project described below.**
-The guarded harness is [live-test-preview-write-diff.ps1](../../../../scripts/live-test-preview-write-diff.ps1).
-Ordinary source contract tests do not invoke the live harness body; isolated helper checks parse
+The guarded harness is `<removed legacy preview-diff acceptance harness>`.
+Ordinary source contract tests do not invoke the legacy live acceptance procedure body; isolated helper checks parse
 and execute only the selected functions. The original pre-run scaffold remains below for provenance:
 its pending statements describe the boundary before the dated run, while the appended findings are
 the live acceptance evidence. The failed first Apply attempt remains part of that evidence.

@@ -27,7 +27,7 @@ caller does not opt in. Flipping defaults is Phase 5.
 - Passing `GenerateOptions` explicitly on every export path — including the two existing ones that
   currently rely on an undocumented default.
 - A throwaway live spike that closes Phase 0 for SCL, followed by a committed
-  `scripts/live-test-scl.ps1` regression gate.
+  `<removed legacy SCL acceptance harness>` regression gate.
 
 **Out of scope**
 
@@ -268,7 +268,7 @@ parameterless `GenerateBlocksFromSource()` returns `void` and so cannot report a
 only the `GenerateBlockOption` overloads can.
 
 **Two traps that produced false readings before the numbers above were trusted.** Both will bite
-`scripts/live-test-scl.ps1` in Task 9 the same way:
+`<removed legacy SCL acceptance harness>` in Task 9 the same way:
 
 - `GenerateBlocksFromSource` **destroys and recreates the block**, so any handle captured before an
   import reads `$null` for every property afterwards. Snapshotting attributes through a stale handle
@@ -283,9 +283,9 @@ only the `GenerateBlockOption` overloads can.
 `G` describes a single FB. It is evidence that the scanner must tolerate `VERSION`, attribute
 blocks, `REGION` and nested anonymous `STRUCT`s; it is not evidence that comments never appear.
 
-### `scripts/live-test-scl.ps1` — gates Phase 3 completion
+### `<removed legacy SCL acceptance harness>` — gates Phase 3 completion
 
-Written after the spike, mirroring the structure of `scripts/live-test-db.ps1`. Covers, at minimum:
+Written after the spike, mirroring the structure of `<removed legacy DB acceptance harness>`. Covers, at minimum:
 
 - Export an SCL FB with `withDependencies=false`; assert exactly one declared object.
 - Export the same FB with `withDependencies=true`; assert the dependency closure is present and the
@@ -296,7 +296,7 @@ Written after the spike, mirroring the structure of `scripts/live-test-db.ps1`. 
 - Repeat the successful round trip for an SCL block inside a software unit.
 - Assert no `PlcExternalSource` node survives in the project afterwards.
 
-`scripts/live-test-udt.ps1` gains one case for the `get_type_content` half of `withDependencies`:
+`<removed legacy UDT acceptance harness>` gains one case for the `get_type_content` half of `withDependencies`:
 export a UDT that references another UDT, with the flag off and on, and assert the closure appears
 only when it is on.
 
@@ -339,7 +339,7 @@ Test subjects:
 - `BatchOperationCatalog` — `withDependencies` accepted on both read operations, rejected where it
   does not belong.
 
-**Live**: `scripts/live-test-scl.ps1` as above. The Siemens-touching components have no offline
+**Live**: `<removed legacy SCL acceptance harness>` as above. The Siemens-touching components have no offline
 coverage by construction, exactly as in Phases 1–2.
 
 ## Roadmap corrections to apply

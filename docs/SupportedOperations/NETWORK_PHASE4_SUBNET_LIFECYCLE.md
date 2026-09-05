@@ -260,10 +260,9 @@ Two independent lines of evidence exist for Phase 4, and they are not interchang
   compatibility, request/response contract correctness, safety-token behavior, and worker dispatch
   logic on .NET without a live TIA Portal attachment. It does **not** prove runtime Openness
   behavior through the public MCP path.
-- **Public-path live acceptance -- outstanding.** A separately authorized live run of
-  `scripts/live-test-network-phase4-subnets.ps1` against a disposable TIA Portal V21 project, driving
-  the actual public `network_read`/`network_write` MCP protocol for create, update, and delete
-  (including connected-subnet deletion) on both Ethernet and PROFIBUS, has not been performed. This
-  is Task 10 of the implementation plan and is reserved for the user to authorize and run personally;
-  it was not attempted, simulated, or scheduled as part of this documentation update. Phase 4 must
-  not be marked live-verified until that run completes and its results are recorded here.
+- **Public-path live acceptance -- outstanding.** A separately authorized live run against a
+  disposable TIA Portal V21 project, driving the actual public `network_read`/`network_write` MCP
+  protocol for create, update, and delete (including connected-subnet deletion) on both Ethernet
+  and PROFIBUS, has not been performed. The legacy procedure was removed; a newly reviewed
+  procedure and separate authorization are required before running this gate. Phase 4 must not be
+  marked live-verified until that run completes and its results are recorded here.
