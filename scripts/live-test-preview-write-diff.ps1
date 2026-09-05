@@ -54,7 +54,7 @@ function Assert-Condition([bool] $Condition, [string] $Message) {
 }
 
 function Get-TextHash([string] $Text) {
-    return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($utf8.GetBytes($Text)))
+    return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($utf8.GetBytes($Text))).ToLowerInvariant()
 }
 
 function Invoke-Mcp([string] $Method, [hashtable] $Parameters) {

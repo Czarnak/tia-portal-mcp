@@ -51,6 +51,19 @@ public sealed class WritePreviewDiffLiveHarnessContractTests
     }
 
     [Fact]
+    public void Script_SourceHashUsesLowercaseHexForCaseSensitivePreviewComparison()
+    {
+        var text = ReadScript();
+        var hashFunction = Regex.Match(text,
+            @"(?ms)^function Get-TextHash\([^\r\n]+\) \{\r?\n(?<body>.*?)^\}");
+        Assert.True(hashFunction.Success, "Expected the source hash helper.");
+        Assert.Contains(
+            "return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($utf8.GetBytes($Text))).ToLowerInvariant()",
+            hashFunction.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains(".current.sha256 -ceq (Get-TextHash $original[$i])", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Script_DocumentsDisposableProjectScopeAndWritesTheAcceptanceReportPath()
     {
         var text = ReadScript();
