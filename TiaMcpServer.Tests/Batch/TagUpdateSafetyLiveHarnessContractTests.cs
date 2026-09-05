@@ -226,6 +226,64 @@ public class TagUpdateSafetyLiveHarnessContractTests
         Assert.Contains("empty-arguments-started", result.StandardOutput, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Script_InvokeWorkerRequest_IncludesProtocolVersionOnNonHelloRequests()
+    {
+        var text = ReadScript();
+        var launcher = ExtractTopLevelFunction(text, "Start-JsonLineProcess");
+        var stopper = ExtractTopLevelFunction(text, "Stop-JsonLineProcess");
+        var sender = ExtractTopLevelFunction(text, "Send-JsonLine");
+        var reader = ExtractTopLevelFunction(text, "Read-JsonLine");
+        var successAssertion = ExtractTopLevelFunction(text, "Assert-WorkerSuccess");
+        var requestInvoker = ExtractTopLevelFunction(text, "Invoke-WorkerRequest");
+        var fixture = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $TimeoutSeconds = 10
+            {{launcher}}
+            {{stopper}}
+            {{sender}}
+            {{reader}}
+            {{successAssertion}}
+            {{requestInvoker}}
+            $workerFixture = @'
+            $line = [Console]::In.ReadLine()
+            if ($null -eq $line) { exit 1 }
+            $request = $line | ConvertFrom-Json -Depth 10
+            if ($request.method -ne 'get_project_status') {
+                Write-Output (@{ success = $false; failureCategory = 'validation_error'; error = 'controlled child received an unexpected method' } | ConvertTo-Json -Compress)
+                exit 0
+            }
+            if ($request.PSObject.Properties['protocolVersion'] -eq $null -or $request.protocolVersion -ne 'project-binding-v1') {
+                Write-Output (@{ success = $false; failureCategory = 'validation_error'; error = 'controlled child: request did not carry protocolVersion project-binding-v1' } | ConvertTo-Json -Compress)
+                exit 0
+            }
+            Write-Output (@{ success = $true; protocolVersion = $request.protocolVersion } | ConvertTo-Json -Compress)
+            '@
+            $workerPath = Join-Path ([System.IO.Path]::GetTempPath()) ("tag-update-worker-{{Guid.NewGuid():N}}.ps1")
+            $script:WorkerProcess = $null
+            try {
+                [System.IO.File]::WriteAllText($workerPath, $workerFixture, [System.Text.UTF8Encoding]::new($false))
+                $script:WorkerProcess = Start-JsonLineProcess -Executable (Join-Path $PSHOME 'pwsh.exe') -Arguments @('-NoProfile', '-NonInteractive', '-File', $workerPath) -Label 'controlled worker protocol fixture'
+                $response = Invoke-WorkerRequest -Method 'get_project_status' -Arguments @{ projectPath = 'C:\\fixture\\project.ap21' }
+                if ($response.protocolVersion -ne 'project-binding-v1') {
+                    throw 'The controlled child did not receive project-binding-v1 on the non-hello request.'
+                }
+                Write-Output 'worker-protocol-version-forwarded'
+            }
+            finally {
+                Stop-JsonLineProcess -Process $script:WorkerProcess
+                Remove-Item -LiteralPath $workerPath -Force -ErrorAction SilentlyContinue
+            }
+            """;
+
+        var result = await RunPowerShellFixtureAsync(fixture);
+
+        Assert.True(result.ExitCode == 0,
+            $"PowerShell fixture failed with exit code {result.ExitCode}: {result.StandardError}");
+        Assert.Contains("worker-protocol-version-forwarded", result.StandardOutput, StringComparison.Ordinal);
+    }
+
     private static string ReadScript()
     {
         Assert.True(File.Exists(ScriptPath), $"Expected live harness at {ScriptPath}.");

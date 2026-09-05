@@ -157,7 +157,7 @@ function Invoke-WorkerRequest {
         [Parameter(Mandatory)][hashtable]$Arguments
     )
 
-    $request = @{ method = $Method }
+    $request = @{ method = $Method; protocolVersion = 'project-binding-v1' }
     foreach ($key in $Arguments.Keys) { $request[$key] = $Arguments[$key] }
     Send-JsonLine -Process $script:WorkerProcess -Message $request
     $response = Read-JsonLine -Process $script:WorkerProcess
