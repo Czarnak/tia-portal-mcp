@@ -154,7 +154,6 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
 
 ## Testing gaps to close alongside
 
-- PR 4 structured preview diff live gate pending.
 - The fake-worker executable test harness now covers the timeout path and persistent-worker restart logic
   through `OpennessWorkerClientIntegrationTests` — DONE 2026-07-16. Stderr propagation, malformed JSON,
   and Win32Exception launch failure are also covered.
@@ -462,3 +461,17 @@ sanitized live evidence is recorded in the
 This completion does not authorize or complete compatibility-wrapper deletion. PLC `start_plc`
 and `stop_plc` safety hardening also remains deferred. No apply, project save, PLC mode change,
 production acceptance, or plant acceptance is claimed.
+
+## PR 4 bounded structured preview diffs — live acceptance completed (2026-09-05)
+
+The [PR 4 acceptance report](superpowers/acceptance/reports/2026-09-01-pr4-structured-preview-diff-live.md)
+records completed live Preview and authorized Apply/restore/compile acceptance against a disposable
+TIA Portal V21 project. The first Apply target exposed TIA canonicalization from `T#1s` to `T#1S`:
+its byte-identity check failed, and guarded no-save close/reopen cleanup recovered the clean disk
+state. A read-only-selected UDT target then passed Preview, temporary Apply, restoration with
+byte-identical public re-exports, and compile with zero errors and zero warnings across two PLCs;
+final guarded no-save close/reopen cleanup returned the project to `isModified=False`.
+
+The close/open lifecycle operations were cleanup and recovery only, not PR 4 feature acceptance.
+The report does not claim plant or production acceptance, disk project-byte identity, saved-project
+acceptance, or semantic equivalence beyond the exact exported-text checks performed.
