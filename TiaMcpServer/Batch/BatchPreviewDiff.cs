@@ -24,6 +24,7 @@ public static class BatchPreviewDiff
 
         var remainingBatchLines = MaxBatchExcerptLines;
         var remainingBatchChars = MaxBatchExcerptChars;
+        var batchBudgetExhausted = false;
         var entries = new List<BatchPreviewDiffEntry>();
 
         for (var index = 0; index < operations.Count; index++)
@@ -47,9 +48,12 @@ public static class BatchPreviewDiff
 
             var excerptLines = currentExcerpt.Lines.Count + requestedExcerpt.Lines.Count;
             var excerptChars = CountExcerptCharacters(currentExcerpt) + CountExcerptCharacters(requestedExcerpt);
-            var batchBudgetExhausted = excerptLines > remainingBatchLines || excerptChars > remainingBatchChars;
-            if (batchBudgetExhausted)
+            var entryBudgetExhausted = batchBudgetExhausted
+                || excerptLines > remainingBatchLines
+                || excerptChars > remainingBatchChars;
+            if (entryBudgetExhausted)
             {
+                batchBudgetExhausted = true;
                 currentExcerpt = EmptyExcerpt(compared.CurrentLines, compared.FirstChangedCurrentLineIndex, compared.LastChangedCurrentLineIndex);
                 requestedExcerpt = EmptyExcerpt(compared.RequestedLines, compared.FirstChangedRequestedLineIndex, compared.LastChangedRequestedLineIndex);
             }
@@ -72,7 +76,7 @@ public static class BatchPreviewDiff
                 compared.UnchangedSuffixLineCount,
                 compared.CurrentChangedLineCount,
                 compared.RequestedChangedLineCount,
-                batchBudgetExhausted));
+                entryBudgetExhausted));
         }
 
         return entries.Count == 0 ? null : new BatchPreviewDiffDocument(entries);

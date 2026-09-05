@@ -202,6 +202,35 @@ public sealed class WriteBatchPreviewDiffIntegrationTests
     }
 
     [Fact]
+    public async Task PreviewWriteBatch_BatchBudgetExhaustionSuppressesAllLaterEligibleExcerpts()
+    {
+        using var audit = new TempAuditDirectory();
+        var (client, safety, _) = await BoundAsync(audit, "type-content-roundtrip");
+        using (client)
+        {
+            var oversized = string.Join("\r\n", Enumerable.Range(1, 60).Select(_ => "x")) + "\r\n";
+            var operations = Enumerable.Range(1, 8).Select(i => new BatchOperationRequest
+            {
+                OperationId = $"oversized-{i}", Operation = "update_type_content", ProjectPath = "type-content-roundtrip", TypePath = "PLC_1/Types/AnalogInputSettings", SourceContent = oversized
+            }).Append(new BatchOperationRequest
+            {
+                OperationId = "small-after-exhaustion", Operation = "update_type_content", ProjectPath = "type-content-roundtrip", TypePath = "PLC_1/Types/AnalogInputSettings", SourceContent = "TYPE AnalogInputSettings STRUCT Value : Int; END_STRUCT END_TYPE"
+            }).ToArray();
+
+            var result = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
+            using var doc = JsonDocument.Parse(result);
+            var diffOperations = doc.RootElement.GetProperty("diff").GetProperty("operations").EnumerateArray().ToArray();
+            var exhausted = diffOperations[7];
+            var later = diffOperations[8];
+
+            Assert.True(exhausted.GetProperty("batchBudgetExhausted").GetBoolean());
+            Assert.True(later.GetProperty("batchBudgetExhausted").GetBoolean());
+            Assert.Empty(later.GetProperty("current").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
+            Assert.Empty(later.GetProperty("requested").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
+        }
+    }
+
+    [Fact]
     public async Task PreviewWriteBatch_AllIneligibleWrites_ReturnsNullDiff()
     {
         using var audit = new TempAuditDirectory();
