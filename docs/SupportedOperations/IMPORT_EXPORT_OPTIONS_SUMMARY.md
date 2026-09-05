@@ -50,10 +50,12 @@ outside safety-token issuance and validation.
 - When a changed span exceeds 40 lines, each excerpt contains the first 20 plus last 20 lines.
 - Each displayed line is limited to 512 characters.
 - The complete batch is limited to 320 excerpt lines and 32,768 excerpt characters in request
-  order.
-- The response reports raw SHA-256, raw character count, raw line count, `rawTextEqual`,
-  `normalizedLinesEqual`, and `lineEndingOnly`; a line-ending-only difference has unequal raw text
-  but equal normalized lines.
+  order. After that excerpt budget is exhausted, every eligible entry still retains its raw hashes,
+  counts, and equality flags.
+- Raw SHA-256, raw character count, and raw line count use the original text. For line-window
+  comparison only, line-ending normalization maps CRLF and CR to LF; it performs no other
+  normalization. The response also reports `rawTextEqual`, `normalizedLinesEqual`, and
+  `lineEndingOnly`; a line-ending-only difference has unequal raw text but equal normalized lines.
 - Every other operation has `diff: null`.
 
 ## Format matrix
