@@ -412,6 +412,34 @@ equivalence. A separately authorized read-only acceptance procedure was contract
 not executed against live TIA Portal V21 before its removal; live pagination acceptance remains
 unverified.
 
+## PR 6 project-tree safety scopes — mandatory live acceptance completed (2026-09-06)
+
+Typed exact project-tree selectors now cover `create_block`, `create_block_group`, and
+`delete_block_group`. They preserve PLC-global versus Software Unit ownership, validate canonical
+parents and ancestors, bind only relevant requested-name occupancy, include authoritative XML for
+occupied or descendant blocks, and fail closed on malformed or conflicting worker payloads.
+Identical selectors share a read only within one preview or apply phase and expand back into the
+original operation order; apply always reads fresh state under the pinned project binding.
+
+The
+[guarded live acceptance report](superpowers/acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md)
+records successful Inventory, Preview, and authorized Apply/restoration/compile evidence against
+the exact startup-bound TIA Portal V21 project for both PLC-global and Software Unit fixtures.
+Occupied-block content, descendant-block content, requested-name occupancy, and relevant
+descendant membership drift rejected stale tokens with `state_changed`; unrelated sibling-tree
+drift preserved the original token. Six restoration hash pairs per owner matched, all 52
+record-level byte comparisons per owner passed before compile, and six compile checks per owner
+reported `Success` with 0 errors and 0 warnings.
+
+Repository-auditable contracts, implementation, tests, harness, and this report remain distinct
+from the redacted, git-ignored live observations. No save or persistence behavior, plant
+acceptance, or physical-hardware commissioning is claimed.
+
+Remaining deferrals are unchanged:
+
+- Broader snapshot narrowing: unchanged and out of scope.
+- `start_plc` / `stop_plc`: unchanged and out of scope.
+
 ## PR 5 tag-operation safety scopes — mandatory live acceptance completed (2026-09-05)
 
 Typed exact selectors now cover all eight tag/table/user-constant write operations with relevant
