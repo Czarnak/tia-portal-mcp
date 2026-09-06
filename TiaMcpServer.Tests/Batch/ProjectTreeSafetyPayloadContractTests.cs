@@ -73,7 +73,9 @@ public sealed class ProjectTreeSafetyPayloadContractTests
           },
           "parentPath": "PLC_1/Blocks/Main",
           "groupPath": "PLC_1/Blocks/Main/AreaA",
-          "ancestors": [],
+          "ancestors": [
+            { "name": "Main", "path": "PLC_1/Blocks/Main", "kind": "UserBlockGroup" }
+          ],
           "descendants": [
             {
               "kind": "FB",
@@ -87,8 +89,9 @@ public sealed class ProjectTreeSafetyPayloadContractTests
         }
         """;
 
-        Assert.Throws<JsonException>(
+        var exception = Assert.Throws<JsonException>(
             () => ProjectTreeSafetyPayloadContract.DecodeDeleteBlockGroupAndCanonicalize(payload));
+        Assert.Contains("content", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -137,20 +140,21 @@ public sealed class ProjectTreeSafetyPayloadContractTests
     }
 
     [Fact]
-    public void DecodeCreateBlockAndCanonicalize_RejectsOccupiedBlockWithoutMatchingBlockOccupancy()
+    public void DecodeCreateBlockAndCanonicalize_RejectsOccupiedBlockWhoseNameAndPathDoNotMatchBlockOccupancy()
     {
         const string payload = """
         {
           "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
           "parentPath":"PLC_1/Blocks/Main",
           "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
-          "occupancies":[{"kind":"UserBlockGroup","name":"Mixer","path":"PLC_1/Blocks/Main/Mixer"}],
-          "occupiedBlock":{"name":"Mixer","path":"PLC_1/Blocks/Main/Mixer","blockKind":"FB","format":"xml","contentSha256":"abc","content":"<Document/>"}
+          "occupancies":[{"kind":"FB","name":"Mixer","path":"PLC_1/Blocks/Main/Mixer"}],
+          "occupiedBlock":{"name":"Pump","path":"PLC_1/Blocks/Main/Pump","blockKind":"FB","format":"xml","contentSha256":"abc","content":"<Document/>"}
         }
         """;
 
-        Assert.Throws<JsonException>(
+        var exception = Assert.Throws<JsonException>(
             () => ProjectTreeSafetyPayloadContract.DecodeCreateBlockAndCanonicalize(payload));
+        Assert.Contains("must correspond to the declared block occupancy", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
