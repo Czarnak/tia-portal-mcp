@@ -16,6 +16,10 @@ public class WriteBatchTools
     private const string PreviewToolName = "preview_write_batch";
     private const string ApplyToolName = "apply_write_batch";
 
+    private readonly record struct ProjectTreeSelectorKey(
+        string Operation, string? ProjectPath, string BlockPath,
+        string? BlockType, string? Language, string? ObEventClass);
+
     [McpServerTool(
         Name = "preview_write_batch",
         ReadOnly = true,
@@ -190,12 +194,33 @@ public class WriteBatchTools
         return execution.Value!;
     }
 
+    internal static async Task<(IReadOnlyList<OperationBatchCurrentState> States, string CombinedState, string? Error)>
+        ReadCurrentStatesForTestingAsync(OpennessWorkerClient workerClient, BatchOperationRequest[] operations)
+    {
+        var snapshot = await ReadCombinedCurrentStateAsync(workerClient, operations).ConfigureAwait(false);
+        return (snapshot.States, snapshot.CombinedState, snapshot.Error);
+    }
+
+    private static bool TryBuildProjectTreeSelectorKey(BatchOperationRequest op, out ProjectTreeSelectorKey key)
+    {
+        // Match the exact arguments forwarded by BatchWorkerInvoker. Do not normalize paths,
+        // apply worker defaults, or include write-only fields that are not part of the read.
+        key = op.Operation switch
+        {
+            "create_block" => new(op.Operation, op.ProjectPath, op.BlockPath!, op.BlockType, op.Language, op.ObEventClass),
+            "create_block_group" or "delete_block_group" => new(op.Operation, op.ProjectPath, op.BlockPath!, null, null, null),
+            _ => default
+        };
+        return op.Operation is "create_block" or "create_block_group" or "delete_block_group";
+    }
+
     private static async Task<(IReadOnlyList<OperationBatchCurrentState> States, string CombinedState, string? Error, string? FailureCategory)> ReadCombinedCurrentStateAsync(
         OpennessWorkerClient workerClient,
         BatchOperationRequest[] operations)
     {
         // This cache belongs to one read phase only. Preview and apply each create a fresh map.
         var dedup = new Dictionary<TagOperationSafetySelectorKey, Task<WorkerCallResult>>();
+        var projectTreeDedup = new Dictionary<ProjectTreeSelectorKey, WorkerCallResult>();
         var states = new List<OperationBatchCurrentState>(operations.Length);
         foreach (var op in operations)
         {
@@ -209,6 +234,14 @@ public class WriteBatchTools
                 }
                 state = await read.ConfigureAwait(false);
                 state = BatchWorkerInvoker.ValidateRequestedTagState(op, state);
+            }
+            else if (TryBuildProjectTreeSelectorKey(op, out var treeKey))
+            {
+                if (!projectTreeDedup.TryGetValue(treeKey, out state!))
+                {
+                    state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
+                    if (state.Success) projectTreeDedup.Add(treeKey, state);
+                }
             }
             else
             {

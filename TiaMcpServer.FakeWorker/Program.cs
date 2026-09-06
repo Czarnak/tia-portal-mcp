@@ -76,6 +76,8 @@ var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Be
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 var projectTreeSafetyScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
+var projectTreeDedupCounters = new Dictionary<string, int>(StringComparer.Ordinal);
+var projectTreeDedupPhase = "preview";
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -263,6 +265,9 @@ while ((line = Console.In.ReadLine()) is not null)
                 createBlockPostconditionAttempt++;
                 Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block creation verification failed on attempt {{createBlockPostconditionAttempt}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
             }
+            break;
+        case "tree-safety-dedup":
+            Respond(ProjectTreeDedupResponse(line));
             break;
         case "tree-safety-create-block-content-drift":
         case "tree-safety-unit-unrelated-sibling-drift":
@@ -1560,6 +1565,34 @@ List<ProjectTreeNode> ProjectCompletenessTree() => new()
         },
     },
 };
+
+string ProjectTreeDedupResponse(string requestLine)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!;
+    if (request.Method == "get_project_status") return Success("{\"isOpen\":true}");
+    // The test explicitly marks phase boundaries via this fixture-only counter probe.
+    // No production request or protocol field is added, and reads never infer a phase by count.
+    if (request.Method == "read_cross_references" && request.PlcName is "preview" or "apply")
+    {
+        projectTreeDedupPhase = request.PlcName;
+        return Success(JsonSerializer.Serialize(projectTreeDedupCounters));
+    }
+
+    var key = request.Method + "." + projectTreeDedupPhase;
+    projectTreeDedupCounters[key] = projectTreeDedupCounters.GetValueOrDefault(key) + 1;
+    var scenario = request.Method switch
+    {
+        "read_create_block_safety_snapshot" => "tree-safety-route-create-block",
+        "read_create_block_group_safety_snapshot" => "tree-safety-route-create-block-group",
+        "read_delete_block_group_safety_snapshot" => "tree-safety-route-delete-block-group",
+        _ => null
+    };
+    if (scenario is not null) return ProjectTreeSafetyResponse(requestLine, scenario);
+    if (request.Method is "create_block" or "create_block_group" or "delete_block_group") return Success("{}");
+    if (request.Method == "get_block_content") return Success("<FB>unchanged</FB>");
+    if (request.Method == "delete_block") return Success("{}");
+    return JsonSerializer.Serialize(new { success = false, error = $"unexpected dedup method '{request.Method}'" });
+}
 
 string ProjectTreeSafetyResponse(string requestLine, string scenario)
 {
