@@ -43,6 +43,7 @@ public sealed class ProjectTreeCurrentStateReadTests
 
         Assert.True(result.Success, result.Error);
         Assert.Contains("\"parentPath\":\"PLC_1/Units/Line1/Blocks/Motion\"", result.Payload, StringComparison.Ordinal);
-        Assert.Contains("\"path\":\"PLC_1/Units/Line1/Blocks/Motion/AreaA\"", result.Payload, StringComparison.Ordinal);
+        Assert.Contains("\"ancestors\":[{\"name\":\"Motion\",\"path\":\"PLC_1/Units/Line1/Blocks/Motion\",\"kind\":\"UserBlockGroup\"}]", result.Payload, StringComparison.Ordinal);
+        Assert.Contains("\"groupPath\":\"PLC_1/Units/Line1/Blocks/Motion/AreaA\"", result.Payload, StringComparison.Ordinal);
     }
 }

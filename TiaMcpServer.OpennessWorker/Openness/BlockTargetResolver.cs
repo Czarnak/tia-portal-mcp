@@ -127,8 +127,14 @@ internal static class BlockTargetResolver
     internal static PlcBlockGroup FindBlockGroup(
         PlcBlockGroup rootGroup,
         IReadOnlyList<string> folderPath)
+        => ResolveBlockGroupPath(rootGroup, folderPath).Group;
+
+    internal static ResolvedBlockGroupPath ResolveBlockGroupPath(
+        PlcBlockGroup rootGroup,
+        IReadOnlyList<string> folderPath)
     {
         PlcBlockGroup current = rootGroup;
+        var resolvedFolderNames = new List<string>(folderPath.Count);
 
         foreach (var folderName in folderPath)
         {
@@ -143,9 +149,10 @@ internal static class BlockTargetResolver
             }
 
             current = next ?? throw new InvalidOperationException($"Block folder '{folderName}' not found.");
+            resolvedFolderNames.Add(current.Name);
         }
 
-        return current;
+        return new ResolvedBlockGroupPath(current, resolvedFolderNames.AsReadOnly());
     }
 
     private static List<ResolvedBlockTarget> FindLegacyMatches(PlcSoftware plcSoftware, string blockName)
@@ -209,6 +216,21 @@ internal static class BlockTargetResolver
             CollectMatches(owner, childGroup, blockName, matches);
         }
     }
+}
+
+internal sealed class ResolvedBlockGroupPath
+{
+    public ResolvedBlockGroupPath(
+        PlcBlockGroup group,
+        IReadOnlyList<string> resolvedFolderNames)
+    {
+        Group = group;
+        ResolvedFolderNames = resolvedFolderNames;
+    }
+
+    public PlcBlockGroup Group { get; }
+
+    public IReadOnlyList<string> ResolvedFolderNames { get; }
 }
 
 internal sealed class ResolvedBlockOwner

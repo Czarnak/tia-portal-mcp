@@ -80,17 +80,17 @@ public static class ProjectTreeSafetySnapshotReader
 
         var plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
         var owner = BlockTargetResolver.ResolveOwnerForDeterministicPath(plcSoftware, address);
-        var parentGroup = BlockTargetResolver.FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
-        var parentPath = address.FolderPath.Count == 0
+        var resolvedParent = BlockTargetResolver.ResolveBlockGroupPath(owner.RootBlockGroup, address.FolderPath);
+        var parentPath = resolvedParent.ResolvedFolderNames.Count == 0
             ? owner.RootBlocksPath
-            : $"{owner.RootBlocksPath}/{string.Join("/", address.FolderPath)}";
+            : $"{owner.RootBlocksPath}/{string.Join("/", resolvedParent.ResolvedFolderNames)}";
 
         return new SnapshotContext(
             address,
             owner,
-            parentGroup,
+            resolvedParent.Group,
             parentPath,
-            ReadAncestors(owner.RootBlocksPath, address.FolderPath));
+            ReadAncestors(owner.RootBlocksPath, resolvedParent.ResolvedFolderNames));
     }
 
     private static IReadOnlyList<ProjectTreeAncestorInfo> ReadAncestors(

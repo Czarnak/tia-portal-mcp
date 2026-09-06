@@ -26,6 +26,16 @@ public sealed class ProjectTreeSafetySourceContractTests
     }
 
     [Fact]
+    public void ProjectTreeSafetySnapshotReader_CanonicalizesAncestorsFromResolvedGroupNames()
+    {
+        var source = File.ReadAllText(Path.Combine(GetRepositoryRoot(), "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSafetySnapshotReader.cs"));
+
+        Assert.Contains("BlockTargetResolver.ResolveBlockGroupPath", source, StringComparison.Ordinal);
+        Assert.Contains("resolvedParent.ResolvedFolderNames", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReadAncestors(owner.RootBlocksPath, address.FolderPath)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BlockMutationService_UsesBlockTargetResolverForDeterministicOwnership()
     {
         var source = File.ReadAllText(Path.Combine(GetRepositoryRoot(), "TiaMcpServer.OpennessWorker", "Openness", "BlockMutationService.cs"));
