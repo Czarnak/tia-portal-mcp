@@ -1,0 +1,40 @@
+# Dependabot configuration.
+#
+# Scope notes for this repository:
+#   - github-actions: five actions across ci.yml and publish.yml. publish.yml pushes to
+#     nuget.org and cuts GitHub releases, so keeping those pinned tags current matters.
+#   - nuget: directory "/" covers every project in the solution. ref/ holds only Siemens
+#     stub DLLs (no project files), so there is nothing extra to scan there.
+#   - Dependabot PRs use a separate secrets store, so secrets.CODECOV_TOKEN is empty in
+#     them. ci.yml sets fail_ci_if_error: false and enforces the 80% gate via
+#     scripts/verify-coverage-threshold.ps1, so CI still passes without it.
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      microsoft-extensions:
+        patterns: ["Microsoft.Extensions.*"]
+      test-tooling:
+        patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "coverlet.*"]
+    ignore:
+      # Pinned to the net8.0 TFM / global.json 8.0.400 alignment — major bumps here are a
+      # deliberate decision, not an automated one. Security updates ignore this rule.
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
