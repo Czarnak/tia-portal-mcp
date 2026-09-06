@@ -174,7 +174,15 @@ function Invoke-Tool([string] $Name, [hashtable] $Arguments, [switch] $AllowFail
     $document = ConvertFrom-Json -InputObject $items[0].text -AsHashtable
     Assert-Condition ($null -ne $document -and $document -is [Collections.IDictionary]) 'Invalid public tool envelope.'
     if ($document.ContainsKey('success') -and (-not $AllowFailure)) { Assert-Condition ($document.success -eq $true) 'Public tool reported failure.' }
-    if ($document.ContainsKey('warnings')) { Assert-Condition (@($document.warnings | Where-Object { $null -ne $_ }).Count -eq 0) 'Warnings prevent complete acceptance evidence.' }
+    if ($document.ContainsKey('warnings')) {
+        $warnings = @($document.warnings | Where-Object { $null -ne $_ })
+        if ($warnings.Count -gt 0) {
+            $normalStatusConnection = $Name -ceq 'get_project_status' -and
+                $warnings.Count -eq 1 -and
+                [string]$warnings[0] -cmatch "^Connected to TIA Portal PID \d+ with project '.+'\.$"
+            Assert-Condition $normalStatusConnection 'Warnings prevent complete acceptance evidence.'
+        }
+    }
     return $document
 }
 
@@ -190,11 +198,14 @@ function Assert-VerifiedStartupBinding {
     $status = Invoke-Tool 'get_project_status' @{ projectPath = $ProjectPath }
     Assert-Condition ($status.success -eq $true) 'Startup status did not succeed.'
     $statusPayload = Decode-Payload $status
-    Assert-Condition ($statusPayload.isOpen -eq $true) 'Intended disposable project is not open.'
+    Assert-Condition ($statusPayload.success -eq $true -and $null -ne $statusPayload.project) 'Status payload is incomplete.'
+    Assert-Condition ($statusPayload.project.isOpen -eq $true) 'Intended disposable project is not open.'
     Assert-Condition ($null -ne $status.sessionIdentity) 'Session identity missing.'
     $intended = Resolve-ProjectPath $ProjectPath
-    $payloadPath = Resolve-ProjectPath $statusPayload.path
+    $payloadProjectPath = Resolve-ProjectPath $statusPayload.projectPath
+    $payloadPath = Resolve-ProjectPath $statusPayload.project.path
     $identityPath = Resolve-ProjectPath $status.sessionIdentity.projectPath
+    Assert-Condition ([string]::Equals($payloadProjectPath, $intended, [StringComparison]::OrdinalIgnoreCase)) 'Status target path differs from intended disposable project.'
     Assert-Condition ([string]::Equals($payloadPath, $intended, [StringComparison]::OrdinalIgnoreCase)) 'Status path differs from intended disposable project.'
     Assert-Condition ([string]::Equals($identityPath, $intended, [StringComparison]::OrdinalIgnoreCase)) 'Session project path differs from intended disposable project.'
     $identity = $status.sessionIdentity
@@ -204,8 +215,8 @@ function Assert-VerifiedStartupBinding {
     if ($null -ne $script:InitialIdentity) { Assert-Condition ($signature -ceq $script:InitialIdentity) 'Session changed; refusing further operations.' }
     $script:InitialIdentity = $signature
     Write-Artifact ('{0:D4}-verified-binding.json' -f $script:RequestId) @{
-        statusSucceeded = $status.success; isOpen = $statusPayload.isOpen
-        payloadPath = $statusPayload.path; sessionIdentityProjectPath = $status.sessionIdentity.projectPath
+        statusSucceeded = $status.success; payloadSucceeded = $statusPayload.success; isOpen = $statusPayload.project.isOpen
+        payloadProjectPath = $statusPayload.projectPath; payloadPath = $statusPayload.project.path; sessionIdentityProjectPath = $status.sessionIdentity.projectPath
         canonicalIntendedPath = $intended; utc = [DateTime]::UtcNow.ToString('o')
     }
 }

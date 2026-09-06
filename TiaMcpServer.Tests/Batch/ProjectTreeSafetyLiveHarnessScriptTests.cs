@@ -22,12 +22,24 @@ public sealed class ProjectTreeSafetyLiveHarnessScriptTests
         var gate = Function(text, "Invoke-Tool");
         Assert.Matches(@"'preview_write_batch', 'apply_write_batch', 'compile_check'[\s\S]*Assert-VerifiedStartupBinding[\s\S]*Invoke-Mcp 'tools/call'", gate);
         var binding = Function(text, "Assert-VerifiedStartupBinding");
-        foreach (var proof in new[] { "get_project_status", "$status.success", "$statusPayload.isOpen", "$statusPayload.path", "$status.sessionIdentity.projectPath", "OrdinalIgnoreCase", "Write-Artifact" })
+        foreach (var proof in new[] { "get_project_status", "$status.success", "$statusPayload.success", "$statusPayload.project.isOpen", "$statusPayload.projectPath", "$statusPayload.project.path", "$status.sessionIdentity.projectPath", "OrdinalIgnoreCase", "Write-Artifact" })
             Assert.Contains(proof, binding);
+        Assert.DoesNotContain("$statusPayload.isOpen", binding);
+        Assert.DoesNotContain("$statusPayload.path", binding);
         Assert.Contains("Resolve-Path -LiteralPath", Function(text, "Resolve-ProjectPath"));
         Assert.Contains("[IO.Path]::GetFullPath", Function(text, "Resolve-ProjectPath"));
         Assert.DoesNotContain("bindingState", text);
         Assert.DoesNotContain("connectionState", text);
+    }
+
+    [Fact]
+    public void Script_AllowsOnlyTheNormalFirstStatusConnectionWarning()
+    {
+        var gate = Function(ReadScript(), "Invoke-Tool");
+        Assert.Contains("$Name -ceq 'get_project_status'", gate);
+        Assert.Contains("$warnings.Count -eq 1", gate);
+        Assert.Contains("^Connected to TIA Portal PID \\d+ with project '.+'\\.$", gate);
+        Assert.Contains("Warnings prevent complete acceptance evidence.", gate);
     }
 
     [Fact]
