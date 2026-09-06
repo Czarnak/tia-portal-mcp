@@ -547,6 +547,29 @@ while ((line = Console.In.ReadLine()) is not null)
         case "hardware-pagination-missing-identity":
             Respond(HardwarePaginationResponse(line), includeSessionIdentity: false);
             break;
+        case "hardware-pagination-payload-only-identity":
+            Respond(
+                """{"success":true,"payload":"{\"sessionIdentity\":{\"workerSessionId\":\"payload-only\",\"sessionGeneration\":99,\"portalProcessId\":999,\"projectPath\":\"payload-only\"}}"}""",
+                includeSessionIdentity: false);
+            break;
+        case "hardware-pagination-missing-continuation-identity":
+            Respond(
+                HardwarePaginationResponse(line),
+                includeSessionIdentity:
+                    NextHardwarePaginationScenarioCall("hardware-pagination-missing-continuation-identity") == 1);
+            break;
+        case "hardware-pagination-binding-conflict":
+            if (NextHardwarePaginationScenarioCall("hardware-pagination-binding-conflict") == 1)
+            {
+                Respond(HardwarePaginationResponse(line));
+            }
+            else
+            {
+                Respond(
+                    JsonSerializer.Serialize(BindingConflict("continuation identity rejected")),
+                    includeSessionIdentity: false);
+            }
+            break;
         case "hardware-pagination-malformed-offset":
         case "hardware-pagination-incoherent-counts":
             Respond(ReadMethod(line) == "read_hardware_page_candidates"
