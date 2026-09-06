@@ -47,6 +47,15 @@ public sealed class ProjectTreeSafetySourceContractTests
     }
 
     [Fact]
+    public void ProjectTreeSafetySnapshotReader_RequiresAuthoritativeXmlRatherThanCompanionOnlyExport()
+    {
+        var source = File.ReadAllText(Path.Combine(GetRepositoryRoot(), "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSafetySnapshotReader.cs"));
+
+        Assert.Contains("BlockExporter.ExportForSafety(project, blockPath)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("BlockExporter.Export(project, blockPath, SourceFormatNames.Xml)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProjectTreeSafetySnapshotReader_CanonicalizesAncestorsFromResolvedGroupNames()
     {
         var source = File.ReadAllText(Path.Combine(GetRepositoryRoot(), "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSafetySnapshotReader.cs"));

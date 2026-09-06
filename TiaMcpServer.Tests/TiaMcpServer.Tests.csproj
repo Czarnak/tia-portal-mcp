@@ -164,6 +164,8 @@
       Link="Linked\Openness\BlockPostconditionVerifier.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockExporterVerification.cs"
       Link="Linked\Openness\BlockExporterVerification.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockExporterXmlBundle.cs"
+      Link="Linked\Openness\BlockExporterXmlBundle.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportResult.cs"
       Link="Linked\Openness\BlockImportResult.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportCoordinator.cs"

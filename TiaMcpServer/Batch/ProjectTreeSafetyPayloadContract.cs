@@ -103,10 +103,7 @@ internal static class ProjectTreeSafetyPayloadContract
         RequirePathInOwnerScope(snapshot.GroupPath, owner, "groupPath");
         RequireDirectChildPath(snapshot.ParentPath, snapshot.GroupPath, "groupPath");
         var descendants = RequireNonNullCollection(snapshot.Descendants, "descendants");
-        foreach (var descendant in descendants)
-        {
-            ValidateDescendant(owner, snapshot.GroupPath, descendant, "descendants[]");
-        }
+        ValidateDescendants(owner, snapshot.GroupPath, descendants, "descendants[]");
     }
 
     private static ProjectTreeOwnerScopeInfo ValidateOwner(ProjectTreeOwnerScopeInfo? owner, string payload)
@@ -195,9 +192,21 @@ internal static class ProjectTreeSafetyPayloadContract
     {
         _ = payload;
         var validatedOccupancies = RequireNonNullCollection(occupancies, "occupancies");
+        var namespaces = new HashSet<bool>();
+        string? requestedPath = null;
         foreach (var occupancy in validatedOccupancies)
         {
             ValidateOccupancy(owner, parentPath, occupancy, "occupancies[]");
+            // One requested name can occupy both namespaces, but each namespace has only
+            // one candidate. Distinct block kinds do not establish distinct namespaces.
+            if (!namespaces.Add(IsBlockKind(occupancy.Kind))
+                || (requestedPath is not null
+                    && !string.Equals(requestedPath, occupancy.Path, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new JsonException("'occupancies' contains duplicate or ambiguous candidates.");
+            }
+
+            requestedPath = occupancy.Path;
         }
     }
 
@@ -279,9 +288,25 @@ internal static class ProjectTreeSafetyPayloadContract
             }
         }
 
-        foreach (var child in children)
+        ValidateDescendants(owner, descendant.Path, children, $"{member}.children[]");
+    }
+
+    private static void ValidateDescendants(
+        ProjectTreeOwnerScopeInfo owner,
+        string parentPath,
+        IReadOnlyList<ProjectTreeGroupDescendantInfo> descendants,
+        string member)
+    {
+        var blockPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var groupPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var child in descendants)
         {
-            ValidateDescendant(owner, descendant.Path, child, $"{member}.children[]");
+            ValidateDescendant(owner, parentPath, child, member);
+            var paths = IsBlockKind(child.Kind) ? blockPaths : groupPaths;
+            if (!paths.Add(child.Path))
+            {
+                throw new JsonException($"'{member}' contains duplicate or ambiguous candidates.");
+            }
         }
     }
 

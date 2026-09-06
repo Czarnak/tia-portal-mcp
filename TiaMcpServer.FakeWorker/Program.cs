@@ -277,6 +277,9 @@ while ((line = Console.In.ReadLine()) is not null)
         case "tree-safety-create-group-collision-drift":
         case "tree-safety-delete-group-descendant-drift":
         case "tree-safety-malformed-payload":
+        case "tree-safety-authoritative-export-failure":
+        case "tree-safety-duplicate-group-occupancy":
+        case "tree-safety-conflicting-descendants":
         case "tree-safety-unit-root":
         case "tree-safety-unit-nested":
             Respond(ProjectTreeSafetyResponse(line, scenario));
@@ -1604,9 +1607,9 @@ string ProjectTreeSafetyResponse(string requestLine, string scenario)
 
     var expectedMethod = scenario switch
     {
-        "tree-safety-route-delete-block-group" or "tree-safety-delete-group-descendant-drift" or "tree-safety-unit-nested"
+        "tree-safety-route-delete-block-group" or "tree-safety-delete-group-descendant-drift" or "tree-safety-unit-nested" or "tree-safety-conflicting-descendants"
             => "read_delete_block_group_safety_snapshot",
-        "tree-safety-route-create-block-group" or "tree-safety-create-group-collision-drift" or "tree-safety-unit-unrelated-sibling-drift"
+        "tree-safety-route-create-block-group" or "tree-safety-create-group-collision-drift" or "tree-safety-unit-unrelated-sibling-drift" or "tree-safety-duplicate-group-occupancy"
             => "read_create_block_group_safety_snapshot",
         _ => "read_create_block_safety_snapshot"
     };
@@ -1627,6 +1630,13 @@ string ProjectTreeSafetyResponse(string requestLine, string scenario)
     var call = NextProjectTreeSafetyScenarioCall(scenario);
     if (scenario == "tree-safety-malformed-payload")
         return Success("{\"occupiedBlock\":{\"content\":\"PRIVATE_TREE_SNAPSHOT_CONTENT\"}}");
+    if (scenario == "tree-safety-authoritative-export-failure")
+        return JsonSerializer.Serialize(new
+        {
+            success = false,
+            failureCategory = WorkerFailureCategories.WorkerOperationFailed,
+            error = "Authoritative Simatic ML XML could not be exported for a project-tree safety snapshot."
+        });
 
     var unitScoped = scenario is "tree-safety-unit-root" or "tree-safety-unit-nested" or "tree-safety-unit-unrelated-sibling-drift";
     var rootPath = unitScoped ? "PLC_1/Units/Line1/Blocks" : "PLC_1/Blocks";
@@ -1634,6 +1644,22 @@ string ProjectTreeSafetyResponse(string requestLine, string scenario)
     var parentPath = scenario == "tree-safety-unit-root" ? rootPath : rootPath + (unitScoped ? "/Motion" : "/Main");
     var ancestors = parentPath == rootPath ? Array.Empty<ProjectTreeAncestorInfo>()
         : new[] { new ProjectTreeAncestorInfo(unitScoped ? "Motion" : "Main", parentPath, "UserBlockGroup") };
+
+    if (scenario == "tree-safety-duplicate-group-occupancy")
+    {
+        var group = new ProjectTreeOccupancyInfo("UserBlockGroup", "AreaA", parentPath + "/AreaA");
+        return Success(ToCamelCaseJson(new CreateBlockGroupSafetySnapshotInfo(owner, parentPath, ancestors, new[] { group, group })));
+    }
+    if (scenario == "tree-safety-conflicting-descendants")
+    {
+        var path = parentPath + "/AreaA/Mixer";
+        return Success(ToCamelCaseJson(new DeleteBlockGroupSafetySnapshotInfo(owner, parentPath, parentPath + "/AreaA", ancestors,
+            new[]
+            {
+                new ProjectTreeGroupDescendantInfo("FB", "Mixer", path, "hash-before", "PRIVATE_TREE_SNAPSHOT_CONTENT_BEFORE", Array.Empty<ProjectTreeGroupDescendantInfo>()),
+                new ProjectTreeGroupDescendantInfo("FB", "Mixer", path, "hash-after", "PRIVATE_TREE_SNAPSHOT_CONTENT_AFTER", Array.Empty<ProjectTreeGroupDescendantInfo>())
+            })));
+    }
 
     if (expectedMethod == "read_create_block_safety_snapshot")
     {

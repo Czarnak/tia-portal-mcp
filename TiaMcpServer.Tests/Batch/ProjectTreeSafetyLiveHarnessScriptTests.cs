@@ -160,6 +160,42 @@ public sealed class ProjectTreeSafetyLiveHarnessScriptTests
         Assert.Matches(@"\$baseline = Read-ProjectContent[\s\S]*\$script:Baseline = \$baseline[\s\S]*try\s*\{\s*& \$Probe[\s\S]*finally\s*\{\s*if \(\$script:MutationStarted\)[\s\S]*Restore-ByteEquivalentProjectContent[\s\S]*Assert-ByteEquivalentProjectContent \$script:Baseline \$restored[\s\S]*\$script:RestorationProven = \$true[\s\S]*Invoke-CompileCheck", scenario);
     }
 
+    [Theory]
+    [InlineData("Test-OccupiedBlockContentDriftRejection", "occupied-block-content-drift-rejection", "create_block", "$OccupiedBlockPath")]
+    [InlineData("Test-DescendantBlockContentDriftRejection", "descendant-block-content-drift-rejection", "delete_block_group", "$FixtureGroupPath")]
+    public void Script_ContentOnlyDriftRejectsOriginalTokenWithUnchangedMembership(string function, string scenario, string operation, string path)
+    {
+        var text = ReadScript();
+        var probe = Function(text, function);
+        Assert.Contains("New-Operation '" + operation + "' " + path, probe);
+        Assert.Matches(@"\$originalPreview = Get-Preview \$target[\s\S]*Invoke-BlockContentDrift \$OccupiedBlockPath[\s\S]*\$drifted = Read-ProjectContent[\s\S]*Assert-OnlyBlockContentChanged \$script:Baseline \$drifted \$OccupiedBlockPath[\s\S]*\$driftPreview = Get-Preview \$target[\s\S]*Invoke-Apply \$target \$originalPreview -ExpectStateChanged[\s\S]*Assert-ByteEquivalentProjectContent \$drifted \(Read-ProjectContent\)", probe);
+        Assert.Contains("$originalPreview.currentStateHash -cne $driftPreview.currentStateHash", probe);
+        Assert.Contains("Invoke-RestoredScenario '" + scenario + "' { " + function + " }", text);
+        AssertScenarioRestoration(text);
+        var controlled = Function(text, "Assert-OnlyBlockContentChanged");
+        Assert.Contains("$Expected.Count -eq $Actual.Count", controlled);
+        Assert.Contains("$before.path -ceq $after.path -and $before.kind -ceq $after.kind", controlled);
+        Assert.Contains("[Convert]::ToBase64String($before.bytes) -cne [Convert]::ToBase64String($after.bytes)", controlled);
+        Assert.Contains("Assert-ByteEquivalentProjectContent $expectedUnchanged $actualUnchanged", controlled);
+        var mutation = Function(text, "Invoke-BlockContentDrift");
+        Assert.Contains("New-Operation 'update_block_logic' $Path", mutation);
+        Assert.DoesNotContain("New-Operation 'create_block'", mutation);
+        Assert.DoesNotContain("New-Operation 'create_block_group'", mutation);
+    }
+
+    [Fact]
+    public void Script_SameParentNameOccupancyDriftRejectsOriginalCreateGroupToken()
+    {
+        var text = ReadScript();
+        var probe = Function(text, "Test-RequestedNameOccupancyDriftRejection");
+        Assert.Matches(@"New-Operation 'create_block_group' \$newGroupPath[\s\S]*\$originalPreview = Get-Preview \$target[\s\S]*Invoke-Change \(New-Operation 'create_block_group' \$newGroupPath\)[\s\S]*\$drifted = Read-ProjectContent[\s\S]*Invoke-Apply \$target \$originalPreview -ExpectStateChanged[\s\S]*Assert-ByteEquivalentProjectContent \$drifted \(Read-ProjectContent\)", probe);
+        Assert.Contains("$_.path -ceq $newGroupPath -and $_.kind -ceq 'BlockFolder'", probe);
+        Assert.Contains("Assert-ByteEquivalentProjectContent $script:Baseline $withoutCollision", probe);
+        Assert.Contains("$originalPreview.currentStateHash -cne $driftPreview.currentStateHash", probe);
+        Assert.Contains("Invoke-RestoredScenario 'requested-name-occupancy-drift-rejection' { Test-RequestedNameOccupancyDriftRejection }", text);
+        AssertScenarioRestoration(text);
+    }
+
     private static string Function(string script, string name)
     {
         var match = Regex.Match(script, @"(?ms)^function " + Regex.Escape(name) + @"\b.*?(?=^function |^# Main|\z)");

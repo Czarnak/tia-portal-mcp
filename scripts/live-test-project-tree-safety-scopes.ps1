@@ -13,7 +13,10 @@
     are passed unchanged to the public tools. Run each owner scope separately.
 
     Apply requires -AllowMutation -Acknowledgement 'OVERRIDE BLOCKS AND DELETE GROUPS'.
-    It proves relevant descendant drift rejects an original delete token and unrelated
+    It proves occupied and descendant block-content drift and same-parent requested-name
+    occupancy drift reject the original tokens. Content probes change only the FC's
+    exported HeaderAuthor metadata through update_block_logic, preserving tree membership.
+    It also proves descendant group drift rejects an original delete token and unrelated
     sibling drift preserves an original occupied-block token, then overrides the occupied
     FC, creates a group, and deletes the fixture subtree. Each case captures a baseline
     and finally reconstructs the original groups and FCs through preview/apply. Restoration
@@ -388,6 +391,86 @@ function Test-RelevantDriftRejection {
     Write-Artifact 'relevant-drift-evidence.json' @{ rejection = 'state_changed'; originalHash = $originalPreview.currentStateHash; driftHash = $driftPreview.currentStateHash; unchangedAfterRejection = $true }
 }
 
+function Get-BlockContentDriftXml([byte[]] $Bytes) {
+    $originalXml = Get-AuthoritativeXmlDocument $Bytes
+    # HeaderAuthor is a supported FC export/import field already used by the repository's
+    # block generator. Change only that field's bytes, preserving the full logic/interface.
+    $authors = [regex]::Matches($originalXml, '(?s)<HeaderAuthor(?:\s*/>|>[^<]*</HeaderAuthor>)')
+    Assert-Condition ($authors.Count -eq 1) 'Content drift requires exactly one exported FC HeaderAuthor field.'
+    $author = $authors[0]
+    $marker = 'PR6_' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
+    return $originalXml.Substring(0, $author.Index) + '<HeaderAuthor>' + $marker + '</HeaderAuthor>' + $originalXml.Substring($author.Index + $author.Length)
+}
+
+function Invoke-BlockContentDrift([string] $Path) {
+    $blocks = @($script:Baseline | Where-Object { $_.path -ceq $Path -and $_.kind -ceq 'FC' })
+    Assert-Condition ($blocks.Count -eq 1) 'Content drift target must be one baseline FC.'
+    $driftXml = Get-BlockContentDriftXml $blocks[0].bytes
+    Invoke-Change (New-Operation 'update_block_logic' $Path @{ format = 'xml'; yamlContent = $driftXml })
+}
+
+function Assert-OnlyBlockContentChanged($Expected, $Actual, [string] $Path) {
+    Assert-Condition ($Expected.Count -eq $Actual.Count) 'Content-only drift changed subtree membership.'
+    $changed = 0
+    for ($i = 0; $i -lt $Expected.Count; $i++) {
+        $before = $Expected[$i]
+        $after = $Actual[$i]
+        Assert-Condition ($before.path -ceq $after.path -and $before.kind -ceq $after.kind) 'Content-only drift changed paths or kinds.'
+        if ($before.path -ceq $Path) {
+            Assert-Condition ($before.kind -ceq 'FC') 'Content drift target is not an FC.'
+            Assert-Condition ([Convert]::ToBase64String($before.bytes) -cne [Convert]::ToBase64String($after.bytes)) 'Controlled block-content drift was not observed.'
+            $changed++
+        }
+    }
+    Assert-Condition ($changed -eq 1) 'Content drift must change exactly the selected FC.'
+    $expectedUnchanged = @($Expected | Where-Object { $_.path -cne $Path })
+    $actualUnchanged = @($Actual | Where-Object { $_.path -cne $Path })
+    Assert-ByteEquivalentProjectContent $expectedUnchanged $actualUnchanged
+    Write-Artifact ('{0:D4}-controlled-content-drift.json' -f $script:RequestId) @{ path = $Path; changedField = 'HeaderAuthor'; membershipUnchanged = $true; otherContentUnchanged = $true; targetBytesChanged = $true }
+}
+
+function Test-OccupiedBlockContentDriftRejection {
+    $target = @((New-Operation 'create_block' $OccupiedBlockPath @{ blockType = 'FC'; language = 'SCL' }))
+    $originalPreview = Get-Preview $target
+    Invoke-BlockContentDrift $OccupiedBlockPath
+    $drifted = Read-ProjectContent
+    Assert-OnlyBlockContentChanged $script:Baseline $drifted $OccupiedBlockPath
+    $driftPreview = Get-Preview $target
+    Assert-Condition ($originalPreview.currentStateHash -cne $driftPreview.currentStateHash) 'Occupied block-content drift did not change the create snapshot.'
+    Invoke-Apply $target $originalPreview -ExpectStateChanged
+    Assert-ByteEquivalentProjectContent $drifted (Read-ProjectContent)
+    Write-Artifact 'occupied-block-content-drift-evidence.json' @{ rejection = 'state_changed'; originalHash = $originalPreview.currentStateHash; driftHash = $driftPreview.currentStateHash; unchangedAfterRejection = $true }
+}
+
+function Test-DescendantBlockContentDriftRejection {
+    # OccupiedBlockPath is already proven to be strictly inside FixtureGroupPath.
+    $target = @((New-Operation 'delete_block_group' $FixtureGroupPath))
+    $originalPreview = Get-Preview $target
+    Invoke-BlockContentDrift $OccupiedBlockPath
+    $drifted = Read-ProjectContent
+    Assert-OnlyBlockContentChanged $script:Baseline $drifted $OccupiedBlockPath
+    $driftPreview = Get-Preview $target
+    Assert-Condition ($originalPreview.currentStateHash -cne $driftPreview.currentStateHash) 'Descendant block-content drift did not change the deletion snapshot.'
+    Invoke-Apply $target $originalPreview -ExpectStateChanged
+    Assert-ByteEquivalentProjectContent $drifted (Read-ProjectContent)
+    Write-Artifact 'descendant-block-content-drift-evidence.json' @{ rejection = 'state_changed'; originalHash = $originalPreview.currentStateHash; driftHash = $driftPreview.currentStateHash; unchangedAfterRejection = $true }
+}
+
+function Test-RequestedNameOccupancyDriftRejection {
+    $target = @((New-Operation 'create_block_group' $newGroupPath))
+    $originalPreview = Get-Preview $target
+    Invoke-Change (New-Operation 'create_block_group' $newGroupPath)
+    $drifted = Read-ProjectContent
+    Assert-Condition (@($drifted | Where-Object { $_.path -ceq $newGroupPath -and $_.kind -ceq 'BlockFolder' }).Count -eq 1) 'Controlled requested-name occupancy drift was not observed.'
+    $withoutCollision = @($drifted | Where-Object { $_.path -cne $newGroupPath })
+    Assert-ByteEquivalentProjectContent $script:Baseline $withoutCollision
+    $driftPreview = Get-Preview $target
+    Assert-Condition ($originalPreview.currentStateHash -cne $driftPreview.currentStateHash) 'Same-parent requested-name occupancy drift did not change the create-group snapshot.'
+    Invoke-Apply $target $originalPreview -ExpectStateChanged
+    Assert-ByteEquivalentProjectContent $drifted (Read-ProjectContent)
+    Write-Artifact 'requested-name-occupancy-drift-evidence.json' @{ rejection = 'state_changed'; originalHash = $originalPreview.currentStateHash; driftHash = $driftPreview.currentStateHash; unchangedAfterRejection = $true }
+}
+
 function Test-UnrelatedDriftAcceptance {
     # A new sibling group does not occupy this FC name or change its exact parent/owner.
     $target = @((New-Operation 'create_block' $OccupiedBlockPath @{ blockType = 'FC'; language = 'SCL' }))
@@ -492,6 +575,8 @@ try {
     if ($Mode -cne 'Inventory') {
         $baseline = Read-ProjectContent
         Assert-Condition (@($baseline | Where-Object { $_.path -ceq $OccupiedBlockPath -and $_.kind -ceq 'FC' }).Count -eq 1) 'Occupied fixture SCL FC missing.'
+        $occupied = @($baseline | Where-Object { $_.path -ceq $OccupiedBlockPath })
+        $null = Get-BlockContentDriftXml $occupied[0].bytes
         $newGroupPath = $FixtureGroupPath + '/' + $NewGroupName
         Assert-Condition (@($baseline | Where-Object { [string]::Equals($_.path, $newGroupPath, [StringComparison]::OrdinalIgnoreCase) }).Count -eq 0) 'New group name is occupied.'
         $script:Baseline = $baseline
@@ -506,6 +591,9 @@ try {
             foreach ($operation in $operations) { $null = Get-Preview @($operation) }
         }
         if ($Mode -ceq 'Apply') {
+            Invoke-RestoredScenario 'occupied-block-content-drift-rejection' { Test-OccupiedBlockContentDriftRejection }
+            Invoke-RestoredScenario 'descendant-block-content-drift-rejection' { Test-DescendantBlockContentDriftRejection }
+            Invoke-RestoredScenario 'requested-name-occupancy-drift-rejection' { Test-RequestedNameOccupancyDriftRejection }
             Invoke-RestoredScenario 'relevant-drift-rejection' { Test-RelevantDriftRejection }
             Invoke-RestoredScenario 'unrelated-drift-acceptance' { Test-UnrelatedDriftAcceptance }
             Invoke-RestoredScenario 'three-operation-apply' {

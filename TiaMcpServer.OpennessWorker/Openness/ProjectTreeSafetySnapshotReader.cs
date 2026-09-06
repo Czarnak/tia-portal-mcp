@@ -181,7 +181,7 @@ public static class ProjectTreeSafetySnapshotReader
         PlcBlock block,
         string blockPath)
     {
-        var content = BlockExporter.Export(project, blockPath, SourceFormatNames.Xml);
+        var content = BlockExporter.ExportForSafety(project, blockPath);
         if (string.IsNullOrWhiteSpace(content))
         {
             throw new InvalidOperationException($"Block export for '{blockPath}' was empty.");
