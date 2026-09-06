@@ -146,7 +146,7 @@ The current surface does not provide:
 
 - Generic online/offline status or connection configuration.
 - Compare-to-online, program upload/download, or `UpdateProgram` workflows.
-- Software units, safety units, safety administration, safety signatures, or safety validation.
+- Software Unit lifecycle or administration operations; block operations within existing Software Units are supported. Safety units, safety administration, safety signatures, and safety validation are not provided.
 - PLC alarms, alarm classes, alarm text lists, ProDiag supervision, or supervision import/export.
 - Technology objects, motion-control objects, watch tables, or force tables.
 - OPC UA server configuration, communication groups, access control, or role mapping.
