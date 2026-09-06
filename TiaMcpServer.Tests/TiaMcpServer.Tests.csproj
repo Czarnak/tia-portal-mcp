@@ -84,6 +84,8 @@
       Link="Host\Batch\BatchPreviewDiff.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySnapshotContract.cs"
       Link="Host\Batch\TagOperationSafetySnapshotContract.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\ProjectTreeSafetyPayloadContract.cs"
+      Link="Host\Batch\ProjectTreeSafetyPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySelector.cs"
       Link="Host\Batch\TagOperationSafetySelector.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs" Link="Host\OperationBatches\IOperationBatchItem.cs" />

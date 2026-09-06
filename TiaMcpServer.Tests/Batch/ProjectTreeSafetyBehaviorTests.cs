@@ -11,6 +11,36 @@ namespace TiaMcpServer.Tests.Batch;
 public sealed class ProjectTreeSafetyBehaviorTests
 {
     [Fact]
+    public async Task WriteBatchTools_CreateBlock_MalformedSnapshotPayload_BecomesProtocolErrorWithoutRawEcho()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        var safety = new WriteSafetyService(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "tree-safety-malformed-payload");
+
+        var operations = new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "create",
+                Operation = "create_block",
+                BlockPath = "PLC_1/Blocks/Main/Mixer",
+                BlockType = "FB",
+                Language = "SCL",
+                ProjectPath = "tree-safety-malformed-payload"
+            }
+        };
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
+        using var previewDoc = JsonDocument.Parse(preview);
+
+        Assert.False(previewDoc.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal("protocol_error", previewDoc.RootElement.GetProperty("failureCategory").GetString());
+        Assert.DoesNotContain("content\":\"", preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task WriteBatchTools_CreateBlock_OccupiedTargetContentDrift_InvalidatesTheToken()
     {
         using var audit = new TempAuditDirectory();
