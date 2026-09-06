@@ -1602,7 +1602,7 @@ List<ProjectTreeNode> CurrentBroadProjectTreePassesPreviewButNotContentDrift()
 List<ProjectTreeNode> CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()
 {
     var call = NextProjectTreeSafetyScenarioCall("tree-safety-unit-unrelated-sibling-drift");
-    var siblingName = call == 1 ? "AreaB" : "AreaB-Changed";
+    var unrelatedSiblingName = call == 1 ? "AreaB" : "AreaB-Changed";
     return new()
     {
         new ProjectTreeNode
@@ -1628,9 +1628,25 @@ List<ProjectTreeNode> CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()
                             {
                                 new()
                                 {
-                                    Name = siblingName,
+                                    Name = "AreaA",
                                     NodeType = "BlockGroup",
-                                    Details = new Dictionary<string, string> { ["Path"] = $"PLC_1/Units/Line1/Blocks/Motion/{siblingName}" },
+                                    Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units/Line1/Blocks/Motion/AreaA" },
+                                    Children = new List<ProjectTreeNode>(),
+                                },
+                            },
+                        },
+                        new()
+                        {
+                            Name = "Line2",
+                            NodeType = "Unit",
+                            Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units/Line2" },
+                            Children = new List<ProjectTreeNode>
+                            {
+                                new()
+                                {
+                                    Name = unrelatedSiblingName,
+                                    NodeType = "BlockGroup",
+                                    Details = new Dictionary<string, string> { ["Path"] = $"PLC_1/Units/Line2/Blocks/Motion/{unrelatedSiblingName}" },
                                     Children = new List<ProjectTreeNode>(),
                                 },
                             },
