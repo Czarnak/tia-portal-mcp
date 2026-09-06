@@ -334,6 +334,10 @@ public sealed class HardwarePageWorkerClientTests
 
     private sealed class ScriptedIdentityWorker : IDisposable
     {
+        // Starting Windows PowerShell under CI coverage instrumentation can exceed the ordinary
+        // five-second worker budget. These tests exercise identity envelopes, not timeout policy.
+        private static readonly TimeSpan ScriptedWorkerTimeout = TimeSpan.FromSeconds(15);
+
         private readonly string _tempDirectory;
 
         private ScriptedIdentityWorker(string tempDirectory, OpennessWorkerClient client)
@@ -356,7 +360,7 @@ public sealed class HardwarePageWorkerClientTests
             var scriptPath = Path.Combine(tempDirectory, "worker.ps1");
             await File.WriteAllTextAsync(scriptPath, WorkerScript, new UTF8Encoding(false));
 
-            var client = new OpennessWorkerClient(binding, requestTimeout: TimeSpan.FromSeconds(5));
+            var client = new OpennessWorkerClient(binding, requestTimeout: ScriptedWorkerTimeout);
             InjectTransport(client, CreateTransport(scriptPath, mode, projectPath));
             return new ScriptedIdentityWorker(tempDirectory, client);
         }
@@ -395,7 +399,7 @@ public sealed class HardwarePageWorkerClientTests
                 QuoteArgument(projectPath));
             return new PersistentWorkerTransport(
                 powershellPath,
-                requestTimeout: TimeSpan.FromSeconds(5),
+                requestTimeout: ScriptedWorkerTimeout,
                 workerArgs: args);
         }
 
