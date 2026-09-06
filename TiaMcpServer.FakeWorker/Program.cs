@@ -75,6 +75,7 @@ var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Be
     "PLC_1/Tag tables/Outputs/Before", "Bool", "%Q0.0", true, true, false);
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
+var projectTreeSafetyScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -262,6 +263,24 @@ while ((line = Console.In.ReadLine()) is not null)
                 createBlockPostconditionAttempt++;
                 Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block creation verification failed on attempt {{createBlockPostconditionAttempt}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
             }
+            break;
+        case "tree-safety-create-block-content-drift":
+            Respond(ReadMethod(line) == "get_project_status"
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : ReadMethod(line) == "browse_project_tree"
+                ? Success(ToCamelCaseJson(CurrentBroadProjectTreePassesPreviewButNotContentDrift()))
+                : ReadMethod(line) == "create_block"
+                    ? Success("{}")
+                    : JsonSerializer.Serialize(new { success = false, error = $"unexpected method '{ReadMethod(line)}' for tree-safety-create-block-content-drift" }));
+            break;
+        case "tree-safety-unit-unrelated-sibling-drift":
+            Respond(ReadMethod(line) == "get_project_status"
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : ReadMethod(line) == "browse_project_tree"
+                ? Success(ToCamelCaseJson(CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()))
+                : ReadMethod(line) == "create_block_group"
+                    ? Success("{}")
+                    : JsonSerializer.Serialize(new { success = false, error = $"unexpected method '{ReadMethod(line)}' for tree-safety-unit-unrelated-sibling-drift" }));
             break;
         case "malformed":
             Console.Out.WriteLine("this is not json");
@@ -1544,6 +1563,92 @@ List<ProjectTreeNode> ProjectCompletenessTree() => new()
         },
     },
 };
+
+List<ProjectTreeNode> CurrentBroadProjectTreePassesPreviewButNotContentDrift()
+{
+    // The current broad project-tree contract exposes the occupied target's identity, but not
+    // its block content. The fixture therefore returns the same broad tree after the hidden
+    // target-content drift that the first RED must detect.
+    return new()
+    {
+        new ProjectTreeNode
+        {
+            Name = "PLC_1",
+            NodeType = "Device",
+            Details = new Dictionary<string, string> { ["Path"] = "PLC_1" },
+            Children = new List<ProjectTreeNode>
+            {
+                new()
+                {
+                    Name = "Blocks",
+                    NodeType = "BlockFolder",
+                    Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Blocks" },
+                    Children = new List<ProjectTreeNode>
+                    {
+                        new()
+                        {
+                            Name = "Mixer",
+                            NodeType = "FB",
+                            Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Blocks/Main/Mixer" },
+                            Children = new List<ProjectTreeNode>(),
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+List<ProjectTreeNode> CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()
+{
+    var call = NextProjectTreeSafetyScenarioCall("tree-safety-unit-unrelated-sibling-drift");
+    var siblingName = call == 1 ? "AreaB" : "AreaB-Changed";
+    return new()
+    {
+        new ProjectTreeNode
+        {
+            Name = "PLC_1",
+            NodeType = "Device",
+            Details = new Dictionary<string, string> { ["Path"] = "PLC_1" },
+            Children = new List<ProjectTreeNode>
+            {
+                new()
+                {
+                    Name = "Units",
+                    NodeType = "UnitFolder",
+                    Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units" },
+                    Children = new List<ProjectTreeNode>
+                    {
+                        new()
+                        {
+                            Name = "Line1",
+                            NodeType = "Unit",
+                            Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units/Line1" },
+                            Children = new List<ProjectTreeNode>
+                            {
+                                new()
+                                {
+                                    Name = siblingName,
+                                    NodeType = "BlockGroup",
+                                    Details = new Dictionary<string, string> { ["Path"] = $"PLC_1/Units/Line1/Blocks/Motion/{siblingName}" },
+                                    Children = new List<ProjectTreeNode>(),
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+int NextProjectTreeSafetyScenarioCall(string scenario)
+{
+    projectTreeSafetyScenarioCalls.TryGetValue(scenario, out var calls);
+    calls++;
+    projectTreeSafetyScenarioCalls[scenario] = calls;
+    return calls;
+}
 
 HardwareConfigInfo SingleNodeHardwareConfig(
     string deviceName,
