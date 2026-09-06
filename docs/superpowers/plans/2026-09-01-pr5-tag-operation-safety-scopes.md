@@ -10,6 +10,19 @@
 
 **Spec:** [`docs/superpowers/specs/2026-09-01-write-safety-hardening-design.md`](../specs/2026-09-01-write-safety-hardening-design.md)
 
+**Final-review scope correction (2026-09-05):** The exact destination folder is an identity,
+not the boundary of table-name uniqueness. `create_tag_table` must probe matching names throughout
+the selected PLC's tag-table hierarchy. Tag/user-constant create and update probes must include
+matching PLC tags, user constants, and ordinary program blocks (nested user and system-block
+groups), preserving actual kind plus canonical identity. Names compare case-insensitively;
+logical-address probes remain tag-only. This corrects any parent-only or same-kind interpretation
+of the original plan using Siemens V21's [PLC tag/table naming rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/rules-for-plc-tags/valid-names-of-plc-tags)
+and [global constant naming rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/declaring-global-constants/rules-for-global-user-constants).
+Software Unit namespace resolution is outside these existing unqualified selectors; unit-local
+block names must not be guessed into the CPU-global collision scope. Namespace-aware coverage
+remains a design/live follow-up. No public schema, token, audit, or failure-category change is
+authorized by this correction.
+
 ## Global Constraints
 
 - Implement PR 5 only on top of the approved PR 2 and PR 3 baseline. If the branch still carries the pre-PR2 duplicated write path in `TiaMcpServer/Batch/BatchTools.cs`, merge or rebase the prerequisite first instead of backporting PR 5 into the old wrapper shape.
@@ -807,12 +820,13 @@ Use the exact Step 1-verified three-parameter export overload and the exact Step
 
 In `TagOperationSafetySnapshotReader.cs`, resolve exact targets through Siemens objects and produce the typed records from Task 1. Follow these rules:
 
-- `create_tag_table`: resolve the exact PLC and parent folder, then return only occupancy probes for the requested table name.
+- `create_tag_table`: resolve the exact PLC and destination folder, then traverse that PLC's complete tag-table hierarchy and return only occupancy probes for the requested table name, retaining each matching table's folder identity. Traversal failures must propagate even after a matching table is found.
 - `delete_tag_table`: resolve the exact table, export the full table through the Step 1-verified `PlcTagTable.Export(FileInfo, ExportOptions, ...)` overload with the Step 1-verified timestamp-free/document-info-free option, preserve that full Simatic ML content byte-for-byte unless current evidence proves one specific unavoidable non-semantic field remains, hash the exact preserved content, and return that content plus counts.
-- `create_tag`: resolve the exact table and collision probes for the requested effective name and logical address.
-- `update_tag`: resolve the exact current target tag, preserve the PR 3 flag fields, and probe collisions for the effective requested rename/address.
+- `create_tag`: resolve the exact table; probe the requested effective name across tags, user constants, and blocks in the selected PLC's unqualified CPU namespace, and probe the logical address against tags only.
+- `update_tag`: resolve the exact current target tag, preserve the PR 3 flag fields, and probe the effective requested rename/address with the same cross-kind name and tag-only address scope. Target marking requires exact kind and identity.
 - `delete_tag`: bind the exact current target tag and table identity only.
-- `create/update/delete user constant`: resolve the exact table, the exact current constant when it exists, and only name-collision probes for the existing requested/current name. Do not add rename semantics to `update_user_constant`.
+- `create/update user constant`: resolve the exact table and current constant for update, and probe only the requested/current name across tags, user constants, and ordinary program blocks including nested user/system groups. Preserve each candidate's actual kind and exact identity. Do not add rename semantics to `update_user_constant`.
+- `delete_user_constant`: bind only the exact current constant and table identity, without collision probes.
 
 Consume the existing PR 3 `SafetyRead` policy in `OperationPolicyCatalog.cs` so these eight internal methods are not ordinary `Observe` reads:
 

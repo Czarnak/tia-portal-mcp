@@ -1,5 +1,5 @@
-using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Batch;
@@ -32,11 +32,22 @@ public static class BatchWorkerInvoker
         "update_type_content" => WithValidatedFormat(
             () => NormalizeFormat(op),
             format => client.GetTypeContentAsync(op.TypePath!, format, op.ProjectPath)),
-        "update_tag" => ReadUpdateTagCurrentStateAsync(client, op),
-        "create_tag_table" or "delete_tag_table"
-            or "create_tag" or "delete_tag"
-            or "create_user_constant" or "update_user_constant" or "delete_user_constant"
-            => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
+        "create_tag_table" => ReadTagCurrentStateAsync(op.Operation, client.ReadCreateTagTableSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.ProjectPath)),
+        "delete_tag_table" => ReadTagCurrentStateAsync(op.Operation, client.ReadDeleteTagTableSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.ProjectPath)),
+        "create_tag" => ReadTagCurrentStateAsync(op.Operation, client.ReadCreateTagSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType!, op.LogicalAddress, op.ProjectPath)),
+        "update_tag" => ReadTagCurrentStateAsync(op.Operation, client.ReadUpdateTagSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.NewName, op.LogicalAddress, op.ProjectPath)),
+        "delete_tag" => ReadTagCurrentStateAsync(op.Operation, client.ReadDeleteTagSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath)),
+        "create_user_constant" => ReadTagCurrentStateAsync(op.Operation, client.ReadCreateUserConstantSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath)),
+        "update_user_constant" => ReadTagCurrentStateAsync(op.Operation, client.ReadUpdateUserConstantSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath)),
+        "delete_user_constant" => ReadTagCurrentStateAsync(op.Operation, client.ReadDeleteUserConstantSafetySnapshotAsync(
+            op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath)),
         "create_block" or "create_block_group" or "delete_block_group"
             => client.BrowseProjectTreeAsync(op.ProjectPath),
         // delete_block declares no 'format' field (see BatchOperationCatalog), so there is no
@@ -50,137 +61,34 @@ public static class BatchWorkerInvoker
             $"Unsupported batch write operation '{op.Operation}'.")),
     };
 
-    private static async Task<WorkerCallResult> ReadUpdateTagCurrentStateAsync(
-        OpennessWorkerClient client,
-        BatchOperationRequest op)
+    private static async Task<WorkerCallResult> ReadTagCurrentStateAsync(
+        string operation,
+        Task<WorkerCallResult> read)
     {
-        var strict = await client.ReadUpdateTagSafetySnapshotAsync(
-            op.PlcName,
-            op.TableName!,
-            op.FolderPath,
-            op.Name!,
-            op.ProjectPath).ConfigureAwait(false);
-        if (!strict.Success)
-        {
-            return strict;
-        }
+        var result = await read.ConfigureAwait(false);
+        if (!result.Success) return result;
 
-        if (!TryDecodeUpdateTagSafetySnapshot(strict.Payload, out var snapshot, out var decodeError))
-        {
-            return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
-                $"Could not decode the update_tag safety snapshot. {decodeError}");
-        }
-
-        var unavailableFlag = TagUpdateSafetyCurrentState.ValidateRequestedExternalFlags(op, snapshot);
-        if (unavailableFlag is not null)
-        {
-            return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError,
-                $"The current tag does not expose requested flag '{unavailableFlag}'.");
-        }
-
-        var broad = await client.ListTagTablesAsync(op.PlcName, op.ProjectPath).ConfigureAwait(false);
-        if (!broad.Success)
-        {
-            return broad;
-        }
-
-        string currentState;
-        try
-        {
-            currentState = TagUpdateSafetyCurrentState.Compose(snapshot, broad.Payload);
-        }
-        catch (JsonException ex)
-        {
-            return WorkerCallResult.Fail(
-                WorkerFailureCategories.ProtocolError,
-                $"Could not decode the update_tag broad tag-table safety state. {ex.Message}",
-                broad.Warnings);
-        }
-
-        return WorkerCallResult.Ok(
-            currentState,
-            broad.Warnings) with
-        {
-            ResolvedProjectPath = broad.ResolvedProjectPath,
-            SessionIdentity = broad.SessionIdentity,
-        };
+        var decoded = TagOperationSafetySnapshotContract.Decode(operation, result.Payload);
+        // Decoder diagnostics can contain rejected payload values; keep them out of public errors.
+        return decoded.Success
+            ? result with { Payload = decoded.CanonicalState }
+            : WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                $"Could not decode the {operation} safety snapshot.", result.Warnings);
     }
 
-    private static bool TryDecodeUpdateTagSafetySnapshot(
-        string payload,
-        out TagUpdateSafetySnapshot snapshot,
-        out string error)
+    // Validation depends on each write's requested flags, which deliberately are not part of
+    // the snapshot selector. Run it for every operation, including reused snapshot payloads.
+    internal static WorkerCallResult ValidateRequestedTagState(BatchOperationRequest op, WorkerCallResult state)
     {
-        snapshot = null!;
-        error = string.Empty;
-        try
-        {
-            using var document = JsonDocument.Parse(payload);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                error = "Expected one JSON object.";
-                return false;
-            }
-
-            var expectedKinds = new Dictionary<string, JsonValueKind>(StringComparer.Ordinal)
-            {
-                ["plcName"] = JsonValueKind.String,
-                ["folderPath"] = JsonValueKind.String,
-                ["tableName"] = JsonValueKind.String,
-                ["tagName"] = JsonValueKind.String,
-                ["dataType"] = JsonValueKind.String,
-                ["logicalAddress"] = JsonValueKind.String,
-                ["externalAccessible"] = JsonValueKind.True,
-                ["externalVisible"] = JsonValueKind.True,
-                ["externalWritable"] = JsonValueKind.True,
-            };
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                if (!expectedKinds.TryGetValue(property.Name, out var expectedKind))
-                {
-                    error = $"Unsupported member '{property.Name}'.";
-                    return false;
-                }
-                if (!seen.Add(property.Name))
-                {
-                    error = $"Duplicate member '{property.Name}'.";
-                    return false;
-                }
-
-                var actualKind = property.Value.ValueKind;
-                var validKind = expectedKind == JsonValueKind.String
-                    ? actualKind == JsonValueKind.String
-                    : actualKind is JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null;
-                if (!validKind)
-                {
-                    error = $"Member '{property.Name}' has an unsupported JSON type.";
-                    return false;
-                }
-            }
-
-            foreach (var member in expectedKinds.Keys)
-            {
-                if (!seen.Contains(member))
-                {
-                    error = $"Required member '{member}' is missing.";
-                    return false;
-                }
-            }
-
-            snapshot = document.RootElement.Deserialize<TagUpdateSafetySnapshot>()!;
-            if (snapshot is null)
-            {
-                error = "The snapshot object decoded to null.";
-                return false;
-            }
-            return true;
-        }
-        catch (JsonException ex)
-        {
-            error = ex.Message;
-            return false;
-        }
+        if (!state.Success || op.Operation != "update_tag") return state;
+        var tag = CanonicalJson.Deserialize<UpdateTagSafetySnapshotInfo>(state.Payload).TargetTag;
+        var unavailableFlag = op.ExternalAccessible.HasValue && tag.ExternalAccessible is null ? "externalAccessible"
+            : op.ExternalVisible.HasValue && tag.ExternalVisible is null ? "externalVisible"
+            : op.ExternalWritable.HasValue && tag.ExternalWritable is null ? "externalWritable"
+            : null;
+        return unavailableFlag is null ? state
+            : WorkerCallResult.Fail(WorkerFailureCategories.ValidationError,
+                $"The current tag does not expose requested flag '{unavailableFlag}'.");
     }
 
     /// <summary>Executes a single read or write item against the worker.</summary>

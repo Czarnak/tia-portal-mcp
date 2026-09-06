@@ -43,11 +43,62 @@ The operations below run through `preview_write_batch` and `apply_write_batch`.
 - Import/update operations modify existing objects only. They do not create, rename, delete, or upsert the addressed object.
 - Deletes and PLC start/stop operations use the same confirmed write flow as other data writes.
 - A write batch is applied in order and stops on the first failure. Completed mutations are not rolled back.
-- `update_tag` preview combines its existing broad tag-table state with a strict exact-target
-  snapshot. If an update requests `externalAccessible`, `externalVisible`, or
+- Tag-related writes bind exact targets plus scoped name/address collision probes, replacing
+  the full table-list safety payload. Table deletion binds the exact table's normalized Simatic ML
+  export and digest; tag deletion binds exact tag state; constant deletion binds exact constant
+  state. Create operations bind the parent/table identity and relevant collisions. Updates also
+  bind the exact object's current state. See the [eight selector shapes](../ARCHITECTURE.md#8-write-safety)
+  for the complete contract. Identical selectors share reads only within one phase and expand
+  back into the original operation order; apply reads fresh state with no cross-phase cache.
+- Tag and user-constant create/update name probes include case-insensitive matches against PLC
+  tags, user constants, and blocks in the selected PLC's unqualified CPU namespace. Matching blocks
+  include nested user and system-block groups; each probe retains its symbol kind and exact path.
+  Logical-address probes remain tag-only. Table creation retains the exact destination folder but
+  probes matching table names across the PLC's entire tag-table hierarchy, including sibling and
+  nested folders. Unrelated names remain outside the snapshot; incomplete traversal fails closed.
+  These scopes follow Siemens V21's [tag-name rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/rules-for-plc-tags/valid-names-of-plc-tags),
+  [constant-name rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/declaring-global-constants/rules-for-global-user-constants),
+  and [table-creation rules](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/creating-and-managing-plc-tag-tables/creating-plc-tag-tables).
+  Software Unit namespace-aware block collision coverage remains a design/live qualification
+  follow-up; these operations do not treat unit-local names as unqualified CPU-global names.
+- If an `update_tag` requests `externalAccessible`, `externalVisible`, or
   `externalWritable` and that selected flag cannot be read for the exact tag, preview fails before
   token issuance. This safety condition does not change the public `list_tag_tables` contract:
   that read remains best-effort and may retain its existing skipped-read behavior.
+
+## Tag safety acceptance boundary
+
+PR 5 has completed offline/FakeWorker, static harness-contract, and guarded live TIA Portal V21
+evidence. The
+[live acceptance report](../superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
+records the exact host, PID, disposable copy, fixtures, artifacts, and saved-baseline/source cleanup.
+All eight operation previews and the ordered duplicate-selector check passed; same-object and
+name/address collision drift returned `state_changed`; unrelated sibling drift preserved the
+original target token; and one authorized unchanged-token apply succeeded. Public previews still
+expose hashes and ordered targets rather than internal typed snapshot contents or worker read
+counts, so those internal claims remain offline/FakeWorker evidence rather than live observations.
+
+The harness requires PowerShell 7.2 or later, the built net8 host, an already-open exact
+disposable project copy, and explicit PLC/table/tag/user-constant fixture names and values.
+`PreviewOnly` is the non-mutating default. `DriftAndRestore` covers same-object drift, relevant
+name/address collision drift, and unrelated sibling tolerance. `ApplyAndRestore` performs one
+authorized feature apply. Both mutation modes require `-AllowMutation`, `-ConfirmDisposableCopy`, an
+`-AuthorizedProjectPath` equal to `-ProjectPath`, and `-CleanupStrategy Discard`, plus a pre-saved
+unmodified copy. The implemented cleanup is guarded `close_project` with `saveBeforeClose=false`;
+the mode names do not imply an implemented inverse-restore strategy. No project files are deleted
+and no save is issued. Scenario mutations remain until that final discard; no inverse fixture
+writes restore constants or delete collision tags between checks. Acceptance must verify the
+on-disk copy remains clean. A failed or
+unconfirmed discard fails the run and requires manual no-save cleanup of the isolated copy.
+Each run retains redacted MCP and failure/cleanup JSON in a dedicated artifact directory. The
+completed report confirms that both mutation modes performed guarded no-save discard, the saved
+copy returned to its exact baseline, and the original source was left open and unmodified. The
+initial sandbox visibility failure and two deterministic lifecycle binding conflicts occurred
+before mutation and were not uncertain writes. Ordinary tests only inspect the script as text.
+
+Explicitly deferred: multilingual per-tag comment binding; public `list_tag_tables` completeness
+changes; broader snapshot narrowing; Software Unit namespace-aware collisions; and PLC `start_plc`
+and `stop_plc` safety work. Existing PLC start/stop operations are not changed or qualified by PR 5.
 
 ## Current limits
 

@@ -125,20 +125,19 @@ public class TagUpdateCurrentStateFakeWorkerTests
         };
         foreach (var member in new[]
         {
-            "plcName",
-            "folderPath",
-            "tableName",
-            "tagName",
-            "dataType",
-            "logicalAddress",
-            "externalAccessible",
-            "externalVisible",
-            "externalWritable",
+            "targetTable", "targetTag", "effectiveName", "nameCollisions", "addressCollisions",
+            "targetTable.plcName", "targetTable.folderPath", "targetTable.tableName", "targetTable.canonicalPath",
+            "targetTag.plcName", "targetTag.folderPath", "targetTag.tableName", "targetTag.tagName",
+            "targetTag.canonicalPath", "targetTag.dataType",
         })
         {
             cases.Add($"missing-{member}");
+            cases.Add($"null-{member}");
             cases.Add($"wrong-{member}");
         }
+        foreach (var member in new[] { "logicalAddress", "externalAccessible", "externalVisible", "externalWritable" })
+            cases.Add($"wrong-targetTag.{member}");
+        cases.Add("wrong-effectiveLogicalAddress");
         return cases;
     }
 
@@ -165,6 +164,7 @@ public class TagUpdateCurrentStateFakeWorkerTests
             WorkerFailureCategories.ProtocolError,
             previewDocument.RootElement.GetProperty("failureCategory").GetString());
         Assert.False(previewDocument.RootElement.TryGetProperty("safetyToken", out _));
+        Assert.DoesNotContain("PRIVATE_SNAPSHOT_SENTINEL", preview, StringComparison.Ordinal);
         Assert.True(observedState.Success, observedState.Error);
         using var stateDocument = JsonDocument.Parse(observedState.Payload);
         Assert.Equal(0, stateDocument.RootElement.GetProperty("invalidSnapshotBroadReadCount").GetInt32());
@@ -190,9 +190,9 @@ public class TagUpdateCurrentStateFakeWorkerTests
     }
 
     [Fact]
-    public async Task ApplyWriteBatch_UpdateTagBroadOnlyDriftFailsWithStateChangedBeforeMutation()
+    public async Task ApplyWriteBatch_UpdateTagTargetDataTypeDriftFailsWithStateChangedBeforeMutation()
     {
-        const string scenario = "tag-update-broad-drift";
+        const string scenario = "tag-update-target-drift";
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = CreateSafety(audit, binding);
@@ -219,7 +219,7 @@ public class TagUpdateCurrentStateFakeWorkerTests
             applyDocument.RootElement.GetProperty("failureCategory").GetString());
         Assert.True(observedState.Success, observedState.Error);
         using var stateDocument = JsonDocument.Parse(observedState.Payload);
-        Assert.Equal(0, stateDocument.RootElement.GetProperty("broadDriftMutationCount").GetInt32());
+        Assert.Equal(0, stateDocument.RootElement.GetProperty("targetDriftMutationCount").GetInt32());
     }
 
     [Fact]
@@ -259,9 +259,9 @@ public class TagUpdateCurrentStateFakeWorkerTests
     }
 
     [Fact]
-    public async Task PreviewWriteBatch_UpdateTagMalformedBroadPayloadFailsClosedWithProtocolError()
+    public async Task PreviewWriteBatch_UpdateTagMalformedExactPayloadFailsClosedWithProtocolError()
     {
-        const string scenario = "tag-update-broad-malformed-payload";
+        const string scenario = "tag-update-exact-malformed-payload";
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = CreateSafety(audit, binding);

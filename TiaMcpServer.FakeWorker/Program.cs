@@ -60,10 +60,19 @@ var updateBlockPostconditionAttempt = 0;
 var createBlockPostconditionAttempt = 0;
 var orderedTypeWriteCount = 0;
 var tagUpdateFlagDriftSnapshotReadCount = 0;
-var tagUpdateBroadDriftReadCount = 0;
-var tagUpdateBroadDriftMutationCount = 0;
+var tagUpdateTargetDriftReadCount = 0;
+var tagUpdateTargetDriftMutationCount = 0;
 var tagUpdateStrictSnapshotFailureBroadReadCount = 0;
 var tagUpdateInvalidSnapshotBroadReadCount = 0;
+var tagSafetyDedupReadCount = 0;
+var tagSafetySnapshotReadCount = 0;
+var tagSafetyMutationCount = 0;
+var tagSafetySnapshotReadsAtMutation = 0;
+var tagSafetyBroadReadCount = 0;
+var tagSafetyTargetExists = true;
+var tagSafetyTargetTagName = "Start";
+var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Before",
+    "PLC_1/Tag tables/Outputs/Before", "Bool", "%Q0.0", true, true, false);
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 
@@ -269,10 +278,55 @@ while ((line = Console.In.ReadLine()) is not null)
         case "hang":
             Thread.Sleep(Timeout.Infinite);
             break;
+        case "batch-preview-tag-safety":
+            Respond(ReadMethod(line) == "read_create_tag_table_safety_snapshot"
+                ? Success(ToCamelCaseJson(new CreateTagTableSafetySnapshotInfo(
+                    "PLC_1", "", "Inputs", Array.Empty<TagCollisionProbeInfo>())))
+                : Success(line));
+            break;
         case "echo":
             // Returns the received request verbatim so tests can assert which fields survived
             // the BatchOperationRequest -> WorkerRequest hop.
             Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
+            break;
+        case "tag-safety-all-routes":
+        case "tag-safety-invalid-routes":
+        case "tag-safety-private-collision-kind":
+            Respond(ReadMethod(line) == "get_project_status"
+                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                : TagSafetyRouteResponse(line, scenario == "tag-safety-invalid-routes",
+                    invalidCollision: scenario == "tag-safety-private-collision-kind"));
+            break;
+        case "tag-safety-same-object-drift":
+        case @"C:\FakeWorker\tag-safety-same-object-drift.ap21":
+        case "tag-safety-collision-drift":
+        case @"C:\FakeWorker\tag-safety-collision-drift.ap21":
+        case "tag-safety-unrelated-sibling":
+        case @"C:\FakeWorker\tag-safety-unrelated-sibling.ap21":
+        case "tag-safety-delete-table-export-drift":
+        case @"C:\FakeWorker\tag-safety-delete-table-export-drift.ap21":
+        case "tag-safety-reread":
+        case @"C:\FakeWorker\tag-safety-reread.ap21":
+        case "tag-safety-authorized-apply":
+        case @"C:\FakeWorker\tag-safety-authorized-apply.ap21":
+            Respond(TagSafetyBehaviorResponse(line, Path.GetFileNameWithoutExtension(scenario)));
+            break;
+        case "tag-safety-route-proof":
+        case @"C:\FakeWorker\tag-safety-route-proof.ap21":
+        case "tag-safety-dedup-proof":
+        case @"C:\FakeWorker\tag-safety-dedup-proof.ap21":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
+                "list_tag_tables" => """{"success":false,"error":"wrong route: list_tag_tables"}""",
+                "read_delete_tag_safety_snapshot" when scenario.Contains("tag-safety-dedup-proof", StringComparison.Ordinal) && ++tagSafetyDedupReadCount > 1
+                    => """{"success":false,"error":"dedup missing: repeated read_delete_tag_safety_snapshot"}""",
+                "read_delete_tag_safety_snapshot" => Success(JsonSerializer.Serialize(new DeleteTagSafetySnapshotInfo(
+                    new("PLC_1", "", "Inputs", "PLC_1/Inputs"),
+                    new("PLC_1", "", "Inputs", "Start", "PLC_1/Inputs/Start", "Bool", "%I0.0", true, true, false)),
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })),
+                _ => """{"success":false,"error":"unexpected tag safety route-proof method"}"""
+            });
             break;
         case "tag-update-snapshot-unavailable-visible":
             Respond(ReadMethod(line) switch
@@ -280,7 +334,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
                 "update_tag" => """{"success":true,"payload":"{}"}""",
-                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":null,\"externalWritable\":false}"}""",
+                "read_update_tag_safety_snapshot" => Success(ToCamelCaseJson(TagUpdateSnapshot(externalVisible: null))),
                 _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
             });
             break;
@@ -290,7 +344,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}"}""",
                 "update_tag" => """{"success":true,"payload":"{}"}""",
-                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":null,\"externalVisible\":null,\"externalWritable\":null}"}""",
+                "read_update_tag_safety_snapshot" => Success(ToCamelCaseJson(TagUpdateSnapshot(null, null, null))),
                 _ => $$"""{"success":false,"error":"unexpected all-unavailable update-tag fixture method '{{ReadMethod(line)}}'"}"""
             });
             break;
@@ -304,24 +358,24 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected update-tag safety fixture method '{{ReadMethod(line)}}'"}"""
             });
             break;
-        case "tag-update-broad-drift":
+        case "tag-update-target-drift":
             switch (ReadMethod(line))
             {
                 case "get_project_status":
-                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"broadDriftMutationCount\":{{tagUpdateBroadDriftMutationCount}}}"}""");
+                    Respond($$"""{"success":true,"payload":"{\"isOpen\":true,\"targetDriftMutationCount\":{{tagUpdateTargetDriftMutationCount}}}"}""");
                     break;
                 case "read_update_tag_safety_snapshot":
-                    Respond("""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""");
+                    Respond(Success(ToCamelCaseJson(TagUpdateSnapshot(dataType: ++tagUpdateTargetDriftReadCount == 1 ? "Bool" : "DInt"))));
                     break;
                 case "list_tag_tables":
-                    Respond(TagUpdateBroadDriftResponse(++tagUpdateBroadDriftReadCount));
+                    Respond("""{"success":false,"error":"wrong route: list_tag_tables"}""");
                     break;
                 case "update_tag":
-                    tagUpdateBroadDriftMutationCount++;
+                    tagUpdateTargetDriftMutationCount++;
                     Respond("""{"success":true,"payload":"{}"}""");
                     break;
                 default:
-                    Respond("""{"success":false,"error":"unexpected broad-drift update-tag fixture method"}""");
+                    Respond("""{"success":false,"error":"unexpected target-drift update-tag fixture method"}""");
                     break;
             }
             break;
@@ -365,19 +419,19 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
-                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""",
+                "read_update_tag_safety_snapshot" => Success(ToCamelCaseJson(TagUpdateSnapshot())),
                 "list_tag_tables" => """{"success":true,"payload":"{\"tables\":[]}","warnings":["Skipping unrelated tag table: access denied."]}""",
                 "update_tag" => """{"success":true,"payload":"{}"}""",
                 _ => """{"success":false,"error":"unexpected update-tag broad-omission fixture method"}"""
             });
             break;
-        case "tag-update-broad-malformed-payload":
+        case "tag-update-exact-malformed-payload":
             Respond(ReadMethod(line) switch
             {
                 "get_project_status" => """{"success":true,"payload":"{\"isOpen\":true}"}""",
-                "read_update_tag_safety_snapshot" => """{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":false,\"externalVisible\":true,\"externalWritable\":false}"}""",
-                "list_tag_tables" => """{"success":true,"payload":"{not valid json"}""",
-                _ => """{"success":false,"error":"unexpected update-tag malformed-broad fixture method"}"""
+                "read_update_tag_safety_snapshot" => Success("{not valid json"),
+                "list_tag_tables" => """{"success":false,"error":"wrong route: list_tag_tables"}""",
+                _ => """{"success":false,"error":"unexpected update-tag malformed-exact fixture method"}"""
             });
             break;
         case "network-read-warnings":
@@ -999,6 +1053,166 @@ ProjectStatusInfo StatusWithMetadataFixture() => new()
         },
     },
 };
+
+// Exact-route fixtures reject wrong selectors before returning each operation's typed payload.
+string TagSafetyBehaviorResponse(string requestLine, string scenario)
+{
+    var method = ReadMethod(requestLine);
+    if (method == "get_project_status")
+    {
+        // Read-only observation: bootstrap and assertions never advance the snapshot phase.
+        return Success(ToCamelCaseJson(new
+        {
+            isOpen = true,
+            snapshotReadCount = tagSafetySnapshotReadCount,
+            mutationCount = tagSafetyMutationCount,
+            snapshotReadsAtMutation = tagSafetySnapshotReadsAtMutation,
+            broadReadCount = tagSafetyBroadReadCount,
+            targetExists = tagSafetyTargetExists,
+            targetTagName = tagSafetyTargetTagName,
+            siblingTableName = tagSafetySiblingTag.TableName,
+            siblingTagName = tagSafetySiblingTag.TagName
+        }));
+    }
+    if (method == "list_tag_tables")
+    {
+        tagSafetyBroadReadCount++;
+        return """{"success":false,"error":"wrong route: list_tag_tables"}""";
+    }
+
+    var expectedWrite = scenario switch
+    {
+        "tag-safety-same-object-drift" or "tag-safety-authorized-apply" => "update_tag",
+        "tag-safety-collision-drift" => "create_tag",
+        "tag-safety-unrelated-sibling" => "delete_tag",
+        "tag-safety-delete-table-export-drift" => "delete_tag_table",
+        "tag-safety-reread" => "create_user_constant",
+        _ => throw new InvalidOperationException("Unknown tag safety behavior scenario.")
+    };
+    var requestedName = ReadField(requestLine, "name");
+    if (ReadField(requestLine, "plcName") != "PLC_1" ||
+        ReadField(requestLine, "tableName") != "Inputs" ||
+        ReadField(requestLine, "folderPath") is not (null or "" or "/") ||
+        (expectedWrite is "update_tag" or "delete_tag" && requestedName != "Start") ||
+        (expectedWrite == "update_tag" && ReadField(requestLine, "newName") != "Start_1") ||
+        (expectedWrite == "create_tag" && (requestedName is not ("Start_1" or "AddressOnly") ||
+            ReadField(requestLine, "dataType") != "Bool" || ReadField(requestLine, "logicalAddress") != "%I0.1")) ||
+        (expectedWrite == "create_user_constant" && requestedName != "DebounceMs"))
+    {
+        return """{"success":false,"error":"wrong tag safety behavior selector"}""";
+    }
+    if (method == expectedWrite)
+    {
+        // Count every mutation attempt, including one the host should have rejected.
+        tagSafetyMutationCount++;
+        tagSafetySnapshotReadsAtMutation = tagSafetySnapshotReadCount;
+        if (expectedWrite == "update_tag")
+            tagSafetyTargetTagName = ReadField(requestLine, "newName")!;
+        if (expectedWrite is "delete_tag" or "delete_tag_table")
+            tagSafetyTargetExists = false;
+        return Success("{}");
+    }
+    if (method != $"read_{expectedWrite}_safety_snapshot")
+        return """{"success":false,"error":"unexpected tag safety behavior method"}""";
+
+    // Only an exact selector read advances state. The second read is apply, before mutation.
+    var applyPhase = ++tagSafetySnapshotReadCount > 1;
+    var table = new TagTableSafetyIdentityInfo("PLC_1", "/", "Inputs", "PLC_1/Tag tables/Inputs");
+    var tag = new TagSafetyIdentityInfo("PLC_1", "/", "Inputs", tagSafetyTargetTagName,
+        table.CanonicalPath + "/" + tagSafetyTargetTagName, "Bool", "%I0.0", true, true, false);
+    var empty = Array.Empty<TagCollisionProbeInfo>();
+    object payload;
+    switch (scenario)
+    {
+        case "tag-safety-same-object-drift":
+        case "tag-safety-authorized-apply":
+            if (applyPhase && scenario == "tag-safety-same-object-drift")
+                tag = tag with { ExternalVisible = false };
+            payload = new UpdateTagSafetySnapshotInfo(table, tag, "Start_1", "%I0.0", empty,
+                new[] { new TagCollisionProbeInfo("logical-address", tag.TagName, tag.CanonicalPath, "%I0.0", true) });
+            break;
+        case "tag-safety-collision-drift":
+            // Independent variants: same name at another address, or another name at the same address.
+            var nameCollisions = applyPhase && requestedName == "Start_1"
+                ? new[] { new TagCollisionProbeInfo("tag-name", "Start_1", table.CanonicalPath + "/Start_1", "%I0.2", false) }
+                : empty;
+            var addressCollisions = applyPhase && requestedName == "AddressOnly"
+                ? new[] { new TagCollisionProbeInfo("logical-address", "Other", table.CanonicalPath + "/Other", "%I0.1", false) }
+                : empty;
+            payload = new CreateTagSafetySnapshotInfo(table, requestedName!, "%I0.1", nameCollisions, addressCollisions);
+            break;
+        case "tag-safety-unrelated-sibling":
+            if (applyPhase)
+            {
+                // This Outputs-table tag would appear in the old broad inventory. It is outside
+                // the Inputs/Start selector, so the exact target snapshot remains byte-identical.
+                tagSafetySiblingTag = tagSafetySiblingTag with
+                {
+                    TagName = "After", CanonicalPath = "PLC_1/Tag tables/Outputs/After"
+                };
+            }
+            payload = new DeleteTagSafetySnapshotInfo(table, tag);
+            break;
+        case "tag-safety-delete-table-export-drift":
+            var xml = $"<Document><SW.Tags.PlcTagTable><Name>Inputs</Name><Comment>{(applyPhase ? "B" : "A")}</Comment></SW.Tags.PlcTagTable></Document>";
+            var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(xml))).ToLowerInvariant();
+            payload = new DeleteTagTableSafetySnapshotInfo(table, xml, digest, xml.Length);
+            break;
+        case "tag-safety-reread":
+            var constantCollisions = applyPhase
+                ? new[] { new TagCollisionProbeInfo("user-constant-name", "DebounceMs", table.CanonicalPath + "/DebounceMs", null, false) }
+                : empty;
+            payload = new CreateUserConstantSafetySnapshotInfo(table, "DebounceMs", constantCollisions);
+            break;
+        default:
+            throw new InvalidOperationException("Unknown tag safety snapshot scenario.");
+    }
+    return Success(ToCamelCaseJson(payload));
+}
+
+string TagSafetyRouteResponse(string requestLine, bool malformed, bool invalidCollision = false)
+{
+    var method = ReadMethod(requestLine);
+    if (ReadField(requestLine, "plcName") != "PLC_1" ||
+        ReadField(requestLine, "tableName") != "Inputs" ||
+        ReadField(requestLine, "folderPath") != "Area")
+    {
+        return """{"success":false,"error":"wrong tag safety selector"}""";
+    }
+    var table = new TagTableSafetyIdentityInfo("PLC_1", "Area", "Inputs", "PLC_1/Area/Inputs");
+    var tag = new TagSafetyIdentityInfo("PLC_1", "Area", "Inputs", "Start", "PLC_1/Area/Inputs/Start", "Bool", "%I0.0", true, true, false);
+    var constant = new UserConstantSafetyIdentityInfo("PLC_1", "Area", "Inputs", "Start", "PLC_1/Area/Inputs/Start", "Bool", "true");
+    var collisions = Array.Empty<TagCollisionProbeInfo>();
+    object? payload = method switch
+    {
+        "read_create_tag_table_safety_snapshot" => new CreateTagTableSafetySnapshotInfo("PLC_1", "Area", "Inputs", collisions),
+        "read_delete_tag_table_safety_snapshot" => new DeleteTagTableSafetySnapshotInfo(table, "<Document />", new string('a', 64), 12),
+        "read_create_tag_safety_snapshot" when ReadField(requestLine, "logicalAddress") == "%I1.0" && ReadField(requestLine, "dataType") == "Bool"
+            => new CreateTagSafetySnapshotInfo(table, "Start", "%I1.0", collisions, collisions),
+        "read_update_tag_safety_snapshot" when ReadField(requestLine, "newName") == "Run" && ReadField(requestLine, "logicalAddress") == "%I1.0"
+            => new UpdateTagSafetySnapshotInfo(table, tag, "Run", "%I1.0", collisions, collisions),
+        "read_delete_tag_safety_snapshot" => new DeleteTagSafetySnapshotInfo(table, tag),
+        "read_create_user_constant_safety_snapshot" => new CreateUserConstantSafetySnapshotInfo(table, "Start", collisions),
+        "read_update_user_constant_safety_snapshot" => new UpdateUserConstantSafetySnapshotInfo(table, constant, "Start", collisions),
+        "read_delete_user_constant_safety_snapshot" => new DeleteUserConstantSafetySnapshotInfo(table, constant),
+        _ => null
+    };
+    if (payload is null || (!method!.Contains("tag_table", StringComparison.Ordinal) && ReadField(requestLine, "name") != "Start"))
+    {
+        return """{"success":false,"error":"wrong route or effective tag safety selector"}""";
+    }
+    if (invalidCollision && payload is UpdateTagSafetySnapshotInfo update)
+    {
+        payload = update with
+        {
+            NameCollisions = new[]
+            {
+                new TagCollisionProbeInfo("PRIVATE_SNAPSHOT_SENTINEL", "Run", "PLC_1/Area/Inputs/Run", null, false)
+            }
+        };
+    }
+    return Success(malformed ? "{}" : ToCamelCaseJson(payload));
+}
 
 // Wraps a payload document as a successful worker response. Serializing beats hand-escaping once a
 // payload is more than a few members: the escaping is what a hand-written literal gets wrong, and a
@@ -2047,19 +2261,18 @@ string HandleSecondItemFailureWrite(string requestLine, List<SubnetLifecycleSubn
         : $$"""{"success":false,"error":"deliberate second-item failure for network-subnet-lifecycle-second-item-failure"}""";
 }
 
-string TagUpdateDriftSnapshotResponse(int readCount)
+UpdateTagSafetySnapshotInfo TagUpdateSnapshot(
+    bool? externalAccessible = false, bool? externalVisible = true, bool? externalWritable = false, string dataType = "Bool")
 {
-    var externalAccessible = readCount == 1 ? "false" : "true";
-    return $$"""{"success":true,"payload":"{\"plcName\":\"ResolvedPLC\",\"folderPath\":\"/\",\"tableName\":\"Default tag table\",\"tagName\":\"MotorReady\",\"dataType\":\"Bool\",\"logicalAddress\":\"%I0.0\",\"externalAccessible\":{{externalAccessible}},\"externalVisible\":true,\"externalWritable\":false}"}""";
+    return new(
+        new("ResolvedPLC", "/", "Default tag table", "ResolvedPLC/Default tag table"),
+        new("ResolvedPLC", "/", "Default tag table", "MotorReady", "ResolvedPLC/Default tag table/MotorReady",
+            dataType, "%I0.0", externalAccessible, externalVisible, externalWritable),
+        "MotorReady", "%I0.0", Array.Empty<TagCollisionProbeInfo>(), Array.Empty<TagCollisionProbeInfo>());
 }
 
-string TagUpdateBroadDriftResponse(int readCount)
-{
-    var payload = readCount == 1
-        ? """{"tables":[]}"""
-        : """{"tables":[{"name":"Unrelated","folderPath":"/","tags":[],"userConstants":[]}]}""";
-    return Success(payload);
-}
+string TagUpdateDriftSnapshotResponse(int readCount)
+    => Success(ToCamelCaseJson(TagUpdateSnapshot(externalAccessible: readCount != 1)));
 
 string InvalidTagUpdateSnapshotResponse(string requestLine)
 {
@@ -2073,30 +2286,22 @@ string InvalidTagUpdateSnapshotResponse(string requestLine)
         return Success("[]");
     }
 
-    var snapshot = new Dictionary<string, object?>(StringComparer.Ordinal)
-    {
-        ["plcName"] = "ResolvedPLC",
-        ["folderPath"] = "/",
-        ["tableName"] = "Default tag table",
-        ["tagName"] = "MotorReady",
-        ["dataType"] = "Bool",
-        ["logicalAddress"] = "%I0.0",
-        ["externalAccessible"] = false,
-        ["externalVisible"] = true,
-        ["externalWritable"] = false,
-    };
+    var snapshot = JsonNode.Parse(ToCamelCaseJson(TagUpdateSnapshot()))!.AsObject();
+    snapshot["targetTag"]!["dataType"] = "PRIVATE_SNAPSHOT_SENTINEL";
 
     if (variant == "empty")
     {
         snapshot.Clear();
     }
-    else if (variant.StartsWith("missing-", StringComparison.Ordinal))
+    else if (variant.StartsWith("missing-", StringComparison.Ordinal) ||
+             variant.StartsWith("null-", StringComparison.Ordinal) ||
+             variant.StartsWith("wrong-", StringComparison.Ordinal))
     {
-        snapshot.Remove(variant["missing-".Length..]);
-    }
-    else if (variant.StartsWith("wrong-", StringComparison.Ordinal))
-    {
-        snapshot[variant["wrong-".Length..]] = new { unsupported = true };
+        var parts = variant[(variant.IndexOf('-') + 1)..].Split('.');
+        var owner = parts.Length == 1 ? snapshot : snapshot[parts[0]]!.AsObject();
+        if (variant.StartsWith("missing-", StringComparison.Ordinal)) owner.Remove(parts[^1]);
+        else owner[parts[^1]] = variant.StartsWith("null-", StringComparison.Ordinal)
+            ? null : JsonValue.Create(123);
     }
 
     if (variant == "unknown-member")
@@ -2107,7 +2312,7 @@ string InvalidTagUpdateSnapshotResponse(string requestLine)
     var payload = JsonSerializer.Serialize(snapshot);
     if (variant == "duplicate-member")
     {
-        payload = payload.Insert(1, "\"plcName\":\"Duplicate\",");
+        payload = payload.Insert(1, "\"effectiveName\":\"Duplicate\",");
     }
     return Success(payload);
 }

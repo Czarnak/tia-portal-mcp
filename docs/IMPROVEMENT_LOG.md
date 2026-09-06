@@ -412,6 +412,26 @@ equivalence. A separately authorized read-only acceptance procedure was contract
 not executed against live TIA Portal V21 before its removal; live pagination acceptance remains
 unverified.
 
+## PR 5 tag-operation safety scopes — mandatory live acceptance completed (2026-09-05)
+
+Typed exact selectors now cover all eight tag/table/user-constant write operations with relevant
+cross-kind/name/address collision probes, phase-local read deduplication and ordered expansion,
+fresh apply reads, and no cross-phase cache. Focused tests passed 83/83, current-state FakeWorker
+tests 24/24, harness contracts 7/7, the full offline suite 2691/2691, and both stub and real V21
+builds completed with 0 warnings/errors.
+
+The [guarded live acceptance report](superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
+records successful `PreviewOnly`, `DriftAndRestore`, and `ApplyAndRestore` modes against the exact
+disposable copy. Same-object and relevant name/address collision drift rejected stale tokens with
+`state_changed`; unrelated sibling drift preserved the original target token; one unchanged-token
+apply succeeded and observed `heaterStages=4`; no-save discard preserved the saved baseline; and
+the clean source project was restored open. The initial sandbox visibility failure and two
+deterministic lifecycle binding conflicts occurred before mutation and were not uncertain writes.
+
+Deferred scope remains explicit: multilingual per-tag comment binding; public `list_tag_tables`
+completeness changes; broader snapshot narrowing; Software Unit namespace-aware collisions; and
+PLC `start_plc` / `stop_plc` safety work. This bounded evidence is not plant acceptance.
+
 ## PR 3 update_tag exact safety snapshot — mandatory live acceptance completed (2026-09-05)
 
 The missing external-flag safety-state gap for `update_tag` is closed in the offline contract,

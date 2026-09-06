@@ -194,10 +194,26 @@ public class WriteBatchTools
         OpennessWorkerClient workerClient,
         BatchOperationRequest[] operations)
     {
+        // This cache belongs to one read phase only. Preview and apply each create a fresh map.
+        var dedup = new Dictionary<TagOperationSafetySelectorKey, Task<WorkerCallResult>>();
         var states = new List<OperationBatchCurrentState>(operations.Length);
         foreach (var op in operations)
         {
-            var state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
+            WorkerCallResult state;
+            if (TagOperationSafetySelector.TryBuild(op, out var key))
+            {
+                if (!dedup.TryGetValue(key, out var read))
+                {
+                    read = BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op);
+                    dedup.Add(key, read);
+                }
+                state = await read.ConfigureAwait(false);
+                state = BatchWorkerInvoker.ValidateRequestedTagState(op, state);
+            }
+            else
+            {
+                state = await BatchWorkerInvoker.ReadCurrentStateAsync(workerClient, op).ConfigureAwait(false);
+            }
             if (!state.Success)
             {
                 return (

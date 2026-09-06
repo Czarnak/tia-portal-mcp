@@ -111,14 +111,14 @@ public sealed class WriteBatchPreviewDiffIntegrationTests
     public async Task PreviewWriteBatch_MixedEligibleAndIneligibleWrites_PreservesEligibleRequestOrder()
     {
         using var audit = new TempAuditDirectory();
-        var (client, safety, _) = await BoundAsync(audit, "echo");
+        var (client, safety, _) = await BoundAsync(audit, "batch-preview-tag-safety");
         using (client)
         {
             var result = await WriteBatchTools.PreviewWriteBatch(client, safety, new[]
             {
-                new BatchOperationRequest { OperationId = "block-1", Operation = "update_block_logic", ProjectPath = "echo", BlockPath = "PLC_1/Blocks/Main", YamlContent = "--- FILE: Main.xml\r\n<Document />\r\n" },
-                new BatchOperationRequest { OperationId = "tag-1", Operation = "create_tag_table", ProjectPath = "echo", TableName = "Inputs" },
-                new BatchOperationRequest { OperationId = "type-3", Operation = "update_type_content", ProjectPath = "echo", TypePath = "PLC_1/Types/AnalogInputSettings", SourceContent = "TYPE AnalogInputSettings STRUCT Value : Int; END_STRUCT END_TYPE" }
+                new BatchOperationRequest { OperationId = "block-1", Operation = "update_block_logic", ProjectPath = "batch-preview-tag-safety", BlockPath = "PLC_1/Blocks/Main", YamlContent = "--- FILE: Main.xml\r\n<Document />\r\n" },
+                new BatchOperationRequest { OperationId = "tag-1", Operation = "create_tag_table", ProjectPath = "batch-preview-tag-safety", TableName = "Inputs" },
+                new BatchOperationRequest { OperationId = "type-3", Operation = "update_type_content", ProjectPath = "batch-preview-tag-safety", TypePath = "PLC_1/Types/AnalogInputSettings", SourceContent = "TYPE AnalogInputSettings STRUCT Value : Int; END_STRUCT END_TYPE" }
             });
             using var doc = JsonDocument.Parse(result);
             var operations = doc.RootElement.GetProperty("diff").GetProperty("operations");
@@ -236,12 +236,12 @@ public sealed class WriteBatchPreviewDiffIntegrationTests
     public async Task PreviewWriteBatch_AllIneligibleWrites_ReturnsNullDiff()
     {
         using var audit = new TempAuditDirectory();
-        var (client, safety, _) = await BoundAsync(audit, "echo");
+        var (client, safety, _) = await BoundAsync(audit, "batch-preview-tag-safety");
         using (client)
         {
             var result = await WriteBatchTools.PreviewWriteBatch(client, safety, new[]
             {
-                new BatchOperationRequest { OperationId = "tag-1", Operation = "create_tag_table", ProjectPath = "echo", TableName = "Inputs" }
+                new BatchOperationRequest { OperationId = "tag-1", Operation = "create_tag_table", ProjectPath = "batch-preview-tag-safety", TableName = "Inputs" }
             });
             using var doc = JsonDocument.Parse(result);
             Assert.Equal(JsonValueKind.Null, doc.RootElement.GetProperty("diff").ValueKind);

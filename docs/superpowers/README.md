@@ -59,11 +59,17 @@ Task-level implementation plans derived from the specs above.
 
 ## Acceptance reports
 
+PR 5 tag-operation safety scopes completed its offline/FakeWorker, static harness-contract, and
+guarded live TIA Portal V21 acceptance. The report records all three successful modes, exact
+saved-baseline verification, source restoration, and the bounded deferred scope. See the
+[current acceptance boundary](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary).
+
 Evidence from completed live runs against TIA Portal V21, plus prepared reports whose live gate is
 explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-05 | [PR 5 — tag-operation safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md) |
 | 2026-09-05 | [PR 3 — exact `update_tag` safety snapshot — mandatory live PASS](acceptance/reports/2026-09-01-pr3-update-tag-safety-snapshot-live.md) |
 | 2026-09-05 | [PR 4 — structured preview diff — live Preview and authorized Apply/restore/compile acceptance completed](acceptance/reports/2026-09-01-pr4-structured-preview-diff-live.md) |
 | 2026-09-01 | [PR 2 — registered-tool delegation — live](acceptance/reports/2026-09-01-pr2-registered-tool-delegation-live.md) |

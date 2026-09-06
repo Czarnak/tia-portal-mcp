@@ -749,6 +749,154 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
+    public Task<WorkerCallResult> ReadCreateTagTableSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_create_tag_table_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+            },
+            "{}");
+
+    public Task<WorkerCallResult> ReadDeleteTagTableSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_delete_tag_table_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+            },
+            "{}");
+
+    public Task<WorkerCallResult> ReadCreateTagSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name,
+        string dataType,
+        string? logicalAddress,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_create_tag_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+                request.Name = name;
+                request.DataType = dataType;
+                request.LogicalAddress = logicalAddress;
+            },
+            "{}");
+
+    public Task<WorkerCallResult> ReadUpdateTagSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name,
+        string? newName,
+        string? logicalAddress,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_update_tag_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+                request.Name = name;
+                request.NewName = newName;
+                request.LogicalAddress = logicalAddress;
+            },
+            "{}");
+
+    public Task<WorkerCallResult> ReadDeleteTagSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_delete_tag_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+                request.Name = name;
+            },
+            "{}");
+
+    public Task<WorkerCallResult> ReadCreateUserConstantSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_create_user_constant_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+                request.Name = name;
+            },
+            "{}");
+
+    public Task<WorkerCallResult> ReadUpdateUserConstantSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_update_user_constant_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+                request.Name = name;
+            },
+            "{}");
+
+    public Task<WorkerCallResult> ReadDeleteUserConstantSafetySnapshotAsync(
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name,
+        string? projectPath)
+        => SendBoundProjectRequestAsync(
+            "read_delete_user_constant_safety_snapshot",
+            projectPath,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+                request.Name = name;
+            },
+            "{}");
+
     public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(

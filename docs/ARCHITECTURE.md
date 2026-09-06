@@ -527,12 +527,68 @@ reuse causes rejection. Completed writes are appended to the audit log under
 Read-only mode is categorically stronger than this token flow: confirmation and
 a valid token cannot override the access policy.
 
-For `update_tag`, the preview state currently composes two complementary reads: one strict,
-exact-target `TagUpdateSafetySnapshot` and the legacy broad tag-table payload retained until PR 5
-narrows the remaining tag-operation scopes. The strict snapshot records the resolved PLC name
-(rather than a caller-supplied selector), folder, table, tag, and every property the mutator can
-change. In particular, a requested external flag whose current value is unreadable causes preview
-to fail before token issuance. The public `list_tag_tables` read remains best-effort and unchanged.
+The eight tag/table/user-constant writes bind typed, operation-specific safety snapshots instead
+of the full `list_tag_tables` payload. All identities retain the resolved PLC, folder, table,
+and canonical object path. Collision probes retain matching candidate identity, kind, name,
+logical address where applicable, and whether the candidate is the target; unrelated candidate
+state is excluded. Table-name collisions search the selected PLC's complete tag-table hierarchy,
+including sibling and nested folders, while retaining the exact destination-folder identity.
+Tag and user-constant name probes compare names case-insensitively across PLC tags, user constants,
+and blocks in the selected PLC's unqualified CPU namespace. They traverse all tag-table folders
+and the ordinary program-block hierarchy, including nested user groups and system-block groups.
+Each matching candidate retains its actual kind (`tag-name`, `user-constant-name`, or `block-name`)
+and canonical path; target marking requires both the kind and exact path. Logical-address probes
+remain tag-only. All probes bind only matching names/addresses in deterministic order, and traversal
+or discovery errors propagate even after a match has been found.
+
+These scopes follow the Siemens V21 rules for [PLC tag and tag-table names](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/rules-for-plc-tags/valid-names-of-plc-tags)
+and [global user-constant names](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/declaring-global-constants/rules-for-global-user-constants).
+Software Unit namespace resolution is not modeled by these operations: unit-local block names are
+not folded into the unqualified CPU namespace. Namespace-aware coverage remains a design/live
+qualification follow-up.
+
+| Operation / exact selector | Bound current state |
+| --- | --- |
+| `create_tag_table` | Resolved PLC and destination folder, requested table name, and matching table-name occupancy throughout that PLC's tag-table hierarchy |
+| `delete_tag_table` | Exact target-table identity and its normalized Simatic ML export, SHA-256, and character count |
+| `create_tag` | Exact target-table identity, effective name/address, matching tag/constant/block names, and tag-only address probes |
+| `update_tag` | Exact target-table and tag identity/state, effective name/address, matching tag/constant/block names, and tag-only address probes |
+| `delete_tag` | Exact target-table and tag identity/state |
+| `create_user_constant` | Exact target-table identity, effective constant name, and matching tag/constant/block names |
+| `update_user_constant` | Exact target-table and constant identity/state, effective constant name, and matching tag/constant/block names |
+| `delete_user_constant` | Exact target-table and constant identity/state |
+
+Tag state includes data type, logical address, and the three external access flags. Constant state
+includes data type and value. A requested external flag whose current value is unreadable still
+fails before token issuance; unreadable required evidence or a malformed typed worker payload
+fails closed. Table deletion binds the selected table's export, including exported content that
+the public table list does not expose; it does not bind sibling-table exports.
+
+Within one preview or apply read phase, identical tag selectors share one worker read. The key
+contains operation kind, canonical project path, PLC selector, folder, table, object name,
+effective name, and requested logical address; request fields conservatively distinguish keys.
+The shared result is validated for each requesting operation and expanded back into the original
+operation order before composing the combined state. Operation IDs and list order remain bound.
+The map is local to that one phase: **there is no cross-phase cache**. Apply always reads fresh
+state under the pinned binding lease. Deduplication does not make the sequential reads atomic.
+
+Offline tests execute the safety reader against test-only Siemens object graphs, including
+cross-kind name drift, nested user/system blocks, CPU-wide table-name occupancy, strict traversal
+failures, and unrelated-name tolerance. They pass those snapshots through the real typed decoder
+and token validator without loading Openness assemblies. Offline and FakeWorker tests also cover
+typed selectors, ordered expansion, within-phase deduplication,
+fresh apply reads, same-object/collision drift rejection, unrelated sibling tolerance, authorized
+apply, and replay rejection. The
+[guarded live TIA Portal V21 acceptance](superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
+completed against the exact recorded host, PID, disposable copy, and fixtures: all eight previews
+and ordered duplicate selection passed; same-object and name/address collision drift returned
+`state_changed`; unrelated sibling drift preserved the original token; one authorized unchanged-token
+apply succeeded; no-save discard preserved the saved baseline; and the clean source project was
+restored open. Static/offline and bounded live evidence remain separate, complementary claims.
+
+PR 5 explicitly defers multilingual per-tag comment binding, public `list_tag_tables`
+completeness changes, broader snapshot narrowing, Software Unit namespace-aware collisions, and
+PLC `start_plc` / `stop_plc` safety work. The public table list remains best-effort and unchanged.
 
 Internal exact-target selectors use the shared `SafetyRead` capability. A `SafetyRead` is
 side-effect-free and allowed in read-only mode, but it is not an ordinary observe: every request

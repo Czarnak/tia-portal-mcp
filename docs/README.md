@@ -56,9 +56,15 @@ with separate plans for [PR 1 explicit MCP tool annotations](superpowers/plans/2
 [PR 4 bounded structured preview diffs](superpowers/plans/2026-09-01-pr4-structured-preview-diff.md),
 [its completed live Preview and authorized Apply/restore/compile acceptance report (2026-09-05)](superpowers/acceptance/reports/2026-09-01-pr4-structured-preview-diff-live.md),
 [PR 5 tag-operation safety scopes](superpowers/plans/2026-09-01-pr5-tag-operation-safety-scopes.md),
+[its completed mandatory live acceptance report (2026-09-05)](superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md),
 and [PR 6 project-tree safety scopes](superpowers/plans/2026-09-01-pr6-project-tree-safety-scopes.md);
 [project completeness and hardware pagination design](superpowers/specs/2026-08-28-issue-31-project-completeness-pagination-design.md),
 its [PR 1 project enumeration completeness plan](superpowers/plans/2026-08-28-project-enumeration-completeness.md),
 the [PR 2 hardware pagination plan](superpowers/plans/2026-08-29-hardware-pagination.md),
 [PR #29 binding findings repair design](superpowers/specs/2026-08-28-pr29-binding-findings-repair-design.md),
 and its [implementation plan](superpowers/plans/2026-08-28-pr29-binding-findings-repair.md).
+
+PR 5's [current tag-safety acceptance boundary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary)
+now links its completed guarded live V21 result while keeping public table-list completeness,
+broader snapshots, Software Unit namespace collisions, multilingual comments, PLC control, and
+plant acceptance explicitly outside the accepted scope.
