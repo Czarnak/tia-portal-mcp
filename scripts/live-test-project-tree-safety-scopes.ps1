@@ -13,10 +13,13 @@
     are passed unchanged to the public tools. Run each owner scope separately.
 
     Apply requires -AllowMutation -Acknowledgement 'OVERRIDE BLOCKS AND DELETE GROUPS'.
-    It overrides the occupied FC, creates a group, then deletes the fixture subtree.
-    Finally it reconstructs the original groups and FCs through preview/apply, imports
-    the original complete XML bundles, and compares every exported byte and tree path.
-    Only then may final compile_check run. Restoration failure is a failed acceptance,
+    It proves relevant descendant drift rejects an original delete token and unrelated
+    sibling drift preserves an original occupied-block token, then overrides the occupied
+    FC, creates a group, and deletes the fixture subtree. Each case captures a baseline
+    and finally reconstructs the original groups and FCs through preview/apply. Restoration
+    submits only the original authoritative XML document, then compares every byte of
+    the complete re-exported bundle and every tree path. Only then may compile_check run.
+    Restoration failure is a failed acceptance,
     requiring manual recovery from the retained baseline; the project stays open.
 
     Artifacts contain project content and must be kept private. Tokens are redacted.
@@ -154,7 +157,7 @@ function Invoke-Mcp([string] $Method, [hashtable] $Parameters, [int] $TimeoutSec
     return $result
 }
 
-function Invoke-Tool([string] $Name, [hashtable] $Arguments) {
+function Invoke-Tool([string] $Name, [hashtable] $Arguments, [switch] $AllowFailure) {
     Assert-Condition ($Name -in @('get_project_status', 'browse_project_tree', 'execute_read_batch', 'preview_write_batch', 'apply_write_batch', 'compile_check')) 'Tool is outside the allowlist.'
     if ($Name -in @('preview_write_batch', 'apply_write_batch', 'compile_check')) {
         if ($Name -ceq 'apply_write_batch') { Assert-MutationAuthorization }
@@ -167,7 +170,7 @@ function Invoke-Tool([string] $Name, [hashtable] $Arguments) {
     Assert-Condition ($items.Count -eq 1) 'Expected one public JSON text document.'
     $document = ConvertFrom-Json -InputObject $items[0].text -AsHashtable
     Assert-Condition ($null -ne $document -and $document -is [Collections.IDictionary]) 'Invalid public tool envelope.'
-    if ($document.ContainsKey('success')) { Assert-Condition ($document.success -eq $true) 'Public tool reported failure.' }
+    if ($document.ContainsKey('success') -and (-not $AllowFailure)) { Assert-Condition ($document.success -eq $true) 'Public tool reported failure.' }
     if ($document.ContainsKey('warnings')) { Assert-Condition (@($document.warnings | Where-Object { $null -ne $_ }).Count -eq 0) 'Warnings prevent complete acceptance evidence.' }
     return $document
 }
@@ -228,12 +231,17 @@ function Get-Preview([array] $Operations) {
     return $preview
 }
 
-function Invoke-Apply([array] $Operations, $Preview) {
+function Invoke-Apply([array] $Operations, $Preview, [switch] $ExpectStateChanged) {
     Assert-MutationAuthorization
     Assert-Condition ($null -ne $script:Baseline) 'Restorable baseline required before apply.'
     $script:MutationStarted = $true
-    $result = Invoke-Tool 'apply_write_batch' @{ operations = $Operations; safetyToken = $Preview.safetyToken; confirm = $true }
-    Assert-Condition ($result.success -eq $true -and $result.failed -eq 0 -and $result.succeeded -eq $Operations.Count) 'Apply incomplete; restoration required.'
+    $result = Invoke-Tool 'apply_write_batch' @{ operations = $Operations; safetyToken = $Preview.safetyToken; confirm = $true } -AllowFailure:$ExpectStateChanged
+    if ($ExpectStateChanged) {
+        Assert-Condition ($result.success -eq $false -and $result.failureCategory -ceq 'state_changed') 'Relevant drift did not reject the original token with state_changed.'
+    }
+    else {
+        Assert-Condition ($result.success -eq $true -and $result.failed -eq 0 -and $result.succeeded -eq $Operations.Count) 'Apply incomplete; restoration required.'
+    }
 }
 
 function Invoke-Change($Operation) {
@@ -258,8 +266,31 @@ function Read-BlockBytes([string] $Path) {
     $content = $item.result
     Assert-Condition ($content -is [string] -and (-not [string]::IsNullOrWhiteSpace($content)) -and $content -notmatch '\[(TRUNCATED|OMITTED)') 'Block export missing or truncated.'
     Assert-Condition ($content -match '(?m)^--- FILE: [^\r\n]+\.xml ---(\r?\n|$)') 'Authoritative Simatic ML XML is required for restoration.'
+    $null = Get-AuthoritativeXmlDocument ($script:Utf8.GetBytes($content))
     # Preserve the complete deterministic public export, including companion documents.
     return ,$script:Utf8.GetBytes($content)
+}
+
+function Get-AuthoritativeXmlDocument([byte[]] $BundleBytes) {
+    $bundle = $script:Utf8.GetString($BundleBytes)
+    # Same public document delimiter grammar as BlockBundleFormat. Keep the selected
+    # document header and exact body bytes, but never submit companion documents from
+    # the old block against a newly created placeholder's different companion export.
+    $markers = [regex]::Matches($bundle, '(?m)^--- FILE: (?<name>.+) ---(?:\r?\n|$)')
+    Assert-Condition ($markers.Count -gt 0 -and $markers[0].Index -eq 0) 'Invalid export bundle header.'
+    Assert-Condition ($markers.Count -eq [regex]::Matches($bundle, '(?m)^--- FILE:').Count) 'Malformed export bundle delimiter.'
+    $xmlDocuments = [Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $markers.Count; $i++) {
+        $marker = $markers[$i]
+        if ($marker.Groups['name'].Value.EndsWith('.xml', [StringComparison]::OrdinalIgnoreCase)) {
+            $end = $bundle.Length
+            if ($i + 1 -lt $markers.Count) { $end = $markers[$i + 1].Index }
+            Assert-Condition ($end -gt $marker.Index + $marker.Length) 'Authoritative XML body is empty.'
+            $xmlDocuments.Add($bundle.Substring($marker.Index, $end - $marker.Index))
+        }
+    }
+    Assert-Condition ($xmlDocuments.Count -eq 1) 'Exactly one authoritative XML document is required.'
+    return $xmlDocuments[0]
 }
 
 function Read-ProjectContent {
@@ -309,13 +340,13 @@ function Restore-ByteEquivalentProjectContent {
     foreach ($group in @($script:Baseline | Where-Object { $_.kind -ceq 'BlockFolder' } | Sort-Object { ($_.path -split '/').Count }, { $_.path })) {
         Invoke-Change (New-Operation 'create_block_group' $group.path)
     }
-    # Create every independent placeholder first, then restore every exact bundle.
+    # Create every independent placeholder first, then restore its authoritative XML.
     foreach ($block in @($script:Baseline | Where-Object { $_.kind -ceq 'FC' })) {
         Invoke-Change (New-Operation 'create_block' $block.path @{ blockType = 'FC'; language = 'SCL' })
     }
     foreach ($block in @($script:Baseline | Where-Object { $_.kind -ceq 'FC' })) {
-        $original = $script:Utf8.GetString($block.bytes)
-        Invoke-Change (New-Operation 'update_block_logic' $block.path @{ format = 'xml'; yamlContent = $original })
+        $originalXml = Get-AuthoritativeXmlDocument $block.bytes
+        Invoke-Change (New-Operation 'update_block_logic' $block.path @{ format = 'xml'; yamlContent = $originalXml })
     }
 }
 
@@ -338,7 +369,67 @@ function Invoke-CompileCheck {
     $compile = Invoke-Tool 'compile_check' @{ projectPath = $ProjectPath; plcName = ($FixtureGroupPath -split '/')[0] }
     $payload = Decode-Payload $compile
     Assert-Condition ($payload.overallState -ceq 'Success' -and $payload.totalErrorCount -eq 0 -and $null -ne $payload.plcs -and $payload.plcs.Count -gt 0) 'Restored fixture did not compile successfully.'
-    Write-Artifact 'final-compile.json' $compile
+    Write-Artifact ('{0:D4}-final-compile.json' -f $script:RequestId) $compile
+}
+
+function Test-RelevantDriftRejection {
+    # A child created after the preview is relevant to deletion of this whole subtree.
+    $target = @((New-Operation 'delete_block_group' $FixtureGroupPath))
+    $originalPreview = Get-Preview $target
+    Invoke-Change (New-Operation 'create_block_group' $newGroupPath)
+    $drifted = Read-ProjectContent
+    Assert-Condition (@($drifted | Where-Object { $_.path -ceq $newGroupPath -and $_.kind -ceq 'BlockFolder' }).Count -eq 1) 'Controlled descendant drift was not observed.'
+    $driftPreview = Get-Preview $target
+    Assert-Condition ($originalPreview.currentStateHash -cne $driftPreview.currentStateHash) 'Relevant descendant drift did not change the deletion snapshot.'
+    # Keep the original operation objects and original token, despite obtaining evidence
+    # from a second preview. If this unexpectedly mutates, the scenario finally restores.
+    Invoke-Apply $target $originalPreview -ExpectStateChanged
+    Assert-ByteEquivalentProjectContent $drifted (Read-ProjectContent)
+    Write-Artifact 'relevant-drift-evidence.json' @{ rejection = 'state_changed'; originalHash = $originalPreview.currentStateHash; driftHash = $driftPreview.currentStateHash; unchangedAfterRejection = $true }
+}
+
+function Test-UnrelatedDriftAcceptance {
+    # A new sibling group does not occupy this FC name or change its exact parent/owner.
+    $target = @((New-Operation 'create_block' $OccupiedBlockPath @{ blockType = 'FC'; language = 'SCL' }))
+    $originalPreview = Get-Preview $target
+    Invoke-Change (New-Operation 'create_block_group' $newGroupPath)
+    $drifted = Read-ProjectContent
+    Assert-Condition (@($drifted | Where-Object { $_.path -ceq $newGroupPath -and $_.kind -ceq 'BlockFolder' }).Count -eq 1) 'Controlled unrelated group drift was not observed.'
+    $driftPreview = Get-Preview $target
+    Assert-Condition ($originalPreview.currentStateHash -ceq $driftPreview.currentStateHash) 'Unrelated sibling drift changed the occupied-block snapshot.'
+    Invoke-Apply $target $originalPreview
+    $applied = Read-ProjectContent
+    # Only the intended occupied FC's content may differ from the drifted state.
+    $expectedUnchanged = @($drifted | Where-Object { $_.path -cne $OccupiedBlockPath })
+    $actualUnchanged = @($applied | Where-Object { $_.path -cne $OccupiedBlockPath })
+    Assert-ByteEquivalentProjectContent $expectedUnchanged $actualUnchanged
+    Assert-Condition (@($applied | Where-Object { $_.path -ceq $OccupiedBlockPath -and $_.kind -ceq 'FC' }).Count -eq 1) 'Intended occupied block is missing after apply.'
+    Write-Artifact 'unrelated-drift-evidence.json' @{ originalTokenAccepted = $true; originalHash = $originalPreview.currentStateHash; driftHash = $driftPreview.currentStateHash; unrelatedContentUnchanged = $true }
+}
+
+function Invoke-RestoredScenario([string] $Name, [scriptblock] $Probe) {
+    Assert-MutationAuthorization
+    $baseline = Read-ProjectContent
+    Assert-ByteEquivalentProjectContent $script:Baseline $baseline
+    $script:Baseline = $baseline
+    Write-Artifact ($Name + '-pre-apply-baseline.json') @{ records = $baseline; preApplyContentSha256 = @($baseline | ForEach-Object { $_.contentSha256 }) }
+    Assert-ByteEquivalentProjectContent $script:Baseline (Read-ProjectContent)
+    $script:MutationStarted = $false
+    $script:RestorationProven = $false
+    try {
+        & $Probe
+    }
+    finally {
+        if ($script:MutationStarted) {
+            Restore-ByteEquivalentProjectContent
+            $restored = Read-ProjectContent
+            Write-Artifact ($Name + '-restored-baseline.json') @{ records = $restored; restoredContentSha256 = @($restored | ForEach-Object { $_.contentSha256 }) }
+            Assert-ByteEquivalentProjectContent $script:Baseline $restored
+            $script:RestorationProven = $true
+        }
+    }
+    Invoke-CompileCheck
+    Write-Artifact ($Name + '-result.json') @{ success = $true; restorationProven = $script:RestorationProven }
 }
 
 function Stop-McpHost {
@@ -415,24 +506,14 @@ try {
             foreach ($operation in $operations) { $null = Get-Preview @($operation) }
         }
         if ($Mode -ceq 'Apply') {
-            # Re-export twice before the first apply to prove deterministic baseline bytes.
-            Assert-ByteEquivalentProjectContent $script:Baseline (Read-ProjectContent)
-            try {
+            Invoke-RestoredScenario 'relevant-drift-rejection' { Test-RelevantDriftRejection }
+            Invoke-RestoredScenario 'unrelated-drift-acceptance' { Test-UnrelatedDriftAcceptance }
+            Invoke-RestoredScenario 'three-operation-apply' {
                 foreach ($operation in $operations) {
                     $preview = Get-Preview @($operation)
                     Invoke-Apply @($operation) $preview
                 }
             }
-            finally {
-                if ($script:MutationStarted) {
-                    Restore-ByteEquivalentProjectContent
-                    $restored = Read-ProjectContent
-                    Write-Artifact 'restored-baseline.json' @{ records = $restored; restoredContentSha256 = @($restored | ForEach-Object { $_.contentSha256 }) }
-                    Assert-ByteEquivalentProjectContent $script:Baseline $restored
-                    $script:RestorationProven = $true
-                }
-            }
-            Invoke-CompileCheck
         }
     }
     $script:RunSucceeded = $true

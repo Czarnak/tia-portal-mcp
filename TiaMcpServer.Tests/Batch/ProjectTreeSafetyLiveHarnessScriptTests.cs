@@ -63,6 +63,9 @@ public sealed class ProjectTreeSafetyLiveHarnessScriptTests
         Assert.DoesNotContain("discard", text, StringComparison.OrdinalIgnoreCase);
         Assert.Matches(@"finally\s*\{\s*if \(\$script:MutationStarted\)[\s\S]*Restore-ByteEquivalentProjectContent[\s\S]*Assert-ByteEquivalentProjectContent[\s\S]*Invoke-CompileCheck", text);
         Assert.Contains("[Convert]::ToBase64String", Function(text, "Assert-ByteEquivalentProjectContent"));
+        Assert.Contains("$Expected.Count -eq $Actual.Count", Function(text, "Assert-ByteEquivalentProjectContent"));
+        Assert.Contains("$before.path -ceq $after.path -and $before.kind -ceq $after.kind", Function(text, "Assert-ByteEquivalentProjectContent"));
+        Assert.Contains("[Convert]::ToBase64String($before.bytes) -ceq [Convert]::ToBase64String($after.bytes)", Function(text, "Assert-ByteEquivalentProjectContent"));
         Assert.Contains("$script:RestorationProven", Function(text, "Invoke-CompileCheck"));
         Assert.Contains("$payload.overallState -ceq 'Success'", Function(text, "Invoke-CompileCheck"));
         Assert.Contains("$payload.totalErrorCount -eq 0", Function(text, "Invoke-CompileCheck"));
@@ -106,6 +109,55 @@ public sealed class ProjectTreeSafetyLiveHarnessScriptTests
         Assert.Contains("create_block", Function(text, "Restore-ByteEquivalentProjectContent"));
         Assert.Contains("Read-Tree $parentPath", Function(text, "Restore-ByteEquivalentProjectContent"));
         Assert.Matches(@"Read-ProjectContent[\s\S]*\$script:Baseline[\s\S]*Invoke-Apply", text);
+    }
+
+    [Fact]
+    public void Script_RestoresOnlyAuthoritativeXmlButComparesCompleteExportBundles()
+    {
+        var text = ReadScript();
+        var restore = Function(text, "Restore-ByteEquivalentProjectContent");
+        Assert.Contains("$originalXml = Get-AuthoritativeXmlDocument $block.bytes", restore);
+        Assert.Contains("yamlContent = $originalXml", restore);
+        Assert.DoesNotContain("yamlContent = $original }", restore);
+        var xml = Function(text, "Get-AuthoritativeXmlDocument");
+        Assert.Contains("[regex]::Matches", xml);
+        Assert.Contains("$xmlDocuments.Count -eq 1", xml);
+        Assert.Contains("return $xmlDocuments[0]", xml);
+        Assert.Contains("return ,$script:Utf8.GetBytes($content)", Function(text, "Read-BlockBytes"));
+        Assert.Contains("$restored = Read-ProjectContent", Function(text, "Invoke-RestoredScenario"));
+        Assert.Contains("Assert-ByteEquivalentProjectContent $script:Baseline $restored", Function(text, "Invoke-RestoredScenario"));
+    }
+
+    [Fact]
+    public void Script_RelevantDriftRejectsOriginalTokenAndAlwaysRestoresTheDriftMutation()
+    {
+        var text = ReadScript();
+        var relevant = Function(text, "Test-RelevantDriftRejection");
+        Assert.Matches(@"New-Operation 'delete_block_group' \$FixtureGroupPath[\s\S]*\$originalPreview = Get-Preview[\s\S]*Invoke-Change \(New-Operation 'create_block_group' \$newGroupPath\)[\s\S]*Invoke-Apply \$target \$originalPreview -ExpectStateChanged", relevant);
+        Assert.Contains("$originalPreview.currentStateHash -cne $driftPreview.currentStateHash", relevant);
+        Assert.Contains("Assert-ByteEquivalentProjectContent $drifted (Read-ProjectContent)", relevant);
+        Assert.Matches(
+            @"if \(\$ExpectStateChanged\)\s*\{\s*Assert-Condition \(\$result\.success -eq \$false -and \$result\.failureCategory -ceq 'state_changed'\)",
+            Function(text, "Invoke-Apply"));
+        Assert.Contains("Invoke-RestoredScenario 'relevant-drift-rejection' { Test-RelevantDriftRejection }", text);
+        AssertScenarioRestoration(text);
+    }
+
+    [Fact]
+    public void Script_UnrelatedDriftAcceptsOriginalTokenAndRestoresBothMutations()
+    {
+        var text = ReadScript();
+        var unrelated = Function(text, "Test-UnrelatedDriftAcceptance");
+        Assert.Matches(@"New-Operation 'create_block' \$OccupiedBlockPath[\s\S]*\$originalPreview = Get-Preview[\s\S]*Invoke-Change \(New-Operation 'create_block_group' \$newGroupPath\)[\s\S]*Invoke-Apply \$target \$originalPreview", unrelated);
+        Assert.Contains("$originalPreview.currentStateHash -ceq $driftPreview.currentStateHash", unrelated);
+        Assert.Contains("Invoke-RestoredScenario 'unrelated-drift-acceptance' { Test-UnrelatedDriftAcceptance }", text);
+        AssertScenarioRestoration(text);
+    }
+
+    private static void AssertScenarioRestoration(string text)
+    {
+        var scenario = Function(text, "Invoke-RestoredScenario");
+        Assert.Matches(@"\$baseline = Read-ProjectContent[\s\S]*\$script:Baseline = \$baseline[\s\S]*try\s*\{\s*& \$Probe[\s\S]*finally\s*\{\s*if \(\$script:MutationStarted\)[\s\S]*Restore-ByteEquivalentProjectContent[\s\S]*Assert-ByteEquivalentProjectContent \$script:Baseline \$restored[\s\S]*\$script:RestorationProven = \$true[\s\S]*Invoke-CompileCheck", scenario);
     }
 
     private static string Function(string script, string name)
