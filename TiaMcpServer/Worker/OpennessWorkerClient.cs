@@ -170,6 +170,28 @@ public class OpennessWorkerClient : IDisposable
         Clear
     }
 
+    public Task<WorkerCallResult> ReadCreateBlockSafetySnapshotAsync(
+        string blockPath, string blockType, string? language, string? obEventClass, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            "read_create_block_safety_snapshot", projectPath,
+            request =>
+            {
+                request.BlockPath = blockPath;
+                request.BlockType = blockType;
+                request.Language = language;
+                request.OBEventClass = obEventClass;
+            }, "{}");
+    }
+
+    public Task<WorkerCallResult> ReadCreateBlockGroupSafetySnapshotAsync(string blockPath, string? projectPath)
+        => SendBoundProjectRequestAsync("read_create_block_group_safety_snapshot", projectPath,
+            request => request.BlockPath = blockPath, "{}");
+
+    public Task<WorkerCallResult> ReadDeleteBlockGroupSafetySnapshotAsync(string blockPath, string? projectPath)
+        => SendBoundProjectRequestAsync("read_delete_block_group_safety_snapshot", projectPath,
+            request => request.BlockPath = blockPath, "{}");
+
     public Task<WorkerCallResult> BrowseProjectTreeAsync(string? projectPath, int? depth = null, string? startPath = null)
     {
         return SendBoundProjectRequestAsync(

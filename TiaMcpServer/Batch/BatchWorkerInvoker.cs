@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
@@ -48,8 +49,15 @@ public static class BatchWorkerInvoker
             op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath)),
         "delete_user_constant" => ReadTagCurrentStateAsync(op.Operation, client.ReadDeleteUserConstantSafetySnapshotAsync(
             op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath)),
-        "create_block" or "create_block_group" or "delete_block_group"
-            => client.BrowseProjectTreeAsync(op.ProjectPath),
+        "create_block" => DecodeProjectTreeSnapshotAsync(
+            client.ReadCreateBlockSafetySnapshotAsync(op.BlockPath!, op.BlockType!, op.Language, op.ObEventClass, op.ProjectPath),
+            ProjectTreeSafetyPayloadContract.DecodeCreateBlockAndCanonicalize),
+        "create_block_group" => DecodeProjectTreeSnapshotAsync(
+            client.ReadCreateBlockGroupSafetySnapshotAsync(op.BlockPath!, op.ProjectPath),
+            ProjectTreeSafetyPayloadContract.DecodeCreateBlockGroupAndCanonicalize),
+        "delete_block_group" => DecodeProjectTreeSnapshotAsync(
+            client.ReadDeleteBlockGroupSafetySnapshotAsync(op.BlockPath!, op.ProjectPath),
+            ProjectTreeSafetyPayloadContract.DecodeDeleteBlockGroupAndCanonicalize),
         // delete_block declares no 'format' field (see BatchOperationCatalog), so there is no
         // caller format to honour here and the worker's default export is the right binding.
         "delete_block"
@@ -60,6 +68,23 @@ public static class BatchWorkerInvoker
             WorkerFailureCategories.ValidationError,
             $"Unsupported batch write operation '{op.Operation}'.")),
     };
+
+    private static async Task<WorkerCallResult> DecodeProjectTreeSnapshotAsync(
+        Task<WorkerCallResult> pending, Func<string, string> decode)
+    {
+        var result = await pending.ConfigureAwait(false);
+        if (!result.Success) return result;
+
+        try
+        {
+            return WorkerCallResult.Ok(decode(result.Payload), result.Warnings);
+        }
+        catch (JsonException)
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                "The project-tree safety snapshot payload did not match its declared contract.", result.Warnings);
+        }
+    }
 
     private static async Task<WorkerCallResult> ReadTagCurrentStateAsync(
         string operation,

@@ -10,6 +10,32 @@ namespace TiaMcpServer.Tests.Batch;
 
 public sealed class ProjectTreeSafetyBehaviorTests
 {
+    [Theory]
+    [InlineData("create_block_group", "tree-safety-create-group-collision-drift")]
+    [InlineData("delete_block_group", "tree-safety-delete-group-descendant-drift")]
+    public async Task WriteBatchTools_BlockGroup_RelevantDrift_InvalidatesTheToken(string operation, string scenario)
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        var safety = new WriteSafetyService(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        var operations = new[] { new BatchOperationRequest
+        {
+            OperationId = "group", Operation = operation,
+            BlockPath = "PLC_1/Blocks/Main/AreaA", ProjectPath = scenario
+        } };
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
+        using var previewDoc = JsonDocument.Parse(preview);
+        Assert.True(previewDoc.RootElement.TryGetProperty("safetyToken", out var tokenElement), preview);
+        var token = tokenElement.GetString();
+        Assert.False(string.IsNullOrWhiteSpace(token));
+        var apply = await WriteBatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: token);
+        using var applyDoc = JsonDocument.Parse(apply);
+        Assert.False(applyDoc.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal("state_changed", applyDoc.RootElement.GetProperty("failureCategory").GetString());
+    }
+
     [Fact]
     public async Task WriteBatchTools_CreateBlock_MalformedSnapshotPayload_BecomesProtocolErrorWithoutRawEcho()
     {
@@ -38,6 +64,8 @@ public sealed class ProjectTreeSafetyBehaviorTests
         Assert.False(previewDoc.RootElement.GetProperty("success").GetBoolean());
         Assert.Equal("protocol_error", previewDoc.RootElement.GetProperty("failureCategory").GetString());
         Assert.DoesNotContain("content\":\"", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRIVATE_TREE_SNAPSHOT_CONTENT", preview, StringComparison.Ordinal);
+        Assert.False(previewDoc.RootElement.TryGetProperty("safetyToken", out _));
     }
 
     [Fact]

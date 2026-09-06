@@ -91,6 +91,9 @@ public static class OperationPolicyCatalog
             ["probe_network_object_attributes"] = OperationCapability.Observe,
 
             // SafetyRead (read-only safe, but requires a verified expected identity)
+            ["read_create_block_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_create_block_group_safety_snapshot"] = OperationCapability.SafetyRead,
+            ["read_delete_block_group_safety_snapshot"] = OperationCapability.SafetyRead,
             ["read_update_tag_safety_snapshot"] = OperationCapability.SafetyRead,
             ["read_create_tag_table_safety_snapshot"] = OperationCapability.SafetyRead,
             ["read_delete_tag_table_safety_snapshot"] = OperationCapability.SafetyRead,

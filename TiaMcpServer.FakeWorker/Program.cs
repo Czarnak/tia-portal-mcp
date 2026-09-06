@@ -265,22 +265,19 @@ while ((line = Console.In.ReadLine()) is not null)
             }
             break;
         case "tree-safety-create-block-content-drift":
-            Respond(ReadMethod(line) == "get_project_status"
-                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
-                : ReadMethod(line) == "browse_project_tree"
-                ? Success(ToCamelCaseJson(CurrentBroadProjectTreePassesPreviewButNotContentDrift()))
-                : ReadMethod(line) == "create_block"
-                    ? Success("{}")
-                    : JsonSerializer.Serialize(new { success = false, error = $"unexpected method '{ReadMethod(line)}' for tree-safety-create-block-content-drift" }));
-            break;
         case "tree-safety-unit-unrelated-sibling-drift":
-            Respond(ReadMethod(line) == "get_project_status"
-                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
-                : ReadMethod(line) == "browse_project_tree"
-                ? Success(ToCamelCaseJson(CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()))
-                : ReadMethod(line) == "create_block_group"
-                    ? Success("{}")
-                    : JsonSerializer.Serialize(new { success = false, error = $"unexpected method '{ReadMethod(line)}' for tree-safety-unit-unrelated-sibling-drift" }));
+        case "tree-safety-route-create-block":
+        case "tree-safety-route-create-block-group":
+        case "tree-safety-route-delete-block-group":
+        case "tree-safety-create-group-collision-drift":
+        case "tree-safety-delete-group-descendant-drift":
+        case "tree-safety-malformed-payload":
+        case "tree-safety-unit-root":
+        case "tree-safety-unit-nested":
+            Respond(ProjectTreeSafetyResponse(line, scenario));
+            break;
+        case "tree-safety-request-echo":
+            Respond(Success(line));
             break;
         case "malformed":
             Console.Out.WriteLine("this is not json");
@@ -1563,6 +1560,77 @@ List<ProjectTreeNode> ProjectCompletenessTree() => new()
         },
     },
 };
+
+string ProjectTreeSafetyResponse(string requestLine, string scenario)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!;
+    if (request.Method == "get_project_status"
+        && (!scenario.StartsWith("tree-safety-route-", StringComparison.Ordinal)
+            || NextProjectTreeSafetyScenarioCall(scenario + "-binding-probe") == 1))
+        return Success("{\"isOpen\":true}");
+
+    var expectedMethod = scenario switch
+    {
+        "tree-safety-route-delete-block-group" or "tree-safety-delete-group-descendant-drift" or "tree-safety-unit-nested"
+            => "read_delete_block_group_safety_snapshot",
+        "tree-safety-route-create-block-group" or "tree-safety-create-group-collision-drift" or "tree-safety-unit-unrelated-sibling-drift"
+            => "read_create_block_group_safety_snapshot",
+        _ => "read_create_block_safety_snapshot"
+    };
+    if (request.Method != expectedMethod)
+    {
+        // Retain the original broad-tree fixtures so a routing regression reproduces the
+        // original false acceptance/rejection, while route-only scenarios reject all fallback.
+        if (scenario == "tree-safety-create-block-content-drift" && request.Method == "browse_project_tree")
+            return Success(ToCamelCaseJson(CurrentBroadProjectTreePassesPreviewButNotContentDrift()));
+        if (scenario == "tree-safety-unit-unrelated-sibling-drift" && request.Method == "browse_project_tree")
+            return Success(ToCamelCaseJson(CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()));
+        if (!scenario.StartsWith("tree-safety-route-", StringComparison.Ordinal)
+            && request.Method == expectedMethod.Substring(5, expectedMethod.Length - 5 - "_safety_snapshot".Length))
+            return Success("{}");
+        return JsonSerializer.Serialize(new { success = false, error = $"unexpected method '{request.Method}' for {scenario}" });
+    }
+
+    var call = NextProjectTreeSafetyScenarioCall(scenario);
+    if (scenario == "tree-safety-malformed-payload")
+        return Success("{\"occupiedBlock\":{\"content\":\"PRIVATE_TREE_SNAPSHOT_CONTENT\"}}");
+
+    var unitScoped = scenario is "tree-safety-unit-root" or "tree-safety-unit-nested" or "tree-safety-unit-unrelated-sibling-drift";
+    var rootPath = unitScoped ? "PLC_1/Units/Line1/Blocks" : "PLC_1/Blocks";
+    var owner = new ProjectTreeOwnerScopeInfo(unitScoped ? "SoftwareUnit" : "Plc", "PLC_1", unitScoped ? "Line1" : null, rootPath);
+    var parentPath = scenario == "tree-safety-unit-root" ? rootPath : rootPath + (unitScoped ? "/Motion" : "/Main");
+    var ancestors = parentPath == rootPath ? Array.Empty<ProjectTreeAncestorInfo>()
+        : new[] { new ProjectTreeAncestorInfo(unitScoped ? "Motion" : "Main", parentPath, "UserBlockGroup") };
+
+    if (expectedMethod == "read_create_block_safety_snapshot")
+    {
+        var occupied = scenario == "tree-safety-create-block-content-drift";
+        var content = call == 1 ? "<FB>before</FB>" : "<FB>after</FB>";
+        var snapshot = new CreateBlockSafetySnapshotInfo(owner, parentPath, ancestors,
+            occupied ? new[] { new ProjectTreeOccupancyInfo("FB", "Mixer", parentPath + "/Mixer") } : Array.Empty<ProjectTreeOccupancyInfo>(),
+            occupied ? new ProjectTreeBlockExportInfo("Mixer", parentPath + "/Mixer", "FB", "xml", TreeContentHash(content), content) : null);
+        return Success(ToCamelCaseJson(snapshot));
+    }
+    if (expectedMethod == "read_create_block_group_safety_snapshot")
+    {
+        // The Line2 sibling changes on each read in the retained broad fixture; the exact
+        // Line1 owner/parent/name occupancy remains identical across preview and apply.
+        if (scenario == "tree-safety-unit-unrelated-sibling-drift")
+            _ = CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings();
+        var occupancies = scenario == "tree-safety-create-group-collision-drift" && call > 1
+            ? new[] { new ProjectTreeOccupancyInfo("UserBlockGroup", "AreaA", parentPath + "/AreaA") }
+            : Array.Empty<ProjectTreeOccupancyInfo>();
+        return Success(ToCamelCaseJson(new CreateBlockGroupSafetySnapshotInfo(owner, parentPath, ancestors, occupancies)));
+    }
+
+    var groupPath = parentPath + "/AreaA";
+    var descendantContent = scenario == "tree-safety-delete-group-descendant-drift" && call > 1 ? "<FB>after</FB>" : "<FB>before</FB>";
+    return Success(ToCamelCaseJson(new DeleteBlockGroupSafetySnapshotInfo(owner, parentPath, groupPath, ancestors,
+        new[] { new ProjectTreeGroupDescendantInfo("FB", "Mixer", groupPath + "/Mixer", TreeContentHash(descendantContent), descendantContent, Array.Empty<ProjectTreeGroupDescendantInfo>()) })));
+}
+
+static string TreeContentHash(string content)
+    => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
 
 List<ProjectTreeNode> CurrentBroadProjectTreePassesPreviewButNotContentDrift()
 {
