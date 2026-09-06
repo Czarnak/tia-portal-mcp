@@ -100,4 +100,142 @@ public sealed class ProjectTreeSafetyPayloadContractTests
         Assert.Throws<JsonException>(
             () => ProjectTreeSafetyPayloadContract.DecodeCreateBlockGroupAndCanonicalize(payload));
     }
+
+    [Fact]
+    public void DecodeCreateBlockAndCanonicalize_AllowsGroupOccupancyWithoutOccupiedBlock()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main",
+          "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
+          "occupancies":[{"kind":"UserBlockGroup","name":"Mixer","path":"PLC_1/Blocks/Main/Mixer"}],
+          "occupiedBlock":null
+        }
+        """;
+
+        var canonical = ProjectTreeSafetyPayloadContract.DecodeCreateBlockAndCanonicalize(payload);
+
+        Assert.Contains("\"occupiedBlock\":null", canonical, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DecodeCreateBlockAndCanonicalize_RejectsBlockOccupancyWithoutOccupiedBlock()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main",
+          "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
+          "occupancies":[{"kind":"FB","name":"Mixer","path":"PLC_1/Blocks/Main/Mixer"}],
+          "occupiedBlock":null
+        }
+        """;
+
+        Assert.Throws<JsonException>(
+            () => ProjectTreeSafetyPayloadContract.DecodeCreateBlockAndCanonicalize(payload));
+    }
+
+    [Fact]
+    public void DecodeCreateBlockAndCanonicalize_RejectsOccupiedBlockWithoutMatchingBlockOccupancy()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main",
+          "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
+          "occupancies":[{"kind":"UserBlockGroup","name":"Mixer","path":"PLC_1/Blocks/Main/Mixer"}],
+          "occupiedBlock":{"name":"Mixer","path":"PLC_1/Blocks/Main/Mixer","blockKind":"FB","format":"xml","contentSha256":"abc","content":"<Document/>"}
+        }
+        """;
+
+        Assert.Throws<JsonException>(
+            () => ProjectTreeSafetyPayloadContract.DecodeCreateBlockAndCanonicalize(payload));
+    }
+
+    [Fact]
+    public void DecodeCreateBlockAndCanonicalize_RejectsMultipleBlockOccupancies()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main",
+          "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
+          "occupancies":[
+            {"kind":"FB","name":"Mixer","path":"PLC_1/Blocks/Main/Mixer"},
+            {"kind":"FC","name":"Pump","path":"PLC_1/Blocks/Main/Pump"}
+          ],
+          "occupiedBlock":{"name":"Mixer","path":"PLC_1/Blocks/Main/Mixer","blockKind":"FB","format":"xml","contentSha256":"abc","content":"<Document/>"}
+        }
+        """;
+
+        Assert.Throws<JsonException>(
+            () => ProjectTreeSafetyPayloadContract.DecodeCreateBlockAndCanonicalize(payload));
+    }
+
+    [Fact]
+    public void DecodeCreateBlockGroupAndCanonicalize_RejectsIncompleteAncestorChain()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main/AreaA",
+          "ancestors":[{"name":"AreaA","path":"PLC_1/Blocks/Main/AreaA","kind":"UserBlockGroup"}],
+          "occupancies":[]
+        }
+        """;
+
+        Assert.Throws<JsonException>(
+            () => ProjectTreeSafetyPayloadContract.DecodeCreateBlockGroupAndCanonicalize(payload));
+    }
+
+    [Fact]
+    public void DecodeCreateBlockGroupAndCanonicalize_RejectsOccupancyBelowAChildGroup()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main",
+          "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
+          "occupancies":[{"kind":"FB","name":"Mixer","path":"PLC_1/Blocks/Main/Child/Mixer"}]
+        }
+        """;
+
+        Assert.Throws<JsonException>(
+            () => ProjectTreeSafetyPayloadContract.DecodeCreateBlockGroupAndCanonicalize(payload));
+    }
+
+    [Fact]
+    public void DecodeDeleteBlockGroupAndCanonicalize_RejectsGroupBelowAChildGroup()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main",
+          "groupPath":"PLC_1/Blocks/Main/Child/AreaA",
+          "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
+          "descendants":[]
+        }
+        """;
+
+        Assert.Throws<JsonException>(
+            () => ProjectTreeSafetyPayloadContract.DecodeDeleteBlockGroupAndCanonicalize(payload));
+    }
+
+    [Fact]
+    public void DecodeDeleteBlockGroupAndCanonicalize_RejectsDescendantBelowAnUnreportedGroup()
+    {
+        const string payload = """
+        {
+          "owner":{"scopeKind":"Plc","plcName":"PLC_1","softwareUnitName":null,"rootBlocksPath":"PLC_1/Blocks"},
+          "parentPath":"PLC_1/Blocks/Main",
+          "groupPath":"PLC_1/Blocks/Main/AreaA",
+          "ancestors":[{"name":"Main","path":"PLC_1/Blocks/Main","kind":"UserBlockGroup"}],
+          "descendants":[{"kind":"FB","name":"Mixer","path":"PLC_1/Blocks/Main/AreaA/Child/Mixer","contentSha256":"abc","content":"<Document/>","children":[]}]
+        }
+        """;
+
+        Assert.Throws<JsonException>(
+            () => ProjectTreeSafetyPayloadContract.DecodeDeleteBlockGroupAndCanonicalize(payload));
+    }
 }

@@ -61,16 +61,31 @@ internal static class ProjectTreeSafetyPayloadContract
         var owner = ValidateOwner(snapshot.Owner, payload);
         ValidateParentAndAncestors(owner, snapshot.ParentPath, snapshot.Ancestors, payload);
         ValidateOccupancies(owner, snapshot.ParentPath, snapshot.Occupancies, payload);
-        if (snapshot.OccupiedBlock is not null)
+        var blockOccupancies = snapshot.Occupancies
+            .Where(occupancy => occupancy is not null && IsBlockKind(occupancy.Kind))
+            .ToArray();
+        if (blockOccupancies.Length > 1)
         {
-            ValidateBlockExport(owner, snapshot.ParentPath, snapshot.OccupiedBlock, "occupiedBlock");
-            if (!snapshot.Occupancies.Any(occupancy => occupancy is not null
-                && string.Equals(occupancy.Kind, snapshot.OccupiedBlock.BlockKind, StringComparison.Ordinal)
-                && string.Equals(occupancy.Name, snapshot.OccupiedBlock.Name, StringComparison.Ordinal)
-                && string.Equals(occupancy.Path, snapshot.OccupiedBlock.Path, StringComparison.Ordinal)))
+            throw new JsonException("'occupancies' must contain at most one block occupancy.");
+        }
+
+        if (blockOccupancies.Length == 0)
+        {
+            if (snapshot.OccupiedBlock is not null)
             {
-                throw new JsonException("'occupiedBlock' must correspond to a declared occupancy.");
+                throw new JsonException("'occupiedBlock' requires a corresponding block occupancy.");
             }
+
+            return;
+        }
+
+        ValidateBlockExport(owner, snapshot.ParentPath, snapshot.OccupiedBlock, "occupiedBlock");
+        var blockOccupancy = blockOccupancies[0];
+        if (!string.Equals(blockOccupancy.Kind, snapshot.OccupiedBlock!.BlockKind, StringComparison.Ordinal)
+            || !string.Equals(blockOccupancy.Name, snapshot.OccupiedBlock.Name, StringComparison.Ordinal)
+            || !string.Equals(blockOccupancy.Path, snapshot.OccupiedBlock.Path, StringComparison.Ordinal))
+        {
+            throw new JsonException("'occupiedBlock' must correspond to the declared block occupancy.");
         }
     }
 
@@ -86,7 +101,7 @@ internal static class ProjectTreeSafetyPayloadContract
         var owner = ValidateOwner(snapshot.Owner, payload);
         ValidateParentAndAncestors(owner, snapshot.ParentPath, snapshot.Ancestors, payload);
         RequirePathInOwnerScope(snapshot.GroupPath, owner, "groupPath");
-        RequireChildPath(snapshot.ParentPath, snapshot.GroupPath, "groupPath");
+        RequireDirectChildPath(snapshot.ParentPath, snapshot.GroupPath, "groupPath");
         var descendants = RequireNonNullCollection(snapshot.Descendants, "descendants");
         foreach (var descendant in descendants)
         {
@@ -140,9 +155,17 @@ internal static class ProjectTreeSafetyPayloadContract
         _ = payload;
         RequirePathInOwnerScope(parentPath, owner, "parentPath");
         var validatedAncestors = RequireNonNullCollection(ancestors, "ancestors");
+        var precedingPath = owner.RootBlocksPath;
         foreach (var ancestor in validatedAncestors)
         {
             ValidateAncestor(owner, ancestor, "ancestors[]");
+            RequireDirectChildPath(precedingPath, ancestor!.Path, "ancestors[].path");
+            precedingPath = ancestor.Path;
+        }
+
+        if (!string.Equals(precedingPath, parentPath, StringComparison.Ordinal))
+        {
+            throw new JsonException("'ancestors' must be the complete ordered chain to 'parentPath'.");
         }
     }
 
@@ -192,7 +215,7 @@ internal static class ProjectTreeSafetyPayloadContract
         RequireKind(occupancy.Kind, $"{member}.kind");
         RequireText(occupancy.Name, $"{member}.name");
         RequirePathInOwnerScope(occupancy.Path, owner, $"{member}.path");
-        RequireChildPath(parentPath, occupancy.Path, $"{member}.path");
+        RequireDirectChildPath(parentPath, occupancy.Path, $"{member}.path");
         RequirePathTerminalName(occupancy.Path, occupancy.Name, member);
     }
 
@@ -209,7 +232,7 @@ internal static class ProjectTreeSafetyPayloadContract
 
         RequireText(export.Name, $"{member}.name");
         RequirePathInOwnerScope(export.Path, owner, $"{member}.path");
-        RequireChildPath(parentPath, export.Path, $"{member}.path");
+        RequireDirectChildPath(parentPath, export.Path, $"{member}.path");
         RequirePathTerminalName(export.Path, export.Name, member);
         RequireBlockKind(export.BlockKind, $"{member}.blockKind");
         if (!string.Equals(export.Format, "xml", StringComparison.Ordinal))
@@ -235,7 +258,7 @@ internal static class ProjectTreeSafetyPayloadContract
         RequireKind(descendant.Kind, $"{member}.kind");
         RequireText(descendant.Name, $"{member}.name");
         RequirePathInOwnerScope(descendant.Path, owner, $"{member}.path");
-        RequireChildPath(groupPath, descendant.Path, $"{member}.path");
+        RequireDirectChildPath(groupPath, descendant.Path, $"{member}.path");
         RequirePathTerminalName(descendant.Path, descendant.Name, member);
         var children = RequireNonNullCollection(descendant.Children, $"{member}.children");
 
@@ -272,11 +295,17 @@ internal static class ProjectTreeSafetyPayloadContract
         }
     }
 
-    private static void RequireChildPath(string parentPath, string childPath, string member)
+    private static void RequireDirectChildPath(string parentPath, string childPath, string member)
     {
         if (!childPath.StartsWith(parentPath + "/", StringComparison.Ordinal))
         {
             throw new JsonException($"'{member}' is not a descendant of its parent path.");
+        }
+
+        var childName = childPath[(parentPath.Length + 1)..];
+        if (childName.Contains('/', StringComparison.Ordinal))
+        {
+            throw new JsonException($"'{member}' must be a direct child of its parent path.");
         }
     }
 
@@ -313,11 +342,14 @@ internal static class ProjectTreeSafetyPayloadContract
     private static void RequireBlockKind(string? kind, string member)
     {
         RequireKind(kind, member);
-        if (string.Equals(kind, UserBlockGroupKind, StringComparison.Ordinal))
+        if (!IsBlockKind(kind))
         {
             throw new JsonException($"'{member}' must identify a block, not a group.");
         }
     }
+
+    private static bool IsBlockKind(string? kind)
+        => kind is not null && !string.Equals(kind, UserBlockGroupKind, StringComparison.Ordinal);
 
     private static IReadOnlyList<T> RequireNonNullCollection<T>(IReadOnlyList<T>? value, string member)
     {
