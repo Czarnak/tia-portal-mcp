@@ -29,7 +29,7 @@ internal static class BlockTargetResolver
 
         if (address.IsDeterministic)
         {
-            var owner = ResolveDeterministicOwner(plcSoftware, address);
+            var owner = ResolveOwnerForDeterministicPath(plcSoftware, address);
             var group = FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
             var block = group.Blocks.Find(address.BlockName)
                 ?? throw new InvalidOperationException($"Block '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
@@ -58,7 +58,7 @@ internal static class BlockTargetResolver
 
         if (address.IsDeterministic)
         {
-            var owner = ResolveDeterministicOwner(plcSoftware, address);
+            var owner = ResolveOwnerForDeterministicPath(plcSoftware, address);
             var group = FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
             var existing = group.Blocks.Find(address.BlockName);
             return new ResolvedBlockTarget(owner.ExternalSourceGroup, group, existing, address.BlockName);
@@ -80,15 +80,29 @@ internal static class BlockTargetResolver
                 address.BlockName);
     }
 
-    private static BlockOwner ResolveDeterministicOwner(PlcSoftware plcSoftware, BlockAddress address)
+    internal static ResolvedBlockOwner ResolveOwnerForDeterministicPath(
+        PlcSoftware plcSoftware,
+        BlockAddress address)
     {
         if (!address.UsesSoftwareUnit)
         {
-            return new BlockOwner(plcSoftware.BlockGroup, plcSoftware.ExternalSourceGroup);
+            return new ResolvedBlockOwner(
+                "Plc",
+                plcSoftware.Name,
+                address.UnitName,
+                $"{plcSoftware.Name}/Blocks",
+                plcSoftware.BlockGroup,
+                plcSoftware.ExternalSourceGroup);
         }
 
         PlcUnit unit = FindSoftwareUnit(plcSoftware, address.UnitName!);
-        return new BlockOwner(unit.BlockGroup, unit.ExternalSourceGroup);
+        return new ResolvedBlockOwner(
+            "SoftwareUnit",
+            plcSoftware.Name,
+            unit.Name,
+            $"{plcSoftware.Name}/Units/{unit.Name}/Blocks",
+            unit.BlockGroup,
+            unit.ExternalSourceGroup);
     }
 
     private static PlcUnit FindSoftwareUnit(PlcSoftware plcSoftware, string unitName)
@@ -110,7 +124,9 @@ internal static class BlockTargetResolver
         throw new InvalidOperationException($"Software Unit '{unitName}' not found in PLC software '{plcSoftware.Name}'.");
     }
 
-    private static PlcBlockGroup FindBlockGroup(PlcBlockGroup rootGroup, IReadOnlyList<string> folderPath)
+    internal static PlcBlockGroup FindBlockGroup(
+        PlcBlockGroup rootGroup,
+        IReadOnlyList<string> folderPath)
     {
         PlcBlockGroup current = rootGroup;
 
@@ -148,9 +164,15 @@ internal static class BlockTargetResolver
     /// The PLC itself, then each of its software units — every scope that owns both a block tree
     /// and its own external source group.
     /// </summary>
-    private static IEnumerable<BlockOwner> EnumerateOwners(PlcSoftware plcSoftware)
+    private static IEnumerable<ResolvedBlockOwner> EnumerateOwners(PlcSoftware plcSoftware)
     {
-        yield return new BlockOwner(plcSoftware.BlockGroup, plcSoftware.ExternalSourceGroup);
+        yield return new ResolvedBlockOwner(
+            "Plc",
+            plcSoftware.Name,
+            softwareUnitName: null,
+            $"{plcSoftware.Name}/Blocks",
+            plcSoftware.BlockGroup,
+            plcSoftware.ExternalSourceGroup);
 
         PlcUnitProvider? unitProvider = plcSoftware.GetService<PlcUnitProvider>();
         if (unitProvider is null)
@@ -160,12 +182,18 @@ internal static class BlockTargetResolver
 
         foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
         {
-            yield return new BlockOwner(unit.BlockGroup, unit.ExternalSourceGroup);
+            yield return new ResolvedBlockOwner(
+                "SoftwareUnit",
+                plcSoftware.Name,
+                unit.Name,
+                $"{plcSoftware.Name}/Units/{unit.Name}/Blocks",
+                unit.BlockGroup,
+                unit.ExternalSourceGroup);
         }
     }
 
     private static void CollectMatches(
-        BlockOwner owner,
+        ResolvedBlockOwner owner,
         PlcBlockGroup group,
         string blockName,
         List<ResolvedBlockTarget> matches)
@@ -181,20 +209,37 @@ internal static class BlockTargetResolver
             CollectMatches(owner, childGroup, blockName, matches);
         }
     }
+}
 
-    /// <summary>A software scope that owns a block tree: either the PLC itself or one software unit.</summary>
-    private readonly struct BlockOwner
+internal sealed class ResolvedBlockOwner
+{
+    public ResolvedBlockOwner(
+        string scopeKind,
+        string plcName,
+        string? softwareUnitName,
+        string rootBlocksPath,
+        PlcBlockGroup rootBlockGroup,
+        PlcExternalSourceSystemGroup externalSourceGroup)
     {
-        public BlockOwner(PlcBlockGroup rootBlockGroup, PlcExternalSourceSystemGroup externalSourceGroup)
-        {
-            RootBlockGroup = rootBlockGroup;
-            ExternalSourceGroup = externalSourceGroup;
-        }
-
-        public PlcBlockGroup RootBlockGroup { get; }
-
-        public PlcExternalSourceSystemGroup ExternalSourceGroup { get; }
+        ScopeKind = scopeKind;
+        PlcName = plcName;
+        SoftwareUnitName = softwareUnitName;
+        RootBlocksPath = rootBlocksPath;
+        RootBlockGroup = rootBlockGroup;
+        ExternalSourceGroup = externalSourceGroup;
     }
+
+    public string ScopeKind { get; }
+
+    public string PlcName { get; }
+
+    public string? SoftwareUnitName { get; }
+
+    public string RootBlocksPath { get; }
+
+    public PlcBlockGroup RootBlockGroup { get; }
+
+    public PlcExternalSourceSystemGroup ExternalSourceGroup { get; }
 }
 
 internal sealed class ResolvedBlockTarget

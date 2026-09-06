@@ -57,6 +57,18 @@ public class BlockAddressTests
     }
 
     [Fact]
+    public void ParseSupportsSoftwareUnitRootBlockPath()
+    {
+        var address = BlockAddress.Parse("PLC_1/Units/Line1/Blocks/Main");
+
+        Assert.Equal("PLC_1", address.PlcName);
+        Assert.Equal("Line1", address.UnitName);
+        Assert.Empty(address.FolderPath);
+        Assert.Equal("Main", address.BlockName);
+        Assert.True(address.UsesSoftwareUnit);
+    }
+
+    [Fact]
     public void ParseStripsBlockSuffixFromFinalSegment()
     {
         var address = BlockAddress.Parse("PLC_1/Blocks/Main [FB1]");
