@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
@@ -16,12 +14,13 @@ public sealed class HardwarePageWorkerClientTests
     public async Task FirstPage_CapturesHostSnapshotAfterEnteringTheSerializedBindingOperation()
     {
         var binding = new ProjectSessionBinding(null);
-        var identity = Identity(ProjectPath);
-        using var worker = await ScriptedIdentityWorker.CreateAsync("normal", ProjectPath, binding);
+        using var client = CreateFakeWorkerClient(binding);
+        var bootstrap = await FirstPageAsync(client, "hardware-pagination");
+        var identity = AssertCompleteIdentity(bootstrap.WorkerResult);
         var before = binding.CaptureSnapshot();
         var enteredLease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseLease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var blocker = worker.Client.ExecuteWithPinnedBindingAsync(
+        var blocker = client.ExecuteWithPinnedBindingAsync(
             before,
             async () =>
             {
@@ -31,8 +30,8 @@ public sealed class HardwarePageWorkerClientTests
             });
         await enteredLease.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        var firstPage = worker.Client.ReadHardwarePageCandidatesAsync(
-            ProjectPath,
+        var firstPage = client.ReadHardwarePageCandidatesAsync(
+            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -222,19 +221,19 @@ public sealed class HardwarePageWorkerClientTests
     }
 
     [Theory]
-    [InlineData("missing", WorkerFailureCategories.ProtocolError)]
-    [InlineData("mismatch", WorkerFailureCategories.CursorBindingMismatch)]
-    [InlineData("binding-conflict", WorkerFailureCategories.CursorBindingMismatch)]
+    [InlineData("hardware-pagination-missing-continuation-identity", WorkerFailureCategories.ProtocolError)]
+    [InlineData("hardware-pagination-identity-drift", WorkerFailureCategories.CursorBindingMismatch)]
+    [InlineData("hardware-pagination-binding-conflict", WorkerFailureCategories.CursorBindingMismatch)]
     public async Task Continuation_MapsEnvelopeIdentityFailures(
-        string mode,
+        string scenario,
         string expectedCategory)
     {
         var binding = new ProjectSessionBinding(null);
-        using var worker = await ScriptedIdentityWorker.CreateAsync(mode, ProjectPath, binding);
-        var first = await FirstPageAsync(worker.Client, ProjectPath);
+        using var client = CreateFakeWorkerClient(binding);
+        var first = await FirstPageAsync(client, scenario);
         var identity = AssertCompleteIdentity(first.WorkerResult);
 
-        var call = await worker.Client.ReadHardwarePageCandidatesAsync(
+        var call = await client.ReadHardwarePageCandidatesAsync(
             projectPath: null,
             deviceName: null,
             plcName: null,
@@ -253,9 +252,9 @@ public sealed class HardwarePageWorkerClientTests
     public async Task SuccessfulFirstPage_DoesNotAcceptPayloadIdentityWhenEnvelopeIdentityIsMissing()
     {
         var binding = new ProjectSessionBinding(null);
-        using var worker = await ScriptedIdentityWorker.CreateAsync("missing-first", ProjectPath, binding);
+        using var client = CreateFakeWorkerClient(binding);
 
-        var call = await FirstPageAsync(worker.Client, ProjectPath);
+        var call = await FirstPageAsync(client, "hardware-pagination-payload-only-identity");
 
         Assert.False(call.WorkerResult.Success);
         Assert.Equal(WorkerFailureCategories.ProtocolError, call.WorkerResult.FailureCategory);
@@ -332,173 +331,4 @@ public sealed class HardwarePageWorkerClientTests
     private static string MissingWorkerPath()
         => Path.Combine(Path.GetTempPath(), "missing-hardware-page-worker", "worker.exe");
 
-    private sealed class ScriptedIdentityWorker : IDisposable
-    {
-        // Starting Windows PowerShell under CI coverage instrumentation can exceed the ordinary
-        // five-second worker budget. These tests exercise identity envelopes, not timeout policy.
-        private static readonly TimeSpan ScriptedWorkerTimeout = TimeSpan.FromSeconds(15);
-
-        private readonly string _tempDirectory;
-
-        private ScriptedIdentityWorker(string tempDirectory, OpennessWorkerClient client)
-        {
-            _tempDirectory = tempDirectory;
-            Client = client;
-        }
-
-        public OpennessWorkerClient Client { get; }
-
-        public static async Task<ScriptedIdentityWorker> CreateAsync(
-            string mode,
-            string projectPath,
-            ProjectSessionBinding binding)
-        {
-            var tempDirectory = Path.Combine(
-                Path.GetTempPath(),
-                "tia-hardware-page-worker-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(tempDirectory);
-            var scriptPath = Path.Combine(tempDirectory, "worker.ps1");
-            await File.WriteAllTextAsync(scriptPath, WorkerScript, new UTF8Encoding(false));
-
-            var client = new OpennessWorkerClient(binding, requestTimeout: ScriptedWorkerTimeout);
-            InjectTransport(client, CreateTransport(scriptPath, mode, projectPath));
-            return new ScriptedIdentityWorker(tempDirectory, client);
-        }
-
-        public void Dispose()
-        {
-            Client.Dispose();
-            if (Directory.Exists(_tempDirectory))
-            {
-                Directory.Delete(_tempDirectory, recursive: true);
-            }
-        }
-
-        private static PersistentWorkerTransport CreateTransport(
-            string scriptPath,
-            string mode,
-            string projectPath)
-        {
-            var powershellPath = Path.Combine(
-                Environment.SystemDirectory,
-                "WindowsPowerShell",
-                "v1.0",
-                "powershell.exe");
-            Assert.True(File.Exists(powershellPath));
-            var args = string.Join(
-                " ",
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy Bypass",
-                "-File",
-                QuoteArgument(scriptPath),
-                "-Mode",
-                QuoteArgument(mode),
-                "-ProjectPath",
-                QuoteArgument(projectPath));
-            return new PersistentWorkerTransport(
-                powershellPath,
-                requestTimeout: ScriptedWorkerTimeout,
-                workerArgs: args);
-        }
-
-        private static void InjectTransport(
-            OpennessWorkerClient client,
-            PersistentWorkerTransport transport)
-        {
-            var field = typeof(OpennessWorkerClient).GetField(
-                "_transport",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.NotNull(field);
-            field!.SetValue(client, transport);
-        }
-
-        private static string QuoteArgument(string value)
-            => $"\"{value.Replace("\"", "\\\"")}\"";
-
-        private const string WorkerScript = """
-            param(
-                [Parameter(Mandatory = $true)][string]$Mode,
-                [Parameter(Mandatory = $true)][string]$ProjectPath
-            )
-
-            $count = 0
-            $capabilities = @(
-                'expected-session-identity',
-                'response-session-identity',
-                'deterministic-project-selection'
-            )
-            $identity = [ordered]@{
-                workerSessionId = 'hardware-page-test-worker'
-                sessionGeneration = 1
-                portalProcessId = 4242
-                projectPath = $ProjectPath
-            }
-
-            while (($line = [Console]::In.ReadLine()) -ne $null) {
-                $request = $line | ConvertFrom-Json
-                if ($request.method -eq 'hello') {
-                    $response = [ordered]@{
-                        success = $true
-                        payload = '{}'
-                        protocolVersion = 'project-binding-v1'
-                        capabilities = $capabilities
-                    }
-                }
-                else {
-                    $count++
-                    if (($Mode -eq 'missing-first') -and ($count -eq 1)) {
-                        $response = [ordered]@{
-                            success = $true
-                            payload = '{"sessionIdentity":{"workerSessionId":"payload-only","sessionGeneration":99,"portalProcessId":999,"projectPath":"payload-only"}}'
-                        }
-                    }
-                    elseif ($count -eq 1) {
-                        $response = [ordered]@{
-                            success = $true
-                            payload = '{}'
-                            sessionIdentity = $identity
-                        }
-                    }
-                    elseif ($Mode -eq 'missing') {
-                        $response = [ordered]@{
-                            success = $true
-                            payload = '{"sessionIdentity":{"workerSessionId":"payload-only","sessionGeneration":99,"portalProcessId":999,"projectPath":"payload-only"}}'
-                        }
-                    }
-                    elseif ($Mode -eq 'mismatch') {
-                        $different = [ordered]@{
-                            workerSessionId = 'different-worker'
-                            sessionGeneration = 1
-                            portalProcessId = 4242
-                            projectPath = $ProjectPath
-                        }
-                        $response = [ordered]@{
-                            success = $true
-                            payload = '{}'
-                            sessionIdentity = $different
-                        }
-                    }
-                    elseif ($Mode -eq 'binding-conflict') {
-                        $response = [ordered]@{
-                            success = $false
-                            failureCategory = 'binding_conflict'
-                            error = 'continuation identity rejected'
-                        }
-                    }
-                    else {
-                        $response = [ordered]@{
-                            success = $true
-                            payload = '{}'
-                            sessionIdentity = $identity
-                        }
-                    }
-                }
-
-                [Console]::Out.WriteLine(($response | ConvertTo-Json -Compress -Depth 8))
-                [Console]::Out.Flush()
-            }
-            """;
-    }
 }

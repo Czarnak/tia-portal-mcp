@@ -75,6 +75,9 @@ var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Be
     "PLC_1/Tag tables/Outputs/Before", "Bool", "%Q0.0", true, true, false);
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
+var projectTreeSafetyScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
+var projectTreeDedupCounters = new Dictionary<string, int>(StringComparer.Ordinal);
+var projectTreeDedupPhase = "preview";
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -262,6 +265,27 @@ while ((line = Console.In.ReadLine()) is not null)
                 createBlockPostconditionAttempt++;
                 Respond($$"""{"success":false,"failureCategory":"postcondition_failed","error":"block creation verification failed on attempt {{createBlockPostconditionAttempt}}","warnings":["Project state may have changed; inspect the project before retrying."]}""");
             }
+            break;
+        case "tree-safety-dedup":
+            Respond(ProjectTreeDedupResponse(line));
+            break;
+        case "tree-safety-create-block-content-drift":
+        case "tree-safety-unit-unrelated-sibling-drift":
+        case "tree-safety-route-create-block":
+        case "tree-safety-route-create-block-group":
+        case "tree-safety-route-delete-block-group":
+        case "tree-safety-create-group-collision-drift":
+        case "tree-safety-delete-group-descendant-drift":
+        case "tree-safety-malformed-payload":
+        case "tree-safety-authoritative-export-failure":
+        case "tree-safety-duplicate-group-occupancy":
+        case "tree-safety-conflicting-descendants":
+        case "tree-safety-unit-root":
+        case "tree-safety-unit-nested":
+            Respond(ProjectTreeSafetyResponse(line, scenario));
+            break;
+        case "tree-safety-request-echo":
+            Respond(Success(line));
             break;
         case "malformed":
             Console.Out.WriteLine("this is not json");
@@ -522,6 +546,29 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "hardware-pagination-missing-identity":
             Respond(HardwarePaginationResponse(line), includeSessionIdentity: false);
+            break;
+        case "hardware-pagination-payload-only-identity":
+            Respond(
+                """{"success":true,"payload":"{\"sessionIdentity\":{\"workerSessionId\":\"payload-only\",\"sessionGeneration\":99,\"portalProcessId\":999,\"projectPath\":\"payload-only\"}}"}""",
+                includeSessionIdentity: false);
+            break;
+        case "hardware-pagination-missing-continuation-identity":
+            Respond(
+                HardwarePaginationResponse(line),
+                includeSessionIdentity:
+                    NextHardwarePaginationScenarioCall("hardware-pagination-missing-continuation-identity") == 1);
+            break;
+        case "hardware-pagination-binding-conflict":
+            if (NextHardwarePaginationScenarioCall("hardware-pagination-binding-conflict") == 1)
+            {
+                Respond(HardwarePaginationResponse(line));
+            }
+            else
+            {
+                Respond(
+                    JsonSerializer.Serialize(BindingConflict("continuation identity rejected")),
+                    includeSessionIdentity: false);
+            }
             break;
         case "hardware-pagination-malformed-offset":
         case "hardware-pagination-incoherent-counts":
@@ -1544,6 +1591,230 @@ List<ProjectTreeNode> ProjectCompletenessTree() => new()
         },
     },
 };
+
+string ProjectTreeDedupResponse(string requestLine)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!;
+    if (request.Method == "get_project_status") return Success("{\"isOpen\":true}");
+    // The test explicitly marks phase boundaries via this fixture-only counter probe.
+    // No production request or protocol field is added, and reads never infer a phase by count.
+    if (request.Method == "read_cross_references" && request.PlcName is "preview" or "apply")
+    {
+        projectTreeDedupPhase = request.PlcName;
+        return Success(JsonSerializer.Serialize(projectTreeDedupCounters));
+    }
+
+    var key = request.Method + "." + projectTreeDedupPhase;
+    projectTreeDedupCounters[key] = projectTreeDedupCounters.GetValueOrDefault(key) + 1;
+    var scenario = request.Method switch
+    {
+        "read_create_block_safety_snapshot" => "tree-safety-route-create-block",
+        "read_create_block_group_safety_snapshot" => "tree-safety-route-create-block-group",
+        "read_delete_block_group_safety_snapshot" => "tree-safety-route-delete-block-group",
+        _ => null
+    };
+    if (scenario is not null) return ProjectTreeSafetyResponse(requestLine, scenario);
+    if (request.Method is "create_block" or "create_block_group" or "delete_block_group") return Success("{}");
+    if (request.Method == "get_block_content") return Success("<FB>unchanged</FB>");
+    if (request.Method == "delete_block") return Success("{}");
+    return JsonSerializer.Serialize(new { success = false, error = $"unexpected dedup method '{request.Method}'" });
+}
+
+string ProjectTreeSafetyResponse(string requestLine, string scenario)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!;
+    if (request.Method == "get_project_status"
+        && (!scenario.StartsWith("tree-safety-route-", StringComparison.Ordinal)
+            || NextProjectTreeSafetyScenarioCall(scenario + "-binding-probe") == 1))
+        return Success("{\"isOpen\":true}");
+
+    var expectedMethod = scenario switch
+    {
+        "tree-safety-route-delete-block-group" or "tree-safety-delete-group-descendant-drift" or "tree-safety-unit-nested" or "tree-safety-conflicting-descendants"
+            => "read_delete_block_group_safety_snapshot",
+        "tree-safety-route-create-block-group" or "tree-safety-create-group-collision-drift" or "tree-safety-unit-unrelated-sibling-drift" or "tree-safety-duplicate-group-occupancy"
+            => "read_create_block_group_safety_snapshot",
+        _ => "read_create_block_safety_snapshot"
+    };
+    if (request.Method != expectedMethod)
+    {
+        // Retain the original broad-tree fixtures so a routing regression reproduces the
+        // original false acceptance/rejection, while route-only scenarios reject all fallback.
+        if (scenario == "tree-safety-create-block-content-drift" && request.Method == "browse_project_tree")
+            return Success(ToCamelCaseJson(CurrentBroadProjectTreePassesPreviewButNotContentDrift()));
+        if (scenario == "tree-safety-unit-unrelated-sibling-drift" && request.Method == "browse_project_tree")
+            return Success(ToCamelCaseJson(CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()));
+        if (!scenario.StartsWith("tree-safety-route-", StringComparison.Ordinal)
+            && request.Method == expectedMethod.Substring(5, expectedMethod.Length - 5 - "_safety_snapshot".Length))
+            return Success("{}");
+        return JsonSerializer.Serialize(new { success = false, error = $"unexpected method '{request.Method}' for {scenario}" });
+    }
+
+    var call = NextProjectTreeSafetyScenarioCall(scenario);
+    if (scenario == "tree-safety-malformed-payload")
+        return Success("{\"occupiedBlock\":{\"content\":\"PRIVATE_TREE_SNAPSHOT_CONTENT\"}}");
+    if (scenario == "tree-safety-authoritative-export-failure")
+        return JsonSerializer.Serialize(new
+        {
+            success = false,
+            failureCategory = WorkerFailureCategories.WorkerOperationFailed,
+            error = "Authoritative Simatic ML XML could not be exported for a project-tree safety snapshot."
+        });
+
+    var unitScoped = scenario is "tree-safety-unit-root" or "tree-safety-unit-nested" or "tree-safety-unit-unrelated-sibling-drift";
+    var rootPath = unitScoped ? "PLC_1/Units/Line1/Blocks" : "PLC_1/Blocks";
+    var owner = new ProjectTreeOwnerScopeInfo(unitScoped ? "SoftwareUnit" : "Plc", "PLC_1", unitScoped ? "Line1" : null, rootPath);
+    var parentPath = scenario == "tree-safety-unit-root" ? rootPath : rootPath + (unitScoped ? "/Motion" : "/Main");
+    var ancestors = parentPath == rootPath ? Array.Empty<ProjectTreeAncestorInfo>()
+        : new[] { new ProjectTreeAncestorInfo(unitScoped ? "Motion" : "Main", parentPath, "UserBlockGroup") };
+
+    if (scenario == "tree-safety-duplicate-group-occupancy")
+    {
+        var group = new ProjectTreeOccupancyInfo("UserBlockGroup", "AreaA", parentPath + "/AreaA");
+        return Success(ToCamelCaseJson(new CreateBlockGroupSafetySnapshotInfo(owner, parentPath, ancestors, new[] { group, group })));
+    }
+    if (scenario == "tree-safety-conflicting-descendants")
+    {
+        var path = parentPath + "/AreaA/Mixer";
+        return Success(ToCamelCaseJson(new DeleteBlockGroupSafetySnapshotInfo(owner, parentPath, parentPath + "/AreaA", ancestors,
+            new[]
+            {
+                new ProjectTreeGroupDescendantInfo("FB", "Mixer", path, "hash-before", "PRIVATE_TREE_SNAPSHOT_CONTENT_BEFORE", Array.Empty<ProjectTreeGroupDescendantInfo>()),
+                new ProjectTreeGroupDescendantInfo("FB", "Mixer", path, "hash-after", "PRIVATE_TREE_SNAPSHOT_CONTENT_AFTER", Array.Empty<ProjectTreeGroupDescendantInfo>())
+            })));
+    }
+
+    if (expectedMethod == "read_create_block_safety_snapshot")
+    {
+        var occupied = scenario == "tree-safety-create-block-content-drift";
+        var content = call == 1 ? "<FB>before</FB>" : "<FB>after</FB>";
+        var snapshot = new CreateBlockSafetySnapshotInfo(owner, parentPath, ancestors,
+            occupied ? new[] { new ProjectTreeOccupancyInfo("FB", "Mixer", parentPath + "/Mixer") } : Array.Empty<ProjectTreeOccupancyInfo>(),
+            occupied ? new ProjectTreeBlockExportInfo("Mixer", parentPath + "/Mixer", "FB", "xml", TreeContentHash(content), content) : null);
+        return Success(ToCamelCaseJson(snapshot));
+    }
+    if (expectedMethod == "read_create_block_group_safety_snapshot")
+    {
+        // The Line2 sibling changes on each read in the retained broad fixture; the exact
+        // Line1 owner/parent/name occupancy remains identical across preview and apply.
+        if (scenario == "tree-safety-unit-unrelated-sibling-drift")
+            _ = CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings();
+        var occupancies = scenario == "tree-safety-create-group-collision-drift" && call > 1
+            ? new[] { new ProjectTreeOccupancyInfo("UserBlockGroup", "AreaA", parentPath + "/AreaA") }
+            : Array.Empty<ProjectTreeOccupancyInfo>();
+        return Success(ToCamelCaseJson(new CreateBlockGroupSafetySnapshotInfo(owner, parentPath, ancestors, occupancies)));
+    }
+
+    var groupPath = parentPath + "/AreaA";
+    var descendantContent = scenario == "tree-safety-delete-group-descendant-drift" && call > 1 ? "<FB>after</FB>" : "<FB>before</FB>";
+    return Success(ToCamelCaseJson(new DeleteBlockGroupSafetySnapshotInfo(owner, parentPath, groupPath, ancestors,
+        new[] { new ProjectTreeGroupDescendantInfo("FB", "Mixer", groupPath + "/Mixer", TreeContentHash(descendantContent), descendantContent, Array.Empty<ProjectTreeGroupDescendantInfo>()) })));
+}
+
+static string TreeContentHash(string content)
+    => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
+
+List<ProjectTreeNode> CurrentBroadProjectTreePassesPreviewButNotContentDrift()
+{
+    // The current broad project-tree contract exposes the occupied target's identity, but not
+    // its block content. The fixture therefore returns the same broad tree after the hidden
+    // target-content drift that the first RED must detect.
+    return new()
+    {
+        new ProjectTreeNode
+        {
+            Name = "PLC_1",
+            NodeType = "Device",
+            Details = new Dictionary<string, string> { ["Path"] = "PLC_1" },
+            Children = new List<ProjectTreeNode>
+            {
+                new()
+                {
+                    Name = "Blocks",
+                    NodeType = "BlockFolder",
+                    Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Blocks" },
+                    Children = new List<ProjectTreeNode>
+                    {
+                        new()
+                        {
+                            Name = "Mixer",
+                            NodeType = "FB",
+                            Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Blocks/Main/Mixer" },
+                            Children = new List<ProjectTreeNode>(),
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+List<ProjectTreeNode> CurrentProjectTreeFalseInvalidatesAcrossUnitSiblings()
+{
+    var call = NextProjectTreeSafetyScenarioCall("tree-safety-unit-unrelated-sibling-drift");
+    var unrelatedSiblingName = call == 1 ? "AreaB" : "AreaB-Changed";
+    return new()
+    {
+        new ProjectTreeNode
+        {
+            Name = "PLC_1",
+            NodeType = "Device",
+            Details = new Dictionary<string, string> { ["Path"] = "PLC_1" },
+            Children = new List<ProjectTreeNode>
+            {
+                new()
+                {
+                    Name = "Units",
+                    NodeType = "UnitFolder",
+                    Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units" },
+                    Children = new List<ProjectTreeNode>
+                    {
+                        new()
+                        {
+                            Name = "Line1",
+                            NodeType = "Unit",
+                            Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units/Line1" },
+                            Children = new List<ProjectTreeNode>
+                            {
+                                new()
+                                {
+                                    Name = "AreaA",
+                                    NodeType = "BlockGroup",
+                                    Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units/Line1/Blocks/Motion/AreaA" },
+                                    Children = new List<ProjectTreeNode>(),
+                                },
+                            },
+                        },
+                        new()
+                        {
+                            Name = "Line2",
+                            NodeType = "Unit",
+                            Details = new Dictionary<string, string> { ["Path"] = "PLC_1/Units/Line2" },
+                            Children = new List<ProjectTreeNode>
+                            {
+                                new()
+                                {
+                                    Name = unrelatedSiblingName,
+                                    NodeType = "BlockGroup",
+                                    Details = new Dictionary<string, string> { ["Path"] = $"PLC_1/Units/Line2/Blocks/Motion/{unrelatedSiblingName}" },
+                                    Children = new List<ProjectTreeNode>(),
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+int NextProjectTreeSafetyScenarioCall(string scenario)
+{
+    projectTreeSafetyScenarioCalls.TryGetValue(scenario, out var calls);
+    calls++;
+    projectTreeSafetyScenarioCalls[scenario] = calls;
+    return calls;
+}
 
 HardwareConfigInfo SingleNodeHardwareConfig(
     string deviceName,

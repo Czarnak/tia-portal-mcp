@@ -145,6 +145,9 @@ internal static class Program
             return request.Method switch
             {
                 "browse_project_tree" => BrowseProjectTree(request),
+                "read_create_block_safety_snapshot" => ReadCreateBlockSafetySnapshot(request),
+                "read_create_block_group_safety_snapshot" => ReadCreateBlockGroupSafetySnapshot(request),
+                "read_delete_block_group_safety_snapshot" => ReadDeleteBlockGroupSafetySnapshot(request),
                 "read_hardware_config" => ReadHardwareConfig(request),
                 "read_hardware_page_candidates" => ReadHardwarePageCandidates(request),
                 "list_network_objects" => ListNetworkObjects(request),
@@ -220,6 +223,18 @@ internal static class Program
             return Failure(WorkerFailureCategories.WorkerOperationFailed, $"{ex.GetType().Name}: {ex.Message}");
         }
     }
+
+    private static WorkerResponse ReadCreateBlockSafetySnapshot(WorkerRequest request)
+        => WithProject(request, project => Success(ProjectTreeSafetySnapshotReader.ReadCreateBlockSnapshot(
+            project, request.BlockPath!, request.BlockType!, request.Language, request.OBEventClass)));
+
+    private static WorkerResponse ReadCreateBlockGroupSafetySnapshot(WorkerRequest request)
+        => WithProject(request, project => Success(ProjectTreeSafetySnapshotReader.ReadCreateBlockGroupSnapshot(
+            project, request.BlockPath!)));
+
+    private static WorkerResponse ReadDeleteBlockGroupSafetySnapshot(WorkerRequest request)
+        => WithProject(request, project => Success(ProjectTreeSafetySnapshotReader.ReadDeleteBlockGroupSnapshot(
+            project, request.BlockPath!)));
 
     private static WorkerResponse BrowseProjectTree(WorkerRequest request)
     {

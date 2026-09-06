@@ -64,11 +64,18 @@ guarded live TIA Portal V21 acceptance. The report records all three successful 
 saved-baseline verification, source restoration, and the bounded deferred scope. See the
 [current acceptance boundary](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary).
 
+PR 6 project-tree safety scopes completed its offline/FakeWorker, static harness-contract, and
+guarded live TIA Portal V21 acceptance for both PLC-global and Software Unit owners. The report
+records successful Inventory, Preview, authorized Apply/restoration, byte-equivalent restoration,
+and final compile evidence. See the
+[current acceptance boundary](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md#project-tree-safety-acceptance-boundary).
+
 Evidence from completed live runs against TIA Portal V21, plus prepared reports whose live gate is
 explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-06 | [PR 6 — project-tree safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md) |
 | 2026-09-05 | [PR 5 — tag-operation safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md) |
 | 2026-09-05 | [PR 3 — exact `update_tag` safety snapshot — mandatory live PASS](acceptance/reports/2026-09-01-pr3-update-tag-safety-snapshot-live.md) |
 | 2026-09-05 | [PR 4 — structured preview diff — live Preview and authorized Apply/restore/compile acceptance completed](acceptance/reports/2026-09-01-pr4-structured-preview-diff-live.md) |

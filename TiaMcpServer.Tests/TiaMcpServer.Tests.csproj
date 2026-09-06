@@ -84,6 +84,8 @@
       Link="Host\Batch\BatchPreviewDiff.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySnapshotContract.cs"
       Link="Host\Batch\TagOperationSafetySnapshotContract.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\ProjectTreeSafetyPayloadContract.cs"
+      Link="Host\Batch\ProjectTreeSafetyPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySelector.cs"
       Link="Host\Batch\TagOperationSafetySelector.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs" Link="Host\OperationBatches\IOperationBatchItem.cs" />
@@ -162,6 +164,8 @@
       Link="Linked\Openness\BlockPostconditionVerifier.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockExporterVerification.cs"
       Link="Linked\Openness\BlockExporterVerification.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockExporterXmlBundle.cs"
+      Link="Linked\Openness\BlockExporterXmlBundle.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportResult.cs"
       Link="Linked\Openness\BlockImportResult.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportCoordinator.cs"

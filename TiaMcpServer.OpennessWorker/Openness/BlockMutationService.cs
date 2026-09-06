@@ -134,7 +134,10 @@ public static class BlockMutationService
 
         // The group to delete is FolderPath + BlockName
         var allSegments = new List<string>(address.FolderPath) { address.BlockName };
-        var group = FindUserGroupByPath(plcSoftware.BlockGroup, allSegments)
+        var rootGroup = address.IsDeterministic
+            ? BlockTargetResolver.ResolveOwnerForDeterministicPath(plcSoftware, address).RootBlockGroup
+            : plcSoftware.BlockGroup;
+        var group = FindUserGroupByPath(rootGroup, allSegments)
             ?? throw new InvalidOperationException(
                 $"Block group '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
 
@@ -157,35 +160,8 @@ public static class BlockMutationService
             return plcSoftware.BlockGroup;
         }
 
-        return FindGroupByPath(plcSoftware.BlockGroup, address.FolderPath)
-            ?? throw new InvalidOperationException(
-                $"Block group path '{string.Join("/", address.FolderPath)}' was not found.");
-    }
-
-    private static PlcBlockGroup? FindGroupByPath(PlcBlockGroup root, IEnumerable<string> path)
-    {
-        PlcBlockGroup current = root;
-        foreach (var segment in path)
-        {
-            PlcBlockGroup? next = null;
-            foreach (PlcBlockGroup child in current.Groups)
-            {
-                if (string.Equals(child.Name, segment, StringComparison.OrdinalIgnoreCase))
-                {
-                    next = child;
-                    break;
-                }
-            }
-
-            if (next is null)
-            {
-                return null;
-            }
-
-            current = next;
-        }
-
-        return current;
+        var owner = BlockTargetResolver.ResolveOwnerForDeterministicPath(plcSoftware, address);
+        return BlockTargetResolver.FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
     }
 
     // Same traversal as FindGroupByPath but typed as PlcBlockUserGroup so Delete() is available.

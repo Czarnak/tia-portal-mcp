@@ -590,6 +590,44 @@ PR 5 explicitly defers multilingual per-tag comment binding, public `list_tag_ta
 completeness changes, broader snapshot narrowing, Software Unit namespace-aware collisions, and
 PLC `start_plc` / `stop_plc` safety work. The public table list remains best-effort and unchanged.
 
+The three structural block operations use typed project-tree safety snapshots instead of a broad
+project-tree browse. `BlockAddress` and `BlockTargetResolver` are the shared ownership authority:
+they resolve either the PLC-global block root or the exact Software Unit block root, and the
+snapshot reader returns that owner scope, PLC name, optional Software Unit name, and canonical
+root path. Parent and ancestor paths retain that owner prefix end to end.
+
+| Operation / exact selector | Bound current state |
+| --- | --- |
+| `create_block` | Exact owner scope, parent group, ancestor chain, requested-name occupancy in that parent, and the exact occupied block's deterministic XML export when the name is already occupied by a block |
+| `create_block_group` | Exact owner scope, parent group, ancestor chain, and both block and group occupancy for the requested name |
+| `delete_block_group` | Exact owner scope and target group, parent membership, ancestor chain, and the complete content-bearing descendant hierarchy, including deterministic XML exports for every contained block |
+
+Occupied and descendant block content goes through the authoritative block-export path. The
+safety-only export fails closed unless it has authoritative XML; it does not accept a companion
+document as the block export. The host strictly validates required members, canonical owner/path
+relationships, uniqueness, and cardinality before canonical serialization. Missing, empty,
+malformed, or conflicting payloads return `protocol_error`, and the rejected worker payload is not
+echoed to the caller.
+
+Identical project-tree selectors share one internal worker read only within the current preview or
+apply state-read phase. The validated result is expanded back into ordered
+`OperationBatchCurrentState` entries before the combined state is hashed. A repeated preview and
+the apply phase each start with an empty cache, so apply still performs a fresh read under the
+pinned binding lease.
+
+The
+[guarded PR 6 live TIA Portal V21 acceptance](superpowers/acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md)
+covered both PLC-global and Software Unit owners. Occupied-block content, descendant-block
+content, requested-name occupancy, and relevant descendant membership drift rejected stale
+tokens with `state_changed`; unrelated sibling-tree drift preserved the original token. Authorized
+applies were followed by byte-equivalent content restoration, public status re-verification, and
+successful compile checks. The report keeps repository-auditable coverage separate from the
+redacted live-only observations and makes no save, persistence, plant, or hardware-commissioning
+claim.
+
+PR 6 leaves the following scope unchanged: broader snapshot narrowing and `start_plc` /
+`stop_plc`.
+
 Internal exact-target selectors use the shared `SafetyRead` capability. A `SafetyRead` is
 side-effect-free and allowed in read-only mode, but it is not an ordinary observe: every request
 must carry the complete, exact worker/Portal/project session identity previously observed from the

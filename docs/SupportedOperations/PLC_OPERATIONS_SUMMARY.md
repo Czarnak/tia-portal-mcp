@@ -65,6 +65,18 @@ The operations below run through `preview_write_batch` and `apply_write_batch`.
   `externalWritable` and that selected flag cannot be read for the exact tag, preview fails before
   token issuance. This safety condition does not change the public `list_tag_tables` contract:
   that read remains best-effort and may retain its existing skipped-read behavior.
+- Structural `create_block`, `create_block_group`, and `delete_block_group` writes bind typed,
+  operation-specific project-tree snapshots rather than a broad project-tree browse. The owner is
+  either the PLC-global block root or the exact Software Unit block root. `create_block` binds the
+  exact parent, ancestor chain, requested-name occupancy, and authoritative XML for an occupied
+  block; `create_block_group` binds block and group occupancy for the requested name; and
+  `delete_block_group` binds parent membership plus the complete content-bearing descendant tree,
+  including authoritative XML for contained blocks. Malformed or conflicting typed payloads fail
+  closed as `protocol_error` without echoing the rejected payload.
+- Identical structural selectors share one read only within the current preview or apply phase and
+  still expand into the original operation order. Apply performs a fresh read under the pinned
+  binding lease. The internal worker methods are guarded `SafetyRead` operations and require the
+  exact expected worker/Portal/project session identity.
 
 ## Tag safety acceptance boundary
 
@@ -100,13 +112,41 @@ Explicitly deferred: multilingual per-tag comment binding; public `list_tag_tabl
 changes; broader snapshot narrowing; Software Unit namespace-aware collisions; and PLC `start_plc`
 and `stop_plc` safety work. Existing PLC start/stop operations are not changed or qualified by PR 5.
 
+## Project-tree safety acceptance boundary
+
+PR 6 completed offline/FakeWorker and static harness-contract coverage plus guarded live TIA
+Portal V21 acceptance against the exact startup-bound project. The
+[live acceptance report](../superpowers/acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md)
+records separate PLC-global and Software Unit owner runs.
+
+For both owner scopes, occupied-block content drift invalidated `create_block`, descendant-block
+content drift invalidated `delete_block_group`, and same-parent requested-name occupancy
+invalidated `create_block_group`; relevant descendant membership separately invalidated group
+deletion. All stale-token rejections returned `state_changed` before target mutation. Unrelated
+sibling-tree drift left the target state hash unchanged and preserved the original token. The
+authorized three-operation apply and restoration sequences succeeded through the public guarded
+flow. Six restoration hash pairs per owner matched, all 52 record comparisons per owner were
+byte-equivalent before compile, and six final compile checks per owner reported `Success` with 0
+errors and 0 warnings.
+
+The live report records only successful public project-binding fields: payload `isOpen`, payload
+`path`, and envelope `sessionIdentity.projectPath`. Its redacted live artifacts are local and
+git-ignored, while the contracts, implementation, offline tests, static harness tests, harness,
+and report are repository-auditable. The acceptance does not establish save or persistence
+behavior and is not plant or physical-hardware acceptance.
+
+Explicitly deferred:
+
+- Broader snapshot narrowing: unchanged and out of scope.
+- `start_plc` / `stop_plc`: unchanged and out of scope.
+
 ## Current limits
 
 The current surface does not provide:
 
 - Generic online/offline status or connection configuration.
 - Compare-to-online, program upload/download, or `UpdateProgram` workflows.
-- Software units, safety units, safety administration, safety signatures, or safety validation.
+- Software Unit lifecycle or administration operations; block operations within existing Software Units are supported. Safety units, safety administration, safety signatures, and safety validation are not provided.
 - PLC alarms, alarm classes, alarm text lists, ProDiag supervision, or supervision import/export.
 - Technology objects, motion-control objects, watch tables, or force tables.
 - OPC UA server configuration, communication groups, access control, or role mapping.
