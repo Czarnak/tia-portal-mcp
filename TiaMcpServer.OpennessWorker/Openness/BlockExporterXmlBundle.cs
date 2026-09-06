@@ -46,7 +46,11 @@ public static partial class BlockExporter
 
         try
         {
-            exportCompanions(documents);
+            // Companion exports are one package. Do not expose an incomplete package when
+            // ExportAsDocuments (or a later file read) fails after producing earlier files.
+            var companionDocuments = new List<BlockImportDocument>();
+            exportCompanions(companionDocuments);
+            documents.AddRange(companionDocuments);
         }
         catch (Exception exception)
         {

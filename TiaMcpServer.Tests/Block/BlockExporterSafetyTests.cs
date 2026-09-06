@@ -54,4 +54,32 @@ public sealed class BlockExporterSafetyTests
 
         Assert.Equal(Export(false), Export(true));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExportXmlBundle_DiscardsPartialCompanionPackageWhenCompanionExportFails(bool strict)
+    {
+        const string xml = "<Document><SW.Blocks.FC /></Document>";
+
+        var bundle = BlockExporter.ExportXmlBundle(
+            "PLC_1/Blocks/Mixer",
+            "Mixer",
+            () => xml,
+            documents =>
+            {
+                documents.Add(new BlockImportDocument(
+                    "Mixer.s7dcl", "Mixer.s7dcl", "PARTIAL_COMPANION"));
+                throw new InvalidOperationException("later companion failed");
+            },
+            requireAuthoritativeXml: strict);
+
+        Assert.Equal(
+            BlockBundleFormat.Compose(new[]
+            {
+                new BlockImportDocument("Mixer.xml", "Mixer.xml", xml)
+            }),
+            bundle);
+        Assert.DoesNotContain("PARTIAL_COMPANION", bundle);
+    }
 }
