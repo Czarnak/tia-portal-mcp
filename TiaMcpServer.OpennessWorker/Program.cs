@@ -144,7 +144,6 @@ internal static class Program
 
             return request.Method switch
             {
-                "browse_project_tree" => BrowseProjectTree(request),
                 "browse_project_tree_v3_snapshot" => BrowseProjectTreeV3Snapshot(request),
                 "read_create_block_safety_snapshot" => ReadCreateBlockSafetySnapshot(request),
                 "read_create_block_group_safety_snapshot" => ReadCreateBlockGroupSafetySnapshot(request),
@@ -236,15 +235,6 @@ internal static class Program
     private static WorkerResponse ReadDeleteBlockGroupSafetySnapshot(WorkerRequest request)
         => WithProject(request, project => Success(ProjectTreeSafetySnapshotReader.ReadDeleteBlockGroupSnapshot(
             project, request.BlockPath!)));
-
-    private static WorkerResponse BrowseProjectTree(WorkerRequest request)
-    {
-        return WithProject(request, project =>
-        {
-            var tree = new ProjectTreeWalker().Walk(project);
-            return Success(ProjectTreeFilter.Apply(tree, request.StartPath, request.Depth));
-        });
-    }
 
     private static WorkerResponse BrowseProjectTreeV3Snapshot(WorkerRequest request)
     {

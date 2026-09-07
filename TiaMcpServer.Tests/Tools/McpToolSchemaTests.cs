@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.AI;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
@@ -106,7 +107,17 @@ public class McpToolSchemaTests
         return McpServerTool.Create(
             method!,
             target: null,
-            options: new McpServerToolCreateOptions { Services = Services });
+            options: new McpServerToolCreateOptions
+            {
+                Services = Services,
+                SchemaCreateOptions = new AIJsonSchemaCreateOptions
+                {
+                    TransformOptions = new AIJsonSchemaTransformOptions
+                    {
+                        DisallowAdditionalProperties = true,
+                    },
+                },
+            });
     }
 
     [Theory]

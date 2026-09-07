@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tools;
@@ -21,28 +23,24 @@ public class ProjectReadTools
             "Extended metadata (history, comments, languages) was too large to return in full.");
     }
 
-    [McpServerTool(Name = "browse_project_tree", ReadOnly = true, Destructive = false, OpenWorld = false)]
-    [Description("Browse the active TIA Portal project hierarchy. Use depth and startPath to bound large projects.")]
-    public static async Task<string> BrowseProjectTree(
-        OpennessWorkerClient workerClient,
-        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null,
-        [Description("Optional maximum tree depth. Must be 1 or greater; 1 returns only top-level nodes.")] int? depth = null,
-        [Description("Optional subtree root matching a node Path exactly, case-insensitively, e.g. PLC_1/Blocks.")] string? startPath = null)
+    [McpServerTool(
+        Name = "browse_project_tree",
+        ReadOnly = true,
+        Destructive = false,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(BrowseProjectTreeResponse))]
+    [Description("Browse a point-in-time TIA project tree through typed, bounded, resumable flat-node pages.")]
+    public static async Task<CallToolResult> BrowseProjectTree(
+        ProjectTreeBrowseCoordinator coordinator,
+        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal. On continuation, omit it or repeat the same project.")] string? projectPath = null,
+        [Description("Optional ordered selector segments { nodeType, name }. Names match case-insensitively, node types exactly, and each segment must identify one direct child. On continuation, omit it or repeat the equivalent selector.")] ProjectTreeSelectorSegment[]? startSelector = null,
+        [Description("Optional maximum depth from the selected root. Must be 1 or greater. On continuation, omit it or repeat the same depth.")] int? depth = null,
+        [Description("Optional number of flat nodes requested for this page, from 1 through 200; defaults to 100 and may change between continuation pages.")] int? pageSize = null,
+        [Description("Opaque cursor for the same point-in-time snapshot. Cursors can be replayed until idle expiry or eviction, but become unavailable after the server process restarts; restart without a cursor to observe again.")] string? cursor = null)
     {
-        if (depth is < 1)
-        {
-            return StandaloneToolResultFormatter.Format(
-                WorkerCallResult.Fail(
-                    WorkerFailureCategories.ValidationError,
-                    "'depth' must be 1 or greater."),
-                "Use a valid depth or omit it.");
-        }
-
-        var result = await workerClient
-            .BrowseProjectTreeAsync(projectPath, depth, startPath)
-            .ConfigureAwait(false);
-        return StandaloneToolResultFormatter.Format(
-            result,
-            "Narrow the read with a smaller depth or a more specific startPath.");
+        var rendered = await coordinator.BrowseAsync(
+            new ProjectTreeBrowseRequest(projectPath, startSelector, depth, pageSize, cursor)).ConfigureAwait(false);
+        return StructuredToolResult.CreateCanonical(rendered.CanonicalText, isError: !rendered.IsSuccess);
     }
 }

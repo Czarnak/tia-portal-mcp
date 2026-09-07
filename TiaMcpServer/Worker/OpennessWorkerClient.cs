@@ -226,19 +226,6 @@ public class OpennessWorkerClient : IDisposable
         => SendBoundProjectRequestAsync("read_delete_block_group_safety_snapshot", projectPath,
             request => request.BlockPath = blockPath, "{}");
 
-    public Task<WorkerCallResult> BrowseProjectTreeAsync(string? projectPath, int? depth = null, string? startPath = null)
-    {
-        return SendBoundProjectRequestAsync(
-            "browse_project_tree",
-            projectPath,
-            request =>
-            {
-                request.Depth = depth;
-                request.StartPath = startPath;
-            },
-            "[]");
-    }
-
     public Task<WorkerCallResult> BrowseProjectTreeV3SnapshotAsync(
         string? projectPath = null,
         IReadOnlyList<ProjectTreeSelectorSegment>? startSelector = null,

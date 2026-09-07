@@ -208,16 +208,16 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task ReadWriteStartupProject_FirstBrowseAutoVerifiesWithStatusThenReads()
+    public async Task ReadWriteStartupProject_FirstTypedBrowseAutoVerifiesWithStatusThenReads()
     {
         // The "ok" FakeWorker scenario reports a monotonically increasing sequence number.
-        // browse_project_tree must therefore return seq=2: seq=1 was the automatic read-only
+        // browse_project_tree_v3_snapshot must therefore return seq=2: seq=1 was the automatic read-only
         // get_project_status call that promoted the configured startup path to Verified.
         var binding = new ProjectSessionBinding("ok");
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         using var client = CreateClient(binding: binding, accessPolicy: policy);
 
-        var result = await client.BrowseProjectTreeAsync(projectPath: null);
+        var result = await client.BrowseProjectTreeV3SnapshotAsync(projectPath: null);
 
         Assert.True(result.Success, result.Error);
         Assert.Equal("{\"seq\":2}", result.Payload);

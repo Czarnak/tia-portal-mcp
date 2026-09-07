@@ -9,7 +9,7 @@ namespace TiaMcpServer.Contracts;
 /// <para>
 /// Deliberately mirrors <see cref="BlockAddress"/>: same field shape, same deterministic /
 /// non-deterministic distinction, same trimming rules. It accepts exactly the paths
-/// ProjectTreeWalker prints for Type nodes, so a path copied out of browse_project_tree works
+/// browse_project_tree reports for Type nodes, so a deterministic target copied from the tree works
 /// without editing.
 /// </para>
 /// </summary>
