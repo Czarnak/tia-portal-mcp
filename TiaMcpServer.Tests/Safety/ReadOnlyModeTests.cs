@@ -181,7 +181,7 @@ public class ReadOnlyModeTests
 
     [Theory]
     [InlineData("get_project_status")]
-    [InlineData("browse_project_tree")]
+    [InlineData("browse_project_tree_v3_snapshot")]
     [InlineData("read_hardware_config")]
     [InlineData("search_equipment_catalog")]
     [InlineData("read_cross_references")]
@@ -265,7 +265,7 @@ public class ReadOnlyModeTests
     {
         var policy = new OperationAccessPolicy(McpAccessMode.ReadOnly);
         Assert.Null(policy.Authorize("get_project_status"));
-        Assert.Null(policy.Authorize("browse_project_tree"));
+        Assert.Null(policy.Authorize("browse_project_tree_v3_snapshot"));
         Assert.Null(policy.Authorize("get_block_content"));
     }
 
@@ -449,7 +449,7 @@ public class ReadOnlyModeTests
     public void WorkerOperationAuthorization_ReadOnly_AllowsReads()
     {
         Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "get_project_status"));
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "browse_project_tree"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "browse_project_tree_v3_snapshot"));
         Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "get_block_content"));
     }
 

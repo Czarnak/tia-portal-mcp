@@ -410,7 +410,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var result = await InvokeRawAsync(
             client,
-            new WorkerRequest { Method = "browse_project_tree", ProjectDirectory = "hang" });
+            new WorkerRequest { Method = "browse_project_tree_v3_snapshot", ProjectDirectory = "hang" });
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerTimeout, result.FailureCategory);
@@ -494,7 +494,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var request = new WorkerRequest
         {
-            Method = "browse_project_tree",
+            Method = "browse_project_tree_v3_snapshot",
             ProjectDirectory = "hang"
         };
         var pendingResult = InvokeRawAsync(
