@@ -130,12 +130,38 @@ public sealed class ProjectTreeBrowseCoordinator
             projection => projection.IsSuccess && projection.HasNextPage);
     }
 
-    private static ProjectTreeRenderedResponse BrowseContinuation(
+    private ProjectTreeRenderedResponse BrowseContinuation(
         ProjectTreeBrowseRequest request,
         int pageSize)
-        => Failure(
-            WorkerFailureCategories.SnapshotUnavailable,
-            "The project-tree snapshot is no longer available; start again without a cursor.");
+    {
+        var state = _cursorCodec.Decode(request.Cursor!);
+        var access = _store.Access(
+            state.SnapshotId,
+            snapshot =>
+            {
+                if (!string.Equals(state.QueryHash, snapshot.QueryHash, StringComparison.Ordinal))
+                {
+                    return Failure(
+                        WorkerFailureCategories.CursorFilterMismatch,
+                        "The cursor query does not match the cached snapshot.");
+                }
+
+                var mismatch = request.ValidateRepeatedQuery(snapshot.Content.Query);
+                if (mismatch is not null)
+                {
+                    return Failure(WorkerFailureCategories.CursorFilterMismatch, mismatch);
+                }
+
+                return _projector.Project(snapshot, state.Offset, pageSize);
+            },
+            projection => projection.IsSuccess);
+
+        return access.Found
+            ? access.Value!
+            : Failure(
+                WorkerFailureCategories.SnapshotUnavailable,
+                "The project-tree snapshot is no longer available; start again without a cursor.");
+    }
 
     private static ProjectTreeRenderedResponse Failure(
         string category,
