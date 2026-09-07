@@ -8,6 +8,7 @@ using TiaMcpServer.Cli.Install;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -78,6 +79,17 @@ namespace TiaMcpServer
                 sp.GetRequiredService<OpennessWorkerClient>(),
                 sp.GetRequiredService<HardwarePageCursorCodec>(),
                 sp.GetRequiredService<HardwarePageProjector>()));
+            builder.Services.AddSingleton(sp => new ProjectTreeCursorCodec(
+                sp.GetRequiredService<AuthenticatedCursorProtector>()));
+            builder.Services.AddSingleton(sp => new ProjectTreeSnapshotStore(TimeProvider.System));
+            builder.Services.AddSingleton(sp => new ProjectTreePageProjector(
+                sp.GetRequiredService<ProjectTreeCursorCodec>()));
+            builder.Services.AddSingleton(sp => new ProjectTreeBrowseCoordinator(
+                sp.GetRequiredService<OpennessWorkerClient>(),
+                sp.GetRequiredService<ProjectTreeCursorCodec>(),
+                sp.GetRequiredService<ProjectTreeSnapshotStore>(),
+                sp.GetRequiredService<ProjectTreePageProjector>(),
+                TimeProvider.System));
             builder.Services.AddSingleton(sp => new NetworkReadOperationExecutor(
                 sp.GetRequiredService<OpennessWorkerClient>(),
                 sp.GetRequiredService<HardwarePaginationCoordinator>()));
