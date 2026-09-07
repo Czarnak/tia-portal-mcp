@@ -6,7 +6,9 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
@@ -154,6 +156,18 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(binding);
         collection.AddSingleton(accessPolicy);
         collection.AddSingleton(workerClient);
+        collection.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
+        collection.AddSingleton(sp => new ProjectTreeCursorCodec(
+            sp.GetRequiredService<AuthenticatedCursorProtector>()));
+        collection.AddSingleton(sp => new ProjectTreeSnapshotStore(TimeProvider.System));
+        collection.AddSingleton(sp => new ProjectTreePageProjector(
+            sp.GetRequiredService<ProjectTreeCursorCodec>()));
+        collection.AddSingleton(sp => new ProjectTreeBrowseCoordinator(
+            sp.GetRequiredService<OpennessWorkerClient>(),
+            sp.GetRequiredService<ProjectTreeCursorCodec>(),
+            sp.GetRequiredService<ProjectTreeSnapshotStore>(),
+            sp.GetRequiredService<ProjectTreePageProjector>(),
+            TimeProvider.System));
         collection.AddSingleton(new WriteSafetyService(
             binding,
             () => DateTimeOffset.UtcNow,

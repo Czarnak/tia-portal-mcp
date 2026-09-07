@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
@@ -40,7 +41,17 @@ public class McpToolSchemaTests
         var binding = new ProjectSessionBinding(null);
         var workerClient = new OpennessWorkerClient(binding);
         var safety = new WriteSafetyService();
-        return new FakeServiceProvider(binding, workerClient, safety);
+        var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var cursorCodec = new ProjectTreeCursorCodec(protector);
+        var store = new ProjectTreeSnapshotStore(TimeProvider.System);
+        var projector = new ProjectTreePageProjector(cursorCodec);
+        var coordinator = new ProjectTreeBrowseCoordinator(
+            workerClient,
+            cursorCodec,
+            store,
+            projector,
+            TimeProvider.System);
+        return new FakeServiceProvider(binding, workerClient, safety, coordinator);
     }
 
     private static string[] SchemaPropertyNames(Type toolType, string methodName)
