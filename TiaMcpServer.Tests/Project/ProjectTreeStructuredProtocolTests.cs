@@ -26,7 +26,7 @@ public sealed class ProjectTreeStructuredProtocolTests
         });
 
         var structured = AssertOneCanonicalDocument(result);
-        Assert.False(result.IsError);
+        Assert.False(result.IsError, structured.GetRawText());
         Assert.Equal(JsonValueKind.Object, structured.GetProperty("result").ValueKind);
         Assert.Equal(JsonValueKind.Null, structured.GetProperty("failure").ValueKind);
         Assert.Equal(JsonValueKind.Array, structured.GetProperty("result").GetProperty("nodes").ValueKind);

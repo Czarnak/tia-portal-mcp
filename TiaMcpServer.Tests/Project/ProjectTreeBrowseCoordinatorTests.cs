@@ -286,6 +286,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
             "project-tree-v3-one-shot",
             PageSize: 2));
+        Assert.True(first.IsSuccess, first.CanonicalText);
         worker.Dispose();
         var second = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
 
