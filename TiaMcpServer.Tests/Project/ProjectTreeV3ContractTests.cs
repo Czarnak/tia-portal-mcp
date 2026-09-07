@@ -105,11 +105,10 @@ public sealed class ProjectTreeV3ContractTests
     }
 
     [Fact]
-    public void WorkerRequest_UsesTypedStartSelectorAlongsideLegacyStartPath()
+    public void WorkerRequest_UsesOnlyTheTypedStartSelector()
     {
         var request = new WorkerRequest
         {
-            StartPath = "PLC_1/Blocks",
             StartSelector = new List<ProjectTreeSelectorSegment>
             {
                 new() { NodeType = ProjectTreeNodeTypes.Device, Name = "PLC_1" }
@@ -118,7 +117,8 @@ public sealed class ProjectTreeV3ContractTests
 
         using var document = JsonDocument.Parse(CanonicalJson.Serialize(request));
 
-        Assert.Equal("PLC_1/Blocks", document.RootElement.GetProperty("startPath").GetString());
+        Assert.Null(typeof(WorkerRequest).GetProperty("StartPath"));
+        Assert.False(document.RootElement.TryGetProperty("startPath", out _));
         var selector = Assert.Single(document.RootElement.GetProperty("startSelector").EnumerateArray());
         AssertExactPropertyNames(selector, "nodeType", "name");
         Assert.Equal(ProjectTreeNodeTypes.Device, selector.GetProperty("nodeType").GetString());
