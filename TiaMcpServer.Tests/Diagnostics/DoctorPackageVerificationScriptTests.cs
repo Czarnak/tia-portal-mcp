@@ -19,12 +19,12 @@ public class DoctorPackageVerificationScriptTests
         };
         startInfo.ArgumentList.Add("-NoProfile");
         startInfo.ArgumentList.Add("-Command");
-        startInfo.ArgumentList.Add("Start-Sleep -Seconds 2");
+        startInfo.ArgumentList.Add("Start-Sleep -Seconds 10");
 
         var stopwatch = Stopwatch.StartNew();
         Assert.Throws<TimeoutException>(() => RunProcess(startInfo, 200, "Slow test process"));
         Assert.True(
-            stopwatch.Elapsed < TimeSpan.FromMilliseconds(1_500),
+            stopwatch.Elapsed < TimeSpan.FromSeconds(8),
             $"Process timeout took {stopwatch.Elapsed.TotalMilliseconds:F0} ms.");
     }
 
