@@ -49,16 +49,18 @@
       SkipUnchangedFiles="true" />
   </Target>
 
-  <Target Name="CopyOpennessWorkerToPublish" AfterTargets="Publish">
+  <Target Name="RegisterOpennessWorkerPublishFiles" AfterTargets="ComputeFilesToPublish">
     <RemoveDir Directories="$(PublishDir)openness-worker" />
     <ItemGroup>
-      <OpennessWorkerFiles
+      <OpennessWorkerPublishFiles
         Include="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.*"
         Exclude="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\Siemens.Engineering*.dll;..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.runtimeconfig.json" />
+      <ResolvedFileToPublish Include="@(OpennessWorkerPublishFiles)">
+        <RelativePath>openness-worker\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
     </ItemGroup>
-    <Copy SourceFiles="@(OpennessWorkerFiles)"
-      DestinationFiles="@(OpennessWorkerFiles->'$(PublishDir)openness-worker\%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
   </Target>
 
 </Project>
