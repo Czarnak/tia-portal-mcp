@@ -135,7 +135,17 @@ public class DoctorPackageVerificationScriptTests
         }
         finally
         {
-            Directory.Delete(isolatedRoot, recursive: true);
+            try
+            {
+                var restoreResult = RunWorkerRestore();
+                Assert.True(
+                    restoreResult.ExitCode == 0,
+                    $"Current SDK worker restore failed.{Environment.NewLine}{restoreResult.StandardOutput}{Environment.NewLine}{restoreResult.StandardError}");
+            }
+            finally
+            {
+                Directory.Delete(isolatedRoot, recursive: true);
+            }
         }
     }
 
@@ -345,7 +355,7 @@ public class DoctorPackageVerificationScriptTests
         return RunProcess(startInfo, 60_000, "Isolated build");
     }
 
-    private static ScriptResult RunWorkerRestore(string workingDirectory)
+    private static ScriptResult RunWorkerRestore(string? workingDirectory = null)
     {
         var workerProjectPath = Path.Combine(
             GetRepositoryRoot(),
