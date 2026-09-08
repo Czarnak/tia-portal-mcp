@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Text;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
@@ -42,6 +44,127 @@ public sealed class ProjectTreeLiveHarnessContractTests
         Assert.DoesNotContain("confirm=true", source, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void SnapshotVerification_AcceptsEmptyDetailsObject()
+    {
+        var result = RunHarnessFunctions(
+            ["Assert-Condition", "Assert-CanonicalRepresentationsEqual", "Assert-SucceededResponse", "Assert-CompleteSnapshotEvidence"],
+            """
+            $page = [pscustomobject]@{
+                contractVersion = '3.0'
+                status = 'succeeded'
+                result = [pscustomobject]@{
+                    snapshot = [pscustomobject]@{ snapshotId = 'snapshot-1'; totalNodes = 1 }
+                    pagination = [pscustomobject]@{ offset = 0; returnedCount = 1; nextCursor = $null }
+                    nodes = @([pscustomobject]@{
+                        nodeId = 'node-1'
+                        parentNodeId = $null
+                        sequence = 0
+                        name = 'PLC_1'
+                        nodeType = 'Device'
+                        details = [pscustomobject]@{}
+                    })
+                }
+                failure = $null
+                warnings = @()
+                __contentText = '{}'
+                __structuredJson = '{}'
+            }
+
+            $evidence = Assert-CompleteSnapshotEvidence -Mode 'synthetic' -Pages @($page)
+            if (-not $evidence.legacyPathAbsent) { throw 'Empty details were not accepted.' }
+            Write-Output 'empty-details-ok'
+            """);
+
+        Assert.True(result.ExitCode == 0, $"PowerShell failed. stdout: {result.StandardOutput}{Environment.NewLine}stderr: {result.StandardError}");
+        Assert.Equal("empty-details-ok", result.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public void AmbiguousSelector_DiscoversDuplicateDeviceRoots()
+    {
+        var result = RunHarnessFunctions(
+            ["Assert-Condition", "Reconstruct-TypedSelector", "Find-AmbiguousSelector"],
+            """
+            $nodes = @(
+                [pscustomobject]@{ nodeId = 'device-1'; parentNodeId = $null; nodeType = 'Device'; name = 'PLC_1' },
+                [pscustomobject]@{ nodeId = 'device-2'; parentNodeId = $null; nodeType = 'Device'; name = 'plc_1' }
+            )
+
+            $selector = @(Find-AmbiguousSelector -Nodes $nodes)
+            if ($selector.Count -ne 1) { throw "Expected one selector segment, received $($selector.Count)." }
+            if ([string] $selector[0].nodeType -cne 'Device') { throw 'Expected a Device selector.' }
+            if ([string] $selector[0].name -cne 'PLC_1') { throw 'Expected the first observed Device name.' }
+            Write-Output 'root-ambiguity-ok'
+            """);
+
+        Assert.True(result.ExitCode == 0, $"PowerShell failed. stdout: {result.StandardOutput}{Environment.NewLine}stderr: {result.StandardError}");
+        Assert.Equal("root-ambiguity-ok", result.StandardOutput.Trim());
+    }
+
+    private static ScriptResult RunHarnessFunctions(string[] functionNames, string body)
+    {
+        var scriptPath = RepositoryFile("scripts", "live-test-project-tree-v3.ps1");
+        var functionNamesLiteral = string.Join(", ", functionNames.Select(PowerShellLiteral));
+        var syntheticScript = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null
+            $parseErrors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile({{PowerShellLiteral(scriptPath)}}, [ref] $tokens, [ref] $parseErrors)
+            if ($parseErrors.Count -ne 0) { throw ($parseErrors | ForEach-Object Message | Out-String) }
+
+            foreach ($functionName in @({{functionNamesLiteral}})) {
+                $matches = @($ast.FindAll({
+                    param($node)
+                    ($node -is [System.Management.Automation.Language.FunctionDefinitionAst]) -and
+                    ($node.Name -ceq $functionName)
+                }, $true))
+                if ($matches.Count -ne 1) { throw "Expected one $functionName function, found $($matches.Count)." }
+                Invoke-Expression $matches[0].Extent.Text
+            }
+
+            {{body}}
+            """;
+
+        var syntheticPath = Path.Combine(Path.GetTempPath(), $"project-tree-v3-harness-{Guid.NewGuid():N}.ps1");
+        File.WriteAllText(syntheticPath, syntheticScript, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "pwsh",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(syntheticPath);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start pwsh process.");
+            var standardOutput = process.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            if (!process.WaitForExit(30_000))
+            {
+                process.Kill(entireProcessTree: true);
+                throw new TimeoutException("Synthetic harness test did not exit within 30 seconds.");
+            }
+
+            return new ScriptResult(process.ExitCode, standardOutput, standardError);
+        }
+        finally
+        {
+            File.Delete(syntheticPath);
+        }
+    }
+
+    private static string PowerShellLiteral(string value) => $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
+
     private static string RepositoryFile(params string[] pathSegments)
         => Path.GetFullPath(Path.Combine(new[] { AppContext.BaseDirectory, "..", "..", "..", ".." }.Concat(pathSegments).ToArray()));
+
+    private sealed record ScriptResult(int ExitCode, string StandardOutput, string StandardError);
 }
