@@ -240,6 +240,24 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         Assert.DoesNotContain("PROJECT_TREE_SECRET_MARKER", protocol.CanonicalText, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task InvalidDepthIsRejectedBeforeWorkerObservation(int depth)
+    {
+        var calls = 0;
+        using var fixture = Fixture((projectPath, startSelector, requestedDepth) =>
+        {
+            calls++;
+            return Task.FromResult(Success(projectPath, startSelector, requestedDepth, 1));
+        });
+
+        var response = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Depth: depth));
+
+        AssertFailure(response, WorkerFailureCategories.ValidationError);
+        Assert.Equal(0, calls);
+    }
+
     [Fact]
     public async Task OversizedSnapshotAndPageBudgetsMapToClosedFailures()
     {
