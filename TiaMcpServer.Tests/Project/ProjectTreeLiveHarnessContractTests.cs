@@ -110,6 +110,88 @@ public sealed class ProjectTreeLiveHarnessContractTests
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "Synthetic child cleanup exceeded its bound.");
     }
 
+    [Theory]
+    [InlineData("cycle")]
+    [InlineData("offset")]
+    [InlineData("empty")]
+    [InlineData("count")]
+    [InlineData("total")]
+    [InlineData("premature")]
+    public void Pagination_RejectsBrokenProgressBeforeAnotherCall(string defect)
+    {
+        var result = RunHarnessFunctions(
+            ["Assert-Condition", "Assert-CanonicalRepresentationsEqual", "Assert-SucceededResponse", "Read-AllSnapshotPages"],
+            $$"""
+            $script:calls = 0
+            function New-Page($offset, $count, $cursor) {
+                [pscustomobject]@{
+                    contractVersion = '3.0'; status = 'succeeded'; failure = $null
+                    __contentText = '{}'; __structuredJson = '{}'
+                    result = [pscustomobject]@{
+                        snapshot = [pscustomobject]@{ snapshotId = 's'; totalNodes = 3 }
+                        pagination = [pscustomobject]@{ offset = $offset; returnedCount = $count; nextCursor = $cursor }
+                        nodes = @('node')
+                    }
+                }
+            }
+            function Invoke-McpTool {
+                param($Name, $Arguments)
+                $script:calls++
+                if ($script:calls -gt 1) { throw 'MOCK_CALL_LIMIT' }
+                $page = New-Page 1 1 'next'
+                switch ('{{defect}}') {
+                    'cycle' { $page.result.pagination.nextCursor = 'first' }
+                    'offset' { $page.result.pagination.offset = 0 }
+                    'empty' { $page.result.pagination.returnedCount = 0; $page.result.nodes = @() }
+                    'count' { $page.result.pagination.returnedCount = 2 }
+                    'total' { $page.result.snapshot.totalNodes = 4 }
+                    'premature' { $page.result.pagination.nextCursor = $null }
+                }
+                return $page
+            }
+            $rejected = $false
+            try { $null = Read-AllSnapshotPages -FirstPage (New-Page 0 1 'first') }
+            catch {
+                if ($_.Exception.Message -eq 'MOCK_CALL_LIMIT') { throw }
+                $rejected = $true
+            }
+            if (-not $rejected -or $script:calls -ne 1) { throw 'Broken pagination was not rejected promptly.' }
+            'progress-rejected'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("progress-rejected", result.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public void Pagination_AcceptsCompleteForwardChainAndBoundsOverallCollection()
+    {
+        var result = RunHarnessFunctions(
+            ["Assert-Condition", "Assert-CanonicalRepresentationsEqual", "Assert-SucceededResponse", "Read-AllSnapshotPages"],
+            """
+            $script:calls = 0
+            function New-Page($offset, $cursor) {
+                [pscustomobject]@{
+                    contractVersion = '3.0'; status = 'succeeded'; failure = $null
+                    __contentText = '{}'; __structuredJson = '{}'
+                    result = [pscustomobject]@{
+                        snapshot = [pscustomobject]@{ snapshotId = 's'; totalNodes = 2 }
+                        pagination = [pscustomobject]@{ offset = $offset; returnedCount = 1; nextCursor = $cursor }
+                        nodes = @('node')
+                    }
+                }
+            }
+            function Invoke-McpTool { param($Name, $Arguments); $script:calls++; New-Page 1 $null }
+            $pages = @(Read-AllSnapshotPages -FirstPage (New-Page 0 'next'))
+            if ($pages.Count -ne 2 -or $script:calls -ne 1) { throw 'Forward chain failed.' }
+            $rejected = $false
+            try { $null = Read-AllSnapshotPages -FirstPage (New-Page 0 'next') -MaximumCollectionSeconds 0 }
+            catch { $rejected = $true }
+            if (-not $rejected -or $script:calls -ne 1) { throw 'Expired overall collection budget made another call.' }
+            'collection-bound-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+    }
+
     private static ScriptResult RunHarnessFunctions(string[] functionNames, string body, int timeoutMilliseconds = 30_000)
     {
         var scriptPath = RepositoryFile("scripts", "live-test-project-tree-v3.ps1");
