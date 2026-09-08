@@ -64,7 +64,7 @@ The v2 `startPath` and project-tree `deviceName` inputs are removed in `v3.0.0`;
 { "cursor": "<pagination.nextCursor>" }
 ```
 
-To target a returned descendant, index the complete snapshot by `nodeId`, follow its `parentNodeId` chain to null, reverse the chain, and submit each node's exact `{ nodeType, name }` as `startSelector`. See the [project operations reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#browse_project_tree-v3) for the full envelope, failure categories, and cache/limit semantics.
+To target a returned descendant, index the complete snapshot by `nodeId`, follow its `parentNodeId` chain to null, reverse the chain, and project each returned node to its exact `{ nodeType, name }`. A snapshot selected below `Device` does not repeat the missing ancestors: prepend `result.query.startSelector` excluding its final segment, then append the reconstructed returned chain and submit the combined array as `startSelector`. Use an empty prefix when the original `startSelector` was omitted. See the [project operations reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#browse_project_tree-v3) for the full envelope, failure categories, and cache/limit semantics.
 
 In read-write mode, call standalone `compile_check` with inputs such as:
 
