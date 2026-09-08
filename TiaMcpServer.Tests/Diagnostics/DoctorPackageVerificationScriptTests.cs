@@ -228,17 +228,7 @@ public class DoctorPackageVerificationScriptTests
         startInfo.ArgumentList.Add("-PackagePath");
         startInfo.ArgumentList.Add(packagePath);
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start pwsh process.");
-        var standardOutput = process.StandardOutput.ReadToEnd();
-        var standardError = process.StandardError.ReadToEnd();
-        if (!process.WaitForExit(30_000))
-        {
-            process.Kill(entireProcessTree: true);
-            throw new TimeoutException("Package verifier did not exit within 30 seconds.");
-        }
-
-        return new ScriptResult(process.ExitCode, standardOutput, standardError);
+        return RunProcess(startInfo, 30_000, "Package verifier");
     }
 
     private static ScriptResult RunCopyTarget(string outputPath)
@@ -265,17 +255,7 @@ public class DoctorPackageVerificationScriptTests
         startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
         startInfo.ArgumentList.Add("/v:minimal");
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start dotnet msbuild process.");
-        var standardOutput = process.StandardOutput.ReadToEnd();
-        var standardError = process.StandardError.ReadToEnd();
-        if (!process.WaitForExit(60_000))
-        {
-            process.Kill(entireProcessTree: true);
-            throw new TimeoutException("Worker copy target did not exit within 60 seconds.");
-        }
-
-        return new ScriptResult(process.ExitCode, standardOutput, standardError);
+        return RunProcess(startInfo, 60_000, "Worker copy target");
     }
 
     private static ScriptResult RunBuild(string outputPath)
@@ -343,15 +323,37 @@ public class DoctorPackageVerificationScriptTests
     {
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Failed to start {operation} process.");
-        var standardOutput = process.StandardOutput.ReadToEnd();
-        var standardError = process.StandardError.ReadToEnd();
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
         if (!process.WaitForExit(timeoutMilliseconds))
         {
-            process.Kill(entireProcessTree: true);
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
+            if (!process.WaitForExit(5_000))
+            {
+                throw new TimeoutException($"{operation} did not terminate after its process tree was killed.");
+            }
+
+            WaitForRedirectedStreams(standardOutput, standardError, operation);
             throw new TimeoutException($"{operation} did not exit within {timeoutMilliseconds} milliseconds.");
         }
 
-        return new ScriptResult(process.ExitCode, standardOutput, standardError);
+        WaitForRedirectedStreams(standardOutput, standardError, operation);
+        return new ScriptResult(
+            process.ExitCode,
+            standardOutput.GetAwaiter().GetResult(),
+            standardError.GetAwaiter().GetResult());
+    }
+
+    private static void WaitForRedirectedStreams(Task<string> standardOutput, Task<string> standardError, string operation)
+    {
+        if (!Task.WaitAll(new Task[] { standardOutput, standardError }, 5_000))
+        {
+            throw new TimeoutException($"{operation} output streams did not close within 5 seconds.");
+        }
     }
 
     private static string[] EnumerateAuthoritativeWorkerFiles(string workerOutput)
