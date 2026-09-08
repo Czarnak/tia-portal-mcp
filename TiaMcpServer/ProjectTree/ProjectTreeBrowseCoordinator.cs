@@ -59,6 +59,7 @@ public sealed class ProjectTreeBrowseCoordinator
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            request.Validate();
             var pageSize = request.ResolvePageSize();
             return request.Cursor is null
                 ? await BrowseInitialAsync(request, pageSize).ConfigureAwait(false)
