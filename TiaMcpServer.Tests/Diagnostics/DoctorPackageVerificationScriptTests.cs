@@ -355,7 +355,8 @@ public class DoctorPackageVerificationScriptTests
         startInfo.ArgumentList.Add("restore");
         startInfo.ArgumentList.Add(workerProjectPath);
         startInfo.ArgumentList.Add("--disable-build-servers");
-        startInfo.ArgumentList.Add("--ignore-failed-sources");
+        startInfo.ArgumentList.Add("--source");
+        startInfo.ArgumentList.Add(GlobalPackagesDirectory.Value);
         startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
         startInfo.ArgumentList.Add("/p:NuGetAudit=false");
         startInfo.ArgumentList.Add("/v:minimal");
