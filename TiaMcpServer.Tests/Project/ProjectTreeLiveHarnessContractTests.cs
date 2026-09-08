@@ -102,7 +102,15 @@ public sealed class ProjectTreeLiveHarnessContractTests
         Assert.Equal("root-ambiguity-ok", result.StandardOutput.Trim());
     }
 
-    private static ScriptResult RunHarnessFunctions(string[] functionNames, string body)
+    [Fact]
+    public void SyntheticRunner_EnforcesTimeoutWhileBothStreamsAreOpen()
+    {
+        var watch = Stopwatch.StartNew();
+        Assert.Throws<TimeoutException>(() => RunHarnessFunctions([], "Start-Sleep -Seconds 4", timeoutMilliseconds: 500));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "Synthetic child cleanup exceeded its bound.");
+    }
+
+    private static ScriptResult RunHarnessFunctions(string[] functionNames, string body, int timeoutMilliseconds = 30_000)
     {
         var scriptPath = RepositoryFile("scripts", "live-test-project-tree-v3.ps1");
         var functionNamesLiteral = string.Join(", ", functionNames.Select(PowerShellLiteral));
