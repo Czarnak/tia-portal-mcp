@@ -399,11 +399,46 @@ function Get-DeepestNode {
     }
 
     $deepest = $Nodes |
+        Where-Object { Test-UniqueNodeSelector -Nodes $Nodes -Node $_ } |
         Sort-Object -Property @{ Expression = { Get-NodeDepth -ById $byId -Node $_ }; Descending = $true }, @{ Expression = { [int] $_.sequence }; Descending = $true } |
         Select-Object -First 1
     Assert-Condition ($null -ne $deepest) 'The selected-device snapshot contained no nodes.'
     Assert-Condition ((Get-NodeDepth -ById $byId -Node $deepest) -ge 3) 'The selected-device snapshot did not contain a deep selector target.'
     return $deepest
+}
+
+function Test-UniqueNodeSelector {
+    param([object[]] $Nodes, [object] $Node)
+
+    $current = $Node
+    while ($null -ne $current) {
+        $matches = @($Nodes | Where-Object {
+            [string] $_.parentNodeId -ceq [string] $current.parentNodeId -and
+            [string] $_.nodeType -ceq [string] $current.nodeType -and
+            [string]::Equals([string] $_.name, [string] $current.name, [StringComparison]::OrdinalIgnoreCase)
+        })
+        if ($matches.Count -ne 1) { return $false }
+        if ($null -eq $current.parentNodeId) { return ([string] $current.nodeType -ceq 'Device') }
+        $parents = @($Nodes | Where-Object { [string] $_.nodeId -ceq [string] $current.parentNodeId })
+        if ($parents.Count -ne 1) { return $false }
+        $current = $parents[0]
+    }
+    return $false
+}
+
+function Find-EligibleDevice {
+    param([object[]] $Nodes)
+
+    $byId = @{}
+    foreach ($node in $Nodes) { $byId[[string] $node.nodeId] = $node }
+    foreach ($target in $Nodes) {
+        if ((Get-NodeDepth -ById $byId -Node $target) -lt 3) { continue }
+        if (-not (Test-UniqueNodeSelector -Nodes $Nodes -Node $target)) { continue }
+        $root = $target
+        while ($null -ne $root.parentNodeId) { $root = $byId[[string] $root.parentNodeId] }
+        return $root
+    }
+    throw 'The complete project snapshot has no uniquely addressable Device with an addressable deep target.'
 }
 
 function Get-SubtreeProjection {
@@ -580,8 +615,7 @@ try {
         snapshot = Assert-CompleteSnapshotEvidence -Mode 'depthLimited' -Pages $depthPages
     }
 
-    $deviceNode = $fullNodes | Where-Object { ($null -eq $_.parentNodeId) -and ([string] $_.nodeType -ceq 'Device') } | Select-Object -First 1
-    Assert-Condition ($null -ne $deviceNode) 'The complete project snapshot contained no Device root.'
+    $deviceNode = Find-EligibleDevice -Nodes $fullNodes
     $deviceSelector = @([ordered]@{ nodeType = 'Device'; name = [string] $deviceNode.name })
     $deviceMeasurement = Measure-InitialBrowse -Arguments @{ startSelector = $deviceSelector; pageSize = 200 }
     $devicePages = @(Read-AllSnapshotPages -FirstPage $deviceMeasurement.runs[-1].response)
