@@ -153,15 +153,21 @@ public sealed class ProjectTreeLiveHarnessContractTests
 
             using var process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("Failed to start pwsh process.");
-            var standardOutput = process.StandardOutput.ReadToEnd();
-            var standardError = process.StandardError.ReadToEnd();
-            if (!process.WaitForExit(30_000))
+            var standardOutput = process.StandardOutput.ReadToEndAsync();
+            var standardError = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(timeoutMilliseconds))
             {
                 process.Kill(entireProcessTree: true);
-                throw new TimeoutException("Synthetic harness test did not exit within 30 seconds.");
+                process.WaitForExit(5_000);
+                throw new TimeoutException($"Synthetic harness test did not exit within {timeoutMilliseconds} milliseconds.");
             }
 
-            return new ScriptResult(process.ExitCode, standardOutput, standardError);
+            if (!Task.WhenAll(standardOutput, standardError).Wait(5_000))
+            {
+                throw new TimeoutException("Synthetic harness output streams did not close within 5 seconds.");
+            }
+
+            return new ScriptResult(process.ExitCode, standardOutput.GetAwaiter().GetResult(), standardError.GetAwaiter().GetResult());
         }
         finally
         {
