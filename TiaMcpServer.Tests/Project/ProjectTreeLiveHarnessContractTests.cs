@@ -102,6 +102,50 @@ public sealed class ProjectTreeLiveHarnessContractTests
         Assert.Equal("root-ambiguity-ok", result.StandardOutput.Trim());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void MeasurementDevice_SkipsAmbiguousAndNonPlcRoots(bool ambiguousFirst)
+    {
+        var result = RunHarnessFunctions(
+            ["Assert-Condition", "Get-NodeDepth", "Get-DeepestNode"],
+            $$"""
+            foreach ($definition in $ast.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -in @('Find-EligibleDevice', 'Test-UniqueNodeSelector')
+            }, $true)) { Invoke-Expression $definition.Extent.Text }
+            function Node($id, $parent, $type, $name, $sequence) {
+                [pscustomobject]@{ nodeId = $id; parentNodeId = $parent; nodeType = $type; name = $name; sequence = $sequence }
+            }
+            $fullNodes = @(
+                Node 'first' $null 'Device' 'First' 0
+                {{(ambiguousFirst ? "Node 'duplicate' $null 'Device' 'FIRST' 1" : "")}}
+                Node 'plc' $null 'Device' 'Eligible' 2
+                Node 'software' 'plc' 'PlcSoftware' 'Program' 3
+                Node 'folder' 'software' 'BlockFolder' 'Blocks' 4
+                Node 'block' 'folder' 'FB' 'SafeTarget' 5
+                Node 'ambiguous1' 'folder' 'FB' 'Duplicate' 6
+                Node 'ambiguous2' 'folder' 'FB' 'DUPLICATE' 7
+            )
+            # Execute only the actual top-level device-selection assignment, never the harness.
+            $assignment = @($ast.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                $node.Left.Extent.Text -ceq '$deviceNode'
+            }, $true))
+            if ($assignment.Count -ne 1) { throw 'Expected exactly one device-selection assignment.' }
+            Invoke-Expression $assignment[0].Extent.Text
+            if ($deviceNode.nodeId -cne 'plc') { throw 'Did not select the later uniquely addressable eligible PLC.' }
+            $deviceNodes = @($fullNodes | Where-Object { $_.sequence -ge 2 })
+            $deep = Get-DeepestNode -Nodes $deviceNodes
+            if ($deep.nodeId -cne 'block') { throw 'Deep target is not uniquely addressable.' }
+            'eligible-device-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("eligible-device-ok", result.StandardOutput.Trim());
+    }
+
     [Fact]
     public void SyntheticRunner_EnforcesTimeoutWhileBothStreamsAreOpen()
     {
