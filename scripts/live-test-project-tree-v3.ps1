@@ -245,16 +245,43 @@ function Measure-InitialBrowse([hashtable] $Arguments) {
     }
 }
 
-function Read-AllSnapshotPages([object] $FirstPage) {
-    $pages = @($FirstPage)
-    $cursor = $FirstPage.result.pagination.nextCursor
-    while ($null -ne $cursor) {
-        $next = Invoke-McpTool -Name 'browse_project_tree' -Arguments @{ cursor = $cursor; pageSize = 200 }
-        Assert-SucceededResponse $next
-        $pages += $next
-        $cursor = $next.result.pagination.nextCursor
+function Read-AllSnapshotPages([object] $FirstPage, [double] $MaximumCollectionSeconds = 600) {
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    $pages = [System.Collections.Generic.List[object]]::new()
+    $seenCursors = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    Assert-SucceededResponse $FirstPage
+    $totalNodes = [long] $FirstPage.result.snapshot.totalNodes
+    # Even one serialized character per node cannot exceed the snapshot content budget.
+    Assert-Condition ($totalNodes -ge 0 -and $totalNodes -le 4000000) 'Snapshot totalNodes exceeds the collection bound.'
+    $maximumPages = [math]::Max(1, $totalNodes)
+    $snapshotId = [string] $FirstPage.result.snapshot.snapshotId
+    $expectedOffset = 0L
+    $page = $FirstPage
+    while ($true) {
+        Assert-SucceededResponse $page
+        Assert-Condition ($pages.Count -lt $maximumPages) 'Snapshot exceeded its totalNodes page bound.'
+        Assert-Condition ([string] $page.result.snapshot.snapshotId -ceq $snapshotId) 'Snapshot changed during collection.'
+        Assert-Condition ([long] $page.result.snapshot.totalNodes -eq $totalNodes) 'Snapshot totalNodes changed during collection.'
+        Assert-Condition ([long] $page.result.pagination.offset -eq $expectedOffset) 'Snapshot page offset did not advance contiguously.'
+        $count = [long] $page.result.pagination.returnedCount
+        Assert-Condition ($count -ge 0 -and $count -le 200 -and $count -eq @($page.result.nodes).Count) 'Snapshot page returnedCount is invalid.'
+        $expectedOffset += $count
+        Assert-Condition ($expectedOffset -le $totalNodes) 'Snapshot returned more nodes than totalNodes.'
+        $cursor = $page.result.pagination.nextCursor
+        if ($null -eq $cursor) {
+            Assert-Condition ($expectedOffset -eq $totalNodes) 'Snapshot cursor ended before totalNodes.'
+            $pages.Add($page)
+            break
+        }
+        Assert-Condition ($count -gt 0 -and $expectedOffset -lt $totalNodes) 'Snapshot continuation made no forward progress or exceeded totalNodes.'
+        Assert-Condition (-not [string]::IsNullOrWhiteSpace([string] $cursor)) 'Snapshot returned an empty cursor.'
+        Assert-Condition ($seenCursors.Add([string] $cursor)) 'Snapshot cursor cycle detected.'
+        $pages.Add($page)
+        Assert-Condition ($pages.Count -lt $maximumPages) 'Snapshot exceeded its totalNodes page bound.'
+        Assert-Condition ($watch.Elapsed.TotalSeconds -lt $MaximumCollectionSeconds) 'Snapshot exceeded the overall collection deadline.'
+        $page = Invoke-McpTool -Name 'browse_project_tree' -Arguments @{ cursor = $cursor; pageSize = 200 }
     }
-    return $pages
+    return $pages.ToArray()
 }
 
 function Get-SnapshotNodes {
