@@ -6,6 +6,28 @@ namespace TiaMcpServer.Tests.Diagnostics;
 
 public class DoctorPackageVerificationScriptTests
 {
+    [Fact]
+    public void ProcessRunner_EnforcesTimeoutBeforeSlowChildNaturallyExits()
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "pwsh",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add("Start-Sleep -Seconds 2");
+
+        var stopwatch = Stopwatch.StartNew();
+        Assert.Throws<TimeoutException>(() => RunProcess(startInfo, 200, "Slow test process"));
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromMilliseconds(1_500),
+            $"Process timeout took {stopwatch.Elapsed.TotalMilliseconds:F0} ms.");
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
