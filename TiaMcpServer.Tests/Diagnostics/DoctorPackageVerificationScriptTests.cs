@@ -6,6 +6,8 @@ namespace TiaMcpServer.Tests.Diagnostics;
 
 public class DoctorPackageVerificationScriptTests
 {
+    private static readonly Lazy<string> GlobalPackagesDirectory = new(FindGlobalPackagesDirectory);
+
     [Fact]
     public void ProcessRunner_EnforcesTimeoutBeforeSlowChildNaturallyExits()
     {
@@ -58,6 +60,72 @@ public class DoctorPackageVerificationScriptTests
             Assert.True(
                 packResult.ExitCode == 0,
                 $"Direct pack failed (noBuild={noBuild}).{Environment.NewLine}{packResult.StandardOutput}{Environment.NewLine}{packResult.StandardError}");
+
+            var packagePath = Path.Combine(packageOutput, "TiaMcpServer.3.0.0.nupkg");
+            Assert.True(File.Exists(packagePath), $"Expected package was not created at {packagePath}.");
+            Assert.Equal(
+                EnumerateAuthoritativeWorkerFiles(workerOutput),
+                EnumeratePackagedWorkerFiles(packagePath));
+        }
+        finally
+        {
+            Directory.Delete(isolatedRoot, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DirectPack_WithSdk8_IncludesCanonicalWorkerPayload(bool noBuild)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var sdkVersion = FindInstalledSdk8Version();
+        var isolatedRoot = Path.Combine(
+            Path.GetTempPath(),
+            $"openness-worker-sdk8-pack-{Guid.NewGuid():N}");
+        var outputPath = Path.Combine(isolatedRoot, "host-output");
+        var packageOutput = Path.Combine(isolatedRoot, "packages");
+        Directory.CreateDirectory(isolatedRoot);
+        File.WriteAllText(
+            Path.Combine(isolatedRoot, "global.json"),
+            $$"""
+            {
+              "sdk": {
+                "version": "{{sdkVersion}}",
+                "rollForward": "disable"
+              }
+            }
+            """);
+
+        try
+        {
+            var selectedSdk = RunDotnetVersion(isolatedRoot);
+            Assert.True(
+                selectedSdk.ExitCode == 0,
+                $"SDK selection failed.{Environment.NewLine}{selectedSdk.StandardOutput}{Environment.NewLine}{selectedSdk.StandardError}");
+            Assert.Equal(sdkVersion, selectedSdk.StandardOutput.Trim());
+
+            var restoreResult = RunWorkerRestore(isolatedRoot);
+            Assert.True(
+                restoreResult.ExitCode == 0,
+                $"SDK 8 worker restore failed.{Environment.NewLine}{restoreResult.StandardOutput}{Environment.NewLine}{restoreResult.StandardError}");
+
+            if (noBuild)
+            {
+                var buildResult = RunBuild(outputPath, isolatedRoot);
+                Assert.True(
+                    buildResult.ExitCode == 0,
+                    $"SDK 8 prerequisite build failed.{Environment.NewLine}{buildResult.StandardOutput}{Environment.NewLine}{buildResult.StandardError}");
+            }
+
+            var copiedWorkerOutput = Path.Combine(outputPath, "openness-worker");
+            Directory.CreateDirectory(copiedWorkerOutput);
+            File.WriteAllText(Path.Combine(copiedWorkerOutput, "obsolete-worker-assembly.dll"), "stale");
+
+            var packResult = RunPack(outputPath, packageOutput, noBuild, isolatedRoot);
+            Assert.True(
+                packResult.ExitCode == 0,
+                $"SDK 8 direct pack failed (noBuild={noBuild}).{Environment.NewLine}{packResult.StandardOutput}{Environment.NewLine}{packResult.StandardError}");
 
             var packagePath = Path.Combine(packageOutput, "TiaMcpServer.3.0.0.nupkg");
             Assert.True(File.Exists(packagePath), $"Expected package was not created at {packagePath}.");
@@ -258,13 +326,13 @@ public class DoctorPackageVerificationScriptTests
         return RunProcess(startInfo, 60_000, "Worker copy target");
     }
 
-    private static ScriptResult RunBuild(string outputPath)
+    private static ScriptResult RunBuild(string outputPath, string? workingDirectory = null)
     {
         var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
         Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
 
-        var startInfo = CreateDotnetStartInfo();
+        var startInfo = CreateDotnetStartInfo(workingDirectory);
         startInfo.ArgumentList.Add("build");
         startInfo.ArgumentList.Add(projectPath);
         startInfo.ArgumentList.Add("--no-restore");
@@ -277,13 +345,34 @@ public class DoctorPackageVerificationScriptTests
         return RunProcess(startInfo, 60_000, "Isolated build");
     }
 
-    private static ScriptResult RunPack(string outputPath, string packageOutput, bool noBuild)
+    private static ScriptResult RunWorkerRestore(string workingDirectory)
+    {
+        var workerProjectPath = Path.Combine(
+            GetRepositoryRoot(),
+            "TiaMcpServer.OpennessWorker",
+            "TiaMcpServer.OpennessWorker.csproj");
+        var startInfo = CreateDotnetStartInfo(workingDirectory);
+        startInfo.ArgumentList.Add("restore");
+        startInfo.ArgumentList.Add(workerProjectPath);
+        startInfo.ArgumentList.Add("--disable-build-servers");
+        startInfo.ArgumentList.Add("--ignore-failed-sources");
+        startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
+        startInfo.ArgumentList.Add("/p:NuGetAudit=false");
+        startInfo.ArgumentList.Add("/v:minimal");
+        return RunProcess(startInfo, 30_000, "SDK 8 worker restore");
+    }
+
+    private static ScriptResult RunPack(
+        string outputPath,
+        string packageOutput,
+        bool noBuild,
+        string? workingDirectory = null)
     {
         var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
         Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
 
-        var startInfo = CreateDotnetStartInfo();
+        var startInfo = CreateDotnetStartInfo(workingDirectory);
         startInfo.ArgumentList.Add("pack");
         startInfo.ArgumentList.Add(projectPath);
         startInfo.ArgumentList.Add("--no-restore");
@@ -307,9 +396,54 @@ public class DoctorPackageVerificationScriptTests
         return RunProcess(startInfo, 90_000, "Direct pack");
     }
 
-    private static ProcessStartInfo CreateDotnetStartInfo()
+    private static ScriptResult RunDotnetVersion(string workingDirectory)
     {
-        return new ProcessStartInfo
+        var startInfo = CreateDotnetStartInfo(workingDirectory);
+        startInfo.ArgumentList.Add("--version");
+        return RunProcess(startInfo, 10_000, "SDK version probe");
+    }
+
+    private static string FindInstalledSdk8Version()
+    {
+        var startInfo = CreateDotnetStartInfo();
+        startInfo.ArgumentList.Add("--list-sdks");
+        var result = RunProcess(startInfo, 10_000, "Installed SDK probe");
+        Assert.True(
+            result.ExitCode == 0,
+            $"Installed SDK probe failed.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
+
+        var installedSdk8 = result.StandardOutput
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split(' ', 2)[0])
+            .Select(value => Version.TryParse(value, out var version) ? version : null)
+            .Where(version => version?.Major == 8)
+            .Max();
+        Assert.NotNull(installedSdk8);
+        return installedSdk8!.ToString();
+    }
+
+    private static string FindGlobalPackagesDirectory()
+    {
+        var startInfo = CreateDotnetStartInfo();
+        startInfo.ArgumentList.Add("nuget");
+        startInfo.ArgumentList.Add("locals");
+        startInfo.ArgumentList.Add("global-packages");
+        startInfo.ArgumentList.Add("--list");
+        var result = RunProcess(startInfo, 10_000, "NuGet global-packages probe");
+        Assert.True(
+            result.ExitCode == 0,
+            $"NuGet global-packages probe failed.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
+
+        var separator = result.StandardOutput.IndexOf(':');
+        Assert.True(separator >= 0, $"Unexpected NuGet global-packages output: {result.StandardOutput}");
+        var directory = result.StandardOutput[(separator + 1)..].Trim();
+        Assert.True(Directory.Exists(directory), $"NuGet global-packages directory does not exist: {directory}");
+        return directory;
+    }
+
+    private static ProcessStartInfo CreateDotnetStartInfo(string? workingDirectory = null)
+    {
+        var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
             RedirectStandardOutput = true,
@@ -317,6 +451,19 @@ public class DoctorPackageVerificationScriptTests
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        if (workingDirectory is not null)
+        {
+            startInfo.WorkingDirectory = workingDirectory;
+            startInfo.Environment["DOTNET_CLI_HOME"] = workingDirectory;
+            startInfo.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
+            startInfo.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
+            startInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+            startInfo.Environment["NUGET_PACKAGES"] = GlobalPackagesDirectory.Value;
+            startInfo.Environment.Remove("MSBuildSDKsPath");
+            startInfo.Environment.Remove("MSBUILD_EXE_PATH");
+        }
+
+        return startInfo;
     }
 
     private static ScriptResult RunProcess(ProcessStartInfo startInfo, int timeoutMilliseconds, string operation)
