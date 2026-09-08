@@ -75,6 +75,46 @@ public sealed class ProjectTreeStructuredProtocolTests
         Assert.DoesNotContain("PROJECT_TREE_SECRET_MARKER", text, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("startPath")]
+    [InlineData("deviceName")]
+    [InlineData("plcName")]
+    [InlineData("unexpected")]
+    public async Task BrowseProjectTree_UnknownTopLevelArgumentReturnsCanonicalValidationFailure(
+        string unknownArgument)
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        var arguments = new Dictionary<string, object?>
+        {
+            ["projectPath"] = "project-tree-v3-small",
+            [unknownArgument] = "must-not-be-ignored",
+        };
+
+        var result = await CallAsync(harness, arguments);
+
+        AssertValidationFailure(result);
+    }
+
+    [Fact]
+    public async Task BrowseProjectTree_UnknownSelectorMemberReturnsCanonicalValidationFailure()
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        var result = await CallAsync(harness, new Dictionary<string, object?>
+        {
+            ["startSelector"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["nodeType"] = ProjectTreeNodeTypes.Device,
+                    ["name"] = "PLC_1",
+                    ["unexpected"] = "must-not-be-ignored",
+                },
+            },
+        });
+
+        AssertValidationFailure(result);
+    }
+
     private static ValueTask<CallToolResult> CallAsync(
         McpProtocolTestHarness harness,
         IReadOnlyDictionary<string, object?> arguments)
@@ -88,5 +128,15 @@ public sealed class ProjectTreeStructuredProtocolTests
         using var parsed = JsonDocument.Parse(text);
         Assert.True(JsonElement.DeepEquals(structured, parsed.RootElement));
         return structured;
+    }
+
+    private static void AssertValidationFailure(CallToolResult result)
+    {
+        var structured = AssertOneCanonicalDocument(result);
+        Assert.True(result.IsError);
+        Assert.Equal(JsonValueKind.Null, structured.GetProperty("result").ValueKind);
+        Assert.Equal(
+            WorkerFailureCategories.ValidationError,
+            structured.GetProperty("failure").GetProperty("category").GetString());
     }
 }
