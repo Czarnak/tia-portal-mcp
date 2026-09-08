@@ -139,13 +139,13 @@ public sealed class ProjectTreeLiveHarnessContractTests
             }
             $fullNodes = @(
                 Node 'first' $null 'Device' 'First' 0
-                {{(ambiguousFirst ? "Node 'duplicate' $null 'Device' 'FIRST' 1" : "")}}
-                Node 'plc' $null 'Device' 'Eligible' 2
-                Node 'software' 'plc' 'PlcSoftware' 'Program' 3
-                Node 'folder' 'software' 'BlockFolder' 'Blocks' 4
-                Node 'block' 'folder' 'FB' 'SafeTarget' 5
-                Node 'ambiguous1' 'folder' 'FB' 'Duplicate' 6
-                Node 'ambiguous2' 'folder' 'FB' 'DUPLICATE' 7
+                {{(ambiguousFirst ? "Node 'duplicate' $null 'Device' 'FIRST' 1\nNode 'first-software' 'first' 'PlcSoftware' 'Program' 2\nNode 'first-folder' 'first-software' 'BlockFolder' 'Blocks' 3" : "")}}
+                Node 'plc' $null 'Device' 'Eligible' 10
+                Node 'software' 'plc' 'PlcSoftware' 'Program' 11
+                Node 'folder' 'software' 'BlockFolder' 'Blocks' 12
+                Node 'block' 'folder' 'FB' 'SafeTarget' 13
+                Node 'ambiguous1' 'folder' 'FB' 'Duplicate' 14
+                Node 'ambiguous2' 'folder' 'FB' 'DUPLICATE' 15
             )
             # Execute only the actual top-level device-selection assignment, never the harness.
             $assignment = @($ast.FindAll({
@@ -156,7 +156,7 @@ public sealed class ProjectTreeLiveHarnessContractTests
             if ($assignment.Count -ne 1) { throw 'Expected exactly one device-selection assignment.' }
             Invoke-Expression $assignment[0].Extent.Text
             if ($deviceNode.nodeId -cne 'plc') { throw 'Did not select the later uniquely addressable eligible PLC.' }
-            $deviceNodes = @($fullNodes | Where-Object { $_.sequence -ge 2 })
+            $deviceNodes = @($fullNodes | Where-Object { $_.sequence -ge 10 })
             $deep = Get-DeepestNode -Nodes $deviceNodes
             if ($deep.nodeId -cne 'block') { throw 'Deep target is not uniquely addressable.' }
             'eligible-device-ok'
