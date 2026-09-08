@@ -301,8 +301,8 @@ function Assert-CompleteSnapshotEvidence {
                 Assert-Condition ($seenNodeIds.Contains([string] $node.parentNodeId)) "Mode '$Mode' returned a child before its parent."
             }
 
-            $detailNames = @($node.details.PSObject.Properties.Name)
-            Assert-Condition (-not ($detailNames -contains 'Path')) "Mode '$Mode' returned the removed details.Path member."
+            $legacyPathProperty = if ($null -eq $node.details) { $null } else { $node.details.PSObject.Properties['Path'] }
+            Assert-Condition ($null -eq $legacyPathProperty) "Mode '$Mode' returned the removed details.Path member."
             Assert-Condition ($seenNodeIds.Add([string] $node.nodeId)) "Mode '$Mode' returned a duplicate nodeId."
             $expectedSequence += 1
         }
