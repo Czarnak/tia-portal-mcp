@@ -96,7 +96,7 @@ public sealed class ProjectTreeStructuredProtocolTests
     }
 
     [Fact]
-    public async Task BrowseProjectTree_UnknownSelectorMemberReturnsCanonicalValidationFailure()
+    public async Task BrowseProjectTree_UnknownSelectorMemberReturnsCanonicalSelectorFailure()
     {
         await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
         var result = await CallAsync(harness, new Dictionary<string, object?>
@@ -112,7 +112,28 @@ public sealed class ProjectTreeStructuredProtocolTests
             },
         });
 
-        AssertValidationFailure(result);
+        AssertValidationFailure(result, WorkerFailureCategories.InvalidSelector);
+    }
+
+    [Theory]
+    [InlineData("startSelector", "{}", "invalid_selector")]
+    [InlineData("startSelector", "[null]", "invalid_selector")]
+    [InlineData("startSelector", "[{\"nodeType\":\"Device\"}]", "invalid_selector")]
+    [InlineData("startSelector", "[{\"nodeType\":12,\"name\":\"PLC\"}]", "invalid_selector")]
+    [InlineData("startSelector", "[]", "invalid_selector")]
+    [InlineData("cursor", "\"\"", "invalid_cursor")]
+    [InlineData("cursor", "\" \"", "invalid_cursor")]
+    [InlineData("cursor", "123", "invalid_cursor")]
+    [InlineData("depth", "\"two\"", "validation_error")]
+    [InlineData("projectPath", "[]", "validation_error")]
+    public async Task BrowseProjectTree_RawArgumentDefectsKeepTheirDomainCategory(string argument, string json, string category)
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        var result = await CallAsync(harness, new Dictionary<string, object?>
+        {
+            [argument] = JsonSerializer.Deserialize<JsonElement>(json),
+        });
+        AssertValidationFailure(result, category);
     }
 
     private static ValueTask<CallToolResult> CallAsync(
@@ -130,13 +151,13 @@ public sealed class ProjectTreeStructuredProtocolTests
         return structured;
     }
 
-    private static void AssertValidationFailure(CallToolResult result)
+    private static void AssertValidationFailure(CallToolResult result, string category = WorkerFailureCategories.ValidationError)
     {
         var structured = AssertOneCanonicalDocument(result);
         Assert.True(result.IsError);
         Assert.Equal(JsonValueKind.Null, structured.GetProperty("result").ValueKind);
         Assert.Equal(
-            WorkerFailureCategories.ValidationError,
+            category,
             structured.GetProperty("failure").GetProperty("category").GetString());
     }
 }
