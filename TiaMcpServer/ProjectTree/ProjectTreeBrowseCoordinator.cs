@@ -54,6 +54,11 @@ public sealed class ProjectTreeBrowseCoordinator
     internal async Task<ProjectTreeRenderedResponse> BrowseAsync(
         ProjectTreeBrowseRequest request,
         CancellationToken cancellationToken = default)
+        => BoundResponse(await BrowseCoreAsync(request, cancellationToken).ConfigureAwait(false));
+
+    private async Task<ProjectTreeRenderedResponse> BrowseCoreAsync(
+        ProjectTreeBrowseRequest request,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         try
@@ -163,6 +168,13 @@ public sealed class ProjectTreeBrowseCoordinator
                 WorkerFailureCategories.SnapshotUnavailable,
                 "The project-tree snapshot is no longer available; start again without a cursor.");
     }
+
+    private static ProjectTreeRenderedResponse BoundResponse(ProjectTreeRenderedResponse rendered)
+        => rendered.CanonicalText.Length <= ProjectTreeContract.MaximumResponseChars
+            ? rendered
+            : Failure(
+                WorkerFailureCategories.ResultMetadataTooLarge,
+                "The project-tree response metadata exceeds the 60,000-character limit.");
 
     private static ProjectTreeRenderedResponse Failure(
         string category,
