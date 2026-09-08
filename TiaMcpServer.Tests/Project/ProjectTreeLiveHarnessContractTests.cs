@@ -73,6 +73,7 @@ public sealed class ProjectTreeLiveHarnessContractTests
 
             $evidence = Assert-CompleteSnapshotEvidence -Mode 'synthetic' -Pages @($page)
             if (-not $evidence.legacyPathAbsent) { throw 'Empty details were not accepted.' }
+            if ($evidence.maximumCanonicalResponseChars -ne 2) { throw 'Canonical page length was not measured.' }
             Write-Output 'empty-details-ok'
             """);
 
@@ -100,6 +101,24 @@ public sealed class ProjectTreeLiveHarnessContractTests
 
         Assert.True(result.ExitCode == 0, $"PowerShell failed. stdout: {result.StandardOutput}{Environment.NewLine}stderr: {result.StandardError}");
         Assert.Equal("root-ambiguity-ok", result.StandardOutput.Trim());
+    }
+
+    [Theory]
+    [InlineData(60_000, false)]
+    [InlineData(60_001, true)]
+    public void CanonicalPageBudget_EnforcesExactInclusiveLimit(int length, bool mustReject)
+    {
+        var result = RunHarnessFunctions(
+            ["Assert-Condition", "Assert-CanonicalRepresentationsEqual"],
+            $$"""
+            $canonical = '"' + ('x' * ({{length}} - 2)) + '"'
+            $response = [pscustomobject]@{ contractVersion = '3.0'; __contentText = $canonical; __structuredJson = $canonical }
+            $rejected = $false
+            try { Assert-CanonicalRepresentationsEqual $response } catch { $rejected = $true }
+            if ($rejected -ne ${{mustReject.ToString().ToLowerInvariant()}}) { throw 'Canonical length limit was not enforced exactly.' }
+            'canonical-budget-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
     }
 
     [Theory]
