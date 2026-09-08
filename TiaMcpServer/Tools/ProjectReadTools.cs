@@ -104,43 +104,48 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
         RequestContext<CallToolRequestParams> request,
         CancellationToken cancellationToken = default)
     {
-        return HasValidShape(request.Params.Arguments)
+        var category = ShapeFailureCategory(request.Params.Arguments);
+        return category is null
             ? base.InvokeAsync(request, cancellationToken)
-            : ValueTask.FromResult(ValidationFailure());
+            : ValueTask.FromResult(ValidationFailure(category));
     }
 
-    private static bool HasValidShape(IDictionary<string, JsonElement>? arguments)
+    private static string? ShapeFailureCategory(IDictionary<string, JsonElement>? arguments)
     {
         if (arguments is null)
         {
-            return true;
+            return null;
         }
 
         if (arguments.Keys.Any(key => !AllowedArguments.Contains(key))
             || !IsOptionalString(arguments, "projectPath")
-            || !IsOptionalString(arguments, "cursor")
             || !IsOptionalInteger(arguments, "depth")
             || !IsOptionalInteger(arguments, "pageSize"))
         {
-            return false;
+            return WorkerFailureCategories.ValidationError;
+        }
+
+        if (!IsOptionalString(arguments, "cursor"))
+        {
+            return WorkerFailureCategories.InvalidCursor;
         }
 
         if (!arguments.TryGetValue("startSelector", out var selector)
             || selector.ValueKind == JsonValueKind.Null)
         {
-            return true;
+            return null;
         }
 
         if (selector.ValueKind != JsonValueKind.Array)
         {
-            return false;
+            return WorkerFailureCategories.InvalidSelector;
         }
 
         foreach (var segment in selector.EnumerateArray())
         {
             if (segment.ValueKind != JsonValueKind.Object)
             {
-                return false;
+                return WorkerFailureCategories.InvalidSelector;
             }
 
             var properties = segment.EnumerateObject().ToArray();
@@ -150,11 +155,11 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
                 || !segment.TryGetProperty("name", out var name)
                 || name.ValueKind != JsonValueKind.String)
             {
-                return false;
+                return WorkerFailureCategories.InvalidSelector;
             }
         }
 
-        return true;
+        return null;
     }
 
     private static bool IsOptionalString(
@@ -170,14 +175,14 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
            || value.ValueKind == JsonValueKind.Null
            || (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _));
 
-    private static CallToolResult ValidationFailure()
+    private static CallToolResult ValidationFailure(string category)
     {
         var response = new BrowseProjectTreeResponse(
             ProjectTreeContract.Version,
             ProjectTreeStatuses.Failed,
             Result: null,
             new BrowseProjectTreeFailure(
-                WorkerFailureCategories.ValidationError,
+                category,
                 "The browse_project_tree arguments did not match the declared input schema."),
             Array.Empty<string>());
         return StructuredToolResult.CreateCanonical(

@@ -36,7 +36,7 @@ internal sealed record ProjectTreeBrowseRequest(
         if (Cursor is not null && string.IsNullOrWhiteSpace(Cursor))
         {
             throw new ProjectTreeRequestException(
-                WorkerFailureCategories.ValidationError,
+                WorkerFailureCategories.InvalidCursor,
                 "cursor must not be blank when supplied.");
         }
 
