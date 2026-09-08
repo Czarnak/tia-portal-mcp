@@ -201,6 +201,7 @@ function Assert-CanonicalRepresentationsEqual {
     param([Parameter(Mandatory)] [object] $Response)
 
     Assert-Condition ($Response.__contentText -ceq $Response.__structuredJson) 'The MCP text and structured representations are not the same canonical JSON document.'
+    Assert-Condition ($Response.__contentText.Length -le 60000) 'The canonical project-tree response exceeds 60,000 characters.'
     Assert-Condition ($Response.contractVersion -ceq '3.0') 'browse_project_tree did not return contractVersion 3.0.'
 }
 
@@ -300,12 +301,14 @@ function Assert-CompleteSnapshotEvidence {
     $snapshotId = [string] $Pages[0].result.snapshot.snapshotId
     $totalNodes = [int] $Pages[0].result.snapshot.totalNodes
     $expectedSequence = 0
+    $maximumCanonicalResponseChars = 0
     $seenNodeIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $expectedNodeProperties = @('details', 'name', 'nodeId', 'nodeType', 'parentNodeId', 'sequence')
 
     for ($pageIndex = 0; $pageIndex -lt $Pages.Count; $pageIndex++) {
         $page = $Pages[$pageIndex]
         Assert-SucceededResponse $page
+        $maximumCanonicalResponseChars = [math]::Max($maximumCanonicalResponseChars, $page.__contentText.Length)
         Assert-Condition ([string]::Equals($snapshotId, [string] $page.result.snapshot.snapshotId, [StringComparison]::Ordinal)) "Mode '$Mode' changed snapshot while walking continuations."
         Assert-Condition ([int] $page.result.snapshot.totalNodes -eq $totalNodes) "Mode '$Mode' changed totalNodes while walking continuations."
         Assert-Condition ([int] $page.result.pagination.offset -eq $expectedSequence) "Mode '$Mode' returned a non-contiguous page offset."
@@ -346,6 +349,7 @@ function Assert-CompleteSnapshotEvidence {
         legacyPathAbsent = $true
         truncationMarkerAbsent = $true
         canonicalRepresentationsEqual = $true
+        maximumCanonicalResponseChars = $maximumCanonicalResponseChars
     }
 }
 
@@ -559,6 +563,7 @@ function Get-MeasurementEvidence {
                 elapsedMs = $_.elapsedMs
                 snapshotId = $_.response.result.snapshot.snapshotId
                 returnedCount = $_.response.result.pagination.returnedCount
+                canonicalResponseChars = $_.response.__contentText.Length
             }
         })
         medianMs = $Measurement.medianMs
