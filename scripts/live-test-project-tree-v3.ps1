@@ -454,6 +454,33 @@ function Find-AmbiguousSelector {
     throw 'target_ambiguous acceptance failed: the observed tree has no naturally ambiguous direct-child (nodeType, name) pair. Use another read-only project fixture after authorization.'
 }
 
+function New-MissingChildSelector {
+    param(
+        [Parameter(Mandatory)] [object[]] $Nodes,
+        [Parameter(Mandatory)] [object] $ParentNode,
+        [Parameter(Mandatory)] [object[]] $ParentSelector
+    )
+
+    $existingNames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($node in $Nodes) {
+        if (
+            ($null -ne $node.parentNodeId) -and
+            ([string] $node.parentNodeId -ceq [string] $ParentNode.nodeId) -and
+            ([string] $node.nodeType -ceq 'PlcSoftware')
+        ) {
+            [void] $existingNames.Add([string] $node.name)
+        }
+    }
+
+    $suffix = 0
+    do {
+        $missingName = "__TIA_MCP_MISSING_PLC_SOFTWARE_${suffix}__"
+        $suffix += 1
+    } while ($existingNames.Contains($missingName))
+
+    return @($ParentSelector) + @([ordered]@{ nodeType = 'PlcSoftware'; name = $missingName })
+}
+
 function Get-MeasurementEvidence {
     param([Parameter(Mandatory)] [object] $Measurement)
 
@@ -555,7 +582,7 @@ try {
         snapshot = $targetSnapshotEvidence
     }
 
-    $missingSelector = @($deviceSelector) + @([ordered]@{ nodeType = 'PlcSoftware'; name = '__TIA_MCP_MISSING_PLC_SOFTWARE__' })
+    $missingSelector = @(New-MissingChildSelector -Nodes $fullNodes -ParentNode $deviceNode -ParentSelector $deviceSelector)
     $missingResponse = Invoke-McpTool -Name 'browse_project_tree' -Arguments @{ startSelector = $missingSelector; pageSize = 200 }
     Assert-FailureResponse -Response $missingResponse -Category 'target_not_found'
     $evidence.selectorFailures.targetNotFound = [ordered]@{ category = $missingResponse.failure.category; selector = $missingSelector }
