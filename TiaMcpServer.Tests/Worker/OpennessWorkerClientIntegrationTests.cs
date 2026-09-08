@@ -11,7 +11,7 @@ namespace TiaMcpServer.Tests.Worker;
 /// its client (and therefore its worker process); clients are disposed so no fake worker
 /// outlives its test. One class so xunit runs these sequentially.
 /// </summary>
-public class OpennessWorkerClientIntegrationTests
+public class OpennessWorkerClientIntegrationTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     private static OpennessWorkerClient CreateClient(
         string? workerPath = null,
@@ -357,9 +357,15 @@ public class OpennessWorkerClientIntegrationTests
     [InlineData("null-response")]
     public async Task UncertainSafeRead_IssuesFailedRequestOnce_ThenRestartedWorkerServesTheNextRequests(string scenario)
     {
-        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        using var client = new OpennessWorkerClient(
+            new ProjectSessionBinding(null),
+            logger: new TimelineLogger(message => output.WriteLine($"{watch.Elapsed.TotalMilliseconds:F0}ms {message}")),
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            requestTimeout: TimeSpan.FromSeconds(2));
 
         var failed = await client.GetProjectStatusAsync(scenario);
+        output.WriteLine($"{watch.Elapsed.TotalMilliseconds:F0}ms initial scenario={scenario} success={failed.Success} category={failed.FailureCategory} error={failed.Error}");
         Assert.False(failed.Success);
         Assert.Contains(
             failed.FailureCategory,
@@ -374,11 +380,22 @@ public class OpennessWorkerClientIntegrationTests
         // SAME restarted process (seq=2), proving the restart is for the next caller only, not a
         // new process per request.
         var next = await client.GetProjectStatusAsync("ok");
+        output.WriteLine($"{watch.Elapsed.TotalMilliseconds:F0}ms next success={next.Success} category={next.FailureCategory} error={next.Error}");
         var afterNext = await client.GetProjectStatusAsync("ok");
+        output.WriteLine($"{watch.Elapsed.TotalMilliseconds:F0}ms afterNext success={afterNext.Success} category={afterNext.FailureCategory} error={afterNext.Error}");
 
-        Assert.True(next.Success);
+        Assert.True(next.Success, $"{next.FailureCategory}: {next.Error}");
         Assert.Equal("{\"seq\":1}", next.Payload);
         Assert.Equal("{\"seq\":2}", afterNext.Payload);
+    }
+
+    private sealed class TimelineLogger(Action<string> write) : Microsoft.Extensions.Logging.ILogger<OpennessWorkerClient>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => write(formatter(state, exception));
     }
 
     [Theory]
