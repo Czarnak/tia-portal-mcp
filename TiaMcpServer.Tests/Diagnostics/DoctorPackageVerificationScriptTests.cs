@@ -7,6 +7,35 @@ namespace TiaMcpServer.Tests.Diagnostics;
 public class DoctorPackageVerificationScriptTests
 {
     [Fact]
+    public void CopyTarget_MirrorsAuthoritativeWorkerOutputWithoutObsoleteFiles()
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var isolatedOutput = Path.Combine(
+            Path.GetTempPath(),
+            $"openness-worker-copy-{Guid.NewGuid():N}");
+        var copiedWorkerOutput = Path.Combine(isolatedOutput, "openness-worker");
+        Directory.CreateDirectory(copiedWorkerOutput);
+        File.WriteAllText(Path.Combine(copiedWorkerOutput, "obsolete-worker-assembly.dll"), "stale");
+
+        try
+        {
+            var result = RunCopyTarget(isolatedOutput);
+
+            Assert.True(
+                result.ExitCode == 0,
+                $"Worker copy target failed.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
+
+            var expectedFiles = EnumerateRelativeWorkerFiles(workerOutput);
+            var actualFiles = EnumerateRelativeWorkerFiles(copiedWorkerOutput);
+            Assert.Equal(expectedFiles, actualFiles);
+        }
+        finally
+        {
+            Directory.Delete(isolatedOutput, recursive: true);
+        }
+    }
+
+    [Fact]
     public void BuiltWorkerPayload_PassesPackageVerification()
     {
         var workerOutput = FindBuiltWorkerOutput();
@@ -143,6 +172,53 @@ public class DoctorPackageVerificationScriptTests
         }
 
         return new ScriptResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static ScriptResult RunCopyTarget(string outputPath)
+    {
+        var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
+        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
+        Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("msbuild");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("/t:CopyOpennessWorker");
+        startInfo.ArgumentList.Add("/m:1");
+        startInfo.ArgumentList.Add("/nr:false");
+        startInfo.ArgumentList.Add($"/p:Configuration={configuration}");
+        startInfo.ArgumentList.Add($"/p:OutputPath={Path.TrimEndingDirectorySeparator(outputPath)}{Path.DirectorySeparatorChar}");
+        startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
+        startInfo.ArgumentList.Add("/v:minimal");
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start dotnet msbuild process.");
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        if (!process.WaitForExit(60_000))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException("Worker copy target did not exit within 60 seconds.");
+        }
+
+        return new ScriptResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static string[] EnumerateRelativeWorkerFiles(string workerOutput)
+    {
+        return Directory.EnumerateFiles(workerOutput, "*", SearchOption.AllDirectories)
+            .Where(path => !Path.GetFileName(path).StartsWith("Siemens.Engineering", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase))
+            .Select(path => Path.GetRelativePath(workerOutput, path))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static string GetRepositoryRoot()
