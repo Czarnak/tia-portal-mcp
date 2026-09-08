@@ -79,7 +79,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         where TTools : class
         => StartAsync(
             McpAccessMode.ReadWrite,
-            builder => builder.WithTools<TTools>(),
+            builder => RegisterToolType<TTools>(builder),
             auditDirectory,
             startupProjectPath);
 
@@ -96,7 +96,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         where TTools2 : class
         => StartAsync(
             McpAccessMode.ReadWrite,
-            builder => builder.WithTools<TTools1>().WithTools<TTools2>(),
+            builder => RegisterToolType<TTools2>(RegisterToolType<TTools1>(builder)),
             auditDirectory,
             startupProjectPath);
 
@@ -115,7 +115,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             accessMode,
             builder =>
             {
-                builder.WithTools<ProjectReadTools>()
+                builder.WithProjectReadTools()
                        .WithTools<ReadBatchTools>()
                        .WithTools<NetworkReadTools>();
 
@@ -129,6 +129,12 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             },
             auditDirectory,
             startupProjectPath);
+
+    private static IMcpServerBuilder RegisterToolType<TTools>(IMcpServerBuilder builder)
+        where TTools : class
+        => typeof(TTools) == typeof(ProjectReadTools)
+            ? builder.WithProjectReadTools()
+            : builder.WithTools<TTools>();
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,

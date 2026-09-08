@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using System.Reflection;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
@@ -42,5 +45,36 @@ public class ProjectReadTools
         var rendered = await coordinator.BrowseAsync(
             new ProjectTreeBrowseRequest(projectPath, startSelector, depth, pageSize, cursor)).ConfigureAwait(false);
         return StructuredToolResult.CreateCanonical(rendered.CanonicalText, isError: !rendered.IsSuccess);
+    }
+}
+
+internal static class ProjectReadToolRegistration
+{
+    internal static IMcpServerBuilder WithProjectReadTools(this IMcpServerBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        foreach (var method in typeof(ProjectReadTools)
+                     .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                     .Where(candidate => candidate.GetCustomAttribute<McpServerToolAttribute>() is not null)
+                     .OrderBy(candidate => candidate.MetadataToken))
+        {
+            var toolMethod = method;
+            builder.Services.AddSingleton<McpServerTool>(services => McpServerTool.Create(
+                toolMethod,
+                target: null,
+                options: new McpServerToolCreateOptions
+                {
+                    Services = services,
+                    SchemaCreateOptions = new AIJsonSchemaCreateOptions
+                    {
+                        TransformOptions = new AIJsonSchemaTransformOptions
+                        {
+                            DisallowAdditionalProperties = true,
+                        },
+                    },
+                }));
+        }
+
+        return builder;
     }
 }

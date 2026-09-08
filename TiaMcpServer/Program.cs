@@ -97,7 +97,7 @@ namespace TiaMcpServer
             var mcp = builder.Services
                 .AddMcpServer()
                 .WithStdioServerTransport()
-                .WithTools<ProjectReadTools>()
+                .WithProjectReadTools()
                 .WithTools<ReadBatchTools>()
                 .WithTools<NetworkReadTools>();
 
