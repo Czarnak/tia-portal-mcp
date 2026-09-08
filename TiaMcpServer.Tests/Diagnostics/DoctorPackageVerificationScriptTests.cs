@@ -16,6 +16,8 @@ public class DoctorPackageVerificationScriptTests
         var copiedWorkerOutput = Path.Combine(isolatedOutput, "openness-worker");
         Directory.CreateDirectory(copiedWorkerOutput);
         File.WriteAllText(Path.Combine(copiedWorkerOutput, "obsolete-worker-assembly.dll"), "stale");
+        File.WriteAllText(Path.Combine(copiedWorkerOutput, "TiaMcpServer.OpennessWorker.runtimeconfig.json"), "stale");
+        File.WriteAllText(Path.Combine(copiedWorkerOutput, "Siemens.Engineering.dll"), "stale");
 
         try
         {
@@ -25,8 +27,8 @@ public class DoctorPackageVerificationScriptTests
                 result.ExitCode == 0,
                 $"Worker copy target failed.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
 
-            var expectedFiles = EnumerateRelativeWorkerFiles(workerOutput);
-            var actualFiles = EnumerateRelativeWorkerFiles(copiedWorkerOutput);
+            var expectedFiles = EnumerateAuthoritativeWorkerFiles(workerOutput);
+            var actualFiles = EnumerateRelativeFiles(copiedWorkerOutput);
             Assert.Equal(expectedFiles, actualFiles);
         }
         finally
@@ -211,12 +213,20 @@ public class DoctorPackageVerificationScriptTests
         return new ScriptResult(process.ExitCode, standardOutput, standardError);
     }
 
-    private static string[] EnumerateRelativeWorkerFiles(string workerOutput)
+    private static string[] EnumerateAuthoritativeWorkerFiles(string workerOutput)
     {
         return Directory.EnumerateFiles(workerOutput, "*", SearchOption.AllDirectories)
             .Where(path => !Path.GetFileName(path).StartsWith("Siemens.Engineering", StringComparison.OrdinalIgnoreCase))
             .Where(path => !path.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase))
             .Select(path => Path.GetRelativePath(workerOutput, path))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string[] EnumerateRelativeFiles(string directory)
+    {
+        return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(directory, path))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
