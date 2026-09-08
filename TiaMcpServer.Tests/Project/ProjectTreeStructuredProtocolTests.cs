@@ -18,6 +18,14 @@ public sealed class ProjectTreeStructuredProtocolTests
             await harness.Client.ListToolsAsync(),
             candidate => candidate.Name == "browse_project_tree");
         Assert.NotNull(tool.ProtocolTool.OutputSchema);
+        var inputSchema = tool.ProtocolTool.InputSchema;
+        Assert.False(inputSchema.GetProperty("additionalProperties").GetBoolean());
+        var selectorItems = inputSchema.GetProperty("properties").GetProperty("startSelector").GetProperty("items");
+        Assert.False(selectorItems.GetProperty("additionalProperties").GetBoolean());
+        Assert.Equal(
+            new[] { "name", "nodeType" },
+            selectorItems.GetProperty("required").EnumerateArray()
+                .Select(item => item.GetString()).Order().ToArray());
 
         var result = await CallAsync(harness, new Dictionary<string, object?>
         {
