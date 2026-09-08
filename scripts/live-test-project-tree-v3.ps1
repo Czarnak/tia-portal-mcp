@@ -433,10 +433,13 @@ function Find-AmbiguousSelector {
 
     $groups = @{}
     foreach ($node in $Nodes) {
-        if ($null -eq $node.parentNodeId) {
-            continue
+        $parentGroup = if ($null -eq $node.parentNodeId) {
+            'project-root'
         }
-        $key = ([string] $node.parentNodeId) + "`u{001f}" + ([string] $node.nodeType) + "`u{001f}" + ([string] $node.name).ToUpperInvariant()
+        else {
+            'node-parent' + "`u{001f}" + ([string] $node.parentNodeId)
+        }
+        $key = $parentGroup + "`u{001f}" + ([string] $node.nodeType) + "`u{001f}" + ([string] $node.name).ToUpperInvariant()
         if (-not $groups.ContainsKey($key)) {
             $groups[$key] = [System.Collections.Generic.List[object]]::new()
         }
@@ -446,6 +449,9 @@ function Find-AmbiguousSelector {
     foreach ($group in $groups.Values) {
         if ($group.Count -gt 1) {
             $representative = $group[0]
+            if ($null -eq $representative.parentNodeId) {
+                return @([ordered]@{ nodeType = [string] $representative.nodeType; name = [string] $representative.name })
+            }
             $parentSelector = Reconstruct-TypedSelector -Nodes $Nodes -NodeId ([string] $representative.parentNodeId)
             return @($parentSelector) + @([ordered]@{ nodeType = [string] $representative.nodeType; name = [string] $representative.name })
         }
