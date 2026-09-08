@@ -312,6 +312,28 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         Assert.Equal(new[] { 2, 3 }, Sequences(second));
     }
 
+    [Theory]
+    [InlineData('x', 60_000, false)]
+    [InlineData('\u0001', 10_000, false)]
+    [InlineData('x', 60_000, true)]
+    [InlineData('\u0001', 10_000, true)]
+    public async Task OversizedWorkerDiagnosticsReturnBoundedNonEchoingCanonicalFailure(char character, int count, bool warning)
+    {
+        var diagnostic = "DIAGNOSTIC_MARKER" + new string(character, count);
+        using var fixture = Fixture((_, _, _) => Task.FromResult(WorkerCallResult.Fail(
+            WorkerFailureCategories.TargetNotFound,
+            warning ? "Missing target." : diagnostic,
+            warning ? new[] { diagnostic } : Array.Empty<string>())));
+
+        var response = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest());
+
+        Assert.True(response.CanonicalText.Length <= ProjectTreeContract.MaximumResponseChars);
+        AssertFailure(response, WorkerFailureCategories.ResultMetadataTooLarge);
+        Assert.Equal(CanonicalJson.Serialize(response.Response), response.CanonicalText);
+        Assert.Empty(response.Response.Warnings);
+        Assert.DoesNotContain("DIAGNOSTIC_MARKER", response.CanonicalText);
+    }
+
     private static CoordinatorFixture Fixture(
         Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<WorkerCallResult>> read,
         ManualTimeProvider? clock = null,
