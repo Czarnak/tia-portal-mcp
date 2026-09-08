@@ -120,9 +120,32 @@ The read batch supports:
 
 ### Project enumeration completeness
 
-The net48 worker owns one ordered `ProjectDeviceEnumerator`: direct `Project.Devices` first, followed by a depth-first walk of `Project.DeviceGroups`. `HardwareConfigReader` and `ProjectTreeWalker` both consume it, preventing their definitions of a complete project from drifting. The public project tree deliberately flattens grouped devices into ordinary `Device` nodes.
+The net48 worker owns one ordered `ProjectDeviceEnumerator`: direct `Project.Devices` first, followed by a depth-first walk of `Project.DeviceGroups`. `HardwareConfigReader` and the project-tree snapshot walker both consume it, preventing their definitions of a complete project from drifting. The public project tree deliberately flattens grouped devices into ordinary `Device` nodes.
 
-PLC user block groups and system block groups are different Openness types. `ProjectTreeWalker` therefore keeps separate recursive walkers and shares only block-node construction. `SystemBlockFolder` and `IsSystemBlock` encode system-hierarchy membership, not provenance. Hardware degradation uses `HardwareConfigInfo.Messages`; project-tree per-item failures retain the existing stderr-only best-effort boundary.
+PLC user block groups and system block groups are different Openness types. The project-tree walker therefore keeps separate recursive walkers and shares only block-node construction. `SystemBlockFolder` and `IsSystemBlock` encode system-hierarchy membership, not provenance. Hardware degradation uses `HardwareConfigInfo.Messages`; project-tree best-effort diagnostics are carried as envelope warnings.
+
+### Project-tree v3 snapshot and continuation seam
+
+The public v3 cutover uses one canonical response envelope and this exact phase boundary:
+
+```text
+cursor-free browse
+    -> net48 typed/scoped walk (one worker call)
+    -> net8 strict decode + post-filter flatten
+    -> bounded immutable snapshot store
+    -> exact canonical page
+
+cursor continuation
+    -> authenticate process-local cursor
+    -> cache lookup + query/range validation under lock
+    -> exact canonical page (zero worker calls)
+```
+
+The initial request resolves the typed selector at the worker boundary, walks the selected device scope, validates one typed payload in the host, applies the remaining subtree/depth filter, and flattens it in deterministic pre-order. The host stores the immutable flat snapshot before returning a complete-node page. A continuation never re-enters Siemens Openness: it authenticates the HMAC-protected cursor, retrieves the same snapshot under the store lock, validates query hash and range, and projects the next canonical page.
+
+The store retains at most four snapshots, 4,000,000 canonical characters per snapshot, and 16,000,000 aggregate characters with a ten-minute sliding idle lifetime. A public page is capped at 60,000 canonical characters. Cache expiry or eviction returns `snapshot_unavailable`; an invalid process-local cursor, query mismatch, snapshot mismatch, range error, or binding change retains its specific categorized failure.
+
+A deeper direct-Openness selector resolver and depth-pruned traversal remains a measured follow-up, not shipped v3 behavior. It must not replace the current seam until live measurements show material benefit and the typed payload, deterministic ordering, selector ambiguity, warning, and pagination contracts remain unchanged.
 
 ### Additional read-write tools
 
