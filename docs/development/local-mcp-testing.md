@@ -40,11 +40,31 @@ In the Inspector UI:
 - Use `get_project_status` before lifecycle changes.
 - Avoid writes unless the project is disposable or backed up. Generic writes go through `preview_write_batch`, then `apply_write_batch`; network writes use self-previewing `network_write` with `confirm:false`, then the unchanged list, `confirm:true`, and the returned token.
 
-For a bounded tree read, call standalone `browse_project_tree` with inputs such as:
+For a bounded project-tree read, migrate the v2 request:
 
 ```json
 { "projectPath": null, "depth": 2, "startPath": "PLC_1" }
 ```
+
+to the v3 request:
+
+```json
+{
+  "projectPath": null,
+  "depth": 2,
+  "startSelector": [
+    { "nodeType": "Device", "name": "PLC_1" }
+  ]
+}
+```
+
+The v2 `startPath` and project-tree `deviceName` inputs are removed in `v3.0.0`; the old bare nested array is not retained. A successful v3 call returns a `contractVersion: "3.0"` envelope whose flat nodes are parent-first. When `pagination.nextCursor` is non-null, continue with only:
+
+```json
+{ "cursor": "<pagination.nextCursor>" }
+```
+
+To target a returned descendant, index the complete snapshot by `nodeId`, follow its `parentNodeId` chain to null, reverse the chain, and submit each node's exact `{ nodeType, name }` as `startSelector`. See the [project operations reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#browse_project_tree-v3) for the full envelope, failure categories, and cache/limit semantics.
 
 In read-write mode, call standalone `compile_check` with inputs such as:
 
@@ -185,3 +205,15 @@ Then call `open_project` again with the same arguments plus `confirm=true` and t
 ```
 
 Use archive mode values `None`, `DiscardRestorableData`, `Compressed`, or `DiscardRestorableDataAndCompressed`.
+
+## Project-tree v3 read-only live acceptance
+
+The maintained [project-tree v3 harness](../../scripts/live-test-project-tree-v3.ps1) is a separately authorized live check, not part of the offline test suite. It never opens, switches, saves, compiles, confirms, or mutates a project. Before running it, build the Release server and manually open an approved read-only fixture in TIA Portal V21. Then provide that exact path explicitly or through `TIA_MCP_LIVE_PROJECT_PATH`:
+
+```powershell
+pwsh -NoProfile -File .\scripts\live-test-project-tree-v3.ps1 -ProjectPath C:\Projects\Sandbox\Line.ap21
+```
+
+The harness starts the Release executable with `--read-only --project <exact path>`, verifies the four-tool observation surface, and writes JSON/local protocol evidence under `artifacts/issue-32-live/`. It times three cursor-free calls for each full-project, depth-limited, and selected-device mode; walks the final snapshot for every mode; verifies canonical text/structured equality, sequence and parent ordering, limits, selector reconstruction, and categorized missing/ambiguous/invalid selector behavior; and always stops the host in `finally`.
+
+An ambiguous-selector pass requires a naturally ambiguous direct-child `(nodeType, name)` pair in the observed project. If the fixture has none, the harness fails that check explicitly. Do not alter a project to manufacture the case; obtain authorization for a different read-only fixture. A parser pass and the static `ProjectTreeLiveHarnessContractTests` prove only the harness source boundary, not live TIA behavior. Create a live acceptance report only after an authorized run has produced and reviewed the evidence.

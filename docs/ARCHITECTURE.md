@@ -100,7 +100,7 @@ preview-only live V21 evidence are recorded in the
 | Tool | Purpose |
 |---|---|
 | `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
-| `browse_project_tree` | Return a bounded project subtree using optional `depth` and `startPath`. |
+| `browse_project_tree` | Return a canonical, paged v3 point-in-time snapshot using optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`, or continue it with `cursor`. |
 | `execute_read_batch` | Execute up to 50 validated observation operations. |
 | `network_read` | Execute up to 50 validated network observation operations. |
 
