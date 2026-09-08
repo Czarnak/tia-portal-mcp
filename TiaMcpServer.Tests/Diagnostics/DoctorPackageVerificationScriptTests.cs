@@ -6,6 +6,49 @@ namespace TiaMcpServer.Tests.Diagnostics;
 
 public class DoctorPackageVerificationScriptTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DirectPack_RefreshesSeededWorkerFilesBeforeCollectingPackageItems(bool noBuild)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var isolatedRoot = Path.Combine(
+            Path.GetTempPath(),
+            $"openness-worker-pack-{Guid.NewGuid():N}");
+        var outputPath = Path.Combine(isolatedRoot, "host-output");
+        var packageOutput = Path.Combine(isolatedRoot, "packages");
+
+        try
+        {
+            if (noBuild)
+            {
+                var buildResult = RunBuild(outputPath);
+                Assert.True(
+                    buildResult.ExitCode == 0,
+                    $"Isolated prerequisite build failed.{Environment.NewLine}{buildResult.StandardOutput}{Environment.NewLine}{buildResult.StandardError}");
+            }
+
+            var copiedWorkerOutput = Path.Combine(outputPath, "openness-worker");
+            Directory.CreateDirectory(copiedWorkerOutput);
+            File.WriteAllText(Path.Combine(copiedWorkerOutput, "obsolete-worker-assembly.dll"), "stale");
+
+            var packResult = RunPack(outputPath, packageOutput, noBuild);
+            Assert.True(
+                packResult.ExitCode == 0,
+                $"Direct pack failed (noBuild={noBuild}).{Environment.NewLine}{packResult.StandardOutput}{Environment.NewLine}{packResult.StandardError}");
+
+            var packagePath = Path.Combine(packageOutput, "TiaMcpServer.3.0.0.nupkg");
+            Assert.True(File.Exists(packagePath), $"Expected package was not created at {packagePath}.");
+            Assert.Equal(
+                EnumerateAuthoritativeWorkerFiles(workerOutput),
+                EnumeratePackagedWorkerFiles(packagePath));
+        }
+        finally
+        {
+            Directory.Delete(isolatedRoot, recursive: true);
+        }
+    }
+
     [Fact]
     public void CopyTarget_MirrorsAuthoritativeWorkerOutputWithoutObsoleteFiles()
     {
@@ -213,6 +256,82 @@ public class DoctorPackageVerificationScriptTests
         return new ScriptResult(process.ExitCode, standardOutput, standardError);
     }
 
+    private static ScriptResult RunBuild(string outputPath)
+    {
+        var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
+        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
+        Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
+
+        var startInfo = CreateDotnetStartInfo();
+        startInfo.ArgumentList.Add("build");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("--no-restore");
+        startInfo.ArgumentList.Add("--disable-build-servers");
+        startInfo.ArgumentList.Add("-m:1");
+        startInfo.ArgumentList.Add($"/p:Configuration={configuration}");
+        startInfo.ArgumentList.Add($"/p:OutputPath={Path.TrimEndingDirectorySeparator(outputPath)}{Path.DirectorySeparatorChar}");
+        startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
+        startInfo.ArgumentList.Add("/v:minimal");
+        return RunProcess(startInfo, 60_000, "Isolated build");
+    }
+
+    private static ScriptResult RunPack(string outputPath, string packageOutput, bool noBuild)
+    {
+        var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
+        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
+        Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
+
+        var startInfo = CreateDotnetStartInfo();
+        startInfo.ArgumentList.Add("pack");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("--no-restore");
+        startInfo.ArgumentList.Add("--disable-build-servers");
+        if (noBuild)
+        {
+            startInfo.ArgumentList.Add("--no-build");
+        }
+
+        startInfo.ArgumentList.Add("-m:1");
+        startInfo.ArgumentList.Add("-o");
+        startInfo.ArgumentList.Add(packageOutput);
+        startInfo.ArgumentList.Add($"/p:Configuration={configuration}");
+        startInfo.ArgumentList.Add($"/p:OutputPath={Path.TrimEndingDirectorySeparator(outputPath)}{Path.DirectorySeparatorChar}");
+        startInfo.ArgumentList.Add("/p:Version=3.0.0");
+        startInfo.ArgumentList.Add("/p:PackageVersion=3.0.0");
+        startInfo.ArgumentList.Add("/p:InformationalVersion=3.0.0");
+        startInfo.ArgumentList.Add("/p:IncludeSourceRevisionInInformationalVersion=false");
+        startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
+        startInfo.ArgumentList.Add("/v:minimal");
+        return RunProcess(startInfo, 90_000, "Direct pack");
+    }
+
+    private static ProcessStartInfo CreateDotnetStartInfo()
+    {
+        return new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+    }
+
+    private static ScriptResult RunProcess(ProcessStartInfo startInfo, int timeoutMilliseconds, string operation)
+    {
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException($"Failed to start {operation} process.");
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        if (!process.WaitForExit(timeoutMilliseconds))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException($"{operation} did not exit within {timeoutMilliseconds} milliseconds.");
+        }
+
+        return new ScriptResult(process.ExitCode, standardOutput, standardError);
+    }
+
     private static string[] EnumerateAuthoritativeWorkerFiles(string workerOutput)
     {
         return Directory.EnumerateFiles(workerOutput, "*", SearchOption.AllDirectories)
@@ -227,6 +346,18 @@ public class DoctorPackageVerificationScriptTests
     {
         return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(directory, path))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string[] EnumeratePackagedWorkerFiles(string packagePath)
+    {
+        const string prefix = "tools/net8.0/any/openness-worker/";
+        using var archive = ZipFile.OpenRead(packagePath);
+        return archive.Entries
+            .Where(entry => entry.FullName.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(entry => entry.FullName[prefix.Length..])
+            .Where(path => path.Length > 0)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
