@@ -130,8 +130,8 @@ The public v3 cutover uses one canonical response envelope and this exact phase 
 
 ```text
 cursor-free browse
-    -> net48 typed/scoped walk (one worker call)
-    -> net8 strict decode + post-filter flatten
+    -> net48 typed/scoped walk + residual selector/depth filtering
+    -> net8 strict decode + flatten
     -> bounded immutable snapshot store
     -> exact canonical page
 
@@ -141,9 +141,9 @@ cursor continuation
     -> exact canonical page (zero worker calls)
 ```
 
-The initial request resolves the typed selector at the worker boundary, walks the selected device scope, validates one typed payload in the host, applies the remaining subtree/depth filter, and flattens it in deterministic pre-order. The host stores the immutable flat snapshot before returning a complete-node page. A continuation never re-enters Siemens Openness: it authenticates the HMAC-protected cursor, retrieves the same snapshot under the store lock, validates query hash and range, and projects the next canonical page.
+The net48 worker resolves the selector's Device before PLC discovery, walks that device scope, and applies the remaining subtree selector and depth filter to its materialized DTO tree. The host validates the typed payload and flattens it in deterministic pre-order, then stores the immutable flat snapshot before returning a complete-node page. Each initial request makes one tree-observation worker call; configured read-write startup may first make a `get_project_status` call to verify the project binding. A continuation never re-enters Siemens Openness: it authenticates the HMAC-protected cursor, retrieves the same snapshot under the store lock, validates query hash and range, and projects the next canonical page without worker IPC.
 
-The store retains at most four snapshots, 4,000,000 canonical characters per snapshot, and 16,000,000 aggregate characters with a ten-minute sliding idle lifetime. A public page is capped at 60,000 canonical characters. Cache expiry or eviction returns `snapshot_unavailable`; an invalid process-local cursor, query mismatch, snapshot mismatch, range error, or binding change retains its specific categorized failure.
+The store retains at most four snapshots, 4,000,000 canonical characters per snapshot, and 16,000,000 aggregate characters with a ten-minute sliding idle lifetime. Every public response, including failures and warnings, is capped at 60,000 canonical characters. Oversized diagnostics return a bounded `result_metadata_too_large` failure without echoing them. Cache expiry, eviction, or a cursor from a previous host process returns `snapshot_unavailable`. Malformed or unauthenticated current-process cursors return `invalid_cursor`, repeated query differences return `cursor_filter_mismatch`, and authenticated out-of-range offsets return `cursor_out_of_range`. Cached project-tree continuations are independent of worker-session and host-binding changes.
 
 A deeper direct-Openness selector resolver and depth-pruned traversal remains a measured follow-up, not shipped v3 behavior. It must not replace the current seam until live measurements show material benefit and the typed payload, deterministic ordering, selector ambiguity, warning, and pagination contracts remain unchanged.
 
