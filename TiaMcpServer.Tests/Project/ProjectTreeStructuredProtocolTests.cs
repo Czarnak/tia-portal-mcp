@@ -11,6 +11,25 @@ namespace TiaMcpServer.Tests.Project;
 public sealed class ProjectTreeStructuredProtocolTests
 {
     [Fact]
+    public async Task BrowseProjectTree_InputSchemaMatchesSelectorNullabilityValidation()
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        var tool = Assert.Single(
+            await harness.Client.ListToolsAsync(),
+            candidate => candidate.Name == "browse_project_tree");
+        var selector = tool.ProtocolTool.InputSchema
+            .GetProperty("properties")
+            .GetProperty("startSelector");
+
+        Assert.Equal(new[] { "array", "null" }, SchemaTypes(selector));
+
+        var selectorItems = selector.GetProperty("items");
+        Assert.Equal(new[] { "object" }, SchemaTypes(selectorItems));
+        Assert.Equal(new[] { "string" }, SchemaTypes(selectorItems.GetProperty("properties").GetProperty("nodeType")));
+        Assert.Equal(new[] { "string" }, SchemaTypes(selectorItems.GetProperty("properties").GetProperty("name")));
+    }
+
+    [Fact]
     public async Task BrowseProjectTree_AdvertisesOutputSchemaAndUsesOneCanonicalDocument()
     {
         await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
@@ -140,6 +159,14 @@ public sealed class ProjectTreeStructuredProtocolTests
         McpProtocolTestHarness harness,
         IReadOnlyDictionary<string, object?> arguments)
         => harness.Client.CallToolAsync("browse_project_tree", arguments);
+
+    private static string[] SchemaTypes(JsonElement schema)
+    {
+        var type = schema.GetProperty("type");
+        return type.ValueKind == JsonValueKind.Array
+            ? type.EnumerateArray().Select(item => item.GetString()!).Order().ToArray()
+            : new[] { type.GetString()! };
+    }
 
     private static JsonElement AssertOneCanonicalDocument(CallToolResult result)
     {
