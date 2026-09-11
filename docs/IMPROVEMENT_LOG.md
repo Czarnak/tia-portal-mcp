@@ -26,21 +26,20 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: Project-tree v3 live performance and semantic acceptance (Issue #32)
+## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
-The v3 implementation, offline contract tests, FakeWorker coverage, maintained migration docs, and
-the static read-only harness gate are complete on the implementation branch. That evidence does not
-establish live TIA Portal V21 traversal time or semantics. The separately gated read-only harness
-still must be authorized and run against an approved real project, its JSON/stdout/stderr evidence
-must be reviewed, and only then may a live acceptance report be created. Until that happens, live
-performance and semantic acceptance remain pending.
+The user accepted the combined offline and read-only live v3 evidence on 2026-09-12, with an
+explicit live ambiguity waiver. The
+[accepted report](superpowers/acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md)
+records the timing distributions, multi-page completion, evidence boundaries, and waiver.
 
 The shipped v3 initial browse performs one net48 typed/scoped walk, then strict host decode,
 post-filter flattening, bounded immutable snapshot storage, and canonical page projection;
 continuations use the authenticated process-local cursor and cached snapshot with zero worker calls.
 A deeper direct Openness selector resolver and depth-pruned walk is a measured follow-up only. It is
-not shipped behavior and should proceed only if the pending live measurements show material benefit
-without changing the approved public contract.
+not shipped behavior and should proceed only if additional measurements justify its benefit without
+changing the approved public contract. Acceptance of the current implementation does not complete
+this optimization.
 
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 
@@ -549,6 +548,22 @@ worker observation; continuations use the cached snapshot and make zero worker c
 Offline tests cover strict input and worker decoding, selector ambiguity and failures, canonical
 text/structured equality, snapshot/cursor authentication and bounds, page projection, public schema,
 and legacy rejection. The maintained read-only PowerShell harness also has a static source contract
-and parser gate. The harness was not executed for this entry, no live TIA Portal project was opened
-or attached, and no live acceptance report exists. Live performance and semantic acceptance remain
-the separate open follow-up recorded near the top of this log.
+and parser gate. At the time of this offline entry, the harness had not been executed and no live
+TIA Portal project had been opened or attached for it. The subsequent accepted live result is
+recorded separately below; the deeper resolver optimization remains open near the top of this log.
+
+## Project-tree v3 read-only live acceptance — DONE 2026-09-12 (Issue #32)
+
+The user accepted the [combined offline and live evidence](superpowers/acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md):
+Fixture A's selected-Device median improved by 54.44%, and Fixture B supplied additional 62.57%
+median-reduction evidence plus complete 890-node full and 804-node selected trees over five pages
+each. Eight live continuations, canonical/size/structure checks, deep-leaf equivalence, and exact
+missing/invalid selector categories passed. The accepted one-initial-worker/zero-continuation-worker
+requirement combines offline integration/source proof with observed live paging, not live IPC counts.
+
+The live `target_ambiguous` check was explicitly WAIVED, not passed: the user's acceptance ruling
+recognizes that TIA name uniqueness prevents the required duplicate-name fixture through normal
+engineering. Raw harness failures at that fixture guard and the first late-approval timeout remain
+in private ignored evidence. Project and selector identities are omitted from tracked documentation
+at the user's request. No project save, mutation, PLC control, deployment, or plant acceptance is
+claimed. The deeper direct resolver and depth-pruned walk remain deferred.
