@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
@@ -71,6 +72,7 @@ internal static class ProjectReadToolRegistration
                         Services = services,
                         SchemaCreateOptions = new AIJsonSchemaCreateOptions
                         {
+                            TransformSchemaNode = AlignSelectorSchemaNullability,
                             TransformOptions = new AIJsonSchemaTransformOptions
                             {
                                 DisallowAdditionalProperties = true,
@@ -85,6 +87,39 @@ internal static class ProjectReadToolRegistration
         }
 
         return builder;
+    }
+
+    private static JsonNode AlignSelectorSchemaNullability(
+        AIJsonSchemaCreateContext context,
+        JsonNode schema)
+    {
+        if (context.TypeInfo.Type == typeof(ProjectTreeSelectorSegment)
+            && schema is JsonObject selectorSchema
+            && selectorSchema["properties"] is JsonObject properties)
+        {
+            RemoveNullType(selectorSchema);
+            RemoveNullType(properties["nodeType"]);
+            RemoveNullType(properties["name"]);
+        }
+
+        return schema;
+    }
+
+    private static void RemoveNullType(JsonNode? schema)
+    {
+        if (schema is not JsonObject schemaObject
+            || schemaObject["type"] is not JsonArray types)
+        {
+            return;
+        }
+
+        for (var index = types.Count - 1; index >= 0; index--)
+        {
+            if (types[index]?.GetValue<string>() == "null")
+            {
+                types.RemoveAt(index);
+            }
+        }
     }
 }
 
