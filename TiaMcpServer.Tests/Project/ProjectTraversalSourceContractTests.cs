@@ -51,20 +51,20 @@ public class ProjectTraversalSourceContractTests
         var hardware = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
         var tree = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeWalker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))", hardware, StringComparison.Ordinal);
-        Assert.Contains("foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))", tree, StringComparison.Ordinal);
+        Assert.Contains("ProjectDeviceEnumerator.Enumerate(project).Cast<Device>().ToList()", tree, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (Device device in project.Devices)", hardware, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (Device device in project.Devices)", tree, StringComparison.Ordinal);
-        Assert.Contains("rootNodes.Add(WalkDevice(device));", tree, StringComparison.Ordinal);
+        Assert.Contains("devices.Select(WalkDevice).ToList()", tree, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ProjectTreeWalker_TraversesEverySystemBlockGroupWithItsOwnTypedWalker()
+    public void ProjectTreeSnapshotWalker_TraversesEverySystemBlockGroupWithItsOwnTypedWalker()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeWalker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("group is PlcBlockSystemGroup systemGroup", source, StringComparison.Ordinal);
         Assert.Contains("foreach (PlcSystemBlockGroup childGroup in systemGroup.SystemBlockGroups)", source, StringComparison.Ordinal);
@@ -74,15 +74,15 @@ public class ProjectTraversalSourceContractTests
     }
 
     [Fact]
-    public void ProjectTreeWalker_MarksSystemMembershipWithoutChangingFunctionalBlockTypes()
+    public void ProjectTreeSnapshotWalker_MarksSystemMembershipWithoutChangingFunctionalBlockTypes()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeWalker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
 
-        Assert.Contains("NodeType = \"SystemBlockFolder\"", source, StringComparison.Ordinal);
+        Assert.Contains("NodeType = ProjectTreeNodeTypes.SystemBlockFolder", source, StringComparison.Ordinal);
         Assert.Contains("details[\"IsSystemBlock\"] = \"true\";", source, StringComparison.Ordinal);
-        Assert.Contains("BuildBlockNode(block, path, softwareUnitName, isSystemBlock: false)", source, StringComparison.Ordinal);
-        Assert.Contains("BuildBlockNode(block, path, softwareUnitName, isSystemBlock: true)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildBlockNode(block, softwareUnitName, isSystemBlock: false)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildBlockNode(block, softwareUnitName, isSystemBlock: true)", source, StringComparison.Ordinal);
         Assert.Equal(1, source.Split("NodeType = block switch", StringSplitOptions.None).Length - 1);
         Assert.DoesNotContain("HeaderAuthor", source, StringComparison.Ordinal);
     }

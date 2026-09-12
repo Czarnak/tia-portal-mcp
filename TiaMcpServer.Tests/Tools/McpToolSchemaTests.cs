@@ -1,10 +1,13 @@
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.AI;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -39,7 +42,17 @@ public class McpToolSchemaTests
         var binding = new ProjectSessionBinding(null);
         var workerClient = new OpennessWorkerClient(binding);
         var safety = new WriteSafetyService();
-        return new FakeServiceProvider(binding, workerClient, safety);
+        var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var cursorCodec = new ProjectTreeCursorCodec(protector);
+        var store = new ProjectTreeSnapshotStore(TimeProvider.System);
+        var projector = new ProjectTreePageProjector(cursorCodec);
+        var coordinator = new ProjectTreeBrowseCoordinator(
+            workerClient,
+            cursorCodec,
+            store,
+            projector,
+            TimeProvider.System);
+        return new FakeServiceProvider(binding, workerClient, safety, coordinator);
     }
 
     private static string[] SchemaPropertyNames(Type toolType, string methodName)
@@ -85,6 +98,26 @@ public class McpToolSchemaTests
             options: new McpServerToolCreateOptions { Services = Services });
 
         return tool.ProtocolTool.InputSchema.GetRawText();
+    }
+
+    private static McpServerTool Tool(Type toolType, string methodName)
+    {
+        var method = toolType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(method);
+        return McpServerTool.Create(
+            method!,
+            target: null,
+            options: new McpServerToolCreateOptions
+            {
+                Services = Services,
+                SchemaCreateOptions = new AIJsonSchemaCreateOptions
+                {
+                    TransformOptions = new AIJsonSchemaTransformOptions
+                    {
+                        DisallowAdditionalProperties = true,
+                    },
+                },
+            });
     }
 
     [Theory]
@@ -377,16 +410,36 @@ public class McpToolSchemaTests
     }
 
     [Fact]
-    public void BrowseProjectTree_SchemaExposesOnlyModelInputs()
+    public void BrowseProjectTree_SchemaIsTheExactV3Surface()
     {
-        var properties = SchemaPropertyNames(
-            typeof(ProjectReadTools),
-            nameof(ProjectReadTools.BrowseProjectTree));
+        var tool = Tool(typeof(ProjectReadTools), nameof(ProjectReadTools.BrowseProjectTree));
+        var schema = tool.ProtocolTool.InputSchema;
+        var properties = schema.GetProperty("properties");
 
         Assert.Equal(
-            new[] { "depth", "projectPath", "startPath" },
-            properties.OrderBy(name => name).ToArray());
-        Assert.DoesNotContain("workerClient", properties);
+            new[] { "cursor", "depth", "pageSize", "projectPath", "startSelector" },
+            properties.EnumerateObject().Select(property => property.Name).Order().ToArray());
+        Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
+        Assert.False(properties.TryGetProperty("startPath", out _));
+        Assert.False(properties.TryGetProperty("deviceName", out _));
+
+        var selectorItems = properties.GetProperty("startSelector").GetProperty("items");
+        Assert.Equal(JsonValueKind.Object, selectorItems.ValueKind);
+        Assert.False(selectorItems.GetProperty("additionalProperties").GetBoolean());
+        Assert.Equal(
+            new[] { "name", "nodeType" },
+            selectorItems.GetProperty("properties").EnumerateObject()
+                .Select(property => property.Name).Order().ToArray());
+        Assert.Equal(
+            new[] { "name", "nodeType" },
+            selectorItems.GetProperty("required").EnumerateArray()
+                .Select(item => item.GetString()).Order().ToArray());
+
+        Assert.NotNull(tool.ProtocolTool.OutputSchema);
+        var method = typeof(ProjectReadTools).GetMethod(nameof(ProjectReadTools.BrowseProjectTree));
+        var attribute = method!.GetCustomAttribute<McpServerToolAttribute>();
+        Assert.True(attribute!.UseStructuredContent);
+        Assert.Equal(typeof(BrowseProjectTreeResponse), attribute.OutputSchemaType);
     }
 
     [Fact]

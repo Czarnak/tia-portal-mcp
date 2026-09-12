@@ -75,6 +75,7 @@ var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Be
     "PLC_1/Tag tables/Outputs/Before", "Bool", "%Q0.0", true, true, false);
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
+var projectTreeV3ScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var projectTreeSafetyScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var projectTreeDedupCounters = new Dictionary<string, int>(StringComparer.Ordinal);
 var projectTreeDedupPhase = "preview";
@@ -526,19 +527,27 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
 
         case "project-enumeration-completeness":
-            Respond(ReadMethod(line) switch
-            {
-                "read_hardware_config" => Success(ToCamelCaseJson(ProjectCompletenessHardware())),
-                "browse_project_tree" => Success(ToCamelCaseJson(ProjectCompletenessTree())),
-                _ => $$"""{"success":false,"error":"unexpected project completeness method '{{ReadMethod(line)}}'"}"""
-            });
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(ProjectCompletenessHardware()))
+                : $$"""{"success":false,"error":"unexpected project completeness method '{{ReadMethod(line)}}'"}""");
             break;
         case "project-tree-v3-snapshot":
             Respond(ReadMethod(line) == "browse_project_tree_v3_snapshot"
-                && ReadField(line, "startPath") is null
                 && HasNonNullField(line, "startSelector")
-                ? Success(ToCamelCaseJson(ProjectTreeV3Snapshot()))
-                : $$"""{"success":false,"error":"expected typed browse_project_tree_v3_snapshot without startPath"}""");
+                ? SuccessWithResolvedPath(
+                    ToCamelCaseJson(ProjectTreeV3Snapshot()),
+                    ReadField(line, "projectPath") ?? scenario)
+                : $$"""{"success":false,"error":"expected typed browse_project_tree_v3_snapshot"}""");
+            break;
+        case "project-tree-v3-small":
+        case "project-tree-v3-counted":
+        case "project-tree-v3-one-shot":
+            Respond(ProjectTreeV3ScenarioResponse(line, scenario));
+            break;
+        case "project-tree-v3-malformed":
+            Respond(ReadMethod(line) == "browse_project_tree_v3_snapshot"
+                ? Success("""{"startSelector":null,"depth":null,"roots":{"PROJECT_TREE_SECRET_MARKER":true}}""")
+                : $$"""{"success":false,"error":"expected browse_project_tree_v3_snapshot, got '{{ReadMethod(line)}}'"}""");
             break;
         case "hardware-pagination":
             // The host owns cursor authentication, binding, and public projection. This scenario
@@ -1438,6 +1447,14 @@ int NextHardwarePaginationScenarioCall(string scenario)
     return calls;
 }
 
+int NextProjectTreeV3ScenarioCall(string scenario)
+{
+    projectTreeV3ScenarioCalls.TryGetValue(scenario, out var calls);
+    calls++;
+    projectTreeV3ScenarioCalls[scenario] = calls;
+    return calls;
+}
+
 HardwarePageCandidateResultInfo HardwarePaginationCandidates(string requestLine)
 {
     var request = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)
@@ -1551,69 +1568,6 @@ List<HardwarePageFixtureSubnet> HardwarePaginationSubnets() => new()
         new[] { "Candidate diagnostic: remote subnet." }),
 };
 
-List<ProjectTreeNode> ProjectCompletenessTree() => new()
-{
-    new()
-    {
-        Name = "Direct PLC",
-        NodeType = "Device",
-        Details = new Dictionary<string, string> { ["Path"] = "Direct PLC" },
-        Children = new List<ProjectTreeNode>(),
-    },
-    new()
-    {
-        Name = "Grouped ET200",
-        NodeType = "Device",
-        Details = new Dictionary<string, string> { ["Path"] = "Grouped ET200" },
-        Children = new List<ProjectTreeNode>
-        {
-            new()
-            {
-                Name = "PLC_Grouped",
-                NodeType = "PlcSoftware",
-                Details = new Dictionary<string, string> { ["Path"] = "Grouped ET200" },
-                Children = new List<ProjectTreeNode>
-                {
-                    new()
-                    {
-                        Name = "Blocks",
-                        NodeType = "BlockFolder",
-                        Details = new Dictionary<string, string> { ["Path"] = "PLC_Grouped/Blocks" },
-                        Children = new List<ProjectTreeNode>
-                        {
-                            new()
-                            {
-                                Name = "System blocks",
-                                NodeType = "SystemBlockFolder",
-                                Details = new Dictionary<string, string>
-                                {
-                                    ["Path"] = "PLC_Grouped/Blocks/System blocks"
-                                },
-                                Children = new List<ProjectTreeNode>
-                                {
-                                    new()
-                                    {
-                                        Name = "SafeFB",
-                                        NodeType = "FB",
-                                        Details = new Dictionary<string, string>
-                                        {
-                                            ["Path"] = "PLC_Grouped/Blocks/System blocks/SafeFB",
-                                            ["Number"] = "200",
-                                            ["ProgrammingLanguage"] = "F_LAD",
-                                            ["IsSystemBlock"] = "true",
-                                        },
-                                        Children = new List<ProjectTreeNode>(),
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    },
-};
-
 ProjectTreeBrowseResultInfo ProjectTreeV3Snapshot() => new()
 {
     StartSelector = new List<ProjectTreeSelectorSegment>
@@ -1625,6 +1579,70 @@ ProjectTreeBrowseResultInfo ProjectTreeV3Snapshot() => new()
     {
         new() { Name = "PLC_1", NodeType = ProjectTreeNodeTypes.Device, Details = null, Children = new List<ProjectTreeNode>() }
     }
+};
+
+string ProjectTreeV3ScenarioResponse(string requestLine, string scenario)
+{
+    if (ReadMethod(requestLine) != "browse_project_tree_v3_snapshot")
+    {
+        return $$"""{"success":false,"error":"expected browse_project_tree_v3_snapshot, got '{{ReadMethod(requestLine)}}'"}""";
+    }
+
+    var call = NextProjectTreeV3ScenarioCall(scenario);
+    if (scenario == "project-tree-v3-one-shot" && call > 1)
+    {
+        return """{"success":false,"error":"project-tree observation attempted more than once"}""";
+    }
+
+    return SuccessWithResolvedPath(
+        ToCamelCaseJson(ProjectTreeV3Fixture(
+            scenario == "project-tree-v3-counted" ? call : null)),
+        ReadField(requestLine, "projectPath") ?? scenario);
+}
+
+ProjectTreeBrowseResultInfo ProjectTreeV3Fixture(int? observation = null) => new()
+{
+    StartSelector = null,
+    Depth = null,
+    Roots = new List<ProjectTreeNode>
+    {
+        new()
+        {
+            Name = "PLC_1",
+            NodeType = ProjectTreeNodeTypes.Device,
+            Details = observation is null
+                ? null
+                : new Dictionary<string, string> { ["Observation"] = observation.Value.ToString() },
+            Children = new List<ProjectTreeNode>
+            {
+                new()
+                {
+                    Name = "PLC_1",
+                    NodeType = ProjectTreeNodeTypes.PlcSoftware,
+                    Details = null,
+                    Children = new List<ProjectTreeNode>
+                    {
+                        new()
+                        {
+                            Name = "Blocks",
+                            NodeType = ProjectTreeNodeTypes.BlockFolder,
+                            Details = null,
+                            Children = new List<ProjectTreeNode>
+                            {
+                                new()
+                                {
+                                    Name = "Main",
+                                    NodeType = ProjectTreeNodeTypes.Fb,
+                                    Details = null,
+                                    Children = new List<ProjectTreeNode>(),
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
 };
 
 string ProjectTreeDedupResponse(string requestLine)

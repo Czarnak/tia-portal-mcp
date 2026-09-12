@@ -9,8 +9,10 @@ namespace TiaMcpServer.Tests.Worker;
 /// <summary>
 /// Drives the real persistent IPC pipeline against TiaMcpServer.FakeWorker. Each test owns
 /// its client (and therefore its worker process); clients are disposed so no fake worker
-/// outlives its test. One class so xunit runs these sequentially.
+/// outlives its test. The process collection also prevents other test collections from
+/// competing with cold FakeWorker startup while these tests deliberately use short timeouts.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class OpennessWorkerClientIntegrationTests
 {
     private static OpennessWorkerClient CreateClient(
@@ -208,16 +210,16 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task ReadWriteStartupProject_FirstBrowseAutoVerifiesWithStatusThenReads()
+    public async Task ReadWriteStartupProject_FirstTypedBrowseAutoVerifiesWithStatusThenReads()
     {
         // The "ok" FakeWorker scenario reports a monotonically increasing sequence number.
-        // browse_project_tree must therefore return seq=2: seq=1 was the automatic read-only
+        // browse_project_tree_v3_snapshot must therefore return seq=2: seq=1 was the automatic read-only
         // get_project_status call that promoted the configured startup path to Verified.
         var binding = new ProjectSessionBinding("ok");
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         using var client = CreateClient(binding: binding, accessPolicy: policy);
 
-        var result = await client.BrowseProjectTreeAsync(projectPath: null);
+        var result = await client.BrowseProjectTreeV3SnapshotAsync(projectPath: null);
 
         Assert.True(result.Success, result.Error);
         Assert.Equal("{\"seq\":2}", result.Payload);
@@ -376,7 +378,8 @@ public class OpennessWorkerClientIntegrationTests
         var next = await client.GetProjectStatusAsync("ok");
         var afterNext = await client.GetProjectStatusAsync("ok");
 
-        Assert.True(next.Success);
+        Assert.True(next.Success, $"{next.FailureCategory}: {next.Error}");
+        Assert.True(afterNext.Success, $"{afterNext.FailureCategory}: {afterNext.Error}");
         Assert.Equal("{\"seq\":1}", next.Payload);
         Assert.Equal("{\"seq\":2}", afterNext.Payload);
     }
@@ -410,7 +413,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var result = await InvokeRawAsync(
             client,
-            new WorkerRequest { Method = "browse_project_tree", ProjectDirectory = "hang" });
+            new WorkerRequest { Method = "browse_project_tree_v3_snapshot", ProjectDirectory = "hang" });
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerTimeout, result.FailureCategory);
@@ -494,7 +497,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var request = new WorkerRequest
         {
-            Method = "browse_project_tree",
+            Method = "browse_project_tree_v3_snapshot",
             ProjectDirectory = "hang"
         };
         var pendingResult = InvokeRawAsync(

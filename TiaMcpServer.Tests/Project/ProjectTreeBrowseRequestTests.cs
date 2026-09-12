@@ -47,7 +47,7 @@ public class ProjectTreeBrowseRequestTests
         var error = Assert.Throws<ProjectTreeRequestException>(() =>
             new ProjectTreeBrowseRequest(Cursor: cursor).Validate());
 
-        Assert.Equal(WorkerFailureCategories.ValidationError, error.Category);
+        Assert.Equal(WorkerFailureCategories.InvalidCursor, error.Category);
     }
 
     [Fact]

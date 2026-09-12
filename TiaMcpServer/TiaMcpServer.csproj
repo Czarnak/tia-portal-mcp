@@ -28,9 +28,6 @@
   <ItemGroup>
     <None Include="../README.md" Pack="true" PackagePath="/" />
     <None Include="../LICENSE" Pack="true" PackagePath="/" />
-    <None Include="$(OutputPath)openness-worker\**\*" Pack="true"
-      PackagePath="tools/net8.0/any/openness-worker/%(RecursiveDir)%(Filename)%(Extension)"
-      Exclude="$(OutputPath)openness-worker\**\*.runtimeconfig.json;$(OutputPath)openness-worker\**\Siemens.Engineering*.dll" />
   </ItemGroup>
 
   <Target Name="BuildOpennessWorker" BeforeTargets="Build">
@@ -40,7 +37,8 @@
       RemoveProperties="TargetFramework;TargetFrameworks;RuntimeIdentifier;SelfContained;PackAsTool" />
   </Target>
 
-  <Target Name="CopyOpennessWorker" AfterTargets="Build">
+  <Target Name="CopyOpennessWorker" AfterTargets="Build" BeforeTargets="PackTool">
+    <RemoveDir Directories="$(OutputPath)openness-worker" />
     <ItemGroup>
       <OpennessWorkerFiles
         Include="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.*"
@@ -51,22 +49,18 @@
       SkipUnchangedFiles="true" />
   </Target>
 
-  <Target Name="CopyOpennessWorkerToPublish" AfterTargets="Publish">
+  <Target Name="RegisterOpennessWorkerPublishFiles" AfterTargets="ComputeFilesToPublish">
+    <RemoveDir Directories="$(PublishDir)openness-worker" />
     <ItemGroup>
-      <OpennessWorkerFiles
+      <OpennessWorkerPublishFiles
         Include="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.*"
         Exclude="..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\Siemens.Engineering*.dll;..\TiaMcpServer.OpennessWorker\bin\$(Configuration)\net48\**\*.runtimeconfig.json" />
+      <ResolvedFileToPublish Include="@(OpennessWorkerPublishFiles)">
+        <RelativePath>openness-worker\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
     </ItemGroup>
-    <Copy SourceFiles="@(OpennessWorkerFiles)"
-      DestinationFiles="@(OpennessWorkerFiles->'$(PublishDir)openness-worker\%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
-  </Target>
-
-  <Target Name="RemoveStaleOpennessWorkerRuntimeConfig"
-    BeforeTargets="CopyOpennessWorker;CopyOpennessWorkerToPublish;PackTool">
-    <Delete Files="$(OutputPath)openness-worker\TiaMcpServer.OpennessWorker.runtimeconfig.json" />
-    <Delete Files="$(PublishDir)openness-worker\TiaMcpServer.OpennessWorker.runtimeconfig.json"
-      Condition="'$(PublishDir)' != ''" />
   </Target>
 
 </Project>

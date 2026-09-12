@@ -80,7 +80,6 @@ public static class OperationPolicyCatalog
         {
             // Observe (read-only safe)
             ["get_project_status"] = OperationCapability.Observe,
-            ["browse_project_tree"] = OperationCapability.Observe,
             ["browse_project_tree_v3_snapshot"] = OperationCapability.Observe,
             ["read_hardware_config"] = OperationCapability.Observe,
             ["read_hardware_page_candidates"] = OperationCapability.Observe,

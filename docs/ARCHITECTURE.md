@@ -100,7 +100,7 @@ preview-only live V21 evidence are recorded in the
 | Tool | Purpose |
 |---|---|
 | `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
-| `browse_project_tree` | Return a bounded project subtree using optional `depth` and `startPath`. |
+| `browse_project_tree` | Return a canonical, paged v3 point-in-time snapshot using optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`, or continue it with `cursor`. |
 | `execute_read_batch` | Execute up to 50 validated observation operations. |
 | `network_read` | Execute up to 50 validated network observation operations. |
 
@@ -120,9 +120,32 @@ The read batch supports:
 
 ### Project enumeration completeness
 
-The net48 worker owns one ordered `ProjectDeviceEnumerator`: direct `Project.Devices` first, followed by a depth-first walk of `Project.DeviceGroups`. `HardwareConfigReader` and `ProjectTreeWalker` both consume it, preventing their definitions of a complete project from drifting. The public project tree deliberately flattens grouped devices into ordinary `Device` nodes.
+The net48 worker owns one ordered `ProjectDeviceEnumerator`: direct `Project.Devices` first, followed by a depth-first walk of `Project.DeviceGroups`. `HardwareConfigReader` and the project-tree snapshot walker both consume it, preventing their definitions of a complete project from drifting. The public project tree deliberately flattens grouped devices into ordinary `Device` nodes.
 
-PLC user block groups and system block groups are different Openness types. `ProjectTreeWalker` therefore keeps separate recursive walkers and shares only block-node construction. `SystemBlockFolder` and `IsSystemBlock` encode system-hierarchy membership, not provenance. Hardware degradation uses `HardwareConfigInfo.Messages`; project-tree per-item failures retain the existing stderr-only best-effort boundary.
+PLC user block groups and system block groups are different Openness types. The project-tree walker therefore keeps separate recursive walkers and shares only block-node construction. `SystemBlockFolder` and `IsSystemBlock` encode system-hierarchy membership, not provenance. Hardware degradation uses `HardwareConfigInfo.Messages`; project-tree best-effort diagnostics are carried as envelope warnings.
+
+### Project-tree v3 snapshot and continuation seam
+
+The public v3 cutover uses one canonical response envelope and this exact phase boundary:
+
+```text
+cursor-free browse
+    -> net48 typed/scoped walk + residual selector/depth filtering
+    -> net8 strict decode + flatten
+    -> bounded immutable snapshot store
+    -> exact canonical page
+
+cursor continuation
+    -> authenticate process-local cursor
+    -> cache lookup + query/range validation under lock
+    -> exact canonical page (zero worker calls)
+```
+
+The net48 worker resolves the selector's Device before PLC discovery, walks that device scope, and applies the remaining subtree selector and depth filter to its materialized DTO tree. The host validates the typed payload and flattens it in deterministic pre-order, then stores the immutable flat snapshot before returning a complete-node page. Each initial request makes one tree-observation worker call; configured read-write startup may first make a `get_project_status` call to verify the project binding. A continuation never re-enters Siemens Openness: it authenticates the HMAC-protected cursor, retrieves the same snapshot under the store lock, validates query hash and range, and projects the next canonical page without worker IPC.
+
+The store retains at most four snapshots, 4,000,000 canonical characters per snapshot, and 16,000,000 aggregate characters with a ten-minute sliding idle lifetime. Every public response, including failures and warnings, is capped at 60,000 canonical characters. Oversized diagnostics return a bounded `result_metadata_too_large` failure without echoing them. Cache expiry, eviction, or a cursor from a previous host process returns `snapshot_unavailable`. Malformed or unauthenticated current-process cursors return `invalid_cursor`, repeated query differences return `cursor_filter_mismatch`, and authenticated out-of-range offsets return `cursor_out_of_range`. Cached project-tree continuations are independent of worker-session and host-binding changes.
+
+A deeper direct-Openness selector resolver and depth-pruned traversal remains a measured follow-up, not shipped v3 behavior. It must not replace the current seam until live measurements show material benefit and the typed payload, deterministic ordering, selector ambiguity, warning, and pagination contracts remain unchanged.
 
 ### Additional read-write tools
 

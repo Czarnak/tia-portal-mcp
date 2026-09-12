@@ -1,6 +1,14 @@
 using System.ComponentModel;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tools;
@@ -21,28 +29,199 @@ public class ProjectReadTools
             "Extended metadata (history, comments, languages) was too large to return in full.");
     }
 
-    [McpServerTool(Name = "browse_project_tree", ReadOnly = true, Destructive = false, OpenWorld = false)]
-    [Description("Browse the active TIA Portal project hierarchy. Use depth and startPath to bound large projects.")]
-    public static async Task<string> BrowseProjectTree(
-        OpennessWorkerClient workerClient,
-        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null,
-        [Description("Optional maximum tree depth. Must be 1 or greater; 1 returns only top-level nodes.")] int? depth = null,
-        [Description("Optional subtree root matching a node Path exactly, case-insensitively, e.g. PLC_1/Blocks.")] string? startPath = null)
+    [McpServerTool(
+        Name = "browse_project_tree",
+        ReadOnly = true,
+        Destructive = false,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(BrowseProjectTreeResponse))]
+    [Description("Browse a point-in-time TIA project tree through typed, bounded, resumable flat-node pages.")]
+    public static async Task<CallToolResult> BrowseProjectTree(
+        ProjectTreeBrowseCoordinator coordinator,
+        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal. On continuation, omit it or repeat the same project.")] string? projectPath = null,
+        [Description("Optional ordered selector segments { nodeType, name }. Names match case-insensitively, node types exactly, and each segment must identify one direct child. On continuation, omit it or repeat the equivalent selector.")] ProjectTreeSelectorSegment[]? startSelector = null,
+        [Description("Optional maximum depth from the selected root. Must be 1 or greater. On continuation, omit it or repeat the same depth.")] int? depth = null,
+        [Description("Optional number of flat nodes requested for this page, from 1 through 200; defaults to 100 and may change between continuation pages.")] int? pageSize = null,
+        [Description("Opaque cursor for the same point-in-time snapshot. Cursors can be replayed until idle expiry or eviction, but become unavailable after the server process restarts; restart without a cursor to observe again.")] string? cursor = null)
     {
-        if (depth is < 1)
+        var rendered = await coordinator.BrowseAsync(
+            new ProjectTreeBrowseRequest(projectPath, startSelector, depth, pageSize, cursor)).ConfigureAwait(false);
+        return StructuredToolResult.CreateCanonical(rendered.CanonicalText, isError: !rendered.IsSuccess);
+    }
+}
+
+internal static class ProjectReadToolRegistration
+{
+    internal static IMcpServerBuilder WithProjectReadTools(this IMcpServerBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        foreach (var method in typeof(ProjectReadTools)
+                     .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                     .Where(candidate => candidate.GetCustomAttribute<McpServerToolAttribute>() is not null)
+                     .OrderBy(candidate => candidate.MetadataToken))
         {
-            return StandaloneToolResultFormatter.Format(
-                WorkerCallResult.Fail(
-                    WorkerFailureCategories.ValidationError,
-                    "'depth' must be 1 or greater."),
-                "Use a valid depth or omit it.");
+            var toolMethod = method;
+            builder.Services.AddSingleton<McpServerTool>(services =>
+            {
+                var tool = McpServerTool.Create(
+                    toolMethod,
+                    target: null,
+                    options: new McpServerToolCreateOptions
+                    {
+                        Services = services,
+                        SchemaCreateOptions = new AIJsonSchemaCreateOptions
+                        {
+                            TransformSchemaNode = AlignSelectorSchemaNullability,
+                            TransformOptions = new AIJsonSchemaTransformOptions
+                            {
+                                DisallowAdditionalProperties = true,
+                            },
+                        },
+                    });
+
+                return toolMethod.Name == nameof(ProjectReadTools.BrowseProjectTree)
+                    ? new ProjectTreeArgumentValidatingTool(tool)
+                    : tool;
+            });
         }
 
-        var result = await workerClient
-            .BrowseProjectTreeAsync(projectPath, depth, startPath)
-            .ConfigureAwait(false);
-        return StandaloneToolResultFormatter.Format(
-            result,
-            "Narrow the read with a smaller depth or a more specific startPath.");
+        return builder;
+    }
+
+    private static JsonNode AlignSelectorSchemaNullability(
+        AIJsonSchemaCreateContext context,
+        JsonNode schema)
+    {
+        if (context.TypeInfo.Type == typeof(ProjectTreeSelectorSegment)
+            && schema is JsonObject selectorSchema
+            && selectorSchema["properties"] is JsonObject properties)
+        {
+            RemoveNullType(selectorSchema);
+            RemoveNullType(properties["nodeType"]);
+            RemoveNullType(properties["name"]);
+        }
+
+        return schema;
+    }
+
+    private static void RemoveNullType(JsonNode? schema)
+    {
+        if (schema is not JsonObject schemaObject
+            || schemaObject["type"] is not JsonArray types)
+        {
+            return;
+        }
+
+        for (var index = types.Count - 1; index >= 0; index--)
+        {
+            if (types[index]?.GetValue<string>() == "null")
+            {
+                types.RemoveAt(index);
+            }
+        }
+    }
+}
+
+internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
+    : DelegatingMcpServerTool(innerTool)
+{
+    private static readonly HashSet<string> AllowedArguments = new(StringComparer.Ordinal)
+    {
+        "projectPath",
+        "startSelector",
+        "depth",
+        "pageSize",
+        "cursor",
+    };
+
+    public override ValueTask<CallToolResult> InvokeAsync(
+        RequestContext<CallToolRequestParams> request,
+        CancellationToken cancellationToken = default)
+    {
+        var category = ShapeFailureCategory(request.Params.Arguments);
+        return category is null
+            ? base.InvokeAsync(request, cancellationToken)
+            : ValueTask.FromResult(ValidationFailure(category));
+    }
+
+    private static string? ShapeFailureCategory(IDictionary<string, JsonElement>? arguments)
+    {
+        if (arguments is null)
+        {
+            return null;
+        }
+
+        if (arguments.Keys.Any(key => !AllowedArguments.Contains(key))
+            || !IsOptionalString(arguments, "projectPath")
+            || !IsOptionalInteger(arguments, "depth")
+            || !IsOptionalInteger(arguments, "pageSize"))
+        {
+            return WorkerFailureCategories.ValidationError;
+        }
+
+        if (!IsOptionalString(arguments, "cursor"))
+        {
+            return WorkerFailureCategories.InvalidCursor;
+        }
+
+        if (!arguments.TryGetValue("startSelector", out var selector)
+            || selector.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (selector.ValueKind != JsonValueKind.Array)
+        {
+            return WorkerFailureCategories.InvalidSelector;
+        }
+
+        foreach (var segment in selector.EnumerateArray())
+        {
+            if (segment.ValueKind != JsonValueKind.Object)
+            {
+                return WorkerFailureCategories.InvalidSelector;
+            }
+
+            var properties = segment.EnumerateObject().ToArray();
+            if (properties.Length != 2
+                || !segment.TryGetProperty("nodeType", out var nodeType)
+                || nodeType.ValueKind != JsonValueKind.String
+                || !segment.TryGetProperty("name", out var name)
+                || name.ValueKind != JsonValueKind.String)
+            {
+                return WorkerFailureCategories.InvalidSelector;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsOptionalString(
+        IDictionary<string, JsonElement> arguments,
+        string name)
+        => !arguments.TryGetValue(name, out var value)
+           || value.ValueKind is JsonValueKind.Null or JsonValueKind.String;
+
+    private static bool IsOptionalInteger(
+        IDictionary<string, JsonElement> arguments,
+        string name)
+        => !arguments.TryGetValue(name, out var value)
+           || value.ValueKind == JsonValueKind.Null
+           || (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _));
+
+    private static CallToolResult ValidationFailure(string category)
+    {
+        var response = new BrowseProjectTreeResponse(
+            ProjectTreeContract.Version,
+            ProjectTreeStatuses.Failed,
+            Result: null,
+            new BrowseProjectTreeFailure(
+                category,
+                "The browse_project_tree arguments did not match the declared input schema."),
+            Array.Empty<string>());
+        return StructuredToolResult.CreateCanonical(
+            CanonicalJson.Serialize(response),
+            isError: true);
     }
 }

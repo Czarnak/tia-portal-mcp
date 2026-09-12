@@ -178,21 +178,4 @@ public class OpennessWorkerCheckTests
         return outputDir;
     }
 
-    [Fact]
-    public void PackageLayout_ExcludesWorkerRuntimeConfigAtCopyAndPackBoundaries()
-    {
-        var repositoryRoot = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", ".."));
-        var project = File.ReadAllText(Path.Combine(
-            repositoryRoot,
-            "TiaMcpServer",
-            "TiaMcpServer.csproj"));
-
-        Assert.Equal(
-            4,
-            project.Split("**\\*.runtimeconfig.json", StringSplitOptions.None).Length);
-        Assert.Contains("RemoveStaleOpennessWorkerRuntimeConfig", project);
-        Assert.DoesNotContain("PackOpennessWorker", project);
-    }
 }

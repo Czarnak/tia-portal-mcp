@@ -6,7 +6,9 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
@@ -77,7 +79,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         where TTools : class
         => StartAsync(
             McpAccessMode.ReadWrite,
-            builder => builder.WithTools<TTools>(),
+            builder => RegisterToolType<TTools>(builder),
             auditDirectory,
             startupProjectPath);
 
@@ -94,7 +96,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         where TTools2 : class
         => StartAsync(
             McpAccessMode.ReadWrite,
-            builder => builder.WithTools<TTools1>().WithTools<TTools2>(),
+            builder => RegisterToolType<TTools2>(RegisterToolType<TTools1>(builder)),
             auditDirectory,
             startupProjectPath);
 
@@ -113,7 +115,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             accessMode,
             builder =>
             {
-                builder.WithTools<ProjectReadTools>()
+                builder.WithProjectReadTools()
                        .WithTools<ReadBatchTools>()
                        .WithTools<NetworkReadTools>();
 
@@ -127,6 +129,12 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             },
             auditDirectory,
             startupProjectPath);
+
+    private static IMcpServerBuilder RegisterToolType<TTools>(IMcpServerBuilder builder)
+        where TTools : class
+        => typeof(TTools) == typeof(ProjectReadTools)
+            ? builder.WithProjectReadTools()
+            : builder.WithTools<TTools>();
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,
@@ -154,6 +162,18 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(binding);
         collection.AddSingleton(accessPolicy);
         collection.AddSingleton(workerClient);
+        collection.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
+        collection.AddSingleton(sp => new ProjectTreeCursorCodec(
+            sp.GetRequiredService<AuthenticatedCursorProtector>()));
+        collection.AddSingleton(sp => new ProjectTreeSnapshotStore(TimeProvider.System));
+        collection.AddSingleton(sp => new ProjectTreePageProjector(
+            sp.GetRequiredService<ProjectTreeCursorCodec>()));
+        collection.AddSingleton(sp => new ProjectTreeBrowseCoordinator(
+            sp.GetRequiredService<OpennessWorkerClient>(),
+            sp.GetRequiredService<ProjectTreeCursorCodec>(),
+            sp.GetRequiredService<ProjectTreeSnapshotStore>(),
+            sp.GetRequiredService<ProjectTreePageProjector>(),
+            TimeProvider.System));
         collection.AddSingleton(new WriteSafetyService(
             binding,
             () => DateTimeOffset.UtcNow,

@@ -55,9 +55,11 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 ### Project tools
 
 - `get_project_status` — read active project metadata without opening or switching projects.
-- `browse_project_tree` — browse a bounded project subtree with optional `depth` and `startPath`.
+- `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
 - `compile_check` — compile a PLC or selected block and return compiler messages; available only in read-write mode.
 - `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - project lifecycle writes. These stay single-tool only (not batchable) and are self-previewing: call the tool WITHOUT `safetyToken` to get a preview plus a single-use token, then call it again with `confirm=true` and the token to apply.
+
+Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and bare nested-array response were removed rather than retained as aliases. See the [project operations reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#browse_project_tree-v3) for the migration request, complete response envelope, selector reconstruction, continuation, limits, and recovery behavior.
 
 ## Write safety
 

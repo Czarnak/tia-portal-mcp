@@ -26,6 +26,21 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
+
+The user accepted the combined offline and read-only live v3 evidence on 2026-09-12, with an
+explicit live ambiguity waiver. The
+[accepted report](superpowers/acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md)
+records the timing distributions, multi-page completion, evidence boundaries, and waiver.
+
+The shipped v3 initial browse performs one net48 typed/scoped walk, then strict host decode,
+post-filter flattening, bounded immutable snapshot storage, and canonical page projection;
+continuations use the authenticated process-local cursor and cached snapshot with zero worker calls.
+A deeper direct Openness selector resolver and depth-pruned walk is a measured follow-up only. It is
+not shipped behavior and should proceed only if additional measurements justify its benefit without
+changing the approved public contract. Acceptance of the current implementation does not complete
+this optimization.
+
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 
 | # | Change | Where | Why |
@@ -55,7 +70,7 @@ well-designed. The three biggest problems, in order of impact:
 |---|--------|-------|-----|
 | 2.1 | **Persistent worker process**: keep the worker alive across requests (request loop already exists in worker `Program.cs:34` — the client kills it by closing stdin at `OpennessWorkerClient.cs:635`). Single `Attach()`, managed project open/close, health check + restart-on-crash, `SemaphoreSlim` serialization of requests | `OpennessWorkerClient.cs` | Fixes all 3 CRITICALs at once (re-attach per call, leaked project handles, concurrent mutation races); cuts preview→apply wall-clock far below the 10-min token TTL; makes 50-item batches practical (today: up to 3N spawns per write batch) — DONE 2026-07-16 |
 | 2.2 | Interim (if 2.1 is deferred): add `SemaphoreSlim(1,1)` around `SendAsync` now | `OpennessWorkerClient.cs:614` | One-line mitigation for the concurrency CRITICAL — DONE 2026-07-15 |
-| 2.3 | **Bound read payloads**: `depth`/`startPath` on `browse_project_tree`, `maxResults` on `search_equipment_catalog` + `read_cross_references`, plus a server-side byte budget with an explicit "truncated — narrow with plcName/filter/startPath" trailer | worker readers + batch schema | Only finding that can hard-kill a small model's session (README's own smoke test batches tree+hw+xref+catalog into one call) — DONE 2026-07-16 |
+| 2.3 | **Bound read payloads**: `depth`/`startPath` on the historical v2 `browse_project_tree`, `maxResults` on `search_equipment_catalog` + `read_cross_references`, plus a server-side byte budget with an explicit "truncated — narrow with plcName/filter/startPath" trailer | worker readers + batch schema | Only finding that can hard-kill a small model's session (README's own smoke test batches tree+hw+xref+catalog into one call) — DONE 2026-07-16. The `startPath` input and truncation-trailer response were removed by the v3.0.0 project-tree cutover. |
 | 2.4 | Collapse lifecycle preview/apply pairs: calling a write tool WITHOUT a token returns the preview + token instead of an error → 16 tools become 10 | `Tools/ProjectLifecycleTools.cs` | Removes the "which preview matches this apply" lookup; kills the asymmetric-naming trap (`preview_write_batch`/`apply_write_batch` vs `preview_open_project`/`open_project`) — DONE 2026-07-16 |
 | 2.5 | Evict expired tokens (sweep on `CreatePreview` is enough — no timer needed); validate token BEFORE the expensive N-spawn state re-read in apply | `WriteSafetyService.cs:16-36`, `BatchTools.cs:94-110` | Unbounded memory growth; dead tokens currently cost a full read pass — DONE 2026-07-16 |
 
@@ -87,7 +102,7 @@ redirecting the audit directory, but the tool layer could not use that test-spec
 Task 2. DI now makes that isolation available to the tests.
 
 
-Also confirmed live, all working as designed: bounded reads with `depth`/`startPath`/`maxResults`
+Also confirmed live for the historical v2 surface, all working as designed: bounded reads with `depth`/`startPath`/`maxResults`
 plus the explicit truncation trailer (2.3); per-item batch isolation, where a failing `compile_check`
 did not stop two sibling reads; `messages` arrays surfacing partial-read degradation rather than
 silently returning defaults (1.3/1.4) — `read_hardware_config` reported 20 unreadable device
@@ -521,3 +536,34 @@ final guarded no-save close/reopen cleanup returned the project to `isModified=F
 The close/open lifecycle operations were cleanup and recovery only, not PR 4 feature acceptance.
 The report does not claim plant or production acceptance, disk project-byte identity, saved-project
 acceptance, or semantic equivalence beyond the exact exported-text checks performed.
+
+## Project-tree v3 public cutover — offline implementation completed (2026-09-08)
+
+The sole public `browse_project_tree` surface now uses the v3.0 canonical envelope, typed
+`startSelector`, flat parent-first nodes, complete-node pagination, authenticated process-local
+cursors, and bounded immutable snapshots. The v2 bare nested array, `startPath`, project-tree
+`deviceName`, and `details.Path` contracts were removed atomically. Cursor-free calls make one typed
+worker observation; continuations use the cached snapshot and make zero worker calls.
+
+Offline tests cover strict input and worker decoding, selector ambiguity and failures, canonical
+text/structured equality, snapshot/cursor authentication and bounds, page projection, public schema,
+and legacy rejection. The maintained read-only PowerShell harness also has a static source contract
+and parser gate. At the time of this offline entry, the harness had not been executed and no live
+TIA Portal project had been opened or attached for it. The subsequent accepted live result is
+recorded separately below; the deeper resolver optimization remains open near the top of this log.
+
+## Project-tree v3 read-only live acceptance — DONE 2026-09-12 (Issue #32)
+
+The user accepted the [combined offline and live evidence](superpowers/acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md):
+Fixture A's selected-Device median improved by 54.44%, and Fixture B supplied additional 62.57%
+median-reduction evidence plus complete 890-node full and 804-node selected trees over five pages
+each. Eight live continuations, canonical/size/structure checks, deep-leaf equivalence, and exact
+missing/invalid selector categories passed. The accepted one-initial-worker/zero-continuation-worker
+requirement combines offline integration/source proof with observed live paging, not live IPC counts.
+
+The live `target_ambiguous` check was explicitly WAIVED, not passed: the user's acceptance ruling
+recognizes that TIA name uniqueness prevents the required duplicate-name fixture through normal
+engineering. Raw harness failures at that fixture guard and the first late-approval timeout remain
+in private ignored evidence. Project and selector identities are omitted from tracked documentation
+at the user's request. No project save, mutation, PLC control, deployment, or plant acceptance is
+claimed. The deeper direct resolver and depth-pruned walk remain deferred.

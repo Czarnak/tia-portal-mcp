@@ -6,7 +6,7 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class WorkerTransportFailureGuidanceTests
 {
     [Theory]
-    [InlineData("browse_project_tree", true)]
+    [InlineData("browse_project_tree", false)]
     [InlineData("browse_project_tree_v3_snapshot", true)]
     [InlineData("get_block_content", true)]
     [InlineData("read_update_tag_safety_snapshot", true)]
