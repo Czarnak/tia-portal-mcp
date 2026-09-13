@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -40,22 +41,22 @@ public class ReleaseWorkflowTests
     }
 
     [Fact]
-    public void NuGetToolVerification_UsesCanonicalNet10AnyLayout()
+    public void NuGetToolProject_UsesNet10FrameworkDependentToolLayout()
     {
-        var verifierPath = Path.GetFullPath(Path.Combine(
+        var projectPath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
             "..",
             "..",
             "..",
             "..",
-            "scripts",
-            "verify-doctor-package.ps1"));
-        var verifier = File.ReadAllText(verifierPath);
+            "TiaMcpServer",
+            "TiaMcpServer.csproj"));
+        var project = XDocument.Load(projectPath);
+        var properties = project.Root?.Element("PropertyGroup");
 
-        Assert.Contains(
-            "$canonicalPrefix = 'tools/net10.0/any/openness-worker/'",
-            verifier,
-            StringComparison.Ordinal);
+        Assert.NotNull(properties);
+        Assert.Equal("net10.0", properties!.Element("TargetFramework")?.Value);
+        Assert.Equal("true", properties.Element("PackAsTool")?.Value, ignoreCase: true);
     }
 
     private static string ReadWorkflowStep(string stepName, string followingStepName)
