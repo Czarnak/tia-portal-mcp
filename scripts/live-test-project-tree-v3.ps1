@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $ProjectPath = $env:TIA_MCP_LIVE_PROJECT_PATH,
-    [string] $ServerPath = (Join-Path $PSScriptRoot '..\TiaMcpServer\bin\Release\net8.0\TiaMcpServer.exe'),
+    [string] $ServerPath = (Join-Path $PSScriptRoot '..\TiaMcpServer\bin\Release\net10.0\TiaMcpServer.exe'),
     [string] $EvidencePath = (Join-Path $PSScriptRoot '..\artifacts\issue-32-live\project-tree-v3-evidence.json')
 )
 

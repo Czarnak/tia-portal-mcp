@@ -25,7 +25,7 @@ public class BatchFieldForwardingTests
             {
                 var candidate = Path.Combine(
                     directory.FullName,
-                    "TiaMcpServer.FakeWorker", "bin", configuration, "net8.0",
+                    "TiaMcpServer.FakeWorker", "bin", configuration, "net10.0",
                     "TiaMcpServer.FakeWorker.exe");
                 if (File.Exists(candidate))
                 {
