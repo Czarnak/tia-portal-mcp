@@ -268,6 +268,74 @@ public class DoctorPackageVerificationScriptTests
     }
 
     [Fact]
+    public void WorkerPayloadWithUnexpectedNonDllFile_FailsPackageVerification()
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: "tools/net10.0/any/openness-worker/unexpected-worker-notes.txt");
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+
+            Assert.NotEqual(0, result.ExitCode);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Fact]
+    public void RidSpecificHostEntry_FailsPackageVerification()
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: "tools/net10.0/win-x64/TiaMcpServer.dll");
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("tools/net8.0/any/openness-worker/ARCHIVE_CONTROLLED_NONCANONICAL.bin")]
+    [InlineData("tools/net10.0/any/openness-worker/ARCHIVE_CONTROLLED.runtimeconfig.json")]
+    [InlineData("tools/net10.0/any/Siemens.Engineering.ARCHIVE_CONTROLLED.dll")]
+    [InlineData("tools/net10.0/any/openness-worker/ARCHIVE_CONTROLLED.dll")]
+    public void RejectedPackage_DoesNotEchoArchiveControlledEntryName(string archiveControlledEntry)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: archiveControlledEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.DoesNotContain("ARCHIVE_CONTROLLED", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Fact]
     public void WorkerBuild_OverwritesNewerValueTupleBeforePackaging()
     {
         var isolatedRoot = Path.Combine(
@@ -288,7 +356,12 @@ public class DoctorPackageVerificationScriptTests
                 buildResult.ExitCode == 0,
                 $"Isolated worker build failed.{Environment.NewLine}{buildResult.StandardOutput}{Environment.NewLine}{buildResult.StandardError}");
 
-            var packagePath = CreatePackage(workerOutput);
+            // Applying one OutputPath to both the worker and its project reference makes the
+            // isolated build co-locate a Contracts deps file that the normal worker output and
+            // package pipeline never produce. Keep this fixture aligned with that 15-file payload.
+            var packagePath = CreatePackage(
+                workerOutput,
+                excludedFile: "TiaMcpServer.Contracts.deps.json");
             try
             {
                 var verifierResult = RunVerifier(packagePath);
