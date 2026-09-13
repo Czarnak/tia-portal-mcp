@@ -55,7 +55,7 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 ### Project tools
 
 - `get_project_status` — read active project metadata without opening or switching projects.
-- `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata, `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
+- `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata in block-node `details` (default-on string fields: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName`), `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
 - `compile_check` — compile a PLC or selected block and return compiler messages; available only in read-write mode.
 - `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - project lifecycle writes. These stay single-tool only (not batchable) and are self-previewing: call the tool WITHOUT `safetyToken` to get a preview plus a single-use token, then call it again with `confirm=true` and the token to apply.
 

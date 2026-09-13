@@ -12,6 +12,8 @@
 
 `browse_project_tree` returns one canonical JSON document identically in the MCP `content` text block and `structuredContent`. The response is a versioned envelope, and `result.nodes` is a flat parent-first sequence. Grouped and ungrouped devices have the same `Device` shape. PLC system-block groups use `nodeType: "SystemBlockFolder"`; contained blocks keep their functional block type and carry `details.IsSystemBlock: "true"`. That marker records TIA hierarchy membership only and is not an author, vendor, library, or provenance claim.
 
+Every PLC block node may include these optional, default-on string fields in its `details` object; populated values are emitted without an opt-in request.
+
 | Block detail | Meaning |
 | --- | --- |
 | `HeaderAuthor` | Non-blank `PlcBlock.HeaderAuthor` exactly as reported by TIA Portal. |
@@ -19,7 +21,7 @@
 | `HeaderFamily` | Non-blank `PlcBlock.HeaderFamily` exactly as reported by TIA Portal. |
 | `HeaderName` | Non-blank `PlcBlock.HeaderName`; separate from the node's engineering-object `name`. |
 
-Blank header values are omitted rather than emitted as `null` or empty strings. Header metadata is descriptive project data, not verified vendor provenance. `HeaderName` never changes selector identity, and `IsSystemBlock` continues to describe hierarchy membership only.
+Blank header values are omitted rather than emitted as `null` or empty strings. Header metadata is descriptive project data, not verified vendor provenance. `HeaderName` never changes selector identity, and `IsSystemBlock` continues to describe hierarchy membership only. The node's engineering-object `name` and `HeaderName` are independent; neither value is a fallback for the other.
 
 The initial-request fields are:
 
