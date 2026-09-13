@@ -1633,7 +1633,15 @@ ProjectTreeBrowseResultInfo ProjectTreeV3Fixture(int? observation = null) => new
                                 {
                                     Name = "Main",
                                     NodeType = ProjectTreeNodeTypes.Fb,
-                                    Details = null,
+                                    Details = new Dictionary<string, string>
+                                    {
+                                        ["Number"] = "42",
+                                        ["ProgrammingLanguage"] = "SCL",
+                                        ["HeaderAuthor"] = "Fake Vendor",
+                                        ["HeaderVersion"] = "2.3",
+                                        ["HeaderFamily"] = "Motion",
+                                        ["HeaderName"] = "Reusable main cycle",
+                                    },
                                     Children = new List<ProjectTreeNode>(),
                                 },
                             },

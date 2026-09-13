@@ -310,6 +310,14 @@ public sealed class ProjectTreeBrowseCoordinatorTests
 
         Assert.True(second.IsSuccess);
         Assert.Equal(new[] { 2, 3 }, Sequences(second));
+        var block = Assert.Single(
+            second.Response.Result!.Nodes,
+            node => node.NodeType == ProjectTreeNodeTypes.Fb);
+        Assert.Equal("Main", block.Name);
+        Assert.Equal("Fake Vendor", block.Details["HeaderAuthor"]);
+        Assert.Equal("2.3", block.Details["HeaderVersion"]);
+        Assert.Equal("Motion", block.Details["HeaderFamily"]);
+        Assert.Equal("Reusable main cycle", block.Details["HeaderName"]);
     }
 
     [Theory]
