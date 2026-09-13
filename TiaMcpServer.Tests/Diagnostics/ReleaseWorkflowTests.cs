@@ -26,6 +26,19 @@ public class ReleaseWorkflowTests
         Assert.Contains("/p:IncludeSourceRevisionInInformationalVersion=false", packStep, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ToolAndStandalonePublish_KeepDistinctDeploymentModels()
+    {
+        var packStep = ReadWorkflowStep("Build and Pack", "Verify tool package contents");
+        Assert.DoesNotContain("-r win-x64", packStep, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("--self-contained true", packStep, StringComparison.OrdinalIgnoreCase);
+
+        var publishStep = ReadWorkflowStep("Publish Standalone Binary", "Zip Standalone Binary");
+        Assert.Contains("-r win-x64", publishStep, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("--self-contained true", publishStep, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/p:PackAsTool=false", publishStep, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ReadWorkflowStep(string stepName, string followingStepName)
     {
         var workflowPath = Path.GetFullPath(Path.Combine(

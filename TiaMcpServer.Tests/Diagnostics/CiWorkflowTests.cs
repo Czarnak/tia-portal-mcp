@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Xunit;
@@ -89,6 +90,27 @@ public class CiWorkflowTests
         Assert.Contains("CompilerGeneratedAttribute", Value("ExcludeByAttribute"), StringComparison.Ordinal);
         Assert.Contains("**/*.g.cs", Value("ExcludeByFile"), StringComparison.Ordinal);
         Assert.Contains("**/*.Designer.cs", Value("ExcludeByFile"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Toolchain_UsesServicedDotNet10WithoutCrossMajorRollForward()
+    {
+        var repositoryRoot = GetRepositoryRoot();
+        using var globalJson = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(repositoryRoot, "global.json")));
+        var sdk = globalJson.RootElement.GetProperty("sdk");
+
+        Assert.Equal("10.0.400", sdk.GetProperty("version").GetString());
+        Assert.Equal("latestFeature", sdk.GetProperty("rollForward").GetString());
+        Assert.False(sdk.GetProperty("allowPrerelease").GetBoolean());
+
+        foreach (var workflow in new[] { "ci.yml", "publish.yml" })
+        {
+            var text = File.ReadAllText(Path.Combine(
+                repositoryRoot, ".github", "workflows", workflow));
+            Assert.Contains("10.0.x", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("8.0.x", text, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
