@@ -252,12 +252,13 @@ public class DoctorPackageVerificationScriptTests
         var workerOutput = Path.Combine(isolatedRoot, "worker-output");
         var staleValueTuplePath = Path.Combine(workerOutput, "System.ValueTuple.dll");
         var expectedValueTuple = File.ReadAllBytes(GetValueTuplePackageAsset());
-        Directory.CreateDirectory(workerOutput);
-        File.WriteAllBytes(staleValueTuplePath, new byte[] { 0xDE, 0xAD, 0xBE, 0xEF });
-        File.SetLastWriteTimeUtc(staleValueTuplePath, DateTime.UtcNow.AddHours(1));
 
         try
         {
+            Directory.CreateDirectory(workerOutput);
+            File.WriteAllBytes(staleValueTuplePath, new byte[] { 0xDE, 0xAD, 0xBE, 0xEF });
+            File.SetLastWriteTimeUtc(staleValueTuplePath, DateTime.UtcNow.AddHours(1));
+
             var buildResult = RunWorkerBuild(workerOutput);
             Assert.True(
                 buildResult.ExitCode == 0,
