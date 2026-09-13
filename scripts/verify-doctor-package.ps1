@@ -33,7 +33,7 @@ if ($canonicalEntries.Count -eq 0) {
 }
 
 if ($nonCanonicalEntries.Count -gt 0) {
-    throw "NuGet package contains non-canonical worker subtree entries: $($nonCanonicalEntries -join ', ')."
+    throw "NuGet package contains non-canonical worker subtree entries; expected canonical prefix '$canonicalPrefix': $($nonCanonicalEntries -join ', ')."
 }
 
 $duplicateEntries = @($canonicalEntries |

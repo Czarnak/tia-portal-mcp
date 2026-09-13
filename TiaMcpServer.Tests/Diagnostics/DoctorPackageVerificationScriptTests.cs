@@ -243,6 +243,30 @@ public class DoctorPackageVerificationScriptTests
         }
     }
 
+    [Theory]
+    [InlineData("tools/net8.0/any/openness-worker/TiaMcpServer.OpennessWorker.exe")]
+    [InlineData("tools/net10.0/win-x64/openness-worker/TiaMcpServer.OpennessWorker.exe")]
+    public void NonCanonicalWorkerLayout_FailsPackageVerification(string nonCanonicalEntry)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: nonCanonicalEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/openness-worker/", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
     [Fact]
     public void WorkerBuild_OverwritesNewerValueTupleBeforePackaging()
     {
@@ -289,7 +313,7 @@ public class DoctorPackageVerificationScriptTests
     private static string CreatePackage(
         string workerOutput,
         string? excludedFile = null,
-        string? additionalEntry = null)
+        string? additionalPackageEntry = null)
     {
         var packagePath = Path.Combine(
             Path.GetTempPath(),
@@ -307,9 +331,9 @@ public class DoctorPackageVerificationScriptTests
             archive.CreateEntryFromFile(builtFile, entryName);
         }
 
-        if (additionalEntry is not null)
+        if (additionalPackageEntry is not null)
         {
-            archive.CreateEntry("tools/net10.0/any/openness-worker/" + additionalEntry);
+            archive.CreateEntry(additionalPackageEntry);
         }
 
         return packagePath;
