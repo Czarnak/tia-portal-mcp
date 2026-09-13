@@ -39,6 +39,25 @@ public class ReleaseWorkflowTests
         Assert.Contains("/p:PackAsTool=false", publishStep, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void NuGetToolVerification_UsesCanonicalNet10AnyLayout()
+    {
+        var verifierPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "scripts",
+            "verify-doctor-package.ps1"));
+        var verifier = File.ReadAllText(verifierPath);
+
+        Assert.Contains(
+            "$canonicalPrefix = 'tools/net10.0/any/openness-worker/'",
+            verifier,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadWorkflowStep(string stepName, string followingStepName)
     {
         var workflowPath = Path.GetFullPath(Path.Combine(
