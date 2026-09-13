@@ -19,13 +19,13 @@ For the safest local MCP test loop, use the official MCP Inspector against a dis
 4. Launch MCP Inspector against the built server:
 
 ```powershell
-npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll
+npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net10.0\TiaMcpServer.dll
 ```
 
 To bind the inspector session to a specific project path instead of the currently open TIA project:
 
 ```powershell
-npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll --project C:\Projects\Sandbox\Line.ap21
+npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net10.0\TiaMcpServer.dll --project C:\Projects\Sandbox\Line.ap21
 ```
 
 In the Inspector UI:

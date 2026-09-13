@@ -18,7 +18,7 @@ public enum ProjectOpenDecision
 /// Decides whether a non-lifecycle operation may cause TIA Portal to open a project. Read
 /// operations must never open a second project alongside one the user already has open — live
 /// testing against V21 showed a read tool doing exactly that, stopped only by TIA Portal's own
-/// refusal. Pure so the net8.0 test project can cover it; the worker is net48 and references
+/// refusal. Pure so the net10.0 test project can cover it; the worker is net48 and references
 /// Siemens assemblies the tests cannot load.
 /// </summary>
 public static class ProjectOpenPolicy

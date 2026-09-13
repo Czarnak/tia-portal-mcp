@@ -11,7 +11,7 @@ public class DoctorTextRendererTests
         var report = CreateReport(DiagnosticStatus.Passed, new[]
         {
             new DiagnosticCheckResult("c1", "OS", DiagnosticStatus.Passed, "Windows 10"),
-            new DiagnosticCheckResult("c2", "Runtime", DiagnosticStatus.Passed, ".NET 8")
+            new DiagnosticCheckResult("c2", "Runtime", DiagnosticStatus.Passed, ".NET 10")
         });
 
         var writer = new StringWriter();
