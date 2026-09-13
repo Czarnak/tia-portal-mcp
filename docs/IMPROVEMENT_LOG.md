@@ -587,3 +587,12 @@ and workflow tests, the strict NuGet package verifier, and file-by-file inspecti
 layouts. The verified artifacts contained the expected worker payload and no Siemens DLLs. No live
 TIA Portal harness or test was run, so this entry makes no live-runtime, project, device, or plant
 acceptance claim.
+
+## Issue #30 PLC block header metadata — offline implementation completed (2026-09-13)
+
+- `browse_project_tree` block nodes now expose non-blank `HeaderAuthor`, `HeaderVersion`,
+  `HeaderFamily`, and `HeaderName` values through typed `PlcBlock` properties.
+- Producer, strict-decoder, FakeWorker IPC, cached continuation, canonical MCP, budget, Release
+  build/test/coverage, and package-content gates passed. Maintained docs distinguish reported
+  metadata from verified provenance.
+- Live TIA Portal V21 acceptance remains a separate read-only authorization gate.
