@@ -19,7 +19,7 @@ finally {
     $archive.Dispose()
 }
 
-$canonicalPrefix = 'tools/net8.0/any/openness-worker/'
+$canonicalPrefix = 'tools/net10.0/any/openness-worker/'
 $workerEntries = @($entries | Where-Object { $_ -match '(^|/)openness-worker/' })
 $canonicalEntries = @($workerEntries | Where-Object {
     $_.StartsWith($canonicalPrefix, [System.StringComparison]::Ordinal)
@@ -52,6 +52,7 @@ $requiredFiles = @(
     'System.Buffers.dll',
     'System.Memory.dll',
     'System.Numerics.Vectors.dll',
+    'System.IO.Pipelines.dll',
     'System.Runtime.CompilerServices.Unsafe.dll',
     'System.Text.Encodings.Web.dll',
     'System.Text.Json.dll',
