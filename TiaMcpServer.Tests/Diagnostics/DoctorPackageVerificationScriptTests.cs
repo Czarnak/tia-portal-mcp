@@ -460,7 +460,7 @@ public class DoctorPackageVerificationScriptTests
         startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
         startInfo.ArgumentList.Add("/p:NuGetAudit=false");
         startInfo.ArgumentList.Add("/v:minimal");
-        return RunProcess(startInfo, 30_000, "SDK 8 worker restore");
+        return RunProcess(startInfo, 30_000, "SDK 10 worker restore");
     }
 
     private static ScriptResult RunPack(
