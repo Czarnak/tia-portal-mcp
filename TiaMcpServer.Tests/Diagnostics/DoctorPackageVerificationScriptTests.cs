@@ -309,6 +309,58 @@ public class DoctorPackageVerificationScriptTests
         }
     }
 
+    [Fact]
+    public void CaseVariantToolRoot_FailsPackageVerification()
+    {
+        const string archiveControlledEntry =
+            "Tools/net10.0/win-x64/ARCHIVE_CONTROLLED_CASE.dll";
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: archiveControlledEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/", output, StringComparison.Ordinal);
+            Assert.DoesNotContain("ARCHIVE_CONTROLLED", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("tools/net10.0/any/../win-x64/ARCHIVE_CONTROLLED_PARENT.dll")]
+    [InlineData("tools/net10.0/any/./ARCHIVE_CONTROLLED_DOT.dll")]
+    [InlineData("./tools/net10.0/any/ARCHIVE_CONTROLLED_LEADING.dll")]
+    [InlineData("foo/../tools/net10.0/any/ARCHIVE_CONTROLLED_EMBEDDED.dll")]
+    public void AmbiguousToolPathSegments_FailPackageVerification(string archiveControlledEntry)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: archiveControlledEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/", output, StringComparison.Ordinal);
+            Assert.DoesNotContain("ARCHIVE_CONTROLLED", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
     [Theory]
     [InlineData("tools/net8.0/any/openness-worker/ARCHIVE_CONTROLLED_NONCANONICAL.bin")]
     [InlineData("tools/net10.0/any/openness-worker/ARCHIVE_CONTROLLED.runtimeconfig.json")]

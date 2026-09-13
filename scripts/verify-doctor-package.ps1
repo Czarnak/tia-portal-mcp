@@ -23,7 +23,15 @@ finally {
 
 $canonicalToolPrefix = 'tools/net10.0/any/'
 $canonicalPrefix = $canonicalToolPrefix + 'openness-worker/'
-$workerEntries = @($entries | Where-Object { $_ -match '(^|/)openness-worker/' })
+$ambiguousPathEntries = @($entries | Where-Object {
+    $segments = $_ -split '/'
+    return $segments -contains '.' -or $segments -contains '..'
+})
+if ($ambiguousPathEntries.Count -gt 0) {
+    throw "NuGet package contains $($ambiguousPathEntries.Count) file entries with ambiguous dot path segments; tool files must use canonical prefix '$canonicalToolPrefix'."
+}
+
+$workerEntries = @($entries | Where-Object { $_ -imatch '(^|/)openness-worker/' })
 $canonicalEntries = @($workerEntries | Where-Object {
     $_.StartsWith($canonicalPrefix, [System.StringComparison]::Ordinal)
 })
@@ -39,9 +47,7 @@ if ($nonCanonicalEntries.Count -gt 0) {
     throw "NuGet package contains $($nonCanonicalEntries.Count) non-canonical worker file entries; expected canonical prefix '$canonicalPrefix'."
 }
 
-$toolEntries = @($entries | Where-Object {
-    $_.StartsWith('tools/', [System.StringComparison]::Ordinal)
-})
+$toolEntries = @($entries | Where-Object { $_ -imatch '^tools/' })
 $nonCanonicalToolEntries = @($toolEntries | Where-Object {
     -not $_.StartsWith($canonicalToolPrefix, [System.StringComparison]::Ordinal)
 })
