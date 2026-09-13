@@ -53,6 +53,11 @@ public class WriteToolMcpAnnotationProtocolTests
 
         Assert.Equal(ReadWriteToolNames, tools.Select(tool => tool.Name));
         Assert.Equal(14, tools.Length);
+        Assert.All(
+            tools,
+            tool => Assert.Equal(
+                System.Text.Json.JsonValueKind.Object,
+                tool.ProtocolTool.InputSchema.ValueKind));
 
         foreach (var expected in ExpectedWriteToolAnnotations)
         {
