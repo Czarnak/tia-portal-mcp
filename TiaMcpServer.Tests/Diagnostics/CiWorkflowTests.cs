@@ -114,6 +114,23 @@ public class CiWorkflowTests
     }
 
     [Fact]
+    public void TestProject_DeclaresExplicitTestProjectMarkerForSdk10()
+    {
+        var projectPath = Path.Combine(
+            GetRepositoryRoot(),
+            "TiaMcpServer.Tests",
+            "TiaMcpServer.Tests.csproj");
+        var project = XDocument.Load(projectPath);
+        var marker = project.Root?
+            .Elements("PropertyGroup")
+            .Elements("IsTestProject")
+            .SingleOrDefault();
+
+        Assert.NotNull(marker);
+        Assert.Equal("true", marker!.Value, ignoreCase: true);
+    }
+
+    [Fact]
     public void CiCoverage_CollectsThenEnforcesBeforeUpload()
     {
         var ciWorkflowPath = Path.Combine(GetRepositoryRoot(), ".github", "workflows", "ci.yml");
