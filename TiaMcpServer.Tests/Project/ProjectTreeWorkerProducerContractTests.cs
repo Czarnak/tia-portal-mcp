@@ -70,6 +70,81 @@ public class ProjectTreeWorkerProducerContractTests
     }
 
     [Fact]
+    public void BlockHeaders_PopulatedValuesCrossStrictBoundaryWithoutChangingIdentity()
+    {
+        var project = ProjectWithLeaves(
+            userBlock: new FB
+            {
+                Name = "Motor",
+                Number = 1,
+                HeaderAuthor = "Example Controls Ltd.",
+                HeaderVersion = new Version(2, 3),
+                HeaderFamily = "Motion",
+                HeaderName = "Reusable motor control"
+            },
+            systemBlock: new FC
+            {
+                Name = "SystemCycle",
+                Number = 2,
+                HeaderAuthor = "Siemens",
+                HeaderVersion = new Version(1, 0),
+                HeaderFamily = "System",
+                HeaderName = "System cycle header"
+            });
+        var snapshot = new ProjectTreeSnapshotWalker().WalkSnapshot(project, startSelector: null, depth: null);
+
+        var observation = Decode(snapshot, selector: null, depth: null);
+        var userBlock = Descendants(observation.Roots).Single(node => node.Name == "Motor");
+        var systemBlock = Descendants(observation.Roots).Single(node => node.Name == "SystemCycle");
+
+        Assert.Equal("Motor", userBlock.Name);
+        Assert.Equal(
+            new[]
+            {
+                "Number", "ProgrammingLanguage", "HeaderAuthor", "HeaderVersion",
+                "HeaderFamily", "HeaderName"
+            },
+            userBlock.Details!.Keys);
+        Assert.Equal("Example Controls Ltd.", userBlock.Details["HeaderAuthor"]);
+        Assert.Equal("2.3", userBlock.Details["HeaderVersion"]);
+        Assert.Equal("Motion", userBlock.Details["HeaderFamily"]);
+        Assert.Equal("Reusable motor control", userBlock.Details["HeaderName"]);
+        Assert.False(userBlock.Details.ContainsKey("IsSystemBlock"));
+
+        Assert.Equal("SystemCycle", systemBlock.Name);
+        Assert.Equal("Siemens", systemBlock.Details!["HeaderAuthor"]);
+        Assert.Equal("1.0", systemBlock.Details["HeaderVersion"]);
+        Assert.Equal("System", systemBlock.Details["HeaderFamily"]);
+        Assert.Equal("System cycle header", systemBlock.Details["HeaderName"]);
+        Assert.Equal("true", systemBlock.Details["IsSystemBlock"]);
+    }
+
+    [Fact]
+    public void BlockHeaders_NullEmptyAndWhitespaceValuesAreOmitted()
+    {
+        var project = ProjectWithLeaves(userBlock: new FB
+        {
+            Name = "Motor",
+            Number = 1,
+            HeaderAuthor = null,
+            HeaderVersion = null,
+            HeaderFamily = string.Empty,
+            HeaderName = " \t "
+        });
+        var snapshot = new ProjectTreeSnapshotWalker().WalkSnapshot(project, startSelector: null, depth: null);
+
+        var observation = Decode(snapshot, selector: null, depth: null);
+        var block = Descendants(observation.Roots).Single(node => node.Name == "Motor");
+
+        Assert.Equal("1", block.Details!["Number"]);
+        Assert.Equal("SCL", block.Details["ProgrammingLanguage"]);
+        Assert.DoesNotContain("HeaderAuthor", block.Details.Keys);
+        Assert.DoesNotContain("HeaderVersion", block.Details.Keys);
+        Assert.DoesNotContain("HeaderFamily", block.Details.Keys);
+        Assert.DoesNotContain("HeaderName", block.Details.Keys);
+    }
+
+    [Fact]
     public void LegacyAndUnrelatedPayloads_KeepOmittingNulls()
     {
         var legacy = WorkerSerializationHarness.Serialize(new List<ProjectTreeNode>
@@ -106,7 +181,10 @@ public class ProjectTreeWorkerProducerContractTests
         return ProjectTreeWorkerPayloadContract.Decode(worker, selector, depth);
     }
 
-    private static Siemens.Engineering.Project ProjectWithLeaves(bool includeLeaves = true)
+    private static Siemens.Engineering.Project ProjectWithLeaves(
+        bool includeLeaves = true,
+        PlcBlock? userBlock = null,
+        PlcBlock? systemBlock = null)
     {
         var project = new Siemens.Engineering.Project();
         var device = new Device { Name = "PLC_1" };
@@ -116,9 +194,16 @@ public class ProjectTreeWorkerProducerContractTests
         plc.TypeGroup.Name = "PLC data types";
         if (includeLeaves)
         {
-            plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Motor", Number = 1 });
+            plc.BlockGroup.Blocks.Items.Add(userBlock ?? new FB { Name = "Motor", Number = 1 });
             plc.TagTableGroup.TagTables.Items.Add(new PlcTagTable { Name = "Signals" });
             plc.TypeGroup.Types.Items.Add(new PlcType { Name = "State" });
+        }
+
+        if (systemBlock is not null)
+        {
+            var systemGroup = new PlcSystemBlockGroup { Name = "System blocks" };
+            systemGroup.Blocks.Items.Add(systemBlock);
+            plc.BlockGroup.SystemBlockGroups.Items.Add(systemGroup);
         }
         device.DeviceItems.Items.Add(new DeviceItem
         {
