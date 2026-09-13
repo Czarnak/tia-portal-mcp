@@ -243,6 +243,48 @@ public class DoctorPackageVerificationScriptTests
         }
     }
 
+    [Fact]
+    public void WorkerBuild_OverwritesNewerValueTupleBeforePackaging()
+    {
+        var isolatedRoot = Path.Combine(
+            Path.GetTempPath(),
+            $"openness-worker-valuetuple-{Guid.NewGuid():N}");
+        var workerOutput = Path.Combine(isolatedRoot, "worker-output");
+        var staleValueTuplePath = Path.Combine(workerOutput, "System.ValueTuple.dll");
+        var expectedValueTuple = File.ReadAllBytes(GetValueTuplePackageAsset());
+        Directory.CreateDirectory(workerOutput);
+        File.WriteAllBytes(staleValueTuplePath, new byte[] { 0xDE, 0xAD, 0xBE, 0xEF });
+        File.SetLastWriteTimeUtc(staleValueTuplePath, DateTime.UtcNow.AddHours(1));
+
+        try
+        {
+            var buildResult = RunWorkerBuild(workerOutput);
+            Assert.True(
+                buildResult.ExitCode == 0,
+                $"Isolated worker build failed.{Environment.NewLine}{buildResult.StandardOutput}{Environment.NewLine}{buildResult.StandardError}");
+
+            var packagePath = CreatePackage(workerOutput);
+            try
+            {
+                var verifierResult = RunVerifier(packagePath);
+                Assert.True(
+                    verifierResult.ExitCode == 0,
+                    $"Package verifier failed.{Environment.NewLine}{verifierResult.StandardOutput}{Environment.NewLine}{verifierResult.StandardError}");
+                Assert.Equal(
+                    expectedValueTuple,
+                    ReadPackageEntry(packagePath, "System.ValueTuple.dll"));
+            }
+            finally
+            {
+                File.Delete(packagePath);
+            }
+        }
+        finally
+        {
+            Directory.Delete(isolatedRoot, recursive: true);
+        }
+    }
+
     private static string CreatePackage(
         string workerOutput,
         string? excludedFile = null,
@@ -335,6 +377,28 @@ public class DoctorPackageVerificationScriptTests
         startInfo.ArgumentList.Add("/v:minimal");
 
         return RunProcess(startInfo, 60_000, "Worker copy target");
+    }
+
+    private static ScriptResult RunWorkerBuild(string outputPath)
+    {
+        var projectPath = Path.Combine(
+            GetRepositoryRoot(),
+            "TiaMcpServer.OpennessWorker",
+            "TiaMcpServer.OpennessWorker.csproj");
+        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
+        Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
+
+        var startInfo = CreateDotnetStartInfo();
+        startInfo.ArgumentList.Add("build");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("--no-restore");
+        startInfo.ArgumentList.Add("--disable-build-servers");
+        startInfo.ArgumentList.Add("-m:1");
+        startInfo.ArgumentList.Add($"/p:Configuration={configuration}");
+        startInfo.ArgumentList.Add($"/p:OutputPath={Path.TrimEndingDirectorySeparator(outputPath)}{Path.DirectorySeparatorChar}");
+        startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
+        startInfo.ArgumentList.Add("/v:minimal");
+        return RunProcess(startInfo, 60_000, "Isolated worker build");
     }
 
     private static ScriptResult RunBuild(string outputPath, string? workingDirectory = null)
@@ -522,6 +586,31 @@ public class DoctorPackageVerificationScriptTests
             .Select(path => Path.GetRelativePath(workerOutput, path))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string GetValueTuplePackageAsset()
+    {
+        var path = Path.Combine(
+            GlobalPackagesDirectory.Value,
+            "system.valuetuple",
+            "4.6.2",
+            "lib",
+            "net47",
+            "System.ValueTuple.dll");
+        Assert.True(File.Exists(path), $"System.ValueTuple package asset was not found: {path}");
+        return path;
+    }
+
+    private static byte[] ReadPackageEntry(string packagePath, string fileName)
+    {
+        const string prefix = "tools/net10.0/any/openness-worker/";
+        using var archive = ZipFile.OpenRead(packagePath);
+        var entry = archive.GetEntry(prefix + fileName);
+        Assert.NotNull(entry);
+        using var entryStream = entry!.Open();
+        using var bytes = new MemoryStream();
+        entryStream.CopyTo(bytes);
+        return bytes.ToArray();
     }
 
     private static string[] EnumerateRelativeFiles(string directory)

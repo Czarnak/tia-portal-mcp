@@ -22,7 +22,7 @@
   <ItemGroup>
     <None Include="$(NuGetPackageRoot)system.valuetuple\4.6.2\lib\net47\System.ValueTuple.dll"
           Link="System.ValueTuple.dll"
-          CopyToOutputDirectory="PreserveNewest" />
+          CopyToOutputDirectory="Always" />
   </ItemGroup>
 
   <ItemGroup>
