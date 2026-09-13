@@ -122,7 +122,7 @@ The read batch supports:
 
 The net48 worker owns one ordered `ProjectDeviceEnumerator`: direct `Project.Devices` first, followed by a depth-first walk of `Project.DeviceGroups`. `HardwareConfigReader` and the project-tree snapshot walker both consume it, preventing their definitions of a complete project from drifting. The public project tree deliberately flattens grouped devices into ordinary `Device` nodes.
 
-PLC user block groups and system block groups are different Openness types. The project-tree walker therefore keeps separate recursive walkers and shares only block-node construction. `SystemBlockFolder` and `IsSystemBlock` encode system-hierarchy membership, not provenance. Hardware degradation uses `HardwareConfigInfo.Messages`; project-tree best-effort diagnostics are carried as envelope warnings.
+PLC user block groups and system block groups are different Openness types. The project-tree walker therefore keeps separate recursive walkers and shares only block-node construction. `SystemBlockFolder` and `IsSystemBlock` encode system-hierarchy membership, not provenance. Hardware degradation uses `HardwareConfigInfo.Messages`; project-tree best-effort diagnostics are carried as envelope warnings. The same seam reads `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName` through typed `PlcBlock` properties and omits blank values. It does not use dynamic `GetAttribute` calls. These fields report project metadata and do not attest to vendor provenance.
 
 ### Project-tree v3 snapshot and continuation seam
 
