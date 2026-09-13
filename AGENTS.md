@@ -4,7 +4,7 @@ MCP server for Siemens TIA Portal V21. Exposes 14 tools in read-write mode and f
 
 ## Two-process architecture (critical to understand)
 
-The host (`TiaMcpServer`, net8.0) and the worker (`TiaMcpServer.OpennessWorker`, net48) are separate processes. Siemens Openness DLLs use .NET Framework remoting and **cannot run in a .NET 8 process** — this is why the split exists.
+The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`, net48) are separate processes. Siemens Openness DLLs use .NET Framework remoting and **cannot run in a .NET 10 process** — this is why the split exists.
 
 - Host communicates with worker via newline-delimited JSON over stdin/stdout
 - The host builds the worker and copies it to `openness-worker/` subdirectory automatically
@@ -17,11 +17,11 @@ The host (`TiaMcpServer`, net8.0) and the worker (`TiaMcpServer.OpennessWorker`,
 
 | Project | TFM | Role |
 | --------- | ----- | ------ |
-| `TiaMcpServer` | net8.0 | MCP stdio server, tool registration, batch engine, safety tokens, CLI (doctor) |
+| `TiaMcpServer` | net10.0 | MCP stdio server, tool registration, batch engine, safety tokens, CLI (doctor) |
 | `TiaMcpServer.Contracts` | netstandard2.0 | Shared DTOs (`WorkerRequest`, `WorkerResponse`, all info/result types) |
 | `TiaMcpServer.OpennessWorker` | net48 | Worker that loads `Siemens.Engineering.*`, handles all TIA Portal operations |
-| `TiaMcpServer.Tests` | net8.0 | xunit tests; links host source files directly via `<Compile Include>` (not a project reference) |
-| `TiaMcpServer.FakeWorker` | net8.0 | Scripted worker stand-in for IPC integration tests |
+| `TiaMcpServer.Tests` | net10.0 | xunit tests; links host source files directly via `<Compile Include>` (not a project reference) |
+| `TiaMcpServer.FakeWorker` | net10.0 | Scripted worker stand-in for IPC integration tests |
 
 ## Build and test
 
@@ -84,7 +84,7 @@ Network contract these rules describe in the abstract.
 
 ## Key conventions
 
-- **`global.json`** pins .NET SDK 8.0.400 with `rollForward: latestMajor` — use `dotnet` commands, not raw `dotnet8`
+- **`global.json`** pins stable .NET SDK 10.0.400 with `rollForward: latestFeature` and disallows prerelease SDKs — use `dotnet` commands, not version-specific aliases
 - **Tests link host source files** via `<Compile Include>` — when editing files in `TiaMcpServer/Worker/`, `TiaMcpServer/Batch/`, `TiaMcpServer/Network/`, `TiaMcpServer/OperationBatches/`, `TiaMcpServer/Safety/`, `TiaMcpServer/Tools/`, `TiaMcpServer/Diagnostics/`, or `TiaMcpServer/Cli/`, the test project picks up changes automatically
 - **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a generic batch operation; network operations use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here

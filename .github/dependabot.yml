@@ -34,7 +34,7 @@ updates:
       test-tooling:
         patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "coverlet.*"]
     ignore:
-      # Pinned to the net8.0 TFM / global.json 8.0.400 alignment — major bumps here are a
+      # Pinned to the net10.0 TFM / global.json 10.0.400 alignment — major bumps here are a
       # deliberate decision, not an automated one. Security updates ignore this rule.
       - dependency-name: "Microsoft.Extensions.*"
         update-types: ["version-update:semver-major"]

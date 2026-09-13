@@ -13,7 +13,7 @@ public sealed class FakeApplicationInfoService : IApplicationInfoService
     public string ProcessArchitecture { get; set; } = "X64";
     public string HostVersion { get; set; } = "1.0.0";
     public string BaseDirectory { get; set; } = "/app";
-    public string RuntimeDescription { get; set; } = ".NET 8.0.0";
+    public string RuntimeDescription { get; set; } = ".NET 10.0.0";
 }
 
 public sealed class FakeEnvironmentVariableService : IEnvironmentVariableService

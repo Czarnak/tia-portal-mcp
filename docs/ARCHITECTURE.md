@@ -7,14 +7,14 @@ strategy.
 ## 1. Process topology
 
 Siemens TIA Portal Openness is a .NET Framework 4.8 API. The MCP host targets
-.NET 8, so the product is intentionally split into two processes:
+.NET 10, so the product is intentionally split into two processes:
 
 ```text
 MCP client
     |
     | MCP JSON-RPC over stdio
     v
-TiaMcpServer (net8.0 host)
+TiaMcpServer (net10.0 host)
     |
     | newline-delimited JSON over private stdin/stdout pipes
     v
@@ -131,7 +131,7 @@ The public v3 cutover uses one canonical response envelope and this exact phase 
 ```text
 cursor-free browse
     -> net48 typed/scoped walk + residual selector/depth filtering
-    -> net8 strict decode + flatten
+    -> net10 strict decode + flatten
     -> bounded immutable snapshot store
     -> exact canonical page
 
@@ -677,7 +677,7 @@ being reported as fully ready without turning Doctor into an Openness client.
 
 `TiaMcpServer.Tests` links selected host and worker source files directly into
 the test assembly, allowing policy, parsing, tool metadata, generic-batch and network
-catalog/invoker behavior, diagnostics, and IPC behavior to be tested on .NET 8 without a
+catalog/invoker behavior, diagnostics, and IPC behavior to be tested on .NET 10 without a
 live TIA Portal installation. `TiaMcpServer.FakeWorker` covers the linked-source network
 requests and forwarded worker methods without a live TIA Portal installation.
 

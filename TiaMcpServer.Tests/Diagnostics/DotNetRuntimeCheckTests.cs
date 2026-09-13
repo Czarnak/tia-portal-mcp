@@ -11,7 +11,7 @@ public class DotNetRuntimeCheckTests
     {
         var appInfo = new FakeApplicationInfoService
         {
-            RuntimeDescription = ".NET 8.0.5",
+            RuntimeDescription = ".NET 10.0.12",
             ProcessArchitecture = "X64",
             HostVersion = "1.0.0"
         };
@@ -20,7 +20,7 @@ public class DotNetRuntimeCheckTests
         var result = check.Run();
 
         Assert.Equal(DiagnosticStatus.Passed, result.Status);
-        Assert.Contains(".NET 8.0.5", result.Message);
+        Assert.Contains(".NET 10.0.12", result.Message);
         Assert.Contains("X64", result.Message);
     }
 
@@ -29,7 +29,7 @@ public class DotNetRuntimeCheckTests
     {
         var appInfo = new FakeApplicationInfoService
         {
-            RuntimeDescription = ".NET 8.0.5",
+            RuntimeDescription = ".NET 10.0.12",
             ProcessArchitecture = "Arm64",
             HostVersion = "2.0.0"
         };
@@ -38,7 +38,7 @@ public class DotNetRuntimeCheckTests
         var result = check.Run();
 
         Assert.NotNull(result.Evidence);
-        Assert.Equal(".NET 8.0.5", result.Evidence!["runtimeDescription"]);
+        Assert.Equal(".NET 10.0.12", result.Evidence!["runtimeDescription"]);
         Assert.Equal("Arm64", result.Evidence!["processArchitecture"]);
         Assert.Equal("2.0.0", result.Evidence!["applicationVersion"]);
     }

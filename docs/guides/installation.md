@@ -9,12 +9,13 @@ For a condensed quick start, see the [README](../../README.md).
 - Siemens TIA Portal V21 installed
 - TIA Portal Openness installed and enabled
 - Current Windows user is a member of the `Siemens TIA Openness` user group
-- .NET SDK 8.0 or newer for `dotnet tool install`
+- Stable .NET 10 SDK (`10.0.400` or newer in the .NET 10 feature bands) for `dotnet tool install`
 - .NET Framework 4.8 Runtime for the Openness worker
 
 Source builds additionally need:
 
-- .NET SDK 8.0.4xx or newer 8.0 feature band. The repo includes `global.json` to prefer .NET SDK 8 for builds.
+- Stable .NET SDK 10.0.400 or newer in the .NET 10 feature bands. The repo's `global.json`
+  requires 10.0.400, rolls forward through stable .NET 10 feature bands, and excludes prerelease SDKs.
 - .NET Framework 4.8 Developer Pack or targeting pack
 
 By default, source builds expect Openness DLLs here:

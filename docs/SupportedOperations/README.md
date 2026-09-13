@@ -76,6 +76,6 @@ Read responses may include `warnings` for partial or degraded data. Hardware rea
 
 ## Runtime requirements
 
-The Openness worker is the only process that loads Siemens assemblies. Using the server requires Windows, TIA Portal V21 with Openness enabled, membership in the Siemens TIA Openness user group, and the supported .NET runtimes. The worker communicates with the .NET 8 host over newline-delimited JSON and is supervised across timeouts and crashes.
+The Openness worker is the only process that loads Siemens assemblies. Using the server requires Windows, TIA Portal V21 with Openness enabled, membership in the Siemens TIA Openness user group, and the supported .NET runtimes. The worker communicates with the .NET 10 host over newline-delimited JSON and is supervised across timeouts and crashes. The framework-dependent global tool requires a supported .NET 10 runtime; the separate self-contained `win-x64` archive includes the host runtime. Both layouts retain the .NET Framework 4.8 Openness worker.
 
 This reference describes the software contract. A successful build or automated test does not replace validation against the target TIA Portal V21 installation, project, device configuration, or hardware.

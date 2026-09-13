@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text.Json;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -76,13 +77,13 @@ public class DoctorPackageVerificationScriptTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DirectPack_WithSdk8_IncludesCanonicalWorkerPayload(bool noBuild)
+    public void DirectPack_WithSdk10_IncludesCanonicalWorkerPayload(bool noBuild)
     {
         var workerOutput = FindBuiltWorkerOutput();
-        var sdkVersion = FindInstalledSdk8Version();
+        var sdkVersion = FindInstalledSdk10Version();
         var isolatedRoot = Path.Combine(
             Path.GetTempPath(),
-            $"openness-worker-sdk8-pack-{Guid.NewGuid():N}");
+            $"openness-worker-sdk10-pack-{Guid.NewGuid():N}");
         var outputPath = Path.Combine(isolatedRoot, "host-output");
         var packageOutput = Path.Combine(isolatedRoot, "packages");
         Directory.CreateDirectory(isolatedRoot);
@@ -108,14 +109,14 @@ public class DoctorPackageVerificationScriptTests
             var restoreResult = RunWorkerRestore(isolatedRoot);
             Assert.True(
                 restoreResult.ExitCode == 0,
-                $"SDK 8 worker restore failed.{Environment.NewLine}{restoreResult.StandardOutput}{Environment.NewLine}{restoreResult.StandardError}");
+                $"SDK 10 worker restore failed.{Environment.NewLine}{restoreResult.StandardOutput}{Environment.NewLine}{restoreResult.StandardError}");
 
             if (noBuild)
             {
                 var buildResult = RunBuild(outputPath, isolatedRoot);
                 Assert.True(
                     buildResult.ExitCode == 0,
-                    $"SDK 8 prerequisite build failed.{Environment.NewLine}{buildResult.StandardOutput}{Environment.NewLine}{buildResult.StandardError}");
+                    $"SDK 10 prerequisite build failed.{Environment.NewLine}{buildResult.StandardOutput}{Environment.NewLine}{buildResult.StandardError}");
             }
 
             var copiedWorkerOutput = Path.Combine(outputPath, "openness-worker");
@@ -125,7 +126,7 @@ public class DoctorPackageVerificationScriptTests
             var packResult = RunPack(outputPath, packageOutput, noBuild, isolatedRoot);
             Assert.True(
                 packResult.ExitCode == 0,
-                $"SDK 8 direct pack failed (noBuild={noBuild}).{Environment.NewLine}{packResult.StandardOutput}{Environment.NewLine}{packResult.StandardError}");
+                $"SDK 10 direct pack failed (noBuild={noBuild}).{Environment.NewLine}{packResult.StandardOutput}{Environment.NewLine}{packResult.StandardError}");
 
             var packagePath = Path.Combine(packageOutput, "TiaMcpServer.3.0.0.nupkg");
             Assert.True(File.Exists(packagePath), $"Expected package was not created at {packagePath}.");
@@ -221,12 +222,12 @@ public class DoctorPackageVerificationScriptTests
     }
 
     [Fact]
-    public void WorkerPayloadWithUnexpectedPipelineAssembly_FailsPackageVerification()
+    public void WorkerPayloadWithoutPipelines_FailsPackageVerification()
     {
         var workerOutput = FindBuiltWorkerOutput();
         var packagePath = CreatePackage(
             workerOutput,
-            additionalEntry: "System.IO.Pipelines.dll");
+            excludedFile: "System.IO.Pipelines.dll");
 
         try
         {
@@ -242,10 +243,202 @@ public class DoctorPackageVerificationScriptTests
         }
     }
 
+    [Theory]
+    [InlineData("tools/net8.0/any/openness-worker/TiaMcpServer.OpennessWorker.exe")]
+    [InlineData("tools/net10.0/win-x64/openness-worker/TiaMcpServer.OpennessWorker.exe")]
+    public void NonCanonicalWorkerLayout_FailsPackageVerification(string nonCanonicalEntry)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: nonCanonicalEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/openness-worker/", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Fact]
+    public void WorkerPayloadWithUnexpectedNonDllFile_FailsPackageVerification()
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: "tools/net10.0/any/openness-worker/unexpected-worker-notes.txt");
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+
+            Assert.NotEqual(0, result.ExitCode);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Fact]
+    public void RidSpecificHostEntry_FailsPackageVerification()
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: "tools/net10.0/win-x64/TiaMcpServer.dll");
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Fact]
+    public void CaseVariantToolRoot_FailsPackageVerification()
+    {
+        const string archiveControlledEntry =
+            "Tools/net10.0/win-x64/ARCHIVE_CONTROLLED_CASE.dll";
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: archiveControlledEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/", output, StringComparison.Ordinal);
+            Assert.DoesNotContain("ARCHIVE_CONTROLLED", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("tools/net10.0/any/../win-x64/ARCHIVE_CONTROLLED_PARENT.dll")]
+    [InlineData("tools/net10.0/any/./ARCHIVE_CONTROLLED_DOT.dll")]
+    [InlineData("./tools/net10.0/any/ARCHIVE_CONTROLLED_LEADING.dll")]
+    [InlineData("foo/../tools/net10.0/any/ARCHIVE_CONTROLLED_EMBEDDED.dll")]
+    public void AmbiguousToolPathSegments_FailPackageVerification(string archiveControlledEntry)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: archiveControlledEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tools/net10.0/any/", output, StringComparison.Ordinal);
+            Assert.DoesNotContain("ARCHIVE_CONTROLLED", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("tools/net8.0/any/openness-worker/ARCHIVE_CONTROLLED_NONCANONICAL.bin")]
+    [InlineData("tools/net10.0/any/openness-worker/ARCHIVE_CONTROLLED.runtimeconfig.json")]
+    [InlineData("tools/net10.0/any/Siemens.Engineering.ARCHIVE_CONTROLLED.dll")]
+    [InlineData("tools/net10.0/any/openness-worker/ARCHIVE_CONTROLLED.dll")]
+    public void RejectedPackage_DoesNotEchoArchiveControlledEntryName(string archiveControlledEntry)
+    {
+        var workerOutput = FindBuiltWorkerOutput();
+        var packagePath = CreatePackage(
+            workerOutput,
+            additionalPackageEntry: archiveControlledEntry);
+
+        try
+        {
+            var result = RunVerifier(packagePath);
+            var output = result.StandardOutput + Environment.NewLine + result.StandardError;
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.DoesNotContain("ARCHIVE_CONTROLLED", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(packagePath);
+        }
+    }
+
+    [Fact]
+    public void WorkerBuild_OverwritesNewerValueTupleBeforePackaging()
+    {
+        var isolatedRoot = Path.Combine(
+            Path.GetTempPath(),
+            $"openness-worker-valuetuple-{Guid.NewGuid():N}");
+        var workerOutput = Path.Combine(isolatedRoot, "worker-output");
+        var staleValueTuplePath = Path.Combine(workerOutput, "System.ValueTuple.dll");
+        var expectedValueTuple = File.ReadAllBytes(GetValueTuplePackageAsset());
+
+        try
+        {
+            Directory.CreateDirectory(workerOutput);
+            File.WriteAllBytes(staleValueTuplePath, new byte[] { 0xDE, 0xAD, 0xBE, 0xEF });
+            File.SetLastWriteTimeUtc(staleValueTuplePath, DateTime.UtcNow.AddHours(1));
+
+            var buildResult = RunWorkerBuild(workerOutput);
+            Assert.True(
+                buildResult.ExitCode == 0,
+                $"Isolated worker build failed.{Environment.NewLine}{buildResult.StandardOutput}{Environment.NewLine}{buildResult.StandardError}");
+
+            // Applying one OutputPath to both the worker and its project reference makes the
+            // isolated build co-locate a Contracts deps file that the normal worker output and
+            // package pipeline never produce. Keep this fixture aligned with that 15-file payload.
+            var packagePath = CreatePackage(
+                workerOutput,
+                excludedFile: "TiaMcpServer.Contracts.deps.json");
+            try
+            {
+                var verifierResult = RunVerifier(packagePath);
+                Assert.True(
+                    verifierResult.ExitCode == 0,
+                    $"Package verifier failed.{Environment.NewLine}{verifierResult.StandardOutput}{Environment.NewLine}{verifierResult.StandardError}");
+                Assert.Equal(
+                    expectedValueTuple,
+                    ReadPackageEntry(packagePath, "System.ValueTuple.dll"));
+            }
+            finally
+            {
+                File.Delete(packagePath);
+            }
+        }
+        finally
+        {
+            Directory.Delete(isolatedRoot, recursive: true);
+        }
+    }
+
     private static string CreatePackage(
         string workerOutput,
         string? excludedFile = null,
-        string? additionalEntry = null)
+        string? additionalPackageEntry = null)
     {
         var packagePath = Path.Combine(
             Path.GetTempPath(),
@@ -259,13 +452,13 @@ public class DoctorPackageVerificationScriptTests
                 continue;
             }
 
-            var entryName = "tools/net8.0/any/openness-worker/" + Path.GetFileName(builtFile);
+            var entryName = "tools/net10.0/any/openness-worker/" + Path.GetFileName(builtFile);
             archive.CreateEntryFromFile(builtFile, entryName);
         }
 
-        if (additionalEntry is not null)
+        if (additionalPackageEntry is not null)
         {
-            archive.CreateEntry("tools/net8.0/any/openness-worker/" + additionalEntry);
+            archive.CreateEntry(additionalPackageEntry);
         }
 
         return packagePath;
@@ -336,6 +529,28 @@ public class DoctorPackageVerificationScriptTests
         return RunProcess(startInfo, 60_000, "Worker copy target");
     }
 
+    private static ScriptResult RunWorkerBuild(string outputPath)
+    {
+        var projectPath = Path.Combine(
+            GetRepositoryRoot(),
+            "TiaMcpServer.OpennessWorker",
+            "TiaMcpServer.OpennessWorker.csproj");
+        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
+        Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
+
+        var startInfo = CreateDotnetStartInfo();
+        startInfo.ArgumentList.Add("build");
+        startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("--no-restore");
+        startInfo.ArgumentList.Add("--disable-build-servers");
+        startInfo.ArgumentList.Add("-m:1");
+        startInfo.ArgumentList.Add($"/p:Configuration={configuration}");
+        startInfo.ArgumentList.Add($"/p:OutputPath={Path.TrimEndingDirectorySeparator(outputPath)}{Path.DirectorySeparatorChar}");
+        startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
+        startInfo.ArgumentList.Add("/v:minimal");
+        return RunProcess(startInfo, 60_000, "Isolated worker build");
+    }
+
     private static ScriptResult RunBuild(string outputPath, string? workingDirectory = null)
     {
         var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
@@ -370,7 +585,7 @@ public class DoctorPackageVerificationScriptTests
         startInfo.ArgumentList.Add("/p:UseTiaPortalReferenceStubs=true");
         startInfo.ArgumentList.Add("/p:NuGetAudit=false");
         startInfo.ArgumentList.Add("/v:minimal");
-        return RunProcess(startInfo, 30_000, "SDK 8 worker restore");
+        return RunProcess(startInfo, 30_000, "SDK 10 worker restore");
     }
 
     private static ScriptResult RunPack(
@@ -414,7 +629,7 @@ public class DoctorPackageVerificationScriptTests
         return RunProcess(startInfo, 10_000, "SDK version probe");
     }
 
-    private static string FindInstalledSdk8Version()
+    private static string FindInstalledSdk10Version()
     {
         var startInfo = CreateDotnetStartInfo();
         startInfo.ArgumentList.Add("--list-sdks");
@@ -423,33 +638,32 @@ public class DoctorPackageVerificationScriptTests
             result.ExitCode == 0,
             $"Installed SDK probe failed.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
 
-        var installedSdk8 = result.StandardOutput
+        var installedSdk10 = result.StandardOutput
             .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.Split(' ', 2)[0])
             .Select(value => Version.TryParse(value, out var version) ? version : null)
-            .Where(version => version?.Major == 8)
+            .Where(version => version?.Major == 10)
             .Max();
-        Assert.NotNull(installedSdk8);
-        return installedSdk8!.ToString();
+        Assert.NotNull(installedSdk10);
+        return installedSdk10!.ToString();
     }
 
     private static string FindGlobalPackagesDirectory()
     {
-        var startInfo = CreateDotnetStartInfo();
-        startInfo.ArgumentList.Add("nuget");
-        startInfo.ArgumentList.Add("locals");
-        startInfo.ArgumentList.Add("global-packages");
-        startInfo.ArgumentList.Add("--list");
-        var result = RunProcess(startInfo, 10_000, "NuGet global-packages probe");
-        Assert.True(
-            result.ExitCode == 0,
-            $"NuGet global-packages probe failed.{Environment.NewLine}{result.StandardOutput}{Environment.NewLine}{result.StandardError}");
-
-        var separator = result.StandardOutput.IndexOf(':');
-        Assert.True(separator >= 0, $"Unexpected NuGet global-packages output: {result.StandardOutput}");
-        var directory = result.StandardOutput[(separator + 1)..].Trim();
-        Assert.True(Directory.Exists(directory), $"NuGet global-packages directory does not exist: {directory}");
-        return directory;
+        var assetsPath = Path.Combine(
+            GetRepositoryRoot(),
+            "TiaMcpServer.OpennessWorker",
+            "obj",
+            "project.assets.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(assetsPath));
+        var packageFolder = document.RootElement
+            .GetProperty("packageFolders")
+            .EnumerateObject()
+            .Select(property => property.Name)
+            .FirstOrDefault();
+        Assert.False(string.IsNullOrEmpty(packageFolder), $"No package folder found in {assetsPath}.");
+        Assert.True(Directory.Exists(packageFolder), $"NuGet package folder does not exist: {packageFolder}");
+        return packageFolder;
     }
 
     private static ProcessStartInfo CreateDotnetStartInfo(string? workingDirectory = null)
@@ -524,6 +738,31 @@ public class DoctorPackageVerificationScriptTests
             .ToArray();
     }
 
+    private static string GetValueTuplePackageAsset()
+    {
+        var path = Path.Combine(
+            GlobalPackagesDirectory.Value,
+            "system.valuetuple",
+            "4.6.2",
+            "lib",
+            "net47",
+            "System.ValueTuple.dll");
+        Assert.True(File.Exists(path), $"System.ValueTuple package asset was not found: {path}");
+        return path;
+    }
+
+    private static byte[] ReadPackageEntry(string packagePath, string fileName)
+    {
+        const string prefix = "tools/net10.0/any/openness-worker/";
+        using var archive = ZipFile.OpenRead(packagePath);
+        var entry = archive.GetEntry(prefix + fileName);
+        Assert.NotNull(entry);
+        using var entryStream = entry!.Open();
+        using var bytes = new MemoryStream();
+        entryStream.CopyTo(bytes);
+        return bytes.ToArray();
+    }
+
     private static string[] EnumerateRelativeFiles(string directory)
     {
         return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
@@ -534,7 +773,7 @@ public class DoctorPackageVerificationScriptTests
 
     private static string[] EnumeratePackagedWorkerFiles(string packagePath)
     {
-        const string prefix = "tools/net8.0/any/openness-worker/";
+        const string prefix = "tools/net10.0/any/openness-worker/";
         using var archive = ZipFile.OpenRead(packagePath);
         return archive.Entries
             .Where(entry => entry.FullName.StartsWith(prefix, StringComparison.Ordinal))

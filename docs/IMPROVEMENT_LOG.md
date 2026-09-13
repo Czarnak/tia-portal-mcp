@@ -567,3 +567,23 @@ engineering. Raw harness failures at that fixture guard and the first late-appro
 in private ignored evidence. Project and selector identities are omitted from tracked documentation
 at the user's request. No project save, mutation, PLC control, deployment, or plant acceptance is
 claimed. The deeper direct resolver and depth-pruned walk remain deferred.
+
+## .NET 10 host migration — offline implementation completed (2026-09-13)
+
+The modern side of the two-process runtime now targets `net10.0`: the MCP host, tests, and
+FakeWorker use the stable .NET 10 SDK boundary, while the shared contracts remain
+`netstandard2.0` and the Siemens Openness worker remains `net48`. The direct dependency set is
+`ModelContextProtocol` 2.2.0, `System.Text.Json` 10.0.12 on both legacy-boundary projects,
+`Microsoft.SourceLink.GitHub` 10.0.401, and `Microsoft.Extensions.Hosting`,
+`Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Logging`, and
+`Microsoft.Extensions.Logging.Abstractions` 10.0.12. SourceLink resolves
+`Microsoft.Build.Tasks.Git` 10.0.401; the worker explicitly retains `System.ValueTuple` 4.6.2 and
+packages exactly one required `System.IO.Pipelines.dll` companion.
+
+The framework-dependent global-tool package was built and verified under
+`tools/net10.0/any/`; the separate `win-x64` release was published self-contained and single-file.
+Offline gates passed a serial Release build with the Siemens reference stubs, the focused package
+and workflow tests, the strict NuGet package verifier, and file-by-file inspection of both release
+layouts. The verified artifacts contained the expected worker payload and no Siemens DLLs. No live
+TIA Portal harness or test was run, so this entry makes no live-runtime, project, device, or plant
+acceptance claim.

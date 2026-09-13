@@ -3,7 +3,7 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/Czarnak/tia-portal-mcp/ci.yml?branch=main&style=flat-square)](https://github.com/Czarnak/tia-portal-mcp/actions)
 [![Codecov](https://img.shields.io/codecov/c/github/Czarnak/tia-portal-mcp?style=flat-square)](https://codecov.io/gh/Czarnak/tia-portal-mcp)
 [![GitHub Release](https://img.shields.io/github/v/release/Czarnak/tia-portal-mcp?style=flat-square)](https://github.com/Czarnak/tia-portal-mcp/releases)
-[![.NET SDK](https://img.shields.io/badge/.NET-8.0-512BD4.svg?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
+[![.NET SDK](https://img.shields.io/badge/.NET-10.0-512BD4.svg?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![.NET Framework](https://img.shields.io/badge/.NET_Framework-4.8-512BD4.svg?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![TIA Portal](https://img.shields.io/badge/TIA_Portal-V21-009999.svg?style=flat-square&logo=siemens)](https://new.siemens.com/global/en/products/automation/industry-software/automation-software/tia-portal.html)
 [![MCP](https://img.shields.io/badge/MCP-Ready-000000.svg?style=flat-square)](https://modelcontextprotocol.io/)
@@ -83,11 +83,11 @@ Every failed write reports a categorized `failureCategory` field alongside its h
 
 ## Architecture
 
-TIA Portal V21 ships its Openness API as .NET Framework 4.8 assemblies. Those assemblies use .NET Framework remoting APIs that cannot run correctly inside a .NET 8 process.
+TIA Portal V21 ships its Openness API as .NET Framework 4.8 assemblies. Those assemblies use .NET Framework remoting APIs that cannot run correctly inside a .NET 10 process.
 
 This project therefore uses two processes:
 
-- `TiaMcpServer` - the .NET 8 MCP stdio server and .NET global tool host.
+- `TiaMcpServer` - the .NET 10 MCP stdio server and .NET global tool host.
 - `TiaMcpServer.OpennessWorker` - a .NET Framework 4.8 worker process that loads `Siemens.Engineering.*` and talks to TIA Portal.
 
 The MCP host keeps one persistent .NET Framework 4.8 worker process attached to TIA Portal and exchanges newline-delimited JSON over stdin/stdout. Requests are serialized, and the worker restarts automatically after a crash or timeout. Siemens DLLs are never copied into this repository or the NuGet package; the worker resolves them from the local TIA Portal V21 installation.
@@ -112,8 +112,17 @@ first — it reports exactly which prerequisite is missing.
 | Windows | Windows-only; the Openness API has no other host |
 | Siemens TIA Portal V21 | with Openness installed and enabled |
 | `Siemens TIA Openness` group | the current Windows user must be a member |
-| .NET SDK 8.0 or newer | required by `dotnet tool install` |
+| Framework-dependent global tool: stable .NET 10 SDK 10.0.400 or newer | provides `dotnet tool install` and the supported .NET 10 runtime |
 | .NET Framework 4.8 runtime | required by the Openness worker process |
+
+The framework-dependent `tia-mcp` global tool requires a supported .NET 10 runtime. The separate
+self-contained `win-x64` archive includes the host runtime. Neither installation method requires
+users to install the `ModelContextProtocol` NuGet package.
+
+Custom .NET integrations that compile directly against the C# MCP SDK must review the
+ModelContextProtocol 2.2 migration notes and retest protocol negotiation, tool schemas, and
+structured results. This custom-integration requirement is separate from the `browse_project_tree`
+v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
 **read-only** mode by default; add `--access-mode read-write` to expose the write tools.
