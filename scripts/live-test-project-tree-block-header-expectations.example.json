@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "issue-30-block-header-expectations/v1",
+  "cases": [
+    {
+      "id": "user-block-all-fields",
+      "kind": "user",
+      "selector": [
+        { "nodeType": "Device", "name": "REPLACE_DEVICE" },
+        { "nodeType": "PlcSoftware", "name": "REPLACE_PLC_SOFTWARE" },
+        { "nodeType": "BlockFolder", "name": "REPLACE_PROGRAM_BLOCK_FOLDER" },
+        { "nodeType": "FB", "name": "REPLACE_USER_BLOCK" }
+      ],
+      "expected": {
+        "name": "REPLACE_USER_BLOCK",
+        "details": {
+          "HeaderAuthor": "REPLACE_HEADER_AUTHOR",
+          "HeaderVersion": "REPLACE_HEADER_VERSION",
+          "HeaderFamily": "REPLACE_HEADER_FAMILY",
+          "HeaderName": "REPLACE_DIFFERENT_HEADER_NAME"
+        },
+        "absentDetails": []
+      }
+    },
+    {
+      "id": "system-block",
+      "kind": "system",
+      "selector": [
+        { "nodeType": "Device", "name": "REPLACE_DEVICE" },
+        { "nodeType": "PlcSoftware", "name": "REPLACE_PLC_SOFTWARE" },
+        { "nodeType": "SystemBlockFolder", "name": "REPLACE_SYSTEM_BLOCK_FOLDER" },
+        { "nodeType": "FC", "name": "REPLACE_SYSTEM_BLOCK" }
+      ],
+      "expected": {
+        "name": "REPLACE_SYSTEM_BLOCK",
+        "details": {
+          "HeaderName": "REPLACE_SYSTEM_HEADER_NAME"
+        },
+        "absentDetails": []
+      }
+    },
+    {
+      "id": "software-unit-block",
+      "kind": "softwareUnit",
+      "selector": [
+        { "nodeType": "Device", "name": "REPLACE_DEVICE" },
+        { "nodeType": "PlcSoftware", "name": "REPLACE_PLC_SOFTWARE" },
+        { "nodeType": "SoftwareUnit", "name": "REPLACE_SOFTWARE_UNIT" },
+        { "nodeType": "BlockFolder", "name": "REPLACE_UNIT_BLOCK_FOLDER" },
+        { "nodeType": "FB", "name": "REPLACE_UNIT_BLOCK" }
+      ],
+      "expected": {
+        "name": "REPLACE_UNIT_BLOCK",
+        "details": {
+          "HeaderAuthor": "REPLACE_UNIT_HEADER_AUTHOR"
+        },
+        "absentDetails": []
+      }
+    },
+    {
+      "id": "blank-header-omission",
+      "kind": "blank",
+      "selector": [
+        { "nodeType": "Device", "name": "REPLACE_DEVICE" },
+        { "nodeType": "PlcSoftware", "name": "REPLACE_PLC_SOFTWARE" },
+        { "nodeType": "BlockFolder", "name": "REPLACE_PROGRAM_BLOCK_FOLDER" },
+        { "nodeType": "FC", "name": "REPLACE_BLANK_HEADER_BLOCK" }
+      ],
+      "expected": {
+        "name": "REPLACE_BLANK_HEADER_BLOCK",
+        "details": {},
+        "absentDetails": [
+          "HeaderAuthor",
+          "HeaderVersion",
+          "HeaderFamily",
+          "HeaderName"
+        ]
+      }
+    }
+  ]
+}
