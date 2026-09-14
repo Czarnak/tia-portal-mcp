@@ -137,7 +137,7 @@ public sealed class ProjectTreeSnapshotWalker
         string key,
         string? value)
     {
-        if (!string.IsNullOrWhiteSpace(value))
+        if (value is not null && !string.IsNullOrWhiteSpace(value))
         {
             details[key] = value;
         }
