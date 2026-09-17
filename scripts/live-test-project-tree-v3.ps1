@@ -165,6 +165,8 @@ function Assert-BlockHeaderExpectationDocument {
             Assert-Condition (($null -ne $nodeTypeProperty) -and (-not [string]::IsNullOrWhiteSpace([string] $nodeTypeProperty.Value))) "Block-header case '$caseId' has a selector segment without nodeType."
             Assert-Condition (($null -ne $nameProperty) -and (-not [string]::IsNullOrWhiteSpace([string] $nameProperty.Value))) "Block-header case '$caseId' has a selector segment without name."
         }
+        # Typed selectors identify the terminal type; mirror ProjectTreeNodeTypes.BlockLeaves.
+        Assert-Condition ([string] $selector[-1].nodeType -cin @('OB', 'FB', 'FC', 'GlobalDB', 'InstanceDB', 'ArrayDB', 'Block')) "Block-header case '$caseId' selector must end at a functional PLC block."
 
         Assert-Condition (($null -ne $expectedProperty) -and ($null -ne $expectedProperty.Value)) "Block-header case '$caseId' has no expected object."
         $expected = $expectedProperty.Value
@@ -617,6 +619,8 @@ function Assert-BlockHeaderExpectations {
         [void] $requiredKinds.Remove($kind)
 
         $node = Resolve-NodeBySelector -Nodes $nodes -Selector @($case.selector) -CaseId $caseId
+        # Validate the observed node as well as the manifest's declared terminal type.
+        Assert-Condition ([string] $node.nodeType -cin @('OB', 'FB', 'FC', 'GlobalDB', 'InstanceDB', 'ArrayDB', 'Block')) "Block-header case '$caseId' must resolve to a functional PLC block, received '$($node.nodeType)'."
         $expected = $case.expected
         Assert-Condition ($null -ne $expected) "Block-header case '$caseId' has no expected object."
         $expectedName = [string] $expected.name
@@ -1113,13 +1117,37 @@ try {
     $evidence.toolNames = $script:ToolNames
 
     $fullMeasurement = Measure-InitialBrowse -Arguments @{ pageSize = 200 }
-    $fullPages = @(Read-AllSnapshotPages -FirstPage $fullMeasurement.runs[-1].response)
-    $fullNodes = @(Get-SnapshotNodes -Pages $fullPages)
+    $completedRuns = [System.Collections.Generic.List[object]]::new()
     $evidence.modes.fullProject = [ordered]@{
         arguments = [ordered]@{ pageSize = 200 }
         timing = Get-MeasurementEvidence $fullMeasurement
-        snapshot = Assert-CompleteSnapshotEvidence -Mode 'fullProject' -Pages $fullPages
-        treeIdentity = Get-TreeIdentityEvidence -Nodes $fullNodes
+        snapshot = $null
+        treeIdentity = $null
+        completedRuns = $completedRuns
+    }
+    foreach ($run in $fullMeasurement.runs) {
+        $fullPages = @(Read-AllSnapshotPages -FirstPage $run.response)
+        $fullNodes = @(Get-SnapshotNodes -Pages $fullPages)
+        $snapshot = Assert-CompleteSnapshotEvidence -Mode "fullProject/run-$($run.run)" -Pages $fullPages
+        $treeIdentity = Get-TreeIdentityEvidence -Nodes $fullNodes
+        if ($completedRuns.Count -gt 0) {
+            $firstIdentity = $completedRuns[0].treeIdentity
+            Assert-Condition (($treeIdentity.nodeCount -eq $firstIdentity.nodeCount) -and ($treeIdentity.sha256 -ceq $firstIdentity.sha256)) 'Measured fullProject tree identities differ between runs.'
+        }
+        $headerEvidence = $null
+        if ($runConfiguration.mode -ceq 'candidate') {
+            $headerEvidence = Assert-BlockHeaderExpectations -Pages $fullPages -Expectations $blockHeaderExpectations
+            $evidence.blockHeaders = $headerEvidence
+        }
+        $completedRuns.Add([ordered]@{
+            run = $run.run
+            snapshot = $snapshot
+            treeIdentity = $treeIdentity
+            blockHeaders = $headerEvidence
+        })
+        # Keep the established summary fields describing the final completed run.
+        $evidence.modes.fullProject.snapshot = $snapshot
+        $evidence.modes.fullProject.treeIdentity = $treeIdentity
     }
 
     if ($runConfiguration.mode -ceq 'fullV3') {
@@ -1181,7 +1209,6 @@ try {
         $evidence.selectorFailures.targetAmbiguous = [ordered]@{ category = $ambiguousResponse.failure.category; selector = $ambiguousSelector }
     }
     elseif ($runConfiguration.mode -ceq 'candidate') {
-        $evidence.blockHeaders = Assert-BlockHeaderExpectations -Pages $fullPages -Expectations $blockHeaderExpectations
         $comparison = Compare-ProjectTreeEvidence `
             -Candidate $evidence.modes.fullProject `
             -Baseline $baselineEvidence.modes.fullProject

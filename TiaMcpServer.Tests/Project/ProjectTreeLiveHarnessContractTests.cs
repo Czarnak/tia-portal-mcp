@@ -911,6 +911,178 @@ public sealed class ProjectTreeLiveHarnessContractTests
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
     }
 
+    [Theory]
+    [InlineData("continuation", 1, "candidate", "Expected a succeeded response")]
+    [InlineData("continuation", 2, "baseline", "Expected a succeeded response")]
+    [InlineData("header", 1, "candidate", "expected 'HeaderAuthor'")]
+    [InlineData("header", 2, "candidate", "expected 'HeaderAuthor'")]
+    [InlineData("structure", 1, "candidate", "sequence continuity")]
+    [InlineData("identity", 1, "candidate", "tree identities differ")]
+    [InlineData("identity", 2, "baseline", "tree identities differ")]
+    [InlineData("none", 0, "candidate", "")]
+    [InlineData("none", 0, "baseline", "")]
+    public void BlockHeaderMeasuredRuns_ValidateEveryCompleteSnapshot(string defect, int defectiveRun, string mode, string expectedError)
+    {
+        var result = RunHarnessFunctions([], BlockHeaderBehaviorFixture + $$"""
+            $runConfiguration = [pscustomobject]@{ mode = '{{mode}}' }
+            $blockHeaderExpectations = $expectations
+            $runtimeArtifacts = [pscustomobject]@{}
+            $evidence = [ordered]@{
+                modes = [ordered]@{}; blockHeaders = $null; baselineComparison = $null
+                status = 'running'; error = $null; toolNames = @()
+            }
+            $baselineEvidence = [pscustomobject]@{
+                runtimeArtifacts = $runtimeArtifacts
+                modes = [pscustomobject]@{ fullProject = [pscustomobject]@{
+                    treeIdentity = Get-TreeIdentityEvidence -Nodes $nodes
+                    timing = [pscustomobject]@{ runs = @(1..3 | ForEach-Object {
+                        [pscustomobject]@{ elapsedMs = 1; canonicalResponseChars = 2 }
+                    }) }
+                } }
+            }
+            $script:initialCalls = 0
+            $script:continuedRuns = [Collections.Generic.List[int]]::new()
+            function Connect-McpServer { $script:ToolNames = @('browse_project_tree') }
+            function Stop-McpServer { $script:stopped = $true }
+            function Write-EvidenceArtifacts { param($Evidence); $script:savedEvidence = $Evidence }
+            function Invoke-McpTool {
+                param($Name, $Arguments)
+                if ($Name -cne 'browse_project_tree') { throw 'Unexpected tool call.' }
+                if ($Arguments.ContainsKey('cursor')) {
+                    $run = [int] $Arguments.cursor
+                    if ($script:continuedRuns.Contains($run)) { throw 'Repeated continuation.' }
+                    $script:continuedRuns.Add($run)
+                    $page = New-BehaviorPage $run 1 @($nodes | Select-Object -Skip 1) $null
+                    if ($run -eq {{defectiveRun}}) {
+                        switch ('{{defect}}') {
+                            'continuation' { $page.status = 'failed' }
+                            'header' { $page.result.nodes[0].details.HeaderAuthor = 'Wrong author' }
+                            'structure' { $page.result.nodes[0].sequence = 99 }
+                            'identity' { $page.result.nodes[-1].nodeId = 'changed-blank-id' }
+                        }
+                    }
+                    return $page
+                }
+                $script:initialCalls++
+                if ($script:initialCalls -gt 3) { throw 'Too many initial calls.' }
+                New-BehaviorPage $script:initialCalls 0 @($nodes[0]) ([string] $script:initialCalls)
+            }
+            # Execute the real orchestration and its failure-evidence path; never start TIA.
+            $orchestration = @($ast.EndBlock.Statements | Where-Object {
+                $_ -is [System.Management.Automation.Language.TryStatementAst]
+            })
+            if ($orchestration.Count -ne 1) { throw 'Expected one top-level orchestration.' }
+            $script:stopped = $false
+            $script:savedEvidence = $null
+            $caught = ''
+            try { Invoke-Expression $orchestration[0].Extent.Text }
+            catch { $caught = $_.Exception.Message }
+            if (-not $script:stopped -or $null -eq $script:savedEvidence) { throw 'Failure evidence/cleanup did not execute.' }
+            if ($script:initialCalls -ne 3) { throw 'Did not measure all three initial requests.' }
+            if ('{{defect}}' -cne 'none') {
+                if ($evidence.status -cne 'failed') { throw 'Earlier measured run defect was accepted.' }
+                if (-not $caught.Contains({{PowerShellLiteral(expectedError)}})) { throw "Unexpected rejection: $caught" }
+                if ($evidence.error -cne $caught) { throw 'Failure reason was not preserved.' }
+                "rejected-{{defect}}-run-{{defectiveRun}}: $caught"
+            }
+            else {
+                if ($evidence.status -cne 'succeeded') { throw "Valid measured runs failed: $caught" }
+                if (($script:continuedRuns -join ',') -cne '1,2,3') { throw 'Did not complete all three independent cursor chains.' }
+                if ($evidence.modes.fullProject.timing.runs.Count -ne 3) { throw 'Lost initial timing/size evidence.' }
+                if ($evidence.modes.fullProject.snapshot.pageCount -ne 2) { throw 'Lost complete snapshot evidence.' }
+                if ('{{mode}}' -ceq 'candidate' -and (-not $evidence.blockHeaders.blankHeadersOmitted -or -not $evidence.baselineComparison.treeIdentityEqual)) {
+                    throw 'Lost existing candidate evidence fields.'
+                }
+                'all-measured-runs-ok'
+            }
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+    }
+
+    [Theory]
+    [InlineData("Device", false)]
+    [InlineData("BlockFolder", false)]
+    [InlineData("Device", true)]
+    [InlineData("BlockFolder", true)]
+    public void BlockHeaderBlankCase_RejectsContainersAtPreflightAndRuntime(string nodeType, bool runtimeOnly)
+    {
+        var result = RunHarnessFunctions([], BlockHeaderBehaviorFixture + $$"""
+            Assert-BlockHeaderExpectationDocument -Expectations $expectations
+            if (${{runtimeOnly.ToString().ToLowerInvariant()}}) {
+                # Isolate the runtime gate from the separately tested preflight gate.
+                function Assert-BlockHeaderExpectationDocument { param($Expectations) }
+            }
+            $blank = $expectations.cases[-1]
+            $blank.expected.details = [pscustomobject]@{}
+            if ('{{nodeType}}' -ceq 'Device') {
+                $blank.selector = @([pscustomobject]@{ nodeType = 'Device'; name = 'PLC_1' })
+                $blank.expected.name = 'PLC_1'
+            }
+            else {
+                $blank.selector[-1].nodeType = 'BlockFolder'
+                $nodes[-1].nodeType = 'BlockFolder'
+                $nodes[-1].details = [pscustomobject]@{}
+            }
+            $caught = ''
+            try {
+                if (${{runtimeOnly.ToString().ToLowerInvariant()}}) {
+                    $null = Assert-BlockHeaderExpectations -Pages @([pscustomobject]@{ result = [pscustomobject]@{ nodes = $nodes } }) -Expectations $expectations
+                }
+                else { Assert-BlockHeaderExpectationDocument -Expectations $expectations }
+            }
+            catch { $caught = $_.Exception.Message }
+            if (-not $caught.Contains('functional PLC block')) { throw "Non-block blank case was not rejected by the type gate: $caught" }
+            'container-rejected: ' + $caught
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+    }
+
+    private const string BlockHeaderBehaviorFixture = """
+        foreach ($definition in $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        }, $true)) { Invoke-Expression $definition.Extent.Text }
+        function Node($id, $parent, $type, $name, $sequence, $details) {
+            [pscustomobject]@{ nodeId = $id; parentNodeId = $parent; nodeType = $type; name = $name; sequence = $sequence; details = $details }
+        }
+        function Case($kind, $type, $name, $details, $absent) {
+            [pscustomobject]@{
+                id = $kind; kind = $kind
+                selector = @([pscustomobject]@{ nodeType = 'Device'; name = 'PLC_1' }, [pscustomobject]@{ nodeType = $type; name = $name })
+                expected = [pscustomobject]@{ name = $name; details = $details; absentDetails = $absent }
+            }
+        }
+        $nodes = @(
+            Node 'device' $null 'Device' 'PLC_1' 0 ([pscustomobject]@{})
+            Node 'user' 'device' 'FB' 'UserEngineering' 1 ([pscustomobject]@{ HeaderAuthor = 'Ada'; HeaderVersion = '1.2'; HeaderFamily = 'Motion'; HeaderName = 'User Header' })
+            Node 'system' 'device' 'FC' 'SystemFunction' 2 ([pscustomobject]@{ IsSystemBlock = 'true'; HeaderName = 'System Header' })
+            Node 'unit' 'device' 'FB' 'UnitFunction' 3 ([pscustomobject]@{ SoftwareUnit = 'UnitA'; HeaderAuthor = 'Unit Author' })
+            Node 'blank' 'device' 'FC' 'BlankHeaders' 4 ([pscustomobject]@{ HeaderVersion = '0.1' })
+        )
+        $expectations = [pscustomobject]@{
+            schemaVersion = 'issue-30-block-header-expectations/v1'
+            cases = @(
+                Case 'user' 'FB' 'UserEngineering' ([pscustomobject]@{ HeaderAuthor = 'Ada'; HeaderVersion = '1.2'; HeaderFamily = 'Motion'; HeaderName = 'User Header' }) @()
+                Case 'system' 'FC' 'SystemFunction' ([pscustomobject]@{ HeaderName = 'System Header' }) @()
+                Case 'softwareUnit' 'FB' 'UnitFunction' ([pscustomobject]@{ HeaderAuthor = 'Unit Author' }) @()
+                Case 'blank' 'FC' 'BlankHeaders' ([pscustomobject]@{ HeaderVersion = '0.1' }) @('HeaderAuthor', 'HeaderFamily', 'HeaderName')
+            )
+        }
+        function New-BehaviorPage($run, $offset, $pageNodes, $cursor) {
+            # Clone each response so a defect in one run cannot mutate a later run.
+            [pscustomobject]@{
+                contractVersion = '3.0'; status = 'succeeded'; failure = $null
+                __contentText = '{}'; __structuredJson = '{}'
+                result = [pscustomobject]@{
+                    snapshot = [pscustomobject]@{ snapshotId = "snapshot-$run"; totalNodes = 5 }
+                    pagination = [pscustomobject]@{ offset = $offset; returnedCount = @($pageNodes).Count; nextCursor = $cursor }
+                    nodes = @($pageNodes | ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20)
+                }
+            }
+        }
+
+        """;
+
     private static ScriptResult RunHarnessFunctions(string[] functionNames, string body, int timeoutMilliseconds = 30_000)
     {
         var scriptPath = RepositoryFile("scripts", "live-test-project-tree-v3.ps1");
