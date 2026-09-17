@@ -84,7 +84,11 @@ public class ProjectTraversalSourceContractTests
         Assert.Contains("BuildBlockNode(block, softwareUnitName, isSystemBlock: false)", source, StringComparison.Ordinal);
         Assert.Contains("BuildBlockNode(block, softwareUnitName, isSystemBlock: true)", source, StringComparison.Ordinal);
         Assert.Equal(1, source.Split("NodeType = block switch", StringSplitOptions.None).Length - 1);
-        Assert.DoesNotContain("HeaderAuthor", source, StringComparison.Ordinal);
+        Assert.Contains("block.HeaderAuthor", source, StringComparison.Ordinal);
+        Assert.Contains("block.HeaderVersion", source, StringComparison.Ordinal);
+        Assert.Contains("block.HeaderFamily", source, StringComparison.Ordinal);
+        Assert.Contains("block.HeaderName", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAttribute(", source, StringComparison.Ordinal);
     }
 
     [Fact]

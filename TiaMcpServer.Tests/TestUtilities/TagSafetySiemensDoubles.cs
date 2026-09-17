@@ -119,6 +119,10 @@ namespace Siemens.Engineering.SW.Blocks
     {
         public int Number { get; set; }
         public string ProgrammingLanguage { get; set; } = "SCL";
+        public string? HeaderAuthor { get; set; }
+        public string? HeaderFamily { get; set; }
+        public string? HeaderName { get; set; }
+        public System.Version? HeaderVersion { get; set; }
     }
     public sealed class OB : PlcBlock { }
     public sealed class FB : PlcBlock { }

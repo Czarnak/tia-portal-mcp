@@ -49,7 +49,7 @@ public sealed class ProjectTreeStructuredProtocolTests
         var result = await CallAsync(harness, new Dictionary<string, object?>
         {
             ["projectPath"] = "project-tree-v3-small",
-            ["pageSize"] = 2,
+            ["pageSize"] = 4,
         });
 
         var structured = AssertOneCanonicalDocument(result);
@@ -57,6 +57,16 @@ public sealed class ProjectTreeStructuredProtocolTests
         Assert.Equal(JsonValueKind.Object, structured.GetProperty("result").ValueKind);
         Assert.Equal(JsonValueKind.Null, structured.GetProperty("failure").ValueKind);
         Assert.Equal(JsonValueKind.Array, structured.GetProperty("result").GetProperty("nodes").ValueKind);
+        var nodes = structured.GetProperty("result").GetProperty("nodes");
+        var block = Assert.Single(
+            nodes.EnumerateArray(),
+            node => node.GetProperty("nodeType").GetString() == ProjectTreeNodeTypes.Fb);
+        Assert.Equal("Main", block.GetProperty("name").GetString());
+        var details = block.GetProperty("details");
+        Assert.Equal("Fake Vendor", details.GetProperty("HeaderAuthor").GetString());
+        Assert.Equal("2.3", details.GetProperty("HeaderVersion").GetString());
+        Assert.Equal("Motion", details.GetProperty("HeaderFamily").GetString());
+        Assert.Equal("Reusable main cycle", details.GetProperty("HeaderName").GetString());
     }
 
     [Fact]

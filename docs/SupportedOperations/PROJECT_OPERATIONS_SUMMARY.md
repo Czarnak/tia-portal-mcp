@@ -12,6 +12,17 @@
 
 `browse_project_tree` returns one canonical JSON document identically in the MCP `content` text block and `structuredContent`. The response is a versioned envelope, and `result.nodes` is a flat parent-first sequence. Grouped and ungrouped devices have the same `Device` shape. PLC system-block groups use `nodeType: "SystemBlockFolder"`; contained blocks keep their functional block type and carry `details.IsSystemBlock: "true"`. That marker records TIA hierarchy membership only and is not an author, vendor, library, or provenance claim.
 
+Every PLC block node may include these optional, default-on string fields in its `details` object; populated values are emitted without an opt-in request.
+
+| Block detail | Meaning |
+| --- | --- |
+| `HeaderAuthor` | Non-blank `PlcBlock.HeaderAuthor` exactly as reported by TIA Portal. |
+| `HeaderVersion` | Non-blank `PlcBlock.HeaderVersion.ToString()` value. The value is included when the typed Openness property is non-blank, regardless of whether the TIA UI appears blank or the exported SimaticML contains a `<HeaderVersion>` element. |
+| `HeaderFamily` | Non-blank `PlcBlock.HeaderFamily` exactly as reported by TIA Portal. |
+| `HeaderName` | Non-blank `PlcBlock.HeaderName`; separate from the node's engineering-object `name`. |
+
+Blank header values are omitted rather than emitted as `null` or empty strings. This is based on the value returned by the typed Openness property: only `null`, empty, or whitespace values are omitted. In the bounded V21 acceptance-project observation, an omitted SimaticML version was exposed by the typed property as `0.1`, while clearing another version produced/exposed `0.0.0.0`. Those concrete values are observations from that project, not universal Siemens guarantees. Therefore, `details.HeaderVersion` means that Openness reported a typed value; it does not prove that the version was explicitly populated in the TIA UI or in XML. Consumers that require XML element-presence semantics should inspect an export instead. Header metadata is descriptive project data, not verified vendor provenance. `HeaderName` never changes selector identity, and `IsSystemBlock` continues to describe hierarchy membership only. The node's engineering-object `name` and `HeaderName` are independent; neither value is a fallback for the other.
+
 The initial-request fields are:
 
 | Field | Behavior |

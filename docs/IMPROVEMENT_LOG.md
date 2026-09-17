@@ -587,3 +587,49 @@ and workflow tests, the strict NuGet package verifier, and file-by-file inspecti
 layouts. The verified artifacts contained the expected worker payload and no Siemens DLLs. No live
 TIA Portal harness or test was run, so this entry makes no live-runtime, project, device, or plant
 acceptance claim.
+
+## Issue #30 PLC block header metadata — offline implementation completed (2026-09-13)
+
+- `browse_project_tree` block nodes now expose non-blank `HeaderAuthor`, `HeaderVersion`,
+  `HeaderFamily`, and `HeaderName` values through typed `PlcBlock` properties.
+- Producer, strict-decoder, FakeWorker IPC, cached continuation, canonical MCP, budget, Release
+  build/test/coverage, and package-content gates passed. Maintained docs distinguish reported
+  metadata from verified provenance.
+- Live TIA Portal V21 acceptance remains a separate read-only authorization gate.
+
+## Issue #30 PLC block header metadata — read-only live acceptance completed (2026-09-17)
+
+The separately authorized `BlockHeaders` harness passed against the already-open TIA Portal V21
+project using a fresh current-main baseline and a real-V21 candidate build. Each side completed
+three 123-node snapshots, with identical tree identity, canonical text/structured equality, valid
+ordering, and completed pagination. This fixture fits one page at `pageSize=200`; it does not add
+live continuation coverage. Exact user, system, software-unit, and blank-header cases verified all
+four header fields, engineering-name/`HeaderName` divergence, system-block identity, software-unit
+membership, and omission of the declared blank author/family/header-name fields.
+
+The accepted cases recorded these exact observations:
+
+- User block `MotorSoftstart`: `HeaderAuthor=LCZ`, `HeaderVersion=0.0.0.0`,
+  `HeaderFamily=Motors`, `HeaderName=3`.
+- System block `G7_RT_Plus_1_V6`: `IsSystemBlock=true`, `HeaderVersion=0.1`.
+- Software-unit block `HartCommandsRdWrInRun`: `HeaderAuthor=Codex`, `HeaderVersion=0.1`,
+  `HeaderFamily=Communication`, `HeaderName=1`, `SoftwareUnit=Test_SU`.
+- Blank-header block `StateMachine`: `HeaderVersion=0.1`; `HeaderAuthor`, `HeaderFamily`,
+  and `HeaderName` absent.
+
+Typed-version observations were `0.0.0.0` for the selected user block and `0.1` for the selected
+system, software-unit, and blank-header blocks. In particular, the blank-header case still reported
+`HeaderVersion=0.1` while omitting `HeaderAuthor`, `HeaderFamily`, and `HeaderName`. These are
+observations of this project and build, not universal Siemens defaults or guarantees.
+
+Ignored evidence under `artifacts/issue-30-live-20260917/` contains the strict final manifest,
+`main-baseline-final.json`, `candidate-final.json`, raw responses, host/worker SHA-256 provenance,
+and timing/size comparisons. Baseline/candidate median times were 893.4/1034.7 ms; the candidate's
+first read took 84.2 seconds, followed by 1034.7 and 848.3 ms. Median initial-response sizes were
+17463/19141 characters. No performance threshold was applied. An earlier candidate deployment
+timed out before a browse response; its evidence was retained, and the successful retry followed a
+serial rebuild against the installed real V21 assemblies. These observations do not establish the
+cause of the earlier timeout or the first-read delay.
+
+The harness ran with `--read-only` and invoked only `browse_project_tree`. No save, compile,
+import/export, project mutation, PLC control, or plant acceptance is claimed.

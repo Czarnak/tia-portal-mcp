@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-13 | [Issue #30 PLC block header metadata](specs/2026-09-13-issue-30-plc-block-header-metadata-design.md) |
 | 2026-09-12 | [.NET 10 migration and dependency alignment](specs/2026-09-12-dotnet-10-migration-design.md) |
 | 2026-09-06 | [Issue #32 scalable project-tree browsing v3](specs/2026-09-06-issue-32-scalable-project-tree-browsing-v3-design.md) |
 | 2026-09-01 | [Write-safety preview and registered-surface hardening](specs/2026-09-01-write-safety-hardening-design.md) |
@@ -41,6 +42,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-13 | [Issue #30 PLC block header metadata](plans/2026-09-13-issue-30-plc-block-header-metadata.md) |
 | 2026-09-12 | [.NET 10 migration and dependency alignment](plans/2026-09-12-dotnet-10-migration.md) |
 | 2026-09-06 | [Issue #32 scalable project-tree browsing v3](plans/2026-09-06-issue-32-scalable-project-tree-browsing-v3.md) |
 | 2026-09-01 | [PR 1 — explicit MCP tool annotations](plans/2026-09-01-pr1-explicit-mcp-tool-annotations.md) |

@@ -108,6 +108,10 @@ public sealed class ProjectTreeSnapshotWalker
             ["Number"] = block.Number.ToString(),
             ["ProgrammingLanguage"] = block.ProgrammingLanguage.ToString()
         };
+        AddNonBlankDetail(details, "HeaderAuthor", block.HeaderAuthor);
+        AddNonBlankDetail(details, "HeaderVersion", block.HeaderVersion?.ToString());
+        AddNonBlankDetail(details, "HeaderFamily", block.HeaderFamily);
+        AddNonBlankDetail(details, "HeaderName", block.HeaderName);
         if (softwareUnitName is not null) details["SoftwareUnit"] = softwareUnitName;
         if (isSystemBlock) details["IsSystemBlock"] = "true";
         return new ProjectTreeNode
@@ -126,6 +130,17 @@ public sealed class ProjectTreeSnapshotWalker
             Details = details,
             Children = new List<ProjectTreeNode>()
         };
+    }
+
+    private static void AddNonBlankDetail(
+        IDictionary<string, string> details,
+        string key,
+        string? value)
+    {
+        if (value is not null && !string.IsNullOrWhiteSpace(value))
+        {
+            details[key] = value;
+        }
     }
 
     private static ProjectTreeNode WalkSystemBlockGroup(PlcSystemBlockGroup group, string? softwareUnitName)
