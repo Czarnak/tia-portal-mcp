@@ -607,6 +607,16 @@ live continuation coverage. Exact user, system, software-unit, and blank-header 
 four header fields, engineering-name/`HeaderName` divergence, system-block identity, software-unit
 membership, and omission of the declared blank author/family/header-name fields.
 
+The accepted cases recorded these exact observations:
+
+- User block `MotorSoftstart`: `HeaderAuthor=LCZ`, `HeaderVersion=0.0.0.0`,
+  `HeaderFamily=Motors`, `HeaderName=3`.
+- System block `G7_RT_Plus_1_V6`: `IsSystemBlock=true`, `HeaderVersion=0.1`.
+- Software-unit block `HartCommandsRdWrInRun`: `HeaderAuthor=Codex`, `HeaderVersion=0.1`,
+  `HeaderFamily=Communication`, `HeaderName=1`, `SoftwareUnit=Test_SU`.
+- Blank-header block `StateMachine`: `HeaderVersion=0.1`; `HeaderAuthor`, `HeaderFamily`,
+  and `HeaderName` absent.
+
 Typed-version observations were `0.0.0.0` for the selected user block and `0.1` for the selected
 system, software-unit, and blank-header blocks. In particular, the blank-header case still reported
 `HeaderVersion=0.1` while omitting `HeaderAuthor`, `HeaderFamily`, and `HeaderName`. These are
