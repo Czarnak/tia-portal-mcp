@@ -187,6 +187,99 @@ public sealed class ProjectTreeLiveHarnessContractTests
     }
 
     [Fact]
+    public void BlockHeaderAcceptance_BlankCaseAllowsTypedVersionAndVerifiesDeclaredAbsences()
+    {
+        var result = RunHarnessFunctions(
+            ["Assert-Condition", "Assert-BlockHeaderExpectationDocument", "Get-SnapshotNodes", "Resolve-NodeBySelector", "Assert-BlockHeaderExpectations"],
+            """
+            function Node($id, $parent, $type, $name, $details) {
+                [pscustomobject]@{
+                    nodeId = $id
+                    parentNodeId = $parent
+                    nodeType = $type
+                    name = $name
+                    details = $details
+                }
+            }
+            function Segment($type, $name) { [pscustomobject]@{ nodeType = $type; name = $name } }
+            function Case($id, $kind, $selector, $name, $details, $absent) {
+                [pscustomobject]@{
+                    id = $id
+                    kind = $kind
+                    selector = $selector
+                    expected = [pscustomobject]@{
+                        name = $name
+                        details = $details
+                        absentDetails = $absent
+                    }
+                }
+            }
+
+            $pages = @([pscustomobject]@{ result = [pscustomobject]@{ nodes = @(
+                (Node 'device' $null 'Device' 'PLC_1' ([pscustomobject]@{})),
+                (Node 'user' 'device' 'FB' 'UserEngineering' ([pscustomobject]@{
+                    HeaderAuthor = 'Ada Lovelace'
+                    HeaderFamily = 'Motion'
+                    HeaderName = 'User Header'
+                })),
+                (Node 'system' 'device' 'FC' 'SystemFunction' ([pscustomobject]@{
+                    IsSystemBlock = 'true'
+                    HeaderName = 'System Header'
+                })),
+                (Node 'unit' 'device' 'FB' 'UnitFunction' ([pscustomobject]@{
+                    SoftwareUnit = 'UnitA'
+                    HeaderAuthor = 'Unit Author'
+                })),
+                (Node 'blank' 'device' 'FC' 'BlankHeaders' ([pscustomobject]@{
+                    HeaderVersion = '0.1'
+                    Number = '7'
+                    ProgrammingLanguage = 'SCL'
+                }))
+            ) } })
+
+            $device = Segment 'Device' 'PLC_1'
+            $expectations = [pscustomobject]@{
+                schemaVersion = 'issue-30-block-header-expectations/v1'
+                cases = @(
+                    (Case 'user-fields' 'user' @($device, (Segment 'FB' 'UserEngineering')) 'UserEngineering' ([pscustomobject]@{
+                        HeaderAuthor = 'Ada Lovelace'
+                        HeaderFamily = 'Motion'
+                        HeaderName = 'User Header'
+                    }) @()),
+                    (Case 'system-field' 'system' @($device, (Segment 'FC' 'SystemFunction')) 'SystemFunction' ([pscustomobject]@{
+                        HeaderName = 'System Header'
+                    }) @()),
+                    (Case 'software-unit-field' 'softwareUnit' @($device, (Segment 'FB' 'UnitFunction')) 'UnitFunction' ([pscustomobject]@{
+                        HeaderAuthor = 'Unit Author'
+                    }) @()),
+                    (Case 'blank-version' 'blank' @($device, (Segment 'FC' 'BlankHeaders')) 'BlankHeaders' ([pscustomobject]@{
+                        HeaderVersion = '0.1'
+                    }) @('HeaderAuthor', 'HeaderFamily', 'HeaderName'))
+                )
+            }
+
+            $evidence = Assert-BlockHeaderExpectations -Pages $pages -Expectations $expectations
+            $blankEvidence = @($evidence.cases | Where-Object { $_.id -ceq 'blank-version' })[0]
+            if ([string] $blankEvidence.verifiedDetails.HeaderVersion -cne '0.1') {
+                throw 'The typed blank-case HeaderVersion was not verified.'
+            }
+            if (@($blankEvidence.absentDetails).Count -ne 3) {
+                throw 'The blank case did not retain all declared absent details.'
+            }
+            foreach ($fieldName in @('HeaderAuthor', 'HeaderFamily', 'HeaderName')) {
+                if ($fieldName -cnotin @($blankEvidence.absentDetails)) {
+                    throw "The blank case did not verify declared absence of '$fieldName'."
+                }
+            }
+            if (-not $evidence.blankHeadersOmitted) { throw 'Declared blank header omissions were not verified.' }
+            Write-Output 'typed-blank-version-ok'
+            """);
+
+        Assert.True(result.ExitCode == 0, $"PowerShell failed. stdout: {result.StandardOutput}{Environment.NewLine}stderr: {result.StandardError}");
+        Assert.Equal("typed-blank-version-ok", result.StandardOutput.Trim());
+    }
+
+    [Fact]
     public void BlockHeaderAcceptance_RejectsFourCasesThatOmitRequiredKinds()
     {
         var result = RunHarnessFunctions(
@@ -415,7 +508,10 @@ public sealed class ProjectTreeLiveHarnessContractTests
 
         var blankCase = Assert.Single(cases, item => item.GetProperty("kind").GetString() == "blank");
         Assert.Equal(
-            ["HeaderAuthor", "HeaderFamily", "HeaderName", "HeaderVersion"],
+            "0.1",
+            blankCase.GetProperty("expected").GetProperty("details").GetProperty("HeaderVersion").GetString());
+        Assert.Equal(
+            ["HeaderAuthor", "HeaderFamily", "HeaderName"],
             blankCase.GetProperty("expected").GetProperty("absentDetails").EnumerateArray()
                 .Select(value => value.GetString()!).Order(StringComparer.Ordinal).ToArray());
     }

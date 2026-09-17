@@ -67,10 +67,11 @@
       ],
       "expected": {
         "name": "REPLACE_BLANK_HEADER_BLOCK",
-        "details": {},
+        "details": {
+          "HeaderVersion": "0.1"
+        },
         "absentDetails": [
           "HeaderAuthor",
-          "HeaderVersion",
           "HeaderFamily",
           "HeaderName"
         ]

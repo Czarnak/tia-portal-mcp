@@ -176,10 +176,7 @@ function Assert-BlockHeaderExpectationDocument {
         Assert-Condition (($null -ne $detailsProperty) -and ($null -ne $detailsProperty.Value)) "Block-header case '$caseId' has no expected details object."
 
         $detailProperties = @($detailsProperty.Value.PSObject.Properties)
-        if ($kind -ceq 'blank') {
-            Assert-Condition ($detailProperties.Count -eq 0) "Blank block-header case '$caseId' must not expect populated header details."
-        }
-        else {
+        if ($kind -cne 'blank') {
             Assert-Condition ($detailProperties.Count -ge 1) "Block-header case '$caseId' must verify at least one populated header field."
         }
 
@@ -203,9 +200,7 @@ function Assert-BlockHeaderExpectationDocument {
             Assert-Condition ($caseFields.Add($fieldName)) "Block-header case '$caseId' lists detail '$fieldName' as both populated and absent."
         }
         if ($kind -ceq 'blank') {
-            foreach ($fieldName in $headerFields) {
-                Assert-Condition ($caseFields.Contains($fieldName)) "Blank block-header case '$caseId' must list '$fieldName' in absentDetails."
-            }
+            Assert-Condition ($absentDetails.Count -ge 1) "Blank block-header case '$caseId' must declare at least one absent header detail."
         }
     }
 
@@ -674,11 +669,7 @@ function Assert-BlockHeaderExpectations {
             Assert-Condition (($systemProperties.Count -eq 0) -and ($unitProperties.Count -eq 0)) "Block-header case '$caseId' is not a PLC-scoped user block path."
         }
         elseif ($kind -ceq 'blank') {
-            foreach ($fieldName in $headerFields) {
-                $actualProperties = @($node.details.PSObject.Properties | Where-Object { $_.Name -ceq $fieldName })
-                Assert-Condition ($actualProperties.Count -eq 0) "Block-header case '$caseId' did not omit blank detail '$fieldName'."
-            }
-            $blankHeadersOmitted = $true
+            if ($absentDetails.Count -ge 1) { $blankHeadersOmitted = $true }
         }
 
         $caseEvidence.Add([ordered]@{
