@@ -198,6 +198,15 @@ public class BatchToolMetadataTests
     }
 
     [Fact]
+    public void NetworkWriteDescription_RequiresExplicitSubnetKindForLifecycleTargets()
+    {
+        var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
+
+        Assert.Contains("target.kind set exactly to 'subnet'", description);
+        Assert.Contains("target.subnetId", description);
+    }
+
+    [Fact]
     public void NetworkWriteDescription_StatesNoBatchWideRollbackAndSeparateSaveAndCompile()
     {
         var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
