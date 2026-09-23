@@ -90,13 +90,6 @@
     SHA-256 of this script in the frozen candidate. Required for every mode. All three expected
     values must be supplied from the Task 7 candidate record before the MCP host can start.
 
-.PARAMETER HostExecutable
-    How to launch the MCP host. Defaults to 'dotnet'.
-
-.PARAMETER HostArguments
-    Arguments passed to -HostExecutable. Defaults to running the host from source
-    ('run', '--project', 'TiaMcpServer').
-
 .PARAMETER StartupTimeoutSeconds
     Seconds to wait for each MCP response before timing out.
 
@@ -144,8 +137,6 @@ param(
     [Parameter(Mandatory)] [string] $ExpectedTree,
     [Parameter(Mandatory)] [string] $ExpectedHarnessSha256,
 
-    [string] $HostExecutable = 'dotnet',
-    [string[]] $HostArguments,
     [int] $StartupTimeoutSeconds = 60
 )
 
@@ -158,10 +149,6 @@ $script:EthernetNetworkType = 'Ethernet'
 $script:ProfibusNetworkType = 'Profibus'
 $script:HostProcess = $null
 $script:NextRequestId = 0
-
-if (-not $HostArguments -or $HostArguments.Count -eq 0) {
-    $HostArguments = @('run', '--project', 'TiaMcpServer')
-}
 
 # --- Mode gating: validated BEFORE the MCP host is launched or anything is read/written --------
 
@@ -188,8 +175,12 @@ if ($Mode -eq 'Apply') {
 
 function Start-McpHost {
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
-    $psi.FileName = $HostExecutable
-    foreach ($argument in $HostArguments) { [void] $psi.ArgumentList.Add($argument) }
+    $hostProject = Join-Path $script:RepositoryRoot 'TiaMcpServer/TiaMcpServer.csproj'
+    $psi.FileName = 'dotnet'
+    $psi.WorkingDirectory = $script:RepositoryRoot
+    [void] $psi.ArgumentList.Add('run')
+    [void] $psi.ArgumentList.Add('--project')
+    [void] $psi.ArgumentList.Add($hostProject)
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $false

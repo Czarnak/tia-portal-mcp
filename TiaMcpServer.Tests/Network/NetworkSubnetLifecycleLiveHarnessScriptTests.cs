@@ -204,6 +204,18 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     }
 
     [Fact]
+    public void Harness_LaunchesTheHostFromTheFrozenCheckoutOnly()
+    {
+        var source = HarnessSource;
+        Assert.DoesNotContain("[string] $HostExecutable", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("[string[]] $HostArguments", source, StringComparison.Ordinal);
+        Assert.Contains("$psi.WorkingDirectory = $script:RepositoryRoot", source, StringComparison.Ordinal);
+        Assert.Contains("$psi.FileName = 'dotnet'", source, StringComparison.Ordinal);
+        Assert.Contains("$hostProject = Join-Path $script:RepositoryRoot 'TiaMcpServer/TiaMcpServer.csproj'", source, StringComparison.Ordinal);
+        Assert.Contains("$psi.ArgumentList.Add($hostProject)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Harness_RequiresAnAp21PathAndExactConnectedSubnetIds()
     {
         var source = HarnessSource;
