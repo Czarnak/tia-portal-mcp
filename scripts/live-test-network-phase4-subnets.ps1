@@ -415,16 +415,53 @@ function Get-ServerCommit {
     return $null
 }
 
-function Get-TiaVersion {
+function Get-ObservedProjectStatus {
     $envelope = Invoke-McpToolCall -Name 'get_project_status' -Arguments @{ projectPath = $ProjectPath }
     if (-not $envelope.success) {
         throw "get_project_status reported failure: $($envelope.error)"
     }
     $payload = $envelope.payload | ConvertFrom-Json -Depth 40
-    if ($null -eq $payload.project) {
-        throw 'get_project_status returned no project metadata.'
+    $project = $payload.project
+    $session = $envelope.sessionIdentity
+    if ($null -eq $project -or $null -eq $session) {
+        throw 'get_project_status returned no observed project/session identity.'
     }
-    return $payload.project.version
+    # StrictMode rejects absent members; explicit type checks reject null/coerced evidence.
+    if ($project.isOpen -isnot [bool] -or -not $project.isOpen -or
+        $project.isModified -isnot [bool]) {
+        throw 'get_project_status must report an open project and a boolean isModified state.'
+    }
+    if ($session.portalProcessId -isnot [int] -and $session.portalProcessId -isnot [long]) {
+        throw 'get_project_status must report an integer Portal PID.'
+    }
+    if ($session.portalProcessId -le 0 -or
+        [string]::IsNullOrWhiteSpace($session.workerSessionId) -or
+        ($session.sessionGeneration -isnot [int] -and $session.sessionGeneration -isnot [long]) -or
+        $session.sessionGeneration -lt 0) {
+        throw 'get_project_status returned an incomplete session identity or nonpositive Portal PID.'
+    }
+    if (-not [System.IO.Path]::IsPathFullyQualified($ProjectPath)) {
+        throw 'The requested project path must be absolute.'
+    }
+    $expectedPath = [System.IO.Path]::GetFullPath($ProjectPath)
+    foreach ($observedPath in @($project.path, $session.projectPath)) {
+        if ([string]::IsNullOrWhiteSpace($observedPath) -or
+            -not [System.IO.Path]::IsPathFullyQualified($observedPath) -or
+            -not [string]::Equals([System.IO.Path]::GetFullPath($observedPath), $expectedPath,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Observed project/session path does not match the requested project.'
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($project.version)) {
+        throw 'get_project_status returned no TIA version evidence.'
+    }
+    [ordered]@{
+        projectPath     = $project.path
+        sessionIdentity = $session
+        portalProcessId = $session.portalProcessId
+        isModified      = $project.isModified
+        tiaVersion      = $project.version
+    }
 }
 
 # --- network_read / network_write operations -------------------------------------------------
@@ -625,20 +662,21 @@ function Invoke-LifecycleGroupAndVerify {
 
 function Invoke-Inventory {
     $hardware = Read-HardwareConfig
-    $tiaVersion = Get-TiaVersion
+    $projectStatus = Get-ObservedProjectStatus
     [ordered]@{
         mode            = 'Inventory'
         rootDeviceCount = @($hardware.devices).Count
         subnets         = @($hardware.subnets | ForEach-Object {
                 [ordered]@{ subnetId = $_.subnetId; name = $_.name; networkType = $_.networkType; connectedNodeNames = @($_.ConnectedNodeNames) }
             })
-        tiaVersion      = $tiaVersion
+        tiaVersion      = $projectStatus.tiaVersion
+        projectStatus   = $projectStatus
     }
 }
 
 function Invoke-Preview {
     $before = Read-HardwareConfig
-    $tiaVersion = Get-TiaVersion
+    $projectStatus = Get-ObservedProjectStatus
 
     # Harness-created ISOLATED subnets: request-derived identity only, no subnetId invented here.
     $createOperations = @(
@@ -721,7 +759,8 @@ function Invoke-Preview {
     [ordered]@{
         mode                = 'Preview'
         rootDeviceCount     = @($before.devices).Count
-        tiaVersion          = $tiaVersion
+        tiaVersion          = $projectStatus.tiaVersion
+        projectStatus       = $projectStatus
         requestedOperations = [ordered]@{
             create = $createOperations
             update = $updateOperations
@@ -737,7 +776,7 @@ function Invoke-Preview {
 function Invoke-Apply {
     $before = Read-HardwareConfig
     $deviceCountBefore = @($before.devices).Count
-    $tiaVersion = Get-TiaVersion
+    $projectStatus = Get-ObservedProjectStatus
 
     # --- Group 1: create one isolated Ethernet subnet and one isolated PROFIBUS subnet ---------
     $createOperations = @(
@@ -790,7 +829,8 @@ function Invoke-Apply {
 
     [ordered]@{
         mode                     = 'Apply'
-        tiaVersion               = $tiaVersion
+        tiaVersion               = $projectStatus.tiaVersion
+        projectStatus            = $projectStatus
         deviceCountBefore        = $deviceCountBefore
         createGroup              = $createGroup
         updateGroup              = $updateGroup
@@ -824,7 +864,7 @@ if ($null -eq $evidence) {
 }
 
 $evidence['mode'] = $Mode
-$evidence['projectPath'] = $ProjectPath
+$evidence['requestedProjectPath'] = $ProjectPath
 $evidence['serverCommit'] = Get-ServerCommit
 $evidence['testedCommit'] = $candidate.testedCommit
 $evidence['testedTree'] = $candidate.testedTree

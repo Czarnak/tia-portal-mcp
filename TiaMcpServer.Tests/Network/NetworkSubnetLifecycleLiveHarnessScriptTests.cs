@@ -246,6 +246,36 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     }
 
     [Fact]
+    public void Harness_InventoryRecordsObservedProjectAndSessionEvidence()
+    {
+        var source = HarnessSource;
+        Assert.Contains("$session = $envelope.sessionIdentity", source, StringComparison.Ordinal);
+        Assert.Contains("projectPath     = $project.path", source, StringComparison.Ordinal);
+        Assert.Contains("sessionIdentity = $session", source, StringComparison.Ordinal);
+        Assert.Contains("portalProcessId = $session.portalProcessId", source, StringComparison.Ordinal);
+        Assert.Contains("isModified      = $project.isModified", source, StringComparison.Ordinal);
+        Assert.Contains("tiaVersion      = $project.version", source, StringComparison.Ordinal);
+        Assert.Contains("projectStatus   = $projectStatus", source, StringComparison.Ordinal);
+        Assert.Contains("$evidence['requestedProjectPath'] = $ProjectPath", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("$evidence['projectPath'] = $ProjectPath", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Harness_ProjectEvidenceFailsClosedBeforeRecording()
+    {
+        var source = HarnessSource;
+        Assert.Contains("$project.isOpen -isnot [bool] -or -not $project.isOpen", source, StringComparison.Ordinal);
+        Assert.Contains("$project.isModified -isnot [bool]", source, StringComparison.Ordinal);
+        Assert.Contains("$session.portalProcessId -le 0", source, StringComparison.Ordinal);
+        Assert.Contains("[string]::IsNullOrWhiteSpace($session.workerSessionId)", source, StringComparison.Ordinal);
+        Assert.Contains("$session.sessionGeneration -lt 0", source, StringComparison.Ordinal);
+        Assert.Contains("foreach ($observedPath in @($project.path, $session.projectPath))", source, StringComparison.Ordinal);
+        Assert.Contains("[System.IO.Path]::GetFullPath($observedPath)", source, StringComparison.Ordinal);
+        Assert.Contains("[System.StringComparison]::OrdinalIgnoreCase", source, StringComparison.Ordinal);
+        Assert.Contains("[string]::IsNullOrWhiteSpace($project.version)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Harness_RecordsTheUnchangedRootDeviceCountContract()
     {
         var source = HarnessSource;
