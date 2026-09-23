@@ -6,7 +6,7 @@
     operations of network_write).
 
 .DESCRIPTION
-    Launches the REAL TiaMcpServer MCP host (net8.0) as a child process and speaks the actual MCP
+    Launches the REAL TiaMcpServer MCP host (net10.0) as a child process and speaks the actual MCP
     JSON-RPC protocol over its stdio pipes -- initialize, notifications/initialized, tools/list,
     tools/call -- exactly as a real MCP client would, reusing the proven process/MCP framing
     helpers from scripts/live-test-network-phase2.ps1 rather than inventing new plumbing or
@@ -44,7 +44,7 @@
 
     THIS SCRIPT IS NOT RUN BY ANY AUTOMATED TEST OR CI GATE, and its Preview/Apply modes are not
     executed as part of implementing this harness -- see
-    TiaMcpServer.Tests/NetworkPhase4SubnetLiveHarnessContractTests.cs, which proves the invariants
+    TiaMcpServer.Tests/Network/NetworkSubnetLifecycleLiveHarnessScriptTests.cs, which proves the invariants
     below by reading this file's own source text rather than executing it. Running this script
     against a real project is a separately authorized action, gated behind its own explicit
     review, independent of the review that approved writing this file.
@@ -80,6 +80,16 @@
     Required in addition to -Mode Apply. Must be the exact case-sensitive string
     'DELETE SUBNETS AND KEEP DEVICES'. There is no shortcut and no default-yes value.
 
+.PARAMETER ExpectedCommit
+    Exact Git commit of the frozen candidate. Required for every mode.
+
+.PARAMETER ExpectedTree
+    Exact Git tree of the frozen candidate. Required for every mode.
+
+.PARAMETER ExpectedHarnessSha256
+    SHA-256 of this script in the frozen candidate. Required for every mode. All three expected
+    values must be supplied from the Task 7 candidate record before the MCP host can start.
+
 .PARAMETER HostExecutable
     How to launch the MCP host. Defaults to 'dotnet'.
 
@@ -93,13 +103,16 @@
 .EXAMPLE
     # Non-mutating: read the current hardware configuration, TIA project version, and root device
     # count through the real MCP protocol.
-    pwsh -File scripts/live-test-network-phase4-subnets.ps1 -ProjectPath C:\Sandbox\Phase4Fixture.ap21
+    pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
+        -ProjectPath C:\Sandbox\Phase4Fixture.ap21 `
+        -ExpectedCommit 'COMMIT_SHA' -ExpectedTree 'TREE_SHA' -ExpectedHarnessSha256 'HARNESS_SHA256'
 
 .EXAMPLE
     # Non-mutating: preview the exact create/update/delete operation arrays.
     pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
         -ProjectPath C:\Sandbox\Phase4Fixture.ap21 -Mode Preview `
-        -ConnectedEthernetSubnetId 590-1 -ConnectedProfibusSubnetId 590-2
+        -ConnectedEthernetSubnetId 590-1 -ConnectedProfibusSubnetId 590-2 `
+        -ExpectedCommit 'COMMIT_SHA' -ExpectedTree 'TREE_SHA' -ExpectedHarnessSha256 'HARNESS_SHA256'
 
 .EXAMPLE
     # MUTATING. Requires -AllowMutation and the exact -Acknowledgement string. Use a disposable
@@ -107,7 +120,8 @@
     pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
         -ProjectPath C:\Sandbox\Phase4Fixture.ap21 -Mode Apply `
         -ConnectedEthernetSubnetId 590-1 -ConnectedProfibusSubnetId 590-2 `
-        -AllowMutation -Acknowledgement 'DELETE SUBNETS AND KEEP DEVICES'
+        -AllowMutation -Acknowledgement 'DELETE SUBNETS AND KEEP DEVICES' `
+        -ExpectedCommit 'COMMIT_SHA' -ExpectedTree 'TREE_SHA' -ExpectedHarnessSha256 'HARNESS_SHA256'
 
 .NOTES
     Use a disposable or backed-up TIA Portal V21 project. Apply mode writes to it for real; this
@@ -125,6 +139,10 @@ param(
 
     [switch] $AllowMutation,
     [string] $Acknowledgement,
+
+    [Parameter(Mandatory)] [string] $ExpectedCommit,
+    [Parameter(Mandatory)] [string] $ExpectedTree,
+    [Parameter(Mandatory)] [string] $ExpectedHarnessSha256,
 
     [string] $HostExecutable = 'dotnet',
     [string[]] $HostArguments,
@@ -350,6 +368,49 @@ function Invoke-McpToolCallExpectingError {
 
 # --- Provenance -----------------------------------------------------------------------------
 
+function Assert-FrozenCandidate {
+    param(
+        [Parameter(Mandatory)] [string] $ExpectedCommit,
+        [Parameter(Mandatory)] [string] $ExpectedTree,
+        [Parameter(Mandatory)] [string] $ExpectedHarnessSha256
+    )
+
+    $testedCommit = (& git -C $script:RepositoryRoot rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($testedCommit)) {
+        throw 'Could not resolve the current Git commit.'
+    }
+    $testedTree = (& git -C $script:RepositoryRoot rev-parse 'HEAD^{tree}').Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($testedTree)) {
+        throw 'Could not resolve the current Git tree.'
+    }
+    $testedHarnessSha256 = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
+    if ($testedCommit -cne $ExpectedCommit -or $testedTree -cne $ExpectedTree -or
+        $testedHarnessSha256 -ine $ExpectedHarnessSha256) {
+        throw 'Current source or harness does not match the frozen Task 7 candidate.'
+    }
+
+    $candidatePaths = @(
+        'TiaMcpServer',
+        'TiaMcpServer.Contracts',
+        'TiaMcpServer.OpennessWorker',
+        'TiaMcpServer.FakeWorker',
+        'TiaMcpServer.Tests',
+        'scripts/live-test-network-phase4-subnets.ps1'
+    )
+    $dirty = @(& git -C $script:RepositoryRoot status --porcelain=v1 `
+        --untracked-files=all -- @candidatePaths)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not verify the frozen candidate worktree.' }
+    if ($dirty.Count -ne 0) {
+        throw "Frozen candidate paths are dirty:`n$($dirty -join "`n")"
+    }
+
+    [ordered]@{
+        testedCommit = $testedCommit
+        testedTree = $testedTree
+        testedHarnessSha256 = $testedHarnessSha256.ToLowerInvariant()
+    }
+}
+
 function Get-ServerCommit {
     try {
         $commit = (& git -C $script:RepositoryRoot rev-parse HEAD 2>$null)
@@ -499,7 +560,7 @@ function Get-RedactedPreviewRecord {
         currentStateHash    = $Preview.preview.currentStateHash
         requestedInputHash  = $Preview.preview.requestedInputHash
         expiresAtUtc        = $Preview.preview.expiresAtUtc
-        safetyToken         = 'REDACTED-NOT-PERSISTED'
+        safetyToken         = '[REDACTED]'
         instructions        = $Preview.preview.instructions
     }
 }
@@ -578,7 +639,7 @@ function Invoke-Inventory {
         mode            = 'Inventory'
         rootDeviceCount = @($hardware.devices).Count
         subnets         = @($hardware.subnets | ForEach-Object {
-                [ordered]@{ subnetId = $_.subnetId; name = $_.name; networkType = $_.networkType }
+                [ordered]@{ subnetId = $_.subnetId; name = $_.name; networkType = $_.networkType; connectedNodeNames = @($_.ConnectedNodeNames) }
             })
         tiaVersion      = $tiaVersion
     }
@@ -752,6 +813,8 @@ function Invoke-Apply {
 
 # --- Main --------------------------------------------------------------------------------------
 
+$candidate = Assert-FrozenCandidate -ExpectedCommit $ExpectedCommit -ExpectedTree $ExpectedTree `
+    -ExpectedHarnessSha256 $ExpectedHarnessSha256
 $evidence = $null
 try {
     Connect-McpHost | Out-Null
@@ -772,6 +835,9 @@ if ($null -eq $evidence) {
 $evidence['mode'] = $Mode
 $evidence['projectPath'] = $ProjectPath
 $evidence['serverCommit'] = Get-ServerCommit
+$evidence['testedCommit'] = $candidate.testedCommit
+$evidence['testedTree'] = $candidate.testedTree
+$evidence['testedHarnessSha256'] = $candidate.testedHarnessSha256
 $evidence['generatedAtUtc'] = (Get-Date).ToUniversalTime().ToString('o')
 
 $artifactRoot = Join-Path $script:RepositoryRoot 'artifacts'
