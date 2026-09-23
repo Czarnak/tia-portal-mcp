@@ -81,7 +81,7 @@ internal static class SubnetLifecycleService
         // Current-type applicability requires an Openness read of the exact target, so an
         // inapplicable PROFIBUS-only field is rejected here, before any transaction is opened.
         var currentTypeIdentifier = ResolveCurrentTypeIdentifierOrThrow(
-            ResolveExactSubnetOrThrow(project, subnetId),
+            ResolveExactSubnetOrThrow(project, subnetId, "update_subnet"),
             subnetId);
         if ((highestAddress is not null || transmissionSpeed is not null)
             && !string.Equals(currentTypeIdentifier, ProfibusTypeIdentifier, StringComparison.Ordinal))
@@ -97,7 +97,7 @@ internal static class SubnetLifecycleService
         using (var exclusiveAccess = tiaPortal.ExclusiveAccess("Network Phase 4 subnet lifecycle: update_subnet"))
         using (var transaction = exclusiveAccess.Transaction(project, "update_subnet"))
         {
-            var subnet = ResolveExactSubnetOrThrow(project, subnetId);
+            var subnet = ResolveExactSubnetOrThrow(project, subnetId, "update_subnet");
             if (name is not null)
             {
                 subnet.Name = name;
@@ -140,7 +140,7 @@ internal static class SubnetLifecycleService
     {
         // Deliberately does not enumerate the target's connected nodes or IO systems: a
         // connected-subnet deletion must not inspect or block on any of that.
-        var existing = ResolveExactSubnetOrThrow(project, subnetId);
+        var existing = ResolveExactSubnetOrThrow(project, subnetId, "delete_subnet");
 
         // Captured before the transaction because the Openness object is gone once deleted — this
         // is NOT a pre-commit guard: an unreadable name here never blocks the delete from
@@ -162,7 +162,7 @@ internal static class SubnetLifecycleService
         using (var exclusiveAccess = tiaPortal.ExclusiveAccess("Network Phase 4 subnet lifecycle: delete_subnet"))
         using (var transaction = exclusiveAccess.Transaction(project, "delete_subnet"))
         {
-            var subnet = ResolveExactSubnetOrThrow(project, subnetId);
+            var subnet = ResolveExactSubnetOrThrow(project, subnetId, "delete_subnet");
             subnet.Delete();
             transaction.CommitOnDispose();
         }
@@ -328,24 +328,28 @@ internal static class SubnetLifecycleService
 
     /// <summary>
     /// Ordinal, exact-one <c>SubnetId</c> lookup. Never falls back to <c>Name</c>, collection index,
-    /// a connected device, or the first match — zero or more than one match is a resolution failure.
+    /// a connected device, or the first match. A target resolved by the host that no longer has
+    /// exactly one worker-side match is reported as postcondition drift.
     /// </summary>
-    private static Subnet ResolveExactSubnetOrThrow(Project project, string subnetId)
+    private static Subnet ResolveExactSubnetOrThrow(
+        Project project,
+        string subnetId,
+        string operationName)
     {
         var matches = FindMatches(project, subnetId);
 
         if (matches.Count == 0)
         {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.TargetNotFound,
-                $"No subnet with SubnetId '{subnetId}' was found.");
+            throw PostconditionFailed(
+                operationName,
+                $"The previously resolved subnet '{subnetId}' no longer exists. Inspect the project before retrying.");
         }
 
         if (matches.Count > 1)
         {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.TargetAmbiguous,
-                $"Multiple subnets report SubnetId '{subnetId}'.");
+            throw PostconditionFailed(
+                operationName,
+                $"The previously unique SubnetId '{subnetId}' now matches multiple subnets. Inspect the project before retrying.");
         }
 
         return matches[0];

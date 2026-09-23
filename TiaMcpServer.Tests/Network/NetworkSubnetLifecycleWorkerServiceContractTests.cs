@@ -62,12 +62,15 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
     }
 
     [Fact]
-    public void Service_UsesOrdinalExactOneSubnetIdLookupWithNoFallback()
+    public void Service_LateZeroOrMultipleSubnetMatchesFailAsPostconditionDriftWithoutFallback()
     {
         var source = ServiceSource;
         Assert.Contains("StringComparison.Ordinal", source, StringComparison.Ordinal);
-        Assert.Contains("WorkerFailureCategories.TargetNotFound", source, StringComparison.Ordinal);
-        Assert.Contains("WorkerFailureCategories.TargetAmbiguous", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkerFailureCategories.TargetNotFound", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkerFailureCategories.TargetAmbiguous", source, StringComparison.Ordinal);
+        Assert.Matches(new Regex(@"throw\s+PostconditionFailed\(\s*operationName"), source);
+        Assert.Contains("ResolveExactSubnetOrThrow(project, subnetId, \"update_subnet\")", source, StringComparison.Ordinal);
+        Assert.Contains("ResolveExactSubnetOrThrow(project, subnetId, \"delete_subnet\")", source, StringComparison.Ordinal);
 
         // No unvalidated fallback to a first/any match — every match count is checked (0 or >1
         // both throw) before a single resolved subnet is ever used. Asserted by pattern rather than
