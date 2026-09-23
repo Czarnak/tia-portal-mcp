@@ -36,8 +36,10 @@
     only, names are never accepted). Every apply call reuses the unchanged ordered operations array
     and safety token returned by its own immediately preceding preview call -- nothing is rebuilt
     or retried in between. After every group this harness re-reads the hardware configuration
-    through network_read and proves the root device count is unchanged and that deleted subnetId
-    values are absent. Deleting the connected subnets is expected to clear subnet-related
+    through network_read and checks the aggregate hardware device count and deleted subnetId
+    absence. Root device count evidence comes from consistent subnet lifecycle results reporting
+    networkDeviceCountUnchanged:true; the public hardware read also includes grouped devices and
+    cannot independently establish a pre-apply root count. Deleting connected subnets may clear subnet-related
     attributes on the retained devices as a normal TIA Portal project-state effect; this harness
     records that expectation in its output but does not read node-level attributes to confirm it,
     matching the public subnet lifecycle result, which never returns device or attribute detail.
@@ -94,7 +96,7 @@
     Seconds to wait for each MCP response before timing out.
 
 .EXAMPLE
-    # Non-mutating: read the current hardware configuration, TIA project version, and root device
+    # Non-mutating: read the current hardware configuration, TIA project version, and total hardware device
     # count through the real MCP protocol.
     pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
         -ProjectPath C:\Sandbox\Phase4Fixture.ap21 `
@@ -600,7 +602,8 @@ function Invoke-LifecycleGroupAndVerify {
     param(
         [Parameter(Mandatory)] [string] $GroupName,
         [Parameter(Mandatory)] [object[]] $Operations,
-        [Parameter(Mandatory)] [int] $DeviceCountBefore
+        [Parameter(Mandatory)] [int] $TotalHardwareDeviceCountBefore,
+        [Parameter(Mandatory)] [ref] $RootDeviceCount
     )
 
     $preview = Invoke-NetworkWritePreview -Operations $Operations
@@ -628,8 +631,21 @@ function Invoke-LifecycleGroupAndVerify {
         if (Compare-Object -ReferenceObject $expectedMemberNames -DifferenceObject $memberNames) {
             throw "Group '$GroupName' operation '$($item.operationId)' result is not the exact four-member minimal shape. Got: $($memberNames -join ', ')."
         }
-        if (-not $item.result.networkDeviceCountUnchanged) {
+        if ($item.result.networkDeviceCountUnchanged -isnot [bool] -or
+            -not $item.result.networkDeviceCountUnchanged) {
             throw "Group '$GroupName' operation '$($item.operationId)' reported networkDeviceCountUnchanged:false."
+        }
+        if (($item.result.networkDeviceCount -isnot [int] -and
+             $item.result.networkDeviceCount -isnot [long]) -or
+            $item.result.networkDeviceCount -lt 0) {
+            throw "Group '$GroupName' returned no nonnegative integer root device count."
+        }
+        if ($null -eq $RootDeviceCount.Value) {
+            # First lifecycle result establishes the observed root count; never use the hardware aggregate.
+            $RootDeviceCount.Value = $item.result.networkDeviceCount
+        }
+        elseif ($item.result.networkDeviceCount -ne $RootDeviceCount.Value) {
+            throw "Group '$GroupName' reported a root device count inconsistent with earlier lifecycle results."
         }
 
         $results += [ordered]@{
@@ -638,13 +654,14 @@ function Invoke-LifecycleGroupAndVerify {
             subnetId           = $item.result.subnetId
             name               = $item.result.name
             networkDeviceCount = $item.result.networkDeviceCount
+            networkDeviceCountUnchanged = $item.result.networkDeviceCountUnchanged
         }
     }
 
     $postRead = Read-HardwareConfig
-    $deviceCountAfter = @($postRead.devices).Count
-    if ($deviceCountAfter -ne $DeviceCountBefore) {
-        throw "Group '$GroupName' changed the root device count from $DeviceCountBefore to $deviceCountAfter."
+    $totalHardwareDeviceCountAfter = @($postRead.devices).Count
+    if ($totalHardwareDeviceCountAfter -ne $TotalHardwareDeviceCountBefore) {
+        throw "Group '$GroupName' changed the total hardware device count from $TotalHardwareDeviceCountBefore to $totalHardwareDeviceCountAfter."
     }
 
     [ordered]@{
@@ -653,7 +670,9 @@ function Invoke-LifecycleGroupAndVerify {
         preview                 = $redactedPreview
         applyResults            = $results
         postReadSubnetIds       = @($postRead.subnets | ForEach-Object { $_.subnetId })
-        postReadRootDeviceCount = $deviceCountAfter
+        postReadTotalHardwareDeviceCount = $totalHardwareDeviceCountAfter
+        totalHardwareDeviceCountUnchanged = $true
+        rootDeviceCount = $RootDeviceCount.Value
         rootDeviceCountUnchanged = $true
     }
 }
@@ -665,7 +684,7 @@ function Invoke-Inventory {
     $projectStatus = Get-ObservedProjectStatus
     [ordered]@{
         mode            = 'Inventory'
-        rootDeviceCount = @($hardware.devices).Count
+        totalHardwareDeviceCount = @($hardware.devices).Count
         subnets         = @($hardware.subnets | ForEach-Object {
                 [ordered]@{ subnetId = $_.subnetId; name = $_.name; networkType = $_.networkType; connectedNodeNames = @($_.ConnectedNodeNames) }
             })
@@ -758,7 +777,7 @@ function Invoke-Preview {
 
     [ordered]@{
         mode                = 'Preview'
-        rootDeviceCount     = @($before.devices).Count
+        totalHardwareDeviceCount = @($before.devices).Count
         tiaVersion          = $projectStatus.tiaVersion
         projectStatus       = $projectStatus
         requestedOperations = [ordered]@{
@@ -775,7 +794,8 @@ function Invoke-Preview {
 
 function Invoke-Apply {
     $before = Read-HardwareConfig
-    $deviceCountBefore = @($before.devices).Count
+    $totalHardwareDeviceCountBefore = @($before.devices).Count
+    $rootDeviceCount = $null
     $projectStatus = Get-ObservedProjectStatus
 
     # --- Group 1: create one isolated Ethernet subnet and one isolated PROFIBUS subnet ---------
@@ -783,7 +803,7 @@ function Invoke-Apply {
         New-CreateSubnetOperation -OperationId 'create-eth' -Name 'Phase4HarnessEthernet' -NetworkType $script:EthernetNetworkType
         New-CreateSubnetOperation -OperationId 'create-pb' -Name 'Phase4HarnessProfibus' -NetworkType $script:ProfibusNetworkType -HighestAddress 20 -TransmissionSpeed 'Baud500000'
     )
-    $createGroup = Invoke-LifecycleGroupAndVerify -GroupName 'create-isolated-subnets' -Operations $createOperations -DeviceCountBefore $deviceCountBefore
+    $createGroup = Invoke-LifecycleGroupAndVerify -GroupName 'create-isolated-subnets' -Operations $createOperations -TotalHardwareDeviceCountBefore $totalHardwareDeviceCountBefore -RootDeviceCount ([ref]$rootDeviceCount)
 
     $createdEthernetId = ($createGroup.applyResults | Where-Object { $_.operationId -eq 'create-eth' }).subnetId
     $createdProfibusId = ($createGroup.applyResults | Where-Object { $_.operationId -eq 'create-pb' }).subnetId
@@ -800,14 +820,14 @@ function Invoke-Apply {
         New-UpdateSubnetOperation -OperationId 'update-eth' -SubnetId $createdEthernetId -Changes @{ name = 'Phase4HarnessEthRenamed' }
         New-UpdateSubnetOperation -OperationId 'update-pb' -SubnetId $createdProfibusId -Changes @{ name = 'Phase4HarnessPbRenamed'; highestAddress = 30; transmissionSpeed = 'Baud1500000' }
     )
-    $updateGroup = Invoke-LifecycleGroupAndVerify -GroupName 'update-isolated-subnets' -Operations $updateOperations -DeviceCountBefore $deviceCountBefore
+    $updateGroup = Invoke-LifecycleGroupAndVerify -GroupName 'update-isolated-subnets' -Operations $updateOperations -TotalHardwareDeviceCountBefore $totalHardwareDeviceCountBefore -RootDeviceCount ([ref]$rootDeviceCount)
 
     # --- Group 3: delete the two created (isolated) subnets --------------------------------------
     $deleteIsolatedOperations = @(
         New-DeleteSubnetOperation -OperationId 'delete-created-eth' -SubnetId $createdEthernetId
         New-DeleteSubnetOperation -OperationId 'delete-created-pb' -SubnetId $createdProfibusId
     )
-    $deleteIsolatedGroup = Invoke-LifecycleGroupAndVerify -GroupName 'delete-isolated-subnets' -Operations $deleteIsolatedOperations -DeviceCountBefore $deviceCountBefore
+    $deleteIsolatedGroup = Invoke-LifecycleGroupAndVerify -GroupName 'delete-isolated-subnets' -Operations $deleteIsolatedOperations -TotalHardwareDeviceCountBefore $totalHardwareDeviceCountBefore -RootDeviceCount ([ref]$rootDeviceCount)
 
     if ($deleteIsolatedGroup.postReadSubnetIds -contains $createdEthernetId -or $deleteIsolatedGroup.postReadSubnetIds -contains $createdProfibusId) {
         throw 'A deleted isolated subnet ID is still present after delete-isolated-subnets.'
@@ -818,25 +838,23 @@ function Invoke-Apply {
         New-DeleteSubnetOperation -OperationId 'delete-connected-eth' -SubnetId $ConnectedEthernetSubnetId
         New-DeleteSubnetOperation -OperationId 'delete-connected-pb' -SubnetId $ConnectedProfibusSubnetId
     )
-    $deleteConnectedGroup = Invoke-LifecycleGroupAndVerify -GroupName 'delete-connected-subnets' -Operations $deleteConnectedOperations -DeviceCountBefore $deviceCountBefore
+    $deleteConnectedGroup = Invoke-LifecycleGroupAndVerify -GroupName 'delete-connected-subnets' -Operations $deleteConnectedOperations -TotalHardwareDeviceCountBefore $totalHardwareDeviceCountBefore -RootDeviceCount ([ref]$rootDeviceCount)
 
     if ($deleteConnectedGroup.postReadSubnetIds -contains $ConnectedEthernetSubnetId -or $deleteConnectedGroup.postReadSubnetIds -contains $ConnectedProfibusSubnetId) {
         throw 'A deleted connected subnet ID is still present after delete-connected-subnets.'
-    }
-    if ($deleteConnectedGroup.postReadRootDeviceCount -ne $deviceCountBefore) {
-        throw 'Deleting the connected subnets changed the root device count -- connected subnet deletion must never remove devices.'
     }
 
     [ordered]@{
         mode                     = 'Apply'
         tiaVersion               = $projectStatus.tiaVersion
         projectStatus            = $projectStatus
-        deviceCountBefore        = $deviceCountBefore
+        totalHardwareDeviceCountBefore = $totalHardwareDeviceCountBefore
         createGroup              = $createGroup
         updateGroup              = $updateGroup
         deleteIsolatedGroup      = $deleteIsolatedGroup
         deleteConnectedGroup     = $deleteConnectedGroup
-        finalRootDeviceCount     = $deleteConnectedGroup.postReadRootDeviceCount
+        finalRootDeviceCount     = $rootDeviceCount
+        rootDeviceCountEvidenceSource = 'subnet lifecycle results; no independent pre-apply root count'
         rootDeviceCountUnchangedAcrossAllGroups = $true
         expectedProjectStateEffects = 'Deleting the connected Ethernet and PROFIBUS subnets may clear subnet-related node and IO-system attributes on the retained devices as a normal TIA Portal project-state effect. The public subnet lifecycle result never returns those attributes; this harness records the expectation here only and does not read node-level attributes to confirm it.'
     }

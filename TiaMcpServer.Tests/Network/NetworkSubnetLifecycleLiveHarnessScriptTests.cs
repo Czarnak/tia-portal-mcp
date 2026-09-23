@@ -276,6 +276,31 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     }
 
     [Fact]
+    public void Harness_DistinguishesAggregateHardwareCountsFromLifecycleRootCounts()
+    {
+        var source = HarnessSource;
+        Assert.DoesNotMatch(new Regex(@"rootDeviceCount\s*=\s*@\([^\r\n]*devices", RegexOptions.IgnoreCase), source);
+        Assert.DoesNotContain("postReadRootDeviceCount", source, StringComparison.Ordinal);
+        Assert.Contains("totalHardwareDeviceCount = @($hardware.devices).Count", source, StringComparison.Ordinal);
+        Assert.Contains("postReadTotalHardwareDeviceCount = $totalHardwareDeviceCountAfter", source, StringComparison.Ordinal);
+        Assert.Contains("$totalHardwareDeviceCountAfter -ne $TotalHardwareDeviceCountBefore", source, StringComparison.Ordinal);
+        Assert.Contains("rootDeviceCountEvidenceSource = 'subnet lifecycle results; no independent pre-apply root count'", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Harness_RequiresConsistentRootCountsFromEveryLifecycleGroup()
+    {
+        var source = HarnessSource;
+        Assert.Contains("$item.result.networkDeviceCountUnchanged -isnot [bool]", source, StringComparison.Ordinal);
+        Assert.Contains("$item.result.networkDeviceCount -lt 0", source, StringComparison.Ordinal);
+        Assert.Contains("$RootDeviceCount.Value = $item.result.networkDeviceCount", source, StringComparison.Ordinal);
+        Assert.Contains("$item.result.networkDeviceCount -ne $RootDeviceCount.Value", source, StringComparison.Ordinal);
+        Assert.Contains("networkDeviceCountUnchanged = $item.result.networkDeviceCountUnchanged", source, StringComparison.Ordinal);
+        Assert.Equal(4, Regex.Matches(source, @"-RootDeviceCount \(\[ref\]\$rootDeviceCount\)").Count);
+        Assert.Contains("finalRootDeviceCount     = $rootDeviceCount", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Harness_RecordsTheUnchangedRootDeviceCountContract()
     {
         var source = HarnessSource;
