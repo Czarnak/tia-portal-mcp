@@ -254,7 +254,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
         Assert.Contains("sessionIdentity = $session", source, StringComparison.Ordinal);
         Assert.Contains("portalProcessId = $session.portalProcessId", source, StringComparison.Ordinal);
         Assert.Contains("isModified      = $project.isModified", source, StringComparison.Ordinal);
-        Assert.Contains("tiaVersion      = $project.version", source, StringComparison.Ordinal);
+        Assert.Contains("projectVersion  = $projectVersion", source, StringComparison.Ordinal);
         Assert.Contains("projectStatus   = $projectStatus", source, StringComparison.Ordinal);
         Assert.Contains("$evidence['requestedProjectPath'] = $ProjectPath", source, StringComparison.Ordinal);
         Assert.DoesNotContain("$evidence['projectPath'] = $ProjectPath", source, StringComparison.Ordinal);
@@ -273,6 +273,59 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
         Assert.Contains("[System.IO.Path]::GetFullPath($observedPath)", source, StringComparison.Ordinal);
         Assert.Contains("[System.StringComparison]::OrdinalIgnoreCase", source, StringComparison.Ordinal);
         Assert.Contains("[string]::IsNullOrWhiteSpace($project.version)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Harness_AcceptsUnavailableProjectVersionButRejectsPathMismatch()
+    {
+        var result = RunStaticAstAssertion("""
+            $definition = @($ast.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                    $node.Name -ceq 'Get-ObservedProjectStatus'
+            }, $true))
+            if ($definition.Count -ne 1) { throw 'Expected one project status function.' }
+            Invoke-Expression $definition[0].Extent.Text
+
+            $ProjectPath = 'C:\fixture.ap21'
+            $script:observedProjectPath = $ProjectPath
+            function Invoke-McpToolCall {
+                param($Name, $Arguments)
+                $payload = @{ project = @{
+                    path = $script:observedProjectPath
+                    isOpen = $true
+                    isModified = $false
+                    version = $null
+                } } | ConvertTo-Json -Depth 10
+                @{ success = $true; payload = $payload; sessionIdentity = @{
+                    projectPath = $ProjectPath
+                    portalProcessId = 1234
+                    workerSessionId = 'observed-session'
+                    sessionGeneration = 1
+                } }
+            }
+
+            $status = Get-ObservedProjectStatus
+            if ($status.projectPath -cne $ProjectPath -or
+                $status.sessionIdentity.projectPath -cne $ProjectPath -or
+                $status.portalProcessId -ne 1234 -or
+                $status.isModified -isnot [bool] -or $status.isModified -or
+                $null -ne $status.projectVersion) {
+                throw 'Null project version was not recorded with the observed identity.'
+            }
+
+            $script:observedProjectPath = 'C:\other.ap21'
+            $rejected = $false
+            try { $null = Get-ObservedProjectStatus } catch {
+                $rejected = $_.Exception.Message -match 'Observed project/session path does not match'
+            }
+            if (-not $rejected) { throw 'Mismatched observed project path was accepted.' }
+
+            'nullable-project-version-contract-ok'
+            """);
+
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("nullable-project-version-contract-ok", result.StandardOutput.Trim());
     }
 
     [Fact]

@@ -96,7 +96,7 @@
     Seconds to wait for each MCP response before timing out.
 
 .EXAMPLE
-    # Non-mutating: read the current hardware configuration, TIA project version, and total hardware device
+    # Non-mutating: read the current hardware configuration, available project version, and total hardware device
     # count through the real MCP protocol.
     pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
         -ProjectPath C:\Sandbox\Phase4Fixture.ap21 `
@@ -454,15 +454,14 @@ function Get-ObservedProjectStatus {
             throw 'Observed project/session path does not match the requested project.'
         }
     }
-    if ([string]::IsNullOrWhiteSpace($project.version)) {
-        throw 'get_project_status returned no TIA version evidence.'
-    }
+    # TIA Openness may leave project.Version unavailable. It is not the Portal process version.
+    $projectVersion = if ([string]::IsNullOrWhiteSpace($project.version)) { $null } else { $project.version }
     [ordered]@{
         projectPath     = $project.path
         sessionIdentity = $session
         portalProcessId = $session.portalProcessId
         isModified      = $project.isModified
-        tiaVersion      = $project.version
+        projectVersion  = $projectVersion
     }
 }
 
@@ -749,7 +748,7 @@ function Invoke-Inventory {
         subnets         = @($hardware.subnets | ForEach-Object {
                 [ordered]@{ subnetId = $_.subnetId; name = $_.name; networkType = $_.networkType; connectedNodeNames = @($_.ConnectedNodeNames) }
             })
-        tiaVersion      = $projectStatus.tiaVersion
+        projectVersion  = $projectStatus.projectVersion
         projectStatus   = $projectStatus
     }
 }
@@ -839,7 +838,7 @@ function Invoke-Preview {
     [ordered]@{
         mode                = 'Preview'
         totalHardwareDeviceCount = @($before.devices).Count
-        tiaVersion          = $projectStatus.tiaVersion
+        projectVersion      = $projectStatus.projectVersion
         projectStatus       = $projectStatus
         requestedOperations = [ordered]@{
             create = $createOperations
@@ -907,7 +906,7 @@ function Invoke-Apply {
 
     [ordered]@{
         mode                     = 'Apply'
-        tiaVersion               = $projectStatus.tiaVersion
+        projectVersion           = $projectStatus.projectVersion
         projectStatus            = $projectStatus
         totalHardwareDeviceCountBefore = $totalHardwareDeviceCountBefore
         createGroup              = $createGroup
