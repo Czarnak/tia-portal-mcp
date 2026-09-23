@@ -455,7 +455,9 @@ function Get-ObservedProjectStatus {
         }
     }
     # TIA Openness may leave project.Version unavailable. It is not the Portal process version.
-    $projectVersion = if ([string]::IsNullOrWhiteSpace($project.version)) { $null } else { $project.version }
+    $versionProperty = $project.PSObject.Properties['version']
+    $projectVersion = if ($null -eq $versionProperty -or
+        [string]::IsNullOrWhiteSpace($versionProperty.Value)) { $null } else { $versionProperty.Value }
     [ordered]@{
         projectPath     = $project.path
         sessionIdentity = $session

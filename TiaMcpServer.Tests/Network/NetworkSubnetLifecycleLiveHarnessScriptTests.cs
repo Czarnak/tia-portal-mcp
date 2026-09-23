@@ -272,7 +272,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
         Assert.Contains("foreach ($observedPath in @($project.path, $session.projectPath))", source, StringComparison.Ordinal);
         Assert.Contains("[System.IO.Path]::GetFullPath($observedPath)", source, StringComparison.Ordinal);
         Assert.Contains("[System.StringComparison]::OrdinalIgnoreCase", source, StringComparison.Ordinal);
-        Assert.Contains("[string]::IsNullOrWhiteSpace($project.version)", source, StringComparison.Ordinal);
+        Assert.Contains("$project.PSObject.Properties['version']", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -289,14 +289,16 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
 
             $ProjectPath = 'C:\fixture.ap21'
             $script:observedProjectPath = $ProjectPath
+            $script:includeVersion = $true
             function Invoke-McpToolCall {
                 param($Name, $Arguments)
-                $payload = @{ project = @{
+                $projectData = @{
                     path = $script:observedProjectPath
                     isOpen = $true
                     isModified = $false
-                    version = $null
-                } } | ConvertTo-Json -Depth 10
+                }
+                if ($script:includeVersion) { $projectData.version = $null }
+                $payload = @{ project = $projectData } | ConvertTo-Json -Depth 10
                 @{ success = $true; payload = $payload; sessionIdentity = @{
                     projectPath = $ProjectPath
                     portalProcessId = 1234
@@ -312,6 +314,15 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 $status.isModified -isnot [bool] -or $status.isModified -or
                 $null -ne $status.projectVersion) {
                 throw 'Null project version was not recorded with the observed identity.'
+            }
+
+            $script:includeVersion = $false
+            $status = Get-ObservedProjectStatus
+            if ($status.projectPath -cne $ProjectPath -or
+                $status.sessionIdentity.projectPath -cne $ProjectPath -or
+                $status.isModified -isnot [bool] -or $status.isModified -or
+                $null -ne $status.projectVersion) {
+                throw 'Omitted project version was not recorded with the observed identity.'
             }
 
             $script:observedProjectPath = 'C:\other.ap21'
