@@ -157,6 +157,11 @@ $script:NextRequestId = 0
 if (-not $ProjectPath.EndsWith('.ap21', [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "ProjectPath must be an explicit '.ap21' TIA Portal V21 project path. Got: '$ProjectPath'."
 }
+if (-not [System.IO.Path]::IsPathFullyQualified($ProjectPath) -or
+    -not [string]::Equals([System.IO.Path]::GetFullPath($ProjectPath), $ProjectPath,
+        [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "ProjectPath must be an absolute canonical path to the approved project. Got: '$ProjectPath'."
+}
 
 if ($Mode -ne 'Inventory') {
     if ([string]::IsNullOrWhiteSpace($ConnectedEthernetSubnetId) -or [string]::IsNullOrWhiteSpace($ConnectedProfibusSubnetId)) {
@@ -183,6 +188,9 @@ function Start-McpHost {
     [void] $psi.ArgumentList.Add('run')
     [void] $psi.ArgumentList.Add('--project')
     [void] $psi.ArgumentList.Add($hostProject)
+    [void] $psi.ArgumentList.Add('--')
+    [void] $psi.ArgumentList.Add('--project')
+    [void] $psi.ArgumentList.Add($ProjectPath)
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $false

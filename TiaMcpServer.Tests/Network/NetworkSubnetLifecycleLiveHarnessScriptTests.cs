@@ -216,6 +216,20 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     }
 
     [Fact]
+    public void Harness_BindsTheHostToTheExactApprovedProjectBeforeAnyMcpCall()
+    {
+        var source = HarnessSource;
+        var start = source.IndexOf("function Start-McpHost", StringComparison.Ordinal);
+        var stop = source.IndexOf("function Stop-McpHost", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && stop > start);
+        var launch = source[start..stop];
+
+        Assert.Matches(new Regex(@"\$psi\.ArgumentList\.Add\(\$hostProject\)\s*\[void\]\s*\$psi\.ArgumentList\.Add\('--'\)\s*\[void\]\s*\$psi\.ArgumentList\.Add\('--project'\)\s*\[void\]\s*\$psi\.ArgumentList\.Add\(\$ProjectPath\)"), launch);
+        Assert.Contains("[System.IO.Path]::IsPathFullyQualified($ProjectPath)", source[..start], StringComparison.Ordinal);
+        Assert.Contains("[System.IO.Path]::GetFullPath($ProjectPath)", source[..start], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Harness_RequiresAnAp21PathAndExactConnectedSubnetIds()
     {
         var source = HarnessSource;
