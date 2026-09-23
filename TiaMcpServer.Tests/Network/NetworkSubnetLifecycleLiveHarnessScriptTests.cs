@@ -288,6 +288,76 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     }
 
     [Fact]
+    public void Harness_HardwareReadAggregatesPagesAndRejectsBrokenContinuations()
+    {
+        var result = RunStaticAstAssertion("""
+            $definition = @($ast.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                    $node.Name -ceq 'Read-HardwareConfig'
+            }, $true))
+            if ($definition.Count -ne 1) { throw 'Expected one hardware read function.' }
+            Invoke-Expression $definition[0].Extent.Text
+            $ProjectPath = 'C:\fixture.ap21'
+            $script:requests = @()
+            $script:pages = @()
+            function Invoke-McpToolCall {
+                param($Name, $Arguments)
+                $script:requests += $Arguments.operations[0]
+                $page = $script:pages[$script:requests.Count - 1]
+                return (@{ batch = @{ operations = @($page) } } |
+                    ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20)
+            }
+            function Page($devices, $subnets, $returnedDevices, $returnedSubnets, $cursor) {
+                @{ status = 'succeeded'; result = @{
+                    devices = @($devices); subnets = @($subnets); messages = @(); pagination = @{
+                        totalDevices = 2; totalSubnets = 1
+                        returnedDevices = $returnedDevices; returnedSubnets = $returnedSubnets
+                        nextCursor = $cursor
+                    }
+                } }
+            }
+            $script:pages = @(
+                (Page @(@{ name = 'a' }) @() 1 0 'cursor-1'),
+                (Page @(@{ name = 'b' }) @(@{ subnetId = 's' }) 1 1 $null)
+            )
+            $script:pages[1].result.pagination.Remove('nextCursor')
+            $hardware = Read-HardwareConfig
+            if (@($hardware.devices).Count -ne 2 -or @($hardware.subnets).Count -ne 1 -or
+                $script:requests.Count -ne 2 -or $script:requests[0].pageSize -lt 1 -or
+                $script:requests[0].pageSize -gt 200 -or
+                $script:requests[1].cursor -cne 'cursor-1' -or
+                $script:requests[1].projectPath -cne $ProjectPath) {
+                throw 'Paged read did not aggregate all entities using the opaque cursor.'
+            }
+
+            foreach ($badSecondPage in @(
+                (Page @() @() 0 0 'cursor-2'),
+                (Page @(@{ name = 'b' }) @() 1 0 'cursor-1'),
+                (Page @(@{ name = 'b' }) @() 2 0 'cursor-2'),
+                @{ status = 'succeeded'; result = @{
+                    devices = @(@{ name = 'b' }); subnets = @(@{ subnetId = 's' }); messages = @()
+                    pagination = @{ totalDevices = 3; totalSubnets = 1; returnedDevices = 1; returnedSubnets = 1 }
+                } },
+                (Page @() @() 0 0 $null),
+                @{ status = 'omitted'; omission = @{ reason = 'oversized' } },
+                @{ status = 'failed'; failure = @{ category = 'read_error' } },
+                @{ status = 'succeeded'; result = @{ devices = @(); subnets = @() } }
+            )) {
+                $script:requests = @()
+                $script:pages = @((Page @(@{ name = 'a' }) @() 1 0 'cursor-1'), $badSecondPage)
+                $rejected = $false
+                try { $null = Read-HardwareConfig } catch { $rejected = $true }
+                if (-not $rejected) { throw 'Invalid continuation was accepted.' }
+            }
+            'paged-hardware-contract-ok'
+            """);
+
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("paged-hardware-contract-ok", result.StandardOutput.Trim());
+    }
+
+    [Fact]
     public void Harness_RequiresConsistentRootCountsFromEveryLifecycleGroup()
     {
         var source = HarnessSource;

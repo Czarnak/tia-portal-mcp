@@ -469,28 +469,89 @@ function Get-ObservedProjectStatus {
 # --- network_read / network_write operations -------------------------------------------------
 
 function Read-HardwareConfig {
-    $response = Invoke-McpToolCall -Name 'network_read' -Arguments @{
-        operations = @(
-            @{ operationId = 'read'; operation = 'read_hardware_config'; projectPath = $ProjectPath }
-        )
-    }
-    $item = $response.batch.operations[0]
-    if ($item.status -eq 'succeeded') {
-        return $item.result
-    }
-
-    # 'failed' is the only status that ever populates .failure -- 'omitted' (the payload budget
-    # withholding an oversized result, see StructuredOperationBatchPayloadBudget) leaves .failure
-    # null by design and carries the real diagnostic in .omission instead. Printing .failure
-    # unconditionally here previously reported a misleading "null" for the omitted case and hid
-    # the actual reason and retry guidance.
-    if ($item.status -eq 'omitted') {
-        throw "read_hardware_config's result was omitted (too large for the response budget): $($item.omission | ConvertTo-Json -Compress -Depth 20). This project's hardware configuration exceeds network_read's per-item/document character limit; read_hardware_config cannot return it in one call. Retry via the narrower list_network_objects operation instead, per the omission's guidance."
-    }
-    if ($item.status -eq 'failed') {
-        throw "read_hardware_config failed: $($item.failure | ConvertTo-Json -Compress -Depth 20)"
-    }
-    throw "read_hardware_config did not succeed (status '$($item.status)'): $($item | ConvertTo-Json -Compress -Depth 20)"
+    $devices = [System.Collections.Generic.List[object]]::new()
+    $subnets = [System.Collections.Generic.List[object]]::new()
+    $messages = [System.Collections.Generic.List[object]]::new()
+    $seenCursors = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    $cursor = $null
+    $expectedDevices = $null
+    $expectedSubnets = $null
+    do {
+        $operation = @{ operationId = 'read'; operation = 'read_hardware_config'; projectPath = $ProjectPath; pageSize = 50 }
+        if ($null -ne $cursor) { $operation.cursor = $cursor }
+        $response = Invoke-McpToolCall -Name 'network_read' -Arguments @{ operations = @($operation) }
+        $items = @($response.batch.operations)
+        if ($items.Count -ne 1 -or $null -eq $items[0]) {
+            throw 'read_hardware_config returned no single operation result.'
+        }
+        $item = $items[0]
+        if ($item.status -eq 'omitted') {
+            throw "read_hardware_config page was omitted: $($item.omission | ConvertTo-Json -Compress -Depth 20)"
+        }
+        if ($item.status -eq 'failed') {
+            throw "read_hardware_config page failed: $($item.failure | ConvertTo-Json -Compress -Depth 20)"
+        }
+        if ($item.status -ne 'succeeded' -or $null -eq $item.result) {
+            throw "read_hardware_config page did not succeed (status '$($item.status)')."
+        }
+        $page = $item.result
+        $pagination = $page.pagination
+        if ($null -eq $pagination -or $page.devices -isnot [array] -or $page.subnets -isnot [array] -or
+            $page.messages -isnot [array]) {
+            throw 'read_hardware_config returned a malformed paged result.'
+        }
+        foreach ($field in @('totalDevices', 'totalSubnets', 'returnedDevices', 'returnedSubnets')) {
+            $value = $pagination.$field
+            if ($value -isnot [int] -and $value -isnot [long] -or $value -lt 0) {
+                throw "read_hardware_config pagination has an invalid $field."
+            }
+        }
+        if ($pagination.returnedDevices -ne $page.devices.Count -or
+            $pagination.returnedSubnets -ne $page.subnets.Count) {
+            throw 'read_hardware_config returned counts do not match page entities.'
+        }
+        if ($null -eq $expectedDevices) {
+            $expectedDevices = $pagination.totalDevices
+            $expectedSubnets = $pagination.totalSubnets
+        }
+        elseif ($pagination.totalDevices -ne $expectedDevices -or $pagination.totalSubnets -ne $expectedSubnets) {
+            throw 'read_hardware_config pagination totals changed between pages.'
+        }
+        if ($devices.Count + $page.devices.Count -gt $expectedDevices -or
+            $subnets.Count + $page.subnets.Count -gt $expectedSubnets) {
+            throw 'read_hardware_config returned more entities than its declared totals.'
+        }
+        foreach ($device in $page.devices) {
+            if ($null -eq $device) { throw 'read_hardware_config returned a null device.' }
+            $devices.Add($device)
+        }
+        foreach ($subnet in $page.subnets) {
+            if ($null -eq $subnet) { throw 'read_hardware_config returned a null subnet.' }
+            $subnets.Add($subnet)
+        }
+        foreach ($message in $page.messages) { $messages.Add($message) }
+        # The public contract omits nextCursor entirely on a terminal page.
+        $nextCursor = $null
+        if ($pagination -is [System.Collections.IDictionary]) {
+            if ($pagination.Contains('nextCursor')) { $nextCursor = $pagination['nextCursor'] }
+        }
+        else {
+            $cursorProperty = $pagination.PSObject.Properties['nextCursor']
+            if ($null -ne $cursorProperty) { $nextCursor = $cursorProperty.Value }
+        }
+        if ($null -ne $nextCursor) {
+            if ($nextCursor -isnot [string] -or [string]::IsNullOrWhiteSpace($nextCursor) -or
+                -not $seenCursors.Add($nextCursor) -or
+                $pagination.returnedDevices + $pagination.returnedSubnets -eq 0) {
+                throw 'read_hardware_config cursor did not make progress.'
+            }
+        }
+        elseif ($devices.Count -ne $expectedDevices -or $subnets.Count -ne $expectedSubnets) {
+            throw 'read_hardware_config ended before all declared entities were returned.'
+        }
+        $cursor = $nextCursor
+    } while ($null -ne $cursor)
+    return @{ devices = $devices.ToArray(); subnets = $subnets.ToArray(); messages = $messages.ToArray() }
 }
 
 function Get-ExistingSubnetName {
