@@ -496,14 +496,17 @@ network_write request
   `networkDeviceCountUnchanged:false`, or carrying any extra member is rejected as `protocol_error`
   before it reaches the caller.
 
-Deleting a connected subnet is supported end to end through this seam and never deletes devices;
+The connected-subnet delete path is implemented through this seam without deleting devices;
 the worker never enumerates dependent nodes, IO systems, or communication connections, and the
 service never calls `Project.Save()` or triggers a hardware compile. Focused static gates verify
-the repaired contract. A historical Phase 4 run applies only to its recorded older commit; it
-does not verify the current PR 1 tree. Current-revision public Inventory, Preview, and Apply
-acceptance against TIA Portal V21 remains outstanding. See
-`docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the full contract and evidence
-status.
+the repaired contract. A historical Phase 4 run applies only to its recorded older commit. The
+current PR 1 candidate passed public Inventory and Preview against TIA Portal V21. One authorized
+Apply passed isolated Ethernet and PROFIBUS create, update, and delete operations; connected
+Ethernet delete failed because TIA denied safety-program modification permission, and connected
+PROFIBUS delete was skipped. Full connected-delete live acceptance remains incomplete. See
+`docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the contract and
+`docs/superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md` for the
+observed run.
 
 ## 8. Write safety
 

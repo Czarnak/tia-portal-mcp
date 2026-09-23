@@ -549,10 +549,14 @@ not authorize a write preview or apply. A structured I/O-map live run completed 
 against a real TIA Portal V21 project (Project20.ap21); the results are recorded in
 [`../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md`](../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md).
 
-A historical Phase 4 public MCP run is evidence only for its recorded older commit. Current-revision
-Inventory, Preview, and separately authorized Apply against TIA Portal V21 remain unverified; see
-[NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). Subnet lifecycle
-operations do not save the project or compile hardware.
+A historical Phase 4 public MCP run is evidence only for its recorded older commit. The current PR 1
+candidate passed public Inventory and Preview against TIA Portal V21. One authorized Apply passed
+isolated Ethernet and PROFIBUS create, update, and delete operations; connected Ethernet delete
+failed because TIA denied safety-program modification permission, and connected PROFIBUS delete was
+skipped. Full connected-delete live acceptance remains incomplete. See
+[NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) and the
+[current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
+Subnet lifecycle operations do not save the project or compile hardware.
 
 ## Future roadmap
 
