@@ -8,10 +8,9 @@ provenance, retention decision, and coverage limits are recorded in
 [NETWORK_PHASE3_LIVE_ACCEPTANCE.md](NETWORK_PHASE3_LIVE_ACCEPTANCE.md).
 
 Phase 4 status: Ethernet and PROFIBUS subnet create/update/delete are added to `network_write`
-without a new MCP tool. Implementation is statically verified — both builds, the full test suite,
-and a whole-plan contract audit against the Locked Public Contract pass — but public-path live
-acceptance against a real TIA Portal V21 project is a separately authorized run that has not yet
-been performed. See
+without a new MCP tool. The earlier audit found contract gaps; focused static gates verify the
+PR 1 repairs. A historical Phase 4 live run applies only to its recorded older commit, not the
+current PR 1 tree. Current-revision public Inventory, Preview, and Apply remain unverified. See
 [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the full request
 shapes, writable values, targeting, deletion semantics, minimal result, and evidence status.
 
@@ -436,7 +435,7 @@ and sets `isError:true`.
 
 Zero matches, more than one match, or a candidate whose own identity could not be read (an empty/null identity field) are all treated identically: resolution fails with `postcondition_failed`. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
 
-`update_subnet` and `delete_subnet` targets follow the identical exact, fail-closed rule: `target.subnetId` is matched with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+`update_subnet` and `delete_subnet` require ordinal `target.kind: "subnet"` and match `target.subnetId` with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. Late zero or multiple worker matches fail as `postcondition_failed`. Delete resolves, type-checks, and captures a nonblank name from the same transaction-local object before `Delete()`. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
 ### Multi-homed example
 
@@ -472,7 +471,7 @@ Every direct public network worker result decodes against exactly one declared C
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |
 | `add_network_device` | `AddDeviceResultInfo` | `deviceName`, `rootItemName`, `typeIdentifier`, `warnings[]`. |
 | `configure_network_device` | `ConfigureNetworkDeviceResultInfo` | `deviceName`, `appliedSettings` (map), `skippedSettings` (map), `messages[]`. |
-| `create_subnet`, `update_subnet`, `delete_subnet` | `SubnetLifecycleResultInfo` | Exactly `subnetId`, `name`, `networkDeviceCount`, `networkDeviceCountUnchanged` (must be `true`). All three subnet lifecycle operations share this one result type. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). |
+| `create_subnet`, `update_subnet`, `delete_subnet` | `SubnetLifecycleResultInfo` | All four raw JSON members are required: `subnetId`, `name`, `networkDeviceCount`, `networkDeviceCountUnchanged` (must be `true`). All three subnet lifecycle operations share this one result type. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). |
 
 `NodeInfo.NodeId` and `SubnetInfo.SubnetId` are empty strings, and `IoSystemInfo.Number` is `null`, when the engineering system could not report that identity — an empty/null identity must never satisfy a write selector (see "Selector resolution is exact and fail-closed" above).
 
@@ -547,10 +546,10 @@ not authorize a write preview or apply. A structured I/O-map live run completed 
 against a real TIA Portal V21 project (Project20.ap21); the results are recorded in
 [`../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md`](../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md).
 
-Phase 4 subnet lifecycle operations have not been exercised through the public MCP path against a
-live TIA Portal V21 project; see
-[NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the outstanding
-public live acceptance gate.
+A historical Phase 4 public MCP run is evidence only for its recorded older commit. Current-revision
+Inventory, Preview, and separately authorized Apply against TIA Portal V21 remain unverified; see
+[NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). Subnet lifecycle
+operations do not save the project or compile hardware.
 
 ## Future roadmap
 

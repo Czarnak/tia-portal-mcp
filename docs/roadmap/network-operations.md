@@ -9,12 +9,11 @@ and the operation is retained. See
 [../SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md](../SupportedOperations/NETWORK_PHASE3_LIVE_ACCEPTANCE.md)
 for the evidence and explicit coverage gaps.
 
-Phase 4 (Ethernet/PROFIBUS subnet create/update/delete) is implemented and statically verified:
-both the stub and real V21 reference builds pass, the full test suite passes, and a whole-plan
-contract audit against the plan's Locked Public Contract found no discrepancy. Phase 4 is **not**
-live-verified — a separately authorized public-path run against a real TIA Portal V21 project
-(Task 10 of
-`docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md`) is still outstanding. See
+Phase 4 (Ethernet/PROFIBUS subnet create/update/delete) is implemented. The earlier static audit
+found contract gaps that PR 1 repaired; focused automated gates passed for the repairs. A historical
+Phase 4 live run is evidence only for its recorded older commit, not for the current PR 1 tree.
+Current-revision public Inventory, Preview, and Apply acceptance against a real TIA Portal V21
+project remains unverified. See
 [../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
 for the full contract and evidence status. Phases 5 and later remain open and are separate,
 not-yet-scheduled work.
@@ -171,8 +170,9 @@ This phase does not certify commissioning or live hardware behavior.
 
 Completed: `network_write` adds `create_subnet`, `update_subnet`, and `delete_subnet` without a new
 MCP tool. Scope is Ethernet and PROFIBUS subnets only, selected for update/delete by exact ordinal
-`subnetId` with no name or index fallback. PROFIBUS-only `highestAddress` (0-126) and the closed
-ten-symbol `transmissionSpeed` vocabulary are validated at both the host and worker boundary.
+`target.kind: "subnet"` and `subnetId` with no name or index fallback. PROFIBUS-only
+`highestAddress` (0-126) and the closed ten-symbol `transmissionSpeed` vocabulary are validated
+at both the host and worker boundary.
 Deleting a connected subnet is supported and never deletes devices; it does not enumerate dependent
 nodes, IO systems, or communication connections. Each operation runs inside one Openness
 `ExclusiveAccess`/`Transaction`, commits only after every requested setter succeeds, and verifies
@@ -189,12 +189,11 @@ the public contract was settled) are recorded in
 The full request/result contract, targeting rules, and current evidence status are documented in
 [../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
-This mark reflects Tasks 1-9 of
-`docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md` and their automated gates
-(both stub and real V21 reference builds, the full `TiaMcpServer.Tests` suite, and a whole-plan
-contract audit against the plan's Locked Public Contract) passing — not a live TIA Portal V21
-acceptance run. Task 10, the separately authorized public-path live acceptance run, is outstanding
-and is reserved for explicit user authorization; it is not scheduled by this roadmap update.
+The original static completion mark covered Tasks 1-9 of
+`docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md`. The subsequent audit found
+four contract gaps; PR 1 repairs them and restores a guarded public harness. The historical live
+run verifies only its recorded older commit. Current-revision public Inventory, Preview, and Apply
+are still required before this revision can be marked live-verified.
 
 ### Phase 5: Add IO-System Attribute Editing
 

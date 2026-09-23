@@ -26,6 +26,15 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: Network Phase 4 current-revision public live acceptance
+
+PR 1 repaired the subnet lifecycle contract and restored the guarded public MCP harness. A
+historical Phase 4 live run is evidence only for its recorded older commit. Current-revision
+Inventory, Preview, and separately authorized Apply against a disposable TIA Portal V21 project
+remain unverified. The full current-revision offline and real-reference candidate gates also remain
+for the next verification step. See
+[the Phase 4 operation reference](SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
 The user accepted the combined offline and read-only live v3 evidence on 2026-09-12, with an
@@ -633,3 +642,14 @@ cause of the earlier timeout or the first-read delay.
 
 The harness ran with `--read-only` and invoked only `browse_project_tree`. No save, compile,
 import/export, project mutation, PLC control, or plant acceptance is claimed.
+
+## Network Phase 4 contract repair and guarded harness — static implementation completed (2026-09-23)
+
+Focused automated gates passed for four contract repairs: update/delete now require exact ordinal
+`target.kind: "subnet"`; all four raw success members, including `networkDeviceCount`, are required
+before typed normalization; late zero/multiple worker matches return `postcondition_failed`; and
+delete resolves, type-checks, and captures a nonblank name from one transaction-local subnet object
+before `Delete()`. The user-provided saved harness was restored and statically guarded, including
+frozen checkout and host provenance, token redaction, and double-gated Apply. Its source has no
+verified historical repository origin. No harness mode or live TIA Portal acceptance was run for
+the current PR 1 tree; the open gate above remains.
