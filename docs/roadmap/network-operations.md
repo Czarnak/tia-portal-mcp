@@ -12,9 +12,13 @@ for the evidence and explicit coverage gaps.
 Phase 4 (Ethernet/PROFIBUS subnet create/update/delete) is implemented. The earlier static audit
 found contract gaps that PR 1 repaired; focused automated gates passed for the repairs. A historical
 Phase 4 live run is evidence only for its recorded older commit, not for the current PR 1 tree.
-Current-revision public Inventory, Preview, and Apply acceptance against a real TIA Portal V21
-project remains unverified. See
-[../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
+The current-revision guarded public run completed Inventory and Preview and verified isolated
+Ethernet/PROFIBUS create, update, and delete. Its one authorized Apply stopped when TIA Portal
+denied connected Ethernet deletion for missing safety-program modification permission; connected
+PROFIBUS deletion was skipped. Full connected-delete live acceptance remains open, and the
+disposable copy had unsaved modifications at the post-failure read. See the
+[factual incomplete live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
+and [Phase 4 operation reference](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
 for the full contract and evidence status. Phases 5 and later remain open and are separate,
 not-yet-scheduled work.
 
@@ -192,8 +196,11 @@ The full request/result contract, targeting rules, and current evidence status a
 The original static completion mark covered Tasks 1-9 of
 `docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md`. The subsequent audit found
 four contract gaps; PR 1 repairs them and restores a guarded public harness. The historical live
-run verifies only its recorded older commit. Current-revision public Inventory, Preview, and Apply
-are still required before this revision can be marked live-verified.
+run verifies only its recorded older commit. The current-revision public run passed Inventory and
+Preview, plus isolated create/update/delete. Connected Ethernet deletion was blocked by TIA safety
+permission and connected PROFIBUS deletion was skipped. Phase 4 cannot be marked fully
+live-verified for this revision; see the
+[incomplete live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
 
 ### Phase 5: Add IO-System Attribute Editing
 

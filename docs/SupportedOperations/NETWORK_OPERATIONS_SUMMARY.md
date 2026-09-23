@@ -9,9 +9,12 @@ provenance, retention decision, and coverage limits are recorded in
 
 Phase 4 status: Ethernet and PROFIBUS subnet create/update/delete are added to `network_write`
 without a new MCP tool. The earlier audit found contract gaps; focused static gates verify the
-PR 1 repairs. A historical Phase 4 live run applies only to its recorded older commit, not the
-current PR 1 tree. Current-revision public Inventory, Preview, and Apply remain unverified. See
-[NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the full request
+PR 1 repairs. A historical Phase 4 live run applies only to its recorded older commit. The current
+PR 1 tree passed public Inventory and Preview and isolated create/update/delete. Its one authorized
+Apply stopped at a TIA safety-permission rejection of connected Ethernet deletion; connected
+PROFIBUS deletion was skipped, so full connected-delete live acceptance remains open. See the
+[incomplete live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
+and [Phase 4 operation reference](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the full request
 shapes, writable values, targeting, deletion semantics, minimal result, and evidence status.
 
 See [../roadmap/network-operations.md](../roadmap/network-operations.md) for later-phase scope.

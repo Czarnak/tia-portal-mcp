@@ -78,11 +78,12 @@ records successful Inventory, Preview, authorized Apply/restoration, byte-equiva
 and final compile evidence. See the
 [current acceptance boundary](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md#project-tree-safety-acceptance-boundary).
 
-Evidence from completed live runs against TIA Portal V21, plus prepared reports whose live gate is
-explicitly pending.
+Evidence from completed and incomplete live runs against TIA Portal V21, plus prepared reports whose
+live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-23 | [Network Phase 4 PR 1 — current-revision live run incomplete after TIA safety-permission rejection](acceptance/reports/2026-09-21-network-phase4-current-revision-live.md) |
 | 2026-09-12 | [Issue #32 — project-tree browsing v3 — accepted read-only PASS with explicit live ambiguity waiver](acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md) |
 | 2026-09-06 | [PR 6 — project-tree safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md) |
 | 2026-09-05 | [PR 5 — tag-operation safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md) |

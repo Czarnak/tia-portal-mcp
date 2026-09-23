@@ -2,9 +2,11 @@
 
 Status: Phase 4 (subnet create/update/delete) is implemented, and focused automated gates verify
 the PR 1 contract repairs. The earlier static audit found discrepancies in the original contract
-implementation. A historical live run applies only to its recorded older commit and does not verify
-the current PR 1 tree. Current-revision public Inventory, Preview, and Apply remain unverified.
-See "Evidence status" below.
+implementation. A historical live run applies only to its recorded older commit. The current PR 1
+tree passed public Inventory and Preview and isolated create/update/delete, but the one authorized
+Apply stopped at a TIA safety-permission rejection of connected Ethernet deletion; connected
+PROFIBUS deletion was skipped. Full connected-delete live acceptance remains open. See "Evidence
+status" below.
 
 Design rationale, evidence basis, and rejected alternatives are recorded in
 [../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
@@ -266,9 +268,13 @@ The Phase 4 evidence and the outstanding gate have distinct scopes:
   Openness behavior through the public MCP path.
 - **Historical public-path run.** The earlier Phase 4 run is evidence only for the older commit
   recorded with that run. It cannot establish behavior of the current PR 1 tree after these repairs.
-- **Current-revision public-path live acceptance -- outstanding.** A guarded Inventory, Preview,
-  and separately authorized Apply run against a disposable TIA Portal V21 project, driving the
-  actual public `network_read`/`network_write` MCP protocol for create, update, and delete
-  (including connected-subnet deletion) on both Ethernet and PROFIBUS, remains unverified. The
-  restored harness has not been executed for this revision. Phase 4 must not be marked live-verified
-  for this revision until that run completes and its results are recorded.
+- **Current-revision public-path live run -- incomplete.** The restored guarded harness drove
+  public `network_read`/`network_write` on the frozen PR 1 candidate. Inventory, Preview, the
+  expected negative categories, and isolated Ethernet/PROFIBUS create/update/delete completed.
+  The one authorized connected-delete Apply failed on Ethernet when TIA denied safety-program
+  modification permission and skipped PROFIBUS; neither connected delete succeeded. A post-failure
+  read saw both original connected subnets and `isModified=true` in Portal. The disposable copy has
+  not been verified restored or discarded. See the
+  [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
+  Phase 4 must not be marked fully live-verified for this revision until a fresh authorized run
+  verifies both connected deletes and their postconditions.
