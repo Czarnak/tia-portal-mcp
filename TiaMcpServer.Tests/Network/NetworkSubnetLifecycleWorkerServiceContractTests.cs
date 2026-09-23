@@ -92,6 +92,37 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
     }
 
     [Fact]
+    public void Service_DeleteResolvesValidatesAndCapturesNameInsideTransactionBeforeDelete()
+    {
+        var deleteBody = ExtractPublicMethodBody(ServiceSource, "Delete");
+
+        Assert.DoesNotContain("var existing =", deleteBody, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(deleteBody, "ResolveExactSubnetOrThrow("));
+
+        var transactionIndex = deleteBody.IndexOf(
+            "exclusiveAccess.Transaction(project, \"delete_subnet\")",
+            StringComparison.Ordinal);
+        var resolveIndex = deleteBody.IndexOf(
+            "ResolveExactSubnetOrThrow(project, subnetId, \"delete_subnet\")",
+            StringComparison.Ordinal);
+        var typeIndex = deleteBody.IndexOf(
+            "ResolveCurrentTypeIdentifierOrThrow(subnet, subnetId)",
+            StringComparison.Ordinal);
+        var nameIndex = deleteBody.IndexOf(
+            "ReadRequiredSubnetNameOrThrow(subnet, subnetId)",
+            StringComparison.Ordinal);
+        var deleteIndex = deleteBody.IndexOf("subnet.Delete();", StringComparison.Ordinal);
+        var commitIndex = deleteBody.IndexOf("transaction.CommitOnDispose();", StringComparison.Ordinal);
+
+        Assert.True(transactionIndex >= 0);
+        Assert.True(transactionIndex < resolveIndex);
+        Assert.True(resolveIndex < typeIndex);
+        Assert.True(typeIndex < nameIndex);
+        Assert.True(nameIndex < deleteIndex);
+        Assert.True(deleteIndex < commitIndex);
+    }
+
+    [Fact]
     public void Service_CommitsOnlyAfterEverySetterOrMutationCallHasAlreadyRunWithinEachOperation()
     {
         // The occurrence-count test above proves each shape exists once per operation, but proves
@@ -246,23 +277,19 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
     }
 
     [Fact]
-    public void Service_DeleteNeverFallsBackToAnEmptyNameWhenTheSubnetsOwnNameIsUnreadable()
+    public void Service_DeleteRejectsUnreadableOrBlankNameBeforeDelete()
     {
-        // The captured Name read for delete_subnet's result must never be silently replaced with
-        // an empty string when it can't be read. NetworkPayloadContract.ValidateSubnetLifecycleResult
-        // rejects a blank Name as a malformed result (protocol_error), which would misreport a
-        // delete that actually committed as "never meaningfully forwarded" instead of the
-        // fail-closed postcondition_failed this asymmetry actually deserves.
-        var deleteBody = ExtractPublicMethodBody(ServiceSource, "Delete");
+        var source = ServiceSource;
+        var deleteBody = ExtractPublicMethodBody(source, "Delete");
+        var helperIndex = source.IndexOf(
+            "private static string ReadRequiredSubnetNameOrThrow(",
+            StringComparison.Ordinal);
 
+        Assert.True(helperIndex >= 0);
+        Assert.Contains("catch (EngineeringException)", source[helperIndex..], StringComparison.Ordinal);
+        Assert.Contains("string.IsNullOrWhiteSpace(name)", source[helperIndex..], StringComparison.Ordinal);
+        Assert.Contains("throw PostconditionFailed(", source[helperIndex..], StringComparison.Ordinal);
         Assert.DoesNotContain("capturedName = string.Empty;", deleteBody, StringComparison.Ordinal);
-
-        // The unreadable-name case must feed the same PostconditionFailed guard as every other
-        // fail-closed check in Delete — not be swallowed into a fabricated fallback value.
-        var throwIndex = deleteBody.IndexOf("throw PostconditionFailed(", StringComparison.Ordinal);
-        Assert.True(throwIndex >= 0, "Expected a PostconditionFailed throw in Delete's body.");
-        var guardCondition = deleteBody[..throwIndex];
-        Assert.Matches(new Regex(@"capturedName\s+is\s+null"), guardCondition);
     }
 
     [Fact]

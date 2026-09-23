@@ -140,29 +140,15 @@ internal static class SubnetLifecycleService
     {
         // Deliberately does not enumerate the target's connected nodes or IO systems: a
         // connected-subnet deletion must not inspect or block on any of that.
-        var existing = ResolveExactSubnetOrThrow(project, subnetId, "delete_subnet");
-
-        // Captured before the transaction because the Openness object is gone once deleted — this
-        // is NOT a pre-commit guard: an unreadable name here never blocks the delete from
-        // proceeding. It only means the eventual result cannot report the deleted subnet's own
-        // identity, which is checked — and fails closed — only after the transaction has already
-        // committed, alongside every other postcondition below.
-        string? capturedName;
-        try
-        {
-            capturedName = existing.Name;
-        }
-        catch (EngineeringException)
-        {
-            capturedName = null;
-        }
-
         var deviceCountBefore = project.Devices.Count;
+        string capturedName;
 
         using (var exclusiveAccess = tiaPortal.ExclusiveAccess("Network Phase 4 subnet lifecycle: delete_subnet"))
         using (var transaction = exclusiveAccess.Transaction(project, "delete_subnet"))
         {
             var subnet = ResolveExactSubnetOrThrow(project, subnetId, "delete_subnet");
+            _ = ResolveCurrentTypeIdentifierOrThrow(subnet, subnetId);
+            capturedName = ReadRequiredSubnetNameOrThrow(subnet, subnetId);
             subnet.Delete();
             transaction.CommitOnDispose();
         }
@@ -174,19 +160,15 @@ internal static class SubnetLifecycleService
         // unreadable must NOT read as "successfully deleted". Every other postcondition in this
         // service already fails closed on an unreadable identity because absence-of-match is a
         // FAILURE condition there; delete_subnet is the one operation where absence-of-match is the
-        // SUCCESS condition, so it needs its own explicit guard against that asymmetry. An
-        // unreadable capturedName joins the same guard: the delete has already committed by this
-        // point, so a name that cannot be re-confirmed is reported as a postcondition failure,
-        // never as a fabricated blank name.
+        // SUCCESS condition, so it needs its own explicit guard against that asymmetry.
         var postReadMatches = FindMatches(project, subnetId, out var unreadableSubnetIdCount);
-        if (postReadMatches.Count != 0 || unreadableSubnetIdCount > 0 || !deviceCountUnchanged || capturedName is null)
+        if (postReadMatches.Count != 0 || unreadableSubnetIdCount > 0 || !deviceCountUnchanged)
         {
             throw PostconditionFailed(
                 "delete_subnet",
                 $"Expected no subnet with SubnetId '{subnetId}', no subnet with an unreadable "
-                + "SubnetId, an unchanged device count, and a readable Name captured for the deleted "
-                + "subnet, after the transaction committed. The delete already committed; inspect the "
-                + "project before retrying.");
+                + "SubnetId, and an unchanged device count after the transaction committed. "
+                + "The delete already committed; inspect the project before retrying.");
         }
 
         return new SubnetLifecycleResultInfo
@@ -324,6 +306,28 @@ internal static class SubnetLifecycleService
         }
 
         return typeIdentifier;
+    }
+
+    private static string ReadRequiredSubnetNameOrThrow(Subnet subnet, string subnetId)
+    {
+        string? name;
+        try
+        {
+            name = subnet.Name;
+        }
+        catch (EngineeringException)
+        {
+            name = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw PostconditionFailed(
+                "delete_subnet",
+                $"Subnet '{subnetId}' did not expose a nonblank Name immediately before deletion. No delete was committed.");
+        }
+
+        return name!;
     }
 
     /// <summary>
