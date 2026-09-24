@@ -98,3 +98,33 @@ public static class IoSystemQualificationProbeValidator
             _ => false
         };
 }
+
+public sealed class IoSystemQualificationResultInfo
+{
+    public string Mode { get; set; } = string.Empty;
+    public NetworkObjectSelectorInfo? OriginalTarget { get; set; }
+    public NetworkObjectSelectorInfo? AppliedTarget { get; set; }
+    public NetworkObjectSelectorInfo? OwnerTarget { get; set; }
+    public int OwnerMatchCount { get; set; }
+    public bool OwnerIdentityVerified { get; set; }
+    public string HardwareTargetKind { get; set; } = string.Empty;
+    public string HardwareTargetAlias { get; set; } = string.Empty;
+    public bool MutationCommitted { get; set; }
+    public string CompileState { get; set; } = "notRequested";
+    public int? ErrorCount { get; set; }
+    public int? WarningCount { get; set; }
+    public System.Collections.Generic.List<IoSystemQualificationAttributeInfo> Before { get; set; } = new();
+    public System.Collections.Generic.List<IoSystemQualificationAttributeInfo> After { get; set; } = new();
+    public System.Collections.Generic.List<string> Messages { get; set; } = new();
+    public int OmittedMessageCount { get; set; }
+    public string RestorationGuidance { get; set; } = string.Empty;
+}
+
+public sealed class IoSystemQualificationAttributeInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public bool Available { get; set; }
+    public bool Writable { get; set; }
+    public System.Collections.Generic.List<string> SupportedTypes { get; set; } = new();
+    public IoSystemQualificationScalarInfo? Value { get; set; }
+}

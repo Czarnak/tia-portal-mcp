@@ -153,6 +153,7 @@ internal static class Program
                 "list_network_objects" => ListNetworkObjects(request),
                 "inspect_network_object" => InspectNetworkObject(request),
                 "probe_network_object_attributes" => ProbeNetworkObjectAttributes(request),
+                "probe_io_system_qualification" => ProbeIoSystemQualification(request),
                 "probe_subnet_lifecycle_mutations" => ProbeSubnetLifecycleMutations(request),
                 "search_equipment_catalog" => SearchEquipmentCatalog(request),
                 "add_network_device" => AddNetworkDevice(request),
@@ -373,6 +374,27 @@ internal static class Program
         });
     }
 
+    private static WorkerResponse ProbeIoSystemQualification(WorkerRequest request)
+    {
+        var validation = IoSystemQualificationProbeValidator.Validate(request);
+        if (validation is not null)
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, validation);
+        return WithSession(request, session =>
+        {
+            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+            if (failure is not null) return failure;
+            ValidateExpectedAfterProjectResolution(session, request);
+            if (session.Project is null || session.TiaPortal is null)
+                return Failure(WorkerFailureCategories.WorkerOperationFailed, "No project or Portal session is available.");
+            var probe = request.IoSystemQualification!;
+            return Success(probe.Mode switch
+            {
+                "inspectOwner" => IoSystemQualificationProbeService.InspectOwner(session.Project, probe),
+                "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.Project, probe),
+                _ => throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Qualification mode is not implemented.")
+            });
+        });
+    }
     private static WorkerResponse ProbeNetworkObjectAttributes(WorkerRequest request)
     {
         if (request.NetworkObjectTarget is null)
