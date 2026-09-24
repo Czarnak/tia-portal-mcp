@@ -30,7 +30,8 @@ public class IoSystemQualificationWorkerContractTests
         Assert.DoesNotContain("SetAttribute", body);
         Assert.DoesNotContain("ExclusiveAccess", body);
         var owner = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
-        Assert.Contains("matches.Count != 1", owner);
+        Assert.Contains("IoSystemQualificationEvidence.InspectOwner", owner);
+        Assert.Contains("diagnostic.Reason != \"verified\"", owner);
         Assert.DoesNotContain("First", owner);
         Assert.DoesNotContain("ICompilable", owner);
     }
@@ -179,6 +180,93 @@ public class IoSystemQualificationWorkerContractTests
         Assert.DoesNotContain("return WithSession(", body);
         Ordered(body, "var response = WithSession(", "IoSystemQualificationProbeService.",
             "return IoSystemQualificationEvidence.NormalizeSessionResponse(response, request.IoSystemQualification!.Mode)");
+    }
+    [Theory]
+    [InlineData(0, "no_matches")]
+    [InlineData(2, "multiple_matches")]
+    public void OwnerDiagnostics_CountMatchesBeforeReadingPaths(int count, string reason)
+    {
+        var pathCalls = 0;
+        var verifyCalls = 0;
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+            matches => { for (var i = 0; i < count; i++) matches.Add(i); },
+            _ => { pathCalls++; return new(); }, _ => { verifyCalls++; return true; });
+        Assert.Equal("matching", diagnostic.Stage);
+        Assert.Equal(reason, diagnostic.Reason);
+        Assert.Equal(count, diagnostic.MatchCount);
+        Assert.True(diagnostic.TraversalCompleted);
+        Assert.Equal(0, pathCalls);
+        Assert.Equal(0, verifyCalls);
+    }
+
+    [Fact]
+    public void OwnerDiagnostics_IncompleteMatchedPathCannotReachSelectorVerification()
+    {
+        var verifyCalls = 0;
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+            matches => matches.Add(1),
+            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("synthetic-device", new[]
+            {
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "synthetic-item", TypeIdentifier = "", PositionNumber = -1 }
+            }), _ => { verifyCalls++; return true; });
+        Assert.Equal("pathEvidence", diagnostic.Stage);
+        Assert.Equal("incomplete_path", diagnostic.Reason);
+        Assert.Equal(1, diagnostic.MatchCount);
+        Assert.True(diagnostic.TraversalCompleted);
+        Assert.Equal(1, diagnostic.Path!.Depth);
+        Assert.Equal(1, diagnostic.Path.BlankTypeIdentifierCount);
+        Assert.Equal(1, diagnostic.Path.NegativePositionCount);
+        Assert.Equal(0, verifyCalls);
+        var serialized = System.Text.Json.JsonSerializer.Serialize(diagnostic);
+        Assert.DoesNotContain("synthetic", serialized);
+        Assert.True(serialized.Length < 1024);
+    }
+
+    [Fact]
+    public void OwnerDiagnostics_TraversalExceptionRetainsOnlyClosedReasonAndPartialCount()
+    {
+        var verifyCalls = 0;
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+            matches => { matches.Add(1); throw new ArgumentException("private exception text"); },
+            _ => throw new InvalidOperationException("Path must not be read"),
+            _ => { verifyCalls++; return true; });
+        Assert.Equal("traversal", diagnostic.Stage);
+        Assert.Equal("traversal_failed", diagnostic.Reason);
+        Assert.False(diagnostic.TraversalCompleted);
+        Assert.Equal(1, diagnostic.MatchCount);
+        Assert.Null(diagnostic.Path);
+        Assert.Equal(0, verifyCalls);
+        Assert.DoesNotContain("private", System.Text.Json.JsonSerializer.Serialize(diagnostic));
+    }
+
+    [Theory]
+    [InlineData(true, "verified")]
+    [InlineData(false, "identity_unverified")]
+    public void OwnerDiagnostics_CompletePathStillRequiresIdentityProof(bool identityMatches, string reason)
+    {
+        var verifyCalls = 0;
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+            matches => matches.Add(1), _ => new() { Depth = 1 },
+            _ => { verifyCalls++; return identityMatches; });
+        Assert.Equal("verification", diagnostic.Stage);
+        Assert.Equal(reason, diagnostic.Reason);
+        Assert.Equal(1, verifyCalls);
+    }
+
+    [Fact]
+    public void OwnerInspection_CollectsBeforeSelectorBuildAndReturnsOnlyAggregateFailure()
+    {
+        var collect = ExtractMethodBody(Source, "FindOwners");
+        Assert.DoesNotContain("NetworkSelectorFactory", collect);
+        Assert.Contains("new OwnerCandidate(", collect);
+        var inspect = ExtractMethodBody(Source, "InspectOwner");
+        Assert.Contains("OwnerDiagnostics = diagnostic", inspect);
+        Assert.DoesNotContain("GetService<ICompilable>", inspect);
+        Assert.DoesNotContain("SetAttribute", inspect);
+        var require = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
+        Assert.Contains("diagnostic.Reason != " + '"' + "verified" + '"', require);
+        Assert.Contains("throw Failure(", require);
+        Assert.DoesNotContain("CompileHardware", require);
     }
     private static void Ordered(string source, params string[] values)
     {
