@@ -26,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\IoSystemQualificationEvidence.cs" Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
     <Compile Update="Batch\TagOperationPrerequisiteBaselineTests.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotBuilder.cs"
       Link="Linked\Openness\TagOperationSafetySnapshotBuilder.cs" />

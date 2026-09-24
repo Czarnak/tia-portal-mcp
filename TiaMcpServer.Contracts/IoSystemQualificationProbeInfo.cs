@@ -110,6 +110,7 @@ public sealed class IoSystemQualificationResultInfo
     public string HardwareTargetKind { get; set; } = string.Empty;
     public string HardwareTargetAlias { get; set; } = string.Empty;
     public bool MutationCommitted { get; set; }
+    public bool EvidenceOmitted { get; set; }
     public string CompileState { get; set; } = "notRequested";
     public int? ErrorCount { get; set; }
     public int? WarningCount { get; set; }

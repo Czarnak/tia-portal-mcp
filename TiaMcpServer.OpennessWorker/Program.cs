@@ -387,12 +387,14 @@ internal static class Program
             if (session.Project is null || session.TiaPortal is null)
                 return Failure(WorkerFailureCategories.WorkerOperationFailed, "No project or Portal session is available.");
             var probe = request.IoSystemQualification!;
-            return Success(probe.Mode switch
+            var result = probe.Mode switch
             {
                 "inspectOwner" => IoSystemQualificationProbeService.InspectOwner(session.Project, probe),
                 "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.Project, probe),
+                "setAndCompile" => IoSystemQualificationProbeService.SetAndCompile(session.TiaPortal, session.Project, probe),
                 _ => throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Qualification mode is not implemented.")
-            });
+            };
+            return new WorkerResponse { Success = true, Payload = IoSystemQualificationEvidence.SerializeBounded(result) };
         });
     }
     private static WorkerResponse ProbeNetworkObjectAttributes(WorkerRequest request)
