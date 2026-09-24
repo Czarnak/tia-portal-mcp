@@ -210,9 +210,10 @@ some values that TIA compilation later rejects.
 A temporary worker-only qualification probe and guarded private harness are implemented. The
 read-only owner inspection verified the exact PROFINET controller item. The DP controller item
 is still unverified: one of its two path segments lacks `TypeIdentifier`, so the exact-owner
-gate stops. The harness keeps Inventory and Preview read-only; Compile and one-field Apply
-require an unchanged preview and explicit effectful gates. Neither effectful mode has run in
-this qualification step. No field is approved for editing, no hardware compile or restoration
+gate stops. The harness keeps Inventory and Preview read-only. Compile accepts a matching
+Inventory or Preview record; one-field Apply requires a matching Preview record. Both require
+explicit effectful gates. Neither effectful mode has run in this qualification step. No field is
+approved for editing, no hardware compile or restoration
 has been evidenced, and `update_io_system` is not a public operation. The remaining live matrix
 needs separate exact-target authorization before a contract can be frozen.
 

@@ -517,9 +517,10 @@ Its `inspectOwner` mode checks that an IO system has exactly one controller `Dev
 whose complete path resolves back to the same object. `compileBaseline` and `setAndCompile`
 require that exact owner; a missing path segment identity, ambiguous owner, or unavailable
 `ICompilable` service stops before compilation or mutation. The guarded private harness uses
-read-only Inventory and Preview evidence, then requires a frozen candidate, an unchanged
-preview, an effectful switch, and an exact confirmation phrase for Compile or Apply. Apply is
-limited to one proposed attribute and rechecks the current value and session identity.
+read-only Inventory and Preview evidence. Compile accepts a matching Inventory or Preview
+record; Apply requires a matching Preview record. Both effectful modes require a frozen
+candidate, an unchanged evidence record, an effectful switch, and an exact confirmation phrase.
+Apply is limited to one proposed attribute and rechecks the current value and session identity.
 
 The current read-only owner inspection verified the PROFINET owner. The DP owner remains
 unverified because one of two controller-path segments has no `TypeIdentifier`; the probe
