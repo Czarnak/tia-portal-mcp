@@ -379,23 +379,37 @@ internal static class Program
         var validation = IoSystemQualificationProbeValidator.Validate(request);
         if (validation is not null)
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, validation);
-        return WithSession(request, session =>
+        try
         {
-            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
-            if (failure is not null) return failure;
-            ValidateExpectedAfterProjectResolution(session, request);
-            if (session.Project is null || session.TiaPortal is null)
-                return Failure(WorkerFailureCategories.WorkerOperationFailed, "No project or Portal session is available.");
-            var probe = request.IoSystemQualification!;
-            var result = probe.Mode switch
+            return WithSession(request, session =>
             {
-                "inspectOwner" => IoSystemQualificationProbeService.InspectOwner(session.Project, probe),
-                "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.Project, probe),
-                "setAndCompile" => IoSystemQualificationProbeService.SetAndCompile(session.TiaPortal, session.Project, probe),
-                _ => throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Qualification mode is not implemented.")
-            };
-            return new WorkerResponse { Success = true, Payload = IoSystemQualificationEvidence.SerializeBounded(result) };
-        });
+                var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
+                if (failure is not null)
+                    return Failure(failure.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                        "The requested qualification project is unavailable.");
+                ValidateExpectedAfterProjectResolution(session, request);
+                if (session.Project is null || session.TiaPortal is null)
+                    return Failure(WorkerFailureCategories.WorkerOperationFailed, "No project or Portal session is available.");
+                var probe = request.IoSystemQualification!;
+                var result = probe.Mode switch
+                {
+                    "inspectOwner" => IoSystemQualificationProbeService.InspectOwner(session.Project, probe),
+                    "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.Project, probe),
+                    "setAndCompile" => IoSystemQualificationProbeService.SetAndCompile(session.TiaPortal, session.Project, probe),
+                    _ => throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Unsupported qualification mode.")
+                };
+                return new WorkerResponse { Success = true, Payload = IoSystemQualificationEvidence.SerializeBounded(result) };
+            });
+        }
+        catch (WorkerOperationException exception)
+        {
+            return Failure(exception.FailureCategory, "IO-system qualification was rejected. Refresh session, target, owner, and metadata evidence before proceeding.");
+        }
+        catch (Exception)
+        {
+            return Failure(WorkerFailureCategories.WorkerOperationFailed,
+                "IO-system qualification could not complete. A requested mutation may have committed; inspect current state before restoration or retry.");
+        }
     }
     private static WorkerResponse ProbeNetworkObjectAttributes(WorkerRequest request)
     {
