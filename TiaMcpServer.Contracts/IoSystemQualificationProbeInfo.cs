@@ -43,10 +43,11 @@ public static class IoSystemQualificationProbeValidator
             || HasExtraSelectorFields(probe.Target))
             return "Qualification requires an exact ioSystem target with subnetId and nonnegative number.";
 
-        if (string.Equals(probe.Mode, "compileBaseline", StringComparison.Ordinal))
+        if (string.Equals(probe.Mode, "compileBaseline", StringComparison.Ordinal)
+            || string.Equals(probe.Mode, "inspectOwner", StringComparison.Ordinal))
         {
             return probe.AttributeName is null && probe.ExpectedValue is null && probe.DesiredValue is null
-                ? null : "compileBaseline does not accept attribute or value fields.";
+                ? null : "This mode does not accept attribute or value fields.";
         }
         if (!string.Equals(probe.Mode, "setAndCompile", StringComparison.Ordinal))
             return "Unsupported qualification mode.";
