@@ -48,6 +48,7 @@ current documentation — see its index for what is there and how to read it.
 
 Latest process entries: [Network Phases 4-6 completion and delivery design](superpowers/specs/2026-09-21-network-phases-4-6-delivery-design.md),
 its [PR 1 Network Phase 4 finish plan](superpowers/plans/2026-09-21-pr1-network-phase4-finish.md),
+the [PR 2 Phase 5 fixture qualification and compile-contract plan](superpowers/plans/2026-09-24-pr2-network-phase5-qualification.md),
 the [Network Phase 4 current-revision live report (bounded PASS on 2026-09-24, prior failed attempt retained)](superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md),
 [Issue #30 PLC block header metadata design](superpowers/specs/2026-09-13-issue-30-plc-block-header-metadata-design.md),
 its [implementation plan](superpowers/plans/2026-09-13-issue-30-plc-block-header-metadata.md),

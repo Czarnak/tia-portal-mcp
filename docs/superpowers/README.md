@@ -43,6 +43,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-24 | [PR 2 — Network Phase 5 fixture qualification and compile contract](plans/2026-09-24-pr2-network-phase5-qualification.md) |
 | 2026-09-21 | [PR 1 — Network Phase 4 finish and current-revision live acceptance](plans/2026-09-21-pr1-network-phase4-finish.md) |
 | 2026-09-13 | [Issue #30 PLC block header metadata](plans/2026-09-13-issue-30-plc-block-header-metadata.md) |
 | 2026-09-12 | [.NET 10 migration and dependency alignment](plans/2026-09-12-dotnet-10-migration.md) |
