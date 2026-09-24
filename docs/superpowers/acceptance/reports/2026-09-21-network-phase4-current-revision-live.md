@@ -1,12 +1,77 @@
 # Network Phase 4 PR 1 — current-revision TIA Portal V21 live run
 
-**Verdict: INCOMPLETE.** Public Inventory and Preview completed on the frozen PR 1 candidate. One
-authorized Apply completed isolated Ethernet and PROFIBUS create, update, and delete operations.
-TIA Portal rejected the connected Ethernet delete for missing safety-program modification
-permission; the connected PROFIBUS delete was skipped. Neither connected delete passed. This is a
-record of the attempted live gate, not full Phase 4 live acceptance.
+**Verdict: bounded live PASS on 2026-09-24.** After the 2026-09-23 failed attempt, the user
+confirmed that the disposable copy was closed without saving and reopened. The user logged into
+safety and authorized a fresh guarded public MCP Inventory, Preview, and Apply on that copy. All
+eight requested subnet lifecycle operations succeeded, including deletion of the two originally
+connected subnets. A separate final Inventory observed zero subnets and the same aggregate hardware
+device count. The earlier failure remains documented below as a separate historical attempt.
 
-## Candidate and fixture
+## 2026-09-24 successful rerun
+
+| Item | Observed identity or result |
+| --- | --- |
+| Frozen candidate | Branch `network-phase-4`; HEAD `56e2248eacca44ea55c7d246d3c8ceb589b353b9`; tree `76807bb5ea80959a4da2126c63b3c42bca79279a` |
+| Candidate manifest | `artifacts/live-network-phase4/candidate.json`, SHA-256 `1e989967a7fd787e17153787ea22a6a8c21254296a7f7fd4ad09bfa4fe1d8550` |
+| Guarded public harness | `scripts/live-test-network-phase4-subnets.ps1`, SHA-256 `862b708bb521787d6aaa2311d6b50c08de2c3a717670359b831ac368184af078` |
+| Fixture and Portal | Same user-authorized disposable V21 copy, Fixture A; Portal PID `28248`. The exact project path and session identities remain in ignored artifacts. The `.ap21` marker retained its observed length of `151382` bytes and LastWriteTimeUtc `2026-08-07T18:58:09.7858364Z` after Apply. |
+| Observation window | Initial Inventory `2026-09-24T07:31:20.971594Z` through separate final Inventory `2026-09-24T07:48:22.4735591Z`. The Apply artifact was generated at `2026-09-24T07:45:18.9950649Z`; these artifact timestamps do not establish exact operation start and end times. |
+
+| Public stage | Observed result |
+| --- | --- |
+| Inventory | Requested and observed project paths and PID matched. Portal reported `isModified=false`; paged `network_read` counted 81 aggregate hardware devices and connected Ethernet `590-2` (89 named nodes) and PROFIBUS `590-3` (2 named nodes). This aggregate count is distinct from the root project-device count. |
+| Preview | Portal still reported `isModified=false`. Public `network_write(confirm=false)` previewed two Ethernet/PROFIBUS creates, two exact connected updates, and both exact connected deletes without mutation. Two negative cases returned `validation_error`; the bogus subnet selector returned `postcondition_failed`. Safety tokens are redacted in the ignored artifact. |
+| Apply: create and update | Fresh preview/token cycles preceded each confirmed group. Ethernet and PROFIBUS creates yielded `590-4` and `590-5`; both corresponding updates succeeded. Each group returned two of two successful results and a post-read of 81 aggregate hardware devices. |
+| Apply: delete isolated | Exact deletes of `590-4` and `590-5` succeeded two of two. The group post-read contained only the two original connected subnets and 81 aggregate hardware devices. |
+| Apply: delete connected | Exact deletes of Ethernet `590-2` and PROFIBUS `590-3` succeeded two of two. The group post-read contained zero subnets and 81 aggregate hardware devices. |
+| Final independent Inventory | A separate public read observed zero subnets, 81 aggregate hardware devices, and Portal `isModified=true`. |
+
+The four-entry write audit agrees with the Apply artifact: every group has `success=true`,
+`succeeded=2`, and zero failed, skipped, or omitted operations.
+
+Every one of the eight successful operation results had exactly the public lifecycle fields
+`subnetId`, `name`, `networkDeviceCount`, and `networkDeviceCountUnchanged`; each reported root
+`networkDeviceCount=10` and `networkDeviceCountUnchanged=true`. The Apply artifact records a final
+root count of 10 from those lifecycle results, **without an independent pre-Apply root count**.
+The before/after aggregate hardware count of 81 is independently observed, but does not establish
+root-device identity or per-device invariance. The harness did not read individual retained-device
+identities, node attributes, IO-system attributes, or cleared relationships after connected delete.
+
+The harness invoked no project save, compile, or download. The unchanged `.ap21` marker length and
+timestamp do not prove every file or in-memory relationship was unchanged; Portal explicitly
+reported unsaved modifications at the final read. No persistence, hardware compile, download,
+online commissioning, physical-device behavior, or plant acceptance is claimed.
+
+The executable Phase 4 repairs at `6ce302ea6d096aefd92dfcacceff7711a09d8e71` had already
+passed 298/298 focused and 3098/3098 full Debug tests, real-reference and stub Release builds,
+and 3098/3098 Release coverage tests with line rate 0.9294 against the 0.80 threshold. Today's
+docs-only candidate re-pin did **not** repeat that full gate: 298 focused tests passed; a sandbox
+full Debug run reported 3094/3098 with four known environment failures; the normal-user Debug
+real-reference host build then succeeded. Host retry, Release builds, and coverage were skipped
+under the user's instruction to run the live gate. The live PASS is limited to the observed public
+MCP path and fixture, not a fresh full Task 7 automated-gate claim on the docs-only HEAD.
+
+The local artifacts are ignored; these hashes identify the files inspected, without publishing
+the exact project path or safety tokens:
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `artifacts/live-network-phase4/candidate.json` | `1e989967a7fd787e17153787ea22a6a8c21254296a7f7fd4ad09bfa4fe1d8550` |
+| `artifacts/live-network-phase4/20260924-093120980-inventory.json` | `e7d3e18e6ab72ed9bab3aa80548476197852f60e5b0c1d0c54011b7b9e6b4740` |
+| `artifacts/live-network-phase4/20260924-093430781-preview.json` | `38106b693432f9f676ef21fa2064c62e6e592ed767adc1057734b0cef2a50437` |
+| `artifacts/live-network-phase4/20260924-094519008-apply.json` | `d85789fe3c143de199867527ac00a928ce565d4a60e4ff45708dc5bbebd31064` |
+| `artifacts/live-network-phase4/20260924-094822489-inventory.json` | `9880414377f1bed1809409d2813fb7eb22a7fb8cb8ca7af220942666c6dce86c` |
+| `%LOCALAPPDATA%/TiaMcpServer/audit/2026-09-24.jsonl` | `5bb5e70bed50b62272f89f2f5d174aacbe5568d651aef0ce2d2b9ee11b2e4bb1` |
+
+## 2026-09-23 prior attempt — incomplete
+
+The first authorized Apply completed isolated Ethernet and PROFIBUS create, update, and delete
+operations, then TIA Portal rejected connected Ethernet delete for missing safety-program
+modification permission and skipped connected PROFIBUS delete. The post-failure read reported
+`isModified=true`. This attempt did not establish connected deletion. The user subsequently
+confirmed that the copy was closed without saving and reopened before the successful rerun above.
+
+### Candidate and fixture
 
 | Item | Observed identity |
 | --- | --- |
@@ -45,7 +110,7 @@ artifact) through **2026-09-23 21:05:52.6680927Z** (post-failure Inventory artif
 artifacts do not provide an exact Apply start/end timestamp. `get_project_status` returned a null
 project `Version`; that field cannot be used as the Portal installation version.
 
-## Public MCP observations
+### Public MCP observations
 
 | Stage | Result |
 | --- | --- |
@@ -61,11 +126,12 @@ connected group. Successful result shapes and counts were checked from that audi
 not turn the failed connected operation into a pass. The prior public-path Phase 4 run remains
 evidence only for its older recorded commit.
 
-## Local evidence and boundary
+### Local evidence and boundary
 
 Paths below are sanitized repository-relative locators or the standard per-user audit locator.
 Exact project paths and raw protocol records remain ignored locally. SHA-256 values identify the
-files inspected for this report.
+files inspected for this prior attempt. The `candidate.json` locator was later updated for the
+2026-09-24 rerun; its old hash below records the prior content, not the current file.
 
 | Evidence | SHA-256 |
 | --- | --- |
@@ -78,13 +144,13 @@ files inspected for this report.
 The harness invoked no project save, compile, or download and requested no device lifecycle
 operation. The `.ap21` file length and last-write timestamp observed after the failed Apply matched
 the pre-run values. This does not prove all project files or in-memory relationships are unchanged.
-In particular, Portal reports unsaved modifications, and a Siemens exception cannot prove that no
-internal side effect preceded rejection. No restoration or discard has been verified. Fixture A
-must be discarded or restored and re-inventoried before it can serve as a clean baseline for any
-fresh mutating attempt. Such an attempt requires a fresh explicit exact-target decision and a new
-Preview/Apply sequence; the failed Apply must not be replayed automatically.
+In particular, Portal reported unsaved modifications, and a Siemens exception cannot prove that no
+internal side effect preceded rejection. At the time of this failed attempt, no restoration or
+discard had been verified. The user later confirmed the copy was closed without saving and reopened
+before the 2026-09-24 rerun. That rerun used a new Preview/Apply sequence; the failed Apply was not
+replayed.
 
-This run does not establish successful connected-subnet deletion, retained-device relationship
-clearing, final root-device invariance across connected deletion, save/persistence behavior,
-hardware compile, download, online commissioning, physical-device behavior, or plant acceptance.
-No full current-revision Phase 4 live PASS is claimed.
+This 2026-09-23 attempt did not establish successful connected-subnet deletion or its
+postconditions. The later 2026-09-24 rerun establishes the bounded live PASS described above;
+neither run establishes save/persistence behavior, hardware compile, download, online
+commissioning, physical-device behavior, or plant acceptance.

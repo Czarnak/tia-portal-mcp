@@ -10,14 +10,14 @@ and the operation is retained. See
 for the evidence and explicit coverage gaps.
 
 Phase 4 (Ethernet/PROFIBUS subnet create/update/delete) is implemented. The earlier static audit
-found contract gaps that PR 1 repaired; focused automated gates passed for the repairs. A historical
-Phase 4 live run is evidence only for its recorded older commit, not for the current PR 1 tree.
-The current-revision guarded public run completed Inventory and Preview and verified isolated
-Ethernet/PROFIBUS create, update, and delete. Its one authorized Apply stopped when TIA Portal
-denied connected Ethernet deletion for missing safety-program modification permission; connected
-PROFIBUS deletion was skipped. Full connected-delete live acceptance remains open, and the
-disposable copy had unsaved modifications at the post-failure read. See the
-[factual incomplete live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
+found contract gaps that PR 1 repaired. The 2026-09-23 public run was incomplete after a TIA
+safety-permission rejection. After the disposable copy was reopened without saving and the user
+logged into safety, the 2026-09-24 guarded public rerun passed Inventory, Preview, all eight
+create/update/delete operations including both connected deletes, and a separate final Inventory.
+It observed zero subnets and the same 81 aggregate hardware devices; retained-device identities
+and node/IO-system attributes were not independently read back. This is a bounded live PASS for
+the frozen candidate. See the
+[current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
 and [Phase 4 operation reference](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
 for the full contract and evidence status. Phases 5 and later remain open and are separate,
 not-yet-scheduled work.
@@ -170,7 +170,7 @@ did not cover PROFIBUS/DP or non-HMI communication-connection classes. These are
 and selectability limits, not evidence that the corresponding Siemens capabilities are absent.
 This phase does not certify commissioning or live hardware behavior.
 
-### Phase 4: Add First-Class Subnet Lifecycle Operations — Statically Complete
+### Phase 4: Add First-Class Subnet Lifecycle Operations — Bounded Live PASS
 
 Completed: `network_write` adds `create_subnet`, `update_subnet`, and `delete_subnet` without a new
 MCP tool. Scope is Ethernet and PROFIBUS subnets only, selected for update/delete by exact ordinal
@@ -195,12 +195,11 @@ The full request/result contract, targeting rules, and current evidence status a
 
 The original static completion mark covered Tasks 1-9 of
 `docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md`. The subsequent audit found
-four contract gaps; PR 1 repairs them and restores a guarded public harness. The historical live
-run verifies only its recorded older commit. The current-revision public run passed Inventory and
-Preview, plus isolated create/update/delete. Connected Ethernet deletion was blocked by TIA safety
-permission and connected PROFIBUS deletion was skipped. Phase 4 cannot be marked fully
-live-verified for this revision; see the
-[incomplete live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
+four contract gaps; PR 1 repairs them and restores a guarded public harness. The first
+current-revision public run on 2026-09-23 failed at connected Ethernet deletion after isolated
+operations passed. The fresh 2026-09-24 run passed both connected deletes and its post-read, with
+the evidence limits above; see the
+[live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
 
 ### Phase 5: Add IO-System Attribute Editing
 

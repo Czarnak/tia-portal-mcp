@@ -26,19 +26,6 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: Network Phase 4 current-revision public live acceptance
-
-PR 1 repaired the subnet lifecycle contract and restored the guarded public MCP harness. A
-historical Phase 4 live run is evidence only for its recorded older commit. Current-revision
-Inventory and Preview passed, as did isolated Ethernet/PROFIBUS create/update/delete during one
-authorized Apply. Connected Ethernet deletion failed because TIA Portal denied safety-program
-modification permission; connected PROFIBUS deletion was skipped. The disposable project was
-modified in memory at the final read and has not been verified restored or discarded. Full
-connected-delete and postcondition acceptance remain open. The frozen candidate passed focused,
-full Debug, real-reference and stub Release, and Release coverage gates. See the
-[incomplete live report](superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
-and [the Phase 4 operation reference](SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
-
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
 The user accepted the combined offline and read-only live v3 evidence on 2026-09-12, with an
@@ -647,6 +634,23 @@ cause of the earlier timeout or the first-read delay.
 The harness ran with `--read-only` and invoked only `browse_project_tree`. No save, compile,
 import/export, project mutation, PLC control, or plant acceptance is claimed.
 
+## Network Phase 4 current-revision public live acceptance — bounded PASS (2026-09-24)
+
+After the 2026-09-23 connected-delete failure, the user confirmed the disposable copy was closed
+without saving and reopened, then logged into safety. On the frozen PR 1 candidate, the guarded
+public MCP harness passed Inventory, Preview, all eight Ethernet/PROFIBUS lifecycle operations
+(including both originally connected deletes), and a separate final Inventory. The final read
+observed zero subnets and the same 81 aggregate hardware devices. Portal reported unsaved changes;
+the harness did not save, compile, or download. The root count of 10 comes from lifecycle results
+without an independent pre-Apply baseline, and retained-device identities and node/IO-system
+attributes were not independently read back. The earlier failure remains in the
+[live report](superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
+
+The executable repair commit had passed full Debug and Release coverage gates. This docs-only
+candidate re-pin passed 298 focused tests and a normal-user Debug real-reference host build; a
+sandbox full run returned 3094/3098 with four environment failures. The user directed this turn
+to the live gate, so host retry, Release, and coverage were not repeated on the re-pinned HEAD.
+
 ## Network Phase 4 contract repair and guarded harness — static implementation completed (2026-09-23)
 
 Focused automated gates passed for four contract repairs: update/delete now require exact ordinal
@@ -656,5 +660,5 @@ delete resolves, type-checks, and captures a nonblank name from one transaction-
 before `Delete()`. The user-provided saved harness was restored and statically guarded, including
 frozen checkout and host provenance, token redaction, and double-gated Apply. Its source has no
 verified historical repository origin. At this static checkpoint no harness mode or live TIA Portal
-acceptance had run for the current PR 1 tree. The later incomplete live run is recorded in the
-open follow-up above.
+acceptance had run for the current PR 1 tree. The subsequent failed attempt and successful rerun
+are recorded in the completed entry above.

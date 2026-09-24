@@ -83,7 +83,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
-| 2026-09-23 | [Network Phase 4 PR 1 — current-revision live run incomplete after TIA safety-permission rejection](acceptance/reports/2026-09-21-network-phase4-current-revision-live.md) |
+| 2026-09-24 | [Network Phase 4 PR 1 — bounded current-revision live PASS; 2026-09-23 failed attempt retained](acceptance/reports/2026-09-21-network-phase4-current-revision-live.md) |
 | 2026-09-12 | [Issue #32 — project-tree browsing v3 — accepted read-only PASS with explicit live ambiguity waiver](acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md) |
 | 2026-09-06 | [PR 6 — project-tree safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md) |
 | 2026-09-05 | [PR 5 — tag-operation safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md) |

@@ -2,11 +2,11 @@
 
 Status: Phase 4 (subnet create/update/delete) is implemented, and focused automated gates verify
 the PR 1 contract repairs. The earlier static audit found discrepancies in the original contract
-implementation. A historical live run applies only to its recorded older commit. The current PR 1
-tree passed public Inventory and Preview and isolated create/update/delete, but the one authorized
-Apply stopped at a TIA safety-permission rejection of connected Ethernet deletion; connected
-PROFIBUS deletion was skipped. Full connected-delete live acceptance remains open. See "Evidence
-status" below.
+implementation. A historical live run applies only to its recorded older commit. The first
+current-revision public attempt on 2026-09-23 failed at connected deletion; the fresh 2026-09-24
+guarded public rerun passed all eight lifecycle operations including both connected deletes. A
+separate final read observed zero subnets and 81 aggregate hardware devices. See "Evidence status"
+below for the bounded live PASS and remaining readback limits.
 
 Design rationale, evidence basis, and rejected alternatives are recorded in
 [../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
@@ -253,7 +253,7 @@ Openness-assigned `subnetId`.
 
 ## Evidence status
 
-The Phase 4 evidence and the outstanding gate have distinct scopes:
+The Phase 4 evidence has distinct scopes:
 
 - **Internal probe evidence.** The internal, non-public `probe_subnet_lifecycle_mutations` worker
   operation and `SubnetLifecycleMutationProbeService` exercised subnet creation, editing, and
@@ -263,18 +263,27 @@ The Phase 4 evidence and the outstanding gate have distinct scopes:
   and is not reachable from `network_write`.
 - **Repaired static implementation.** Focused automated gates passed for exact target kind,
   required raw result members, late-drift classification, transaction-local delete identity, and
-  the restored guarded harness. The full current-revision offline and reference-build gates belong
-  to the subsequent candidate verification step. Static evidence does **not** prove runtime
-  Openness behavior through the public MCP path.
+  the restored guarded harness. The executable repair commit
+  `6ce302ea6d096aefd92dfcacceff7711a09d8e71` passed 3098/3098 full Debug tests,
+  real-reference and stub Release builds, and 3098/3098 Release coverage tests. The 2026-09-24
+  docs-only re-pin at `56e2248eacca44ea55c7d246d3c8ceb589b353b9` passed 298 focused tests
+  and a normal-user Debug real-reference host build; its sandbox full Debug run returned 3094/3098
+  with four environment failures. The full Release and coverage gates were not repeated on that
+  re-pin. Static evidence does **not** prove runtime Openness behavior through the public MCP path.
 - **Historical public-path run.** The earlier Phase 4 run is evidence only for the older commit
   recorded with that run. It cannot establish behavior of the current PR 1 tree after these repairs.
-- **Current-revision public-path live run -- incomplete.** The restored guarded harness drove
-  public `network_read`/`network_write` on the frozen PR 1 candidate. Inventory, Preview, the
-  expected negative categories, and isolated Ethernet/PROFIBUS create/update/delete completed.
-  The one authorized connected-delete Apply failed on Ethernet when TIA denied safety-program
-  modification permission and skipped PROFIBUS; neither connected delete succeeded. A post-failure
-  read saw both original connected subnets and `isModified=true` in Portal. The disposable copy has
-  not been verified restored or discarded. See the
+- **First current-revision public-path attempt -- incomplete on 2026-09-23.** Inventory,
+  Preview, expected negative categories, and isolated Ethernet/PROFIBUS create/update/delete
+  completed. TIA denied connected Ethernet deletion for missing safety-program modification
+  permission and skipped connected PROFIBUS deletion. Portal reported unsaved modifications. The
+  user subsequently confirmed that the disposable copy was closed without saving and reopened.
+- **Fresh current-revision public-path rerun -- bounded live PASS on 2026-09-24.** After the user
+  logged into safety, the guarded harness drove public `network_read`/`network_write` on the
+  frozen candidate. Inventory and Preview reported `isModified=false`; all eight lifecycle
+  operations succeeded, including both originally connected deletes. A separate final Inventory
+  reported zero subnets, 81 aggregate hardware devices (also 81 before Apply), and
+  `isModified=true`. Each operation result reported root `networkDeviceCount=10` and
+  `networkDeviceCountUnchanged=true`, but the harness lacked an independent pre-Apply root-count
+  baseline. It did not independently read back retained-device identities or node and IO-system
+  attributes. No save, compile, download, or persistence result is claimed. See the
   [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
-  Phase 4 must not be marked fully live-verified for this revision until a fresh authorized run
-  verifies both connected deletes and their postconditions.

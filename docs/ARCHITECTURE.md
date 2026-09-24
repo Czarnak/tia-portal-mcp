@@ -500,10 +500,11 @@ The connected-subnet delete path is implemented through this seam without deleti
 the worker never enumerates dependent nodes, IO systems, or communication connections, and the
 service never calls `Project.Save()` or triggers a hardware compile. Focused static gates verify
 the repaired contract. A historical Phase 4 run applies only to its recorded older commit. The
-current PR 1 candidate passed public Inventory and Preview against TIA Portal V21. One authorized
-Apply passed isolated Ethernet and PROFIBUS create, update, and delete operations; connected
-Ethernet delete failed because TIA denied safety-program modification permission, and connected
-PROFIBUS delete was skipped. Full connected-delete live acceptance remains incomplete. See
+first current-revision live attempt on 2026-09-23 stopped at a TIA safety-permission rejection of
+connected Ethernet deletion. The fresh 2026-09-24 guarded public rerun passed all eight lifecycle
+operations, including both connected deletes; a separate final read observed zero subnets and 81
+aggregate hardware devices. It did not independently read back per-device identities or node and
+IO-system attributes, and its root count of 10 has no independent pre-Apply baseline. See
 `docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the contract and
 `docs/superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md` for the
 observed run.

@@ -9,11 +9,11 @@ provenance, retention decision, and coverage limits are recorded in
 
 Phase 4 status: Ethernet and PROFIBUS subnet create/update/delete are added to `network_write`
 without a new MCP tool. The earlier audit found contract gaps; focused static gates verify the
-PR 1 repairs. A historical Phase 4 live run applies only to its recorded older commit. The current
-PR 1 tree passed public Inventory and Preview and isolated create/update/delete. Its one authorized
-Apply stopped at a TIA safety-permission rejection of connected Ethernet deletion; connected
-PROFIBUS deletion was skipped, so full connected-delete live acceptance remains open. See the
-[incomplete live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
+PR 1 repairs. The 2026-09-23 public run stopped at a TIA safety-permission rejection of connected
+Ethernet deletion. On 2026-09-24, a fresh guarded public run passed all eight lifecycle operations,
+including both connected deletes, and a separate final read observed zero subnets and 81 aggregate
+hardware devices. Retained-device identities and node/IO-system attributes were not independently
+read back. See the [bounded live PASS report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
 and [Phase 4 operation reference](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) for the full request
 shapes, writable values, targeting, deletion semantics, minimal result, and evidence status.
 
@@ -549,11 +549,12 @@ not authorize a write preview or apply. A structured I/O-map live run completed 
 against a real TIA Portal V21 project (Project20.ap21); the results are recorded in
 [`../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md`](../superpowers/acceptance/reports/2026-08-14-io-map-defect-fixes-live.md).
 
-A historical Phase 4 public MCP run is evidence only for its recorded older commit. The current PR 1
-candidate passed public Inventory and Preview against TIA Portal V21. One authorized Apply passed
-isolated Ethernet and PROFIBUS create, update, and delete operations; connected Ethernet delete
-failed because TIA denied safety-program modification permission, and connected PROFIBUS delete was
-skipped. Full connected-delete live acceptance remains incomplete. See
+A historical Phase 4 public MCP run is evidence only for its recorded older commit. The first
+current-revision attempt on 2026-09-23 was incomplete after a TIA safety-permission rejection.
+The fresh 2026-09-24 run passed public Inventory, Preview, isolated Ethernet and PROFIBUS
+create/update/delete, both connected deletes, and a separate final read. It observed zero subnets
+and 81 aggregate hardware devices after Apply. The root count of 10 comes from lifecycle results,
+without an independent pre-Apply root baseline. See
 [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) and the
 [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
 Subnet lifecycle operations do not save the project or compile hardware.
