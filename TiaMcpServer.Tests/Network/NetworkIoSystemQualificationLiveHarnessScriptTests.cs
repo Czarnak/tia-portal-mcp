@@ -63,7 +63,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Fact]
-    public void PowerShellParserAcceptsScriptWithoutExecutingIt()
+    public async Task PowerShellParserAcceptsScriptWithoutExecutingIt()
     {
         _ = Source;
         var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
@@ -76,7 +76,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
         if (!process.WaitForExit(30_000)) { process.Kill(true); throw new TimeoutException("Parser timed out."); }
-        Assert.True(process.ExitCode == 0, output.Result + error.Result);
+        Assert.True(process.ExitCode == 0, await output + await error);
     }
 
     [Fact]
@@ -88,6 +88,16 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             Assert.DoesNotContain("probe_io_system_qualification", source);
             Assert.DoesNotContain("IoSystemQualification", source);
         }
+    }
+
+    [Theory]
+    [InlineData("NetworkReadTools.cs", "1AB4593461C493D68D5A8EE1658628DD85AC688B52E5B623EBDF94CBA7E86B41")]
+    [InlineData("NetworkWriteTools.cs", "CD3F095E4CE2DCE2DC7A450B85F0AF639FC00B1BD1A41FEBB1098E0D141D9CED")]
+    public void TemporaryQualificationDoesNotChangePublicToolDeclarationsOrSchemas(string file, string expected)
+    {
+        // Snapshot the existing declarations, including input/output schema types and descriptions.
+        var bytes = Encoding.UTF8.GetBytes(File.ReadAllText(Path.Combine(Root, "TiaMcpServer/Network", file)).Replace("\r\n", "\n"));
+        Assert.Equal(expected, Convert.ToHexString(SHA256.HashData(bytes)));
     }
 
     private static string FindRoot()
