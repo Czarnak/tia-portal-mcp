@@ -5,7 +5,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
 
-// Offline source and AST contracts. Never launches the live harness or a TIA process.
+// Offline source/AST contracts and extracted pure helpers. Never launches the live harness or TIA.
 public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
 {
     private static string Root => FindRoot();
@@ -86,6 +86,71 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         var end = Source.IndexOf("function Get-Baseline", start, StringComparison.Ordinal);
         var inspection = Source[start..end];
         Assert.Contains("attributeNames = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment')", inspection);
+    }
+
+    [Theory]
+    [InlineData("$changed.attributes[4].availability = 'readFailed'")]
+    [InlineData("$changed.attributes[4].access = 'none'")]
+    [InlineData("$changed.attributes[4].availability = 'readFailed'; $changed.attributes[4].access = 'none'")]
+    [InlineData("$changed.attributes[0].source = 'dynamic'")]
+    [InlineData("$changed.attributes[0].value.typeName = 'System.Object'")]
+    [InlineData("$changed.attributes[4].value = @{ kind = 'integer'; typeName = 'System.Int32'; value = 2 }")]
+    [InlineData("$changed.attributes[4].diagnostic = 'Observation unavailable'")]
+    [InlineData("$changed.attributes[0].supportedTypes = @('System.Object')")]
+    [InlineData("$changed.attributes[0].value.value = 'changed'")]
+    public async Task BaselineRejectsObservableMetadataDrift(string mutation)
+    {
+        await AssertPureBaselineHelperAsync($$"""
+            {{mutation}}
+            $rejected = $false
+            try { Assert-Same (Get-Baseline $original) (Get-Baseline $changed) }
+            catch { $rejected = $true }
+            if (-not $rejected) { throw 'Observable baseline drift was accepted.' }
+            """);
+    }
+
+    [Fact]
+    public async Task BaselineAcceptsIdenticalObservations()
+        => await AssertPureBaselineHelperAsync("Assert-Same (Get-Baseline $original) (Get-Baseline $changed)");
+
+    private static async Task AssertPureBaselineHelperAsync(string assertion)
+    {
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        var command = $$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Harness parse failed.' }
+            # Import only these pure helpers, never the harness body or process/IPC helpers.
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Get-Baseline')) {
+                $functions = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($functions.Count -ne 1) { throw 'Expected exactly one pure helper.' }
+                . ([scriptblock]::Create($functions[0].Extent.Text))
+            }
+            $original = @{ attributes = @(
+                @{ name = 'Name'; availability = 'available'; access = 'readWrite'; source = 'modeled'; supportedTypes = @('System.String'); value = @{ kind = 'string'; typeName = 'System.String'; value = 'synthetic' }; diagnostic = $null },
+                @{ name = 'Number'; availability = 'available'; access = 'readWrite'; source = 'modeled'; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; typeName = 'System.Int32'; value = 1 }; diagnostic = $null },
+                @{ name = 'MultipleUseIoSystem'; availability = 'available'; access = 'readWrite'; source = 'dynamic'; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; typeName = 'System.Boolean'; value = $false }; diagnostic = $null },
+                @{ name = 'UseIoSystemNameAsDeviceNameExtension'; availability = 'available'; access = 'readWrite'; source = 'dynamic'; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; typeName = 'System.Boolean'; value = $false }; diagnostic = $null },
+                @{ name = 'MaxNumberIWlanLinksPerSegment'; availability = 'unknownAttribute'; access = 'unknown'; source = 'dynamic'; supportedTypes = @(); value = $null; diagnostic = $null }
+            ) }
+            $changed = ConvertFrom-Json (Get-Json $original) -AsHashtable -Depth 100
+            {{assertion}}
+            """;
+        var psi = new ProcessStartInfo("pwsh") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        psi.ArgumentList.Add("-NoProfile");
+        psi.ArgumentList.Add("-EncodedCommand");
+        psi.ArgumentList.Add(Convert.ToBase64String(Encoding.Unicode.GetBytes(command)));
+        using var process = Process.Start(psi)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try { await process.WaitForExitAsync(deadline.Token); }
+        catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Pure helper check timed out."); }
+        Assert.True(process.ExitCode == 0, await output + await error);
     }
 
     [Fact]
