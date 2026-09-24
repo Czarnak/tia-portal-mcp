@@ -41,6 +41,17 @@ not shipped behavior and should proceed only if additional measurements justify 
 changing the approved public contract. Acceptance of the current implementation does not complete
 this optimization.
 
+## Open: Network Phase 5 IO-system qualification
+
+The temporary worker-only qualification probe and guarded private harness are implemented. The
+read-only owner inspection verified the PROFINET controller's exact `DeviceItem`. DP ownership
+is unverified because one of two controller-path segments lacks `TypeIdentifier`; the exact-owner
+gate rejects the incomplete path. Inventory and Preview are read-only. Compile and one-field Apply
+require frozen-candidate and unchanged-preview checks plus explicit effectful gates, and have not
+run in this qualification step. No hardware compile, edit/restoration, project save, or download
+is evidenced here. No IO-system field has an approved editing contract or public write operation.
+The remaining live matrix and contract review require separate exact-target authorization.
+
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 
 | # | Change | Where | Why |

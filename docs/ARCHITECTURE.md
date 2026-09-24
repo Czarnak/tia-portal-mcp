@@ -509,6 +509,25 @@ IO-system attributes, and its root count of 10 has no independent pre-Apply base
 `docs/superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md` for the
 observed run.
 
+### Phase 5 temporary IO-system qualification probe
+
+`probe_io_system_qualification` is a temporary worker-only diagnostic, classified as a project
+mutation and absent from the public MCP schema, host dispatch, and `NetworkOperationCatalog`.
+Its `inspectOwner` mode checks that an IO system has exactly one controller `DeviceItem` owner
+whose complete path resolves back to the same object. `compileBaseline` and `setAndCompile`
+require that exact owner; a missing path segment identity, ambiguous owner, or unavailable
+`ICompilable` service stops before compilation or mutation. The guarded private harness uses
+read-only Inventory and Preview evidence, then requires a frozen candidate, an unchanged
+preview, an effectful switch, and an exact confirmation phrase for Compile or Apply. Apply is
+limited to one proposed attribute and rechecks the current value and session identity.
+
+The current read-only owner inspection verified the PROFINET owner. The DP owner remains
+unverified because one of two controller-path segments has no `TypeIdentifier`; the probe
+fails closed on that incomplete identity. No hardware Compile or Apply, project save, or download
+was performed in this qualification step. No IO-system field has a qualified editing contract,
+and Phase 5 adds no public editing operation yet. Retire this temporary diagnostic with the
+final live-harness cleanup after the separately authorized qualification and contract review.
+
 ## 8. Write safety
 
 Generic batch data writes use a two-tool flow; lifecycle and network writes are

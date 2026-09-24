@@ -19,8 +19,8 @@ and node/IO-system attributes were not independently read back. This is a bounde
 the frozen candidate. See the
 [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
 and [Phase 4 operation reference](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
-for the full contract and evidence status. Phases 5 and later remain open and are separate,
-not-yet-scheduled work.
+for the full contract and evidence status. Phase 5 qualification is in progress; public
+IO-system editing and Phases 6 and later remain open.
 
 Phase 2 completion is scoped narrowly: Tasks 1-7 of
 `docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md` are implemented and
@@ -206,6 +206,15 @@ the evidence limits above; see the
 Support relevant PROFINET IO-system and DP master-system modeled and dynamic attributes.
 Validate known constraints before apply, then compile hardware because Openness can accept
 some values that TIA compilation later rejects.
+
+A temporary worker-only qualification probe and guarded private harness are implemented. The
+read-only owner inspection verified the exact PROFINET controller item. The DP controller item
+is still unverified: one of its two path segments lacks `TypeIdentifier`, so the exact-owner
+gate stops. The harness keeps Inventory and Preview read-only; Compile and one-field Apply
+require an unchanged preview and explicit effectful gates. Neither effectful mode has run in
+this qualification step. No field is approved for editing, no hardware compile or restoration
+has been evidenced, and `update_io_system` is not a public operation. The remaining live matrix
+needs separate exact-target authorization before a contract can be frozen.
 
 ### Phase 6: Add Generic Network Attribute Operations
 
