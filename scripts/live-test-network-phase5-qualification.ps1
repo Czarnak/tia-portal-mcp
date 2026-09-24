@@ -162,7 +162,7 @@ function Get-PublicStatus {
     return $status
 }
 function Get-PublicInspection {
-    $inspection = Invoke-Public 'network_read' @{ operations = @(@{ operation = 'inspect_network_object'; operationId = 'fixture'; target = $target }) }
+    $inspection = Invoke-Public 'network_read' @{ operations = @(@{ operation = 'inspect_network_object'; operationId = 'fixture'; target = $target; attributeNames = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment') }) }
     $batch = $inspection.batch
     if ($batch.operations.Count -ne 1 -or $batch.operations[0].status -cne 'succeeded' -or
         $batch.operations[0]['omission'] -or ($batch['truncation'] -and $batch.truncation['truncated'])) { throw 'Incomplete public inspection.' }
