@@ -371,6 +371,20 @@ public class NetworkSubnetLifecycleRequestContractTests
     [Theory]
     [InlineData("update_subnet")]
     [InlineData("delete_subnet")]
+    public void ValidateWrite_RejectsMissingKindTarget(string operationName)
+    {
+        var result = Validate(TargetedSubnetOp(
+            operationName,
+            target: new NetworkObjectTarget { SubnetId = "subnet-eth-1" }));
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'target.kind'", result.Error);
+        Assert.Contains("'subnet'", result.Error);
+    }
+
+    [Theory]
+    [InlineData("update_subnet")]
+    [InlineData("delete_subnet")]
     public void ValidateWrite_RejectsBlankSubnetIdTarget(string operationName)
     {
         var result = Validate(TargetedSubnetOp(

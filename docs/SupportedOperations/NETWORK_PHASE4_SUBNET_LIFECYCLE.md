@@ -1,11 +1,12 @@
 # Network Operations Phase 4: Subnet Lifecycle
 
-Status: Phase 4 (subnet create/update/delete) is statically verified. Both the stub build and the
-real V21 reference build pass with zero errors, the full `TiaMcpServer.Tests` suite passes, and the
-whole-plan contract audit against the plan's Locked Public Contract found no discrepancy. Phase 4 is
-**not** marked live-verified. Public-path live acceptance against a real TIA Portal V21 project is a
-separately authorized run (Task 10 of the implementation plan) and has not been attempted, simulated,
-or scheduled by this documentation update. See "Evidence status" below.
+Status: Phase 4 (subnet create/update/delete) is implemented, and focused automated gates verify
+the PR 1 contract repairs. The earlier static audit found discrepancies in the original contract
+implementation. A historical live run applies only to its recorded older commit. The first
+current-revision public attempt on 2026-09-23 failed at connected deletion; the fresh 2026-09-24
+guarded public rerun passed all eight lifecycle operations including both connected deletes. A
+separate final read observed zero subnets and 81 aggregate hardware devices. See "Evidence status"
+below for the bounded live PASS and remaining readback limits.
 
 Design rationale, evidence basis, and rejected alternatives are recorded in
 [../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
@@ -106,14 +107,15 @@ and network type can never be written through this contract.
 
 ## Exact `subnetId` targeting
 
-`update_subnet` and `delete_subnet` select an existing subnet only by its exact `subnetId`, matched
+`update_subnet` and `delete_subnet` require `target.kind` to be exactly `"subnet"` (ordinal,
+case-sensitive) and select an existing subnet only by its exact `subnetId`, matched
 with ordinal (case-sensitive) string equality against `HardwareConfigInfo.Subnets` as read
 immediately before preview and again immediately before apply:
 
 - there is no fallback to `name`, collection index, connected device, or "first match";
 - a different-cased `subnetId` does not match;
 - zero matches or more than one candidate reporting the same `subnetId` both fail closed with
-  `postcondition_failed` -- neither is treated as success;
+  `postcondition_failed`, including late worker re-resolution after the host safety read;
 - a target subnet whose own `networkType` is missing or outside `Ethernet`/`Profibus` fails closed
   and is never resolved as a write target.
 
@@ -147,10 +149,15 @@ add, and does not claim to add:
   a caller that needs to see the after-state calls `network_read` (`read_hardware_config` or
   `inspect_network_object`) separately.
 
+For every delete, the worker resolves the exact target and validates its Ethernet/PROFIBUS type
+inside the transaction, captures a nonblank name from that same transaction-local subnet object,
+then calls `Delete()` on it. No pre-transaction subnet object supplies the mutation identity.
+
 ## Minimal result
 
-Every successful subnet lifecycle item -- create, update, or delete -- returns exactly these four
-members, typed by `TiaMcpServer.Contracts.SubnetLifecycleResultInfo` and enforced by
+Every successful subnet lifecycle item -- create, update, or delete -- must contain all four raw
+JSON members shown below. They are typed by `TiaMcpServer.Contracts.SubnetLifecycleResultInfo`
+and enforced before typed normalization by
 `NetworkPayloadContract`:
 
 ```json
@@ -246,7 +253,7 @@ Openness-assigned `subnetId`.
 
 ## Evidence status
 
-Two independent lines of evidence exist for Phase 4, and they are not interchangeable:
+The Phase 4 evidence has distinct scopes:
 
 - **Internal probe evidence.** The internal, non-public `probe_subnet_lifecycle_mutations` worker
   operation and `SubnetLifecycleMutationProbeService` exercised subnet creation, editing, and
@@ -254,15 +261,29 @@ Two independent lines of evidence exist for Phase 4, and they are not interchang
   design. This evidence shaped the Locked Public Contract but is not itself the public code path:
   the probe is never registered in `NetworkOperationCatalog`, is absent from the public MCP schema,
   and is not reachable from `network_write`.
-- **Static implementation verification (this document's basis).** The stub build, the real V21
-  reference build, the full `TiaMcpServer.Tests` suite, and a direct whole-plan contract audit of the
-  actual source against the plan's Locked Public Contract all pass. This proves API-shape
-  compatibility, request/response contract correctness, safety-token behavior, and worker dispatch
-  logic on .NET without a live TIA Portal attachment. It does **not** prove runtime Openness
-  behavior through the public MCP path.
-- **Public-path live acceptance -- outstanding.** A separately authorized live run against a
-  disposable TIA Portal V21 project, driving the actual public `network_read`/`network_write` MCP
-  protocol for create, update, and delete (including connected-subnet deletion) on both Ethernet
-  and PROFIBUS, has not been performed. The legacy procedure was removed; a newly reviewed
-  procedure and separate authorization are required before running this gate. Phase 4 must not be
-  marked live-verified until that run completes and its results are recorded here.
+- **Repaired static implementation.** Focused automated gates passed for exact target kind,
+  required raw result members, late-drift classification, transaction-local delete identity, and
+  the restored guarded harness. The executable repair commit
+  `6ce302ea6d096aefd92dfcacceff7711a09d8e71` passed 3098/3098 full Debug tests,
+  real-reference and stub Release builds, and 3098/3098 Release coverage tests. The 2026-09-24
+  docs-only re-pin at `56e2248eacca44ea55c7d246d3c8ceb589b353b9` passed 298 focused tests
+  and a normal-user Debug real-reference host build; its sandbox full Debug run returned 3094/3098
+  with four environment failures. The full Release and coverage gates were not repeated on that
+  re-pin. Static evidence does **not** prove runtime Openness behavior through the public MCP path.
+- **Historical public-path run.** The earlier Phase 4 run is evidence only for the older commit
+  recorded with that run. It cannot establish behavior of the current PR 1 tree after these repairs.
+- **First current-revision public-path attempt -- incomplete on 2026-09-23.** Inventory,
+  Preview, expected negative categories, and isolated Ethernet/PROFIBUS create/update/delete
+  completed. TIA denied connected Ethernet deletion for missing safety-program modification
+  permission and skipped connected PROFIBUS deletion. Portal reported unsaved modifications. The
+  user subsequently confirmed that the disposable copy was closed without saving and reopened.
+- **Fresh current-revision public-path rerun -- bounded live PASS on 2026-09-24.** After the user
+  logged into safety, the guarded harness drove public `network_read`/`network_write` on the
+  frozen candidate. Inventory and Preview reported `isModified=false`; all eight lifecycle
+  operations succeeded, including both originally connected deletes. A separate final Inventory
+  reported zero subnets, 81 aggregate hardware devices (also 81 before Apply), and
+  `isModified=true`. Each operation result reported root `networkDeviceCount=10` and
+  `networkDeviceCountUnchanged=true`, but the harness lacked an independent pre-Apply root-count
+  baseline. It did not independently read back retained-device identities or node and IO-system
+  attributes. No save, compile, download, or persistence result is claimed. See the
+  [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).

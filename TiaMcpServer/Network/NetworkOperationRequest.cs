@@ -101,7 +101,7 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class NetworkObjectTarget
 {
-    [Description("Network object kind. One of: deviceItem, networkInterface, node, subnet, ioSystem, communicationConnection. For configure_network_device, only 'node' or absent is accepted.")]
+    [Description("Network object kind. One of: deviceItem, networkInterface, node, subnet, ioSystem, communicationConnection. For configure_network_device, only 'node' or absent is accepted. For update_subnet and delete_subnet, kind is required and must be exactly 'subnet'.")]
     public string? Kind { get; set; }
 
     [Description("Exact device name. Required for deviceItem, networkInterface, node, and communicationConnection kinds.")]

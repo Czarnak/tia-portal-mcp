@@ -856,10 +856,8 @@ public static class NetworkOperationCatalog
         => ValidateSubnetTargetSelector(operation, errors);
 
     /// <summary>
-    /// Requires the target to name exactly one subnet: kind absent or exactly 'subnet', a nonblank
-    /// subnetId, and no other selector field. Unlike configure_network_device's 'node' default,
-    /// there is no legacy caller to accommodate here — an explicit non-subnet kind is still rejected
-    /// rather than silently reinterpreted.
+    /// Requires the target to name exactly one subnet: kind exactly 'subnet', a nonblank subnetId,
+    /// and no other selector field.
     /// </summary>
     private static void ValidateSubnetTargetSelector(NetworkOperationRequest operation, List<string> errors)
     {
@@ -870,7 +868,7 @@ public static class NetworkOperationCatalog
 
         var prefix = $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'):";
 
-        if (target.Kind is not null && !string.Equals(target.Kind, NetworkObjectKinds.Subnet, StringComparison.Ordinal))
+        if (!string.Equals(target.Kind, NetworkObjectKinds.Subnet, StringComparison.Ordinal))
         {
             errors.Add(
                 $"{prefix} 'target.kind' must be '{NetworkObjectKinds.Subnet}' for {operation.Operation} "

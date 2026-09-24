@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-21 | [Network Phases 4-6 completion and delivery](specs/2026-09-21-network-phases-4-6-delivery-design.md) |
 | 2026-09-13 | [Issue #30 PLC block header metadata](specs/2026-09-13-issue-30-plc-block-header-metadata-design.md) |
 | 2026-09-12 | [.NET 10 migration and dependency alignment](specs/2026-09-12-dotnet-10-migration-design.md) |
 | 2026-09-06 | [Issue #32 scalable project-tree browsing v3](specs/2026-09-06-issue-32-scalable-project-tree-browsing-v3-design.md) |
@@ -42,6 +43,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-21 | [PR 1 — Network Phase 4 finish and current-revision live acceptance](plans/2026-09-21-pr1-network-phase4-finish.md) |
 | 2026-09-13 | [Issue #30 PLC block header metadata](plans/2026-09-13-issue-30-plc-block-header-metadata.md) |
 | 2026-09-12 | [.NET 10 migration and dependency alignment](plans/2026-09-12-dotnet-10-migration.md) |
 | 2026-09-06 | [Issue #32 scalable project-tree browsing v3](plans/2026-09-06-issue-32-scalable-project-tree-browsing-v3.md) |
@@ -76,11 +78,12 @@ records successful Inventory, Preview, authorized Apply/restoration, byte-equiva
 and final compile evidence. See the
 [current acceptance boundary](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md#project-tree-safety-acceptance-boundary).
 
-Evidence from completed live runs against TIA Portal V21, plus prepared reports whose live gate is
-explicitly pending.
+Evidence from completed and incomplete live runs against TIA Portal V21, plus prepared reports whose
+live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-24 | [Network Phase 4 PR 1 — bounded current-revision live PASS; 2026-09-23 failed attempt retained](acceptance/reports/2026-09-21-network-phase4-current-revision-live.md) |
 | 2026-09-12 | [Issue #32 — project-tree browsing v3 — accepted read-only PASS with explicit live ambiguity waiver](acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md) |
 | 2026-09-06 | [PR 6 — project-tree safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md) |
 | 2026-09-05 | [PR 5 — tag-operation safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md) |

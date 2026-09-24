@@ -455,7 +455,8 @@ network_write request
   deterministic order used by every other network operation — inapplicable fields, missing
   required fields, nested DTO shape, target selector shape, type applicability, then numeric
   range/enum value. `NetworkSubnetDefinition` and `NetworkSubnetChanges` are strict nested DTOs
-  with no writable `subnetId` and no writable `networkType` on update.
+  with no writable `subnetId` and no writable `networkType` on update. Update and delete require
+  `target.kind` to be exactly `"subnet"` (ordinal comparison) and a nonblank `subnetId`.
 - **Current subnet resolution and canonical safety binding**
   (`TiaMcpServer/Network/NetworkIdentityResolver.cs`, `NetworkSafetySnapshot.cs`): `create_subnet`
   evidence is request-derived (no hardware read); `update_subnet`/`delete_subnet` evidence is
@@ -476,7 +477,10 @@ network_write request
   (`TiaMcpServer.OpennessWorker/Openness/SubnetLifecycleService.cs`): each of `Create`, `Update`,
   and `Delete` opens exactly one `ExclusiveAccess`/`Transaction`, performs every requested setter,
   and calls `CommitOnDispose()` only after every setter succeeds. Subnet lookup is ordinal, exact-one
-  `SubnetId` matching with no fallback to `Name`, index, or connected device. This file is a
+  `SubnetId` matching with no fallback to `Name`, index, or connected device. Late zero or multiple
+  worker matches fail as `postcondition_failed`. Delete resolves and type-checks the target inside
+  its transaction, captures a nonblank name from that same object, and only then calls `Delete()`;
+  the mutation cannot use a pre-transaction subnet object. This file is a
   distinct production implementation from `SubnetLifecycleMutationProbeService`, the internal-only
   evidence probe behind `probe_subnet_lifecycle_mutations` — the probe is absent from
   `NetworkOperationCatalog`, the public MCP schema, and host dispatch, exactly like Phase 3's raw
@@ -487,18 +491,23 @@ network_write request
   rather than reporting success, and the service never retries automatically.
 - **Minimal typed canonical result** (`TiaMcpServer.Contracts/SubnetLifecycleResultInfo.cs`,
   registered in `NetworkPayloadContract` for all three operations): exactly `subnetId`, `name`,
-  `networkDeviceCount`, `networkDeviceCountUnchanged`. A payload missing a member, reporting
+  `networkDeviceCount`, `networkDeviceCountUnchanged`. All four raw JSON members must be present
+  before typed normalization. A payload missing a member, reporting
   `networkDeviceCountUnchanged:false`, or carrying any extra member is rejected as `protocol_error`
   before it reaches the caller.
 
-Deleting a connected subnet is supported end to end through this seam and never deletes devices;
+The connected-subnet delete path is implemented through this seam without deleting devices;
 the worker never enumerates dependent nodes, IO systems, or communication connections, and the
-service never calls `Project.Save()` or triggers a hardware compile. Implementation is statically
-verified (both builds, the full test suite, and a whole-plan contract audit against the plan's
-Locked Public Contract); public-path live acceptance against a real TIA Portal V21 project remains
-a separately authorized, outstanding gate. See
-`docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the full contract and evidence
-status.
+service never calls `Project.Save()` or triggers a hardware compile. Focused static gates verify
+the repaired contract. A historical Phase 4 run applies only to its recorded older commit. The
+first current-revision live attempt on 2026-09-23 stopped at a TIA safety-permission rejection of
+connected Ethernet deletion. The fresh 2026-09-24 guarded public rerun passed all eight lifecycle
+operations, including both connected deletes; a separate final read observed zero subnets and 81
+aggregate hardware devices. It did not independently read back per-device identities or node and
+IO-system attributes, and its root count of 10 has no independent pre-Apply baseline. See
+`docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md` for the contract and
+`docs/superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md` for the
+observed run.
 
 ## 8. Write safety
 

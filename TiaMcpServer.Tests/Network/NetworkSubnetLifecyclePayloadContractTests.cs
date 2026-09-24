@@ -170,6 +170,23 @@ public class NetworkSubnetLifecyclePayloadContractTests
         Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
     }
 
+    [Theory]
+    [InlineData("create_subnet")]
+    [InlineData("update_subnet")]
+    [InlineData("delete_subnet")]
+    public void Project_RejectsPayload_WhenNetworkDeviceCountMissing(string operation)
+    {
+        var payload =
+            """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCountUnchanged":true}""";
+        var item = Project(operation, payload);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Null(item.Result);
+        Assert.NotNull(item.Failure);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+        Assert.DoesNotContain("subnet-1", item.Failure.Message);
+    }
+
     /// <summary>
     /// Missing networkDeviceCountUnchanged must be rejected during validation.
     /// </summary>

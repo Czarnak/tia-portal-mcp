@@ -121,14 +121,31 @@ public static class NetworkPayloadContract
             Decode<ConfigureNetworkDeviceResultInfo>(payload, ValidateConfigureResult),
         "list_network_objects" => DecodeObjectList(payload),
         "inspect_network_object" => DecodeObjectInspection(payload),
-        "create_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
-        "update_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
-        "delete_subnet" => Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
+        "create_subnet" => DecodeSubnetLifecycleResult("create_subnet", payload),
+        "update_subnet" => DecodeSubnetLifecycleResult("update_subnet", payload),
+        "delete_subnet" => DecodeSubnetLifecycleResult("delete_subnet", payload),
         _ => throw new JsonException($"No declared result contract for network operation '{operation.Operation}'."),
     };
 
     private static JsonElement Decode<T>(string payload, Action<T> validate)
         => CanonicalJson.Normalize(payload, validate).Element;
+
+    private static JsonElement DecodeSubnetLifecycleResult(string operation, string payload)
+    {
+        using var document = JsonDocument.Parse(payload);
+        if (document.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            RequireJsonMembers(
+                document.RootElement,
+                operation,
+                "subnetId",
+                "name",
+                "networkDeviceCount",
+                "networkDeviceCountUnchanged");
+        }
+
+        return Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult);
+    }
 
     private static JsonElement DecodeHardwareConfigElement(string payload, bool? includeIoDetails)
     {

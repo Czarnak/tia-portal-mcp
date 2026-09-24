@@ -81,7 +81,7 @@ internal static class SubnetLifecycleService
         // Current-type applicability requires an Openness read of the exact target, so an
         // inapplicable PROFIBUS-only field is rejected here, before any transaction is opened.
         var currentTypeIdentifier = ResolveCurrentTypeIdentifierOrThrow(
-            ResolveExactSubnetOrThrow(project, subnetId),
+            ResolveExactSubnetOrThrow(project, subnetId, "update_subnet"),
             subnetId);
         if ((highestAddress is not null || transmissionSpeed is not null)
             && !string.Equals(currentTypeIdentifier, ProfibusTypeIdentifier, StringComparison.Ordinal))
@@ -97,7 +97,7 @@ internal static class SubnetLifecycleService
         using (var exclusiveAccess = tiaPortal.ExclusiveAccess("Network Phase 4 subnet lifecycle: update_subnet"))
         using (var transaction = exclusiveAccess.Transaction(project, "update_subnet"))
         {
-            var subnet = ResolveExactSubnetOrThrow(project, subnetId);
+            var subnet = ResolveExactSubnetOrThrow(project, subnetId, "update_subnet");
             if (name is not null)
             {
                 subnet.Name = name;
@@ -140,29 +140,15 @@ internal static class SubnetLifecycleService
     {
         // Deliberately does not enumerate the target's connected nodes or IO systems: a
         // connected-subnet deletion must not inspect or block on any of that.
-        var existing = ResolveExactSubnetOrThrow(project, subnetId);
-
-        // Captured before the transaction because the Openness object is gone once deleted — this
-        // is NOT a pre-commit guard: an unreadable name here never blocks the delete from
-        // proceeding. It only means the eventual result cannot report the deleted subnet's own
-        // identity, which is checked — and fails closed — only after the transaction has already
-        // committed, alongside every other postcondition below.
-        string? capturedName;
-        try
-        {
-            capturedName = existing.Name;
-        }
-        catch (EngineeringException)
-        {
-            capturedName = null;
-        }
-
         var deviceCountBefore = project.Devices.Count;
+        string capturedName;
 
         using (var exclusiveAccess = tiaPortal.ExclusiveAccess("Network Phase 4 subnet lifecycle: delete_subnet"))
         using (var transaction = exclusiveAccess.Transaction(project, "delete_subnet"))
         {
-            var subnet = ResolveExactSubnetOrThrow(project, subnetId);
+            var subnet = ResolveExactSubnetOrThrow(project, subnetId, "delete_subnet");
+            _ = ResolveCurrentTypeIdentifierOrThrow(subnet, subnetId);
+            capturedName = ReadRequiredSubnetNameOrThrow(subnet, subnetId);
             subnet.Delete();
             transaction.CommitOnDispose();
         }
@@ -174,19 +160,15 @@ internal static class SubnetLifecycleService
         // unreadable must NOT read as "successfully deleted". Every other postcondition in this
         // service already fails closed on an unreadable identity because absence-of-match is a
         // FAILURE condition there; delete_subnet is the one operation where absence-of-match is the
-        // SUCCESS condition, so it needs its own explicit guard against that asymmetry. An
-        // unreadable capturedName joins the same guard: the delete has already committed by this
-        // point, so a name that cannot be re-confirmed is reported as a postcondition failure,
-        // never as a fabricated blank name.
+        // SUCCESS condition, so it needs its own explicit guard against that asymmetry.
         var postReadMatches = FindMatches(project, subnetId, out var unreadableSubnetIdCount);
-        if (postReadMatches.Count != 0 || unreadableSubnetIdCount > 0 || !deviceCountUnchanged || capturedName is null)
+        if (postReadMatches.Count != 0 || unreadableSubnetIdCount > 0 || !deviceCountUnchanged)
         {
             throw PostconditionFailed(
                 "delete_subnet",
                 $"Expected no subnet with SubnetId '{subnetId}', no subnet with an unreadable "
-                + "SubnetId, an unchanged device count, and a readable Name captured for the deleted "
-                + "subnet, after the transaction committed. The delete already committed; inspect the "
-                + "project before retrying.");
+                + "SubnetId, and an unchanged device count after the transaction committed. "
+                + "The delete already committed; inspect the project before retrying.");
         }
 
         return new SubnetLifecycleResultInfo
@@ -326,26 +308,52 @@ internal static class SubnetLifecycleService
         return typeIdentifier;
     }
 
+    private static string ReadRequiredSubnetNameOrThrow(Subnet subnet, string subnetId)
+    {
+        string? name;
+        try
+        {
+            name = subnet.Name;
+        }
+        catch (EngineeringException)
+        {
+            name = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw PostconditionFailed(
+                "delete_subnet",
+                $"Subnet '{subnetId}' did not expose a nonblank Name immediately before deletion. No delete was committed.");
+        }
+
+        return name!;
+    }
+
     /// <summary>
     /// Ordinal, exact-one <c>SubnetId</c> lookup. Never falls back to <c>Name</c>, collection index,
-    /// a connected device, or the first match — zero or more than one match is a resolution failure.
+    /// a connected device, or the first match. A target resolved by the host that no longer has
+    /// exactly one worker-side match is reported as postcondition drift.
     /// </summary>
-    private static Subnet ResolveExactSubnetOrThrow(Project project, string subnetId)
+    private static Subnet ResolveExactSubnetOrThrow(
+        Project project,
+        string subnetId,
+        string operationName)
     {
         var matches = FindMatches(project, subnetId);
 
         if (matches.Count == 0)
         {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.TargetNotFound,
-                $"No subnet with SubnetId '{subnetId}' was found.");
+            throw PostconditionFailed(
+                operationName,
+                $"The previously resolved subnet '{subnetId}' no longer exists. Inspect the project before retrying.");
         }
 
         if (matches.Count > 1)
         {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.TargetAmbiguous,
-                $"Multiple subnets report SubnetId '{subnetId}'.");
+            throw PostconditionFailed(
+                operationName,
+                $"The previously unique SubnetId '{subnetId}' now matches multiple subnets. Inspect the project before retrying.");
         }
 
         return matches[0];
