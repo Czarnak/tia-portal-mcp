@@ -11,6 +11,25 @@ internal static class IoSystemQualificationEvidence
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
+    public static WorkerResponse NormalizeSessionResponse(WorkerResponse response, string mode)
+    {
+        if (response.Success) return response;
+
+        // Execute can already have converted an exception into a response. Do not forward its
+        // error, warnings, or payload as qualification diagnostics; retain session-binding metadata.
+        return new WorkerResponse
+        {
+            Success = false,
+            FailureCategory = response.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+            Error = string.Equals(mode, "setAndCompile", StringComparison.Ordinal)
+                ? "IO-system qualification could not complete. The requested mutation may have committed; inspect current state before restoration or retry."
+                : "IO-system qualification could not complete. Refresh session, target, owner, and metadata evidence; inspect current state before retry.",
+            ProtocolVersion = response.ProtocolVersion,
+            ResolvedProjectPath = response.ResolvedProjectPath,
+            SessionIdentity = response.SessionIdentity
+        };
+    }
+
     public static string? ValidateChange(IoSystemQualificationAttributeInfo observed, IoSystemQualificationProbeInfo request)
     {
         var expected = request.ExpectedValue!;

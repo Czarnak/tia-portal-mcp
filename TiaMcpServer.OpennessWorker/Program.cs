@@ -381,7 +381,7 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, validation);
         try
         {
-            return WithSession(request, session =>
+            var response = WithSession(request, session =>
             {
                 var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
                 if (failure is not null)
@@ -400,6 +400,7 @@ internal static class Program
                 };
                 return new WorkerResponse { Success = true, Payload = IoSystemQualificationEvidence.SerializeBounded(result) };
             });
+            return IoSystemQualificationEvidence.NormalizeSessionResponse(response, request.IoSystemQualification!.Mode);
         }
         catch (WorkerOperationException exception)
         {
