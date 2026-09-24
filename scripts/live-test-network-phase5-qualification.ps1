@@ -102,7 +102,7 @@ function Assert-Candidate {
         if ((Get-Sha $path) -cne $entry.Value) { throw 'Runtime file SHA mismatch.' }
     }
     foreach ($file in Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File) {
-        if ($file.Extension -in @('.dll', '.exe', '.json')) {
+        if ($file.Extension -in @('.dll', '.exe', '.json', '.config')) {
             $relative = [IO.Path]::GetRelativePath($script:Root, $file.FullName).Replace('\', '/')
             if (-not $manifest.binaryHashes.Contains($relative)) { throw 'Runtime provenance omits a loadable file.' }
         }
