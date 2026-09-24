@@ -133,6 +133,53 @@ public class IoSystemQualificationWorkerContractTests
         Assert.DoesNotContain("\"evidenceOmitted\":true", json);
         Assert.True(System.Text.Encoding.UTF8.GetByteCount(json) <= 65536);
     }
+    [Theory]
+    [InlineData("inspectOwner", "target_not_found")]
+    [InlineData("compileBaseline", "worker_operation_failed")]
+    [InlineData("setAndCompile", "worker_operation_failed")]
+    public void ConvertedSessionFailure_IsNormalizedWithoutRawDiagnostics(string mode, string category)
+    {
+        var identity = new WorkerSessionIdentity();
+        var response = new WorkerResponse
+        {
+            Success = false, FailureCategory = category,
+            Error = @"C:\private\fixture.ap21 token=private-value " + new string('x', 100000),
+            Warnings = new() { "raw private warning" }, Payload = "raw private payload",
+            ResolvedProjectPath = "private-protocol-identity", SessionIdentity = identity
+        };
+        var normalized = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.NormalizeSessionResponse(response, mode);
+        Assert.False(normalized.Success);
+        Assert.Equal(category, normalized.FailureCategory);
+        Assert.NotSame(response, normalized);
+        Assert.Null(normalized.Payload);
+        Assert.Null(normalized.Warnings);
+        Assert.NotNull(normalized.Error);
+        Assert.True(normalized.Error.Length <= 512);
+        Assert.DoesNotContain("private", normalized.Error);
+        Assert.Contains("inspect current state", normalized.Error);
+        Assert.Contains("retry", normalized.Error);
+        Assert.Equal(response.ResolvedProjectPath, normalized.ResolvedProjectPath);
+        Assert.Same(identity, normalized.SessionIdentity);
+        if (mode == "setAndCompile") Assert.Contains("may have committed", normalized.Error);
+        else Assert.DoesNotContain("may have committed", normalized.Error);
+    }
+
+    [Fact]
+    public void SuccessfulSessionResponse_PreservesTypedCommittedEvidence()
+    {
+        var response = new WorkerResponse { Success = true, Payload = "typed-committed-state" };
+        Assert.Same(response, TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.NormalizeSessionResponse(response, "setAndCompile"));
+    }
+
+    [Fact]
+    public void QualificationBoundary_NormalizesReturnedSessionFailures()
+    {
+        var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
+        var body = ExtractMethodBody(program, "ProbeIoSystemQualification");
+        Assert.DoesNotContain("return WithSession(", body);
+        Ordered(body, "var response = WithSession(", "IoSystemQualificationProbeService.",
+            "return IoSystemQualificationEvidence.NormalizeSessionResponse(response, request.IoSystemQualification!.Mode)");
+    }
     private static void Ordered(string source, params string[] values)
     {
         var prior = -1;
