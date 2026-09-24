@@ -181,7 +181,17 @@ function Get-Baseline($inspection) {
             $value = @{ kind = $kind }
             $value[$kind + 'Value'] = $attribute.value.value
         }
-        $snapshot += @{ name = $name; available = ($attribute.availability -ceq 'available'); writable = ($attribute.access -ceq 'readWrite'); supportedTypes = $attribute.supportedTypes; value = $value }
+        # Keep the complete public observation for cross-invocation drift checks. The
+        # convenience booleans/scalar below are only for one-field proposal validation.
+        # In particular, unavailable states and the observed CLR type must not collapse.
+        $snapshot += @{
+            name = $name
+            available = ($attribute.availability -ceq 'available')
+            writable = ($attribute.access -ceq 'readWrite')
+            supportedTypes = $attribute.supportedTypes
+            value = $value
+            observation = $attribute
+        }
     }
     return ,$snapshot
 }
