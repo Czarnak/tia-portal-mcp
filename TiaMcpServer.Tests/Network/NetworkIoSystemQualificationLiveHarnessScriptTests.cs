@@ -80,6 +80,15 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Fact]
+    public void PublicInspectionExplicitlyRequestsAllFiveCandidateAttributes()
+    {
+        var start = Source.IndexOf("function Get-PublicInspection", StringComparison.Ordinal);
+        var end = Source.IndexOf("function Get-Baseline", start, StringComparison.Ordinal);
+        var inspection = Source[start..end];
+        Assert.Contains("attributeNames = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment')", inspection);
+    }
+
+    [Fact]
     public void PublicNetworkSurfaceContainsNoQualificationOperation()
     {
         foreach (var file in new[] { "NetworkReadTools.cs", "NetworkWriteTools.cs", "NetworkOperationCatalog.cs" })
