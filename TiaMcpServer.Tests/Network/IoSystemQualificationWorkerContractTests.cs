@@ -105,6 +105,32 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("\"mutationCommitted\":true", serialized);
         Assert.Contains("\"evidenceOmitted\":true", serialized);
     }
+    [Fact]
+    public void CompilerEvidence_RedactsPathsAndCredentials_AndKeepsUsefulText()
+    {
+        var result = new IoSystemQualificationResultInfo();
+        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.AddMessage(result,
+            @"Invalid station at C:\private\fixture.ap21 password=secret123 token: abcdef /home/private/project");
+        var message = Assert.Single(result.Messages);
+        Assert.Contains("Invalid station", message);
+        Assert.DoesNotContain("fixture.ap21", message);
+        Assert.DoesNotContain("secret123", message);
+        Assert.DoesNotContain("abcdef", message);
+        Assert.DoesNotContain("/home/private", message);
+    }
+
+    [Fact]
+    public void ResultBudget_TrimsMessagesBeforeAppliedState()
+    {
+        var result = new IoSystemQualificationResultInfo { MutationCommitted = true };
+        result.After.Add(new() { Name = "Name", Value = new() { Kind = "string", StringValue = new string('a', 54000) } });
+        for (var i = 0; i < 32; i++)
+            TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.AddMessage(result, new string('x', 512));
+        var json = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SerializeBounded(result);
+        Assert.Contains(new string('a', 54000), json);
+        Assert.DoesNotContain("\"evidenceOmitted\":true", json);
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(json) <= 65536);
+    }
     private static void Ordered(string source, params string[] values)
     {
         var prior = -1;
