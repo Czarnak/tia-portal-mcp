@@ -48,6 +48,51 @@ public class IoSystemQualificationProbeContractTests
     public void ValidBaselineIsAccepted()
         => Assert.Null(IoSystemQualificationProbeValidator.Validate(Baseline()));
 
+    [Fact]
+    public void InspectOwnerAcceptsOnlyTheExactOrdinalModeOnTheWorkerOnlyMethod()
+    {
+        var request = Baseline();
+        request.IoSystemQualification!.Mode = "inspectOwner";
+        Assert.Null(IoSystemQualificationProbeValidator.Validate(request));
+        Assert.DoesNotContain(NetworkOperationCatalog.All, operation => operation.Name == Method);
+
+        request.IoSystemQualification.Mode = "inspectowner";
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+    }
+
+    [Fact]
+    public void InspectOwnerRetainsConfirmationIdentityAndExactTargetGuards()
+    {
+        var request = Baseline();
+        request.IoSystemQualification!.Mode = "inspectOwner";
+        request.Confirm = false;
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+        request.Confirm = true;
+        request.ExpectedSessionIdentity = null;
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+        request.ExpectedSessionIdentity = new WorkerSessionIdentity { WorkerSessionId = "session" };
+        request.IoSystemQualification.Target!.IoSystemName = "extra";
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+        request.IoSystemQualification.Target.IoSystemName = null;
+        request.IoSystemQualification.Target.Number = null;
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+    }
+
+    [Fact]
+    public void InspectOwnerRejectsEachAttributeOrValueField()
+    {
+        var request = Baseline();
+        request.IoSystemQualification!.Mode = "inspectOwner";
+        request.IoSystemQualification.AttributeName = "Name";
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+        request.IoSystemQualification.AttributeName = null;
+        request.IoSystemQualification.ExpectedValue = new() { Kind = "string", StringValue = "before" };
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+        request.IoSystemQualification.ExpectedValue = null;
+        request.IoSystemQualification.DesiredValue = new() { Kind = "string", StringValue = "after" };
+        Assert.NotNull(IoSystemQualificationProbeValidator.Validate(request));
+    }
+
     [Theory]
     [InlineData("Name")]
     [InlineData("Number")]
