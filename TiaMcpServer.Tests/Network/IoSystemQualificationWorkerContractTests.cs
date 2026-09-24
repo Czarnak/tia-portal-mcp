@@ -60,6 +60,51 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("RequireExactIoSystem(", post);
     }
 
+    [Fact]
+    public void ExpectedValueAndMetadata_MustMatchExactly()
+    {
+        var observation = new IoSystemQualificationAttributeInfo
+        {
+            Name = "Number", Available = true, Writable = true,
+            SupportedTypes = new() { "System.Int32" },
+            Value = new() { Kind = "integer", IntegerValue = 2 }
+        };
+        var request = new IoSystemQualificationProbeInfo
+        {
+            AttributeName = "Number", ExpectedValue = new() { Kind = "integer", IntegerValue = 2 },
+            DesiredValue = new() { Kind = "integer", IntegerValue = 3 }
+        };
+        Assert.Null(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        observation.Writable = false;
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        observation.Writable = true;
+        observation.Value.IntegerValue = 9;
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        observation.Value.IntegerValue = 2;
+        observation.SupportedTypes = new() { "System.String" };
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        observation.SupportedTypes = new() { "System.Int32" };
+        observation.Available = false;
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+    }
+
+    [Fact]
+    public void EvidenceBounds_PreserveCommittedOutcome_AndReportOmissions()
+    {
+        var result = new IoSystemQualificationResultInfo { MutationCommitted = true, CompileState = "Error" };
+        for (var i = 0; i < 70; i++)
+            TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.AddMessage(result, new string('x', 5000));
+        Assert.Equal(32, result.Messages.Count);
+        Assert.Equal(38, result.OmittedMessageCount);
+        Assert.All(result.Messages, message => Assert.True(message.Length <= 512));
+        var serialized = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SerializeBounded(result);
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(serialized) <= 65536);
+        result.Before.Add(new() { Value = new() { Kind = "string", StringValue = new string('x', 100000) } });
+        serialized = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SerializeBounded(result);
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(serialized) <= 65536);
+        Assert.Contains("\"mutationCommitted\":true", serialized);
+        Assert.Contains("\"evidenceOmitted\":true", serialized);
+    }
     private static void Ordered(string source, params string[] values)
     {
         var prior = -1;
