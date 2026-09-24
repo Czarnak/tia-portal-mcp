@@ -210,8 +210,7 @@ public static class IoSystemQualificationProbeService
     {
         foreach (var message in messages)
         {
-            // Compiler descriptions and paths can contain arbitrary project data. Return severity only.
-            IoSystemQualificationEvidence.AddMessage(result, "Hardware compiler message: " + message.State);
+            IoSystemQualificationEvidence.AddMessage(result, message.State + ": " + message.Description);
             ReadCompilerMessages(message.Messages, result);
         }
     }
