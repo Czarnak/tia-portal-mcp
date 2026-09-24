@@ -11,9 +11,25 @@ public static class IoSystemQualificationProbeService
 {
     public static IoSystemQualificationResultInfo InspectOwner(Project project, IoSystemQualificationProbeInfo request)
     {
-        var target = RequireExactIoSystem(project, request.Target!);
-        var owner = RequireExactOwningDeviceItem(project, target);
-        return NewResult(request, target, owner);
+        var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
+        try
+        {
+            var target = RequireExactIoSystem(project, request.Target!);
+            var owner = RequireExactOwningDeviceItem(project, target, diagnostic);
+            var result = NewResult(request, target, owner);
+            result.OwnerDiagnostics = diagnostic;
+            return result;
+        }
+        catch (Exception)
+        {
+            // Inspection failure is data, not owner proof. No identifiers or raw exceptions escape.
+            return new IoSystemQualificationResultInfo
+            {
+                Mode = "inspectOwner", OwnerMatchCount = diagnostic.MatchCount,
+                OwnerDiagnostics = diagnostic,
+                RestorationGuidance = "Ownership is unverified. Do not compile or mutate this target."
+            };
+        }
     }
 
     public static IoSystemQualificationResultInfo CompileBaseline(Project project, IoSystemQualificationProbeInfo request)
@@ -117,22 +133,32 @@ public static class IoSystemQualificationProbeService
         return resolved.Resolved;
     }
 
-    private static Owner RequireExactOwningDeviceItem(Project project, ResolvedNetworkObject target)
+    private static Owner RequireExactOwningDeviceItem(Project project, ResolvedNetworkObject target,
+        IoSystemQualificationOwnerDiagnosticInfo? diagnostic = null)
     {
-        var matches = new List<Owner>();
-        foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
-            FindOwners(device.DeviceItems, device.Name, new List<DeviceItemPathSegmentInfo>(), (IoSystem)target.Value, matches);
-        if (matches.Count != 1)
-            throw Failure("The IO system must have exactly one owning controller DeviceItem.");
-        var owner = matches[0];
-        var verified = NetworkObjectSelectorResolver.Resolve(project, owner.Selector);
-        if (!verified.Success || !object.Equals(verified.Resolved!.Value, owner.Item))
-            throw Failure("The owning DeviceItem selector could not be verified.");
+        Owner? owner = null;
+        diagnostic = IoSystemQualificationEvidence.InspectOwner<OwnerCandidate>(
+            matches =>
+            {
+                foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
+                    FindOwners(device.DeviceItems, device.Name, new List<DeviceItemPathSegmentInfo>(), (IoSystem)target.Value, matches);
+            },
+            candidate => IoSystemQualificationEvidence.SummarizeOwnerPath(candidate.DeviceName, candidate.Path),
+            candidate =>
+            {
+                var selector = NetworkSelectorFactory.DeviceItem(candidate.DeviceName, candidate.Path);
+                var verified = NetworkObjectSelectorResolver.Resolve(project, selector);
+                if (!verified.Success || !object.Equals(verified.Resolved!.Value, candidate.Item)) return false;
+                owner = new Owner(candidate.Item, selector);
+                return true;
+            }, diagnostic);
+        if (diagnostic.Reason != "verified" || owner is null)
+            throw Failure("The exact owning DeviceItem could not be verified.");
         return owner;
     }
 
     private static void FindOwners(DeviceItemComposition items, string deviceName,
-        List<DeviceItemPathSegmentInfo> parentPath, IoSystem target, List<Owner> matches)
+        List<DeviceItemPathSegmentInfo> parentPath, IoSystem target, List<OwnerCandidate> matches)
     {
         var index = 0;
         foreach (DeviceItem item in items)
@@ -145,7 +171,7 @@ public static class IoSystemQualificationProbeService
             if (networkInterface is not null)
                 foreach (IoController controller in networkInterface.IoControllers)
                     if (object.Equals(controller.IoSystem, target))
-                        matches.Add(new Owner(item, NetworkSelectorFactory.DeviceItem(deviceName, path)));
+                        matches.Add(new OwnerCandidate(item, deviceName, path));
             // Unreadable compositions propagate: incomplete discovery cannot prove uniqueness.
             FindOwners(item.DeviceItems, deviceName, path, target, matches);
         }
@@ -216,6 +242,15 @@ public static class IoSystemQualificationProbeService
     }
     private static WorkerOperationException Failure(string message)
         => new(WorkerFailureCategories.WorkerOperationFailed, message);
+
+    private sealed class OwnerCandidate
+    {
+        public OwnerCandidate(DeviceItem item, string deviceName, List<DeviceItemPathSegmentInfo> path)
+        { Item = item; DeviceName = deviceName; Path = path; }
+        public DeviceItem Item { get; }
+        public string DeviceName { get; }
+        public List<DeviceItemPathSegmentInfo> Path { get; }
+    }
 
     private sealed class Owner
     {

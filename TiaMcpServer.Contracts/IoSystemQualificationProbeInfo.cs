@@ -107,6 +107,7 @@ public sealed class IoSystemQualificationResultInfo
     public NetworkObjectSelectorInfo? OwnerTarget { get; set; }
     public int OwnerMatchCount { get; set; }
     public bool OwnerIdentityVerified { get; set; }
+    public IoSystemQualificationOwnerDiagnosticInfo? OwnerDiagnostics { get; set; }
     public string HardwareTargetKind { get; set; } = string.Empty;
     public string HardwareTargetAlias { get; set; } = string.Empty;
     public bool MutationCommitted { get; set; }
@@ -128,4 +129,24 @@ public sealed class IoSystemQualificationAttributeInfo
     public bool Writable { get; set; }
     public System.Collections.Generic.List<string> SupportedTypes { get; set; } = new();
     public IoSystemQualificationScalarInfo? Value { get; set; }
+}
+
+/// <summary>Closed stage/reason codes and aggregate counts only; never contains engineering identifiers.</summary>
+public sealed class IoSystemQualificationOwnerDiagnosticInfo
+{
+    public string Stage { get; set; } = "targetResolution";
+    public string Reason { get; set; } = "target_unresolved";
+    public bool TraversalCompleted { get; set; }
+    public int MatchCount { get; set; }
+    public IoSystemQualificationOwnerPathEvidenceInfo? Path { get; set; }
+}
+
+public sealed class IoSystemQualificationOwnerPathEvidenceInfo
+{
+    public int Depth { get; set; }
+    public int BlankDeviceNameCount { get; set; }
+    public int BlankNameCount { get; set; }
+    public int BlankTypeIdentifierCount { get; set; }
+    public int NegativePositionCount { get; set; }
+    public int NegativeIndexCount { get; set; }
 }

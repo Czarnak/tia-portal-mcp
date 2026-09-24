@@ -11,6 +11,62 @@ internal static class IoSystemQualificationEvidence
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
+    public static IoSystemQualificationOwnerDiagnosticInfo InspectOwner<T>(
+        Action<System.Collections.Generic.List<T>> collectMatches,
+        Func<T, IoSystemQualificationOwnerPathEvidenceInfo> readPath,
+        Func<T, bool> verifyIdentity,
+        IoSystemQualificationOwnerDiagnosticInfo? diagnostic = null)
+    {
+        diagnostic ??= new IoSystemQualificationOwnerDiagnosticInfo();
+        var matches = new System.Collections.Generic.List<T>();
+        diagnostic.Stage = "traversal";
+        try
+        {
+            collectMatches(matches);
+            diagnostic.TraversalCompleted = true;
+            diagnostic.MatchCount = matches.Count;
+            diagnostic.Stage = "matching";
+            if (matches.Count != 1)
+            {
+                diagnostic.Reason = matches.Count == 0 ? "no_matches" : "multiple_matches";
+                return diagnostic;
+            }
+            diagnostic.Stage = "pathEvidence";
+            var path = readPath(matches[0]);
+            diagnostic.Path = path;
+            if (path.Depth == 0 || path.BlankDeviceNameCount != 0 || path.BlankNameCount != 0
+                || path.BlankTypeIdentifierCount != 0 || path.NegativePositionCount != 0 || path.NegativeIndexCount != 0)
+            {
+                diagnostic.Reason = "incomplete_path";
+                return diagnostic;
+            }
+            diagnostic.Stage = "verification";
+            diagnostic.Reason = verifyIdentity(matches[0]) ? "verified" : "identity_unverified";
+        }
+        catch (Exception)
+        {
+            diagnostic.MatchCount = matches.Count;
+            diagnostic.Reason = diagnostic.Stage switch
+            {
+                "traversal" => "traversal_failed",
+                "pathEvidence" => "path_read_failed",
+                _ => "verification_failed"
+            };
+        }
+        return diagnostic;
+    }
+
+    public static IoSystemQualificationOwnerPathEvidenceInfo SummarizeOwnerPath(
+        string deviceName, System.Collections.Generic.IReadOnlyList<DeviceItemPathSegmentInfo> path)
+        => new()
+        {
+            Depth = path.Count,
+            BlankDeviceNameCount = string.IsNullOrWhiteSpace(deviceName) ? 1 : 0,
+            BlankNameCount = path.Count(segment => string.IsNullOrWhiteSpace(segment.Name)),
+            BlankTypeIdentifierCount = path.Count(segment => string.IsNullOrWhiteSpace(segment.TypeIdentifier)),
+            NegativePositionCount = path.Count(segment => segment.PositionNumber < 0),
+            NegativeIndexCount = path.Count(segment => segment.Index < 0)
+        };
     public static WorkerResponse NormalizeSessionResponse(WorkerResponse response, string mode)
     {
         if (response.Success) return response;
