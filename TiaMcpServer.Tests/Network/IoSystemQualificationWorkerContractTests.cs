@@ -15,6 +15,8 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("\"probe_io_system_qualification\" => ProbeIoSystemQualification(request)", program);
         var body = ExtractMethodBody(program, "ProbeIoSystemQualification");
         Ordered(body, "IoSystemQualificationProbeValidator.Validate(request)", "WithSession(", "ValidateExpectedAfterProjectResolution(", "IoSystemQualificationProbeService.");
+        Assert.Contains("catch (Exception)", body);
+        Assert.DoesNotContain("exception.Message", body);
         Assert.Equal(OperationCapability.ProjectMutation, OperationPolicyCatalog.GetCapability("probe_io_system_qualification"));
     }
 
