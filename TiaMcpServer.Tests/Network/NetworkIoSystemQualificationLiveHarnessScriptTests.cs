@@ -113,6 +113,76 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     public async Task BaselineAcceptsIdenticalObservations()
         => await AssertPureBaselineHelperAsync("Assert-Same (Get-Baseline $original) (Get-Baseline $changed)");
 
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    public async Task CandidateRequiresFrozenWorkerConfig(bool includeConfigHash, bool changeConfig, bool expectRejection)
+    {
+        var temporary = Directory.CreateTempSubdirectory("phase5-config-guard-");
+        try
+        {
+            var harness = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+            var directory = temporary.FullName.Replace("'", "''");
+            await RunOfflinePowerShellAsync($$"""
+                Set-StrictMode -Version Latest
+                $ErrorActionPreference = 'Stop'
+                $tokens = $null; $errors = $null
+                $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{harness}}', [ref]$tokens, [ref]$errors)
+                if ($errors.Count) { throw 'Harness parse failed.' }
+                # Extract the read-only candidate guard and hash helper, never process/IPC code.
+                foreach ($name in @('Get-Sha', 'Assert-Candidate')) {
+                    $functions = @($ast.FindAll({ param($node)
+                        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                    }, $true))
+                    if ($functions.Count -ne 1) { throw 'Expected one offline guard helper.' }
+                    . ([scriptblock]::Create($functions[0].Extent.Text))
+                }
+                # Stub only Git identity/cleanliness; filesystem enumeration and SHA checks are real.
+                function git {
+                    $global:LASTEXITCODE = 0
+                    if ($args -contains 'HEAD') { return 'candidate' }
+                    if ($args -contains 'HEAD^{tree}') { return 'tree' }
+                    if ($args -contains 'status') { return }
+                    throw 'Unexpected git operation.'
+                }
+                $script:Root = '{{directory}}'
+                $script:HarnessPath = '{{harness}}'
+                $runtimeRoot = Join-Path $script:Root 'runtime'
+                $null = New-Item -ItemType Directory -Path (Join-Path $runtimeRoot 'openness-worker')
+                $files = @('host.dll', 'contracts.dll', 'host.runtimeconfig.json', 'openness-worker/TiaMcpServer.OpennessWorker.exe')
+                $hashes = @{}
+                foreach ($file in $files) {
+                    $path = Join-Path $runtimeRoot $file
+                    [IO.File]::WriteAllText($path, 'synthetic runtime fixture')
+                    $hashes['runtime/' + $file] = Get-Sha $path
+                }
+                $config = Join-Path $runtimeRoot 'openness-worker/TiaMcpServer.OpennessWorker.exe.config'
+                [IO.File]::WriteAllText($config, '<configuration><runtime /></configuration>')
+                if (${{includeConfigHash.ToString().ToLowerInvariant()}}) {
+                    $hashes['runtime/openness-worker/TiaMcpServer.OpennessWorker.exe.config'] = Get-Sha $config
+                }
+                $hostDll = Join-Path $runtimeRoot 'host.dll'
+                $workerExe = Join-Path $runtimeRoot 'openness-worker/TiaMcpServer.OpennessWorker.exe'
+                $ExpectedCommit = 'candidate'; $ExpectedTree = 'tree'
+                $ProjectPath = Join-Path $script:Root 'synthetic.ap21'
+                $ExpectedHarnessSha256 = Get-Sha $script:HarnessPath
+                $manifest = @{ commit = $ExpectedCommit; tree = $ExpectedTree; projectPath = $ProjectPath; hostSha256 = (Get-Sha $hostDll); workerSha256 = (Get-Sha $workerExe); binaryHashes = $hashes }
+                $ManifestPath = Join-Path $script:Root 'manifest.json'
+                [IO.File]::WriteAllText($ManifestPath, ($manifest | ConvertTo-Json -Depth 10))
+                $ExpectedManifestSha256 = Get-Sha $ManifestPath
+                if (${{changeConfig.ToString().ToLowerInvariant()}}) {
+                    if (-not (Assert-Candidate)) { throw 'Frozen candidate should initially pass.' }
+                    [IO.File]::WriteAllText($config, '<configuration><runtime><assemblyBinding /></runtime></configuration>')
+                }
+                $rejected = $false
+                try { $null = Assert-Candidate } catch { $rejected = $true }
+                if ($rejected -ne ${{expectRejection.ToString().ToLowerInvariant()}}) { throw 'Unexpected config guard decision.' }
+                """);
+        }
+        finally { temporary.Delete(recursive: true); }
+    }
+
     private static async Task AssertPureBaselineHelperAsync(string assertion)
     {
         var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
@@ -140,6 +210,11 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $changed = ConvertFrom-Json (Get-Json $original) -AsHashtable -Depth 100
             {{assertion}}
             """;
+        await RunOfflinePowerShellAsync(command);
+    }
+
+    private static async Task RunOfflinePowerShellAsync(string command)
+    {
         var psi = new ProcessStartInfo("pwsh") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         psi.ArgumentList.Add("-NoProfile");
         psi.ArgumentList.Add("-EncodedCommand");
