@@ -268,6 +268,9 @@ function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode) {
         $Effect.ownerMatchCount -ne 1 -or $Effect.ownerIdentityVerified -isnot [bool] -or
         $Effect.ownerIdentityVerified -ne $true -or $Effect.hardwareTargetKind -cne 'deviceItem' -or
         $Effect.evidenceOmitted -isnot [bool] -or $Effect.evidenceOmitted -or
+        $Effect.compileState -isnot [string] -or
+        ($Effect.errorCount -isnot [int] -and $Effect.errorCount -isnot [long]) -or $Effect.errorCount -lt 0 -or
+        ($Effect.warningCount -isnot [int] -and $Effect.warningCount -isnot [long]) -or $Effect.warningCount -lt 0 -or
         $Owner.originalTarget -isnot [Collections.IDictionary] -or
         $Effect.originalTarget -isnot [Collections.IDictionary] -or
         $Effect.appliedTarget -isnot [Collections.IDictionary] -or
