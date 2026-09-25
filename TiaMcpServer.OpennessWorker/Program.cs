@@ -394,7 +394,7 @@ internal static class Program
                 var result = probe.Mode switch
                 {
                     "inspectOwner" => IoSystemQualificationProbeService.InspectOwner(session.Project, probe),
-                    "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.Project, probe),
+                    "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.TiaPortal, session.Project, probe),
                     "setAndCompile" => IoSystemQualificationProbeService.SetAndCompile(session.TiaPortal, session.Project, probe),
                     _ => throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Unsupported qualification mode.")
                 };

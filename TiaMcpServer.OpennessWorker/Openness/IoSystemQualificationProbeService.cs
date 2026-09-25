@@ -32,8 +32,9 @@ public static class IoSystemQualificationProbeService
         }
     }
 
-    public static IoSystemQualificationResultInfo CompileBaseline(Project project, IoSystemQualificationProbeInfo request)
+    public static IoSystemQualificationResultInfo CompileBaseline(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)
     {
+        using var exclusive = portal.ExclusiveAccess();
         var target = RequireExactIoSystem(project, request.Target!);
         var owner = RequireExactOwningDeviceItem(project, target);
         var result = NewResult(request, target, owner);
