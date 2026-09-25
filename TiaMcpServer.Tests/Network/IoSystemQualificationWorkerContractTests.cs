@@ -405,7 +405,7 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
-    public void OwnerDiagnostics_EqualProxyDoesNotPassIdentityProofOrRevealLocation()
+    public void OwnerDiagnostics_EqualProxyWithoutControllerLinkDoesNotPassOrRevealLocation()
     {
         var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
         diagnostic.OwnerDeviceLocation = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
@@ -418,7 +418,8 @@ public class IoSystemQualificationWorkerContractTests
                 var resolved = new EqualProxy();
                 TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
                     .RecordOwnerResolution(candidate, resolved, diagnostic);
-                return ReferenceEquals(candidate, resolved);
+                return TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+                    .VerifyResolvedOwner(resolved, candidate, "target", _ => Array.Empty<string>());
             }, diagnostic);
         Assert.Equal("identity_unverified", result.Reason);
         Assert.Equal("grouped", result.OwnerDeviceLocation);
@@ -429,6 +430,63 @@ public class IoSystemQualificationWorkerContractTests
         Assert.DoesNotContain("private-group", json);
         Assert.DoesNotContain("private-device", json);
         Assert.True(json.Length < 1024);
+    }
+
+    [Fact]
+    public void OwnerProof_RequiresResolverSuccessAndSiemensObjectEqualityBeforeReadingLinks()
+    {
+        var linkReads = 0;
+        IEnumerable<string> ReadLinks(object _) { linkReads++; return new[] { "target" }; }
+        var candidate = new EqualProxy();
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner<object, string>(null, candidate, "target", ReadLinks));
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner<object, string>(new object(), candidate, "target", ReadLinks));
+        Assert.Equal(0, linkReads);
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(new EqualProxy(), candidate, "target", _ =>
+            {
+                linkReads++;
+                return new[] { "target" };
+            }));
+        Assert.Equal(1, linkReads);
+    }
+
+    [Fact]
+    public void OwnerProof_RequiresExactlyOneFreshControllerLinkToExactTarget()
+    {
+        var candidate = new EqualProxy();
+        var verified = new EqualProxy();
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(verified, candidate, "target", _ => null));
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(verified, candidate, "target", _ => Array.Empty<string>()));
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "other" }));
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "target", "target" }));
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "other", "target" }));
+    }
+
+    [Fact]
+    public void OwnerProof_ThrowingEqualityOrControllerReadFailsClosed()
+    {
+        var candidate = new EqualProxy();
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
+            matches => matches.Add(candidate), _ => new() { Depth = 1 },
+            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+                .VerifyResolvedOwner<object, string>(new ThrowingProxy(), candidate, "target", _ => new[] { "target" }));
+        Assert.Equal("verification_failed", diagnostic.Reason);
+        Assert.False(diagnostic.Reason == "verified");
+
+        diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
+            matches => matches.Add(candidate), _ => new() { Depth = 1 },
+            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+                .VerifyResolvedOwner(new EqualProxy(), candidate, "target", _ =>
+                    throw new InvalidOperationException("private controller detail")));
+        Assert.Equal("verification_failed", diagnostic.Reason);
+        Assert.DoesNotContain("private", System.Text.Json.JsonSerializer.Serialize(diagnostic));
     }
 
     [Fact]
@@ -445,7 +503,7 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
-    public void OwnerInspection_RecordsResolutionButKeepsReferenceEqualsGate()
+    public void OwnerInspection_RecordsResolutionAndRequiresFreshVerifiedControllerLink()
     {
         var owner = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
         Assert.Contains("ProjectDeviceEnumerator.EnumerateWithLocations(project)", owner);
@@ -453,7 +511,12 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("DirectDeviceNameMatchCount", owner);
         Ordered(owner, "ResolveQualificationDeviceItem(project, selector)",
             "RecordOwnerResolution(candidate.Item, verified, diagnostic)",
-            "ReferenceEquals(verified, candidate.Item)", "owner = new Owner(candidate.Item, selector)");
+            "VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)",
+            "owner = new Owner(verified, selector)");
+        var readLinks = ExtractMethodBody(Source, "ReadControllerIoSystems");
+        Assert.Contains("GetService<NetworkInterface>()", readLinks);
+        Assert.Contains("IoControllers", readLinks);
+        Assert.Contains("IoSystem", readLinks);
     }
 
     private sealed class EqualProxy
@@ -487,7 +550,7 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
-    public void OwnerSelector_UsesDirectObservedPathAndResolverObjectIdentity()
+    public void OwnerSelector_UsesDirectObservedPathAndSiemensObjectIdentity()
     {
         var body = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
         Assert.DoesNotContain("NetworkSelectorFactory.DeviceItem", body);
@@ -495,7 +558,13 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("DeviceName = candidate.DeviceName", body);
         Assert.Contains("ItemPath = candidate.Path", body);
         Ordered(body, "NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector)",
-            "ReferenceEquals(verified, candidate.Item)", "owner = new Owner(candidate.Item, selector)");
+            "VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)",
+            "owner = new Owner(verified, selector)");
+        var proof = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/IoSystemQualificationEvidence.cs"));
+        var proofBody = ExtractMethodBody(proof, "VerifyResolvedOwner");
+        Assert.Contains("object.Equals(verified, candidate)", proofBody);
+        Assert.Contains("object.Equals(system, target)", proofBody);
+        Assert.Contains("matchingLinks == 1", proofBody);
         var resolver = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/NetworkObjectSelectorResolver.cs"));
         var qualification = ExtractMethodBody(resolver, "ResolveQualificationDeviceItem");
         Assert.Contains("MatchDeviceItem(project, target)", qualification);
@@ -503,8 +572,12 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("match.Item", qualification);
         Assert.Contains("string.Equals(typeIdentifier, requestedSegment.TypeIdentifier, StringComparison.Ordinal)",
             ExtractMethodBody(resolver, "MatchDeviceItem"));
-        Assert.Contains("NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, originalOwner)",
-            ExtractMethodBody(Source, "SetAndCompile"));
+        var apply = ExtractMethodBody(Source, "SetAndCompile");
+        Ordered(apply, "preEditOwnerItem = owner.Item", "ApplySingleField(target, request)",
+            "transaction.CommitOnDispose();", "RequireExactOwningDeviceItem(project, applied)",
+            "object.Equals(preEditOwnerItem, owner.Item)", "CompileHardware(owner.Item, result)");
+        Assert.DoesNotContain("ReferenceEquals(original, owner.Item)", apply);
+        Assert.DoesNotContain("ResolveQualificationDeviceItem(project, originalOwner)", apply);
         var traversal = ExtractMethodBody(Source, "FindOwners");
         Assert.Contains("TypeIdentifier = item.TypeIdentifier", traversal);
         Assert.Contains("FindOwners(item.DeviceItems", traversal);
@@ -538,7 +611,7 @@ public class IoSystemQualificationWorkerContractTests
 
     internal static string ExtractMethodBody(string source, string name)
     {
-        var match = Regex.Match(source, @"(?:public|private|internal)\s+static\s+[^\r\n]+\s+" + name + @"\s*\(");
+        var match = Regex.Match(source, @"(?:public|private|internal)\s+static\s+[^\r\n]+\s+" + name + @"(?:<[^>]+>)?\s*\(");
         Assert.True(match.Success, $"Missing method {name}");
         var start = source.IndexOf('{', match.Index);
         var depth = 0;
