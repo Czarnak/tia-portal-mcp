@@ -9,15 +9,22 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// <summary>Temporary worker-only qualification. No public operation uses this service.</summary>
 public static class IoSystemQualificationProbeService
 {
-    public static IoSystemQualificationResultInfo InspectOwner(Project project, IoSystemQualificationProbeInfo request)
+    public static IoSystemQualificationResultInfo InspectOwner(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)
     {
         var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
         try
         {
+            using var exclusive = portal.ExclusiveAccess();
             var target = RequireExactIoSystem(project, request.Target!);
             var owner = RequireExactOwningDeviceItem(project, target, diagnostic);
             var result = NewResult(request, target, owner);
             result.OwnerDiagnostics = diagnostic;
+            result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target);
+            result.PnDeviceNameEvidenceScope = GetPnDeviceNameEvidenceScope(target);
+            if (result.BeforePnDeviceNames.Any(node => !node.Available))
+                throw Failure("A linked PN device name is unavailable during inspection.");
+            if (!IoSystemQualificationEvidence.FitsResultBudget(result))
+                throw Failure("Read-only qualification evidence exceeds the result limit.");
             return result;
         }
         catch (Exception)
@@ -27,7 +34,7 @@ public static class IoSystemQualificationProbeService
             {
                 Mode = "inspectOwner", OwnerMatchCount = diagnostic.MatchCount,
                 OwnerDiagnostics = diagnostic,
-                RestorationGuidance = "Ownership is unverified. Do not compile or mutate this target."
+                RestorationGuidance = "Ownership or linked PN name evidence is unverified. Do not compile or mutate this target."
             };
         }
     }
