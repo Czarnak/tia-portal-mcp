@@ -441,8 +441,8 @@ function Assert-PnDeviceNameEvidence($Effect, [string] $Alias) {
                 if ($segment -isnot [Collections.IDictionary] -or
                     ($segment.index -isnot [int] -and $segment.index -isnot [long]) -or $segment.index -lt 0 -or
                     $segment.name -isnot [string] -or [string]::IsNullOrWhiteSpace($segment.name) -or
-                    ($null -ne $segment.positionNumber -and $segment.positionNumber -isnot [int] -and $segment.positionNumber -isnot [long]) -or
-                    ($null -ne $segment.positionNumber -and $segment.positionNumber -lt 0) -or
+                    ($segment.positionNumber -isnot [int] -and $segment.positionNumber -isnot [long]) -or
+                    $segment.positionNumber -lt 0 -or
                     ($null -ne $segment.typeIdentifier -and $segment.typeIdentifier -isnot [string]) -or
                     ($segment.typeIdentifier -is [string] -and $segment.typeIdentifier.Length -gt 0 -and
                         [string]::IsNullOrWhiteSpace($segment.typeIdentifier))) { throw 'Affected PN node path is incomplete.' }
