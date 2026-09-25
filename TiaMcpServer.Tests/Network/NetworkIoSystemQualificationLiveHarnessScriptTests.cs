@@ -55,6 +55,32 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Theory]
+    [InlineData("$false", false)]
+    [InlineData("$true", true)]
+    [InlineData("$null", true)]
+    [InlineData("'False'", true)]
+    public async Task BaselineRequiresBooleanFalseBeforeInspection(string modifiedValue, bool expectRejection)
+    {
+        var start = Source.IndexOf("$publicBefore = Get-PublicStatus", StringComparison.Ordinal);
+        var end = Source.IndexOf("$inspection = Get-PublicInspection", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "Expected a public-status preflight before inspection.");
+        var preflight = Convert.ToBase64String(Encoding.Unicode.GetBytes(Source[start..end]));
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $status = @{ project = @{ isModified = {{modifiedValue}} } }
+            function Get-PublicStatus { return $status }
+            $preflight = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{preflight}}')))
+            $rejected = $false
+            try { & $preflight } catch {
+                if ($_.Exception.Message -ne 'Qualification requires an unmodified project baseline.') { throw }
+                $rejected = $true
+            }
+            if ($rejected -ne ${{expectRejection.ToString().ToLowerInvariant()}}) { throw 'Unexpected baseline decision.' }
+            """);
+    }
+
+    [Theory]
     [InlineData("PN-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("DP-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("PN-B", "QUALIFY FIXTURE B Apply", "Fixture B qualification stopped")]
