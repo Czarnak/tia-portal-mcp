@@ -144,6 +144,10 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("Apply", "$record.effect.ownerMatchCount = 2", true)]
     [InlineData("Apply", "$record.effect.hardwareTargetKind = 'device'", true)]
     [InlineData("Apply", "$record.effect.before = @($record.effect.before[0..3])", true)]
+    [InlineData("Apply", "$record.effect.errorCount = '0'", true)]
+    [InlineData("Compile", "$record.effect.warningCount = '0'", true)]
+    [InlineData("Apply", "$record.effect.warningCount = -1", true)]
+    [InlineData("Compile", "$record.effect.warningCount = $null", true)]
     public async Task CompletedEffectRequiresModeCommitAndTypedOwnershipProof(string mode, string mutation, bool expectRejection)
     {
         var start = Source.IndexOf("Assert-EffectEvidence $record.effect $owner $proposal $Mode", StringComparison.Ordinal);
@@ -189,7 +193,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
                 ownerTarget = $hardware.Clone(); ownerMatchCount = 1; ownerIdentityVerified = $true
                 hardwareTargetKind = 'deviceItem'; mutationCommitted = ($Mode -eq 'Apply')
                 before = $before; after = @()
-                compileState = 'Success'; errorCount = 0; evidenceOmitted = $false
+                compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false
             } }
             if ($Mode -eq 'Apply') { $record.effect.after = $afterSnapshot }
             {{mutation}}
