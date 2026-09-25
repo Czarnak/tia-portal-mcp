@@ -17,8 +17,62 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         Assert.Contains("[string] $Mode = 'Inventory'", Source);
         Assert.Contains("$Mode -in @('Compile', 'Apply')", Source);
         Assert.Contains("-not $AllowEffectfulQualification", Source);
-        Assert.Contains("$ConfirmationPhrase -cne \"QUALIFY FIXTURE A $Mode\"", Source);
         Assert.True(Source.IndexOf("Effectful qualification requires") < Source.IndexOf("function Start-Child"));
+    }
+
+    [Theory]
+    [InlineData("PN-A", "QUALIFY FIXTURE B Apply")]
+    [InlineData("DP-A", "QUALIFY FIXTURE B Apply")]
+    [InlineData("PN-B", "QUALIFY FIXTURE A Apply")]
+    [InlineData("DP-B", "QUALIFY FIXTURE A Apply")]
+    [InlineData("pn-b", "QUALIFY FIXTURE B Apply")]
+    public async Task EffectfulGateRejectsWrongFixturePhraseBeforeManifestOrProcess(string alias, string phrase)
+    {
+        var result = await RunHarnessBeforeManifestAsync(alias, phrase);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("Effectful qualification requires its exact confirmation phrase.", result.Output);
+        Assert.DoesNotContain("qualification stopped", result.Output);
+    }
+
+    [Theory]
+    [InlineData("PN-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
+    [InlineData("DP-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
+    [InlineData("PN-B", "QUALIFY FIXTURE B Apply", "Fixture B qualification stopped")]
+    [InlineData("DP-B", "QUALIFY FIXTURE B Apply", "Fixture B qualification stopped")]
+    public async Task EffectfulGateAcceptsOnlyMatchingFixturePhraseBeforeManifest(string alias, string phrase, string expectedFailure)
+    {
+        var result = await RunHarnessBeforeManifestAsync(alias, phrase);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains(expectedFailure, result.Output);
+        Assert.DoesNotContain("Effectful qualification requires its exact confirmation phrase.", result.Output);
+    }
+
+    [Theory]
+    [InlineData("PN-B", true)]
+    [InlineData("DP-B", false)]
+    public async Task FixtureBBooleanProposalIsQualifiedOnlyForPn(string alias, bool accepted)
+    {
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Harness parse failed.' }
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Keys', 'Assert-Proposal')) {
+                $functions = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($functions.Count -ne 1) { throw 'Expected exactly one offline guard helper.' }
+                . ([scriptblock]::Create($functions[0].Extent.Text))
+            }
+            $FixtureAlias = '{{alias}}'
+            $proposal = @{ attributeName = 'MultipleUseIoSystem'; expectedValue = @{ kind = 'boolean'; booleanValue = $false }; desiredValue = @{ kind = 'boolean'; booleanValue = $true } }
+            $owner = @{ before = @(@{ name = 'MultipleUseIoSystem'; available = $true; writable = $true; value = $proposal.expectedValue }) }
+            $accepted = $true
+            try { Assert-Proposal $proposal $owner } catch { $accepted = $false }
+            if ($accepted -ne ${{accepted.ToString().ToLowerInvariant()}}) { throw 'Unexpected Fixture B proposal decision.' }
+            """);
     }
 
     [Theory]
@@ -43,7 +97,6 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         Assert.Contains("$owner.ownerTarget.kind -cne 'deviceItem'", Source);
         Assert.Contains("Assert-Keys $proposal @('attributeName', 'expectedValue', 'desiredValue')", Source);
         Assert.Contains("$proposal.attributeName -cnotin $allowed", Source);
-        Assert.Contains("$FixtureAlias -ceq 'DP-A'", Source);
         Assert.Contains("$current.writable -ne $true", Source);
         Assert.Contains("Assert-Same $proposal.expectedValue $current.value", Source);
     }
@@ -226,6 +279,26 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         try { await process.WaitForExitAsync(deadline.Token); }
         catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Pure helper check timed out."); }
         Assert.True(process.ExitCode == 0, await output + await error);
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunHarnessBeforeManifestAsync(string alias, string phrase)
+    {
+        var psi = new ProcessStartInfo("pwsh") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        foreach (var argument in new[] {
+            "-NoProfile", "-File", Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1"),
+            "-Mode", "Apply", "-ProjectPath", Path.Combine(Path.GetTempPath(), "synthetic.ap21"),
+            "-ManifestPath", Path.Combine(Root, "artifacts/live-network-phase5-pr2", Guid.NewGuid() + ".json"),
+            "-FixtureAlias", alias, "-ExpectedCommit", "unused", "-ExpectedTree", "unused",
+            "-ExpectedHarnessSha256", "unused", "-ExpectedManifestSha256", "unused",
+            "-AllowEffectfulQualification", "-ConfirmationPhrase", phrase })
+            psi.ArgumentList.Add(argument);
+        using var process = Process.Start(psi)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try { await process.WaitForExitAsync(deadline.Token); }
+        catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Prelaunch check timed out."); }
+        return (process.ExitCode, await output + await error);
     }
 
     [Fact]
