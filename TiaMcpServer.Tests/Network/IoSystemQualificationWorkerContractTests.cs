@@ -386,7 +386,7 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
-    public void OwnerDiagnostics_ResolutionOutcomesNeverAuthorizeDifferentReference()
+    public void OwnerDiagnostics_ResolutionObservationAloneDoesNotAuthorize()
     {
         var candidate = new EqualProxy();
         var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
@@ -462,11 +462,17 @@ public class IoSystemQualificationWorkerContractTests
         Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => Array.Empty<string>()));
         Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(candidate, candidate, "target", _ => Array.Empty<string>()));
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "other" }));
         Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "target", "target" }));
         Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "other", "target" }));
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(verified, candidate, new SystemProxy(7), _ => new[] { new SystemProxy(7) }));
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .VerifyResolvedOwner(verified, candidate, new SystemProxy(7), _ => new[] { new SystemProxy(7), new SystemProxy(7) }));
     }
 
     [Fact]
@@ -529,6 +535,13 @@ public class IoSystemQualificationWorkerContractTests
     {
         public override bool Equals(object? obj) => throw new InvalidOperationException("private equality detail");
         public override int GetHashCode() => 0;
+    }
+
+    private sealed class SystemProxy(int id)
+    {
+        public override bool Equals(object? obj) => obj is SystemProxy other && other.Id == Id;
+        public override int GetHashCode() => Id;
+        private int Id { get; } = id;
     }
 
     [Theory]

@@ -45,7 +45,7 @@ public static class IoSystemQualificationProbeService
     public static IoSystemQualificationResultInfo SetAndCompile(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)
     {
         IoSystemQualificationResultInfo result;
-        NetworkObjectSelectorInfo originalOwner;
+        DeviceItem preEditOwnerItem;
         using (var exclusive = portal.ExclusiveAccess())
         {
             using (var transaction = exclusive.Transaction(project, "Qualify IO system"))
@@ -54,7 +54,7 @@ public static class IoSystemQualificationProbeService
                 var owner = RequireExactOwningDeviceItem(project, target);
                 RequireCompiler(owner.Item);
                 result = NewResult(request, target, owner);
-                originalOwner = owner.Selector;
+                preEditOwnerItem = owner.Item;
                 result.Before = ReadFiveAttributeSnapshot(target);
                 RequireExpectedValueAndWritableMetadata(target, result.Before, request);
                 ApplySingleField(target, request);
@@ -69,8 +69,7 @@ public static class IoSystemQualificationProbeService
                 result.AppliedTarget = applied.Target;
                 result.After = ReadFiveAttributeSnapshot(applied);
                 var owner = RequireExactOwningDeviceItem(project, applied);
-                var original = NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, originalOwner);
-                if (!ReferenceEquals(original, owner.Item))
+                if (!object.Equals(preEditOwnerItem, owner.Item))
                     throw Failure("Hardware ownership changed after the committed edit.");
                 var actual = result.After.Single(attribute => attribute.Name == request.AttributeName);
                 if (!actual.Available || !IoSystemQualificationEvidence.Equal(actual.Value, request.DesiredValue))
@@ -167,13 +166,19 @@ public static class IoSystemQualificationProbeService
                 var verified = NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector);
                 if (diagnostic is not null)
                     IoSystemQualificationEvidence.RecordOwnerResolution(candidate.Item, verified, diagnostic);
-                if (!ReferenceEquals(verified, candidate.Item)) return false;
-                owner = new Owner(candidate.Item, selector);
+                if (verified is null || !IoSystemQualificationEvidence.VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)) return false;
+                owner = new Owner(verified, selector);
                 return true;
             }, diagnostic);
         if (diagnostic.Reason != "verified" || owner is null)
             throw Failure("The exact owning DeviceItem could not be verified.");
         return owner;
+    }
+
+    private static IEnumerable<IoSystem>? ReadControllerIoSystems(DeviceItem verified)
+    {
+        var networkInterface = ((IEngineeringServiceProvider)verified).GetService<NetworkInterface>();
+        return networkInterface?.IoControllers.Select(controller => controller.IoSystem);
     }
 
     private static int? TryCountDirectDeviceNameMatches(Project project, string requestedName)

@@ -108,6 +108,25 @@ internal static class IoSystemQualificationEvidence
         catch (Exception) { /* Equality is optional diagnostic evidence, never owner proof. */ }
     }
 
+    public static bool VerifyResolvedOwner<TItem, TSystem>(TItem? verified, TItem candidate,
+        TSystem target, Func<TItem, System.Collections.Generic.IEnumerable<TSystem>?> readControllerSystems)
+        where TItem : class where TSystem : class
+    {
+        // Siemens Openness may return different CLR wrappers for the same TIA object.
+        // The fresh indexed-path resolution must still identify the discovered owner.
+        if (verified is null || !object.Equals(verified, candidate)) return false;
+        var systems = readControllerSystems(verified);
+        if (systems is null) return false;
+        var matchingLinks = 0;
+        foreach (var system in systems)
+        {
+            if (system is null || !object.Equals(system, target)) continue;
+            matchingLinks++;
+            if (matchingLinks > 1) return false;
+        }
+        return matchingLinks == 1;
+    }
+
     public static WorkerResponse NormalizeSessionResponse(WorkerResponse response, string mode)
     {
         if (response.Success) return response;
