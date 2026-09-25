@@ -274,17 +274,16 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData(" ")]
     [InlineData("\t")]
-    public void OwnerDiagnostics_UnreadableOrWhitespaceTypeCannotReachIdentityProof(string? type)
+    public void OwnerDiagnostics_WhitespaceTypeCannotReachIdentityProof(string type)
     {
         var calls = 0;
         var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
             _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
             {
-                new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 0, TypeIdentifier = type! }
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 0, TypeIdentifier = type }
             }),
             _ => { calls++; return true; });
         Assert.Equal("pathEvidence", diagnostic.Stage);
@@ -292,6 +291,47 @@ public class IoSystemQualificationWorkerContractTests
         Assert.NotNull(diagnostic.Path);
         Assert.Equal(1, diagnostic.Path.BlankTypeIdentifierCount);
         Assert.Equal(0, calls);
+    }
+
+    [Theory]
+    [InlineData(true, "verified")]
+    [InlineData(false, "identity_unverified")]
+    public void OwnerDiagnostics_ObservedNullTypeRequiresFreshIdentityProof(bool identityMatches, string reason)
+    {
+        var calls = 0;
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+            matches => matches.Add(1),
+            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
+            {
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "root", PositionNumber = 0, TypeIdentifier = null! },
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 1, TypeIdentifier = "observed-type" }
+            }),
+            _ => { calls++; return identityMatches; });
+        Assert.True(diagnostic.TraversalCompleted);
+        Assert.Equal(1, diagnostic.MatchCount);
+        Assert.Equal(2, diagnostic.Path!.Depth);
+        Assert.Equal(1, diagnostic.Path.NullTypeIdentifierCount);
+        Assert.Equal(0, diagnostic.Path.WhitespaceTypeIdentifierCount);
+        Assert.Equal("verification", diagnostic.Stage);
+        Assert.Equal(reason, diagnostic.Reason);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public void OwnerDiagnostics_ObservedNullTypeWithThrowingIdentityProofFailsClosed()
+    {
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+            matches => matches.Add(1),
+            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
+            {
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "root", PositionNumber = 0, TypeIdentifier = null! },
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 1, TypeIdentifier = "observed-type" }
+            }),
+            _ => throw new InvalidOperationException("private verification detail"));
+        Assert.Equal("verification", diagnostic.Stage);
+        Assert.Equal("verification_failed", diagnostic.Reason);
+        Assert.Equal(1, diagnostic.Path!.NullTypeIdentifierCount);
+        Assert.DoesNotContain("private", System.Text.Json.JsonSerializer.Serialize(diagnostic));
     }
 
     [Fact]
