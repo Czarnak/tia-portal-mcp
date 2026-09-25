@@ -14,9 +14,10 @@ Both require its ExpectedPreviewSha256, the explicit effectful switch and exact 
 The manifest and all evidence/proposals must reside under the ignored evidence directory.
 An unmodified initial baseline uses no prior evidence. A modified baseline requires the exact
 ignored PriorEvidencePath and ExpectedPriorEvidenceSha256 of a successful completed Compile or
-Apply from this frozen candidate and Portal process. The prior target, five values and owner
-are re-read before continuing. Project status has no whole-project mutation revision, so an
-unrelated change that leaves these observations and the status identical cannot be detected.
+Apply from this frozen candidate and Portal process. The prior target, five complete public
+observations, linked PN names and owner are re-read before continuing. Project status has no
+whole-project mutation revision. An unrelated change that leaves these observations and the
+status identical cannot be detected.
 Preview/Apply compare durable identity across launches; each request uses its own freshly read
 worker session identity. A reopened project with indistinguishable durable state is not detected;
 fresh exact-target authorization and reinspection remain necessary. Restoration is a separate
@@ -349,6 +350,8 @@ function Assert-PriorEvidence($Prior) {
         $Prior.after.status.project.path -isnot [string] -or $Prior.after.status.project.path -cne $ProjectPath -or
         $Prior.after.status.project.isModified -isnot [bool] -or
         $Prior.baseline -isnot [array] -or
+        $Prior.afterPublicBaseline -isnot [array] -or
+        $Prior.beforePnDeviceNames -isnot [array] -or $Prior.afterPnDeviceNames -isnot [array] -or
         $Prior.ownerTarget -isnot [Collections.IDictionary] -or
         $Prior.effect -isnot [Collections.IDictionary]) { throw 'Prior qualification evidence is incomplete or drifted.' }
     $fixtures = @($manifest.fixtures | Where-Object alias -CEQ $Prior.fixtureAlias)
@@ -367,6 +370,18 @@ function Assert-PriorEvidence($Prior) {
     $priorOwner = @{ originalTarget = $Prior.effect.originalTarget; ownerTarget = $Prior.ownerTarget }
     Assert-EffectEvidence $Prior.effect $priorOwner $Prior.proposal $Prior.mode $Prior.fixtureAlias
     Assert-SnapshotMatchesBaseline $Prior.effect.before $Prior.baseline
+    $priorExpectedSnapshot = if ($Prior.mode -ceq 'Apply') { $Prior.effect.after } else { $Prior.effect.before }
+    Assert-SnapshotMatchesBaseline $priorExpectedSnapshot $Prior.afterPublicBaseline
+    $priorBeforePn = @{ pnDeviceNameEvidenceScope = $Prior.pnDeviceNameEvidenceScope;
+        beforePnDeviceNames = $Prior.beforePnDeviceNames; afterPnDeviceNames = @() }
+    $priorAfterPn = @{ pnDeviceNameEvidenceScope = $Prior.pnDeviceNameEvidenceScope;
+        beforePnDeviceNames = $Prior.afterPnDeviceNames; afterPnDeviceNames = @() }
+    Assert-ReadOnlyPnSnapshot $priorBeforePn $Prior.fixtureAlias
+    Assert-ReadOnlyPnSnapshot $priorAfterPn $Prior.fixtureAlias
+    if ($Prior.mode -ceq 'Apply') {
+        Assert-Same $Prior.beforePnDeviceNames $Prior.effect.beforePnDeviceNames
+        Assert-Same $Prior.afterPnDeviceNames $Prior.effect.afterPnDeviceNames
+    } else { Assert-Same $Prior.beforePnDeviceNames $Prior.afterPnDeviceNames }
     if ($Prior.effect.compileState -cnotin @('Success', 'Warning') -or $Prior.effect.errorCount -ne 0) {
         throw 'Prior effect was not a successful completed compile.'
     }
@@ -441,6 +456,15 @@ function Assert-PnDeviceNameEvidence($Effect, [string] $Alias) {
         $identities += ,@($keys | Sort-Object -CaseSensitive)
     }
     Assert-Same $identities[0] $identities[1]
+}
+function Assert-ReadOnlyPnSnapshot($Owner, [string] $Alias) {
+    if ($Owner -isnot [Collections.IDictionary] -or $Owner.afterPnDeviceNames -isnot [array] -or
+        $Owner.afterPnDeviceNames.Count -ne 0) { throw 'Read-only owner reported an applied PN snapshot.' }
+    Assert-PnDeviceNameEvidence @{
+        pnDeviceNameEvidenceScope = $Owner.pnDeviceNameEvidenceScope
+        beforePnDeviceNames = $Owner.beforePnDeviceNames
+        afterPnDeviceNames = $Owner.beforePnDeviceNames
+    } $Alias
 }
 function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode, [string] $Alias) {
     $expectedMode = if ($Mode -ceq 'Compile') { 'compileBaseline' } else { 'setAndCompile' }
@@ -557,8 +581,12 @@ try {
         $priorExpectedSnapshot = if ($prior.mode -ceq 'Apply') { $prior.effect.after } else { $prior.effect.before }
         $priorInspection = Get-PublicInspection $priorTarget
         Assert-SnapshotMatchesBaseline $priorExpectedSnapshot (Get-Baseline $priorInspection)
+        Assert-Same $prior.afterPublicBaseline (Get-Baseline $priorInspection)
     }
     $inspection = Get-PublicInspection
+    if ($null -ne $prior -and $prior.fixtureAlias -ceq $FixtureAlias) {
+        Assert-Same $prior.afterPublicBaseline (Get-Baseline $inspection)
+    }
     $record.publicInspection = $inspection
     Assert-Same $publicBefore (Get-PublicStatus)
     $workerProcess = Start-Child $workerExe @() (Split-Path -Parent $workerExe)
@@ -572,8 +600,10 @@ try {
         Assert-Same $sessionIdentity $priorOwnerResponse.sessionIdentity
         $priorOwner = ConvertFrom-Json $priorOwnerResponse.payload -AsHashtable -Depth 100
         Assert-Owner $priorOwner
+        Assert-ReadOnlyPnSnapshot $priorOwner $prior.fixtureAlias
         Assert-SameIoSelector $priorTarget $priorOwner.originalTarget
         Assert-Same $prior.effect.ownerTarget $priorOwner.ownerTarget
+        Assert-Same $prior.afterPnDeviceNames $priorOwner.beforePnDeviceNames
         Assert-SnapshotMatchesBaseline $priorExpectedSnapshot (Get-Baseline (Get-PublicInspection $priorTarget))
         Assert-Same $publicBefore (Get-PublicStatus)
     }
@@ -584,18 +614,23 @@ try {
     $ownerResponse = Invoke-Probe @{ method = 'probe_io_system_qualification'; confirm = $true; expectedSessionIdentity = $sessionIdentity; ioSystemQualification = @{ mode = 'inspectOwner'; target = $target } }
     $owner = ConvertFrom-Json $ownerResponse.payload -AsHashtable -Depth 100
     Assert-Owner $owner
+    Assert-ReadOnlyPnSnapshot $owner $FixtureAlias
     Assert-Same $sessionIdentity $ownerResponse.sessionIdentity
     # inspectOwner returns owner proof only. Values come from the public typed inspection.
     $owner.before = Get-Baseline $inspection
     Assert-Same $inspection (Get-PublicInspection)
     $record.ownerTarget = $owner.ownerTarget
     $record.baseline = $owner.before
+    $record.pnDeviceNameEvidenceScope = $owner.pnDeviceNameEvidenceScope
+    $record.beforePnDeviceNames = $owner.beforePnDeviceNames
     $record.proposal = $proposal
     if ($null -ne $proposal) { Assert-Proposal $proposal $owner }
     if ($null -ne $preview) {
         Assert-Same $preview.durableIdentity $durableIdentity
         Assert-Same $preview.baseline $owner.before
         Assert-Same $preview.ownerTarget $owner.ownerTarget
+        Assert-Same $preview.pnDeviceNameEvidenceScope $owner.pnDeviceNameEvidenceScope
+        Assert-Same $preview.beforePnDeviceNames $owner.beforePnDeviceNames
         if ($Mode -eq 'Apply') { Assert-Same $preview.proposal $proposal }
     }
     $currentStatus = Get-WorkerStatus
@@ -615,7 +650,32 @@ try {
         $record.after = $after
         Assert-EffectEvidence $record.effect $owner $proposal $Mode $FixtureAlias
         Assert-SnapshotMatchesBaseline $record.effect.before $owner.before
+        if ($Mode -ceq 'Apply') {
+            Assert-Same $owner.pnDeviceNameEvidenceScope $record.effect.pnDeviceNameEvidenceScope
+            Assert-Same $owner.beforePnDeviceNames $record.effect.beforePnDeviceNames
+        }
         if ($record.effect.compileState -cnotin @('Success', 'Warning') -or $record.effect.errorCount -ne 0 -or $record.effect.evidenceOmitted) { throw 'Qualification did not establish successful complete compilation; stop and inspect evidence.' }
+        $postEffectTarget = if ($Mode -ceq 'Apply') { $record.effect.appliedTarget } else { $record.effect.originalTarget }
+        $record.afterPublicBaseline = Get-Baseline (Get-PublicInspection $postEffectTarget)
+        $postEffectSnapshot = if ($Mode -ceq 'Apply') { $record.effect.after } else { $record.effect.before }
+        Assert-SnapshotMatchesBaseline $postEffectSnapshot $record.afterPublicBaseline
+        Assert-Same $after.status (Get-PublicStatus)
+        $postOwnerResponse = Invoke-Probe @{ method = 'probe_io_system_qualification'; confirm = $true; expectedSessionIdentity = $sessionIdentity; ioSystemQualification = @{ mode = 'inspectOwner'; target = $postEffectTarget } }
+        Assert-Same $sessionIdentity $postOwnerResponse.sessionIdentity
+        $postOwner = ConvertFrom-Json $postOwnerResponse.payload -AsHashtable -Depth 100
+        Assert-Owner $postOwner
+        Assert-ReadOnlyPnSnapshot $postOwner $FixtureAlias
+        Assert-SameIoSelector $postEffectTarget $postOwner.originalTarget
+        if ($Mode -ceq 'Apply') {
+            Assert-Same $record.effect.ownerTarget $postOwner.ownerTarget
+            Assert-Same $record.effect.afterPnDeviceNames $postOwner.beforePnDeviceNames
+        } else {
+            Assert-Same $owner.ownerTarget $postOwner.ownerTarget
+            Assert-Same $owner.beforePnDeviceNames $postOwner.beforePnDeviceNames
+        }
+        $record.afterPnDeviceNames = $postOwner.beforePnDeviceNames
+        Assert-Same $record.afterPublicBaseline (Get-Baseline (Get-PublicInspection $postEffectTarget))
+        Assert-Same $after.status (Get-PublicStatus)
     }
     if ($Mode -in @('Inventory', 'Preview')) {
         $after = Get-WorkerStatus

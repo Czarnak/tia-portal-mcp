@@ -350,7 +350,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
             if ($errors.Count) { throw 'Harness parse failed.' }
-            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Keys', 'Assert-Owner', 'Assert-FiveQualificationAttributes', 'Assert-IoSelector', 'Assert-SameIoSelector', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-PnDeviceNameEvidence', 'Assert-EffectEvidence', 'Assert-ContinuationBaseline', 'Resolve-ContinuationTarget', 'Assert-PriorEvidence')) {
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Keys', 'Assert-Owner', 'Assert-FiveQualificationAttributes', 'Assert-IoSelector', 'Assert-SameIoSelector', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-PnDeviceNameEvidence', 'Assert-ReadOnlyPnSnapshot', 'Assert-EffectEvidence', 'Assert-ContinuationBaseline', 'Resolve-ContinuationTarget', 'Assert-PriorEvidence')) {
                 $functions = @($ast.FindAll({ param($node)
                     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
                 }, $true))
@@ -563,7 +563,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $afterSnapshot[1].value.integerValue = 2
             $pnNode = @{ deviceLocator = 'synthetic-device'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'Interface'; positionNumber = 0; typeIdentifier = '' }); nodeId = 'synthetic-node'; associationKind = 'connector'; available = $true; value = 'station-a' }
             $proposal = @{ attributeName = 'Number'; expectedValue = @{ kind = 'integer'; integerValue = 1 }; desiredValue = @{ kind = 'integer'; integerValue = 2 } }
-            $owner = @{ originalTarget = $canonical; ownerTarget = $hardware; before = $before }
+            $owner = @{ originalTarget = $canonical; ownerTarget = $hardware; before = $before;
+                pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($pnNode) }
             $record = @{ effect = @{
                 mode = $(if ($Mode -eq 'Compile') { 'compileBaseline' } else { 'setAndCompile' })
                 originalTarget = $canonical.Clone()
