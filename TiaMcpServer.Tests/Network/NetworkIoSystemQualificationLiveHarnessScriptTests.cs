@@ -71,6 +71,34 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     public async Task BaselineRequiresExactOpenProjectBeforeInspection(string isOpen, string path, bool expectRejection)
         => await AssertBaselinePreflightDecisionAsync($"@{{ isModified = $false; isOpen = {isOpen}; path = {path} }}", expectRejection);
 
+    [Theory]
+    [InlineData("@(@{ index = 0; name = 'Controller' })", false)]
+    [InlineData("$null", true)]
+    [InlineData("@()", true)]
+    [InlineData("'Controller'", true)]
+    public async Task PreflightOwnerRequiresNonemptyArrayPath(string pathValue, bool expectRejection)
+    {
+        var harness = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{harness}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Harness parse failed.' }
+            $functions = @($ast.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Assert-Owner'
+            }, $true))
+            if ($functions.Count -ne 1) { throw 'Expected one owner guard.' }
+            . ([scriptblock]::Create($functions[0].Extent.Text))
+            $owner = @{ ownerMatchCount = 1; ownerIdentityVerified = $true; evidenceOmitted = $false; ownerTarget = @{
+                kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = {{pathValue}}
+            } }
+            $rejected = $false
+            try { Assert-Owner $owner } catch { $rejected = $true }
+            if ($rejected -ne ${{expectRejection.ToString().ToLowerInvariant()}}) { throw 'Unexpected preflight owner path decision.' }
+            """);
+    }
+
     private static async Task AssertBaselinePreflightDecisionAsync(string projectLiteral, bool expectRejection)
     {
         var start = Source.IndexOf("$publicBefore = Get-PublicStatus", StringComparison.Ordinal);
@@ -110,6 +138,9 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("Apply", "$record.effect.originalTarget.number = 8", true)]
     [InlineData("Apply", "$record.effect.ownerTarget.deviceName = 'Other'", false)]
     [InlineData("Apply", "$record.effect.ownerTarget = $null", true)]
+    [InlineData("Apply", "$record.effect.ownerTarget.itemPath = $null", true)]
+    [InlineData("Apply", "$record.effect.ownerTarget.itemPath = 'Controller'", true)]
+    [InlineData("Compile", "$record.effect.ownerTarget.itemPath = 'Controller'", true)]
     [InlineData("Apply", "$record.effect.ownerMatchCount = 2", true)]
     [InlineData("Apply", "$record.effect.hardwareTargetKind = 'device'", true)]
     [InlineData("Apply", "$record.effect.before = @($record.effect.before[0..3])", true)]
