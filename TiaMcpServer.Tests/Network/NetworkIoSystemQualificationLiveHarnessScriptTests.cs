@@ -12,6 +12,132 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     private static string Source => File.ReadAllText(Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1"));
 
     [Fact]
+    public void ContinuationIsExplicitAndBoundIntoReadOnlyEvidence()
+    {
+        Assert.Contains("[string] $PriorEvidencePath", Source);
+        Assert.Contains("[string] $ExpectedPriorEvidenceSha256", Source);
+        Assert.Contains("Assert-PrivatePath $PriorEvidencePath", Source);
+        Assert.Contains("Get-Sha $PriorEvidencePath", Source);
+        Assert.Contains("priorEvidenceSha256 = $priorSha", Source);
+        Assert.Contains("target = $target", Source);
+        Assert.True(Source.IndexOf("Assert-ContinuationBaseline", StringComparison.Ordinal)
+            < Source.IndexOf("$inspection = Get-PublicInspection", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("$false", "$null", false)]
+    [InlineData("$false", "$prior", true)]
+    [InlineData("$true", "$null", true)]
+    [InlineData("$true", "$prior", false)]
+    [InlineData("'True'", "$prior", true)]
+    public async Task ContinuationRequiresPriorExactlyForModifiedBaseline(string modified, string priorValue, bool reject)
+        => await RunContinuationGuardAsync($$"""
+            $prior = @{ after = @{ status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $true } } } }
+            $status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = {{modified}} } }
+            $rejected = $false
+            try { Assert-ContinuationBaseline $status {{priorValue}} } catch { $rejected = $true }
+            if ($rejected -ne ${{reject.ToString().ToLowerInvariant()}}) { throw 'Unexpected continuation baseline decision.' }
+            """);
+
+    [Theory]
+    [InlineData("$prior.after.status.project.isModified = $false")]
+    [InlineData("$prior.after.status.project.path = 'C:\\Other\\Fixture.ap21'")]
+    [InlineData("$prior.after.status.project.isOpen = 'True'")]
+    [InlineData("$prior.after.status.projectPath = 'C:\\Other\\Fixture.ap21'")]
+    public async Task ModifiedContinuationRejectsPriorStatusDrift(string mutation)
+        => await RunContinuationGuardAsync($$"""
+            $status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $true } }
+            $prior = @{ after = @{ status = ConvertFrom-Json (Get-Json $status) -AsHashtable -Depth 100 } }
+            {{mutation}}
+            $rejected = $false
+            try { Assert-ContinuationBaseline $status $prior } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Prior project status drift was accepted.' }
+            """);
+
+    [Theory]
+    [InlineData("PN-B", "Apply", 2)]
+    [InlineData("PN-B", "Compile", 1)]
+    [InlineData("DP-B", "Apply", 9)]
+    public async Task ContinuationSelectsAppliedTargetOnlyForSameFixtureApply(string alias, string priorMode, int expectedNumber)
+        => await RunContinuationGuardAsync($$"""
+            $manifestTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 9 }
+            $prior = @{ mode = '{{priorMode}}'; fixtureAlias = 'PN-B'; effect = @{ originalTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1 }; appliedTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 2 } } }
+            $target = Resolve-ContinuationTarget $manifestTarget $prior '{{alias}}'
+            if ($target.number -ne {{expectedNumber}}) { throw 'Continuation used the wrong selector.' }
+            """);
+
+    [Theory]
+    [InlineData("$prior.success = $false")]
+    [InlineData("$prior.effect.mutationCommitted = $false")]
+    [InlineData("$prior.effect.mode = 'postCommitFailure'")]
+    [InlineData("$prior.effect.compileState = 'Error'")]
+    [InlineData("$prior.after = $null")]
+    [InlineData("$prior.durableIdentity.portalProcessId = 8")]
+    [InlineData("$prior.binding.harnessSha256 = 'wrong'")]
+    [InlineData("$prior.binding.manifestSha256 = 'wrong'")]
+    [InlineData("$prior.binding.commit = 'wrong'")]
+    [InlineData("$prior.binding.tree = 'wrong'")]
+    public async Task PriorEvidenceRejectsFailedOrDriftedEffect(string mutation)
+        => await RunSyntheticPriorEvidenceAsync(mutation, reject: true);
+
+    [Fact]
+    public async Task PriorEvidenceAcceptsCompletedApply()
+        => await RunSyntheticPriorEvidenceAsync(string.Empty, reject: false);
+
+    private static async Task RunSyntheticPriorEvidenceAsync(string mutation, bool reject)
+        => await RunContinuationGuardAsync($$"""
+            $target = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1 }
+            $applied = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 2 }
+            $ownerTarget = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU' }) }
+            $before = @(
+                @{ name = 'Name'; available = $true; writable = $true; supportedTypes = @('System.String'); value = @{ kind = 'string'; stringValue = 'before' } },
+                @{ name = 'Number'; available = $true; writable = $true; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; integerValue = 1 } },
+                @{ name = 'MultipleUseIoSystem'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; booleanValue = $false } },
+                @{ name = 'UseIoSystemNameAsDeviceNameExtension'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; booleanValue = $false } },
+                @{ name = 'MaxNumberIWlanLinksPerSegment'; available = $false; writable = $false; supportedTypes = @(); value = $null }
+            )
+            $after = ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100
+            $after[1].value.integerValue = 2
+            $proposal = @{ attributeName = 'Number'; expectedValue = @{ kind = 'integer'; integerValue = 1 }; desiredValue = @{ kind = 'integer'; integerValue = 2 } }
+            $prior = @{
+                success = $true; mode = 'Apply'; fixtureAlias = 'PN-B'; proposal = $proposal
+                binding = @{ commit = 'candidate'; tree = 'tree'; harnessSha256 = 'harness'; manifestSha256 = 'manifest'; target = $target; fixtureAlias = 'PN-B' }
+                durableIdentity = @{ portalProcessId = 7; projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $false } }
+                ownerTarget = $ownerTarget
+                effect = @{ mode = 'setAndCompile'; originalTarget = $target; appliedTarget = $applied; ownerTarget = $ownerTarget; ownerMatchCount = 1; ownerIdentityVerified = $true; hardwareTargetKind = 'deviceItem'; mutationCommitted = $true; before = $before; after = $after; compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false }
+                after = @{ identity = @{ portalProcessId = 7; projectPath = $ProjectPath }; status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $true } } }
+            }
+            {{mutation}}
+            $rejected = $false
+            try { Assert-PriorEvidence $prior } catch { $rejected = $true }
+            if ($rejected -ne ${{reject.ToString().ToLowerInvariant()}}) { throw 'Unexpected prior evidence decision.' }
+            """);
+
+    private static async Task RunContinuationGuardAsync(string assertion)
+    {
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Harness parse failed.' }
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Owner', 'Assert-FiveQualificationAttributes', 'Assert-EffectEvidence', 'Assert-ContinuationBaseline', 'Resolve-ContinuationTarget', 'Assert-PriorEvidence')) {
+                $functions = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($functions.Count -ne 1) { throw "Expected one offline guard: $name" }
+                . ([scriptblock]::Create($functions[0].Extent.Text))
+            }
+            $ProjectPath = 'C:\Synthetic\Fixture.ap21'
+            $ExpectedCommit = 'candidate'; $ExpectedTree = 'tree'
+            $ExpectedHarnessSha256 = 'harness'; $ExpectedManifestSha256 = 'manifest'
+            $manifest = @{ portalProcessId = 7; fixtures = @(@{ alias = 'PN-B'; ioSystemSelector = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1 } }) }
+            {{assertion}}
+            """);
+    }
+
+    [Fact]
     public void DefaultsToReadOnlyAndRejectsEffectsBeforeProcessLaunch()
     {
         Assert.Contains("[string] $Mode = 'Inventory'", Source);
