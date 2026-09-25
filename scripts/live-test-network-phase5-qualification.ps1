@@ -50,6 +50,9 @@ if (-not [IO.Path]::IsPathFullyQualified($ProjectPath) -or
     [IO.Path]::GetFullPath($ProjectPath) -cne $ProjectPath) {
     throw 'An explicit canonical absolute .ap21 path is required.'
 }
+if ($Mode -cnotin @('Inventory', 'Preview', 'Compile', 'Apply')) {
+    throw 'Mode must use an exact closed value.'
+}
 $fixtureLabel = switch -CaseSensitive ($FixtureAlias) {
     'PN-A' { 'A' }
     'DP-A' { 'A' }
