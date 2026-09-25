@@ -37,11 +37,17 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
-    public void Baseline_UsesExactOwnerWithoutSetter()
+    public void Baseline_HoldsExclusiveAccessThroughExactOwnerProofAndCompile()
     {
+        var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
+        var dispatch = ExtractMethodBody(program, "ProbeIoSystemQualification");
+        Assert.Contains("\"compileBaseline\" => IoSystemQualificationProbeService.CompileBaseline(session.TiaPortal, session.Project, probe)", dispatch);
+        Assert.Contains("CompileBaseline(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)", Source);
         var body = ExtractMethodBody(Source, "CompileBaseline");
-        Ordered(body, "RequireExactIoSystem(", "RequireExactOwningDeviceItem(", "CompileHardware(");
+        Ordered(body, "using var exclusive = portal.ExclusiveAccess();", "RequireExactIoSystem(",
+            "RequireExactOwningDeviceItem(", "ReadFiveAttributeSnapshot(", "CompileHardware(", "return result;");
         Assert.DoesNotContain("ApplySingleField", body);
+        Assert.DoesNotContain("Transaction(", body);
         var compile = ExtractMethodBody(Source, "CompileHardware");
         Assert.Contains("GetService<ICompilable>()", Source);
         Assert.Contains("compiler.Compile()", compile);
