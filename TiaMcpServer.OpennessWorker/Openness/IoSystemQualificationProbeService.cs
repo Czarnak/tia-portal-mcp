@@ -69,8 +69,8 @@ public static class IoSystemQualificationProbeService
                 result.AppliedTarget = applied.Target;
                 result.After = ReadFiveAttributeSnapshot(applied);
                 var owner = RequireExactOwningDeviceItem(project, applied);
-                var original = NetworkObjectSelectorResolver.Resolve(project, originalOwner);
-                if (!original.Success || !object.Equals(original.Resolved!.Value, owner.Item))
+                var original = NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, originalOwner);
+                if (!ReferenceEquals(original, owner.Item))
                     throw Failure("Hardware ownership changed after the committed edit.");
                 var actual = result.After.Single(attribute => attribute.Name == request.AttributeName);
                 if (!actual.Available || !IoSystemQualificationEvidence.Equal(actual.Value, request.DesiredValue))
@@ -146,9 +146,16 @@ public static class IoSystemQualificationProbeService
             candidate => IoSystemQualificationEvidence.SummarizeOwnerPath(candidate.DeviceName, candidate.Path),
             candidate =>
             {
-                var selector = NetworkSelectorFactory.DeviceItem(candidate.DeviceName, candidate.Path);
-                var verified = NetworkObjectSelectorResolver.Resolve(project, selector);
-                if (!verified.Success || !object.Equals(verified.Resolved!.Value, candidate.Item)) return false;
+                // The public selector factory rejects blank types. This temporary probe
+                // carries its already validated, directly observed path to the resolver.
+                var selector = new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.DeviceItem,
+                    DeviceName = candidate.DeviceName,
+                    ItemPath = candidate.Path.ToList()
+                };
+                var verified = NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector);
+                if (!ReferenceEquals(verified, candidate.Item)) return false;
                 owner = new Owner(candidate.Item, selector);
                 return true;
             }, diagnostic);

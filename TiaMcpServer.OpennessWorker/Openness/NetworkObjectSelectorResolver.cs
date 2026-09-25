@@ -9,6 +9,15 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// <summary>Resolves snapshot-scoped selectors without name-search fallback after path selection.</summary>
 public static class NetworkObjectSelectorResolver
 {
+    // The temporary qualification probe needs the same fresh indexed-path comparison
+    // without rebuilding a public selector, whose factory excludes empty type identifiers.
+    internal static DeviceItem? ResolveQualificationDeviceItem(Project project, NetworkObjectSelectorInfo target)
+    {
+        if (target.Kind != NetworkObjectKinds.DeviceItem) return null;
+        var match = MatchDeviceItem(project, target);
+        return match.Item;
+    }
+
     public static NetworkObjectSelectionResult Resolve(Project project, NetworkObjectSelectorInfo target)
         => target.Kind switch
         {
