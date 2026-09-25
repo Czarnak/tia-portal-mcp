@@ -117,9 +117,25 @@ public sealed class IoSystemQualificationResultInfo
     public int? WarningCount { get; set; }
     public System.Collections.Generic.List<IoSystemQualificationAttributeInfo> Before { get; set; } = new();
     public System.Collections.Generic.List<IoSystemQualificationAttributeInfo> After { get; set; } = new();
+    /// <summary>Worker-private side-effect evidence for directly associated PN nodes.</summary>
+    public string PnDeviceNameEvidenceScope { get; set; } = "notCaptured";
+    public System.Collections.Generic.List<IoSystemQualificationPnDeviceNameInfo> BeforePnDeviceNames { get; set; } = new();
+    public System.Collections.Generic.List<IoSystemQualificationPnDeviceNameInfo> AfterPnDeviceNames { get; set; } = new();
     public System.Collections.Generic.List<string> Messages { get; set; } = new();
     public int OmittedMessageCount { get; set; }
     public string RestorationGuidance { get; set; } = string.Empty;
+}
+
+/// <summary>Worker-private exact node identity and typed dynamic PN name observation.</summary>
+public sealed class IoSystemQualificationPnDeviceNameInfo
+{
+    public string DeviceLocator { get; set; } = string.Empty;
+    public string DeviceName { get; set; } = string.Empty;
+    public System.Collections.Generic.List<DeviceItemPathSegmentInfo> ItemPath { get; set; } = new();
+    public string NodeId { get; set; } = string.Empty;
+    public string AssociationKind { get; set; } = string.Empty;
+    public bool Available { get; set; }
+    public string? Value { get; set; }
 }
 
 public sealed class IoSystemQualificationAttributeInfo

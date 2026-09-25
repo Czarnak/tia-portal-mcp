@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -127,6 +128,93 @@ internal static class IoSystemQualificationEvidence
         return matchingLinks == 1;
     }
 
+    public static string? ClassifyPnAssociation<TSystem>(IEnumerable<TSystem?> controllerSystems,
+        IEnumerable<TSystem?> connectorSystems, TSystem target) where TSystem : class
+    {
+        if (controllerSystems is null || connectorSystems is null || target is null)
+            throw new InvalidOperationException("IO-system association evidence is incomplete.");
+        var controllerMatches = 0;
+        var connectorMatches = 0;
+        try
+        {
+            foreach (var system in controllerSystems)
+                if (system is not null && object.Equals(system, target)) controllerMatches++;
+            foreach (var system in connectorSystems)
+                if (system is not null && object.Equals(system, target)) connectorMatches++;
+        }
+        catch (Exception)
+        {
+            throw new InvalidOperationException("IO-system association could not be verified.");
+        }
+        if (controllerMatches + connectorMatches > 1)
+            throw new InvalidOperationException("IO-system association is ambiguous.");
+        return controllerMatches == 1 ? "controller" : connectorMatches == 1 ? "connector" : null;
+    }
+
+    public static (bool Available, string? Value) ObservePnDeviceName(int metadataCount,
+        bool supportsString, Func<object?> readValue)
+    {
+        if (metadataCount == 0) return (false, null);
+        if (metadataCount != 1 || !supportsString || readValue is null)
+            throw new InvalidOperationException("PN device-name metadata is ambiguous or unsupported.");
+        if (readValue() is not string value)
+            throw new InvalidOperationException("PN device-name value is unreadable or not a string.");
+        return (true, value);
+    }
+
+    public static void ValidatePnDeviceNameSnapshot(IReadOnlyList<IoSystemQualificationPnDeviceNameInfo> nodes,
+        bool isProfinet)
+    {
+        if (nodes is null || nodes.Count > 128 || (isProfinet && nodes.Count == 0)
+            || (!isProfinet && nodes.Count != 0))
+            throw new InvalidOperationException("PN device-name snapshot is incomplete or too large.");
+        var identities = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in nodes)
+        {
+            if (node is null || string.IsNullOrWhiteSpace(node.DeviceLocator)
+                || string.IsNullOrWhiteSpace(node.DeviceName) || string.IsNullOrWhiteSpace(node.NodeId)
+                || (node.AssociationKind != "controller" && node.AssociationKind != "connector")
+                || node.ItemPath is null || node.ItemPath.Count is < 1 or > 16
+                || node.Available != (node.Value is not null))
+                throw new InvalidOperationException("PN device-name snapshot contains incomplete node evidence.");
+            var path = SummarizeOwnerPath(node.DeviceName, node.ItemPath);
+            if (path.BlankNameCount != 0 || path.WhitespaceTypeIdentifierCount != 0
+                || path.NegativePositionCount != 0 || path.NegativeIndexCount != 0)
+                throw new InvalidOperationException("PN device-name snapshot contains an incomplete item path.");
+            var identity = JsonSerializer.Serialize(new
+            {
+                node.DeviceLocator,
+                ItemPathIndices = node.ItemPath.Select(segment => segment.Index).ToArray(),
+                node.NodeId
+            }, JsonOptions);
+            if (!identities.Add(identity))
+                throw new InvalidOperationException("PN device-name snapshot contains a duplicate node identity.");
+        }
+        if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(nodes, JsonOptions)) > 16384)
+            throw new InvalidOperationException("PN device-name snapshot exceeds its evidence limit.");
+    }
+
+    public static bool FitsResultBudget(IoSystemQualificationResultInfo result)
+        => Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(result, JsonOptions)) <= 65536;
+
+    public static bool SamePnNodeIdentities(IReadOnlyList<IoSystemQualificationPnDeviceNameInfo> before,
+        IReadOnlyList<IoSystemQualificationPnDeviceNameInfo> after)
+    {
+        if (before is null || after is null || before.Count != after.Count) return false;
+        var identities = new HashSet<string>(before.Select(PnNodeIdentity), StringComparer.Ordinal);
+        return identities.Count == before.Count && after.All(node => identities.Remove(PnNodeIdentity(node)))
+            && identities.Count == 0;
+    }
+
+    private static string PnNodeIdentity(IoSystemQualificationPnDeviceNameInfo node)
+        => JsonSerializer.Serialize(new
+        {
+            node.DeviceLocator,
+            ItemPathIndices = node.ItemPath.Select(segment => segment.Index).ToArray(),
+            node.NodeId,
+            node.AssociationKind
+        }, JsonOptions);
+
     public static WorkerResponse NormalizeSessionResponse(WorkerResponse response, string mode)
     {
         if (response.Success) return response;
@@ -163,12 +251,13 @@ internal static class IoSystemQualificationEvidence
 
     public static void AddMessage(IoSystemQualificationResultInfo result, string text)
     {
-        if (result.Messages.Count >= 32) { result.OmittedMessageCount++; return; }
+        if (result.Messages.Count >= 32) { result.OmittedMessageCount++; result.EvidenceOmitted = true; return; }
         // Descriptions are untrusted project data. Redact credential assignments and filesystem paths
         // before truncation so a clipped prefix cannot evade recognition.
         text = Regex.Replace(text, @"(?i)\b(password|passwd|token|secret|api[_-]?key|authorization)\s*[:=]\s*(""[^""]*""|'[^']*'|[^\s,;]+)", "$1=[redacted]");
         text = Regex.Replace(text, @"(?i)(?:[a-z]:[\\/]|\\\\)[^\r\n,;<>]*", "[path redacted]");
         text = Regex.Replace(text, @"(?<![\w:])/(?:[^\s,;<>]+/)*[^\s,;<>]+", "[path redacted]");
+        if (text.Length > 512) result.EvidenceOmitted = true;
         result.Messages.Add(text.Length <= 512 ? text : text.Substring(0, 512));
     }
 
@@ -179,6 +268,7 @@ internal static class IoSystemQualificationEvidence
         {
             result.Messages.RemoveAt(result.Messages.Count - 1);
             result.OmittedMessageCount++;
+            result.EvidenceOmitted = true;
             serialized = JsonSerializer.Serialize(result, JsonOptions);
         }
         if (Encoding.UTF8.GetByteCount(serialized) <= 65536) return serialized;

@@ -57,7 +57,13 @@ public static class IoSystemQualificationProbeService
                 result = NewResult(request, target, owner);
                 preEditOwnerItem = owner.Item;
                 result.Before = ReadFiveAttributeSnapshot(target);
+                result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target);
+                result.PnDeviceNameEvidenceScope = GetPnDeviceNameEvidenceScope(target);
+                if (result.BeforePnDeviceNames.Any(node => !node.Available))
+                    throw Failure("A linked PN device name is unavailable before the edit.");
                 RequireExpectedValueAndWritableMetadata(target, result.Before, request);
+                if (!IoSystemQualificationEvidence.FitsResultBudget(result))
+                    throw Failure("Pre-edit qualification evidence exceeds the result limit.");
                 ApplySingleField(target, request);
                 transaction.CommitOnDispose();
             }
@@ -69,6 +75,12 @@ public static class IoSystemQualificationProbeService
                 var applied = ReadAppliedStateAndNewSelector(project, request);
                 result.AppliedTarget = applied.Target;
                 result.After = ReadFiveAttributeSnapshot(applied);
+                result.AfterPnDeviceNames = ReadAffectedPnDeviceNames(project, applied);
+                if (GetPnDeviceNameEvidenceScope(applied) != result.PnDeviceNameEvidenceScope)
+                    throw Failure("The IO-system network type changed after the committed edit.");
+                if (result.AfterPnDeviceNames.Any(node => !node.Available)
+                    || !IoSystemQualificationEvidence.SamePnNodeIdentities(result.BeforePnDeviceNames, result.AfterPnDeviceNames))
+                    throw Failure("Linked PN node evidence changed or became unavailable after the committed edit.");
                 var owner = RequireExactOwningDeviceItem(project, applied);
                 if (!object.Equals(preEditOwnerItem, owner.Item))
                     throw Failure("Hardware ownership changed after the committed edit.");
@@ -76,6 +88,8 @@ public static class IoSystemQualificationProbeService
                 if (!actual.Available || !IoSystemQualificationEvidence.Equal(actual.Value, request.DesiredValue))
                     throw Failure("The committed attribute did not match its requested value.");
                 result.OwnerTarget = owner.Selector;
+                if (!IoSystemQualificationEvidence.FitsResultBudget(result))
+                    throw Failure("Post-edit qualification evidence exceeds the result limit.");
                 CompileHardware(owner.Item, result);
             }
             catch (Exception)
@@ -180,6 +194,74 @@ public static class IoSystemQualificationProbeService
     {
         var networkInterface = ((IEngineeringServiceProvider)verified).GetService<NetworkInterface>();
         return networkInterface?.IoControllers.Select(controller => controller.IoSystem);
+    }
+
+    private static string GetPnDeviceNameEvidenceScope(ResolvedNetworkObject target)
+        => target.Evidence.NetworkType switch
+        {
+            "Ethernet" => "profinet",
+            "Profibus" => "notApplicable",
+            _ => throw Failure("The IO-system network type is unavailable for PN name evidence.")
+        };
+
+    private static List<IoSystemQualificationPnDeviceNameInfo> ReadAffectedPnDeviceNames(
+        Project project, ResolvedNetworkObject target)
+    {
+        var isProfinet = GetPnDeviceNameEvidenceScope(target) == "profinet";
+        var nodes = new List<IoSystemQualificationPnDeviceNameInfo>();
+        if (isProfinet)
+            foreach (var located in ProjectDeviceEnumerator.EnumerateWithLocations(project))
+                CollectAffectedPnDeviceNames(located.Device.DeviceItems, located.StructuralLocator,
+                    located.Device.Name, new List<DeviceItemPathSegmentInfo>(), (IoSystem)target.Value, nodes);
+        IoSystemQualificationEvidence.ValidatePnDeviceNameSnapshot(nodes, isProfinet);
+        return nodes.OrderBy(node => node.DeviceLocator, StringComparer.Ordinal)
+            .ThenBy(node => string.Join(".", node.ItemPath.Select(segment => segment.Index.ToString("D8"))), StringComparer.Ordinal)
+            .ThenBy(node => node.NodeId, StringComparer.Ordinal).ToList();
+    }
+
+    private static void CollectAffectedPnDeviceNames(DeviceItemComposition items, string locator,
+        string deviceName, List<DeviceItemPathSegmentInfo> parentPath, IoSystem target,
+        List<IoSystemQualificationPnDeviceNameInfo> nodes)
+    {
+        var index = 0;
+        foreach (DeviceItem item in items)
+        {
+            var path = parentPath.Concat(new[] { new DeviceItemPathSegmentInfo
+            {
+                Index = index++, Name = item.Name, PositionNumber = item.PositionNumber,
+                TypeIdentifier = item.TypeIdentifier
+            }}).ToList();
+            if (path.Count > 16)
+                throw Failure("PN device-name item path exceeds the evidence limit.");
+            var networkInterface = ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
+            if (networkInterface is not null)
+            {
+                var association = IoSystemQualificationEvidence.ClassifyPnAssociation(
+                    networkInterface.IoControllers.Select(controller => controller.IoSystem),
+                    networkInterface.IoConnectors.Select(connector => connector.ConnectedToIoSystem), target);
+                if (association is not null)
+                    foreach (Node node in networkInterface.Nodes)
+                    {
+                        if (!string.Equals(node.NodeType.ToString(), "Ethernet", StringComparison.Ordinal))
+                            throw Failure("A linked PN interface has an unexpected node type.");
+                        var engineeringNode = (IEngineeringObject)node;
+                        var infos = engineeringNode.GetAttributeInfos()
+                            .Where(info => string.Equals(info.Name, "PnDeviceName", StringComparison.Ordinal)).ToList();
+                        var observed = IoSystemQualificationEvidence.ObservePnDeviceName(infos.Count,
+                            infos.Count == 1 && infos[0].SupportedTypes.Any(type => type == typeof(string)),
+                            () => engineeringNode.GetAttribute("PnDeviceName"));
+                        nodes.Add(new IoSystemQualificationPnDeviceNameInfo
+                        {
+                            DeviceLocator = locator, DeviceName = deviceName, ItemPath = path,
+                            NodeId = node.NodeId, AssociationKind = association,
+                            Available = observed.Available, Value = observed.Value
+                        });
+                        if (nodes.Count > 128)
+                            throw Failure("PN device-name snapshot exceeds the evidence limit.");
+                    }
+            }
+            CollectAffectedPnDeviceNames(item.DeviceItems, locator, deviceName, path, target, nodes);
+        }
     }
 
     private static int? TryCountDirectDeviceNameMatches(Project project, string requestedName)

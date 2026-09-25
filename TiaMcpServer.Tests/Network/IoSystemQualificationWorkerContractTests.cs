@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using TiaMcpServer.Contracts;
 using Xunit;
+using QualificationEvidence = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence;
 
 namespace TiaMcpServer.Tests.Network;
 
@@ -75,9 +76,12 @@ public class IoSystemQualificationWorkerContractTests
         var body = ExtractMethodBody(Source, "SetAndCompile");
         Ordered(body, "result.Before = ReadFiveAttributeSnapshot(target)",
             "result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target)",
+            "result.BeforePnDeviceNames.Any(node => !node.Available)",
             "ApplySingleField(target, request)", "transaction.CommitOnDispose();",
             "ReadAppliedStateAndNewSelector(project, request)",
             "result.AfterPnDeviceNames = ReadAffectedPnDeviceNames(project, applied)",
+            "result.AfterPnDeviceNames.Any(node => !node.Available)",
+            "SamePnNodeIdentities(result.BeforePnDeviceNames, result.AfterPnDeviceNames)",
             "CompileHardware(owner.Item, result)");
         Assert.Contains("result.MutationCommitted = true", body);
         Assert.Contains("result.CompileState = \"postCommitFailure\"", body);
@@ -170,9 +174,112 @@ public class IoSystemQualificationWorkerContractTests
             TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.AddMessage(result, new string('x', 512));
         var json = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SerializeBounded(result);
         Assert.Contains(new string('a', 54000), json);
-        Assert.DoesNotContain("\"evidenceOmitted\":true", json);
+        Assert.Contains("\"evidenceOmitted\":true", json);
         Assert.True(System.Text.Encoding.UTF8.GetByteCount(json) <= 65536);
     }
+
+    [Fact]
+    public void PnAssociation_UsesSiemensObjectEqualityAndRejectsAmbiguousLinks()
+    {
+        var target = new SystemProxy(7);
+        Assert.Equal("controller", QualificationEvidence.ClassifyPnAssociation(
+            new[] { new SystemProxy(7) }, Array.Empty<SystemProxy>(), target));
+        Assert.Equal("connector", QualificationEvidence.ClassifyPnAssociation(
+            Array.Empty<SystemProxy>(), new[] { new SystemProxy(7) }, target));
+        Assert.Null(QualificationEvidence.ClassifyPnAssociation(
+            new[] { new SystemProxy(8) }, new[] { new SystemProxy(9) }, target));
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ClassifyPnAssociation(
+            new[] { new SystemProxy(7), new SystemProxy(7) }, Array.Empty<SystemProxy>(), target));
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ClassifyPnAssociation(
+            new[] { new SystemProxy(7) }, new[] { new SystemProxy(7) }, target));
+        var error = Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ClassifyPnAssociation(
+            new[] { new ThrowingProxy() }, Array.Empty<ThrowingProxy>(), new ThrowingProxy()));
+        Assert.DoesNotContain("private equality detail", error.Message);
+    }
+
+    [Fact]
+    public void PnNameObservation_DistinguishesAbsentMetadataFromUnreadableValue()
+    {
+        var missing = QualificationEvidence.ObservePnDeviceName(0, false,
+            () => throw new InvalidOperationException("must not read missing attribute"));
+        Assert.False(missing.Available);
+        Assert.Null(missing.Value);
+        var value = QualificationEvidence.ObservePnDeviceName(1, true, () => "pn-name");
+        Assert.True(value.Available);
+        Assert.Equal("pn-name", value.Value);
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ObservePnDeviceName(2, true, () => "duplicate"));
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ObservePnDeviceName(1, false, () => "unsupported"));
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ObservePnDeviceName(1, true, () => null));
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ObservePnDeviceName(1, true,
+            () => throw new InvalidOperationException("private getter detail")));
+    }
+
+    [Fact]
+    public void PnSnapshot_RequiresUniqueCompleteBoundedNodeIdentity()
+    {
+        var first = PnNode("node-0");
+        QualificationEvidence.ValidatePnDeviceNameSnapshot(new[] { first }, true);
+        QualificationEvidence.ValidatePnDeviceNameSnapshot(Array.Empty<IoSystemQualificationPnDeviceNameInfo>(), false);
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ValidatePnDeviceNameSnapshot(
+            Array.Empty<IoSystemQualificationPnDeviceNameInfo>(), true));
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ValidatePnDeviceNameSnapshot(new[] { first }, false));
+        var duplicate = PnNode("node-0");
+        duplicate.AssociationKind = "connector";
+        duplicate.DeviceName = "renamed-device";
+        duplicate.ItemPath[0].Name = "renamed-item";
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ValidatePnDeviceNameSnapshot(new[] { first, duplicate }, true));
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ValidatePnDeviceNameSnapshot(
+            Enumerable.Range(0, 129).Select(i => PnNode($"node-{i}")).ToArray(), true));
+        var unreadable = PnNode("node-1");
+        unreadable.Available = false;
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ValidatePnDeviceNameSnapshot(new[] { unreadable }, true));
+        var oversized = PnNode("node-2");
+        oversized.Value = new string('x', 17000);
+        Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ValidatePnDeviceNameSnapshot(new[] { oversized }, true));
+        var privateIdentity = PnNode("private-node");
+        privateIdentity.ItemPath[0].Index = -1;
+        var error = Assert.Throws<InvalidOperationException>(() => QualificationEvidence.ValidatePnDeviceNameSnapshot(new[] { privateIdentity }, true));
+        Assert.DoesNotContain("private-node", error.Message);
+    }
+
+    [Fact]
+    public void PnSnapshot_IdentityDriftFailsBeforeCompileButDisplayNamesMayChange()
+    {
+        var before = PnNode("node-0");
+        var after = PnNode("node-0");
+        after.DeviceName = "renamed-device";
+        after.ItemPath[0].Name = "renamed-item";
+        after.Value = "renamed-pn-name";
+        Assert.True(QualificationEvidence.SamePnNodeIdentities(new[] { before }, new[] { after }));
+        after.AssociationKind = "connector";
+        Assert.False(QualificationEvidence.SamePnNodeIdentities(new[] { before }, new[] { after }));
+        after.AssociationKind = "controller";
+        after.ItemPath[0].Index = 1;
+        Assert.False(QualificationEvidence.SamePnNodeIdentities(new[] { before }, new[] { after }));
+        after.ItemPath[0].Index = 0;
+        after.NodeId = "other-node";
+        Assert.False(QualificationEvidence.SamePnNodeIdentities(new[] { before }, new[] { after }));
+        Assert.False(QualificationEvidence.SamePnNodeIdentities(new[] { before }, Array.Empty<IoSystemQualificationPnDeviceNameInfo>()));
+    }
+
+    [Fact]
+    public void PnSnapshot_ResultBudgetFailsBeforeQualificationEvidenceIsDropped()
+    {
+        var result = new IoSystemQualificationResultInfo();
+        result.BeforePnDeviceNames.Add(PnNode("node-0"));
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.FitsResultBudget(result));
+        result.Before.Add(new() { Name = "Name", Value = new() { Kind = "string", StringValue = new string('x', 70000) } });
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.FitsResultBudget(result));
+    }
+
+    private static IoSystemQualificationPnDeviceNameInfo PnNode(string nodeId)
+        => new()
+        {
+            DeviceLocator = "devices/0", DeviceName = "synthetic-device", NodeId = nodeId,
+            ItemPath = new() { new() { Index = 0, Name = "synthetic-item", PositionNumber = 0, TypeIdentifier = null! } },
+            AssociationKind = "controller", Available = true, Value = "synthetic-pn-name"
+        };
+
     [Theory]
     [InlineData("inspectOwner", "target_not_found")]
     [InlineData("compileBaseline", "worker_operation_failed")]
