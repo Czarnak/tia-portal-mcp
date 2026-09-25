@@ -43,6 +43,18 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Theory]
+    [InlineData("apply", "QUALIFY FIXTURE B apply")]
+    [InlineData("cOmPiLe", "QUALIFY FIXTURE B cOmPiLe")]
+    [InlineData("preview", "unused")]
+    public async Task RejectsCaseVariantModeBeforeManifestOrProcess(string mode, string phrase)
+    {
+        var result = await RunHarnessBeforeManifestAsync("PN-B", phrase, mode);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("Mode must use an exact closed value.", result.Output);
+        Assert.DoesNotContain("qualification stopped", result.Output);
+    }
+
+    [Theory]
     [InlineData("PN-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("DP-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("PN-B", "QUALIFY FIXTURE B Apply", "Fixture B qualification stopped")]
@@ -289,12 +301,12 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         Assert.True(process.ExitCode == 0, await output + await error);
     }
 
-    private static async Task<(int ExitCode, string Output)> RunHarnessBeforeManifestAsync(string alias, string phrase)
+    private static async Task<(int ExitCode, string Output)> RunHarnessBeforeManifestAsync(string alias, string phrase, string mode = "Apply")
     {
         var psi = new ProcessStartInfo("pwsh") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         foreach (var argument in new[] {
             "-NoProfile", "-File", Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1"),
-            "-Mode", "Apply", "-ProjectPath", Path.Combine(Path.GetTempPath(), "synthetic.ap21"),
+            "-Mode", mode, "-ProjectPath", Path.Combine(Path.GetTempPath(), "synthetic.ap21"),
             "-ManifestPath", Path.Combine(Root, "artifacts/live-network-phase5-pr2", Guid.NewGuid() + ".json"),
             "-FixtureAlias", alias, "-ExpectedCommit", "unused", "-ExpectedTree", "unused",
             "-ExpectedHarnessSha256", "unused", "-ExpectedManifestSha256", "unused",
