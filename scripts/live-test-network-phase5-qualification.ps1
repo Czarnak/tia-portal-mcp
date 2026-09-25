@@ -293,6 +293,8 @@ try {
     Send-Line $hostProcess @{ jsonrpc = '2.0'; method = 'notifications/initialized' } -Notification
     $publicBefore = Get-PublicStatus
     if ($publicBefore.project -isnot [Collections.IDictionary] -or
+        $publicBefore.project.isOpen -isnot [bool] -or $publicBefore.project.isOpen -ne $true -or
+        $publicBefore.project.path -isnot [string] -or $publicBefore.project.path -cne $ProjectPath -or
         $publicBefore.project.isModified -isnot [bool] -or $publicBefore.project.isModified) {
         throw 'Qualification requires an unmodified project baseline.'
     }
