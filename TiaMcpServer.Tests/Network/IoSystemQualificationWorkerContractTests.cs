@@ -22,7 +22,7 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
-    public void OwnerInspection_CannotObtainCompilerOrMutate()
+    public void OwnerInspection_CannotCompileOrMutate()
     {
         var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
         Assert.Contains("\"inspectOwner\" => IoSystemQualificationProbeService.InspectOwner(session.TiaPortal, session.Project, probe)", program);
@@ -30,7 +30,8 @@ public class IoSystemQualificationWorkerContractTests
         var body = ExtractMethodBody(Source, "InspectOwner");
         Ordered(body, "using var exclusive = portal.ExclusiveAccess();", "RequireExactIoSystem(",
             "RequireExactOwningDeviceItem(", "return result;");
-        Assert.DoesNotContain("Compile", body);
+        Assert.DoesNotContain("CompileHardware", body);
+        Assert.DoesNotContain("compiler.Compile()", body);
         Assert.DoesNotContain("SetAttribute", body);
         Assert.DoesNotContain("Transaction(", body);
         var owner = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
@@ -38,6 +39,26 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("diagnostic.Reason != \"verified\"", owner);
         Assert.DoesNotContain("First", owner);
         Assert.DoesNotContain("ICompilable", owner);
+    }
+
+    [Fact]
+    public void OwnerInspection_ReadOnlyBaselineReadinessHasTypedAttributesAndCompileServiceProof()
+    {
+        var body = ExtractMethodBody(Source, "InspectOwner");
+        Ordered(body, "using var exclusive = portal.ExclusiveAccess();", "RequireExactIoSystem(",
+            "RequireExactOwningDeviceItem(", "ReadAffectedPnDeviceNames(project, target)",
+            "diagnostic.Stage = \"attributeSnapshot\"", "diagnostic.Reason = \"attribute_snapshot_unverified\"",
+            "result.Before = ReadFiveAttributeSnapshot(target)",
+            "diagnostic.Stage = \"compileService\"", "diagnostic.Reason = \"compile_service_unverified\"",
+            "RequireCompiler(owner.Item)", "result.HardwareCompileServiceAvailable = true",
+            "IoSystemQualificationEvidence.FitsResultBudget(result)", "return result;");
+        Assert.NotNull(typeof(IoSystemQualificationResultInfo).GetProperty("HardwareCompileServiceAvailable"));
+        Assert.Contains("catch (Exception)", body);
+        Assert.DoesNotContain("exception.Message", body);
+        Assert.DoesNotContain("CompileHardware", body);
+        Assert.DoesNotContain("ApplySingleField", body);
+        Assert.DoesNotContain("Transaction(", body);
+        Assert.DoesNotContain("project.Save(", body);
     }
 
     [Fact]
