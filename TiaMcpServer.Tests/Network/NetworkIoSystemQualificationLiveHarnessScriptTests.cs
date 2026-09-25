@@ -20,6 +20,11 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         Assert.Contains("Get-Sha $PriorEvidencePath", Source);
         Assert.Contains("priorEvidenceSha256 = $priorSha", Source);
         Assert.Contains("target = $target", Source);
+        Assert.Contains("$priorInspection = Get-PublicInspection $priorTarget", Source);
+        Assert.Contains("Assert-SnapshotMatchesBaseline $priorExpectedSnapshot (Get-Baseline $priorInspection)", Source);
+        Assert.Contains("Assert-Owner $priorOwner", Source);
+        Assert.Contains("Assert-Same $prior.effect.ownerTarget $priorOwner.ownerTarget", Source);
+        Assert.Contains("Assert-Same $prior.after.status $before.status", Source);
         Assert.True(Source.IndexOf("Assert-ContinuationBaseline", StringComparison.Ordinal)
             < Source.IndexOf("$inspection = Get-PublicInspection", StringComparison.Ordinal));
     }
@@ -77,12 +82,94 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("$prior.binding.manifestSha256 = 'wrong'")]
     [InlineData("$prior.binding.commit = 'wrong'")]
     [InlineData("$prior.binding.tree = 'wrong'")]
+    [InlineData("$prior.effect.before[0].value.stringValue = 'drifted'")]
     public async Task PriorEvidenceRejectsFailedOrDriftedEffect(string mutation)
         => await RunSyntheticPriorEvidenceAsync(mutation, reject: true);
 
     [Fact]
     public async Task PriorEvidenceAcceptsCompletedApply()
         => await RunSyntheticPriorEvidenceAsync(string.Empty, reject: false);
+
+    [Theory]
+    [InlineData("$actual[1].value.integerValue = 3")]
+    [InlineData("$actual[0].supportedTypes = @('System.Object')")]
+    [InlineData("$actual[2].available = $false")]
+    [InlineData("$actual[3].writable = $false")]
+    [InlineData("$actual[4].value = @{ kind = 'integer'; integerValue = 7 }")]
+    public async Task PriorTargetReinspectionRejectsFiveFieldDrift(string mutation)
+        => await RunContinuationGuardAsync($$"""
+            $expected = @(
+                @{ name = 'Name'; available = $true; writable = $true; supportedTypes = @('System.String'); value = @{ kind = 'string'; stringValue = 'synthetic' } },
+                @{ name = 'Number'; available = $true; writable = $true; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; integerValue = 2 } },
+                @{ name = 'MultipleUseIoSystem'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; booleanValue = $false } },
+                @{ name = 'UseIoSystemNameAsDeviceNameExtension'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; booleanValue = $false } },
+                @{ name = 'MaxNumberIWlanLinksPerSegment'; available = $false; writable = $false; supportedTypes = @(); value = $null }
+            )
+            $actual = ConvertFrom-Json (Get-Json $expected) -AsHashtable -Depth 100
+            {{mutation}}
+            $rejected = $false
+            try { Assert-SnapshotMatchesBaseline $expected $actual } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Prior target five-field drift was accepted.' }
+            """);
+
+    [Fact]
+    public async Task PriorTargetReinspectionRejectsOwnerDrift()
+        => await RunContinuationGuardAsync("""
+            $expected = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU' }) }
+            $fresh = @{ ownerMatchCount = 1; ownerIdentityVerified = $true; evidenceOmitted = $false;
+                ownerTarget = @{ kind = 'deviceItem'; deviceName = 'Different'; itemPath = @(@{ index = 0; name = 'CPU' }) } }
+            Assert-Owner $fresh
+            $rejected = $false
+            try { Assert-Same $expected $fresh.ownerTarget } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Prior owner drift was accepted.' }
+            """);
+
+    [Fact]
+    public async Task PriorTargetReinspectionAcceptsEquivalentTypedSnapshot()
+        => await RunContinuationGuardAsync("""
+            $expected = @(
+                @{ name = 'Name'; available = $true; writable = $true; supportedTypes = @('System.String'); value = @{ kind = 'string'; stringValue = 'synthetic'; integerValue = $null; booleanValue = $null } },
+                @{ name = 'Number'; available = $true; writable = $true; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; stringValue = $null; integerValue = 2; booleanValue = $null } },
+                @{ name = 'MultipleUseIoSystem'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; stringValue = $null; integerValue = $null; booleanValue = $false } },
+                @{ name = 'UseIoSystemNameAsDeviceNameExtension'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; stringValue = $null; integerValue = $null; booleanValue = $false } },
+                @{ name = 'MaxNumberIWlanLinksPerSegment'; available = $false; writable = $false; supportedTypes = @(); value = $null }
+            )
+            $actual = ConvertFrom-Json (Get-Json $expected) -AsHashtable -Depth 100
+            foreach ($item in $actual) {
+                if ($null -ne $item.value) {
+                    foreach ($key in @('stringValue', 'integerValue', 'booleanValue')) {
+                        if ($null -eq $item.value[$key]) { $item.value.Remove($key) }
+                    }
+                }
+            }
+            Assert-SnapshotMatchesBaseline $expected $actual
+            """);
+
+    [Fact]
+    public async Task PriorEvidenceHashMismatchStopsBeforeLoadingEvidence()
+    {
+        var start = Source.IndexOf("$prior = $null", StringComparison.Ordinal);
+        var end = Source.IndexOf("$target = Resolve-ContinuationTarget", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "Expected a prior-evidence prelaunch gate.");
+        var gate = Convert.ToBase64String(Encoding.Unicode.GetBytes(Source[start..end]));
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $PriorEvidencePath = 'C:\Synthetic\prior.json'
+            $ExpectedPriorEvidenceSha256 = ('b' * 64)
+            $record = @{}
+            function Assert-PrivatePath($path) { return $path }
+            function Get-Sha($path) { return ('a' * 64) }
+            function Assert-PriorEvidence($prior) { throw 'Evidence should not be parsed after a hash mismatch.' }
+            $gate = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{gate}}')))
+            $rejected = $false
+            try { & $gate } catch {
+                if ($_.Exception.Message -cne 'Prior evidence SHA mismatch.') { throw }
+                $rejected = $true
+            }
+            if (-not $rejected) { throw 'Prior hash mismatch was accepted.' }
+            """);
+    }
 
     private static async Task RunSyntheticPriorEvidenceAsync(string mutation, bool reject)
         => await RunContinuationGuardAsync($$"""
@@ -101,9 +188,10 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $proposal = @{ attributeName = 'Number'; expectedValue = @{ kind = 'integer'; integerValue = 1 }; desiredValue = @{ kind = 'integer'; integerValue = 2 } }
             $prior = @{
                 success = $true; mode = 'Apply'; fixtureAlias = 'PN-B'; proposal = $proposal
-                binding = @{ commit = 'candidate'; tree = 'tree'; harnessSha256 = 'harness'; manifestSha256 = 'manifest'; target = $target; fixtureAlias = 'PN-B' }
+                binding = @{ commit = 'candidate'; tree = 'tree'; harnessSha256 = 'harness'; manifestSha256 = 'manifest'; target = $target; fixtureAlias = 'PN-B'; priorEvidenceSha256 = $null }
                 durableIdentity = @{ portalProcessId = 7; projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $false } }
                 ownerTarget = $ownerTarget
+                baseline = (ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100)
                 effect = @{ mode = 'setAndCompile'; originalTarget = $target; appliedTarget = $applied; ownerTarget = $ownerTarget; ownerMatchCount = 1; ownerIdentityVerified = $true; hardwareTargetKind = 'deviceItem'; mutationCommitted = $true; before = $before; after = $after; compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false }
                 after = @{ identity = @{ portalProcessId = 7; projectPath = $ProjectPath }; status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $true } } }
             }
@@ -122,7 +210,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
             if ($errors.Count) { throw 'Harness parse failed.' }
-            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Owner', 'Assert-FiveQualificationAttributes', 'Assert-EffectEvidence', 'Assert-ContinuationBaseline', 'Resolve-ContinuationTarget', 'Assert-PriorEvidence')) {
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Keys', 'Assert-Owner', 'Assert-FiveQualificationAttributes', 'Assert-IoSelector', 'Assert-SameIoSelector', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-EffectEvidence', 'Assert-ContinuationBaseline', 'Resolve-ContinuationTarget', 'Assert-PriorEvidence')) {
                 $functions = @($ast.FindAll({ param($node)
                     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
                 }, $true))
@@ -242,12 +330,21 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         var end = Source.IndexOf("$inspection = Get-PublicInspection", start, StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start, "Expected a public-status preflight before inspection.");
         var preflight = Convert.ToBase64String(Encoding.Unicode.GetBytes(Source[start..end]));
+        var harness = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
         await RunOfflinePowerShellAsync($$"""
             Set-StrictMode -Version Latest
             $ErrorActionPreference = 'Stop'
             $ProjectPath = 'C:\Synthetic\Fixture.ap21'
             $status = @{ projectPath = $ProjectPath; project = {{projectLiteral}} }
+            $prior = $null
             function Get-PublicStatus { return $status }
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{harness}}', [ref]$tokens, [ref]$errors)
+            $guard = @($ast.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Assert-ContinuationBaseline'
+            }, $true))
+            if ($guard.Count -ne 1) { throw 'Expected one continuation baseline guard.' }
+            . ([scriptblock]::Create($guard[0].Extent.Text))
             $preflight = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{preflight}}')))
             $rejected = $false
             try { & $preflight } catch {
@@ -285,6 +382,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("Compile", "$record.effect.warningCount = '0'", true)]
     [InlineData("Apply", "$record.effect.warningCount = -1", true)]
     [InlineData("Compile", "$record.effect.warningCount = $null", true)]
+    [InlineData("Compile", "$record.effect.before[0].value.stringValue = 'drifted'", true)]
+    [InlineData("Apply", "$record.effect.before[0].value.stringValue = 'drifted'", true)]
     public async Task CompletedEffectRequiresModeCommitAndTypedOwnershipProof(string mode, string mutation, bool expectRejection)
     {
         var start = Source.IndexOf("Assert-EffectEvidence $record.effect $owner $proposal $Mode", StringComparison.Ordinal);
@@ -299,7 +398,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
             if ($errors.Count) { throw 'Harness parse failed.' }
-            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-FiveQualificationAttributes', 'Assert-EffectEvidence')) {
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-FiveQualificationAttributes', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-EffectEvidence')) {
                 $functions = @($ast.FindAll({ param($node)
                     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
                 }, $true))
@@ -329,7 +428,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
                 appliedTarget = $(if ($Mode -eq 'Compile') { $canonical.Clone() } else { $applied.Clone() })
                 ownerTarget = $hardware.Clone(); ownerMatchCount = 1; ownerIdentityVerified = $true
                 hardwareTargetKind = 'deviceItem'; mutationCommitted = ($Mode -eq 'Apply')
-                before = $before; after = @()
+                before = (ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100); after = @()
                 compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false
             } }
             if ($Mode -eq 'Apply') { $record.effect.after = $afterSnapshot }
@@ -366,7 +465,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $transportFails = ${{transportFails.ToString().ToLowerInvariant()}}
             $script:statusReads = 0
             $sessionIdentity = @{ workerSessionId = 'synthetic' }
-            $effectInfo = @{ compileState = '{{compileState}}'; errorCount = 1; evidenceOmitted = $false }
+            $effectInfo = @{ compileState = '{{compileState}}'; errorCount = 1; evidenceOmitted = $false; before = @() }
             if ($Mode -eq 'Apply') {
                 $effectInfo.mutationCommitted = $true
                 $effectInfo.appliedTarget = $null
@@ -374,12 +473,13 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             }
             $effectResponse = @{ sessionIdentity = $sessionIdentity; payload = ($effectInfo | ConvertTo-Json -Compress) }
             $record = @{}
-            $owner = @{}; $proposal = @{}; $request = @{}; $before = @{}
+            $owner = @{ before = @() }; $proposal = @{}; $request = @{}; $before = @{}
             function Invoke-Probe { if ($transportFails) { throw 'Transport ended or timed out.' }; return $effectResponse }
             function Assert-Same { }
             function Assert-EffectEvidence {
                 if ($Mode -eq 'Apply' -and $null -eq $record.effect.appliedTarget) { throw 'Known committed effect lacked complete proof.' }
             }
+            function Assert-SnapshotMatchesBaseline { }
             function Get-WorkerStatus { $script:statusReads++; return @{ identity = $sessionIdentity; status = @{ marker = 'after' } } }
             $effectBlock = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{block}}')))
             $failed = $false

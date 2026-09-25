@@ -12,6 +12,11 @@ desiredValue (closed worker scalar objects). No arrays of edits are accepted.
 Compile requires a matching Inventory or Preview evidence file; Apply requires Preview evidence.
 Both require its ExpectedPreviewSha256, the explicit effectful switch and exact phrase.
 The manifest and all evidence/proposals must reside under the ignored evidence directory.
+An unmodified initial baseline uses no prior evidence. A modified baseline requires the exact
+ignored PriorEvidencePath and ExpectedPriorEvidenceSha256 of a successful completed Compile or
+Apply from this frozen candidate and Portal process. The prior target, five values and owner
+are re-read before continuing. Project status has no whole-project mutation revision, so an
+unrelated change that leaves these observations and the status identical cannot be detected.
 Preview/Apply compare durable identity across launches; each request uses its own freshly read
 worker session identity. A reopened project with indistinguishable durable state is not detected;
 fresh exact-target authorization and reinspection remain necessary. Restoration is a separate
@@ -32,6 +37,8 @@ param(
     [string] $ProposalPath,
     [string] $PreviewPath,
     [string] $ExpectedPreviewSha256,
+    [string] $PriorEvidencePath,
+    [string] $ExpectedPriorEvidenceSha256,
     [switch] $AllowEffectfulQualification,
     [string] $ConfirmationPhrase,
     [ValidateRange(1, 600)] [int] $TimeoutSeconds = 120
@@ -171,8 +178,9 @@ function Get-PublicStatus {
     if ($status.projectPath -cne $ProjectPath) { throw 'Unexpected public project.' }
     return $status
 }
-function Get-PublicInspection {
-    $inspection = Invoke-Public 'network_read' @{ operations = @(@{ operation = 'inspect_network_object'; operationId = 'fixture'; target = $target; attributeNames = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment') }) }
+function Get-PublicInspection($ReadTarget) {
+    if ($null -eq $ReadTarget) { $ReadTarget = $target }
+    $inspection = Invoke-Public 'network_read' @{ operations = @(@{ operation = 'inspect_network_object'; operationId = 'fixture'; target = $ReadTarget; attributeNames = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment') }) }
     $batch = $inspection.batch
     if ($batch.operations.Count -ne 1 -or $batch.operations[0].status -cne 'succeeded' -or
         $batch.operations[0]['omission'] -or ($batch['truncation'] -and $batch.truncation['truncated'])) { throw 'Incomplete public inspection.' }
@@ -263,6 +271,125 @@ function Assert-FiveQualificationAttributes($Attributes) {
     })
     Assert-Same @($expected | Sort-Object -CaseSensitive) @($actual | Sort-Object -CaseSensitive)
 }
+function Assert-IoSelector($Selector) {
+    if ($Selector -isnot [Collections.IDictionary] -or $Selector.kind -cne 'ioSystem' -or
+        $Selector.subnetId -isnot [string] -or [string]::IsNullOrWhiteSpace($Selector.subnetId) -or
+        ($Selector.number -isnot [int] -and $Selector.number -isnot [long]) -or
+        $Selector.number -lt 0 -or $Selector.number -gt [int]::MaxValue) { throw 'Invalid exact IO-system selector.' }
+    foreach ($key in $Selector.Keys) {
+        if ($key -cnotin @('kind', 'subnetId', 'number') -and $null -ne $Selector[$key]) { throw 'Unexpected selector field.' }
+    }
+}
+function Assert-SameIoSelector($Expected, $Actual) {
+    Assert-IoSelector $Expected
+    Assert-IoSelector $Actual
+    Assert-Same @{ kind = $Expected.kind; subnetId = $Expected.subnetId; number = $Expected.number } `
+        @{ kind = $Actual.kind; subnetId = $Actual.subnetId; number = $Actual.number }
+}
+function Get-ComparableScalar($Scalar) {
+    if ($null -eq $Scalar) { return $null }
+    if ($Scalar -isnot [Collections.IDictionary] -or $Scalar.kind -cnotin @('string', 'integer', 'boolean')) {
+        throw 'Five-attribute scalar is untyped.'
+    }
+    $member = $Scalar.kind + 'Value'
+    if (-not $Scalar.Contains($member)) { throw 'Five-attribute scalar is incomplete.' }
+    $value = $Scalar[$member]
+    if (($Scalar.kind -ceq 'string' -and $value -isnot [string]) -or
+        ($Scalar.kind -ceq 'integer' -and $value -isnot [int] -and $value -isnot [long]) -or
+        ($Scalar.kind -ceq 'boolean' -and $value -isnot [bool])) { throw 'Five-attribute scalar has the wrong type.' }
+    foreach ($key in $Scalar.Keys) {
+        if ($key -cnotin @('kind', $member) -and $null -ne $Scalar[$key]) { throw 'Unexpected scalar value.' }
+    }
+    return @{ kind = $Scalar.kind; value = $value }
+}
+function Assert-SnapshotMatchesBaseline($Expected, $Actual) {
+    Assert-FiveQualificationAttributes $Expected
+    Assert-FiveQualificationAttributes $Actual
+    foreach ($name in @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment')) {
+        $old = @($Expected | Where-Object name -CEQ $name)[0]
+        $now = @($Actual | Where-Object name -CEQ $name)[0]
+        foreach ($attribute in @($old, $now)) {
+            if ($attribute.available -isnot [bool] -or $attribute.writable -isnot [bool] -or
+                $attribute.supportedTypes -isnot [array] -or
+                @($attribute.supportedTypes | Where-Object { $_ -isnot [string] }).Count -ne 0) {
+                throw 'Five-attribute snapshot is untyped.'
+            }
+        }
+        Assert-Same @{ name = $old.name; available = $old.available; writable = $old.writable;
+            supportedTypes = @($old.supportedTypes | Sort-Object -CaseSensitive); value = (Get-ComparableScalar $old.value) } `
+            @{ name = $now.name; available = $now.available; writable = $now.writable;
+            supportedTypes = @($now.supportedTypes | Sort-Object -CaseSensitive); value = (Get-ComparableScalar $now.value) }
+    }
+}
+function Assert-PriorEvidence($Prior) {
+    if ($Prior -isnot [Collections.IDictionary] -or $Prior.success -isnot [bool] -or -not $Prior.success -or
+        $Prior.mode -cnotin @('Compile', 'Apply') -or
+        $Prior.fixtureAlias -cnotin @('PN-A', 'DP-A', 'PN-B', 'DP-B') -or
+        $Prior.binding -isnot [Collections.IDictionary] -or
+        $Prior.binding.fixtureAlias -cne $Prior.fixtureAlias -or
+        $Prior.binding.commit -cne $ExpectedCommit -or $Prior.binding.tree -cne $ExpectedTree -or
+        $Prior.binding.harnessSha256 -cne $ExpectedHarnessSha256 -or
+        $Prior.binding.manifestSha256 -cne $ExpectedManifestSha256 -or
+        ($Prior.binding.priorEvidenceSha256 -and $Prior.binding.priorEvidenceSha256 -cnotmatch '^[0-9a-f]{64}$') -or
+        $Prior.durableIdentity -isnot [Collections.IDictionary] -or
+        ($manifest.portalProcessId -isnot [int] -and $manifest.portalProcessId -isnot [long]) -or
+        $manifest.portalProcessId -le 0 -or
+        ($Prior.durableIdentity.portalProcessId -isnot [int] -and $Prior.durableIdentity.portalProcessId -isnot [long]) -or
+        $Prior.durableIdentity.portalProcessId -ne $manifest.portalProcessId -or
+        $Prior.durableIdentity.projectPath -isnot [string] -or $Prior.durableIdentity.projectPath -cne $ProjectPath -or
+        $Prior.after -isnot [Collections.IDictionary] -or
+        $Prior.after.identity -isnot [Collections.IDictionary] -or
+        ($Prior.after.identity.portalProcessId -isnot [int] -and $Prior.after.identity.portalProcessId -isnot [long]) -or
+        $Prior.after.identity.portalProcessId -ne $manifest.portalProcessId -or
+        $Prior.after.identity.projectPath -isnot [string] -or $Prior.after.identity.projectPath -cne $ProjectPath -or
+        $Prior.after.status -isnot [Collections.IDictionary] -or
+        $Prior.after.status.projectPath -isnot [string] -or $Prior.after.status.projectPath -cne $ProjectPath -or
+        $Prior.after.status.project -isnot [Collections.IDictionary] -or
+        $Prior.after.status.project.isOpen -isnot [bool] -or -not $Prior.after.status.project.isOpen -or
+        $Prior.after.status.project.path -isnot [string] -or $Prior.after.status.project.path -cne $ProjectPath -or
+        $Prior.after.status.project.isModified -isnot [bool] -or
+        $Prior.baseline -isnot [array] -or
+        $Prior.ownerTarget -isnot [Collections.IDictionary] -or
+        $Prior.effect -isnot [Collections.IDictionary]) { throw 'Prior qualification evidence is incomplete or drifted.' }
+    $fixtures = @($manifest.fixtures | Where-Object alias -CEQ $Prior.fixtureAlias)
+    if ($fixtures.Count -ne 1) { throw 'Prior fixture is not in the current manifest.' }
+    Assert-IoSelector $fixtures[0].ioSystemSelector
+    if ($null -eq $Prior.binding.priorEvidenceSha256) {
+        Assert-SameIoSelector $fixtures[0].ioSystemSelector $Prior.binding.target
+    }
+    Assert-SameIoSelector $Prior.binding.target $Prior.effect.originalTarget
+    if ($Prior.mode -ceq 'Apply') {
+        Assert-Keys $Prior.proposal @('attributeName', 'expectedValue', 'desiredValue')
+        $allowed = if ($Prior.fixtureAlias -cin @('DP-A', 'DP-B')) { @('Name', 'Number') }
+            else { @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension') }
+        if ($Prior.proposal.attributeName -cnotin $allowed) { throw 'Prior proposal used an unqualified field.' }
+    } elseif ($null -ne $Prior.proposal) { throw 'Compile evidence contained a proposal.' }
+    $priorOwner = @{ originalTarget = $Prior.effect.originalTarget; ownerTarget = $Prior.ownerTarget }
+    Assert-EffectEvidence $Prior.effect $priorOwner $Prior.proposal $Prior.mode
+    Assert-SnapshotMatchesBaseline $Prior.effect.before $Prior.baseline
+    if ($Prior.effect.compileState -cnotin @('Success', 'Warning') -or $Prior.effect.errorCount -ne 0) {
+        throw 'Prior effect was not a successful completed compile.'
+    }
+}
+function Resolve-ContinuationTarget($ManifestTarget, $Prior, [string] $Alias) {
+    Assert-IoSelector $ManifestTarget
+    if ($null -eq $Prior -or $Prior.fixtureAlias -cne $Alias) { return $ManifestTarget }
+    $selector = if ($Prior.mode -ceq 'Apply') { $Prior.effect.appliedTarget } else { $Prior.effect.originalTarget }
+    Assert-IoSelector $selector
+    return @{ kind = 'ioSystem'; subnetId = $selector.subnetId; number = $selector.number }
+}
+function Assert-ContinuationBaseline($Status, $Prior) {
+    if ($Status -isnot [Collections.IDictionary] -or $Status.projectPath -cne $ProjectPath -or
+        $Status.project -isnot [Collections.IDictionary] -or
+        $Status.project.isOpen -isnot [bool] -or -not $Status.project.isOpen -or
+        $Status.project.path -isnot [string] -or $Status.project.path -cne $ProjectPath -or
+        $Status.project.isModified -isnot [bool] -or
+        ($Status.project.isModified -and $null -eq $Prior) -or
+        (-not $Status.project.isModified -and $null -ne $Prior)) {
+        throw 'Qualification requires an unmodified project baseline.'
+    }
+    if ($null -ne $Prior) { Assert-Same $Prior.after.status $Status }
+}
 function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode) {
     $expectedMode = if ($Mode -ceq 'Compile') { 'compileBaseline' } else { 'setAndCompile' }
     $expectedCommit = $Mode -ceq 'Apply'
@@ -331,11 +458,21 @@ try {
     if ($fixtures.Count -ne 1) { throw 'Fixture alias is not unique.' }
     $selector = $fixtures[0].ioSystemSelector
     # Public selectors may include explicit null fields. The worker accepts only exact keys.
-    if ($selector.kind -cne 'ioSystem' -or [string]::IsNullOrWhiteSpace($selector.subnetId) -or
-        $null -eq $selector.number -or $selector.number -lt 0) { throw 'Invalid exact IO-system selector.' }
-    foreach ($key in $selector.Keys) { if ($key -cnotin @('kind', 'subnetId', 'number') -and $null -ne $selector[$key]) { throw 'Unexpected selector field.' } }
-    $target = @{ kind = 'ioSystem'; subnetId = $selector.subnetId; number = $selector.number }
-    $binding = @{ commit = $ExpectedCommit; tree = $ExpectedTree; harnessSha256 = $ExpectedHarnessSha256; manifestSha256 = $ExpectedManifestSha256; target = $target; fixtureAlias = $FixtureAlias }
+    Assert-IoSelector $selector
+    $manifestTarget = @{ kind = 'ioSystem'; subnetId = $selector.subnetId; number = $selector.number }
+    $prior = $null
+    $priorSha = $null
+    if ($PriorEvidencePath -or $ExpectedPriorEvidenceSha256) {
+        $PriorEvidencePath = Assert-PrivatePath $PriorEvidencePath
+        if ($ExpectedPriorEvidenceSha256 -cnotmatch '^[0-9a-fA-F]{64}$') { throw 'Prior evidence SHA is missing or malformed.' }
+        $priorSha = (Get-Sha $PriorEvidencePath)
+        if ($priorSha -cne $ExpectedPriorEvidenceSha256.ToLowerInvariant()) { throw 'Prior evidence SHA mismatch.' }
+        $prior = ConvertFrom-Json (Get-Content -LiteralPath $PriorEvidencePath -Raw) -AsHashtable -Depth 100
+        Assert-PriorEvidence $prior
+        $record.priorEvidencePath = $PriorEvidencePath
+    }
+    $target = Resolve-ContinuationTarget $manifestTarget $prior $FixtureAlias
+    $binding = @{ commit = $ExpectedCommit; tree = $ExpectedTree; harnessSha256 = $ExpectedHarnessSha256; manifestSha256 = $ExpectedManifestSha256; target = $target; fixtureAlias = $FixtureAlias; priorEvidenceSha256 = $priorSha }
     $record.binding = $binding
     $proposal = $null
     if ($Mode -in @('Preview', 'Apply')) {
@@ -357,11 +494,14 @@ try {
     if ($initialized['error']) { throw 'MCP initialize failed.' }
     Send-Line $hostProcess @{ jsonrpc = '2.0'; method = 'notifications/initialized' } -Notification
     $publicBefore = Get-PublicStatus
-    if ($publicBefore.project -isnot [Collections.IDictionary] -or
-        $publicBefore.project.isOpen -isnot [bool] -or $publicBefore.project.isOpen -ne $true -or
-        $publicBefore.project.path -isnot [string] -or $publicBefore.project.path -cne $ProjectPath -or
-        $publicBefore.project.isModified -isnot [bool] -or $publicBefore.project.isModified) {
-        throw 'Qualification requires an unmodified project baseline.'
+    Assert-ContinuationBaseline $publicBefore $prior
+    $priorTarget = $null
+    $priorExpectedSnapshot = $null
+    if ($null -ne $prior) {
+        $priorTarget = Resolve-ContinuationTarget $prior.binding.target $prior $prior.fixtureAlias
+        $priorExpectedSnapshot = if ($prior.mode -ceq 'Apply') { $prior.effect.after } else { $prior.effect.before }
+        $priorInspection = Get-PublicInspection $priorTarget
+        Assert-SnapshotMatchesBaseline $priorExpectedSnapshot (Get-Baseline $priorInspection)
     }
     $inspection = Get-PublicInspection
     $record.publicInspection = $inspection
@@ -370,6 +510,18 @@ try {
     $before = Get-WorkerStatus
     $sessionIdentity = $before.identity
     Assert-Same $publicBefore $before.status
+    if ($null -ne $prior) {
+        if ($sessionIdentity.portalProcessId -ne $prior.durableIdentity.portalProcessId) { throw 'Prior Portal process changed.' }
+        Assert-Same $prior.after.status $before.status
+        $priorOwnerResponse = Invoke-Probe @{ method = 'probe_io_system_qualification'; confirm = $true; expectedSessionIdentity = $sessionIdentity; ioSystemQualification = @{ mode = 'inspectOwner'; target = $priorTarget } }
+        Assert-Same $sessionIdentity $priorOwnerResponse.sessionIdentity
+        $priorOwner = ConvertFrom-Json $priorOwnerResponse.payload -AsHashtable -Depth 100
+        Assert-Owner $priorOwner
+        Assert-SameIoSelector $priorTarget $priorOwner.originalTarget
+        Assert-Same $prior.effect.ownerTarget $priorOwner.ownerTarget
+        Assert-SnapshotMatchesBaseline $priorExpectedSnapshot (Get-Baseline (Get-PublicInspection $priorTarget))
+        Assert-Same $publicBefore (Get-PublicStatus)
+    }
     $durableIdentity = @{ portalProcessId = $sessionIdentity.portalProcessId; projectPath = $ProjectPath; project = $before.status.project }
     $record.durableIdentity = $durableIdentity
     $raw = Invoke-Probe @{ method = 'probe_network_object_attributes'; expectedSessionIdentity = $sessionIdentity; networkObjectTarget = $target; networkAttributeNames = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment') }
@@ -407,6 +559,7 @@ try {
         Assert-Same $sessionIdentity $after.identity
         $record.after = $after
         Assert-EffectEvidence $record.effect $owner $proposal $Mode
+        Assert-SnapshotMatchesBaseline $record.effect.before $owner.before
         if ($record.effect.compileState -cnotin @('Success', 'Warning') -or $record.effect.errorCount -ne 0 -or $record.effect.evidenceOmitted) { throw 'Qualification did not establish successful complete compilation; stop and inspect evidence.' }
     }
     if ($Mode -in @('Inventory', 'Preview')) {
