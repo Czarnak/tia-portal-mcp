@@ -318,7 +318,17 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("Kind = NetworkObjectKinds.DeviceItem", body);
         Assert.Contains("DeviceName = candidate.DeviceName", body);
         Assert.Contains("ItemPath = candidate.Path", body);
-        Ordered(body, "NetworkObjectSelectorResolver.Resolve(project, selector)", "object.Equals(verified.Resolved!.Value, candidate.Item)", "owner = new Owner(candidate.Item, selector)");
+        Ordered(body, "NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector)",
+            "ReferenceEquals(verified, candidate.Item)", "owner = new Owner(candidate.Item, selector)");
+        var resolver = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/NetworkObjectSelectorResolver.cs"));
+        var qualification = ExtractMethodBody(resolver, "ResolveQualificationDeviceItem");
+        Assert.Contains("MatchDeviceItem(project, target)", qualification);
+        Assert.DoesNotContain("NetworkSelectorFactory", qualification);
+        Assert.Contains("match.Item", qualification);
+        Assert.Contains("string.Equals(typeIdentifier, requestedSegment.TypeIdentifier, StringComparison.Ordinal)",
+            ExtractMethodBody(resolver, "MatchDeviceItem"));
+        Assert.Contains("NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, originalOwner)",
+            ExtractMethodBody(Source, "SetAndCompile"));
         var traversal = ExtractMethodBody(Source, "FindOwners");
         Assert.Contains("TypeIdentifier = item.TypeIdentifier", traversal);
         Assert.Contains("FindOwners(item.DeviceItems", traversal);
