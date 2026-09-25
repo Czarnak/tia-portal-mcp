@@ -146,6 +146,10 @@ public sealed class IoSystemQualificationOwnerPathEvidenceInfo
     public int Depth { get; set; }
     public int BlankDeviceNameCount { get; set; }
     public int BlankNameCount { get; set; }
+    public int NullTypeIdentifierCount { get; set; }
+    public int EmptyTypeIdentifierCount { get; set; }
+    public int WhitespaceTypeIdentifierCount { get; set; }
+    /// <summary>Sum of null, exact-empty, and nonempty whitespace-only type identifiers.</summary>
     public int BlankTypeIdentifierCount { get; set; }
     public int NegativePositionCount { get; set; }
     public int NegativeIndexCount { get; set; }

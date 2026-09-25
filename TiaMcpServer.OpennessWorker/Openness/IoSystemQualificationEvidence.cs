@@ -35,6 +35,7 @@ internal static class IoSystemQualificationEvidence
             var path = readPath(matches[0]);
             diagnostic.Path = path;
             if (path.Depth == 0 || path.BlankDeviceNameCount != 0 || path.BlankNameCount != 0
+                || path.NullTypeIdentifierCount != 0 || path.WhitespaceTypeIdentifierCount != 0
                 || path.NegativePositionCount != 0 || path.NegativeIndexCount != 0)
             {
                 diagnostic.Reason = "incomplete_path";
@@ -59,17 +60,19 @@ internal static class IoSystemQualificationEvidence
     public static IoSystemQualificationOwnerPathEvidenceInfo SummarizeOwnerPath(
         string deviceName, System.Collections.Generic.IReadOnlyList<DeviceItemPathSegmentInfo> path)
     {
-        // An observed empty string is evidence in this probe. Null or nonempty whitespace
-        // cannot prove the type read succeeded with an exact, stable value.
-        if (path.Any(segment => segment is null || segment.TypeIdentifier is null
-            || (segment.TypeIdentifier.Length != 0 && string.IsNullOrWhiteSpace(segment.TypeIdentifier))))
-            throw new ArgumentException("Owner path type evidence is unreadable.");
+        var nullTypes = path.Count(segment => segment.TypeIdentifier is null);
+        var emptyTypes = path.Count(segment => segment.TypeIdentifier?.Length == 0);
+        var whitespaceTypes = path.Count(segment => segment.TypeIdentifier is { Length: > 0 }
+            && string.IsNullOrWhiteSpace(segment.TypeIdentifier));
         return new()
         {
             Depth = path.Count,
             BlankDeviceNameCount = string.IsNullOrWhiteSpace(deviceName) ? 1 : 0,
             BlankNameCount = path.Count(segment => string.IsNullOrWhiteSpace(segment.Name)),
-            BlankTypeIdentifierCount = path.Count(segment => segment.TypeIdentifier.Length == 0),
+            NullTypeIdentifierCount = nullTypes,
+            EmptyTypeIdentifierCount = emptyTypes,
+            WhitespaceTypeIdentifierCount = whitespaceTypes,
+            BlankTypeIdentifierCount = nullTypes + emptyTypes + whitespaceTypes,
             NegativePositionCount = path.Count(segment => segment.PositionNumber < 0),
             NegativeIndexCount = path.Count(segment => segment.Index < 0)
         };
