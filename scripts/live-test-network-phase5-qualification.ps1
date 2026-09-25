@@ -292,6 +292,10 @@ try {
     if ($initialized['error']) { throw 'MCP initialize failed.' }
     Send-Line $hostProcess @{ jsonrpc = '2.0'; method = 'notifications/initialized' } -Notification
     $publicBefore = Get-PublicStatus
+    if ($publicBefore.project -isnot [Collections.IDictionary] -or
+        $publicBefore.project.isModified -isnot [bool] -or $publicBefore.project.isModified) {
+        throw 'Qualification requires an unmodified project baseline.'
+    }
     $inspection = Get-PublicInspection
     $record.publicInspection = $inspection
     Assert-Same $publicBefore (Get-PublicStatus)
