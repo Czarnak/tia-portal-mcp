@@ -37,6 +37,44 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         Assert.Contains("Assert-SnapshotMatchesBaseline $postEffectSnapshot $record.afterPublicBaseline", Source);
         Assert.Contains("Assert-Same $after.status (Get-PublicStatus)", Source);
         Assert.Contains("Assert-Same $prior.afterPublicBaseline (Get-Baseline $priorInspection)", Source);
+        Assert.Contains("Assert-ReadOnlyPnSnapshot $owner $FixtureAlias", Source);
+        Assert.Contains("Assert-Same $preview.beforePnDeviceNames $owner.beforePnDeviceNames", Source);
+        Assert.Contains("Assert-Same $owner.beforePnDeviceNames $record.effect.beforePnDeviceNames", Source);
+        Assert.Contains("Assert-Same $record.effect.afterPnDeviceNames $postOwner.beforePnDeviceNames", Source);
+        Assert.Contains("Assert-Same $prior.afterPnDeviceNames $priorOwner.beforePnDeviceNames", Source);
+    }
+
+    [Theory]
+    [InlineData("PN-B", "", false)]
+    [InlineData("DP-B", "", false)]
+    [InlineData("PN-B", "$owner.beforePnDeviceNames = @()", true)]
+    [InlineData("PN-B", "$owner.pnDeviceNameEvidenceScope = 'notCaptured'", true)]
+    [InlineData("PN-B", "$owner.beforePnDeviceNames[0].value = $null", true)]
+    [InlineData("PN-B", "$owner.afterPnDeviceNames = @($node)", true)]
+    [InlineData("DP-B", "$owner.beforePnDeviceNames = @($node)", true)]
+    public async Task ReadOnlyOwnerRequiresCompleteAffectedPnSnapshot(string alias, string mutation, bool reject)
+    {
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-PnDeviceNameEvidence', 'Assert-ReadOnlyPnSnapshot')) {
+                $function = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($function.Count -ne 1) { throw "Expected one affected-node helper: $name" }
+                . ([scriptblock]::Create($function[0].Extent.Text))
+            }
+            $node = @{ deviceLocator = 'synthetic-device'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'Interface'; positionNumber = 0; typeIdentifier = $null }); nodeId = 'synthetic-node'; associationKind = 'connector'; available = $true; value = 'station-a' }
+            $owner = @{ pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($node); afterPnDeviceNames = @(); evidenceOmitted = $false }
+            if ('{{alias}}' -ceq 'DP-B') { $owner.pnDeviceNameEvidenceScope = 'notApplicable'; $owner.beforePnDeviceNames = @() }
+            {{mutation}}
+            $rejected = $false
+            try { Assert-ReadOnlyPnSnapshot $owner '{{alias}}' } catch { $rejected = $true }
+            if ($rejected -ne ${{reject.ToString().ToLowerInvariant()}}) { throw 'Unexpected read-only PN owner snapshot decision.' }
+            """);
     }
 
     [Fact]
@@ -180,6 +218,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("$prior.effect.before[0].value.stringValue = 'drifted'")]
     [InlineData("$prior.afterPublicBaseline = $null")]
     [InlineData("$prior.afterPublicBaseline[1].value.integerValue = 9")]
+    [InlineData("$prior.afterPnDeviceNames = $null")]
+    [InlineData("$prior.afterPnDeviceNames[0].value = 'drifted'")]
     public async Task PriorEvidenceRejectsFailedOrDriftedEffect(string mutation)
         => await RunSyntheticPriorEvidenceAsync(mutation, reject: true);
 
@@ -291,6 +331,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
                 ownerTarget = $ownerTarget
                 baseline = (ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100)
                 afterPublicBaseline = (ConvertFrom-Json (Get-Json $after) -AsHashtable -Depth 100)
+                pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100)); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100))
                 effect = @{ mode = 'setAndCompile'; originalTarget = $target; appliedTarget = $applied; ownerTarget = $ownerTarget; ownerMatchCount = 1; ownerIdentityVerified = $true; hardwareTargetKind = 'deviceItem'; mutationCommitted = $true; before = $before; after = $after; compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false; pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($pnNode); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100)) }
                 after = @{ identity = @{ portalProcessId = 7; projectPath = $ProjectPath }; status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $true } } }
             }
