@@ -162,6 +162,12 @@ internal static class IoSystemQualificationEvidence
         return (true, value);
     }
 
+    public static void RequireLinkedPnNodes(int nodeCount)
+    {
+        if (nodeCount <= 0)
+            throw new InvalidOperationException("A linked PN interface has no nodes to observe.");
+    }
+
     public static void ValidatePnDeviceNameSnapshot(IReadOnlyList<IoSystemQualificationPnDeviceNameInfo> nodes,
         bool isProfinet)
     {

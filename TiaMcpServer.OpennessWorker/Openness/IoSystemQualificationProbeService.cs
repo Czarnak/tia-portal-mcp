@@ -240,8 +240,11 @@ public static class IoSystemQualificationProbeService
                     networkInterface.IoControllers.Select(controller => controller.IoSystem),
                     networkInterface.IoConnectors.Select(connector => connector.ConnectedToIoSystem), target);
                 if (association is not null)
+                {
+                    var linkedNodeCount = 0;
                     foreach (Node node in networkInterface.Nodes)
                     {
+                        linkedNodeCount++;
                         if (!string.Equals(node.NodeType.ToString(), "Ethernet", StringComparison.Ordinal))
                             throw Failure("A linked PN interface has an unexpected node type.");
                         var engineeringNode = (IEngineeringObject)node;
@@ -259,6 +262,8 @@ public static class IoSystemQualificationProbeService
                         if (nodes.Count > 128)
                             throw Failure("PN device-name snapshot exceeds the evidence limit.");
                     }
+                    IoSystemQualificationEvidence.RequireLinkedPnNodes(linkedNodeCount);
+                }
             }
             CollectAffectedPnDeviceNames(item.DeviceItems, locator, deviceName, path, target, nodes);
         }
