@@ -55,6 +55,19 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
+    public void OwnerInspection_SnapshotFailureCannotRetainVerifiedDiagnostic()
+    {
+        var body = ExtractMethodBody(Source, "InspectOwner");
+        Ordered(body, "RequireExactOwningDeviceItem(project, target, diagnostic)",
+            "diagnostic.Stage = \"pnSnapshot\"", "diagnostic.Reason = \"snapshot_unverified\"",
+            "ReadAffectedPnDeviceNames(project, target)",
+            "IoSystemQualificationEvidence.FitsResultBudget(result)",
+            "diagnostic.Stage = \"verification\"", "diagnostic.Reason = \"verified\"", "return result;");
+        Assert.Contains("OwnerDiagnostics = diagnostic", body);
+        Assert.DoesNotContain("OwnerIdentityVerified = true", body);
+    }
+
+    [Fact]
     public void Baseline_HoldsExclusiveAccessThroughExactOwnerProofAndCompile()
     {
         var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
