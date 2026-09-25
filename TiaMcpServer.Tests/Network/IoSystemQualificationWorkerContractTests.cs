@@ -70,6 +70,39 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
+    public void Mutation_CapturesCompleteAffectedPnNamesOnBothSidesOfCommit()
+    {
+        var body = ExtractMethodBody(Source, "SetAndCompile");
+        Ordered(body, "result.Before = ReadFiveAttributeSnapshot(target)",
+            "result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target)",
+            "ApplySingleField(target, request)", "transaction.CommitOnDispose();",
+            "ReadAppliedStateAndNewSelector(project, request)",
+            "result.AfterPnDeviceNames = ReadAffectedPnDeviceNames(project, applied)",
+            "CompileHardware(owner.Item, result)");
+        Assert.Contains("result.MutationCommitted = true", body);
+        Assert.Contains("result.CompileState = \"postCommitFailure\"", body);
+        Assert.DoesNotContain("project.Save(", body);
+    }
+
+    [Fact]
+    public void AffectedPnNameCapture_UsesExactLinksAndBoundedTypedEvidence()
+    {
+        var capture = ExtractMethodBody(Source, "ReadAffectedPnDeviceNames");
+        Assert.Contains("ProjectDeviceEnumerator.EnumerateWithLocations(project)", capture);
+        Assert.Contains("IoSystemQualificationEvidence.ClassifyPnAssociation", Source);
+        Assert.Contains("IoControllers", Source);
+        Assert.Contains("IoConnectors", Source);
+        Assert.Contains("ConnectedToIoSystem", Source);
+        Assert.Contains("networkInterface.Nodes", Source);
+        Assert.Contains("node.NodeId", Source);
+        Assert.Contains("PnDeviceName", capture);
+        Assert.Contains("ValidatePnDeviceNameSnapshot", capture);
+        var dto = typeof(IoSystemQualificationResultInfo);
+        Assert.Equal("IoSystemQualificationPnDeviceNameInfo", dto.GetProperty("BeforePnDeviceNames")?.PropertyType.GenericTypeArguments.Single().Name);
+        Assert.Equal("IoSystemQualificationPnDeviceNameInfo", dto.GetProperty("AfterPnDeviceNames")?.PropertyType.GenericTypeArguments.Single().Name);
+    }
+
+    [Fact]
     public void ExpectedValueAndMetadata_MustMatchExactly()
     {
         var observation = new IoSystemQualificationAttributeInfo
