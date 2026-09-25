@@ -1,7 +1,7 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-Separately authorized, worker-only Fixture A qualification. Default is read-only.
+Separately authorized, worker-only fixture qualification. Default is read-only.
 .DESCRIPTION
 The ignored JSON manifest must be refreshed on a clean frozen candidate. Required fields:
 commit, tree, projectPath, portalProcessId, hostSha256, workerSha256, binaryHashes
@@ -24,7 +24,7 @@ param(
     [string] $Mode = 'Inventory',
     [Parameter(Mandatory)] [string] $ProjectPath,
     [Parameter(Mandatory)] [string] $ManifestPath,
-    [Parameter(Mandatory)] [ValidateSet('PN-A', 'DP-A')] [string] $FixtureAlias,
+    [Parameter(Mandatory)] [ValidateSet('PN-A', 'DP-A', 'PN-B', 'DP-B')] [string] $FixtureAlias,
     [Parameter(Mandatory)] [string] $ExpectedCommit,
     [Parameter(Mandatory)] [string] $ExpectedTree,
     [Parameter(Mandatory)] [string] $ExpectedHarnessSha256,
@@ -50,8 +50,15 @@ if (-not [IO.Path]::IsPathFullyQualified($ProjectPath) -or
     [IO.Path]::GetFullPath($ProjectPath) -cne $ProjectPath) {
     throw 'An explicit canonical absolute .ap21 path is required.'
 }
+$fixtureLabel = switch -CaseSensitive ($FixtureAlias) {
+    'PN-A' { 'A' }
+    'DP-A' { 'A' }
+    'PN-B' { 'B' }
+    'DP-B' { 'B' }
+    default { throw 'Fixture alias must use an exact closed value.' }
+}
 if ($Mode -in @('Compile', 'Apply') -and
-    (-not $AllowEffectfulQualification -or $ConfirmationPhrase -cne "QUALIFY FIXTURE A $Mode")) {
+    (-not $AllowEffectfulQualification -or $ConfirmationPhrase -cne "QUALIFY FIXTURE $fixtureLabel $Mode")) {
     throw 'Effectful qualification requires its exact confirmation phrase.'
 }
 
@@ -220,7 +227,7 @@ function Assert-Owner($owner) {
 function Assert-Proposal($proposal, $owner) {
     Assert-Keys $proposal @('attributeName', 'expectedValue', 'desiredValue')
     $allowed = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension')
-    if ($FixtureAlias -ceq 'DP-A') { $allowed = @('Name', 'Number') }
+    if ($FixtureAlias -cin @('DP-A', 'DP-B')) { $allowed = @('Name', 'Number') }
     if ($proposal.attributeName -cnotin $allowed) { throw 'Unsupported or unqualified field.' }
     $kind = switch -CaseSensitive ($proposal.attributeName) { 'Name' { 'string' }; 'Number' { 'integer' }; default { 'boolean' } }
     $member = $kind + 'Value'
@@ -333,7 +340,7 @@ try {
 } catch {
     # Error text may contain exact identifiers. Keep it only in ignored evidence.
     $record.error = $_.Exception.ToString()
-    throw 'Fixture A qualification stopped. Inspect private evidence. No automatic retry.'
+    throw "Fixture $fixtureLabel qualification stopped. Inspect private evidence. No automatic retry."
 } finally {
     foreach ($child in $script:Children) {
         try {
@@ -347,6 +354,6 @@ try {
     if ($null -ne $outputPath) {
         $null = Assert-PrivatePath $outputPath
         [IO.File]::WriteAllText($outputPath, (Get-Json $record), [Text.UTF8Encoding]::new($false))
-        Write-Host ("Fixture A {0} {1}: success={2}; evidence SHA256={3}" -f $FixtureAlias, $Mode, $record.success, (Get-Sha $outputPath))
+        Write-Host ("Fixture {0} {1} {2}: success={3}; evidence SHA256={4}" -f $fixtureLabel, $FixtureAlias, $Mode, $record.success, (Get-Sha $outputPath))
     }
 }

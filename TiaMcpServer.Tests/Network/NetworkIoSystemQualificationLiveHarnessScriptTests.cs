@@ -25,12 +25,20 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("DP-A", "QUALIFY FIXTURE B Apply")]
     [InlineData("PN-B", "QUALIFY FIXTURE A Apply")]
     [InlineData("DP-B", "QUALIFY FIXTURE A Apply")]
-    [InlineData("pn-b", "QUALIFY FIXTURE B Apply")]
     public async Task EffectfulGateRejectsWrongFixturePhraseBeforeManifestOrProcess(string alias, string phrase)
     {
         var result = await RunHarnessBeforeManifestAsync(alias, phrase);
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("Effectful qualification requires its exact confirmation phrase.", result.Output);
+        Assert.DoesNotContain("qualification stopped", result.Output);
+    }
+
+    [Fact]
+    public async Task EffectfulGateRejectsCaseVariantAliasBeforeManifestOrProcess()
+    {
+        var result = await RunHarnessBeforeManifestAsync("pn-b", "QUALIFY FIXTURE B Apply");
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("Fixture alias must use an exact closed value.", result.Output);
         Assert.DoesNotContain("qualification stopped", result.Output);
     }
 
