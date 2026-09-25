@@ -29,6 +29,60 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             < Source.IndexOf("$inspection = Get-PublicInspection", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void CompletedEffectRecordsFullPublicObservationForTheAppliedSelector()
+    {
+        Assert.Contains("$postEffectTarget = if ($Mode -ceq 'Apply') { $record.effect.appliedTarget } else { $record.effect.originalTarget }", Source);
+        Assert.Contains("$record.afterPublicBaseline = Get-Baseline (Get-PublicInspection $postEffectTarget)", Source);
+        Assert.Contains("Assert-SnapshotMatchesBaseline $postEffectSnapshot $record.afterPublicBaseline", Source);
+        Assert.Contains("Assert-Same $after.status (Get-PublicStatus)", Source);
+        Assert.Contains("Assert-Same $prior.afterPublicBaseline (Get-Baseline $priorInspection)", Source);
+    }
+
+    [Fact]
+    public async Task ContinuationRejectsFullPublicObservationDriftAtPriorTarget()
+    {
+        var start = Source.IndexOf("$priorInspection = Get-PublicInspection $priorTarget", StringComparison.Ordinal);
+        var end = Source.IndexOf("$inspection = Get-PublicInspection", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "Expected a prior-target reinspection block.");
+        var block = Convert.ToBase64String(Encoding.Unicode.GetBytes("if ($true) {\n" + Source[start..end]));
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Get-Baseline')) {
+                $function = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($function.Count -ne 1) { throw "Expected one offline helper: $name" }
+                . ([scriptblock]::Create($function[0].Extent.Text))
+            }
+            $priorTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1 }
+            $original = @{ attributes = @(
+                @{ name = 'Name'; availability = 'available'; access = 'readWrite'; source = 'modeled'; supportedTypes = @('System.String'); value = @{ kind = 'string'; typeName = 'System.String'; value = 'synthetic' }; diagnostic = $null },
+                @{ name = 'Number'; availability = 'available'; access = 'readWrite'; source = 'modeled'; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; typeName = 'System.Int32'; value = 1 }; diagnostic = $null },
+                @{ name = 'MultipleUseIoSystem'; availability = 'available'; access = 'readWrite'; source = 'dynamic'; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; typeName = 'System.Boolean'; value = $false }; diagnostic = $null },
+                @{ name = 'UseIoSystemNameAsDeviceNameExtension'; availability = 'available'; access = 'readWrite'; source = 'dynamic'; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; typeName = 'System.Boolean'; value = $false }; diagnostic = $null },
+                @{ name = 'MaxNumberIWlanLinksPerSegment'; availability = 'unknownAttribute'; access = 'unknown'; source = 'dynamic'; supportedTypes = @(); value = $null; diagnostic = $null }
+            ) }
+            $changed = ConvertFrom-Json (Get-Json $original) -AsHashtable -Depth 100
+            $changed.attributes[0].source = 'dynamic'
+            $prior = @{ afterPublicBaseline = (Get-Baseline $original) }
+            $priorExpectedSnapshot = @()
+            function Get-PublicInspection { return $changed }
+            function Assert-SnapshotMatchesBaseline { }
+            $reinspect = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{block}}')))
+            $rejected = $false
+            try { & $reinspect } catch {
+                if ($_.Exception.Message -cne 'Evidence or request drift.') { throw }
+                $rejected = $true
+            }
+            if (-not $rejected) { throw 'Full prior public observation drift was accepted.' }
+            """);
+    }
+
     [Theory]
     [InlineData("PN-B", "", false)]
     [InlineData("DP-B", "", false)]
@@ -124,6 +178,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("$prior.binding.commit = 'wrong'")]
     [InlineData("$prior.binding.tree = 'wrong'")]
     [InlineData("$prior.effect.before[0].value.stringValue = 'drifted'")]
+    [InlineData("$prior.afterPublicBaseline = $null")]
+    [InlineData("$prior.afterPublicBaseline[1].value.integerValue = 9")]
     public async Task PriorEvidenceRejectsFailedOrDriftedEffect(string mutation)
         => await RunSyntheticPriorEvidenceAsync(mutation, reject: true);
 
@@ -234,6 +290,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
                 durableIdentity = @{ portalProcessId = 7; projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $false } }
                 ownerTarget = $ownerTarget
                 baseline = (ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100)
+                afterPublicBaseline = (ConvertFrom-Json (Get-Json $after) -AsHashtable -Depth 100)
                 effect = @{ mode = 'setAndCompile'; originalTarget = $target; appliedTarget = $applied; ownerTarget = $ownerTarget; ownerMatchCount = 1; ownerIdentityVerified = $true; hardwareTargetKind = 'deviceItem'; mutationCommitted = $true; before = $before; after = $after; compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false; pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($pnNode); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100)) }
                 after = @{ identity = @{ portalProcessId = 7; projectPath = $ProjectPath }; status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $true } } }
             }
