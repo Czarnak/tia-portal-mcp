@@ -405,6 +405,33 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
+    public void OwnerDiagnostics_EqualProxyDoesNotPassIdentityProofOrRevealLocation()
+    {
+        var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
+        diagnostic.OwnerDeviceLocation = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .ClassifyDeviceLocation("deviceGroups/private-group/devices/private-device");
+        diagnostic.DirectDeviceNameMatchCount = 0;
+        var result = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
+            matches => matches.Add(new EqualProxy()), _ => new() { Depth = 1 },
+            candidate =>
+            {
+                var resolved = new EqualProxy();
+                TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+                    .RecordOwnerResolution(candidate, resolved, diagnostic);
+                return ReferenceEquals(candidate, resolved);
+            }, diagnostic);
+        Assert.Equal("identity_unverified", result.Reason);
+        Assert.Equal("grouped", result.OwnerDeviceLocation);
+        Assert.Equal(0, result.DirectDeviceNameMatchCount);
+        Assert.Equal("different_reference", result.ResolverOutcome);
+        Assert.True(result.ResolvedObjectEqualsCandidate);
+        var json = System.Text.Json.JsonSerializer.Serialize(result);
+        Assert.DoesNotContain("private-group", json);
+        Assert.DoesNotContain("private-device", json);
+        Assert.True(json.Length < 1024);
+    }
+
+    [Fact]
     public void OwnerDiagnostics_ThrowingEqualityReturnsUnknownWithoutPrivateText()
     {
         var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();

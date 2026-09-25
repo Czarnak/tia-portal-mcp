@@ -77,6 +77,37 @@ internal static class IoSystemQualificationEvidence
             NegativeIndexCount = path.Count(segment => segment.Index < 0)
         };
     }
+
+    public static string ClassifyDeviceLocation(string structuralLocator)
+    {
+        if (structuralLocator.StartsWith("devices/", StringComparison.Ordinal)) return "direct";
+        if (structuralLocator.StartsWith("deviceGroups/", StringComparison.Ordinal)) return "grouped";
+        return "unknown";
+    }
+
+    public static int CountDirectDeviceNameMatches(
+        System.Collections.Generic.IEnumerable<string?> directDeviceNames, string requestedName)
+        => directDeviceNames.Count(name => string.Equals(name, requestedName, StringComparison.OrdinalIgnoreCase));
+
+    public static void RecordOwnerResolution(object candidate, object? resolved,
+        IoSystemQualificationOwnerDiagnosticInfo diagnostic)
+    {
+        diagnostic.ResolvedObjectEqualsCandidate = null;
+        if (resolved is null)
+        {
+            diagnostic.ResolverOutcome = "unresolved";
+            return;
+        }
+        if (ReferenceEquals(resolved, candidate))
+        {
+            diagnostic.ResolverOutcome = "same_reference";
+            return;
+        }
+        diagnostic.ResolverOutcome = "different_reference";
+        try { diagnostic.ResolvedObjectEqualsCandidate = object.Equals(resolved, candidate); }
+        catch (Exception) { /* Equality is optional diagnostic evidence, never owner proof. */ }
+    }
+
     public static WorkerResponse NormalizeSessionResponse(WorkerResponse response, string mode)
     {
         if (response.Success) return response;

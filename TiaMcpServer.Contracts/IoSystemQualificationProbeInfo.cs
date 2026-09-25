@@ -139,6 +139,10 @@ public sealed class IoSystemQualificationOwnerDiagnosticInfo
     public bool TraversalCompleted { get; set; }
     public int MatchCount { get; set; }
     public IoSystemQualificationOwnerPathEvidenceInfo? Path { get; set; }
+    public string OwnerDeviceLocation { get; set; } = "unknown";
+    public int? DirectDeviceNameMatchCount { get; set; }
+    public string ResolverOutcome { get; set; } = "notAttempted";
+    public bool? ResolvedObjectEqualsCandidate { get; set; }
 }
 
 public sealed class IoSystemQualificationOwnerPathEvidenceInfo

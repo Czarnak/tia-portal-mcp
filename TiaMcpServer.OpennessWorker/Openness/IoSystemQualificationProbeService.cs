@@ -140,10 +140,20 @@ public static class IoSystemQualificationProbeService
         diagnostic = IoSystemQualificationEvidence.InspectOwner<OwnerCandidate>(
             matches =>
             {
-                foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
-                    FindOwners(device.DeviceItems, device.Name, new List<DeviceItemPathSegmentInfo>(), (IoSystem)target.Value, matches);
+                foreach (var located in ProjectDeviceEnumerator.EnumerateWithLocations(project))
+                    FindOwners(located.Device.DeviceItems, located.Device.Name,
+                        IoSystemQualificationEvidence.ClassifyDeviceLocation(located.StructuralLocator),
+                        new List<DeviceItemPathSegmentInfo>(), (IoSystem)target.Value, matches);
             },
-            candidate => IoSystemQualificationEvidence.SummarizeOwnerPath(candidate.DeviceName, candidate.Path),
+            candidate =>
+            {
+                if (diagnostic is not null)
+                {
+                    diagnostic.OwnerDeviceLocation = candidate.Location;
+                    diagnostic.DirectDeviceNameMatchCount = TryCountDirectDeviceNameMatches(project, candidate.DeviceName);
+                }
+                return IoSystemQualificationEvidence.SummarizeOwnerPath(candidate.DeviceName, candidate.Path);
+            },
             candidate =>
             {
                 // The public selector factory rejects blank types. This temporary probe
@@ -155,6 +165,8 @@ public static class IoSystemQualificationProbeService
                     ItemPath = candidate.Path.ToList()
                 };
                 var verified = NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector);
+                if (diagnostic is not null)
+                    IoSystemQualificationEvidence.RecordOwnerResolution(candidate.Item, verified, diagnostic);
                 if (!ReferenceEquals(verified, candidate.Item)) return false;
                 owner = new Owner(candidate.Item, selector);
                 return true;
@@ -164,7 +176,17 @@ public static class IoSystemQualificationProbeService
         return owner;
     }
 
-    private static void FindOwners(DeviceItemComposition items, string deviceName,
+    private static int? TryCountDirectDeviceNameMatches(Project project, string requestedName)
+    {
+        try
+        {
+            return IoSystemQualificationEvidence.CountDirectDeviceNameMatches(
+                project.Devices.Cast<Device>().Select(device => device.Name), requestedName);
+        }
+        catch (Exception) { return null; }
+    }
+
+    private static void FindOwners(DeviceItemComposition items, string deviceName, string location,
         List<DeviceItemPathSegmentInfo> parentPath, IoSystem target, List<OwnerCandidate> matches)
     {
         var index = 0;
@@ -178,9 +200,9 @@ public static class IoSystemQualificationProbeService
             if (networkInterface is not null)
                 foreach (IoController controller in networkInterface.IoControllers)
                     if (object.Equals(controller.IoSystem, target))
-                        matches.Add(new OwnerCandidate(item, deviceName, path));
+                        matches.Add(new OwnerCandidate(item, deviceName, location, path));
             // Unreadable compositions propagate: incomplete discovery cannot prove uniqueness.
-            FindOwners(item.DeviceItems, deviceName, path, target, matches);
+            FindOwners(item.DeviceItems, deviceName, location, path, target, matches);
         }
     }
 
@@ -252,10 +274,11 @@ public static class IoSystemQualificationProbeService
 
     private sealed class OwnerCandidate
     {
-        public OwnerCandidate(DeviceItem item, string deviceName, List<DeviceItemPathSegmentInfo> path)
-        { Item = item; DeviceName = deviceName; Path = path; }
+        public OwnerCandidate(DeviceItem item, string deviceName, string location, List<DeviceItemPathSegmentInfo> path)
+        { Item = item; DeviceName = deviceName; Location = location; Path = path; }
         public DeviceItem Item { get; }
         public string DeviceName { get; }
+        public string Location { get; }
         public List<DeviceItemPathSegmentInfo> Path { get; }
     }
 
