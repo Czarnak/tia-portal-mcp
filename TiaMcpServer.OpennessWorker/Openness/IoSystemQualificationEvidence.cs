@@ -35,7 +35,7 @@ internal static class IoSystemQualificationEvidence
             var path = readPath(matches[0]);
             diagnostic.Path = path;
             if (path.Depth == 0 || path.BlankDeviceNameCount != 0 || path.BlankNameCount != 0
-                || path.NullTypeIdentifierCount != 0 || path.WhitespaceTypeIdentifierCount != 0
+                || path.WhitespaceTypeIdentifierCount != 0
                 || path.NegativePositionCount != 0 || path.NegativeIndexCount != 0)
             {
                 diagnostic.Reason = "incomplete_path";
