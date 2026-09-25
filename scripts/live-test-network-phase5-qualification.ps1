@@ -365,7 +365,7 @@ function Assert-PriorEvidence($Prior) {
         if ($Prior.proposal.attributeName -cnotin $allowed) { throw 'Prior proposal used an unqualified field.' }
     } elseif ($null -ne $Prior.proposal) { throw 'Compile evidence contained a proposal.' }
     $priorOwner = @{ originalTarget = $Prior.effect.originalTarget; ownerTarget = $Prior.ownerTarget }
-    Assert-EffectEvidence $Prior.effect $priorOwner $Prior.proposal $Prior.mode
+    Assert-EffectEvidence $Prior.effect $priorOwner $Prior.proposal $Prior.mode $Prior.fixtureAlias
     Assert-SnapshotMatchesBaseline $Prior.effect.before $Prior.baseline
     if ($Prior.effect.compileState -cnotin @('Success', 'Warning') -or $Prior.effect.errorCount -ne 0) {
         throw 'Prior effect was not a successful completed compile.'
@@ -390,7 +390,59 @@ function Assert-ContinuationBaseline($Status, $Prior) {
     }
     if ($null -ne $Prior) { Assert-Same $Prior.after.status $Status }
 }
-function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode) {
+function Assert-PnDeviceNameEvidence($Effect, [string] $Alias) {
+    $scope = if ($Alias -cin @('PN-A', 'PN-B')) { 'profinet' }
+        elseif ($Alias -cin @('DP-A', 'DP-B')) { 'notApplicable' }
+        else { throw 'Unknown fixture for affected-node evidence.' }
+    if ($Effect.pnDeviceNameEvidenceScope -isnot [string] -or $Effect.pnDeviceNameEvidenceScope -cne $scope -or
+        $Effect.beforePnDeviceNames -isnot [array] -or $Effect.afterPnDeviceNames -isnot [array]) {
+        throw 'Affected PN node evidence is incomplete.'
+    }
+    $before = $Effect.beforePnDeviceNames
+    $after = $Effect.afterPnDeviceNames
+    if ($scope -ceq 'notApplicable') {
+        if ($before.Count -ne 0 -or $after.Count -ne 0) { throw 'DP effect reported affected PN nodes.' }
+        return
+    }
+    if ($before.Count -lt 1 -or $before.Count -gt 128 -or $after.Count -ne $before.Count) {
+        throw 'Affected PN node set is incomplete.'
+    }
+    $identities = @()
+    foreach ($snapshot in @($before, $after)) {
+        $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        $keys = @()
+        foreach ($node in $snapshot) {
+            if ($node -isnot [Collections.IDictionary] -or
+                $node.deviceLocator -isnot [string] -or [string]::IsNullOrWhiteSpace($node.deviceLocator) -or
+                $node.deviceName -isnot [string] -or [string]::IsNullOrWhiteSpace($node.deviceName) -or
+                $node.itemPath -isnot [array] -or $node.itemPath.Count -lt 1 -or $node.itemPath.Count -gt 16 -or
+                $node.nodeId -isnot [string] -or [string]::IsNullOrWhiteSpace($node.nodeId) -or
+                $node.associationKind -cnotin @('controller', 'connector') -or
+                $node.available -isnot [bool] -or -not $node.available -or $node.value -isnot [string]) {
+                throw 'Affected PN node observation is incomplete or untyped.'
+            }
+            $indices = @()
+            foreach ($segment in $node.itemPath) {
+                if ($segment -isnot [Collections.IDictionary] -or
+                    ($segment.index -isnot [int] -and $segment.index -isnot [long]) -or $segment.index -lt 0 -or
+                    $segment.name -isnot [string] -or [string]::IsNullOrWhiteSpace($segment.name) -or
+                    ($null -ne $segment.positionNumber -and $segment.positionNumber -isnot [int] -and $segment.positionNumber -isnot [long]) -or
+                    ($null -ne $segment.positionNumber -and $segment.positionNumber -lt 0) -or
+                    ($null -ne $segment.typeIdentifier -and $segment.typeIdentifier -isnot [string]) -or
+                    ($segment.typeIdentifier -is [string] -and $segment.typeIdentifier.Length -gt 0 -and
+                        [string]::IsNullOrWhiteSpace($segment.typeIdentifier))) { throw 'Affected PN node path is incomplete.' }
+                $indices += $segment.index
+            }
+            $key = Get-Json ([ordered]@{ deviceLocator = $node.deviceLocator; itemPathIndices = $indices;
+                nodeId = $node.nodeId; associationKind = $node.associationKind })
+            if (-not $seen.Add($key)) { throw 'Affected PN node identity is duplicated.' }
+            $keys += $key
+        }
+        $identities += ,@($keys | Sort-Object -CaseSensitive)
+    }
+    Assert-Same $identities[0] $identities[1]
+}
+function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode, [string] $Alias) {
     $expectedMode = if ($Mode -ceq 'Compile') { 'compileBaseline' } else { 'setAndCompile' }
     $expectedCommit = $Mode -ceq 'Apply'
     if ($Effect -isnot [Collections.IDictionary] -or $Effect.mode -cne $expectedMode -or
@@ -420,6 +472,9 @@ function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode) {
         return
     }
     Assert-FiveQualificationAttributes $Effect.after
+    # The worker proves object identity for Apply under ExclusiveAccess. Device/path names can
+    # legitimately change, so textual pre/post owner-selector equality is not a valid gate.
+    Assert-PnDeviceNameEvidence $Effect $Alias
     $expectedNumber = if ($Proposal.attributeName -ceq 'Number') { $Proposal.desiredValue.integerValue } else { $Owner.originalTarget.number }
     if ($Effect.appliedTarget.kind -cne 'ioSystem' -or
         $Effect.appliedTarget.subnetId -cne $Owner.originalTarget.subnetId -or
@@ -558,7 +613,7 @@ try {
         $after = Get-WorkerStatus
         Assert-Same $sessionIdentity $after.identity
         $record.after = $after
-        Assert-EffectEvidence $record.effect $owner $proposal $Mode
+        Assert-EffectEvidence $record.effect $owner $proposal $Mode $FixtureAlias
         Assert-SnapshotMatchesBaseline $record.effect.before $owner.before
         if ($record.effect.compileState -cnotin @('Success', 'Warning') -or $record.effect.errorCount -ne 0 -or $record.effect.evidenceOmitted) { throw 'Qualification did not establish successful complete compilation; stop and inspect evidence.' }
     }
