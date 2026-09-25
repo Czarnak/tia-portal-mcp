@@ -19,12 +19,16 @@ public static class IoSystemQualificationProbeService
             var owner = RequireExactOwningDeviceItem(project, target, diagnostic);
             var result = NewResult(request, target, owner);
             result.OwnerDiagnostics = diagnostic;
+            diagnostic.Stage = "pnSnapshot";
+            diagnostic.Reason = "snapshot_unverified";
             result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target);
             result.PnDeviceNameEvidenceScope = GetPnDeviceNameEvidenceScope(target);
             if (result.BeforePnDeviceNames.Any(node => !node.Available))
                 throw Failure("A linked PN device name is unavailable during inspection.");
             if (!IoSystemQualificationEvidence.FitsResultBudget(result))
                 throw Failure("Read-only qualification evidence exceeds the result limit.");
+            diagnostic.Stage = "verification";
+            diagnostic.Reason = "verified";
             return result;
         }
         catch (Exception)
