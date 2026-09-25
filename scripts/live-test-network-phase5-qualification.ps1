@@ -249,6 +249,63 @@ function Assert-Proposal($proposal, $owner) {
     if ($current.available -ne $true -or $current.writable -ne $true) { throw 'Field is unavailable or not writable.' }
     Assert-Same $proposal.expectedValue $current.value
 }
+function Assert-FiveQualificationAttributes($Attributes) {
+    if ($Attributes -isnot [array] -or $Attributes.Count -ne 5) { throw 'Incomplete qualification attribute evidence.' }
+    $expected = @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension', 'MaxNumberIWlanLinksPerSegment')
+    $actual = @($Attributes | ForEach-Object {
+        if ($_ -isnot [Collections.IDictionary] -or $_.name -isnot [string]) { throw 'Invalid qualification attribute evidence.' }
+        $_.name
+    })
+    Assert-Same @($expected | Sort-Object -CaseSensitive) @($actual | Sort-Object -CaseSensitive)
+}
+function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode) {
+    $expectedMode = if ($Mode -ceq 'Compile') { 'compileBaseline' } else { 'setAndCompile' }
+    $expectedCommit = $Mode -ceq 'Apply'
+    if ($Effect -isnot [Collections.IDictionary] -or $Effect.mode -cne $expectedMode -or
+        $Effect.mutationCommitted -isnot [bool] -or $Effect.mutationCommitted -ne $expectedCommit -or
+        ($Effect.ownerMatchCount -isnot [int] -and $Effect.ownerMatchCount -isnot [long]) -or
+        $Effect.ownerMatchCount -ne 1 -or $Effect.ownerIdentityVerified -isnot [bool] -or
+        $Effect.ownerIdentityVerified -ne $true -or $Effect.hardwareTargetKind -cne 'deviceItem' -or
+        $Effect.evidenceOmitted -isnot [bool] -or $Effect.evidenceOmitted -or
+        $Owner.originalTarget -isnot [Collections.IDictionary] -or
+        $Effect.originalTarget -isnot [Collections.IDictionary] -or
+        $Effect.appliedTarget -isnot [Collections.IDictionary] -or
+        $Effect.ownerTarget -isnot [Collections.IDictionary] -or
+        $Effect.ownerTarget.kind -cne 'deviceItem' -or
+        [string]::IsNullOrWhiteSpace($Effect.ownerTarget.deviceName) -or
+        @($Effect.ownerTarget.itemPath).Count -eq 0) {
+        throw 'Qualification effect evidence is incomplete or inconsistent.'
+    }
+    Assert-Same $Owner.originalTarget $Effect.originalTarget
+    Assert-FiveQualificationAttributes $Effect.before
+    if ($Mode -ceq 'Compile') {
+        Assert-Same $Owner.ownerTarget $Effect.ownerTarget
+        Assert-Same $Effect.originalTarget $Effect.appliedTarget
+        if ($Effect.after -isnot [array] -or $Effect.after.Count -ne 0) { throw 'Baseline compile reported an applied state.' }
+        return
+    }
+    Assert-FiveQualificationAttributes $Effect.after
+    $expectedNumber = if ($Proposal.attributeName -ceq 'Number') { $Proposal.desiredValue.integerValue } else { $Owner.originalTarget.number }
+    if ($Effect.appliedTarget.kind -cne 'ioSystem' -or
+        $Effect.appliedTarget.subnetId -cne $Owner.originalTarget.subnetId -or
+        ($Effect.appliedTarget.number -isnot [int] -and $Effect.appliedTarget.number -isnot [long]) -or
+        $Effect.appliedTarget.number -ne $expectedNumber) {
+        throw 'Applied IO-system selector is unverified.'
+    }
+    $member = $Proposal.expectedValue.kind + 'Value'
+    $old = @($Effect.before | Where-Object name -CEQ $Proposal.attributeName)[0]
+    $new = @($Effect.after | Where-Object name -CEQ $Proposal.attributeName)[0]
+    if ($old.available -isnot [bool] -or $old.available -ne $true -or
+        $new.available -isnot [bool] -or $new.available -ne $true -or
+        $old.value -isnot [Collections.IDictionary] -or $new.value -isnot [Collections.IDictionary] -or
+        $old.value.kind -cne $Proposal.expectedValue.kind -or
+        $new.value.kind -cne $Proposal.desiredValue.kind -or
+        -not $old.value.Contains($member) -or -not $new.value.Contains($member)) {
+        throw 'Committed attribute evidence is incomplete.'
+    }
+    Assert-Same $Proposal.expectedValue[$member] $old.value[$member]
+    Assert-Same $Proposal.desiredValue[$member] $new.value[$member]
+}
 
 $hostProcess = $null
 $workerProcess = $null
@@ -338,6 +395,7 @@ try {
         $effect = Invoke-Probe $request
         $record.effect = ConvertFrom-Json $effect.payload -AsHashtable -Depth 100
         Assert-Same $sessionIdentity $effect.sessionIdentity
+        Assert-EffectEvidence $record.effect $owner $proposal $Mode
         if ($record.effect.compileState -cnotin @('Success', 'Warning') -or $record.effect.errorCount -ne 0 -or $record.effect.evidenceOmitted) { throw 'Qualification did not establish successful complete compilation; stop and inspect evidence.' }
     }
     $after = Get-WorkerStatus

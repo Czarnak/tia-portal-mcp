@@ -108,7 +108,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("Apply", "$record.effect.after[1].value.integerValue = 3", true)]
     [InlineData("Apply", "$record.effect.after[4].name = 'Number'", true)]
     [InlineData("Apply", "$record.effect.originalTarget.number = 8", true)]
-    [InlineData("Apply", "$record.effect.ownerTarget.deviceName = 'Other'", true)]
+    [InlineData("Apply", "$record.effect.ownerTarget.deviceName = 'Other'", false)]
+    [InlineData("Apply", "$record.effect.ownerTarget = $null", true)]
     [InlineData("Apply", "$record.effect.ownerMatchCount = 2", true)]
     [InlineData("Apply", "$record.effect.hardwareTargetKind = 'device'", true)]
     [InlineData("Apply", "$record.effect.before = @($record.effect.before[0..3])", true)]
@@ -156,14 +157,16 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
                 appliedTarget = $(if ($Mode -eq 'Compile') { $canonical.Clone() } else { $applied.Clone() })
                 ownerTarget = $hardware.Clone(); ownerMatchCount = 1; ownerIdentityVerified = $true
                 hardwareTargetKind = 'deviceItem'; mutationCommitted = ($Mode -eq 'Apply')
-                before = $before; after = $(if ($Mode -eq 'Compile') { @() } else { $afterSnapshot })
+                before = $before; after = @()
                 compileState = 'Success'; errorCount = 0; evidenceOmitted = $false
             } }
+            if ($Mode -eq 'Apply') { $record.effect.after = $afterSnapshot }
             {{mutation}}
             $verdict = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{verdict}}')))
             $rejected = $false
-            try { & $verdict } catch { $rejected = $true }
-            if ($rejected -ne ${{expectRejection.ToString().ToLowerInvariant()}}) { throw 'Unexpected effect evidence decision.' }
+            $failure = ''
+            try { & $verdict } catch { $rejected = $true; $failure = $_.Exception.Message }
+            if ($rejected -ne ${{expectRejection.ToString().ToLowerInvariant()}}) { throw "Unexpected effect evidence decision: $failure" }
             """);
     }
 
