@@ -395,13 +395,18 @@ try {
         $effect = Invoke-Probe $request
         $record.effect = ConvertFrom-Json $effect.payload -AsHashtable -Depth 100
         Assert-Same $sessionIdentity $effect.sessionIdentity
+        $after = Get-WorkerStatus
+        Assert-Same $sessionIdentity $after.identity
+        $record.after = $after
         Assert-EffectEvidence $record.effect $owner $proposal $Mode
         if ($record.effect.compileState -cnotin @('Success', 'Warning') -or $record.effect.errorCount -ne 0 -or $record.effect.evidenceOmitted) { throw 'Qualification did not establish successful complete compilation; stop and inspect evidence.' }
     }
-    $after = Get-WorkerStatus
-    Assert-Same $sessionIdentity $after.identity
-    if ($Mode -in @('Inventory', 'Preview')) { Assert-Same $before $after }
-    $record.after = $after
+    if ($Mode -in @('Inventory', 'Preview')) {
+        $after = Get-WorkerStatus
+        Assert-Same $sessionIdentity $after.identity
+        Assert-Same $before $after
+        $record.after = $after
+    }
     $assertedCandidate = Assert-Candidate
     $record.success = $true
 } catch {

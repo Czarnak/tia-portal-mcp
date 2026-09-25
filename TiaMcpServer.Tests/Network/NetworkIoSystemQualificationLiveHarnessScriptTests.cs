@@ -115,10 +115,10 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("Apply", "$record.effect.before = @($record.effect.before[0..3])", true)]
     public async Task CompletedEffectRequiresModeCommitAndTypedOwnershipProof(string mode, string mutation, bool expectRejection)
     {
-        var start = Source.IndexOf("Assert-Same $sessionIdentity $effect.sessionIdentity", StringComparison.Ordinal);
-        var after = Source.IndexOf("$after = Get-WorkerStatus", start, StringComparison.Ordinal);
-        var end = after < 0 ? -1 : Source.LastIndexOf("    }", after, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, "Expected effect verdict before post-status read.");
+        var start = Source.IndexOf("Assert-EffectEvidence $record.effect $owner $proposal $Mode", StringComparison.Ordinal);
+        var compileCheck = Source.IndexOf("$record.effect.compileState -cnotin", start, StringComparison.Ordinal);
+        var end = compileCheck < 0 ? -1 : Source.IndexOf('\n', compileCheck);
+        Assert.True(start >= 0 && end > start, "Expected completed effect evidence and compile verdict.");
         var verdict = Convert.ToBase64String(Encoding.Unicode.GetBytes(Source[start..end]));
         var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
         await RunOfflinePowerShellAsync($$"""
@@ -194,16 +194,28 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $transportFails = ${{transportFails.ToString().ToLowerInvariant()}}
             $script:statusReads = 0
             $sessionIdentity = @{ workerSessionId = 'synthetic' }
-            $effectResponse = @{ sessionIdentity = $sessionIdentity; payload = (@{ compileState = '{{compileState}}'; errorCount = 1; evidenceOmitted = $false } | ConvertTo-Json -Compress) }
+            $effectInfo = @{ compileState = '{{compileState}}'; errorCount = 1; evidenceOmitted = $false }
+            if ($Mode -eq 'Apply') {
+                $effectInfo.mutationCommitted = $true
+                $effectInfo.appliedTarget = $null
+                $effectInfo.after = @()
+            }
+            $effectResponse = @{ sessionIdentity = $sessionIdentity; payload = ($effectInfo | ConvertTo-Json -Compress) }
             $record = @{}
             $owner = @{}; $proposal = @{}; $request = @{}; $before = @{}
             function Invoke-Probe { if ($transportFails) { throw 'Transport ended or timed out.' }; return $effectResponse }
             function Assert-Same { }
-            function Assert-EffectEvidence { }
+            function Assert-EffectEvidence {
+                if ($Mode -eq 'Apply' -and $null -eq $record.effect.appliedTarget) { throw 'Known committed effect lacked complete proof.' }
+            }
             function Get-WorkerStatus { $script:statusReads++; return @{ identity = $sessionIdentity; status = @{ marker = 'after' } } }
             $effectBlock = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{block}}')))
             $failed = $false
-            try { & $effectBlock } catch { $failed = $true }
+            $expectedFailure = if ($transportFails) { 'Transport ended or timed out.' } elseif ($Mode -eq 'Apply') { 'Known committed effect lacked complete proof.' } else { 'Qualification did not establish successful complete compilation; stop and inspect evidence.' }
+            try { & $effectBlock } catch {
+                if ($_.Exception.Message -cne $expectedFailure) { throw }
+                $failed = $true
+            }
             if (-not $failed) { throw 'Effect failure unexpectedly succeeded.' }
             if ($transportFails) {
                 if ($script:statusReads -ne 0 -or $record.Contains('after')) { throw 'Ambiguous transport triggered a follow-up read.' }
