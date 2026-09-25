@@ -132,6 +132,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("PN-B", "$effect.beforePnDeviceNames[0].value = $null", true)]
     [InlineData("PN-B", "$effect.afterPnDeviceNames += $effect.afterPnDeviceNames[0]", true)]
     [InlineData("PN-B", "$effect.beforePnDeviceNames[0].itemPath[0].typeIdentifier = $null; $effect.afterPnDeviceNames[0].itemPath[0].typeIdentifier = $null", false)]
+    [InlineData("PN-B", "$effect.beforePnDeviceNames[0].itemPath[0].positionNumber = $null", true)]
+    [InlineData("PN-B", "$effect.afterPnDeviceNames[0].itemPath[0].positionNumber = '0'", true)]
     [InlineData("PN-B", "$extra = ConvertFrom-Json (Get-Json $node) -AsHashtable -Depth 100; $extra.nodeId = 'second'; $effect.beforePnDeviceNames += $extra; $effect.afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $extra) -AsHashtable -Depth 100), $effect.afterPnDeviceNames[0])", false)]
     [InlineData("DP-B", "$effect.pnDeviceNameEvidenceScope = 'profinet'", true)]
     [InlineData("DP-B", "$effect.beforePnDeviceNames = @(@{ value = 'unexpected' })", true)]
