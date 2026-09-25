@@ -30,6 +30,45 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Theory]
+    [InlineData("PN-B", "", false)]
+    [InlineData("DP-B", "", false)]
+    [InlineData("PN-B", "$effect.pnDeviceNameEvidenceScope = 'notApplicable'", true)]
+    [InlineData("PN-B", "$effect.beforePnDeviceNames = @()", true)]
+    [InlineData("PN-B", "$effect.afterPnDeviceNames = @()", true)]
+    [InlineData("PN-B", "$effect.afterPnDeviceNames[0].nodeId = 'other'", true)]
+    [InlineData("PN-B", "$effect.afterPnDeviceNames[0].available = $false", true)]
+    [InlineData("PN-B", "$effect.beforePnDeviceNames[0].value = $null", true)]
+    [InlineData("PN-B", "$effect.afterPnDeviceNames += $effect.afterPnDeviceNames[0]", true)]
+    [InlineData("DP-B", "$effect.pnDeviceNameEvidenceScope = 'profinet'", true)]
+    [InlineData("DP-B", "$effect.beforePnDeviceNames = @(@{ value = 'unexpected' })", true)]
+    public async Task ApplyRequiresCompleteAffectedPnNodeEvidence(string alias, string mutation, bool reject)
+    {
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Harness parse failed.' }
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-PnDeviceNameEvidence')) {
+                $functions = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($functions.Count -ne 1) { throw "Expected one affected-node proof helper: $name" }
+                . ([scriptblock]::Create($functions[0].Extent.Text))
+            }
+            $node = @{ deviceLocator = 'synthetic-device'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'Interface'; positionNumber = 0; typeIdentifier = '' }); nodeId = 'synthetic-node'; associationKind = 'connector'; available = $true; value = 'station-a' }
+            $effect = @{ pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($node); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $node) -AsHashtable -Depth 100)) }
+            $effect.afterPnDeviceNames[0].value = 'station-b'
+            if ('{{alias}}' -ceq 'DP-B') { $effect.pnDeviceNameEvidenceScope = 'notApplicable'; $effect.beforePnDeviceNames = @(); $effect.afterPnDeviceNames = @() }
+            {{mutation}}
+            $rejected = $false
+            try { Assert-PnDeviceNameEvidence $effect '{{alias}}' } catch { $rejected = $true }
+            if ($rejected -ne ${{reject.ToString().ToLowerInvariant()}}) { throw 'Unexpected affected-node evidence decision.' }
+            """);
+    }
+
+    [Theory]
     [InlineData("$false", "$null", false)]
     [InlineData("$false", "$prior", true)]
     [InlineData("$true", "$null", true)]
