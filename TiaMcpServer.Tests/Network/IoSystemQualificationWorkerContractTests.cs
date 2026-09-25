@@ -363,6 +363,85 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Theory]
+    [InlineData("devices/0", "direct")]
+    [InlineData("deviceGroups/0/devices/0", "grouped")]
+    [InlineData("deviceGroups/0/groups/1/devices/0", "grouped")]
+    [InlineData("unexpected-private-locator", "unknown")]
+    public void OwnerDiagnostics_DeviceLocationIsAClosedCode(string locator, string expected)
+    {
+        var actual = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ClassifyDeviceLocation(locator);
+        Assert.Equal(expected, actual);
+        Assert.DoesNotContain("/", actual);
+    }
+
+    [Theory]
+    [InlineData(new string[0], 0)]
+    [InlineData(new[] { "other" }, 0)]
+    [InlineData(new[] { "OWNER" }, 1)]
+    [InlineData(new[] { "owner", "OWNER" }, 2)]
+    public void OwnerDiagnostics_DirectDeviceLookupCountsOnlyExactNameMatches(string[] names, int expected)
+    {
+        Assert.Equal(expected, TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            .CountDirectDeviceNameMatches(names, "owner"));
+    }
+
+    [Fact]
+    public void OwnerDiagnostics_ResolutionOutcomesNeverAuthorizeDifferentReference()
+    {
+        var candidate = new EqualProxy();
+        var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
+        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, null, diagnostic);
+        Assert.Equal("unresolved", diagnostic.ResolverOutcome);
+        Assert.Null(diagnostic.ResolvedObjectEqualsCandidate);
+
+        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, new EqualProxy(), diagnostic);
+        Assert.Equal("different_reference", diagnostic.ResolverOutcome);
+        Assert.True(diagnostic.ResolvedObjectEqualsCandidate);
+        Assert.False(diagnostic.Reason == "verified");
+
+        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, candidate, diagnostic);
+        Assert.Equal("same_reference", diagnostic.ResolverOutcome);
+        Assert.Null(diagnostic.ResolvedObjectEqualsCandidate);
+    }
+
+    [Fact]
+    public void OwnerDiagnostics_ThrowingEqualityReturnsUnknownWithoutPrivateText()
+    {
+        var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
+        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(
+            new EqualProxy(), new ThrowingProxy(), diagnostic);
+        Assert.Equal("different_reference", diagnostic.ResolverOutcome);
+        Assert.Null(diagnostic.ResolvedObjectEqualsCandidate);
+        var json = System.Text.Json.JsonSerializer.Serialize(diagnostic);
+        Assert.DoesNotContain("private equality detail", json);
+        Assert.True(json.Length < 1024);
+    }
+
+    [Fact]
+    public void OwnerInspection_RecordsResolutionButKeepsReferenceEqualsGate()
+    {
+        var owner = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
+        Assert.Contains("ProjectDeviceEnumerator.EnumerateWithLocations(project)", owner);
+        Assert.Contains("OwnerDeviceLocation", owner);
+        Assert.Contains("DirectDeviceNameMatchCount", owner);
+        Ordered(owner, "ResolveQualificationDeviceItem(project, selector)",
+            "RecordOwnerResolution(candidate.Item, verified, diagnostic)",
+            "ReferenceEquals(verified, candidate.Item)", "owner = new Owner(candidate.Item, selector)");
+    }
+
+    private sealed class EqualProxy
+    {
+        public override bool Equals(object? obj) => obj is EqualProxy;
+        public override int GetHashCode() => 0;
+    }
+
+    private sealed class ThrowingProxy
+    {
+        public override bool Equals(object? obj) => throw new InvalidOperationException("private equality detail");
+        public override int GetHashCode() => 0;
+    }
+
+    [Theory]
     [InlineData("", 0, 0)]
     [InlineData("device", -1, 0)]
     [InlineData("device", 0, -1)]
