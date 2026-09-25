@@ -197,7 +197,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [Theory]
     [InlineData("PN-B", "Apply", 2)]
     [InlineData("PN-B", "Compile", 1)]
-    [InlineData("DP-B", "Apply", 9)]
+    [InlineData("DP-B", "Compile", 9)]
     public async Task ContinuationSelectsAppliedTargetOnlyForSameFixtureApply(string alias, string priorMode, int expectedNumber)
         => await RunContinuationGuardAsync($$"""
             $manifestTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 9 }
@@ -205,6 +205,62 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $target = Resolve-ContinuationTarget $manifestTarget $prior '{{alias}}'
             if ($target.number -ne {{expectedNumber}}) { throw 'Continuation used the wrong selector.' }
             """);
+
+    [Theory]
+    [InlineData("Apply", 1, 2, true)]
+    [InlineData("Compile", 2, 2, true)]
+    [InlineData("Apply", 1, 1, false)]
+    [InlineData("Compile", 1, 1, false)]
+    public async Task CrossFixtureCannotStrandChangedNumber(string priorMode, int originalNumber, int appliedNumber, bool reject)
+        => await RunContinuationGuardAsync($$"""
+            $manifestTarget = @{ kind = 'ioSystem'; subnetId = 'other-subnet'; number = 9 }
+            $prior = @{ mode = '{{priorMode}}'; fixtureAlias = 'PN-B'; effect = @{ originalTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = {{originalNumber}} }; appliedTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = {{appliedNumber}} } } }
+            $rejected = $false
+            try { $target = Resolve-ContinuationTarget $manifestTarget $prior 'DP-B' } catch { $rejected = $true }
+            if ($rejected -ne ${{reject.ToString().ToLowerInvariant()}}) { throw 'Cross-fixture selector continuity decision was wrong.' }
+            """);
+
+    [Fact]
+    public async Task CanonicalObservedIoSelectorMayIncludeIndexAndName()
+        => await RunContinuationGuardAsync("""
+            $manifestTarget = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1 }
+            $observed = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 2; ioSystemIndex = 0; ioSystemName = 'Synthetic' }
+            $prior = @{ mode = 'Apply'; fixtureAlias = 'PN-B'; effect = @{ appliedTarget = $observed; originalTarget = $manifestTarget } }
+            $target = Resolve-ContinuationTarget $manifestTarget $prior 'PN-B'
+            if ($target.number -ne 2) { throw 'Canonical observed selector was not used.' }
+            Assert-SameIoSelector $target $observed
+            $invalidRequest = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1; ioSystemIndex = 0 }
+            $rejected = $false
+            try { Assert-IoSelector $invalidRequest } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Manifest request accepted an observed-only selector field.' }
+            """);
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    public async Task PublicInspectionRequiresExactVerifiedSelector(int returnedNumber, bool reject)
+    {
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-IoSelector', 'Assert-SameIoSelector', 'Get-PublicInspection')) {
+                $function = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($function.Count -ne 1) { throw "Expected one public inspection helper: $name" }
+                . ([scriptblock]::Create($function[0].Extent.Text))
+            }
+            $target = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1 }
+            $response = @{ batch = @{ operations = @(@{ status = 'succeeded'; result = @{ target = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = {{returnedNumber}}; ioSystemIndex = 0; ioSystemName = 'Synthetic' }; attributes = @() } }) } }
+            function Invoke-Public { return $response }
+            $rejected = $false
+            try { $null = Get-PublicInspection $target } catch { $rejected = $true }
+            if ($rejected -ne ${{reject.ToString().ToLowerInvariant()}}) { throw 'Public inspection selector echo decision was wrong.' }
+            """);
+    }
 
     [Theory]
     [InlineData("$prior.success = $false")]
