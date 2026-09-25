@@ -60,6 +60,18 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("$null", true)]
     [InlineData("'False'", true)]
     public async Task BaselineRequiresBooleanFalseBeforeInspection(string modifiedValue, bool expectRejection)
+        => await AssertBaselinePreflightDecisionAsync($"@{{ isModified = {modifiedValue}; isOpen = $true; path = $ProjectPath }}", expectRejection);
+
+    [Theory]
+    [InlineData("$true", "$ProjectPath", false)]
+    [InlineData("$false", "$ProjectPath", true)]
+    [InlineData("'True'", "$ProjectPath", true)]
+    [InlineData("$true", "'C:\\Other\\Fixture.ap21'", true)]
+    [InlineData("$true", "$null", true)]
+    public async Task BaselineRequiresExactOpenProjectBeforeInspection(string isOpen, string path, bool expectRejection)
+        => await AssertBaselinePreflightDecisionAsync($"@{{ isModified = $false; isOpen = {isOpen}; path = {path} }}", expectRejection);
+
+    private static async Task AssertBaselinePreflightDecisionAsync(string projectLiteral, bool expectRejection)
     {
         var start = Source.IndexOf("$publicBefore = Get-PublicStatus", StringComparison.Ordinal);
         var end = Source.IndexOf("$inspection = Get-PublicInspection", start, StringComparison.Ordinal);
@@ -68,7 +80,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         await RunOfflinePowerShellAsync($$"""
             Set-StrictMode -Version Latest
             $ErrorActionPreference = 'Stop'
-            $status = @{ project = @{ isModified = {{modifiedValue}} } }
+            $ProjectPath = 'C:\Synthetic\Fixture.ap21'
+            $status = @{ projectPath = $ProjectPath; project = {{projectLiteral}} }
             function Get-PublicStatus { return $status }
             $preflight = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{preflight}}')))
             $rejected = $false
