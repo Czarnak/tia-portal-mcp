@@ -107,6 +107,22 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
+    public void LinkedPnInterface_WithNoNodesCannotBeHiddenByOtherLinkedNodes()
+    {
+        var collect = ExtractMethodBody(Source, "CollectAffectedPnDeviceNames");
+        Ordered(collect, "if (association is not null)", "var linkedNodeCount = 0",
+            "foreach (Node node in networkInterface.Nodes)", "linkedNodeCount++",
+            "RequireLinkedPnNodes(linkedNodeCount)");
+        var gate = typeof(QualificationEvidence).GetMethod("RequireLinkedPnNodes",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(gate);
+        var failure = Assert.Throws<System.Reflection.TargetInvocationException>(
+            () => gate!.Invoke(null, new object[] { 0 }));
+        Assert.IsType<InvalidOperationException>(failure.InnerException);
+        gate!.Invoke(null, new object[] { 1 });
+    }
+
+    [Fact]
     public void ExpectedValueAndMetadata_MustMatchExactly()
     {
         var observation = new IoSystemQualificationAttributeInfo
