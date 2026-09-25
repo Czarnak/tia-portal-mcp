@@ -94,6 +94,80 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Theory]
+    [InlineData("Compile", "", false)]
+    [InlineData("Apply", "", false)]
+    [InlineData("Compile", "$record.effect.mode = 'setAndCompile'", true)]
+    [InlineData("Compile", "$record.effect.mutationCommitted = $true", true)]
+    [InlineData("Compile", "$record.effect.appliedTarget.number = 2", true)]
+    [InlineData("Compile", "$record.effect.after = @($record.effect.before[0])", true)]
+    [InlineData("Apply", "$record.effect.mode = 'compileBaseline'", true)]
+    [InlineData("Apply", "$record.effect.mutationCommitted = $false", true)]
+    [InlineData("Apply", "$record.effect.appliedTarget = $null", true)]
+    [InlineData("Apply", "$record.effect.appliedTarget.number = 1", true)]
+    [InlineData("Apply", "$record.effect.after = @()", true)]
+    [InlineData("Apply", "$record.effect.after[1].value.integerValue = 3", true)]
+    [InlineData("Apply", "$record.effect.after[4].name = 'Number'", true)]
+    [InlineData("Apply", "$record.effect.originalTarget.number = 8", true)]
+    [InlineData("Apply", "$record.effect.ownerTarget.deviceName = 'Other'", true)]
+    [InlineData("Apply", "$record.effect.ownerMatchCount = 2", true)]
+    [InlineData("Apply", "$record.effect.hardwareTargetKind = 'device'", true)]
+    [InlineData("Apply", "$record.effect.before = @($record.effect.before[0..3])", true)]
+    public async Task CompletedEffectRequiresModeCommitAndTypedOwnershipProof(string mode, string mutation, bool expectRejection)
+    {
+        var start = Source.IndexOf("Assert-Same $sessionIdentity $effect.sessionIdentity", StringComparison.Ordinal);
+        var after = Source.IndexOf("$after = Get-WorkerStatus", start, StringComparison.Ordinal);
+        var end = after < 0 ? -1 : Source.LastIndexOf("    }", after, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "Expected effect verdict before post-status read.");
+        var verdict = Convert.ToBase64String(Encoding.Unicode.GetBytes(Source[start..end]));
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Harness parse failed.' }
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-FiveQualificationAttributes', 'Assert-EffectEvidence')) {
+                $functions = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($functions.Count -gt 1) { throw 'Duplicate offline guard helper.' }
+                if ($functions.Count -eq 1) { . ([scriptblock]::Create($functions[0].Extent.Text)) }
+            }
+            $Mode = '{{mode}}'
+            $sessionIdentity = @{ workerSessionId = 'synthetic' }
+            $effect = @{ sessionIdentity = $sessionIdentity }
+            $canonical = @{ kind = 'ioSystem'; subnetId = 'synthetic-subnet'; number = 1; ioSystemName = $null }
+            $applied = @{ kind = 'ioSystem'; subnetId = 'synthetic-subnet'; number = 2; ioSystemName = $null }
+            $hardware = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'Controller'; positionNumber = 0; typeIdentifier = '' }) }
+            $before = @(
+                @{ name = 'Name'; available = $true; writable = $true; supportedTypes = @('System.String'); value = @{ kind = 'string'; stringValue = 'before' } },
+                @{ name = 'Number'; available = $true; writable = $true; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; integerValue = 1 } },
+                @{ name = 'MultipleUseIoSystem'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; booleanValue = $false } },
+                @{ name = 'UseIoSystemNameAsDeviceNameExtension'; available = $true; writable = $true; supportedTypes = @('System.Boolean'); value = @{ kind = 'boolean'; booleanValue = $false } },
+                @{ name = 'MaxNumberIWlanLinksPerSegment'; available = $false; writable = $false; supportedTypes = @(); value = $null }
+            )
+            $afterSnapshot = ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100
+            $afterSnapshot[1].value.integerValue = 2
+            $proposal = @{ attributeName = 'Number'; expectedValue = @{ kind = 'integer'; integerValue = 1 }; desiredValue = @{ kind = 'integer'; integerValue = 2 } }
+            $owner = @{ originalTarget = $canonical; ownerTarget = $hardware; before = $before }
+            $record = @{ effect = @{
+                mode = $(if ($Mode -eq 'Compile') { 'compileBaseline' } else { 'setAndCompile' })
+                originalTarget = $canonical.Clone()
+                appliedTarget = $(if ($Mode -eq 'Compile') { $canonical.Clone() } else { $applied.Clone() })
+                ownerTarget = $hardware.Clone(); ownerMatchCount = 1; ownerIdentityVerified = $true
+                hardwareTargetKind = 'deviceItem'; mutationCommitted = ($Mode -eq 'Apply')
+                before = $before; after = $(if ($Mode -eq 'Compile') { @() } else { $afterSnapshot })
+                compileState = 'Success'; errorCount = 0; evidenceOmitted = $false
+            } }
+            {{mutation}}
+            $verdict = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{verdict}}')))
+            $rejected = $false
+            try { & $verdict } catch { $rejected = $true }
+            if ($rejected -ne ${{expectRejection.ToString().ToLowerInvariant()}}) { throw 'Unexpected effect evidence decision.' }
+            """);
+    }
+
+    [Theory]
     [InlineData("PN-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("DP-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("PN-B", "QUALIFY FIXTURE B Apply", "Fixture B qualification stopped")]
