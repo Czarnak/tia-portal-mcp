@@ -288,8 +288,38 @@ public class IoSystemQualificationWorkerContractTests
             }),
             _ => { calls++; return true; });
         Assert.Equal("pathEvidence", diagnostic.Stage);
-        Assert.Equal("path_read_failed", diagnostic.Reason);
+        Assert.Equal("incomplete_path", diagnostic.Reason);
+        Assert.NotNull(diagnostic.Path);
+        Assert.Equal(1, diagnostic.Path.BlankTypeIdentifierCount);
         Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public void OwnerDiagnostics_MixedTypeClassesHaveBoundedAggregateCounts()
+    {
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+            matches => matches.Add(1),
+            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("private-device", new[]
+            {
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "private-root", PositionNumber = 0, TypeIdentifier = null! },
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "private-middle", PositionNumber = 1, TypeIdentifier = "" },
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "private-owner", PositionNumber = 2, TypeIdentifier = " \t" },
+                new DeviceItemPathSegmentInfo { Index = 0, Name = "private-leaf", PositionNumber = 3, TypeIdentifier = "observed-type" }
+            }),
+            _ => throw new InvalidOperationException("Identity proof must not run"));
+        Assert.Equal("pathEvidence", diagnostic.Stage);
+        Assert.Equal("incomplete_path", diagnostic.Reason);
+        Assert.Equal(4, diagnostic.Path!.Depth);
+        Assert.Equal(3, diagnostic.Path.BlankTypeIdentifierCount);
+        var json = System.Text.Json.JsonSerializer.Serialize(diagnostic);
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var path = document.RootElement.GetProperty("Path");
+        Assert.Equal(1, path.GetProperty("NullTypeIdentifierCount").GetInt32());
+        Assert.Equal(1, path.GetProperty("EmptyTypeIdentifierCount").GetInt32());
+        Assert.Equal(1, path.GetProperty("WhitespaceTypeIdentifierCount").GetInt32());
+        Assert.DoesNotContain("private-", json);
+        Assert.DoesNotContain("observed-type", json);
+        Assert.True(json.Length < 1024);
     }
 
     [Theory]
