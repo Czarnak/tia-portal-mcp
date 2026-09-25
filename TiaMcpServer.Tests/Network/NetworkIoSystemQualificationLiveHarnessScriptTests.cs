@@ -171,6 +171,49 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Theory]
+    [InlineData("Compile", "Error")]
+    [InlineData("Apply", "postCommitFailure")]
+    public async Task CompletedEffectFailureCapturesPostStatusBeforeVerdict(string mode, string compileState)
+        => await AssertEffectPostStatusDecisionAsync(mode, compileState, transportFails: false);
+
+    [Fact]
+    public async Task AmbiguousEffectTransportDoesNotReadPostStatus()
+        => await AssertEffectPostStatusDecisionAsync("Apply", "notRequested", transportFails: true);
+
+    private static async Task AssertEffectPostStatusDecisionAsync(string mode, string compileState, bool transportFails)
+    {
+        var start = Source.IndexOf("$effect = Invoke-Probe $request", StringComparison.Ordinal);
+        var end = Source.IndexOf("$assertedCandidate = Assert-Candidate", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "Expected effect handling before final candidate check.");
+        // Include the effect block's closing brace so the extracted production path runs as a conditional.
+        var block = Convert.ToBase64String(Encoding.Unicode.GetBytes("if ($true) {\n" + Source[start..end]));
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $Mode = '{{mode}}'
+            $transportFails = ${{transportFails.ToString().ToLowerInvariant()}}
+            $script:statusReads = 0
+            $sessionIdentity = @{ workerSessionId = 'synthetic' }
+            $effectResponse = @{ sessionIdentity = $sessionIdentity; payload = (@{ compileState = '{{compileState}}'; errorCount = 1; evidenceOmitted = $false } | ConvertTo-Json -Compress) }
+            $record = @{}
+            $owner = @{}; $proposal = @{}; $request = @{}; $before = @{}
+            function Invoke-Probe { if ($transportFails) { throw 'Transport ended or timed out.' }; return $effectResponse }
+            function Assert-Same { }
+            function Assert-EffectEvidence { }
+            function Get-WorkerStatus { $script:statusReads++; return @{ identity = $sessionIdentity; status = @{ marker = 'after' } } }
+            $effectBlock = [scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{{block}}')))
+            $failed = $false
+            try { & $effectBlock } catch { $failed = $true }
+            if (-not $failed) { throw 'Effect failure unexpectedly succeeded.' }
+            if ($transportFails) {
+                if ($script:statusReads -ne 0 -or $record.Contains('after')) { throw 'Ambiguous transport triggered a follow-up read.' }
+            } else {
+                if ($script:statusReads -ne 1 -or $record.after.status.marker -cne 'after') { throw 'Completed effect lost its post-status evidence.' }
+            }
+            """);
+    }
+
+    [Theory]
     [InlineData("PN-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("DP-A", "QUALIFY FIXTURE A Apply", "Fixture A qualification stopped")]
     [InlineData("PN-B", "QUALIFY FIXTURE B Apply", "Fixture B qualification stopped")]
