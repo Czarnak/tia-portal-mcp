@@ -77,6 +77,16 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("@()", true)]
     [InlineData("'Controller'", true)]
     public async Task PreflightOwnerRequiresNonemptyArrayPath(string pathValue, bool expectRejection)
+        => await AssertPreflightOwnerDecisionAsync(pathValue, string.Empty, expectRejection);
+
+    [Theory]
+    [InlineData("$owner.ownerMatchCount = '1'")]
+    [InlineData("$owner.ownerIdentityVerified = 'True'")]
+    [InlineData("$owner.evidenceOmitted = 'False'")]
+    public async Task PreflightOwnerRejectsCoercedProofTypes(string mutation)
+        => await AssertPreflightOwnerDecisionAsync("@(@{ index = 0; name = 'Controller' })", mutation, expectRejection: true);
+
+    private static async Task AssertPreflightOwnerDecisionAsync(string pathValue, string mutation, bool expectRejection)
     {
         var harness = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
         await RunOfflinePowerShellAsync($$"""
@@ -93,6 +103,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $owner = @{ ownerMatchCount = 1; ownerIdentityVerified = $true; evidenceOmitted = $false; ownerTarget = @{
                 kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = {{pathValue}}
             } }
+            {{mutation}}
             $rejected = $false
             try { Assert-Owner $owner } catch { $rejected = $true }
             if ($rejected -ne ${{expectRejection.ToString().ToLowerInvariant()}}) { throw 'Unexpected preflight owner path decision.' }
