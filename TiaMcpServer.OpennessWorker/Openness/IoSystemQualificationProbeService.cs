@@ -25,6 +25,15 @@ public static class IoSystemQualificationProbeService
             result.PnDeviceNameEvidenceScope = GetPnDeviceNameEvidenceScope(target);
             if (result.BeforePnDeviceNames.Any(node => !node.Available))
                 throw Failure("A linked PN device name is unavailable during inspection.");
+            diagnostic.Stage = "attributeSnapshot";
+            diagnostic.Reason = "attribute_snapshot_unverified";
+            result.Before = ReadFiveAttributeSnapshot(target);
+            diagnostic.Stage = "compileService";
+            diagnostic.Reason = "compile_service_unverified";
+            RequireCompiler(owner.Item);
+            result.HardwareCompileServiceAvailable = true;
+            diagnostic.Stage = "evidenceBudget";
+            diagnostic.Reason = "evidence_oversized";
             if (!IoSystemQualificationEvidence.FitsResultBudget(result))
                 throw Failure("Read-only qualification evidence exceeds the result limit.");
             diagnostic.Stage = "verification";

@@ -110,6 +110,8 @@ public sealed class IoSystemQualificationResultInfo
     public IoSystemQualificationOwnerDiagnosticInfo? OwnerDiagnostics { get; set; }
     public string HardwareTargetKind { get; set; } = string.Empty;
     public string HardwareTargetAlias { get; set; } = string.Empty;
+    /// <summary>Read-only inspectOwner readiness; other modes do not populate this field.</summary>
+    public bool HardwareCompileServiceAvailable { get; set; }
     public bool MutationCommitted { get; set; }
     public bool EvidenceOmitted { get; set; }
     public string CompileState { get; set; } = "notRequested";
