@@ -225,7 +225,8 @@ function Get-WorkerStatus {
 function Assert-Owner($owner) {
     if ($owner.ownerMatchCount -ne 1 -or $owner.ownerIdentityVerified -ne $true -or
         $owner.ownerTarget.kind -cne 'deviceItem' -or $owner.evidenceOmitted -ne $false -or
-        [string]::IsNullOrWhiteSpace($owner.ownerTarget.deviceName) -or @($owner.ownerTarget.itemPath).Count -eq 0) { throw 'Exact unique compiler owner is unproven.' }
+        [string]::IsNullOrWhiteSpace($owner.ownerTarget.deviceName) -or
+        $owner.ownerTarget.itemPath -isnot [array] -or $owner.ownerTarget.itemPath.Count -eq 0) { throw 'Exact unique compiler owner is unproven.' }
 }
 function Assert-Proposal($proposal, $owner) {
     Assert-Keys $proposal @('attributeName', 'expectedValue', 'desiredValue')
@@ -273,7 +274,7 @@ function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode) {
         $Effect.ownerTarget -isnot [Collections.IDictionary] -or
         $Effect.ownerTarget.kind -cne 'deviceItem' -or
         [string]::IsNullOrWhiteSpace($Effect.ownerTarget.deviceName) -or
-        @($Effect.ownerTarget.itemPath).Count -eq 0) {
+        $Effect.ownerTarget.itemPath -isnot [array] -or $Effect.ownerTarget.itemPath.Count -eq 0) {
         throw 'Qualification effect evidence is incomplete or inconsistent.'
     }
     Assert-Same $Owner.originalTarget $Effect.originalTarget
