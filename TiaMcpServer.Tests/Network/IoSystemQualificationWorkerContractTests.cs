@@ -24,17 +24,34 @@ public class IoSystemQualificationWorkerContractTests
     [Fact]
     public void OwnerInspection_CannotObtainCompilerOrMutate()
     {
+        var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
+        Assert.Contains("\"inspectOwner\" => IoSystemQualificationProbeService.InspectOwner(session.TiaPortal, session.Project, probe)", program);
+        Assert.Contains("InspectOwner(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)", Source);
         var body = ExtractMethodBody(Source, "InspectOwner");
-        Assert.Contains("RequireExactIoSystem(", body);
-        Assert.Contains("RequireExactOwningDeviceItem(", body);
+        Ordered(body, "using var exclusive = portal.ExclusiveAccess();", "RequireExactIoSystem(",
+            "RequireExactOwningDeviceItem(", "return result;");
         Assert.DoesNotContain("Compile", body);
         Assert.DoesNotContain("SetAttribute", body);
-        Assert.DoesNotContain("ExclusiveAccess", body);
+        Assert.DoesNotContain("Transaction(", body);
         var owner = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
         Assert.Contains("IoSystemQualificationEvidence.InspectOwner", owner);
         Assert.Contains("diagnostic.Reason != \"verified\"", owner);
         Assert.DoesNotContain("First", owner);
         Assert.DoesNotContain("ICompilable", owner);
+    }
+
+    [Fact]
+    public void OwnerInspection_ReturnsCompleteBoundedReadOnlyPnSnapshot()
+    {
+        var body = ExtractMethodBody(Source, "InspectOwner");
+        Ordered(body, "using var exclusive = portal.ExclusiveAccess();", "RequireExactIoSystem(",
+            "RequireExactOwningDeviceItem(", "result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target)",
+            "result.PnDeviceNameEvidenceScope = GetPnDeviceNameEvidenceScope(target)",
+            "result.BeforePnDeviceNames.Any(node => !node.Available)",
+            "IoSystemQualificationEvidence.FitsResultBudget(result)", "return result;");
+        Assert.DoesNotContain("result.AfterPnDeviceNames =", body);
+        Assert.DoesNotContain("ApplySingleField", body);
+        Assert.DoesNotContain("CompileHardware", body);
     }
 
     [Fact]
