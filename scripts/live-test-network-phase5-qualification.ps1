@@ -185,7 +185,9 @@ function Get-PublicInspection($ReadTarget) {
     $batch = $inspection.batch
     if ($batch.operations.Count -ne 1 -or $batch.operations[0].status -cne 'succeeded' -or
         $batch.operations[0]['omission'] -or ($batch['truncation'] -and $batch.truncation['truncated'])) { throw 'Incomplete public inspection.' }
-    return $batch.operations[0].result
+    $result = $batch.operations[0].result
+    Assert-SameIoSelector $ReadTarget $result.target
+    return $result
 }
 function Get-Baseline($inspection) {
     $snapshot = @()
@@ -272,18 +274,22 @@ function Assert-FiveQualificationAttributes($Attributes) {
     })
     Assert-Same @($expected | Sort-Object -CaseSensitive) @($actual | Sort-Object -CaseSensitive)
 }
-function Assert-IoSelector($Selector) {
+function Assert-IoSelector($Selector, [switch] $AllowObservedFields) {
     if ($Selector -isnot [Collections.IDictionary] -or $Selector.kind -cne 'ioSystem' -or
         $Selector.subnetId -isnot [string] -or [string]::IsNullOrWhiteSpace($Selector.subnetId) -or
         ($Selector.number -isnot [int] -and $Selector.number -isnot [long]) -or
         $Selector.number -lt 0 -or $Selector.number -gt [int]::MaxValue) { throw 'Invalid exact IO-system selector.' }
     foreach ($key in $Selector.Keys) {
-        if ($key -cnotin @('kind', 'subnetId', 'number') -and $null -ne $Selector[$key]) { throw 'Unexpected selector field.' }
+        if ($key -cin @('kind', 'subnetId', 'number') -or $null -eq $Selector[$key]) { continue }
+        if ($AllowObservedFields -and $key -ceq 'ioSystemIndex' -and
+            ($Selector[$key] -is [int] -or $Selector[$key] -is [long]) -and $Selector[$key] -ge 0) { continue }
+        if ($AllowObservedFields -and $key -ceq 'ioSystemName' -and $Selector[$key] -is [string]) { continue }
+        throw 'Unexpected selector field.'
     }
 }
 function Assert-SameIoSelector($Expected, $Actual) {
-    Assert-IoSelector $Expected
-    Assert-IoSelector $Actual
+    Assert-IoSelector $Expected -AllowObservedFields
+    Assert-IoSelector $Actual -AllowObservedFields
     Assert-Same @{ kind = $Expected.kind; subnetId = $Expected.subnetId; number = $Expected.number } `
         @{ kind = $Actual.kind; subnetId = $Actual.subnetId; number = $Actual.number }
 }
@@ -388,9 +394,19 @@ function Assert-PriorEvidence($Prior) {
 }
 function Resolve-ContinuationTarget($ManifestTarget, $Prior, [string] $Alias) {
     Assert-IoSelector $ManifestTarget
-    if ($null -eq $Prior -or $Prior.fixtureAlias -cne $Alias) { return $ManifestTarget }
+    if ($null -eq $Prior) { return $ManifestTarget }
     $selector = if ($Prior.mode -ceq 'Apply') { $Prior.effect.appliedTarget } else { $Prior.effect.originalTarget }
-    Assert-IoSelector $selector
+    Assert-IoSelector $selector -AllowObservedFields
+    if ($Prior.fixtureAlias -cne $Alias) {
+        $priorFixtures = @($manifest.fixtures | Where-Object alias -CEQ $Prior.fixtureAlias)
+        if ($priorFixtures.Count -ne 1) { throw 'Prior fixture is not unique in the manifest.' }
+        Assert-IoSelector $priorFixtures[0].ioSystemSelector
+        if ($selector.subnetId -cne $priorFixtures[0].ioSystemSelector.subnetId -or
+            $selector.number -ne $priorFixtures[0].ioSystemSelector.number) {
+            throw 'Restore the prior fixture Number before switching fixture aliases.'
+        }
+        return $ManifestTarget
+    }
     return @{ kind = 'ioSystem'; subnetId = $selector.subnetId; number = $selector.number }
 }
 function Assert-ContinuationBaseline($Status, $Prior) {
