@@ -223,8 +223,12 @@ function Get-WorkerStatus {
     return @{ status = $status; identity = $response.sessionIdentity }
 }
 function Assert-Owner($owner) {
-    if ($owner.ownerMatchCount -ne 1 -or $owner.ownerIdentityVerified -ne $true -or
-        $owner.ownerTarget.kind -cne 'deviceItem' -or $owner.evidenceOmitted -ne $false -or
+    if ($owner -isnot [Collections.IDictionary] -or
+        ($owner.ownerMatchCount -isnot [int] -and $owner.ownerMatchCount -isnot [long]) -or
+        $owner.ownerMatchCount -ne 1 -or
+        $owner.ownerIdentityVerified -isnot [bool] -or $owner.ownerIdentityVerified -ne $true -or
+        $owner.ownerTarget.kind -cne 'deviceItem' -or
+        $owner.evidenceOmitted -isnot [bool] -or $owner.evidenceOmitted -ne $false -or
         [string]::IsNullOrWhiteSpace($owner.ownerTarget.deviceName) -or
         $owner.ownerTarget.itemPath -isnot [array] -or $owner.ownerTarget.itemPath.Count -eq 0) { throw 'Exact unique compiler owner is unproven.' }
 }
