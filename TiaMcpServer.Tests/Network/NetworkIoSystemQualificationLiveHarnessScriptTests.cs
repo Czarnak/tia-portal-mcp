@@ -24,6 +24,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         Assert.Contains("Assert-SnapshotMatchesBaseline $priorExpectedSnapshot (Get-Baseline $priorInspection)", Source);
         Assert.Contains("Assert-Owner $priorOwner", Source);
         Assert.Contains("Assert-Same $prior.effect.ownerTarget $priorOwner.ownerTarget", Source);
+        Assert.Contains("Assert-Same $prior.effect.compileTarget $priorOwner.compileTarget", Source);
         Assert.Contains("Assert-Same $prior.after.status $before.status", Source);
         Assert.True(Source.IndexOf("Assert-ContinuationBaseline", StringComparison.Ordinal)
             < Source.IndexOf("$inspection = Get-PublicInspection", StringComparison.Ordinal));
@@ -41,6 +42,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         Assert.Contains("Assert-Same $preview.beforePnDeviceNames $owner.beforePnDeviceNames", Source);
         Assert.Contains("Assert-Same $owner.beforePnDeviceNames $record.effect.beforePnDeviceNames", Source);
         Assert.Contains("Assert-Same $record.effect.afterPnDeviceNames $postOwner.beforePnDeviceNames", Source);
+        Assert.Contains("Assert-Same $record.effect.compileTarget $postOwner.compileTarget", Source);
         Assert.Contains("Assert-Same $prior.afterPnDeviceNames $priorOwner.beforePnDeviceNames", Source);
     }
 
@@ -278,6 +280,10 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("$prior.afterPublicBaseline[1].value.integerValue = 9")]
     [InlineData("$prior.afterPnDeviceNames = $null")]
     [InlineData("$prior.afterPnDeviceNames[0].value = 'drifted'")]
+    [InlineData("$prior.compileTargetProof.directPlcSoftwareHostVerified = $false")]
+    [InlineData("$prior.effect.compileTargetProof.plcSoftwareIdentityVerified = $false")]
+    [InlineData("$prior.effect.originalCompileTarget.deviceName = 'Other'")]
+    [InlineData("$prior.effect.compileTarget.deviceName = 'Other'")]
     public async Task PriorEvidenceRejectsFailedOrDriftedEffect(string mutation)
         => await RunSyntheticPriorEvidenceAsync(mutation, reject: true);
 
@@ -370,7 +376,12 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
         => await RunContinuationGuardAsync($$"""
             $target = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 1 }
             $applied = @{ kind = 'ioSystem'; subnetId = 'synthetic'; number = 2 }
-            $ownerTarget = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU' }) }
+            $ownerTarget = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU' }, @{ index = 1; name = 'Interface' }) }
+            $compileTarget = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU' }) }
+            $compileProof = @{ ancestorPathDepth = 1; directPlcSoftwareHostVerified = $true;
+                uniquePlcSoftwareInDevice = $true; resolvedItemIdentityVerified = $true;
+                plcSoftwareIdentityVerified = $true; compileServiceAvailable = $true;
+                postReadContinuityVerified = $true }
             $before = @(
                 @{ name = 'Name'; available = $true; writable = $true; supportedTypes = @('System.String'); value = @{ kind = 'string'; stringValue = 'before' } },
                 @{ name = 'Number'; available = $true; writable = $true; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; integerValue = 1 } },
@@ -387,10 +398,17 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
                 binding = @{ commit = 'candidate'; tree = 'tree'; harnessSha256 = 'harness'; manifestSha256 = 'manifest'; target = $target; fixtureAlias = 'PN-B'; priorEvidenceSha256 = $null }
                 durableIdentity = @{ portalProcessId = 7; projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $false } }
                 ownerTarget = $ownerTarget
+                compileTarget = (ConvertFrom-Json (Get-Json $compileTarget) -AsHashtable -Depth 100);
+                originalCompileTarget = (ConvertFrom-Json (Get-Json $compileTarget) -AsHashtable -Depth 100);
+                compileTargetProof = (ConvertFrom-Json (Get-Json $compileProof) -AsHashtable -Depth 100)
                 baseline = (ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100)
                 afterPublicBaseline = (ConvertFrom-Json (Get-Json $after) -AsHashtable -Depth 100)
                 pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100)); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100))
-                effect = @{ mode = 'setAndCompile'; originalTarget = $target; appliedTarget = $applied; ownerTarget = $ownerTarget; ownerMatchCount = 1; ownerIdentityVerified = $true; hardwareTargetKind = 'deviceItem'; mutationCommitted = $true; before = $before; after = $after; compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false; pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($pnNode); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100)) }
+                effect = @{ mode = 'setAndCompile'; originalTarget = $target; appliedTarget = $applied; ownerTarget = $ownerTarget;
+                    compileTarget = (ConvertFrom-Json (Get-Json $compileTarget) -AsHashtable -Depth 100);
+                    originalCompileTarget = (ConvertFrom-Json (Get-Json $compileTarget) -AsHashtable -Depth 100);
+                    compileTargetProof = (ConvertFrom-Json (Get-Json $compileProof) -AsHashtable -Depth 100);
+                    ownerMatchCount = 1; ownerIdentityVerified = $true; hardwareTargetKind = 'deviceItem'; mutationCommitted = $true; before = $before; after = $after; compileState = 'Success'; errorCount = 0; warningCount = 0; evidenceOmitted = $false; pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($pnNode); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100)) }
                 after = @{ identity = @{ portalProcessId = 7; projectPath = $ProjectPath }; status = @{ projectPath = $ProjectPath; project = @{ isOpen = $true; path = $ProjectPath; isModified = $true } } }
             }
             {{mutation}}
@@ -408,7 +426,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
             if ($errors.Count) { throw 'Harness parse failed.' }
-            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Keys', 'Assert-Owner', 'Assert-FiveQualificationAttributes', 'Assert-IoSelector', 'Assert-SameIoSelector', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-PnDeviceNameEvidence', 'Assert-ReadOnlyPnSnapshot', 'Assert-EffectEvidence', 'Assert-ContinuationBaseline', 'Resolve-ContinuationTarget', 'Assert-PriorEvidence')) {
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-Keys', 'Assert-Owner', 'Assert-CompileTarget', 'Assert-FiveQualificationAttributes', 'Assert-IoSelector', 'Assert-SameIoSelector', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-PnDeviceNameEvidence', 'Assert-ReadOnlyPnSnapshot', 'Assert-EffectEvidence', 'Assert-ContinuationBaseline', 'Resolve-ContinuationTarget', 'Assert-PriorEvidence')) {
                 $functions = @($ast.FindAll({ param($node)
                     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
                 }, $true))
@@ -617,11 +635,15 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("Apply", "$record.effect.after[1].value.integerValue = 3", true)]
     [InlineData("Apply", "$record.effect.after[4].name = 'Number'", true)]
     [InlineData("Apply", "$record.effect.originalTarget.number = 8", true)]
-    [InlineData("Apply", "$record.effect.ownerTarget.deviceName = 'Other'", false)]
+    [InlineData("Apply", "$record.effect.ownerTarget.deviceName = 'Other'; $record.effect.compileTarget.deviceName = 'Other'", false)]
     [InlineData("Apply", "$record.effect.ownerTarget = $null", true)]
     [InlineData("Apply", "$record.effect.ownerTarget.itemPath = $null", true)]
     [InlineData("Apply", "$record.effect.ownerTarget.itemPath = 'Controller'", true)]
     [InlineData("Compile", "$record.effect.ownerTarget.itemPath = 'Controller'", true)]
+    [InlineData("Apply", "$record.effect.compileTarget = $null", true)]
+    [InlineData("Apply", "$record.effect.originalCompileTarget.deviceName = 'Other'", true)]
+    [InlineData("Compile", "$record.effect.compileTargetProof.compileServiceAvailable = $false", true)]
+    [InlineData("Apply", "$record.effect.compileTargetProof.postReadContinuityVerified = 'True'", true)]
     [InlineData("Apply", "$record.effect.ownerMatchCount = 2", true)]
     [InlineData("Apply", "$record.effect.hardwareTargetKind = 'device'", true)]
     [InlineData("Apply", "$record.effect.before = @($record.effect.before[0..3])", true)]
@@ -645,7 +667,7 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
             if ($errors.Count) { throw 'Harness parse failed.' }
-            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-FiveQualificationAttributes', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-PnDeviceNameEvidence', 'Assert-EffectEvidence')) {
+            foreach ($name in @('Get-Json', 'Assert-Same', 'Assert-CompileTarget', 'Assert-FiveQualificationAttributes', 'Get-ComparableScalar', 'Assert-SnapshotMatchesBaseline', 'Assert-PnDeviceNameEvidence', 'Assert-EffectEvidence')) {
                 $functions = @($ast.FindAll({ param($node)
                     $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
                 }, $true))
@@ -658,7 +680,12 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $effect = @{ sessionIdentity = $sessionIdentity }
             $canonical = @{ kind = 'ioSystem'; subnetId = 'synthetic-subnet'; number = 1; ioSystemName = $null }
             $applied = @{ kind = 'ioSystem'; subnetId = 'synthetic-subnet'; number = 2; ioSystemName = $null }
-            $hardware = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'Controller'; positionNumber = 0; typeIdentifier = '' }) }
+            $hardware = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU'; positionNumber = 0; typeIdentifier = '' }, @{ index = 1; name = 'Interface'; positionNumber = 1; typeIdentifier = '' }) }
+            $compiler = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU'; positionNumber = 0; typeIdentifier = '' }) }
+            $compileProof = @{ ancestorPathDepth = 1; directPlcSoftwareHostVerified = $true;
+                uniquePlcSoftwareInDevice = $true; resolvedItemIdentityVerified = $true;
+                plcSoftwareIdentityVerified = $true; compileServiceAvailable = $true;
+                postReadContinuityVerified = $true }
             $before = @(
                 @{ name = 'Name'; available = $true; writable = $true; supportedTypes = @('System.String'); value = @{ kind = 'string'; stringValue = 'before' } },
                 @{ name = 'Number'; available = $true; writable = $true; supportedTypes = @('System.Int32'); value = @{ kind = 'integer'; integerValue = 1 } },
@@ -670,13 +697,15 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
             $afterSnapshot[1].value.integerValue = 2
             $pnNode = @{ deviceLocator = 'synthetic-device'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'Interface'; positionNumber = 0; typeIdentifier = '' }); nodeId = 'synthetic-node'; associationKind = 'connector'; available = $true; value = 'station-a' }
             $proposal = @{ attributeName = 'Number'; expectedValue = @{ kind = 'integer'; integerValue = 1 }; desiredValue = @{ kind = 'integer'; integerValue = 2 } }
-            $owner = @{ originalTarget = $canonical; ownerTarget = $hardware; before = $before;
+            $owner = @{ originalTarget = $canonical; ownerTarget = $hardware; compileTarget = $compiler;
+                originalCompileTarget = $compiler; compileTargetProof = $compileProof; before = $before;
                 pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($pnNode) }
             $record = @{ effect = @{
                 mode = $(if ($Mode -eq 'Compile') { 'compileBaseline' } else { 'setAndCompile' })
                 originalTarget = $canonical.Clone()
                 appliedTarget = $(if ($Mode -eq 'Compile') { $canonical.Clone() } else { $applied.Clone() })
                 ownerTarget = $hardware.Clone(); ownerMatchCount = 1; ownerIdentityVerified = $true
+                compileTarget = $compiler.Clone(); originalCompileTarget = $compiler.Clone(); compileTargetProof = $compileProof.Clone()
                 hardwareTargetKind = 'deviceItem'; mutationCommitted = ($Mode -eq 'Apply')
                 before = (ConvertFrom-Json (Get-Json $before) -AsHashtable -Depth 100); after = @()
                 pnDeviceNameEvidenceScope = 'profinet'; beforePnDeviceNames = @($pnNode); afterPnDeviceNames = @((ConvertFrom-Json (Get-Json $pnNode) -AsHashtable -Depth 100))
@@ -799,6 +828,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     [InlineData("Assert-Same $preview.durableIdentity $durableIdentity")]
     [InlineData("Assert-Same $preview.baseline $owner.before")]
     [InlineData("Assert-Same $preview.ownerTarget $owner.ownerTarget")]
+    [InlineData("Assert-Same $preview.compileTarget $owner.compileTarget")]
+    [InlineData("Assert-Same $preview.compileTargetProof $owner.compileTargetProof")]
     [InlineData("Assert-Same $preview.proposal $proposal")]
     [InlineData("Assert-Same $preview.binding $binding")]
     [InlineData("expectedSessionIdentity = $sessionIdentity")]

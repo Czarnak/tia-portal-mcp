@@ -15,7 +15,7 @@ The manifest and all evidence/proposals must reside under the ignored evidence d
 An unmodified initial baseline uses no prior evidence. A modified baseline requires the exact
 ignored PriorEvidencePath and ExpectedPriorEvidenceSha256 of a successful completed Compile or
 Apply from this frozen candidate and Portal process. The prior target, five complete public
-observations, linked PN names and owner are re-read before continuing. Project status has no
+observations, linked PN names, owner and master PLC compile target are re-read before continuing. Project status has no
 whole-project mutation revision. An unrelated change that leaves these observations and the
 status identical cannot be detected.
 Preview/Apply compare durable identity across launches; each request uses its own freshly read
@@ -241,7 +241,57 @@ function Assert-Owner($owner) {
         $owner.ownerTarget.kind -cne 'deviceItem' -or
         $owner.evidenceOmitted -isnot [bool] -or $owner.evidenceOmitted -ne $false -or
         [string]::IsNullOrWhiteSpace($owner.ownerTarget.deviceName) -or
-        $owner.ownerTarget.itemPath -isnot [array] -or $owner.ownerTarget.itemPath.Count -eq 0) { throw 'Exact unique compiler owner is unproven.' }
+        $owner.ownerTarget.itemPath -isnot [array] -or $owner.ownerTarget.itemPath.Count -eq 0) { throw 'Exact unique interface owner is unproven.' }
+}
+function Assert-CompileTarget($Result) {
+    if ($Result -isnot [Collections.IDictionary] -or
+        $Result.ownerTarget -isnot [Collections.IDictionary] -or
+        $Result.ownerTarget.kind -cne 'deviceItem' -or
+        [string]::IsNullOrWhiteSpace($Result.ownerTarget.deviceName) -or
+        $Result.ownerTarget.itemPath -isnot [array] -or
+        $Result.compileTarget -isnot [Collections.IDictionary] -or
+        $Result.originalCompileTarget -isnot [Collections.IDictionary] -or
+        $Result.compileTargetProof -isnot [Collections.IDictionary]) {
+        throw 'Master PLC compile target is unproven.'
+    }
+    $proof = $Result.compileTargetProof
+    if (($proof.ancestorPathDepth -isnot [int] -and $proof.ancestorPathDepth -isnot [long]) -or
+        $proof.ancestorPathDepth -lt 1 -or $proof.ancestorPathDepth -ge $Result.ownerTarget.itemPath.Count) {
+        throw 'Master PLC compile target is not a strict owner ancestor.'
+    }
+    foreach ($field in @('directPlcSoftwareHostVerified', 'uniquePlcSoftwareInDevice',
+        'resolvedItemIdentityVerified', 'plcSoftwareIdentityVerified', 'compileServiceAvailable',
+        'postReadContinuityVerified')) {
+        if ($proof[$field] -isnot [bool] -or $proof[$field] -ne $true) {
+            throw 'Master PLC compile target proof is incomplete.'
+        }
+    }
+    foreach ($selector in @($Result.originalCompileTarget, $Result.compileTarget)) {
+        if ($selector.kind -cne 'deviceItem' -or
+            $selector.deviceName -isnot [string] -or [string]::IsNullOrWhiteSpace($selector.deviceName) -or
+            $selector.itemPath -isnot [array] -or $selector.itemPath.Count -ne $proof.ancestorPathDepth) {
+            throw 'Master PLC compile target selector is incomplete.'
+        }
+    }
+    if ($Result.compileTarget.deviceName -cne $Result.ownerTarget.deviceName) {
+        throw 'Master PLC compile target changed device.'
+    }
+    for ($index = 0; $index -lt $proof.ancestorPathDepth; $index++) {
+        $ownerSegment = $Result.ownerTarget.itemPath[$index]
+        $compileSegment = $Result.compileTarget.itemPath[$index]
+        $originalSegment = $Result.originalCompileTarget.itemPath[$index]
+        foreach ($segment in @($ownerSegment, $compileSegment, $originalSegment)) {
+            if ($segment -isnot [Collections.IDictionary] -or
+                ($segment.index -isnot [int] -and $segment.index -isnot [long]) -or $segment.index -lt 0 -or
+                $segment.name -isnot [string] -or [string]::IsNullOrWhiteSpace($segment.name)) {
+                throw 'Master PLC compile target path is incomplete.'
+            }
+        }
+        if ($compileSegment.index -ne $ownerSegment.index -or
+            $originalSegment.index -ne $ownerSegment.index) {
+            throw 'Master PLC compile target left the owner path.'
+        }
+    }
 }
 function Assert-Proposal($proposal, $owner) {
     Assert-Keys $proposal @('attributeName', 'expectedValue', 'desiredValue')
@@ -359,6 +409,9 @@ function Assert-PriorEvidence($Prior) {
         $Prior.afterPublicBaseline -isnot [array] -or
         $Prior.beforePnDeviceNames -isnot [array] -or $Prior.afterPnDeviceNames -isnot [array] -or
         $Prior.ownerTarget -isnot [Collections.IDictionary] -or
+        $Prior.compileTarget -isnot [Collections.IDictionary] -or
+        $Prior.originalCompileTarget -isnot [Collections.IDictionary] -or
+        $Prior.compileTargetProof -isnot [Collections.IDictionary] -or
         $Prior.effect -isnot [Collections.IDictionary]) { throw 'Prior qualification evidence is incomplete or drifted.' }
     $fixtures = @($manifest.fixtures | Where-Object alias -CEQ $Prior.fixtureAlias)
     if ($fixtures.Count -ne 1) { throw 'Prior fixture is not in the current manifest.' }
@@ -373,7 +426,11 @@ function Assert-PriorEvidence($Prior) {
             else { @('Name', 'Number', 'MultipleUseIoSystem', 'UseIoSystemNameAsDeviceNameExtension') }
         if ($Prior.proposal.attributeName -cnotin $allowed) { throw 'Prior proposal used an unqualified field.' }
     } elseif ($null -ne $Prior.proposal) { throw 'Compile evidence contained a proposal.' }
-    $priorOwner = @{ originalTarget = $Prior.effect.originalTarget; ownerTarget = $Prior.ownerTarget }
+    $priorOwner = @{ originalTarget = $Prior.effect.originalTarget; ownerTarget = $Prior.ownerTarget;
+        compileTarget = $Prior.compileTarget; originalCompileTarget = $Prior.originalCompileTarget;
+        compileTargetProof = $Prior.compileTargetProof }
+    Assert-CompileTarget $Prior
+    Assert-Same $Prior.compileTarget $Prior.originalCompileTarget
     Assert-EffectEvidence $Prior.effect $priorOwner $Prior.proposal $Prior.mode $Prior.fixtureAlias
     Assert-SnapshotMatchesBaseline $Prior.effect.before $Prior.baseline
     $priorExpectedSnapshot = if ($Prior.mode -ceq 'Apply') { $Prior.effect.after } else { $Prior.effect.before }
@@ -503,10 +560,14 @@ function Assert-EffectEvidence($Effect, $Owner, $Proposal, [string] $Mode, [stri
         $Effect.ownerTarget.itemPath -isnot [array] -or $Effect.ownerTarget.itemPath.Count -eq 0) {
         throw 'Qualification effect evidence is incomplete or inconsistent.'
     }
+    Assert-CompileTarget $Owner
+    Assert-CompileTarget $Effect
     Assert-Same $Owner.originalTarget $Effect.originalTarget
+    Assert-Same $Owner.compileTarget $Effect.originalCompileTarget
     Assert-FiveQualificationAttributes $Effect.before
     if ($Mode -ceq 'Compile') {
         Assert-Same $Owner.ownerTarget $Effect.ownerTarget
+        Assert-Same $Owner.compileTarget $Effect.compileTarget
         Assert-Same $Effect.originalTarget $Effect.appliedTarget
         if ($Effect.after -isnot [array] -or $Effect.after.Count -ne 0) { throw 'Baseline compile reported an applied state.' }
         return
@@ -619,6 +680,8 @@ try {
         Assert-ReadOnlyPnSnapshot $priorOwner $prior.fixtureAlias
         Assert-SameIoSelector $priorTarget $priorOwner.originalTarget
         Assert-Same $prior.effect.ownerTarget $priorOwner.ownerTarget
+        Assert-CompileTarget $priorOwner
+        Assert-Same $prior.effect.compileTarget $priorOwner.compileTarget
         Assert-Same $prior.afterPnDeviceNames $priorOwner.beforePnDeviceNames
         Assert-SnapshotMatchesBaseline $priorExpectedSnapshot (Get-Baseline (Get-PublicInspection $priorTarget))
         Assert-Same $publicBefore (Get-PublicStatus)
@@ -636,15 +699,25 @@ try {
     $owner.before = Get-Baseline $inspection
     Assert-Same $inspection (Get-PublicInspection)
     $record.ownerTarget = $owner.ownerTarget
+    $record.compileTarget = $owner.compileTarget
+    $record.originalCompileTarget = $owner.originalCompileTarget
+    $record.compileTargetProof = $owner.compileTargetProof
     $record.baseline = $owner.before
     $record.pnDeviceNameEvidenceScope = $owner.pnDeviceNameEvidenceScope
     $record.beforePnDeviceNames = $owner.beforePnDeviceNames
     $record.proposal = $proposal
+    if ($Mode -in @('Preview', 'Compile', 'Apply')) {
+        Assert-CompileTarget $owner
+        Assert-Same $owner.originalCompileTarget $owner.compileTarget
+    }
     if ($null -ne $proposal) { Assert-Proposal $proposal $owner }
     if ($null -ne $preview) {
         Assert-Same $preview.durableIdentity $durableIdentity
         Assert-Same $preview.baseline $owner.before
         Assert-Same $preview.ownerTarget $owner.ownerTarget
+        Assert-CompileTarget $preview
+        Assert-Same $preview.compileTarget $owner.compileTarget
+        Assert-Same $preview.compileTargetProof $owner.compileTargetProof
         Assert-Same $preview.pnDeviceNameEvidenceScope $owner.pnDeviceNameEvidenceScope
         Assert-Same $preview.beforePnDeviceNames $owner.beforePnDeviceNames
         if ($Mode -eq 'Apply') { Assert-Same $preview.proposal $proposal }
@@ -682,6 +755,9 @@ try {
         Assert-Owner $postOwner
         Assert-ReadOnlyPnSnapshot $postOwner $FixtureAlias
         Assert-SameIoSelector $postEffectTarget $postOwner.originalTarget
+        Assert-CompileTarget $postOwner
+        Assert-Same $postOwner.originalCompileTarget $postOwner.compileTarget
+        Assert-Same $record.effect.compileTarget $postOwner.compileTarget
         if ($Mode -ceq 'Apply') {
             Assert-Same $record.effect.ownerTarget $postOwner.ownerTarget
             Assert-Same $record.effect.afterPnDeviceNames $postOwner.beforePnDeviceNames
