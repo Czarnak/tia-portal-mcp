@@ -28,6 +28,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | [Building from source](development/building.md) | Restore, build, test with coverage, and run the server locally |
 | [Local MCP sandbox testing](development/local-mcp-testing.md) | The MCP Inspector loop against a disposable project copy |
 | [Packaging](development/packaging.md) | Build the NuGet package and install a local branch build as the `tia-mcp` global tool |
+| [Bug-fix wave orchestration](development/bug-fix-wave-orchestration.md) | Branch/worktree ownership, wave barriers, offline/live gates, PR creation, and merge protocol |
 
 Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 
@@ -46,7 +47,12 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: [Network Phases 4-6 completion and delivery design](superpowers/specs/2026-09-21-network-phases-4-6-delivery-design.md),
+Latest process entries: [Open bug parallel pull-request delivery design](superpowers/specs/2026-09-26-open-bug-parallel-pr-delivery-design.md),
+with Wave 1 plans for [L1 lifecycle rebind and preview safety](superpowers/plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md),
+[K1 per-item batch failure categories](superpowers/plans/2026-09-26-wave1-k1-batch-failure-categories.md),
+[P1 PLC compile and cross-reference read integrity](superpowers/plans/2026-09-26-wave1-p1-plc-read-integrity.md),
+and [N1 network-device creation names](superpowers/plans/2026-09-26-wave1-n1-network-device-creation.md),
+[Network Phases 4-6 completion and delivery design](superpowers/specs/2026-09-21-network-phases-4-6-delivery-design.md),
 its [PR 1 Network Phase 4 finish plan](superpowers/plans/2026-09-21-pr1-network-phase4-finish.md),
 the [PR 2 Phase 5 fixture qualification and compile-contract plan](superpowers/plans/2026-09-24-pr2-network-phase5-qualification.md),
 the [Phase 5 qualified IO-system contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md),

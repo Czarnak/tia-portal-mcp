@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-26 | [Open bug parallel pull-request delivery](specs/2026-09-26-open-bug-parallel-pr-delivery-design.md) |
 | 2026-09-26 | [Network Phase 5 qualified IO-system contract for later public slices](specs/2026-09-24-network-phase5-qualified-contract.md) |
 | 2026-09-21 | [Network Phases 4-6 completion and delivery](specs/2026-09-21-network-phases-4-6-delivery-design.md) |
 | 2026-09-13 | [Issue #30 PLC block header metadata](specs/2026-09-13-issue-30-plc-block-header-metadata-design.md) |
@@ -44,6 +45,10 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-26 | [Wave 1 L1 — lifecycle rebind and preview safety](plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md) |
+| 2026-09-26 | [Wave 1 K1 — per-item batch failure categories](plans/2026-09-26-wave1-k1-batch-failure-categories.md) |
+| 2026-09-26 | [Wave 1 P1 — PLC compile and cross-reference read integrity](plans/2026-09-26-wave1-p1-plc-read-integrity.md) |
+| 2026-09-26 | [Wave 1 N1 — network-device creation names](plans/2026-09-26-wave1-n1-network-device-creation.md) |
 | 2026-09-24 | [PR 2 — Network Phase 5 fixture qualification and compile contract](plans/2026-09-24-pr2-network-phase5-qualification.md) |
 | 2026-09-21 | [PR 1 — Network Phase 4 finish and current-revision live acceptance](plans/2026-09-21-pr1-network-phase4-finish.md) |
 | 2026-09-13 | [Issue #30 PLC block header metadata](plans/2026-09-13-issue-30-plc-block-header-metadata.md) |

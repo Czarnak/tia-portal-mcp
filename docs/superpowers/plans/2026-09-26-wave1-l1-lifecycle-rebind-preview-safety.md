@@ -1,0 +1,138 @@
+# Wave 1 L1 Lifecycle Rebind and Preview Safety Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Prevent `open_project(forceRebind=true)` from discarding unsaved work, reject the impossible lifecycle previews reported in #81, and make lifecycle previews identify their resolved targets and consequences for the lifecycle slice of #78.
+
+**Architecture:** An internal worker probe returns one typed snapshot of the currently selected source project, its modified state and ownership, and whether opening the requested destination will close it. `open_project` hashes that snapshot with destination file state during preview and apply under the existing pinned binding lease. The worker checks `IsModified` again immediately before its worker-owned project close. Other lifecycle tools reuse the verified binding for displayed source paths; archive preflight checks directory existence before issuing a token.
+
+**Tech Stack:** C#; .NET 10 host and tests; .NET Framework 4.8 Openness worker; netstandard2.0 contracts; xUnit; scripted FakeWorker; PowerShell on Windows; TIA Portal V21 for separately authorized live acceptance.
+
+**Spec:** [Open Bug Parallel Pull-Request Delivery Design](../specs/2026-09-26-open-bug-parallel-pr-delivery-design.md), lane L1. Issue evidence: [#70](https://github.com/Czarnak/tia-portal-mcp/issues/70), [#81](https://github.com/Czarnak/tia-portal-mcp/issues/81), and the lifecycle portion of [#78](https://github.com/Czarnak/tia-portal-mcp/issues/78).
+
+**Future branch:** `fix/lifecycle-rebind-preview-safety`, created in its own worktree from the
+then-current `origin/main`; its pull request targets `main` directly.
+
+## Global Constraints
+
+- Plan this lane from the verified `main` required by the spec; the issue-reported baseline is `22a04a8`. Refresh issue state, linked PRs, `main`, and the working tree before implementation. Create the named isolated L1 branch/worktree from that refreshed base; target the PR at `main`, not the documentation-planning branch.
+- This plan authorizes no implementation by itself. Obtain the user's review of the plan and execution method before starting it. The current task creates only this plan document.
+- L1 owns #70, #81, and only the lifecycle slice of #78. Other #78 slices remain open. Keep the public lifecycle tool names, parameters, preview/apply flow, single-use ten-minute token, exact requested-input hash, pinned lease, audit record, access-mode enforcement, and post-write verification.
+- A worker-owned source with unsaved changes is refused before a rebind token is issued and immediately before close. Never save, discard, close, retry, or roll back automatically. A modified UI-owned source may remain open while the destination opens; a same-path open is idempotent.
+- An unreadable or structurally inconsistent snapshot fails closed without a token. A false-to-true modified-state change after preview must produce `state_changed` through token validation; the final worker guard handles a later race.
+- Do not relabel stub, FakeWorker, static, build, package, or historical results as live TIA evidence. Any live mutation requires fresh authorization for the exact disposable `.ap21` projects and requested actions.
+- Run builds and tests serially (`-m:1`) because the worker-copy targets conflict under parallel builds. The repository SDK is pinned by `global.json`.
+- Commit only during the separately approved implementation. Use one conventional commit per task after its focused tests and scoped diff review. PR creation, push, merge, issue changes, and live runs require their own authority.
+
+## File Ownership
+
+L1 implementation allowlist:
+
+| Responsibility | Files |
+| --- | --- |
+| Typed internal state and request policy | Create `TiaMcpServer.Contracts/ProjectRebindStateInfo.cs`; modify `TiaMcpServer.Contracts/WorkerRequest.cs`, `TiaMcpServer.Contracts/OperationPolicyCatalog.cs` |
+| Worker state and close guard | Modify `TiaMcpServer.OpennessWorker/Program.cs`, `TiaMcpServer.OpennessWorker/Openness/TiaPortalSession.cs`, `TiaMcpServer.OpennessWorker/Openness/ProjectRebindCloseGuard.cs` |
+| Host lifecycle flow | Modify `TiaMcpServer/Worker/OpennessWorkerClient.cs`, `TiaMcpServer/Tools/ProjectWriteTools.cs` |
+| Focused tests and fixture | Create `TiaMcpServer.Tests/Project/ProjectRebindStateInfoTests.cs`, `TiaMcpServer.Tests/Project/ProjectLifecyclePreviewSafetyTests.cs`; modify `TiaMcpServer.Tests/Worker/ProjectRebindCloseGuardTests.cs`, `TiaMcpServer.Tests/Worker/OpennessWorkerClientIntegrationTests.cs`, `TiaMcpServer.Tests/Project/ProjectWriteToolsProtocolTests.cs`, `TiaMcpServer.Tests/Safety/ReadOnlyModeTests.cs`, `TiaMcpServer.FakeWorker/Program.cs` |
+| Maintained user documentation | Modify `docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md` |
+
+Reserve all files in this allowlist from concurrently active Wave 1 lanes. In particular, `WorkerRequest.cs`, worker `Program.cs`, `OpennessWorkerClient.cs`, `OperationPolicyCatalog.cs`, and FakeWorker `Program.cs` are shared hotspots and have one owner while L1 is active. If K1, P1, or N1 requires one, pause the overlapping lane immediately; a same-wave owner cannot merge early. The orchestrator must obtain review and approval for a whole-file ownership/plan amendment before freeze, or remove/defer the affected lane and reapprove the wave barrier. Line-level separation is not isolation. L1 does not edit generic batch code, `WriteSafetyService.cs`, `WriteSafetyTooling.cs`, `ProjectSessionBinding.cs`, worker `ProjectLifecycleService.cs`, `README.md`, or `docs/ARCHITECTURE.md`. Reconcile the shared architecture document in the wave fan-in after L1 merges. The documentation-planning owner indexes this plan; the L1 implementation PR does not edit either documentation index.
+
+## Review Focus
+
+1. Worker-owned source A becomes modified between preview and apply: `OpenProject_SourceBecomesModified_ApplyIsStateChangedAndDoesNotOpen` in Task 3 must prove the token cannot close A.
+2. UI-owned modified A and same-path modified A: `OpenProject_ModifiedUiOwnedSource_RemainsOpen` and `OpenProject_SamePathModifiedSource_IsIdempotent` in Task 3 must prevent an overbroad guard.
+3. Source identity, ownership, or modified state is missing or inconsistent: `OpenProject_InconsistentSnapshot_RejectsWithoutToken` in Task 2 must reject the payload without echoing it.
+4. The archive folder disappears after preview: `ArchiveProject_DirectoryRemovedAfterPreview_FailsBeforeWorkerMutation` in Task 4 must prevent Save and Archive.
+5. An omitted lifecycle `projectPath` resolves through the verified binding: `LifecyclePreviews_OmittedPath_ShowResolvedSource` in Task 5 must show the same canonical source at preview and apply without altering the requested-input hash.
+
+---
+
+### Task 1: Guard the worker-owned close at the mutation boundary
+
+**Files:** Modify `TiaMcpServer.OpennessWorker/Openness/ProjectRebindCloseGuard.cs`, `TiaMcpServer.OpennessWorker/Openness/TiaPortalSession.cs`; test `TiaMcpServer.Tests/Worker/ProjectRebindCloseGuardTests.cs`.
+
+**Interfaces:** Replace the internal helper with `CloseBeforeRebind(Func<bool> isCurrentModified, Action closeCurrent, Action openReplacement)`. Pass a lambda reading the currently selected `Project.IsModified` from `TiaPortalSession.OpenProject`. The check occurs immediately before `Project.Close`, only on the worker-owned, different-path branch. On `true`, throw the existing `WorkerOperationException(WorkerFailureCategories.StateChanged, actionableMessage)` before either action. Keep the existing close-failure wrapper. If reading `IsModified` throws, fail before close with a sanitized `WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, ...)`; never interpret unreadability as `false`. Worker `Program.cs` already catches `WorkerOperationException` and writes its `FailureCategory` into the response.
+
+- [ ] **Step 1: Write RED tests.** Add `ModifiedCurrentProject_DoesNotCloseOrOpenAndReportsStateChanged`, `ModifiedStateReadFailure_DoesNotCloseOrOpen`, and `UnmodifiedCurrentProject_ClosesThenOpens`. Assert call order and that neither action runs in both failure cases; retain the existing close-failure assertion.
+- [ ] **Step 2: Run RED.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~ProjectRebindCloseGuardTests"`. Expected: new tests fail to compile against the two-argument helper or show an attempted close of a modified source.
+- [ ] **Step 3: Implement the helper and call site.** Read `Project.IsModified` in the worker-owned close branch immediately before the existing close. Do not alter the UI-owned branch, the same-path early return, or automatic save behavior.
+- [ ] **Step 4: Run the same filter to GREEN; refactor only the helper's error text and test setup if needed.** Confirm `state_changed` is preserved through `WorkerOperationException` rather than wrapped as `worker_operation_failed`.
+- [ ] **Step 5: Review only the scoped diff and commit.** `git diff --check`; `git diff -- TiaMcpServer.OpennessWorker/Openness/ProjectRebindCloseGuard.cs TiaMcpServer.OpennessWorker/Openness/TiaPortalSession.cs TiaMcpServer.Tests/Worker/ProjectRebindCloseGuardTests.cs`. Stage only these three files, inspect `git diff --cached --check` and `git diff --cached --stat`, then `git commit -m "fix: refuse modified project before rebind close"`.
+
+### Task 2: Expose an exact internal rebind-state snapshot
+
+**Files:** Create `TiaMcpServer.Contracts/ProjectRebindStateInfo.cs`, `TiaMcpServer.Tests/Project/ProjectRebindStateInfoTests.cs`; modify `TiaMcpServer.Contracts/WorkerRequest.cs`, `TiaMcpServer.Contracts/OperationPolicyCatalog.cs`, `TiaMcpServer.OpennessWorker/Program.cs`, `TiaMcpServer.OpennessWorker/Openness/TiaPortalSession.cs`, `TiaMcpServer/Worker/OpennessWorkerClient.cs`, `TiaMcpServer.FakeWorker/Program.cs`, `TiaMcpServer.Tests/Project/ProjectLifecyclePreviewSafetyTests.cs`, `TiaMcpServer.Tests/Safety/ReadOnlyModeTests.cs`.
+
+**Interfaces:** `ProjectRebindStateInfo` has settable JSON properties `string? SourceProjectPath`, `string DestinationProjectPath`, `bool? SourceIsModified`, `bool SourceOpenedByWorker`, and `bool WillCloseSource`, plus `Create(string? sourceProjectPath, string destinationProjectPath, bool? sourceIsModified, bool sourceOpenedByWorker): ProjectRebindStateInfo` to canonicalize paths and derive `WillCloseSource`. `WillCloseSource` is true only when a live worker-owned source differs from the destination by canonical path. `SourceIsModified` may be null only when there is no source; a failed property read returns a categorized worker failure, not a successful unknown snapshot. Add `WorkerRequest.RebindDestinationProjectPath` for the internal `probe_open_project_rebind` method. `WorkerRequest.ProjectPath` remains source A so existing bound-request routing and expected worker/Portal/project identity work. Add `TiaPortalSession.ReadProjectRebindState(string destinationProjectPath): ProjectRebindStateInfo` and `OpennessWorkerClient.ProbeOpenProjectRebindAsync(string sourceProjectPath, string destinationProjectPath): Task<WorkerCallResult>`. The host sends through `SendBoundProjectRequestAsync` with binding transition `None`; it must never route B through `TryResolveWithSnapshot` as a source path. Classify the new method as `ProjectLifecycle`, requiring expected identity and denying read-only mode. Do not register an MCP tool.
+
+- [ ] **Step 1: Write RED tests.** Test canonical A/B, worker-owned different-path close, UI-owned different-path remain-open, same-path idempotence, absent source, and a probe request carrying an exact expected identity. Assert the internal method is denied in read-only mode and absent from the eight registered write tools.
+- [ ] **Step 2: Run RED.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~ProjectRebindStateInfoTests|FullyQualifiedName~ProjectLifecyclePreviewSafetyTests|FullyQualifiedName~ReadOnlyModeTests|FullyQualifiedName~ProjectWriteToolsProtocolTests"`. Expected: the DTO/RPC and request field are absent; the new assertions cannot pass.
+- [ ] **Step 3: Implement the DTO, request field, catalog entry, worker dispatch and session read, host client method, and a persistent FakeWorker scenario.** The worker reads the live selected source path, `IsModified`, and `_projectOpenedByWorker` without opening or closing a project. Validate source/destination canonical paths and disposition on the host before using the payload. A missing source field when one is expected, null modified state for a present source, mismatched destination, or inconsistent `WillCloseSource` is `protocol_error`; never echo a rejected payload. On a worker binding mismatch, preserve `binding_conflict` and invalidate as existing code does.
+- [ ] **Step 4: Run the same filter to GREEN; refactor only to remove duplicated path comparison or fixture branching.** The test project already links the existing worker guard; a new test file is included by the SDK default compile glob, so do not edit its project file.
+- [ ] **Step 5: Review the scoped diff and commit.** `git diff --check`; confirm `probe_open_project_rebind` is internal, requires expected identity, and makes no mutation. Stage only this task's listed files, inspect `git diff --cached --check` and `git diff --cached --stat`, then `git commit -m "feat: expose exact rebind state for lifecycle safety"`.
+
+### Task 3: Bind `open_project` preview and apply to source state
+
+**Files:** Modify `TiaMcpServer/Tools/ProjectWriteTools.cs`, `TiaMcpServer/Worker/OpennessWorkerClient.cs`, `TiaMcpServer.FakeWorker/Program.cs`; test `TiaMcpServer.Tests/Project/ProjectLifecyclePreviewSafetyTests.cs`.
+
+**Interfaces:** Add a private `ReadOpenProjectCurrentStateAsync(OpennessWorkerClient workerClient, string projectPath, bool forceRebind): Task<WorkerCallResult>` in `ProjectWriteTools`. For a verified different-path source, call the Task 2 probe and serialize one deterministic state document containing the existing destination `DescribePathState(projectPath)` and all five rebind snapshot fields. Use that same reader for preview and `ValidateAndExecuteForApplyAsync`'s current-state callback under its pinned lease. Keep `requestedInput = new { projectPath, forceRebind }`. At preview only, reject `WillCloseSource && SourceIsModified == true` with `validation_error` and no token. At apply, return the newly modified snapshot to token validation, yielding `state_changed`; do not pre-reject it as a fresh preview error. A configured but unverified source must first be grounded by the existing read-only status promotion or fail closed without a token. Unbound and same-path opens must not be misclassified as a destructive close.
+
+- [ ] **Step 1: Write RED tests.** Add `OpenProject_ModifiedWorkerOwnedSource_PreviewFailsWithoutToken`, `OpenProject_SourceBecomesModified_ApplyIsStateChangedAndDoesNotOpen`, `OpenProject_ModifiedUiOwnedSource_RemainsOpen`, `OpenProject_SamePathModifiedSource_IsIdempotent`, `OpenProject_InconsistentSnapshot_RejectsWithoutToken`, and `OpenProject_ConfiguredSourceCannotBeVerified_RejectsWithoutToken`. Assert no worker `open_project` call or audit record on rejected requests; the stale case must leave its token unusable for mutation.
+- [ ] **Step 2: Run RED.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~ProjectLifecyclePreviewSafetyTests"`. Expected: current preview issues a token based only on B, its hash does not change with A's modified state, and apply can reach worker Open.
+- [ ] **Step 3: Implement the shared state reader and preview-only fail-closed decision.** Decode the Task 2 typed payload before hashing; compare the worker source path with the pinned verified binding. Use existing safety-token and audit APIs unchanged. The worker guard from Task 1 remains the final check after the apply read.
+- [ ] **Step 4: Run the same filter to GREEN, then the existing `CollapsedOpenProject` integration cases.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~ProjectLifecyclePreviewSafetyTests|FullyQualifiedName~CollapsedOpenProject"`. Keep unbound open previews and the prior categorized worker failure behavior working.
+- [ ] **Step 5: Review hashes, lease, audit and categorized failure paths; commit.** `git diff --check`; stage only this task's listed files, inspect `git diff --cached --check` and `git diff --cached --stat`, then `git commit -m "fix: bind open preview to current project state"`.
+
+### Task 4: Reject impossible open and archive previews
+
+**Files:** Modify `TiaMcpServer/Worker/OpennessWorkerClient.cs`, `TiaMcpServer/Tools/ProjectWriteTools.cs`, `TiaMcpServer.Tests/Worker/OpennessWorkerClientIntegrationTests.cs`; test `TiaMcpServer.Tests/Project/ProjectLifecyclePreviewSafetyTests.cs`.
+
+**Interfaces:** Add `OpennessWorkerClient.CheckOpenProjectBinding(string projectPath, bool forceRebind): WorkerCallResult`, delegating to existing `ProjectSessionBinding.CanBind`; blank path is `validation_error`, a different bound path without force is `binding_conflict`. Use it before `open_project` preview token issuance, under the pinned binding. Extend the existing archive directory preflight after the own-project-folder guard: `Directory.Exists(archiveDirectory)` must be true at preview and again in the apply current-state read; otherwise return `validation_error` before worker Save/Archive. Preserve the own-folder diagnostic when that directory is both inside the project and missing. Worker `ProjectLifecycleService.ArchiveProject` keeps its independent pre-mutation existence check.
+
+- [ ] **Step 1: Write RED tests.** Add `OpenProject_DifferentBoundPathWithoutForce_PreviewBindingConflictWithoutToken`, `ArchiveProject_MissingDirectory_PreviewValidationErrorWithoutToken`, `ArchiveProject_DirectoryRemovedAfterPreview_FailsBeforeWorkerMutation`, `ArchiveProject_ExistingDirectory_PreviewAndApply`, and `ArchiveProject_MissingDirectoryInsideProjectFolder_PreservesOwnFolderError`. Replace the literal `C:\Archives` success fixture in `ArchiveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus` with an existing temporary directory.
+- [ ] **Step 2: Run RED.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~ProjectLifecyclePreviewSafetyTests|FullyQualifiedName~ArchiveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus"`. Expected: current previews issue tokens for the reported invalid requests; missing directory fails only after confirmation.
+- [ ] **Step 3: Implement both preview gates and the archive apply-time recheck.** A failed current-state read returns its real `validation_error` and never dispatches archive. Do not add a new token mechanism or auto-create a directory.
+- [ ] **Step 4: Run the same filter to GREEN, then all `OpennessWorkerClientIntegrationTests`.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~OpennessWorkerClientIntegrationTests|FullyQualifiedName~ProjectLifecyclePreviewSafetyTests"`.
+- [ ] **Step 5: Review no-token/no-audit assertions, scope and diff; commit.** `git diff --check`; stage only this task's listed files, inspect `git diff --cached --check` and `git diff --cached --stat`, then `git commit -m "fix: reject invalid lifecycle requests at preview"`.
+
+### Task 5: Show resolved lifecycle targets and consequences
+
+**Files:** Modify `TiaMcpServer/Tools/ProjectWriteTools.cs`, `docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md`; test `TiaMcpServer.Tests/Project/ProjectLifecyclePreviewSafetyTests.cs`, `TiaMcpServer.Tests/Project/ProjectWriteToolsProtocolTests.cs`.
+
+**Interfaces:** In `SaveProject`, `SaveProjectAs`, `ArchiveProject`, and `CloseProject`, derive `target.projectPath` and the human summary from the pinned verified binding when the caller omits `projectPath`. For `OpenProject`, show the exact source and destination from the Task 2 snapshot and whether the source will close or remain open. Display `saveBeforeArchive` and `saveBeforeClose` choices. Keep the caller's original nullable `projectPath` in `requestedInput`; preview and apply must reconstruct the same target and retain the existing exact-input safety hash. Do not add batch or network preview work.
+
+- [ ] **Step 1: Write RED tests.** Add `LifecyclePreviews_OmittedPath_ShowResolvedSource`, `OpenProject_ForceRebindPreview_NamesSourceDestinationAndDisposition`, and `LifecyclePreviews_ExplicitPathAndSaveChoice_AreAccurate`. Assert each preview has the resolved `target.projectPath`, no null source when bound, source-close wording matching `WillCloseSource`, and unchanged `requestedInputHash` semantics; call the registered MCP tool in the protocol test.
+- [ ] **Step 2: Run RED.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~ProjectLifecyclePreviewSafetyTests|FullyQualifiedName~ProjectWriteToolsProtocolTests"`. Expected: current bound-project lifecycle previews display `target.projectPath: null`, and open preview names only B.
+- [ ] **Step 3: Implement the displayed targets and summaries, then update the maintained project operations reference.** Document modified worker-owned refusal, UI-owned remain-open behavior, exact source/destination preview, archive directory precondition, and the separately confirmed apply. Keep README and shared architecture changes for their owners/fan-in.
+- [ ] **Step 4: Run the same filter to GREEN and wrapper-parity tests.** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true --filter "FullyQualifiedName~ProjectLifecyclePreviewSafetyTests|FullyQualifiedName~ProjectWriteToolsProtocolTests|FullyQualifiedName~ProjectLifecycleToolTests"`.
+- [ ] **Step 5: Review the displayed preview against the exact requested input, diff and doc; commit.** `git diff --check`; stage only this task's listed files, inspect `git diff --cached --check` and `git diff --cached --stat`, then `git commit -m "fix: show resolved lifecycle targets in previews"`.
+
+## Full Verification and Handoff
+
+- [ ] Run `dotnet restore TiaMcpServer.sln`.
+- [ ] Run `dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true`.
+- [ ] Run `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj -m:1 /p:UseTiaPortalReferenceStubs=true`. Review failures by category; do not treat FakeWorker success as Siemens acceptance.
+- [ ] On a host with installed V21 assemblies, run `dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"`. This checks reference compatibility, not TIA behavior. Record when the assemblies are unavailable.
+- [ ] Pack the changed host/worker pair locally: `dotnet pack TiaMcpServer/TiaMcpServer.csproj -c Release -m:1 /p:UseTiaPortalReferenceStubs=true -o ./artifacts/l1-package`. In PowerShell run `$l1Packages = @(Get-ChildItem -LiteralPath './artifacts/l1-package' -Filter '*.nupkg')`; require `$l1Packages.Count -eq 1`, then `./scripts/verify-doctor-package.ps1 -PackagePath $l1Packages[0].FullName`. Do not install, publish, or deploy the package. Record any package or registry limitation.
+- [ ] Run `git diff --check`, inspect `git status --short`, and compare `git diff --name-only` with the L1 allowlist. Review public schema, read-only mode, worker method classification, token hash and lease, failure categories, payload size, audit path, status verification, and source/destination wording. Seek independent review of the full branch and repair findings with focused tests.
+- [ ] Submit a reviewable L1 PR only when authorized, targeting refreshed `main`; use `Refs #78`. `Closes #70` and `Closes #81` require their full contracts, docs, and agreed acceptance evidence, so use `Refs` instead while live acceptance remains pending. Do not close umbrella #78 from this lane.
+- [ ] Mark L1 `offline-ready` after review; do not run its live section or merge it while any of K1, P1, or N1 is still implementing or has an unresolved offline/review gate.
+- [ ] After the wave barrier, combined-candidate live qualification, review, and authorization, merge only one PR at a time. After L1 merges, refresh `main` and rerun the serial stub build/full tests before another ready PR merges. Reconcile shared `docs/ARCHITECTURE.md` in the wave fan-in from merged `main`, with one document owner. T2 waits for L1 because it may need `TiaPortalSession.cs`.
+
+## Separately Authorized Live V21 Acceptance
+
+Live validation is a later wave gate, never a RED test. Do not enter this section when L1 alone is
+ready. The orchestrator must first freeze the reviewed L1, K1, P1, and N1 heads, build and verify the
+combined-wave candidate, and keep `live_wave_gate` open. Run this acceptance from that exact
+candidate. Any lane change closes the gate and invalidates the candidate. Obtain fresh authority
+immediately before the run for two named disposable `.ap21` projects A and B, the exact planned
+project mutations, save or discard route, archive destination if used, and any affected TIA Portal
+process. Serialize it with all other live work.
+
+1. Capture A/B baseline project status, tree evidence, binding identity, and audit position. In worker-owned A, make a separately authorized unsaved change; force-rebind preview to B must reject without a token and A must remain open with the change.
+2. Save A only under its own exact authorization; a fresh force-rebind preview must name A, B, `WillCloseSource=true`, and the save/close consequence. Apply once; independently verify B open, A saved, status, tree, and audit.
+3. On a fresh disposable cycle, preview while A is unmodified, modify A before apply, and confirm `state_changed` with A still open and unsaved. Inspect state before any retry. A UI-owned modified A should be shown as remain-open and should not be closed by the worker; qualify this only if the exact UI-owned fixture can be established safely.
+4. Preview archive into a missing directory: no token. Create the approved directory, request a new preview, apply only with separate authorization, then verify archive file, project status, and audit. A timeout, crash, or lost response is an unknown outcome; inspect rather than replay.
+
+Record the exact commit/build, request/response categories, before/after reads, audit, remaining project modified state, and restoration/discard evidence. Do not claim plant or PLC acceptance from these project-file checks.
