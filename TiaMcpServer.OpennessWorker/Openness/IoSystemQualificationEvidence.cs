@@ -41,6 +41,25 @@ internal static class IoSystemQualificationEvidence
         return null;
     }
 
+    public static bool SameIndexedDeviceItemPath(NetworkObjectSelectorInfo original,
+        NetworkObjectSelectorInfo current)
+    {
+        if (original is null || current is null
+            || original.Kind != NetworkObjectKinds.DeviceItem || current.Kind != NetworkObjectKinds.DeviceItem
+            || original.ItemPath is null || current.ItemPath is null
+            || original.ItemPath.Count != current.ItemPath.Count)
+            return false;
+        for (var index = 0; index < original.ItemPath.Count; index++)
+        {
+            var before = original.ItemPath[index];
+            var after = current.ItemPath[index];
+            if (before.Index != after.Index || before.PositionNumber != after.PositionNumber
+                || !string.Equals(before.TypeIdentifier, after.TypeIdentifier, StringComparison.Ordinal))
+                return false;
+        }
+        return true;
+    }
+
     public static IoSystemQualificationOwnerDiagnosticInfo InspectOwner<T>(
         Action<System.Collections.Generic.List<T>> collectMatches,
         Func<T, IoSystemQualificationOwnerPathEvidenceInfo> readPath,

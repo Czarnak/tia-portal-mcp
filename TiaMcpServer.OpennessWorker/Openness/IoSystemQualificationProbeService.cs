@@ -214,32 +214,15 @@ public static class IoSystemQualificationProbeService
         var currentOwner = RequireExactOwningDeviceItem(project, currentTarget);
         if (!object.Equals(currentOwner.Item, originalOwner.Item)
             || !object.Equals(currentOwner.Device, originalOwner.Device)
-            || !SameIndexedPath(originalOwner.Selector, currentOwner.Selector))
+            || !IoSystemQualificationEvidence.SameIndexedDeviceItemPath(originalOwner.Selector, currentOwner.Selector))
             throw Failure("The controller interface identity or indexed path changed.");
         var current = RequireMasterPlcCompilerTarget(project, currentOwner);
         if (!object.Equals(current.Item, original.Item)
             || !object.Equals(current.Software, original.Software)
             || !object.Equals(current.Owner.Device, original.Owner.Device)
-            || !SameIndexedPath(original.Selector, current.Selector))
+            || !IoSystemQualificationEvidence.SameIndexedDeviceItemPath(original.Selector, current.Selector))
             throw Failure("The master PLC hardware target identity or indexed path changed.");
         return current;
-    }
-
-    private static bool SameIndexedPath(NetworkObjectSelectorInfo original, NetworkObjectSelectorInfo current)
-    {
-        if (original.Kind != NetworkObjectKinds.DeviceItem || current.Kind != NetworkObjectKinds.DeviceItem
-            || original.ItemPath is null || current.ItemPath is null
-            || original.ItemPath.Count != current.ItemPath.Count)
-            return false;
-        for (var index = 0; index < original.ItemPath.Count; index++)
-        {
-            var before = original.ItemPath[index];
-            var after = current.ItemPath[index];
-            if (before.Index != after.Index || before.PositionNumber != after.PositionNumber
-                || !string.Equals(before.TypeIdentifier, after.TypeIdentifier, StringComparison.Ordinal))
-                return false;
-        }
-        return true;
     }
 
     private static void CollectPlcSoftware(DeviceItemComposition items, List<PlcSoftware> software)
