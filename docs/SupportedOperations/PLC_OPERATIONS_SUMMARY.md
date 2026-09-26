@@ -37,9 +37,13 @@ One projection budget is shared across all selected PLCs:
 The serialized compile report is additionally kept below 60,000 characters, including JSON
 escaping. Trailing message rows may be removed to meet that bound without changing reported totals
 or identities. Each affected PLC receives one sanitized omission note in `diagnosticNotes` when
-diagnostics are shortened, omitted, or unreadable. If metadata alone exceeds the response limit,
-the operation fails with bounded guidance: compilation may have run, so inspect the current
-in-memory project state before deciding whether to retry.
+diagnostics are shortened, omitted, or recoverably unreadable. For nested diagnostic access,
+recoverable failures are expected exact `InvalidOperationException` access failures, not derived
+exceptions. Infrastructure or interruption failures—including session loss, I/O, cancellation,
+format errors, derived invalid-operation exceptions, and other unexpected faults—fail the operation
+rather than return typed partial success. If metadata alone exceeds the response limit, the
+operation fails with bounded guidance: compilation may have run, so inspect the current in-memory
+project state before deciding whether to retry.
 
 When an expected compiler invocation failure leaves no compiler result, the typed PLC result keeps
 both identities, reports `state: "Error"`, and includes a sanitized unavailable-details note.
