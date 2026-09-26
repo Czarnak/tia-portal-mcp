@@ -46,7 +46,8 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: [Network Phases 4-6 completion and delivery design](superpowers/specs/2026-09-21-network-phases-4-6-delivery-design.md),
+Latest process entries: [Open bug parallel pull-request delivery design](superpowers/specs/2026-09-26-open-bug-parallel-pr-delivery-design.md),
+[Network Phases 4-6 completion and delivery design](superpowers/specs/2026-09-21-network-phases-4-6-delivery-design.md),
 its [PR 1 Network Phase 4 finish plan](superpowers/plans/2026-09-21-pr1-network-phase4-finish.md),
 the [PR 2 Phase 5 fixture qualification and compile-contract plan](superpowers/plans/2026-09-24-pr2-network-phase5-qualification.md),
 the [Phase 5 qualified IO-system contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md),
