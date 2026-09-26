@@ -296,6 +296,12 @@ git commit -m "docs: describe PLC diagnostic and cross-reference integrity"
 
 ## Separately Authorized Live Acceptance
 
+Do not enter this section when P1 alone is ready. The orchestrator first requires L1, K1, P1, and
+N1 to be implementation-complete, clean, independently reviewed, and green on their offline gates.
+It then freezes all four heads and verifies a combined-wave candidate from fresh `main`. Run live
+acceptance only from that exact candidate; any lane change closes the gate and invalidates the
+candidate and affected evidence.
+
 Use an explicitly identified disposable V21 project with different hardware-device and PLC-software
 names and a block already known to contain a nested compiler error. With fresh authorization:
 
@@ -318,6 +324,6 @@ No live operation is authorized by this plan.
   for the reviewed commit completed and the required evidence was accepted before the PR merges.
 - Base branch: `main`; never base P1 on another Wave 1 feature branch.
 - Obtain independent review of both commits, contracts, test harness, and maintained documentation.
-- Before merge, refresh from current `main` and rerun focused, full offline, and real-reference gates.
+- Before the wave barrier, refresh from current `main` and rerun focused, full offline, and real-reference gates. Mark P1 `offline-ready`; do not start live acceptance or merge while another Wave 1 lane remains unready.
 - Merge P1 independently; after merge, run the current-main integration gate before starting a
   dependent later-wave PLC repair.

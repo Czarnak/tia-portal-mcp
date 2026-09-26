@@ -141,6 +141,12 @@ git commit -m "fix(network): preserve station and item names on device creation"
 
 ## Separately Authorized Live Acceptance
 
+Do not enter this section when N1 alone is ready. The orchestrator first requires L1, K1, P1, and
+N1 to be implementation-complete, clean, independently reviewed, and green on their offline gates.
+It then freezes all four heads and verifies a combined-wave candidate from fresh `main`. Run live
+acceptance only from that exact candidate; any lane change closes the gate and invalidates the
+candidate and affected evidence.
+
 On one exact disposable empty V21 project, first prove the requested names do not exist. Preview and
 apply one unchanged `add_network_device` operation with `deviceName = "MCP_Station"` and
 `deviceItemName = "MCP_PLC"`. Independently read the project tree and hardware configuration and
@@ -161,7 +167,8 @@ restoration route. Inspect an unknown outcome before any retry.
   explicitly. Change it to `Closes #76` only if the separately authorized three-identity runtime
   gate for the reviewed commit completed and its evidence was accepted before the PR merges.
 - Base branch: `main`; never base N1 on another Wave 1 feature branch.
-- Before merge, refresh against current `main`, rerun the focused and full offline gates, and obtain
-  independent whole-branch review.
+- Before the wave barrier, refresh against current `main`, rerun the focused and full offline gates,
+  and obtain independent whole-branch review. Mark N1 `offline-ready`; do not start live acceptance
+  or merge while another Wave 1 lane remains unready.
 - After merge, rerun the current-main integration gate before using `add_network_device` to build
   N2/N3 live fixtures.

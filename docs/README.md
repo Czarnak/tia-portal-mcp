@@ -28,6 +28,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | [Building from source](development/building.md) | Restore, build, test with coverage, and run the server locally |
 | [Local MCP sandbox testing](development/local-mcp-testing.md) | The MCP Inspector loop against a disposable project copy |
 | [Packaging](development/packaging.md) | Build the NuGet package and install a local branch build as the `tia-mcp` global tool |
+| [Bug-fix wave orchestration](development/bug-fix-wave-orchestration.md) | Branch/worktree ownership, wave barriers, offline/live gates, PR creation, and merge protocol |
 
 Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 

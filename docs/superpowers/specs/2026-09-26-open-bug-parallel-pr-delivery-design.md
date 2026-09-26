@@ -116,9 +116,12 @@ isolation does not isolate a live TIA Portal process, so all live acceptance rem
    maintained-documentation files it owns.
 2. A concurrently active PR must not edit another active PR's allowlisted file. Line-level
    separation inside one file is not considered sufficient isolation.
-3. If investigation shows that a lane needs a file owned by another active lane, the lane pauses.
-   It is rebased and replanned after the owning PR merges; the conflict is not worked around with
-   duplicate helpers or parallel contract mechanisms.
+3. If investigation shows that a lane needs a file owned by another active lane, the lane pauses;
+   the conflict is not worked around with duplicate helpers or parallel contract mechanisms. In
+   Wave 1 it cannot wait for a same-wave merge because no lane merges before the combined barrier:
+   close the gate and either review and approve a whole-file ownership/plan amendment before freeze,
+   or explicitly remove/defer the affected lane and reapprove the smaller wave. A later wave may
+   instead wait for the owning PR to merge only when that wave's approved plan permits it.
 4. Shared hotspots have one owner at a time. Important examples include `TiaPortalSession.cs`,
    `WorkerRequest.cs`, worker `Program.cs`, `OpennessWorkerClient.cs`, `BatchSafetySnapshot.cs`,
    `BatchWorkerInvoker.cs`, `WriteBatchTools.cs`, `HardwareConfigReader.cs`,
@@ -367,8 +370,11 @@ Q77 -------------------------------> N2
 Q82.8 -----------------------------> S3
 ```
 
-The urgent L1 PR may merge as soon as it passes review and verification; it does not wait for other
-Wave 1 lanes. The same applies to any independent lane.
+Wave 1 lanes wait at `IMPLEMENTATION_COMPLETE` rather than merging independently. L1, K1, P1, and
+N1 must all pass the offline-readiness barrier, freeze their heads, and complete the authorized
+combined-candidate qualification before any Wave 1 PR merges. Later waves may permit an independent
+lane to merge early only when that wave's approved plans explicitly say so and no wave-wide live
+barrier applies.
 
 ## Detailed planning cadence
 
@@ -441,6 +447,15 @@ operation references.
 Parallel source branches and worktrees do not isolate the external TIA Portal process, open
 project, PLC, PLCSIM instance, network device, or filesystem destination. Therefore all live TIA
 work is serialized even when implementation is parallel.
+
+For each wave, the live gate is closed until every implementation branch in that wave is complete,
+clean, independently reviewed, and green on its required offline, reference, package,
+documentation, and diff gates. An early-ready lane never starts live TIA testing by itself. After
+all lane heads are frozen, the orchestrator creates a temporary combined-wave candidate from fresh
+`main`, records its tree plus every source SHA, and reruns the final offline integration gate. Only
+that combined candidate may enter the wave's live acceptance program. Any later lane change or base
+drift closes the gate and invalidates the candidate and affected evidence until the barrier is
+re-established.
 
 - A detailed plan or approved PR does not authorize a live operation.
 - Obtain fresh authorization immediately before any mutating run, naming the exact disposable
