@@ -112,6 +112,11 @@ public static class IoSystemQualificationProbeService
                 transaction.CommitOnDispose();
             }
             result.MutationCommitted = true;
+            result.OwnerTarget = null;
+            result.OwnerIdentityVerified = false;
+            result.OwnerMatchCount = 0;
+            result.CompileTarget = null;
+            result.CompileTargetProof = null;
             result.AppliedTarget = null;
             result.RestorationGuidance = "Mutation committed. Inspect the applied selector and all observations before an explicitly authorized restore; never retry after transport loss.";
             try
@@ -130,6 +135,8 @@ public static class IoSystemQualificationProbeService
                 if (!actual.Available || !IoSystemQualificationEvidence.Equal(actual.Value, request.DesiredValue))
                     throw Failure("The committed attribute did not match its requested value.");
                 result.OwnerTarget = verified.Owner.Selector;
+                result.OwnerIdentityVerified = true;
+                result.OwnerMatchCount = 1;
                 SetCompileTargetEvidence(result, preEditCompiler, verified, true);
                 if (!IoSystemQualificationEvidence.FitsResultBudget(result))
                     throw Failure("Post-edit qualification evidence exceeds the result limit.");
