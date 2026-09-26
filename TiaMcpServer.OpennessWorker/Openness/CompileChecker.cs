@@ -94,7 +94,7 @@ public static class CompileChecker
         {
             result = CompileObject(target);
         }
-        catch (Exception)
+        catch (Exception ex) when (IsExpectedCompileFailure(ex))
         {
             // Compiler/service invocation failed. Keep the selected identity, but no compiler
             // result is known. Never forward exception text across the worker boundary.
@@ -104,6 +104,11 @@ public static class CompileChecker
         // Diagnostic access failures must not be mistaken for compiler invocation failures.
         return BuildPlcCompileInfo(selectedPlc, result, budget);
     }
+
+    private static bool IsExpectedCompileFailure(Exception exception) =>
+        // Session loss must propagate even if Siemens derives it from EngineeringException.
+        exception is not NonRecoverableException &&
+        (exception is EngineeringException || exception.GetType() == typeof(InvalidOperationException));
 
     private static PlcCompileInfo BuildPlcCompileInfo(PlcSoftwareLocator.DiscoveredPlcSoftware selectedPlc,
         CompilerResult? result, CompileReportProjection.Budget budget)
@@ -127,7 +132,7 @@ public static class CompileChecker
         {
             messages = result.Messages;
         }
-        catch (Exception)
+        catch (Exception ex) when (IsExpectedCompileFailure(ex))
         {
             // State and totals above are already known, even when message acquisition fails.
             CompileReportProjection.NoteOmission(plc);

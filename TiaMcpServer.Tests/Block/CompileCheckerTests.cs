@@ -238,7 +238,7 @@ public class CompileCheckerTests
         var error = Assert.Throws<InvalidOperationException>(() => CompileChecker.Compile(project, null, null));
 
         Assert.Contains("response limit", error.Message);
-        Assert.Contains("Compilation has already run", error.Message);
+        Assert.Contains("Compilation may have run", error.Message);
         Assert.Contains("inspect", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("in-memory", error.Message);
         Assert.DoesNotContain("select a single PLC", error.Message, StringComparison.OrdinalIgnoreCase);
@@ -337,13 +337,18 @@ public class CompileCheckerTests
     }
 
     [Theory]
-    [InlineData("PLC_DP")]
-    [InlineData("Station_1")]
-    public void Compile_PreservesIdentityWhenCompilerFails(string selector)
+    [InlineData("PLC_DP", false)]
+    [InlineData("PLC_DP", true)]
+    [InlineData("Station_1", false)]
+    [InlineData("Station_1", true)]
+    public void Compile_PreservesIdentityWhenCompilerFails(string selector, bool engineeringFailure)
     {
         var project = new Siemens.Engineering.Project();
         var software = AddPlc(project, new CompilerResult(), "PLC_DP", "Station_1");
-        software.CompilerService = new FixtureCompiler(new CompilerResult(), new EngineeringException("private-project-path"));
+        Exception failure = engineeringFailure
+            ? new EngineeringException("private-project-path")
+            : new InvalidOperationException("private-project-path");
+        software.CompilerService = new FixtureCompiler(new CompilerResult(), failure);
 
         var report = CompileChecker.Compile(project, selector, null);
 
@@ -352,6 +357,47 @@ public class CompileCheckerTests
         Assert.Equal("Error", plc.State);
         Assert.Equal("Error", report.OverallState);
         Assert.DoesNotContain("private-project-path", Assert.Single(plc.DiagnosticNotes));
+    }
+
+    [Theory]
+    [InlineData(null, false, "session")]
+    [InlineData(null, false, "io")]
+    [InlineData(null, false, "cancel")]
+    [InlineData(null, true, "session")]
+    [InlineData(null, true, "io")]
+    [InlineData(null, true, "cancel")]
+    [InlineData("PLC_DP/Blocks/Main", false, "session")]
+    [InlineData("PLC_DP/Blocks/Main", false, "io")]
+    [InlineData("PLC_DP/Blocks/Main", false, "cancel")]
+    [InlineData("PLC_DP/Blocks/Main", true, "session")]
+    [InlineData("PLC_DP/Blocks/Main", true, "io")]
+    [InlineData("PLC_DP/Blocks/Main", true, "cancel")]
+    public void Compile_PropagatesInfrastructureAndInterruptionFailures(
+        string? blockPath, bool messageAccessFailure, string failureKind)
+    {
+        // A typed compiler report must not hide loss of the session, I/O failure, or cancellation.
+        Exception failure = failureKind switch
+        {
+            "session" => new NonRecoverableException("session lost"),
+            "io" => new IOException("transport unavailable"),
+            "cancel" => new OperationCanceledException("operation interrupted"),
+            _ => throw new ArgumentOutOfRangeException(nameof(failureKind))
+        };
+        var result = new CompilerResult
+        {
+            State = CompilerResultState.Warning,
+            WarningCount = 7,
+            MessagesFailure = messageAccessFailure ? failure : null
+        };
+        var compiler = new FixtureCompiler(result, messageAccessFailure ? null : failure);
+        var project = new Siemens.Engineering.Project();
+        var software = AddPlc(project, result, "PLC_DP", "Station_1");
+        software.CompilerService = compiler;
+        software.BlockGroup.Blocks.Items.Add(new FC { Name = "Main", CompilerService = compiler });
+
+        var propagated = Assert.ThrowsAny<Exception>(() => CompileChecker.Compile(project, null, blockPath));
+
+        Assert.Same(failure, propagated);
     }
 
     [Theory]

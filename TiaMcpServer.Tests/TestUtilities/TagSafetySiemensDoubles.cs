@@ -39,6 +39,12 @@ namespace Siemens.Engineering
         public EngineeringException(string message) : base(message) { }
     }
 
+    // Inheritance deliberately exercises exclusion before the broad EngineeringException check.
+    public sealed class NonRecoverableException : EngineeringException
+    {
+        public NonRecoverableException(string message) : base(message) { }
+    }
+
     public interface IEngineeringServiceProvider
     {
         T? GetService<T>() where T : class;
