@@ -187,12 +187,16 @@ public class TiaPortalSession : IDisposable
         {
             if (_projectOpenedByWorker)
             {
-                Console.Error.WriteLine($"Closing project '{currentPath ?? "(unknown)"}' before opening '{requestedPath}'.");
+                var currentProject = Project;
                 try
                 {
                     ProjectRebindCloseGuard.CloseBeforeRebind(
-                        () => Project!.IsModified,
-                        Project.Close,
+                        () => currentProject.IsModified,
+                        () =>
+                        {
+                            Console.Error.WriteLine($"Closing project '{currentPath ?? "(unknown)"}' before opening '{requestedPath}'.");
+                            currentProject.Close();
+                        },
                         () =>
                         {
                             Project = null;
