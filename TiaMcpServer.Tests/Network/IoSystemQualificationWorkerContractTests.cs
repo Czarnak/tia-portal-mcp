@@ -70,6 +70,7 @@ public class IoSystemQualificationWorkerContractTests
             "result.Before = ReadFiveAttributeSnapshot(target)",
             "((IEngineeringServiceProvider)owner.Item).GetService<ICompilable>()",
             "if (compiler is null)", "diagnostic.Reason = \"compile_service_unavailable\"",
+            "result.RestorationGuidance = \"The exact owning hardware item has no compile service.",
             "IoSystemQualificationEvidence.FitsResultBudget(result)", "return result;");
         Assert.Contains("result.HardwareCompileServiceAvailable = compiler is not null", body);
         Assert.Contains("diagnostic.Stage = \"compileService\"", body);
@@ -106,8 +107,8 @@ public class IoSystemQualificationWorkerContractTests
         Ordered(body, "RequireExactOwningDeviceItem(project, target, diagnostic)",
             "diagnostic.Stage = \"pnSnapshot\"", "diagnostic.Reason = \"snapshot_unverified\"",
             "ReadAffectedPnDeviceNames(project, target)",
-            "IoSystemQualificationEvidence.FitsResultBudget(result)",
-            "diagnostic.Stage = \"verification\"", "diagnostic.Reason = \"verified\"", "return result;");
+            "diagnostic.Stage = \"verification\"", "diagnostic.Reason = \"verified\"",
+            "IoSystemQualificationEvidence.FitsResultBudget(result)", "return result;");
         Assert.Contains("OwnerDiagnostics = diagnostic", body);
         Assert.DoesNotContain("OwnerIdentityVerified = true", body);
     }
@@ -841,7 +842,8 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("new OwnerCandidate(", collect);
         var inspect = ExtractMethodBody(Source, "InspectOwner");
         Assert.Contains("OwnerDiagnostics = diagnostic", inspect);
-        Assert.DoesNotContain("GetService<ICompilable>", inspect);
+        Assert.Contains("((IEngineeringServiceProvider)owner.Item).GetService<ICompilable>()", inspect);
+        Assert.DoesNotContain("CompileHardware", inspect);
         Assert.DoesNotContain("SetAttribute", inspect);
         var require = ExtractMethodBody(Source, "RequireExactOwningDeviceItem");
         Assert.Contains("diagnostic.Reason != " + '"' + "verified" + '"', require);

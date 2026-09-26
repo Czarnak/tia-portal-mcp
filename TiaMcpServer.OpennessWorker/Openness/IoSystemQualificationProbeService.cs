@@ -30,14 +30,25 @@ public static class IoSystemQualificationProbeService
             result.Before = ReadFiveAttributeSnapshot(target);
             diagnostic.Stage = "compileService";
             diagnostic.Reason = "compile_service_unverified";
-            RequireCompiler(owner.Item);
-            result.HardwareCompileServiceAvailable = true;
-            diagnostic.Stage = "evidenceBudget";
-            diagnostic.Reason = "evidence_oversized";
+            var compiler = ((IEngineeringServiceProvider)owner.Item).GetService<ICompilable>();
+            result.HardwareCompileServiceAvailable = compiler is not null;
+            if (compiler is null)
+            {
+                diagnostic.Stage = "compileService";
+                diagnostic.Reason = "compile_service_unavailable";
+                result.RestorationGuidance = "The exact owning hardware item has no compile service. Do not compile or mutate this target.";
+            }
+            else
+            {
+                diagnostic.Stage = "verification";
+                diagnostic.Reason = "verified";
+            }
             if (!IoSystemQualificationEvidence.FitsResultBudget(result))
+            {
+                diagnostic.Stage = "evidenceBudget";
+                diagnostic.Reason = "evidence_oversized";
                 throw Failure("Read-only qualification evidence exceeds the result limit.");
-            diagnostic.Stage = "verification";
-            diagnostic.Reason = "verified";
+            }
             return result;
         }
         catch (Exception)
