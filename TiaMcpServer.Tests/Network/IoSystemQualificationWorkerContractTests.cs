@@ -45,6 +45,35 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
+    public void MasterPlcContinuity_AllowsTextRenamesButRejectsIndexedPathDrift()
+    {
+        var original = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.DeviceItem, DeviceName = "master",
+            ItemPath = new List<DeviceItemPathSegmentInfo>
+            {
+                new() { Index = 0, Name = "rack", PositionNumber = 1, TypeIdentifier = "type-a" },
+                new() { Index = 2, Name = "cpu", PositionNumber = 3, TypeIdentifier = "type-b" }
+            }
+        };
+        var renamed = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.DeviceItem, DeviceName = "renamed master",
+            ItemPath = new List<DeviceItemPathSegmentInfo>
+            {
+                new() { Index = 0, Name = "renamed rack", PositionNumber = 1, TypeIdentifier = "type-a" },
+                new() { Index = 2, Name = "renamed cpu", PositionNumber = 3, TypeIdentifier = "type-b" }
+            }
+        };
+        Assert.True(QualificationEvidence.SameIndexedDeviceItemPath(original, renamed));
+        renamed.ItemPath[1].PositionNumber = 4;
+        Assert.False(QualificationEvidence.SameIndexedDeviceItemPath(original, renamed));
+        renamed.ItemPath[1].PositionNumber = 3;
+        renamed.ItemPath[1].TypeIdentifier = "type-c";
+        Assert.False(QualificationEvidence.SameIndexedDeviceItemPath(original, renamed));
+    }
+
+    [Fact]
     public void MasterPlcCompile_UsesSeparateProvenAncestorAndReprovesAfterCommit()
     {
         Assert.NotNull(typeof(IoSystemQualificationResultInfo).GetProperty("CompileTarget"));
