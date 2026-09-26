@@ -63,6 +63,20 @@ public static class OperationBatchPayloadBudget
                 omission = CompactOmission(omission, maxItemChars);
             }
 
+            if (!FitsFinalReadResponse(budgeted, omission, toolName, maxBatchChars))
+            {
+                PreserveFailureByOmittingPriorSuccessfulPayloads(
+                    budgeted, omission, toolName, retryToolName, narrowingHint, maxItemChars, maxBatchChars);
+                PreserveFailureByTruncatingPriorFailureDetails(budgeted, omission, toolName, maxItemChars, maxBatchChars);
+                PreserveFailureByTruncatingPriorWarnings(budgeted, omission, toolName, maxItemChars, maxBatchChars);
+            }
+
+            if (!FitsFinalReadResponse(budgeted, omission, toolName, maxBatchChars))
+            {
+                throw new InvalidOperationException(
+                    "The batch budget is too small to represent every operation status.");
+            }
+
             budgeted.Add(omission);
         }
 
@@ -181,7 +195,8 @@ public static class OperationBatchPayloadBudget
                 OmissionMarker(retryToolName, narrowingHint, maxBatchChars),
                 maxItemChars,
                 "[OMITTED]"),
-            Warnings = Array.Empty<string>()
+            Warnings = Array.Empty<string>(),
+            FailureCategory = null
         };
 
     private static OperationBatchResult CompactOmission(OperationBatchResult item, int maxItemChars)
