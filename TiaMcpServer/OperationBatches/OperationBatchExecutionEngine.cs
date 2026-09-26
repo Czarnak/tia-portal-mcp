@@ -53,5 +53,6 @@ public static class OperationBatchExecutionEngine
             operation.Operation,
             workerResult.Success ? OperationBatchStatus.Succeeded : OperationBatchStatus.Failed,
             workerResult.ToText(),
-            workerResult.Warnings.Count == 0 ? null : workerResult.Warnings);
+            workerResult.Warnings.Count == 0 ? null : workerResult.Warnings,
+            workerResult.FailureCategory);
 }

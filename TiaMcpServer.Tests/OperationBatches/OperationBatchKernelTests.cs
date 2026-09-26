@@ -30,7 +30,9 @@ public class OperationBatchKernelTests
 
         Assert.Equal(new[] { "a", "b" }, invoked);
         Assert.Equal(OperationBatchStatus.Failed, results[0].Status);
+        Assert.Equal("validation_error", results[0].FailureCategory);
         Assert.Equal(OperationBatchStatus.Succeeded, results[1].Status);
+        Assert.Null(results[1].FailureCategory);
     }
 
     [Fact]
@@ -57,6 +59,9 @@ public class OperationBatchKernelTests
                 OperationBatchStatus.Skipped
             },
             results.Select(result => result.Status));
+        Assert.Null(results[0].FailureCategory);
+        Assert.Equal("worker_operation_failed", results[1].FailureCategory);
+        Assert.Null(results[2].FailureCategory);
     }
 
     [Fact]
@@ -153,6 +158,7 @@ public class OperationBatchKernelTests
             _ => Task.FromResult(WorkerCallResult.Ok("Error: literal SCL comment text")));
 
         Assert.Equal(OperationBatchStatus.Succeeded, results[0].Status);
+        Assert.Null(results[0].FailureCategory);
     }
 
     [Fact]
