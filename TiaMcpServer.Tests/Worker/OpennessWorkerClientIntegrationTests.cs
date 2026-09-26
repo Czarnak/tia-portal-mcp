@@ -1193,22 +1193,29 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        try
+        {
+            var preview = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory: archiveDirectory, archiveName: "Backup", projectPath: projectPath);
+            using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+            var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var preview = await ProjectWriteTools.ArchiveProject(
-            client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+            var applied = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory: archiveDirectory, archiveName: "Backup", projectPath: projectPath,
+                confirm: true, safetyToken: token);
+            using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
-        var applied = await ProjectWriteTools.ArchiveProject(
-            client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath,
-            confirm: true, safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+            Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        }
+        finally
+        {
+            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
+        }
     }
 
     [Fact]
-    public async Task ArchiveProject_PreviewRejectsArchiveDirectoryInsideProjectFolder_WithoutIssuingSafetyToken()
+    public async Task ArchiveProject_MissingDirectoryInsideProjectFolder_PreservesOwnFolderError()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
@@ -1216,10 +1223,12 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient(binding: binding);
         const string projectPath = "C:\\Projects\\SimpleProject\\SimpleProject.ap21";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var archiveDirectory = $@"C:\Projects\SimpleProject\Missing-{Guid.NewGuid():N}";
+        Assert.False(Directory.Exists(archiveDirectory));
 
         var preview = await ProjectWriteTools.ArchiveProject(
             client, safety,
-            archiveDirectory: "C:\\Projects\\SimpleProject\\Sub",
+            archiveDirectory: archiveDirectory,
             archiveName: "Backup",
             mode: "Compressed",
             projectPath: projectPath);

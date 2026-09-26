@@ -68,6 +68,15 @@ public class ProjectWriteTools
 
             return await CreatePinnedPreviewAsync(workerClient!, "open_project", async () =>
             {
+                if (workerClient is not null)
+                {
+                    var bindingCheck = workerClient.CheckOpenProjectBinding(projectPath, forceRebind);
+                    if (!bindingCheck.Success)
+                    {
+                        return WriteSafetyTooling.BuildApplyResult("open_project", bindingCheck);
+                    }
+                }
+
                 var currentState = await ReadOpenProjectCurrentStateAsync(
                     workerClient!, projectPath, forceRebind).ConfigureAwait(false);
                 if (currentState.Success && WouldCloseModifiedSource(currentState.Payload))
@@ -331,12 +340,22 @@ public class ProjectWriteTools
 
     private static WorkerCallResult RejectIfArchiveDirectoryWithinProjectFolder(WorkerCallResult probe, string archiveDirectory)
     {
-        if (!probe.Success || !ArchiveDirectoryGuard.IsWithinProjectFolder(archiveDirectory, probe.ResolvedProjectPath ?? string.Empty))
+        if (!probe.Success)
         {
             return probe;
         }
 
-        return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, ArchiveDirectoryGuard.BuildRejectionMessage(archiveDirectory));
+        if (ArchiveDirectoryGuard.IsWithinProjectFolder(archiveDirectory, probe.ResolvedProjectPath ?? string.Empty))
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, ArchiveDirectoryGuard.BuildRejectionMessage(archiveDirectory));
+        }
+
+        if (!Directory.Exists(archiveDirectory))
+        {
+            return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "The archive directory must already exist.");
+        }
+
+        return probe;
     }
 
     private static string ApplyInstructions(string toolName) => $"Preview only — nothing was changed. To apply, call {toolName} again with the same arguments plus confirm=true and this safetyToken.";

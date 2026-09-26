@@ -1450,7 +1450,7 @@ public class OpennessWorkerClient : IDisposable
         => ExecuteSerializedBindingOperationAsync(
             () => OpenProjectCoreAsync(projectPath, forceRebind));
 
-    private async Task<WorkerCallResult> OpenProjectCoreAsync(string projectPath, bool forceRebind)
+    public WorkerCallResult CheckOpenProjectBinding(string projectPath, bool forceRebind)
     {
         // A blank/whitespace path is caller input error, not a binding conflict — check it
         // separately so CanBind's single out-string ("Project path is required." vs. an
@@ -1466,6 +1466,14 @@ public class OpennessWorkerClient : IDisposable
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
         }
+
+        return WorkerCallResult.Ok("{}");
+    }
+
+    private async Task<WorkerCallResult> OpenProjectCoreAsync(string projectPath, bool forceRebind)
+    {
+        var bindingCheck = CheckOpenProjectBinding(projectPath, forceRebind);
+        if (!bindingCheck.Success) return bindingCheck;
 
         var currentBinding = _projectSessionBinding.CaptureSnapshot();
         var bindingBeforeCall = _bindingOperationContext.Value?.PinnedBinding ?? currentBinding;

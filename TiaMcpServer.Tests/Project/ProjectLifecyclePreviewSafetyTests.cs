@@ -16,6 +16,117 @@ public sealed class ProjectLifecyclePreviewSafetyTests
     private const string DestinationPath = @"C:\Lifecycle\B.ap21";
 
     [Fact]
+    public async Task OpenProject_DifferentBoundPathWithoutForce_PreviewBindingConflictWithoutToken()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        var before = binding.CaptureSnapshot();
+
+        var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: false);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+        await AssertNoOpenProjectCallsAsync(client, SourcePath);
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task ArchiveProject_MissingDirectory_PreviewValidationErrorWithoutToken()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        const string projectPath = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var archiveDirectory = Path.Combine(Path.GetTempPath(), $"tia-archive-missing-{Guid.NewGuid():N}");
+        Assert.False(Directory.Exists(archiveDirectory));
+
+        var preview = await ProjectWriteTools.ArchiveProject(
+            client, safety, archiveDirectory, "Backup", projectPath: projectPath);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
+        Assert.False(Directory.Exists(archiveDirectory));
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task ArchiveProject_DirectoryRemovedAfterPreview_FailsBeforeWorkerMutation()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        const string projectPath = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        try
+        {
+            var preview = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory, "Backup", projectPath: projectPath);
+            using var previewDocument = JsonDocument.Parse(preview);
+            var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(token));
+            Directory.Delete(archiveDirectory);
+
+            var apply = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory, "Backup", projectPath: projectPath,
+                confirm: true, safetyToken: token);
+            using var applyDocument = JsonDocument.Parse(apply);
+            var root = applyDocument.RootElement;
+
+            Assert.False(root.GetProperty("success").GetBoolean());
+            Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
+            Assert.False(root.TryGetProperty("operationResult", out _));
+            Assert.False(Directory.Exists(archiveDirectory));
+            AssertNoAudit(audit);
+        }
+        finally
+        {
+            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ArchiveProject_ExistingDirectory_PreviewAndApply()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        const string projectPath = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        try
+        {
+            var preview = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory, "Backup", projectPath: projectPath);
+            using var previewDocument = JsonDocument.Parse(preview);
+            var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(token));
+
+            var apply = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory, "Backup", projectPath: projectPath,
+                confirm: true, safetyToken: token);
+            using var applyDocument = JsonDocument.Parse(apply);
+            Assert.True(applyDocument.RootElement.GetProperty("success").GetBoolean());
+        }
+        finally
+        {
+            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void RebindProbeRequest_CarriesDestinationSeparatelyFromBoundSource()
     {
         var expectedIdentity = new WorkerSessionIdentity
