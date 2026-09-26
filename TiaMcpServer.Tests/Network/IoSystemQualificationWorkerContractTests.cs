@@ -50,7 +50,7 @@ public class IoSystemQualificationWorkerContractTests
             "diagnostic.Stage = \"attributeSnapshot\"", "diagnostic.Reason = \"attribute_snapshot_unverified\"",
             "result.Before = ReadFiveAttributeSnapshot(target)",
             "diagnostic.Stage = \"compileService\"", "diagnostic.Reason = \"compile_service_unverified\"",
-            "RequireCompiler(owner.Item)", "result.HardwareCompileServiceAvailable = true",
+            "GetService<ICompilable>()", "result.HardwareCompileServiceAvailable = compiler is not null",
             "IoSystemQualificationEvidence.FitsResultBudget(result)", "return result;");
         Assert.NotNull(typeof(IoSystemQualificationResultInfo).GetProperty("HardwareCompileServiceAvailable"));
         Assert.Contains("catch (Exception)", body);
@@ -59,6 +59,30 @@ public class IoSystemQualificationWorkerContractTests
         Assert.DoesNotContain("ApplySingleField", body);
         Assert.DoesNotContain("Transaction(", body);
         Assert.DoesNotContain("project.Save(", body);
+    }
+
+    [Fact]
+    public void OwnerInspection_MissingExactOwnerCompilerPreservesBoundedReadOnlyEvidence()
+    {
+        var body = ExtractMethodBody(Source, "InspectOwner");
+        Ordered(body, "RequireExactOwningDeviceItem(project, target, diagnostic)",
+            "result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target)",
+            "result.Before = ReadFiveAttributeSnapshot(target)",
+            "((IEngineeringServiceProvider)owner.Item).GetService<ICompilable>()",
+            "if (compiler is null)", "diagnostic.Reason = \"compile_service_unavailable\"",
+            "IoSystemQualificationEvidence.FitsResultBudget(result)", "return result;");
+        Assert.Contains("result.HardwareCompileServiceAvailable = compiler is not null", body);
+        Assert.Contains("diagnostic.Stage = \"compileService\"", body);
+        Assert.Contains("Do not compile or mutate", body);
+        Assert.DoesNotContain("RequireCompiler(owner.Item)", body);
+        Assert.DoesNotContain("CompileHardware", body);
+        Assert.DoesNotContain("SetAttribute", body);
+        Assert.DoesNotContain("OwnerIdentityVerified = false", body);
+        var baseline = ExtractMethodBody(Source, "CompileBaseline");
+        var mutation = ExtractMethodBody(Source, "SetAndCompile");
+        Assert.Contains("CompileHardware(owner.Item, result)", baseline);
+        Ordered(mutation, "RequireExactOwningDeviceItem(project, target)", "RequireCompiler(owner.Item)",
+            "ApplySingleField(target, request)");
     }
 
     [Fact]
