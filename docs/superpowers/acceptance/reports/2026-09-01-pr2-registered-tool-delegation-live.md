@@ -15,7 +15,7 @@ Document that the real host advertises the registered write surface and that bot
 
 ## Tested Target And Runtime
 
-- Project path: `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`
+- Project path: `C:\path\to\Fixture-A.ap21`
 - Type path: `PLC_LAD/Types/AnalogInputSettings`
 - Attached TIA Portal process: PID `23468`
 - Host binding: the exact project path above
