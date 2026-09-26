@@ -105,7 +105,7 @@ public class IoSystemQualificationWorkerContractTests
         var candidates = ExtractMethodBody(Source, "ReadCompileScopeCandidates");
         Assert.Contains("owner.Selector.ItemPath", candidates);
         Assert.Contains("owner.Device", candidates);
-        Assert.Contains("PlcSoftwareLocator.FindInDevice(owner.Device)", candidates);
+        Assert.Contains("CountPlcSoftwareInDevice(owner.Device)", candidates);
         Assert.Contains("ResolveQualificationDeviceItem", candidates);
         Assert.Contains("GetService<ICompilable>()", candidates);
         Assert.Contains("unverified", candidates);
@@ -114,6 +114,10 @@ public class IoSystemQualificationWorkerContractTests
         Assert.DoesNotContain(".Compile(", candidates);
         Assert.DoesNotContain("SetAttribute", candidates);
         Assert.DoesNotContain("Transaction(", candidates);
+        var plcCount = ExtractMethodBody(Source, "CountPlcSoftwareInDevice");
+        Assert.Contains("GetService<SoftwareContainer>()", Source);
+        Assert.Contains("unverified", plcCount);
+        Assert.Contains("multiple", plcCount);
 
         var baseline = ExtractMethodBody(Source, "CompileBaseline");
         var mutation = ExtractMethodBody(Source, "SetAndCompile");
@@ -174,7 +178,7 @@ public class IoSystemQualificationWorkerContractTests
             "RequireExactOwningDeviceItem(", "ReadFiveAttributeSnapshot(", "RequireExpectedValueAndWritableMetadata(",
             "ApplySingleField(", "transaction.CommitOnDispose();", "ReadAppliedStateAndNewSelector(", "CompileHardware(");
         Assert.DoesNotContain("project.Save(", Source);
-        Assert.DoesNotContain("PlcSoftware", Source);
+        Assert.DoesNotContain("PlcSoftware", body);
         Assert.DoesNotContain("Download", Source);
         Assert.Contains("MutationCommitted = true", body);
         var post = ExtractMethodBody(Source, "ReadAppliedStateAndNewSelector");
@@ -791,7 +795,7 @@ public class IoSystemQualificationWorkerContractTests
         Ordered(owner, "ResolveQualificationDeviceItem(project, selector)",
             "RecordOwnerResolution(candidate.Item, verified, diagnostic)",
             "VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)",
-            "owner = new Owner(verified, selector)");
+            "owner = new Owner(verified, selector, candidate.Device, candidate.Ancestors)");
         var readLinks = ExtractMethodBody(Source, "ReadControllerIoSystems");
         Assert.Contains("GetService<NetworkInterface>()", readLinks);
         Assert.Contains("IoControllers", readLinks);
@@ -845,7 +849,7 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("ItemPath = candidate.Path", body);
         Ordered(body, "NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector)",
             "VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)",
-            "owner = new Owner(verified, selector)");
+            "owner = new Owner(verified, selector, candidate.Device, candidate.Ancestors)");
         var proof = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/IoSystemQualificationEvidence.cs"));
         var proofBody = ExtractMethodBody(proof, "VerifyResolvedOwner");
         Assert.Contains("object.Equals(verified, candidate)", proofBody);

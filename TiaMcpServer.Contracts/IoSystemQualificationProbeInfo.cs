@@ -112,6 +112,8 @@ public sealed class IoSystemQualificationResultInfo
     public string HardwareTargetAlias { get; set; } = string.Empty;
     /// <summary>Read-only inspectOwner readiness; other modes do not populate this field.</summary>
     public bool HardwareCompileServiceAvailable { get; set; }
+    /// <summary>Read-only compile-service observations for strict owner ancestors and its containing Device.</summary>
+    public System.Collections.Generic.List<IoSystemQualificationCompileScopeCandidateInfo> CompileScopeCandidates { get; set; } = new();
     public bool MutationCommitted { get; set; }
     public bool EvidenceOmitted { get; set; }
     public string CompileState { get; set; } = "notRequested";
@@ -126,6 +128,17 @@ public sealed class IoSystemQualificationResultInfo
     public System.Collections.Generic.List<string> Messages { get; set; } = new();
     public int OmittedMessageCount { get; set; }
     public string RestorationGuidance { get; set; } = string.Empty;
+}
+
+/// <summary>Closed, identifier-free compile scope observation; this never authorizes compilation.</summary>
+public sealed class IoSystemQualificationCompileScopeCandidateInfo
+{
+    public string Kind { get; set; } = string.Empty;
+    /// <summary>Strict DeviceItem path depth; zero for the containing Device.</summary>
+    public int AncestorPathDepth { get; set; }
+    public string Status { get; set; } = "unverified";
+    /// <summary>Only populated for Device: none, one, multiple, or unverified.</summary>
+    public string? PlcSoftwareCountStatus { get; set; }
 }
 
 /// <summary>Worker-private exact node identity and typed dynamic PN name observation.</summary>

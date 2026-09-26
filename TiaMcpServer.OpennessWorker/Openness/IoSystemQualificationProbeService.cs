@@ -2,6 +2,7 @@ using Siemens.Engineering;
 using Siemens.Engineering.Compiler;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
+using Siemens.Engineering.SW;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
@@ -28,6 +29,7 @@ public static class IoSystemQualificationProbeService
             diagnostic.Stage = "attributeSnapshot";
             diagnostic.Reason = "attribute_snapshot_unverified";
             result.Before = ReadFiveAttributeSnapshot(target);
+            result.CompileScopeCandidates = ReadCompileScopeCandidates(project, owner);
             diagnostic.Stage = "compileService";
             diagnostic.Reason = "compile_service_unverified";
             var compiler = ((IEngineeringServiceProvider)owner.Item).GetService<ICompilable>();
@@ -186,9 +188,9 @@ public static class IoSystemQualificationProbeService
             matches =>
             {
                 foreach (var located in ProjectDeviceEnumerator.EnumerateWithLocations(project))
-                    FindOwners(located.Device.DeviceItems, located.Device.Name,
+                    FindOwners(located.Device.DeviceItems, located.Device, located.Device.Name,
                         IoSystemQualificationEvidence.ClassifyDeviceLocation(located.StructuralLocator),
-                        new List<DeviceItemPathSegmentInfo>(), (IoSystem)target.Value, matches);
+                        new List<DeviceItemPathSegmentInfo>(), new List<DeviceItem>(), (IoSystem)target.Value, matches);
             },
             candidate =>
             {
@@ -213,7 +215,7 @@ public static class IoSystemQualificationProbeService
                 if (diagnostic is not null)
                     IoSystemQualificationEvidence.RecordOwnerResolution(candidate.Item, verified, diagnostic);
                 if (verified is null || !IoSystemQualificationEvidence.VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)) return false;
-                owner = new Owner(verified, selector);
+                owner = new Owner(verified, selector, candidate.Device, candidate.Ancestors);
                 return true;
             }, diagnostic);
         if (diagnostic.Reason != "verified" || owner is null)
@@ -310,8 +312,9 @@ public static class IoSystemQualificationProbeService
         catch (Exception) { return null; }
     }
 
-    private static void FindOwners(DeviceItemComposition items, string deviceName, string location,
-        List<DeviceItemPathSegmentInfo> parentPath, IoSystem target, List<OwnerCandidate> matches)
+    private static void FindOwners(DeviceItemComposition items, Device device, string deviceName, string location,
+        List<DeviceItemPathSegmentInfo> parentPath, List<DeviceItem> parentItems,
+        IoSystem target, List<OwnerCandidate> matches)
     {
         var index = 0;
         foreach (DeviceItem item in items)
@@ -324,9 +327,76 @@ public static class IoSystemQualificationProbeService
             if (networkInterface is not null)
                 foreach (IoController controller in networkInterface.IoControllers)
                     if (object.Equals(controller.IoSystem, target))
-                        matches.Add(new OwnerCandidate(item, deviceName, location, path));
+                        matches.Add(new OwnerCandidate(item, device, deviceName, location, path, parentItems.ToList()));
             // Unreadable compositions propagate: incomplete discovery cannot prove uniqueness.
-            FindOwners(item.DeviceItems, deviceName, location, path, target, matches);
+            FindOwners(item.DeviceItems, device, deviceName, location, path,
+                parentItems.Concat(new[] { item }).ToList(), target, matches);
+        }
+    }
+
+    private static List<IoSystemQualificationCompileScopeCandidateInfo> ReadCompileScopeCandidates(
+        Project project, Owner owner)
+    {
+        var path = owner.Selector.ItemPath!;
+        if (path.Count is < 1 or > 16 || owner.Ancestors.Count != path.Count - 1)
+            throw Failure("Verified owner path exceeds the diagnostic limit.");
+        var candidates = new List<IoSystemQualificationCompileScopeCandidateInfo>();
+        for (var depth = path.Count - 1; depth >= 1; depth--)
+        {
+            var candidate = new IoSystemQualificationCompileScopeCandidateInfo
+            {
+                Kind = NetworkObjectKinds.DeviceItem, AncestorPathDepth = depth
+            };
+            try
+            {
+                var selector = new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.DeviceItem, DeviceName = owner.Selector.DeviceName,
+                    ItemPath = path.Take(depth).ToList()
+                };
+                var resolved = NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector);
+                if (resolved is not null && object.Equals(resolved, owner.Ancestors[depth - 1]))
+                    candidate.Status = ((IEngineeringServiceProvider)resolved).GetService<ICompilable>() is null
+                        ? "absent" : "available";
+            }
+            catch (Exception) { candidate.Status = "unverified"; }
+            candidates.Add(candidate);
+        }
+        var containingDevice = new IoSystemQualificationCompileScopeCandidateInfo
+        {
+            Kind = "device", AncestorPathDepth = 0,
+            PlcSoftwareCountStatus = CountPlcSoftwareInDevice(owner.Device)
+        };
+        try
+        {
+            containingDevice.Status = ((IEngineeringServiceProvider)owner.Device).GetService<ICompilable>() is null
+                ? "absent" : "available";
+        }
+        catch (Exception) { containingDevice.Status = "unverified"; }
+        candidates.Add(containingDevice);
+        return candidates;
+    }
+
+    private static string CountPlcSoftwareInDevice(Device device)
+    {
+        try
+        {
+            var count = 0;
+            CountPlcSoftware(device.DeviceItems, ref count);
+            return count == 0 ? "none" : count == 1 ? "one" : "multiple";
+        }
+        catch (Exception) { return "unverified"; }
+    }
+
+    private static void CountPlcSoftware(DeviceItemComposition items, ref int count)
+    {
+        foreach (DeviceItem item in items)
+        {
+            if (((IEngineeringServiceProvider)item).GetService<SoftwareContainer>()?.Software is PlcSoftware)
+                count++;
+            if (count > 1) return;
+            CountPlcSoftware(item.DeviceItems, ref count);
+            if (count > 1) return;
         }
     }
 
@@ -398,18 +468,24 @@ public static class IoSystemQualificationProbeService
 
     private sealed class OwnerCandidate
     {
-        public OwnerCandidate(DeviceItem item, string deviceName, string location, List<DeviceItemPathSegmentInfo> path)
-        { Item = item; DeviceName = deviceName; Location = location; Path = path; }
+        public OwnerCandidate(DeviceItem item, Device device, string deviceName, string location,
+            List<DeviceItemPathSegmentInfo> path, List<DeviceItem> ancestors)
+        { Item = item; Device = device; DeviceName = deviceName; Location = location; Path = path; Ancestors = ancestors; }
         public DeviceItem Item { get; }
+        public Device Device { get; }
         public string DeviceName { get; }
         public string Location { get; }
         public List<DeviceItemPathSegmentInfo> Path { get; }
+        public List<DeviceItem> Ancestors { get; }
     }
 
     private sealed class Owner
     {
-        public Owner(DeviceItem item, NetworkObjectSelectorInfo selector) { Item = item; Selector = selector; }
+        public Owner(DeviceItem item, NetworkObjectSelectorInfo selector, Device device, List<DeviceItem> ancestors)
+        { Item = item; Selector = selector; Device = device; Ancestors = ancestors; }
         public DeviceItem Item { get; }
         public NetworkObjectSelectorInfo Selector { get; }
+        public Device Device { get; }
+        public List<DeviceItem> Ancestors { get; }
     }
 }
