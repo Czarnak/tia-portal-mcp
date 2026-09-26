@@ -191,6 +191,7 @@ public class TiaPortalSession : IDisposable
                 try
                 {
                     ProjectRebindCloseGuard.CloseBeforeRebind(
+                        () => Project!.IsModified,
                         Project.Close,
                         () =>
                         {
