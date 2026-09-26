@@ -35,7 +35,8 @@ public class CrossReferenceInfoTests
         var report = new CrossReferenceReport
         {
             Filter = CrossReferenceFilterNames.AllObjects,
-            TotalSourceCount = 1,
+            IsComplete = true,
+            TotalSourceCount = 2,
             TotalReferenceCount = 1,
             TotalLocationCount = 1,
             Plcs =
@@ -43,7 +44,11 @@ public class CrossReferenceInfoTests
                 new PlcCrossReferenceInfo
                 {
                     PlcName = "PLC_1",
-                    SourceCount = 1,
+                    DeviceName = "Station_1",
+                    OwnerQueryCount = 1,
+                    SuccessfulOwnerQueryCount = 1,
+                    IsComplete = true,
+                    SourceCount = 2,
                     ReferenceCount = 1,
                     LocationCount = 1,
                     Sources =
@@ -115,7 +120,13 @@ public class CrossReferenceInfoTests
         Assert.Equal("Uses", location.ReferenceType);
         Assert.Equal("MotorReady", location.ReferencedAsName);
         Assert.Equal("Network 1", child.Name);
-        Assert.Equal(1, roundTripped.TotalSourceCount);
+        Assert.Equal(2, roundTripped.TotalSourceCount);
+        Assert.Equal(2, plc.SourceCount);
+        Assert.Equal("Station_1", plc.DeviceName);
+        Assert.Equal(1, plc.OwnerQueryCount);
+        Assert.Equal(1, plc.SuccessfulOwnerQueryCount);
+        Assert.True(plc.IsComplete);
+        Assert.True(roundTripped.IsComplete);
         Assert.Equal(1, roundTripped.TotalReferenceCount);
         Assert.Equal(1, roundTripped.TotalLocationCount);
     }
@@ -207,6 +218,47 @@ public class CrossReferenceInfoTests
         Assert.Contains(CrossReferenceFilterNames.ObjectsWithReferences, error);
         Assert.Contains(CrossReferenceFilterNames.ObjectsWithoutReferences, error);
         Assert.Contains(CrossReferenceFilterNames.UnusedObjects, error);
+    }
+
+    [Theory]
+    [InlineData(true, 0, 1, 1)]
+    [InlineData(false, 1, 3, 1)]
+    public void CoverageMetadataRoundTrips(bool complete, int sources, int attempted, int successful)
+    {
+        var report = RoundTrip(new CrossReferenceReport
+        {
+            IsComplete = complete,
+            TotalSourceCount = sources,
+            Plcs =
+            {
+                new PlcCrossReferenceInfo
+                {
+                    PlcName = "PLC_DP", DeviceName = "Station_1", IsComplete = complete,
+                    SourceCount = sources, OwnerQueryCount = attempted, SuccessfulOwnerQueryCount = successful
+                }
+            }
+        });
+        var plc = Assert.Single(report.Plcs);
+        Assert.Equal(complete, report.IsComplete);
+        Assert.Equal(complete, plc.IsComplete);
+        Assert.Equal(attempted, plc.OwnerQueryCount);
+        Assert.Equal(successful, plc.SuccessfulOwnerQueryCount);
+        Assert.Equal(sources, report.TotalSourceCount);
+        Assert.Equal("PLC_DP", plc.PlcName);
+        Assert.Equal("Station_1", plc.DeviceName);
+    }
+
+    [Fact]
+    public void OldJsonDefaultsToUnknownIncompleteCoverage()
+    {
+        var report = JsonSerializer.Deserialize<CrossReferenceReport>(
+            """{"plcs":[{"plcName":"legacy","sources":[]}]}""", JsonOptions)!;
+        var plc = Assert.Single(report.Plcs);
+        Assert.False(report.IsComplete);
+        Assert.False(plc.IsComplete);
+        Assert.Null(plc.DeviceName);
+        Assert.Equal(0, plc.OwnerQueryCount);
+        Assert.Equal(0, plc.SuccessfulOwnerQueryCount);
     }
 
     private static CrossReferenceReport RoundTrip(CrossReferenceReport report)

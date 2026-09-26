@@ -4,21 +4,35 @@ using System.Collections;
 
 namespace Siemens.Engineering
 {
-    public abstract class NamedObject
+    public abstract class NamedObject : IEngineeringServiceProvider
     {
         public string Name { get; set; } = string.Empty;
+        public CrossReference.CrossReferenceService? CrossReferenceService { get; set; }
+        public Exception? CrossReferenceServiceFailure { get; set; }
+        public int CrossReferenceServiceRequests { get; private set; }
+        public virtual T? GetService<T>() where T : class
+        {
+            if (typeof(T) != typeof(CrossReference.CrossReferenceService)) return null;
+            CrossReferenceServiceRequests++;
+            if (CrossReferenceServiceFailure is not null) throw CrossReferenceServiceFailure;
+            return CrossReferenceService as T;
+        }
     }
 
     public class Composition<T> : IEnumerable<T> where T : NamedObject
     {
         public List<T> Items { get; } = new();
         public Exception? EnumerationFailure { get; set; }
+        public int YieldedItemCount { get; private set; }
         public T? Find(string name) => this.FirstOrDefault(x =>
             string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
         public IEnumerator<T> GetEnumerator()
         {
             foreach (var item in Items)
+            {
+                YieldedItemCount++;
                 yield return item;
+            }
             if (EnumerationFailure is not null)
                 throw EnumerationFailure;
         }
@@ -48,6 +62,57 @@ namespace Siemens.Engineering
     public interface IEngineeringServiceProvider
     {
         T? GetService<T>() where T : class;
+    }
+}
+
+namespace Siemens.Engineering.CrossReference
+{
+    public enum CrossReferenceFilter { AllObjects, ObjectsWithReferences, ObjectsWithoutReferences, UnusedObjects }
+    public sealed class CrossReferenceService
+    {
+        public CrossReferenceResult Result { get; set; } = new();
+        public Exception? Failure { get; set; }
+        public List<CrossReferenceFilter> Queries { get; } = new();
+        public CrossReferenceResult GetCrossReferences(CrossReferenceFilter filter)
+        {
+            Queries.Add(filter);
+            if (Failure is not null) throw Failure;
+            return Result;
+        }
+    }
+    public sealed class CrossReferenceResult
+    {
+        public Composition<SourceObject> Sources { get; } = new();
+    }
+    public class CrossReferenceObject : NamedObject
+    {
+        private string typeName = string.Empty;
+        public Exception? TypeNameFailure { get; set; }
+        public string TypeName
+        {
+            get => TypeNameFailure is null ? typeName : throw TypeNameFailure;
+            set => typeName = value;
+        }
+        public string Path { get; set; } = string.Empty;
+        public string Device { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+    }
+    public sealed class SourceObject : CrossReferenceObject
+    {
+        public Composition<ReferenceObject> References { get; } = new();
+        public Composition<SourceObject> Children { get; } = new();
+    }
+    public sealed class ReferenceObject : CrossReferenceObject
+    {
+        public Composition<Location> Locations { get; } = new();
+    }
+    public sealed class Location : CrossReferenceObject
+    {
+        public string Access { get; set; } = string.Empty;
+        public string ReferenceType { get; set; } = string.Empty;
+        public string ReferenceLocation { get; set; } = string.Empty;
+        public string ReferencedAs { get; set; } = string.Empty;
+        public string ReferencedAsName { get; set; } = string.Empty;
     }
 }
 
@@ -98,7 +163,7 @@ namespace Siemens.Engineering.HW
         public DeviceItemComposition DeviceItems { get; } = new();
         public Features.SoftwareContainer? Container { get; set; }
         public Exception? ServiceFailure { get; set; }
-        public T? GetService<T>() where T : class
+        public override T? GetService<T>() where T : class
         {
             if (ServiceFailure is not null)
                 throw ServiceFailure;
@@ -127,7 +192,7 @@ namespace Siemens.Engineering.SW
         public Units.PlcUnitProvider? UnitProvider { get; set; }
         public ExternalSources.PlcExternalSourceSystemGroup ExternalSourceGroup { get; } = new();
         public Compiler.ICompilable? CompilerService { get; set; }
-        public T? GetService<T>() where T : class => UnitProvider as T ?? CompilerService as T;
+        public override T? GetService<T>() where T : class => UnitProvider as T ?? CompilerService as T ?? base.GetService<T>();
     }
 }
 
@@ -142,6 +207,7 @@ namespace Siemens.Engineering.SW.Tags
     {
         public Composition<PlcTag> Tags { get; } = new();
         public Composition<PlcUserConstant> UserConstants { get; } = new();
+        public Composition<PlcSystemConstant> SystemConstants { get; } = new();
         public void Export(FileInfo path, ExportOptions options, DocumentInfoOptions documentInfo)
             => throw new NotSupportedException("Export is outside this offline collision fixture.");
     }
@@ -153,6 +219,7 @@ namespace Siemens.Engineering.SW.Tags
         public bool ExternalVisible { get; set; }
         public bool ExternalWritable { get; set; }
     }
+    public sealed class PlcSystemConstant : NamedObject { }
     public sealed class PlcUserConstant : NamedObject
     {
         public string DataTypeName { get; set; } = "Int";
@@ -165,7 +232,7 @@ namespace Siemens.Engineering.SW.Blocks
     public class PlcBlock : NamedObject, IEngineeringServiceProvider
     {
         public Compiler.ICompilable? CompilerService { get; set; }
-        public T? GetService<T>() where T : class => CompilerService as T;
+        public override T? GetService<T>() where T : class => CompilerService as T ?? base.GetService<T>();
         public int Number { get; set; }
         public string ProgrammingLanguage { get; set; } = "SCL";
         public string? HeaderAuthor { get; set; }
@@ -223,7 +290,7 @@ namespace Siemens.Engineering.SW.Units
     }
     public sealed class PlcUnit : NamedObject
     {
-        public Blocks.PlcBlockGroup BlockGroup { get; } = new();
+        public Blocks.PlcBlockSystemGroup BlockGroup { get; } = new();
         public Tags.PlcTagTableGroup TagTableGroup { get; } = new();
         public Types.PlcTypeGroup TypeGroup { get; } = new();
         public ExternalSources.PlcExternalSourceSystemGroup ExternalSourceGroup { get; } = new();
