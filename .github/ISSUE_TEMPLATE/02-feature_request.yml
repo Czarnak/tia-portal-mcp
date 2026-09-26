@@ -1,0 +1,105 @@
+name: Feature request
+description: Propose a new tool, operation, or capability, or an improvement to an existing one.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [roadmap](https://github.com/Czarnak/tia-portal-mcp/blob/main/ROADMAP.md) and the open issues first. For an idea that is still open-ended, [Discussions](https://github.com/Czarnak/tia-portal-mcp/discussions) is a better place to start.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and the roadmap, and this is not already covered.
+          required: true
+
+  # The Area options map to "area: *" labels in .github/workflows/issue-labeler.yml.
+  # Keep the option text identical in both places, and never put a comma in an option:
+  # GitHub joins multiple selections with ", ", which the workflow splits on.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Pick every area involved. Use the last option for a capability the server does not cover yet, such as HMI, libraries, or Multiuser.
+      multiple: true
+      options:
+        - PLC blocks and types
+        - Tags and user constants
+        - Network and hardware
+        - Project tree and lifecycle
+        - Write safety (preview and apply)
+        - MCP protocol and tool schemas
+        - Openness worker or connection to TIA Portal
+        - CLI (doctor / install / version)
+        - New capability area (see ROADMAP)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What engineering task are you trying to do through an MCP client, and what stops you today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Which tool or operation would you add or change? Sketch the request and response if you can.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: access
+    attributes:
+      label: Does it read or write the project?
+      description: >-
+        Every write has to fit the preview-then-apply model: the preview returns a single-use
+        safety token, the apply re-validates project state before changing anything, and each
+        successful apply is audited. Write proposals should say what the preview would show.
+      options:
+        - Read only
+        - Write (changes the TIA Portal project)
+        - Both
+    validations:
+      required: true
+
+  - type: textarea
+    id: openness
+    attributes:
+      label: Openness API surface
+      description: >-
+        TIA Portal V21 Openness classes, methods, or attributes this would use, and whether you
+        have confirmed that they behave as expected on V21. Leave empty if you do not know.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use today, or other designs you ruled out and why.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: verification
+    attributes:
+      label: Can you help verify it?
+      options:
+        - Yes - I have TIA Portal V21 with Openness and can test
+        - Stub build only - no TIA Portal licence
+        - No
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+    validations:
+      required: false
