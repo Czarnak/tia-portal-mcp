@@ -12,7 +12,6 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
@@ -26,7 +25,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\IoSystemQualificationEvidence.cs" Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\IoSystemQualificationEvidence.cs"
+      Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
     <Compile Update="Batch\TagOperationPrerequisiteBaselineTests.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotBuilder.cs"
       Link="Linked\Openness\TagOperationSafetySnapshotBuilder.cs" />
@@ -52,7 +52,8 @@
     <Compile Include="..\TiaMcpServer\Diagnostics\Checks\*.cs"
       Link="Host\Diagnostics\Checks\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Cli\*.cs" Link="Host\Cli\%(Filename)%(Extension)" />
-    <Compile Include="..\TiaMcpServer\Cli\Install\*.cs" Link="Host\Cli\Install\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Cli\Install\*.cs"
+      Link="Host\Cli\Install\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Safety\OperationAccessPolicy.cs"
       Link="Host\OperationAccessPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
@@ -63,7 +64,8 @@
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
     <Compile Include="..\TiaMcpServer\Json\CanonicalJson.cs" Link="Host\Json\CanonicalJson.cs" />
     <Compile Include="..\TiaMcpServer\Cursors\*.cs" Link="Host\Cursors\%(Filename)%(Extension)" />
-    <Compile Include="..\TiaMcpServer\ProjectTree\*.cs" Link="Host\ProjectTree\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\ProjectTree\*.cs"
+      Link="Host\ProjectTree\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
       Link="Host\StructuredToolResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs"
@@ -96,15 +98,24 @@
       Link="Host\Batch\ProjectTreeSafetyPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySelector.cs"
       Link="Host\Batch\TagOperationSafetySelector.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs" Link="Host\OperationBatches\IOperationBatchItem.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResult.cs" Link="Host\OperationBatches\OperationBatchResult.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchExecutionEngine.cs" Link="Host\OperationBatches\OperationBatchExecutionEngine.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchStateComposer.cs" Link="Host\OperationBatches\OperationBatchStateComposer.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResultFormatter.cs" Link="Host\OperationBatches\OperationBatchResultFormatter.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchPayloadBudget.cs" Link="Host\OperationBatches\OperationBatchPayloadBudget.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs" Link="Host\OperationBatches\StructuredOperationBatch.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs" Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs" Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs"
+      Link="Host\OperationBatches\IOperationBatchItem.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResult.cs"
+      Link="Host\OperationBatches\OperationBatchResult.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchExecutionEngine.cs"
+      Link="Host\OperationBatches\OperationBatchExecutionEngine.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchStateComposer.cs"
+      Link="Host\OperationBatches\OperationBatchStateComposer.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResultFormatter.cs"
+      Link="Host\OperationBatches\OperationBatchResultFormatter.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchPayloadBudget.cs"
+      Link="Host\OperationBatches\OperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs"
+      Link="Host\OperationBatches\StructuredOperationBatch.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs"
+      Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"
+      Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
       Link="Host\Batch\BatchWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagUpdateSafetyCurrentState.cs"
