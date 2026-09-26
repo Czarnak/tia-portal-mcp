@@ -749,7 +749,7 @@ try {
         $postEffectSnapshot = if ($Mode -ceq 'Apply') { $record.effect.after } else { $record.effect.before }
         Assert-SnapshotMatchesBaseline $postEffectSnapshot $record.afterPublicBaseline
         Assert-Same $after.status (Get-PublicStatus)
-        $postOwnerResponse = Invoke-Probe @{ method = 'probe_io_system_qualification'; confirm = $true; expectedSessionIdentity = $sessionIdentity; ioSystemQualification = @{ mode = 'inspectOwner'; target = $postEffectTarget } }
+        $postOwnerResponse = Invoke-Probe @{ method = 'probe_io_system_qualification'; confirm = $true; expectedSessionIdentity = $sessionIdentity; ioSystemQualification = @{ mode = 'inspectOwner'; target = @{ kind = 'ioSystem'; subnetId = $postEffectTarget.subnetId; number = $postEffectTarget.number } } }
         Assert-Same $sessionIdentity $postOwnerResponse.sessionIdentity
         $postOwner = ConvertFrom-Json $postOwnerResponse.payload -AsHashtable -Depth 100
         Assert-Owner $postOwner
