@@ -87,6 +87,41 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
+    public void OwnerInspection_ReportsBoundedCompileCandidatesFromVerifiedPathWithoutCompiling()
+    {
+        var property = typeof(IoSystemQualificationResultInfo).GetProperty("CompileScopeCandidates");
+        Assert.NotNull(property);
+        Assert.Equal("List`1", property.PropertyType.Name);
+        var candidateType = Assert.Single(property.PropertyType.GetGenericArguments());
+        Assert.Equal("IoSystemQualificationCompileScopeCandidateInfo", candidateType.Name);
+        Assert.NotNull(candidateType.GetProperty("Kind"));
+        Assert.NotNull(candidateType.GetProperty("AncestorPathDepth"));
+        Assert.NotNull(candidateType.GetProperty("Status"));
+        Assert.NotNull(candidateType.GetProperty("PlcSoftwareCountStatus"));
+
+        var inspect = ExtractMethodBody(Source, "InspectOwner");
+        Ordered(inspect, "RequireExactOwningDeviceItem(project, target, diagnostic)",
+            "ReadCompileScopeCandidates(project, owner)", "IoSystemQualificationEvidence.FitsResultBudget(result)");
+        var candidates = ExtractMethodBody(Source, "ReadCompileScopeCandidates");
+        Assert.Contains("owner.Selector.ItemPath", candidates);
+        Assert.Contains("owner.Device", candidates);
+        Assert.Contains("PlcSoftwareLocator.FindInDevice(owner.Device)", candidates);
+        Assert.Contains("ResolveQualificationDeviceItem", candidates);
+        Assert.Contains("GetService<ICompilable>()", candidates);
+        Assert.Contains("unverified", candidates);
+        Assert.Contains("absent", candidates);
+        Assert.Contains("available", candidates);
+        Assert.DoesNotContain(".Compile(", candidates);
+        Assert.DoesNotContain("SetAttribute", candidates);
+        Assert.DoesNotContain("Transaction(", candidates);
+
+        var baseline = ExtractMethodBody(Source, "CompileBaseline");
+        var mutation = ExtractMethodBody(Source, "SetAndCompile");
+        Assert.Contains("CompileHardware(owner.Item, result)", baseline);
+        Assert.Contains("CompileHardware(owner.Item, result)", mutation);
+    }
+
+    [Fact]
     public void OwnerInspection_ReturnsCompleteBoundedReadOnlyPnSnapshot()
     {
         var body = ExtractMethodBody(Source, "InspectOwner");
