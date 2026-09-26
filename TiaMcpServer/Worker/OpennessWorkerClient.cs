@@ -1291,6 +1291,68 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>
+    /// Reads the live source state for an open-project rebind without changing the binding.
+    /// ProjectPath remains the verified source; the proposed destination travels separately.
+    /// </summary>
+    internal async Task<WorkerCallResult> ProbeOpenProjectRebindAsync(
+        string sourceProjectPath,
+        string destinationProjectPath)
+    {
+        var source = ProjectPathNormalization.Canonicalize(sourceProjectPath);
+        var destination = ProjectPathNormalization.Canonicalize(destinationProjectPath);
+        if (source is null || destination is null)
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.ValidationError,
+                "Source and destination project paths are required for the rebind probe.");
+        }
+
+        var result = await SendBoundProjectRequestAsync(
+            "probe_open_project_rebind",
+            source,
+            request => request.RebindDestinationProjectPath = destination,
+            "{}",
+            BindingTransition.None).ConfigureAwait(false);
+        if (!result.Success)
+        {
+            return result;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(result.Payload);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("sourceProjectPath", out var sourceField) &&
+                sourceField.ValueKind == JsonValueKind.String &&
+                root.TryGetProperty("destinationProjectPath", out var destinationField) &&
+                destinationField.ValueKind == JsonValueKind.String &&
+                root.TryGetProperty("sourceIsModified", out var modifiedField) &&
+                modifiedField.ValueKind is JsonValueKind.True or JsonValueKind.False &&
+                root.TryGetProperty("sourceOpenedByWorker", out var ownershipField) &&
+                ownershipField.ValueKind is JsonValueKind.True or JsonValueKind.False &&
+                root.TryGetProperty("willCloseSource", out var closeField) &&
+                closeField.ValueKind is JsonValueKind.True or JsonValueKind.False &&
+                string.Equals(sourceField.GetString(), source, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(destinationField.GetString(), destination, StringComparison.OrdinalIgnoreCase) &&
+                closeField.GetBoolean() ==
+                    (ownershipField.GetBoolean() &&
+                     !string.Equals(source, destination, StringComparison.OrdinalIgnoreCase)))
+            {
+                return result;
+            }
+        }
+        catch (JsonException)
+        {
+            // A malformed worker payload is a protocol failure, never a caller-visible echo.
+        }
+
+        return WorkerCallResult.Fail(
+            WorkerFailureCategories.ProtocolError,
+            "The rebind-state probe returned an invalid snapshot.");
+    }
+
+    /// <summary>
     /// Internal basic-status read used only for lifecycle post-write verification (open / create /
     /// save / save-as / archive apply paths). Backed by the worker's
     /// <c>get_basic_project_status</c> operation, which returns the plain

@@ -143,8 +143,9 @@ public static class OperationPolicyCatalog
             ["start_plc"] = OperationCapability.OnlineControl,
             ["stop_plc"] = OperationCapability.OnlineControl,
 
-            // Internal lifecycle probe (NOT read-only safe — may open a project)
+            // Internal lifecycle probes (not read-only safe; the status probe may open a project)
             ["probe_project_status_for_lifecycle"] = OperationCapability.ProjectLifecycle,
+            ["probe_open_project_rebind"] = OperationCapability.ProjectLifecycle,
         };
 
         return dict;

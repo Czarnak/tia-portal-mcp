@@ -760,6 +760,18 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => """{"success":true,"payload":"{\"isOpen\":true}"}"""
             });
             break;
+        case @"C:\FakeWorker\lifecycle-rebind-probe.ap21":
+        case @"C:\FakeWorker\lifecycle-rebind-probe-missing-source.ap21":
+        case @"C:\FakeWorker\lifecycle-rebind-probe-null-modified.ap21":
+        case @"C:\FakeWorker\lifecycle-rebind-probe-wrong-destination.ap21":
+        case @"C:\FakeWorker\lifecycle-rebind-probe-wrong-disposition.ap21":
+        case @"C:\FakeWorker\lifecycle-rebind-probe-binding-conflict.ap21":
+            // One persistent process first verifies source A, then handles the internal probe.
+            // The destination travels only in rebindDestinationProjectPath, never projectPath.
+            Respond(ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null
+                ? Success("{\"isOpen\":true}")
+                : RebindProbeResponse(line, scenario));
+            break;
         case "save-as-uncertain-state":
             // Simulates the real worker's postcondition_failed when save_project_as saved a copy
             // but could not confirm the active project is that copy: a failure carrying the
@@ -1281,6 +1293,52 @@ string TagSafetyRouteResponse(string requestLine, bool malformed, bool invalidCo
 // payload is more than a few members: the escaping is what a hand-written literal gets wrong, and a
 // mis-escaped payload would fail the strict Network contract for the wrong reason.
 string Success(string payload) => JsonSerializer.Serialize(new { success = true, payload });
+
+string RebindProbeResponse(string requestLine, string sourcePath)
+{
+    const string destinationPath = @"C:\Lifecycle\B.ap21";
+    if (ReadMethod(requestLine) != "probe_open_project_rebind" ||
+        !string.Equals(ReadField(requestLine, "projectPath"), sourcePath, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(ReadField(requestLine, "rebindDestinationProjectPath"), destinationPath, StringComparison.OrdinalIgnoreCase))
+    {
+        return JsonSerializer.Serialize(new
+        {
+            success = false,
+            failureCategory = WorkerFailureCategories.ValidationError,
+            error = "The rebind probe request did not carry the exact source and destination."
+        });
+    }
+
+    if (sourcePath.EndsWith("-binding-conflict.ap21", StringComparison.Ordinal))
+    {
+        return JsonSerializer.Serialize(new
+        {
+            success = false,
+            failureCategory = WorkerFailureCategories.BindingConflict,
+            error = "The source session changed before the rebind-state read."
+        });
+    }
+
+    var state = ProjectRebindStateInfo.Create(sourcePath, destinationPath, false, true);
+    if (sourcePath.EndsWith("-missing-source.ap21", StringComparison.Ordinal))
+    {
+        state.SourceProjectPath = null;
+    }
+    else if (sourcePath.EndsWith("-null-modified.ap21", StringComparison.Ordinal))
+    {
+        state.SourceIsModified = null;
+    }
+    else if (sourcePath.EndsWith("-wrong-destination.ap21", StringComparison.Ordinal))
+    {
+        state.DestinationProjectPath = @"C:\Lifecycle\Other.ap21";
+    }
+    else if (sourcePath.EndsWith("-wrong-disposition.ap21", StringComparison.Ordinal))
+    {
+        state.WillCloseSource = false;
+    }
+
+    return Success(ToCamelCaseJson(state));
+}
 
 string SuccessWithResolvedPath(string payload, string resolvedProjectPath)
     => JsonSerializer.Serialize(new
