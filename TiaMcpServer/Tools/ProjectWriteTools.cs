@@ -31,9 +31,24 @@ public class ProjectWriteTools
         var requestedInput = new { projectPath, forceRebind };
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
+            ProjectBindingSnapshot? recoveredBinding = null;
+            if (workerClient is not null &&
+                workerClient.BindingSnapshot.State == ProjectBindingSnapshot.InvalidatedState)
+            {
+                var recovery = await workerClient.RegroundInvalidatedSourceForOpenAsync(forceRebind)
+                    .ConfigureAwait(false);
+                if (!recovery.Success)
+                {
+                    return WriteSafetyTooling.BuildApplyResult("open_project", recovery.Failure!);
+                }
+
+                // Pin the exact promoted revision returned by recovery, not a later recapture.
+                recoveredBinding = recovery.Value!;
+            }
+
             // A configured path is only a caller assertion. Ground it before pinning the
             // preview lease; otherwise the status promotion would change the pinned binding.
-            if (workerClient is not null &&
+            else if (workerClient is not null &&
                 workerClient.BindingSnapshot.State == ProjectBindingSnapshot.ConfiguredUnverifiedState)
             {
                 var configuredPath = workerClient.BindingSnapshot.ProjectPath;
@@ -66,7 +81,7 @@ public class ProjectWriteTools
                     safety, "open_project", projectPath, target,
                     $"Open and bind TIA Portal project '{projectPath}'.", requestedInput,
                     currentState, diff: null, instructions: ApplyInstructions("open_project"));
-            }).ConfigureAwait(false);
+            }, recoveredBinding).ConfigureAwait(false);
         }
         if (!confirm) return ConfirmRequired("open_project");
         var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("open_project"), "open_project", projectPath, target, requestedInput, () => ReadOpenProjectCurrentStateAsync(workerClient, projectPath, forceRebind), () => workerClient.OpenProjectAsync(projectPath, forceRebind), async (context, operationResult) =>
@@ -341,7 +356,8 @@ public class ProjectWriteTools
     private static async Task<string> CreatePinnedPreviewAsync(
         OpennessWorkerClient workerClient,
         string toolName,
-        Func<Task<string>> createPreview)
+        Func<Task<string>> createPreview,
+        ProjectBindingSnapshot? expectedBinding = null)
     {
         // Pure open/create preview tests intentionally pass no worker client: those previews only
         // describe filesystem state and cannot touch Siemens. Runtime DI always supplies a client;
@@ -352,7 +368,7 @@ public class ProjectWriteTools
         }
 
         var execution = await workerClient.ExecuteWithPinnedBindingAsync(
-            workerClient.BindingSnapshot,
+            expectedBinding ?? workerClient.BindingSnapshot,
             createPreview).ConfigureAwait(false);
         return execution.Success
             ? execution.Value!

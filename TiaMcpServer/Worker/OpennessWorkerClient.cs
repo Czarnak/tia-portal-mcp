@@ -184,6 +184,81 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>
+    /// Re-grounds only the source retained by an invalidated binding before an explicit
+    /// force-rebind preview. No destination path enters this read-only status route.
+    /// </summary>
+    internal Task<PinnedBindingExecutionResult<ProjectBindingSnapshot>> RegroundInvalidatedSourceForOpenAsync(
+        bool forceRebind)
+        => ExecuteSerializedBindingOperationAsync(async () =>
+        {
+            var invalidated = _projectSessionBinding.CaptureSnapshot();
+            if (!forceRebind || invalidated.State != ProjectBindingSnapshot.InvalidatedState)
+            {
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    "An invalidated source can be re-grounded only by open_project with forceRebind=true."));
+            }
+
+            var source = ProjectPathNormalization.Canonicalize(invalidated.ProjectPath);
+            if (source is null)
+            {
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    "The invalidated binding has no retained source project to verify."));
+            }
+
+            // Reasserting retained A creates a fresh configured revision. The only request that
+            // follows is the existing read-only status route; it must promote a complete,
+            // matching worker/Portal/project identity before any rebind probe can be sent.
+            if (!_projectSessionBinding.Bind(source, forceRebind: true, out var bindError))
+            {
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    bindError ?? "The retained source project could not be reasserted."));
+            }
+
+            var reasserted = _projectSessionBinding.CaptureSnapshot();
+            var status = await GetProjectStatusAsync(source).ConfigureAwait(false);
+            if (!status.Success)
+            {
+                // Status may already have invalidated the binding (for example an incomplete
+                // identity). Otherwise restore invalidated from precisely our reasserted
+                // revision, retaining the original worker failure category for the caller.
+                var afterFailure = _projectSessionBinding.CaptureSnapshot();
+                if (afterFailure.State != ProjectBindingSnapshot.InvalidatedState &&
+                    !_projectSessionBinding.TryInvalidate(
+                        reasserted, "Retained-source status verification failed."))
+                {
+                    return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                        WorkerFailureCategories.BindingConflict,
+                        "The source binding changed while its status was being verified."));
+                }
+
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(status);
+            }
+
+            var promoted = _projectSessionBinding.CaptureSnapshot();
+            if (!promoted.IsVerified ||
+                !string.Equals(
+                    ProjectPathNormalization.Canonicalize(promoted.ProjectPath),
+                    source,
+                    StringComparison.OrdinalIgnoreCase) ||
+                promoted.ToWorkerIdentity() is null)
+            {
+                if (promoted.State != ProjectBindingSnapshot.InvalidatedState)
+                {
+                    _projectSessionBinding.TryInvalidate(
+                        promoted, "Retained-source status did not establish a complete identity.");
+                }
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.PostconditionFailed,
+                    "Retained-source status did not establish a complete source identity."));
+            }
+
+            return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(promoted);
+        });
+
+    /// <summary>
     /// How a completed (successful) worker call changes this session's project binding. Declared
     /// explicitly per call site so the binding transition is a deliberate, readable property of
     /// each operation rather than an implicit side effect of "some call succeeded".

@@ -311,6 +311,159 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         Assert.False(root.TryGetProperty("operationResult", out _));
     }
 
+    [Fact]
+    public async Task OpenProject_InvalidatedForceRebind_RegroundsRetainedSourceBeforePreview()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        binding.Invalidate("Simulated stale binding");
+        var invalidated = binding.CaptureSnapshot();
+
+        // B cannot be used for status grounding: only A is an open FakeWorker project.
+        var preview = await ProjectWriteTools.OpenProject(
+            client, safety, DestinationPath, forceRebind: true);
+        using var document = JsonDocument.Parse(preview);
+        var token = document.RootElement.GetProperty("safetyToken").GetString();
+
+        Assert.False(string.IsNullOrWhiteSpace(token));
+        var promoted = binding.CaptureSnapshot();
+        Assert.True(promoted.IsVerified);
+        Assert.Equal(SourcePath, promoted.ProjectPath);
+        Assert.True(promoted.Revision >= invalidated.Revision + 2);
+        Assert.NotEqual(invalidated.BindingId, promoted.BindingId);
+        Assert.NotNull(promoted.ToWorkerIdentity());
+        await AssertNoOpenProjectCallsAsync(client, SourcePath);
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task OpenProject_InvalidatedModifiedSource_RecoveryStillRefusesPreview()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        binding.Invalidate("Simulated stale binding");
+
+        var preview = await ProjectWriteTools.OpenProject(
+            client, safety, @"C:\Lifecycle\B-modified.ap21", forceRebind: true);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
+        Assert.True(binding.CaptureSnapshot().IsVerified);
+        Assert.Equal(SourcePath, binding.CaptureSnapshot().ProjectPath);
+        await AssertNoOpenProjectCallsAsync(client, SourcePath);
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task OpenProject_InvalidatedStatusFailure_PreservesCategoryAndIssuesNoToken()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding("worker-error-with-category");
+        binding.Invalidate("Simulated stale binding");
+        var invalidated = binding.CaptureSnapshot();
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var preview = await ProjectWriteTools.OpenProject(
+            client, safety, DestinationPath, forceRebind: true);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
+        Assert.Equal("invalid value", root.GetProperty("error").GetString());
+        var after = binding.CaptureSnapshot();
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, after.State);
+        Assert.Equal(invalidated.ProjectPath, after.ProjectPath);
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task OpenProject_InvalidatedWithoutRetainedSource_RejectsWithoutGrounding()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        binding.Invalidate("Simulated stale binding without a source");
+        var invalidated = binding.CaptureSnapshot();
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        var absentExecutable = Path.Combine(Path.GetTempPath(), $"tia-absent-{Guid.NewGuid():N}.exe");
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: absentExecutable);
+
+        var preview = await ProjectWriteTools.OpenProject(
+            client, safety, DestinationPath, forceRebind: true);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
+        Assert.True(invalidated.SameBinding(binding.CaptureSnapshot()));
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task OpenProject_InvalidatedWithoutForceRebind_RejectsWithoutGrounding()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        binding.Invalidate("Simulated stale binding");
+        var invalidated = binding.CaptureSnapshot();
+
+        var preview = await ProjectWriteTools.OpenProject(
+            client, safety, DestinationPath, forceRebind: false);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
+        Assert.True(invalidated.SameBinding(binding.CaptureSnapshot()));
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task OpenProject_PreRecoveryToken_CannotApplyAfterRegroundRevision()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+
+        var oldPreview = await ProjectWriteTools.OpenProject(
+            client, safety, DestinationPath, forceRebind: true);
+        using var oldDocument = JsonDocument.Parse(oldPreview);
+        var oldToken = oldDocument.RootElement.GetProperty("safetyToken").GetString();
+        var oldBinding = binding.CaptureSnapshot();
+        binding.Invalidate("Simulated stale binding");
+
+        var newPreview = await ProjectWriteTools.OpenProject(
+            client, safety, DestinationPath, forceRebind: true);
+        using var newDocument = JsonDocument.Parse(newPreview);
+        Assert.False(string.IsNullOrWhiteSpace(newDocument.RootElement.GetProperty("safetyToken").GetString()));
+        Assert.True(binding.CaptureSnapshot().IsVerified);
+        Assert.NotEqual(oldBinding.BindingId, binding.CaptureSnapshot().BindingId);
+        Assert.True(binding.CaptureSnapshot().Revision > oldBinding.Revision);
+
+        var staleApply = await ProjectWriteTools.OpenProject(
+            client, safety, DestinationPath, confirm: true, safetyToken: oldToken, forceRebind: true);
+        using var staleDocument = JsonDocument.Parse(staleApply);
+        var root = staleDocument.RootElement;
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
+        await AssertNoOpenProjectCallsAsync(client, SourcePath);
+        AssertNoAudit(audit);
+    }
+
     private static async Task AssertNoOpenProjectCallsAsync(OpennessWorkerClient client, string sourcePath)
     {
         // The persistent FakeWorker returns this process-local counter on a bound status read.
