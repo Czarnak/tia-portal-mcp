@@ -238,7 +238,90 @@ public class CompileCheckerTests
         var error = Assert.Throws<InvalidOperationException>(() => CompileChecker.Compile(project, null, null));
 
         Assert.Contains("response limit", error.Message);
+        Assert.Contains("Compilation has already run", error.Message);
+        Assert.Contains("inspect", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("in-memory", error.Message);
+        Assert.DoesNotContain("select a single PLC", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(new string('x', 100), error.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Compile_BlockCompilerExceptionReturnsSanitizedIdentityReport(bool engineeringFailure)
+    {
+        // Catches block compilation escaping to Program's raw exception-message response.
+        const string privateDetail = "C:\\private-project-path\\fixture.ap21: sensitive compiler detail";
+        Exception failure = engineeringFailure
+            ? new EngineeringException(privateDetail)
+            : new InvalidOperationException(privateDetail);
+        var project = new Siemens.Engineering.Project();
+        var software = AddPlc(project, new CompilerResult(), "PLC_DP", "Station_1");
+        software.BlockGroup.Blocks.Items.Add(new FC
+        {
+            Name = "Main",
+            CompilerService = new FixtureCompiler(new CompilerResult(), failure)
+        });
+
+        var report = CompileChecker.Compile(project, null, "Station_1/Blocks/Main");
+
+        var plc = Assert.Single(report.Plcs);
+        AssertIdentity(plc);
+        Assert.Equal("block", report.Scope);
+        Assert.Equal("Station_1/Blocks/Main", report.BlockPath);
+        Assert.Equal("Error", plc.State);
+        Assert.Equal("Error", report.OverallState);
+        Assert.Empty(plc.Messages);
+        Assert.NotEmpty(Assert.Single(plc.DiagnosticNotes));
+        var json = JsonSerializer.Serialize(report, TiaJson.Presentation);
+        Assert.DoesNotContain("private-project-path", json);
+        Assert.DoesNotContain("sensitive compiler detail", json);
+        Assert.True(json.Length < 60000);
+    }
+
+    [Theory]
+    [InlineData(null, false, "Warning", 0, 7)]
+    [InlineData(null, true, "Error", 3, 7)]
+    [InlineData("PLC_DP/Blocks/Main", false, "Warning", 0, 7)]
+    [InlineData("PLC_DP/Blocks/Main", true, "Error", 3, 7)]
+    public void Compile_MessageCollectionGetterFailurePreservesKnownCompilerResult(
+        string? blockPath, bool engineeringFailure, string state, int errorCount, int warningCount)
+    {
+        // Catches a message getter failure incorrectly erasing the already-read compiler totals.
+        const string privateDetail = "C:\\private-project-path\\fixture.ap21: message collection unavailable";
+        var result = new CompilerResult
+        {
+            State = Enum.Parse<CompilerResultState>(state),
+            ErrorCount = errorCount,
+            WarningCount = warningCount,
+            MessagesFailure = engineeringFailure
+                ? new EngineeringException(privateDetail)
+                : new InvalidOperationException(privateDetail)
+        };
+        var project = new Siemens.Engineering.Project();
+        var software = AddPlc(project, result, "PLC_DP", "Station_1");
+        software.BlockGroup.Blocks.Items.Add(new FC
+        {
+            Name = "Main",
+            CompilerService = new FixtureCompiler(result)
+        });
+
+        var report = CompileChecker.Compile(project, null, blockPath);
+
+        var plc = Assert.Single(report.Plcs);
+        AssertIdentity(plc);
+        Assert.Equal(state, plc.State);
+        Assert.Equal(state, report.OverallState);
+        Assert.Equal(errorCount, plc.ErrorCount);
+        Assert.Equal(warningCount, plc.WarningCount);
+        Assert.Equal(errorCount, report.TotalErrorCount);
+        Assert.Equal(warningCount, report.TotalWarningCount);
+        Assert.Empty(plc.Messages);
+        Assert.NotEmpty(Assert.Single(plc.DiagnosticNotes));
+        var json = JsonSerializer.Serialize(report, TiaJson.Presentation);
+        Assert.DoesNotContain("private-project-path", json);
+        Assert.DoesNotContain("message collection unavailable", json);
+        Assert.True(json.Length < 60000);
     }
 
     [Theory]

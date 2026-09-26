@@ -56,10 +56,12 @@ namespace Siemens.Engineering.Compiler
 
     public sealed class CompilerResult
     {
+        private readonly List<CompilerResultMessage> messages = new();
         public CompilerResultState State { get; set; }
         public int ErrorCount { get; set; }
         public int WarningCount { get; set; }
-        public List<CompilerResultMessage> Messages { get; } = new();
+        public Exception? MessagesFailure { get; set; }
+        public List<CompilerResultMessage> Messages => MessagesFailure is null ? messages : throw MessagesFailure;
     }
 
     public class CompilerResultMessage

@@ -139,7 +139,7 @@ internal static class CompileReportProjection
                 plcIndex--;
 
             if (plcIndex < 0)
-                throw new InvalidOperationException("Compile report metadata exceeds the response limit; select a single PLC or a shorter block path.");
+                throw new InvalidOperationException("Compile report metadata exceeds the response limit. Compilation has already run; inspect the current in-memory project state before deciding whether to retry.");
 
             var plc = report.Plcs[plcIndex];
             plc.Messages.RemoveAt(plc.Messages.Count - 1);

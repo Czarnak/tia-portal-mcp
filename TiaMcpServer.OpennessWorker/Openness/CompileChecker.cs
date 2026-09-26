@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -36,8 +37,7 @@ public static class CompileChecker
             throw new InvalidOperationException($"Block '{address.BlockName}' not found.");
         }
 
-        var result = CompileObject(target.Block);
-        var plc = BuildPlcCompileInfo(selectedPlc, result, new CompileReportProjection.Budget());
+        var plc = CompileTarget(selectedPlc, target.Block, new CompileReportProjection.Budget());
         if (address.PlcName == null)
         {
             plc.DiagnosticNotes.Add("No PLC qualifier was specified; compiled using the first PLC found.");
@@ -67,15 +67,7 @@ public static class CompileChecker
 
         foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
         {
-            try
-            {
-                var result = CompileObject(plc.Software);
-                report.Plcs.Add(BuildPlcCompileInfo(plc, result, budget));
-            }
-            catch (EngineeringException)
-            {
-                report.Plcs.Add(BuildPlcCompileInfo(plc, null, budget));
-            }
+            report.Plcs.Add(CompileTarget(plc, plc.Software, budget));
         }
 
         if (report.Plcs.Count == 0)
@@ -94,6 +86,25 @@ public static class CompileChecker
         return report;
     }
 
+    private static PlcCompileInfo CompileTarget(PlcSoftwareLocator.DiscoveredPlcSoftware selectedPlc,
+        object target, CompileReportProjection.Budget budget)
+    {
+        CompilerResult? result;
+        try
+        {
+            result = CompileObject(target);
+        }
+        catch (Exception)
+        {
+            // Compiler/service invocation failed. Keep the selected identity, but no compiler
+            // result is known. Never forward exception text across the worker boundary.
+            result = null;
+        }
+
+        // Diagnostic access failures must not be mistaken for compiler invocation failures.
+        return BuildPlcCompileInfo(selectedPlc, result, budget);
+    }
+
     private static PlcCompileInfo BuildPlcCompileInfo(PlcSoftwareLocator.DiscoveredPlcSoftware selectedPlc,
         CompilerResult? result, CompileReportProjection.Budget budget)
     {
@@ -107,11 +118,23 @@ public static class CompileChecker
         };
         if (result == null)
         {
-            plc.DiagnosticNotes.Add("PLC compilation failed; compiler details are unavailable.");
+            plc.DiagnosticNotes.Add("Compilation failed; compiler details are unavailable.");
             return plc;
         }
 
-        var projection = CompileReportProjection.Flatten(result.Messages,
+        IEnumerable<CompilerResultMessage> messages;
+        try
+        {
+            messages = result.Messages;
+        }
+        catch (Exception)
+        {
+            // State and totals above are already known, even when message acquisition fails.
+            CompileReportProjection.NoteOmission(plc);
+            return plc;
+        }
+
+        var projection = CompileReportProjection.Flatten(messages,
             message => message.Description,
             ReadMessagePath,
             MapMessageSeverity,
