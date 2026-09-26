@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-26
 
-**Status:** Written design awaiting review
+**Status:** Approved; Wave 1 implementation plans prepared
 
 **Source:** Review of every open GitHub issue carrying the `bug` label at repository commit
 `22a04a8`, followed by the approved parallel-delivery discussion on 2026-09-26
@@ -83,6 +83,32 @@ The third option is selected. Wave numbers express dependency order, not a requi
 every unrelated PR in an earlier wave. A lane becomes eligible when its direct prerequisites have
 merged, their evidence has been reviewed, and its detailed plan proves a disjoint file boundary
 from every other active lane.
+
+## Agent and worktree mechanics
+
+Each active implementation lane receives one Git branch and one dedicated managed worktree. A
+worktree is a separate local checkout attached to that branch; it prevents concurrent agents from
+sharing an index or overwriting each other's uncommitted files. The coordinating agent creates all
+Wave 1 branches from the same freshly verified `origin/main`, assigns one implementation owner to
+each worktree and allowlist, and keeps the coordinating checkout free of lane implementation.
+
+An implementation agent commits only inside its assigned worktree. Read-only review agents may
+inspect that worktree, but a second implementation agent does not edit it concurrently. A lane that
+needs a reserved file stops and is replanned instead of crossing into another worktree's ownership.
+Builds and tests within one checkout remain serial even while different worktrees perform
+independent work concurrently.
+
+When authorized, each branch is pushed separately and opened as its own pull request with base
+`main`; no Wave 1 feature branch is based on another Wave 1 feature branch. Those individual merged
+main-target PRs provide the release-note history. An issue-closing keyword is separate metadata and
+is used only when the issue's required evidence is complete; using `Refs` does not make the PR less
+visible as a merged change.
+
+Reviews may overlap, but merges remain serialized. After one PR merges, every still-open affected
+lane refreshes from the new `main`, resolves only genuine integration changes, and reruns its gates
+before merge. Rebase, force-push, PR creation, merge, and other remote writes require the relevant
+authorization. Worktrees are archived only after their PR and review work are complete. This Git
+isolation does not isolate a live TIA Portal process, so all live acceptance remains serialized.
 
 ## Delivery invariants
 
@@ -451,6 +477,6 @@ This document records the approved in-chat delivery design in durable form. The 
 read-only; no production code, tests, GitHub issue state, TIA Portal project, PLC, or PLCSIM state
 was changed. No automated build or test run is claimed by this design-only change.
 
-The next gate is user review of this written specification. After approval, the writing-plans
-workflow may produce separate Wave 1 implementation plans for L1, K1, P1, and N1. Implementation
-does not begin until those plans and their execution method are reviewed and approved.
+The written specification is approved and separate Wave 1 implementation plans for L1, K1, P1,
+and N1 are prepared. The next gate is user review of those plans and the proposed agent/worktree
+execution method. Implementation does not begin until that gate is approved.

@@ -47,6 +47,10 @@ acceptance reports produced while building features. It is historical process ma
 current documentation — see its index for what is there and how to read it.
 
 Latest process entries: [Open bug parallel pull-request delivery design](superpowers/specs/2026-09-26-open-bug-parallel-pr-delivery-design.md),
+with Wave 1 plans for [L1 lifecycle rebind and preview safety](superpowers/plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md),
+[K1 per-item batch failure categories](superpowers/plans/2026-09-26-wave1-k1-batch-failure-categories.md),
+[P1 PLC compile and cross-reference read integrity](superpowers/plans/2026-09-26-wave1-p1-plc-read-integrity.md),
+and [N1 network-device creation names](superpowers/plans/2026-09-26-wave1-n1-network-device-creation.md),
 [Network Phases 4-6 completion and delivery design](superpowers/specs/2026-09-21-network-phases-4-6-delivery-design.md),
 its [PR 1 Network Phase 4 finish plan](superpowers/plans/2026-09-21-pr1-network-phase4-finish.md),
 the [PR 2 Phase 5 fixture qualification and compile-contract plan](superpowers/plans/2026-09-24-pr2-network-phase5-qualification.md),
