@@ -498,6 +498,55 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     public async Task PreflightOwnerRejectsCoercedProofTypes(string mutation)
         => await AssertPreflightOwnerDecisionAsync("@(@{ index = 0; name = 'Controller' })", mutation, expectRejection: true);
 
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("$result.compileTarget = $null", true)]
+    [InlineData("$result.originalCompileTarget = $null", true)]
+    [InlineData("$result.compileTargetProof = $null", true)]
+    [InlineData("$result.compileTargetProof.ancestorPathDepth = 2", true)]
+    [InlineData("$result.compileTargetProof.directPlcSoftwareHostVerified = 'True'", true)]
+    [InlineData("$result.compileTargetProof.uniquePlcSoftwareInDevice = $false", true)]
+    [InlineData("$result.compileTargetProof.resolvedItemIdentityVerified = $false", true)]
+    [InlineData("$result.compileTargetProof.plcSoftwareIdentityVerified = $false", true)]
+    [InlineData("$result.compileTargetProof.compileServiceAvailable = $false", true)]
+    [InlineData("$result.compileTargetProof.postReadContinuityVerified = $false", true)]
+    [InlineData("$result.compileTarget.itemPath[0].index = 9", true)]
+    public async Task CompileTargetRequiresStrictAncestorAndCompleteTypedProof(string mutation, bool reject)
+    {
+        var path = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
+        await RunOfflinePowerShellAsync($$"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Harness parse failed.' }
+            foreach ($name in @('Assert-CompileTarget')) {
+                $functions = @($ast.FindAll({ param($node)
+                    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+                }, $true))
+                if ($functions.Count -ne 1) { throw 'Expected one compile-target guard.' }
+                . ([scriptblock]::Create($functions[0].Extent.Text))
+            }
+            $ownerPath = @(@{ index = 0; name = 'CPU' }, @{ index = 1; name = 'Interface' })
+            $compilePath = @(@{ index = 0; name = 'CPU' })
+            $result = @{
+                ownerTarget = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = $ownerPath }
+                originalCompileTarget = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = @(@{ index = 0; name = 'CPU' }) }
+                compileTarget = @{ kind = 'deviceItem'; deviceName = 'Synthetic'; itemPath = $compilePath }
+                compileTargetProof = @{
+                    ancestorPathDepth = 1; directPlcSoftwareHostVerified = $true
+                    uniquePlcSoftwareInDevice = $true; resolvedItemIdentityVerified = $true
+                    plcSoftwareIdentityVerified = $true; compileServiceAvailable = $true
+                    postReadContinuityVerified = $true
+                }
+            }
+            {{mutation}}
+            $rejected = $false
+            try { Assert-CompileTarget $result } catch { $rejected = $true }
+            if ($rejected -ne ${{reject.ToString().ToLowerInvariant()}}) { throw 'Unexpected compile-target proof decision.' }
+            """);
+    }
+
     private static async Task AssertPreflightOwnerDecisionAsync(string pathValue, string mutation, bool expectRejection)
     {
         var harness = Path.Combine(Root, "scripts/live-test-network-phase5-qualification.ps1").Replace("'", "''");
