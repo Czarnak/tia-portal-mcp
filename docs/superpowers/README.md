@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-26 | [Network Phase 5 qualified IO-system contract for later public slices](specs/2026-09-24-network-phase5-qualified-contract.md) |
 | 2026-09-21 | [Network Phases 4-6 completion and delivery](specs/2026-09-21-network-phases-4-6-delivery-design.md) |
 | 2026-09-13 | [Issue #30 PLC block header metadata](specs/2026-09-13-issue-30-plc-block-header-metadata-design.md) |
 | 2026-09-12 | [.NET 10 migration and dependency alignment](specs/2026-09-12-dotnet-10-migration-design.md) |
@@ -43,6 +44,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-24 | [PR 2 — Network Phase 5 fixture qualification and compile contract](plans/2026-09-24-pr2-network-phase5-qualification.md) |
 | 2026-09-21 | [PR 1 — Network Phase 4 finish and current-revision live acceptance](plans/2026-09-21-pr1-network-phase4-finish.md) |
 | 2026-09-13 | [Issue #30 PLC block header metadata](plans/2026-09-13-issue-30-plc-block-header-metadata.md) |
 | 2026-09-12 | [.NET 10 migration and dependency alignment](plans/2026-09-12-dotnet-10-migration.md) |
@@ -83,6 +85,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-26 | [Network Phase 5 PR 2 — bounded worker-only V21 qualification](acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md) |
 | 2026-09-24 | [Network Phase 4 PR 1 — bounded current-revision live PASS; 2026-09-23 failed attempt retained](acceptance/reports/2026-09-21-network-phase4-current-revision-live.md) |
 | 2026-09-12 | [Issue #32 — project-tree browsing v3 — accepted read-only PASS with explicit live ambiguity waiver](acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md) |
 | 2026-09-06 | [PR 6 — project-tree safety scopes — mandatory live PASS](acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md) |

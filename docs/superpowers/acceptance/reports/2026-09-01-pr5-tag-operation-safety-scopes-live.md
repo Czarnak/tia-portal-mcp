@@ -19,7 +19,7 @@ copy, fixtures, guarded calls, cleanup, and saved-baseline checks recorded here.
 - Disposable project copy:
   `C:\Users\LCZ\AppData\Local\Temp\TIA_PR5_20260905T222714Z\TIA_PR5_20260905T222714Z.ap21`.
 - Source project:
-  `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`.
+  `C:\path\to\Fixture-A.ap21`.
 - PLC identity: `PLC_LAD`.
 - Target table / sibling table: `Default tag table` at `/` / `Inputs` at `/`.
 - Target tag / collision tag / user constant: `AlwaysTRUE` (`Bool`, baseline `%M1.2`) /

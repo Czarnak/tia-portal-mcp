@@ -247,7 +247,7 @@ any production code is written.
 
 #### Spike findings (2026-07-27)
 
-Measured against TIA Portal V21 (Openness `21.0.0.0`), project `SimpleProject.ap21`, using
+Measured against TIA Portal V21 (Openness `21.0.0.0`), project `Fixture A`, using
 `PLC_1/Blocks/999_MISC/DamperAnalog` (SCL FB with UDT-typed and DB dependencies) and
 `PLC_1/Units/Test_SU/Blocks/HartCommandsRdWrInRun` (SCL FB inside a software unit).
 

@@ -36,7 +36,7 @@ suite.
 
 ## Mandatory Live Target
 
-- Project copy path (authorized test project): `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`
+- Project copy path (authorized test project): `C:\path\to\Fixture-A.ap21`
 - Requested `plcName` input: `PLC_LAD`
 - Resolved PLC name from `read_update_tag_safety_snapshot`: `PLC_LAD`
 - Root folder: `/`
@@ -56,13 +56,13 @@ suite.
 - stale-token `apply_write_batch` - PASS; applying the original stale token failed with `failureCategory = state_changed`
 - restoration step - PASS; the procedure's `finally` reconciliation restored `ExternalVisible = True`; no save, close, or discard was performed
 - separate final `Read` - PASS; strict snapshot and public-row assertions passed with `ExternalVisible = True`
-- direct final `get_project_status` - PASS; `SimpleProject.ap21` remained open with `isModified = true`; no save, close, or discard was performed
+- direct final `get_project_status` - PASS; `Fixture A` remained open with `isModified = true`; no save, close, or discard was performed
 
 ## Mandatory Live Results
 
 | Criterion | Historical invocation | Observed |
 |---|---|---|
-| Identity-bound internal safety read succeeds with the worker-stamped identity | Removed legacy procedure in `Read` mode against `SimpleProject.ap21`, PLC `PLC_LAD`, table `Inputs`, tag `DI_Reserve_1_7`, flag `ExternalVisible` | PASS - direct worker hello/status established the complete worker-stamped session identity; the strict safety snapshot resolved the exact target and observed `ExternalVisible = True` |
+| Identity-bound internal safety read succeeds with the worker-stamped identity | Removed legacy procedure in `Read` mode against `Fixture A`, PLC `PLC_LAD`, table `Inputs`, tag `DI_Reserve_1_7`, flag `ExternalVisible` | PASS - direct worker hello/status established the complete worker-stamped session identity; the strict safety snapshot resolved the exact target and observed `ExternalVisible = True` |
 | Exact-target snapshot resolves PLC identity and the chosen drift flag is readable | Same removed legacy `Read` procedure and target | PASS - resolved PLC `PLC_LAD`, root `/`, table `Inputs`, tag `DI_Reserve_1_7`; `ExternalVisible = True` |
 | Flag-only drift causes stale-token `state_changed` before mutation | Removed legacy procedure in explicitly authorized `ApplyDrift` mode against the same target | PASS - the authorized intermediate update changed only `ExternalVisible` `True` -> `False`; the original stale token was rejected with `failureCategory = state_changed`; reconciliation restored `True` |
 | Public `list_tag_tables` semantics remain unchanged | Same removed legacy `Read` procedure and target | PASS - registered `execute_read_batch/list_tag_tables` returned one successful operation matching `Bool` / `%I1.7`; an independent final `Read` again observed `ExternalVisible = True` |
@@ -118,6 +118,6 @@ required offline/registered evidence.
   was rejected with `failureCategory = state_changed`, and `finally` restored the flag to `True`.
   A separate final `Read` then passed the strict snapshot and public-row assertions with
   `ExternalVisible = True`.
-- Direct final `get_project_status` showed `SimpleProject.ap21` still open with `isModified = true`.
+- Direct final `get_project_status` showed `Fixture A` still open with `isModified = true`.
   No save, close, or discard was performed; TIA retains an unsaved modification marker from the
   transient change/restore round trip.

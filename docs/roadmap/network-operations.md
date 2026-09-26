@@ -19,8 +19,15 @@ and node/IO-system attributes were not independently read back. This is a bounde
 the frozen candidate. See the
 [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md)
 and [Phase 4 operation reference](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
-for the full contract and evidence status. Phases 5 and later remain open and are separate,
-not-yet-scheduled work.
+for the full contract and evidence status. Phase 5 PR 2 worker-only fixture and hardware-compile
+qualification completed on 2026-09-26; public IO-system editing and Phases 6 and later remain open.
+The Portal matrix ran at `03bf387`, not at the later branch HEAD. After
+post-live project/CI changes, no `.cs` or `.ps1` file changed; the rebuilt
+dependency manifest matched, while five of 53 PE files differed. The user
+accepted those changes as having no live impact, and the fresh full coverage
+suite passed 3,371/3,371 with line rate 0.9409 against 0.80. PR 2 is
+merge-ready on that explicit source/behavioral-equivalence decision; no merge
+or current-HEAD Portal run is claimed.
 
 Phase 2 completion is scoped narrowly: Tasks 1-7 of
 `docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md` are implemented and
@@ -203,9 +210,22 @@ the evidence limits above; see the
 
 ### Phase 5: Add IO-System Attribute Editing
 
-Support relevant PROFINET IO-system and DP master-system modeled and dynamic attributes.
-Validate known constraints before apply, then compile hardware because Openness can accept
-some values that TIA compilation later rejects.
+The 2026-09-26 PR 2 worker-only live matrix qualified PN and DP `Name`/`Number` and PN
+`UseIoSystemNameAsDeviceNameExtension` as candidates for later public slices. The exact
+controller interface owner and separate strict ancestor master PLC hardware compile target
+were proved for both fixtures. Baseline and successful edit/restoration hardware compiles
+were observed; the PN extension toggle also changed and restored a linked PN device name.
+PN `MultipleUseIoSystem` remains excluded because a committed toggle made that linked name
+unavailable before compile. `MaxNumberIWlanLinksPerSegment` remains excluded as an unknown
+attribute in this fixture; no DP dynamic field was admitted. See the
+[qualified contract](../superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
+and [bounded live report](../superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md).
+
+The temporary `probe_io_system_qualification` and guarded private harness produced that
+evidence, but add no public operation. `update_io_system` is still unshipped. Later modeled
+and dynamic slices require their own plans from merged `main`, strict TDD, public preview/apply
+and audit gates, and scope-specific live acceptance. A known committed post-read or hardware
+compile failure must be reported truthfully; no live failed compile was induced in PR 2.
 
 ### Phase 6: Add Generic Network Attribute Operations
 

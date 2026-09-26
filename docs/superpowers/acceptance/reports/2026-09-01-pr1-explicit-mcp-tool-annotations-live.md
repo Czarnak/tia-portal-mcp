@@ -10,7 +10,7 @@ Live acceptance completed by this separately authorized, non-mutating run. This 
 ## Tested environment
 
 - TIA Portal product version: 2100.0.121.1
-- Project copy path: `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`
+- Project copy path: `C:\path\to\Fixture-A.ap21`
 - Harness report path: `C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\docs\superpowers\acceptance\reports\2026-09-01-pr1-explicit-mcp-tool-annotations-live.md`
 - Read-only server: TiaMcpServer 1.0.0.0
 - Read-write server: TiaMcpServer 1.0.0.0
@@ -35,9 +35,9 @@ Benign call: `tools/call` for `get_project_status` with the project copy path. R
 {
   "success": true,
   "isOpen": true,
-  "path": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+  "path": "C:\\path\\to\\Fixture-A.ap21",
   "sessionIdentity": {
-    "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+    "projectPath": "C:\\path\\to\\Fixture-A.ap21",
     "portalProcessId": 3152
   }
 }
@@ -127,9 +127,9 @@ Benign call: `tools/call` for `get_project_status` with the project copy path. R
 {
   "success": true,
   "isOpen": true,
-  "path": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+  "path": "C:\\path\\to\\Fixture-A.ap21",
   "sessionIdentity": {
-    "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\plc-prompt-injections\\SimpleProject\\SimpleProject.ap21",
+    "projectPath": "C:\\path\\to\\Fixture-A.ap21",
     "portalProcessId": 3152
   }
 }

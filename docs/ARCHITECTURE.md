@@ -509,6 +509,35 @@ IO-system attributes, and its root count of 10 has no independent pre-Apply base
 `docs/superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md` for the
 observed run.
 
+### Phase 5 temporary IO-system qualification probe
+
+`probe_io_system_qualification` is a temporary worker-only diagnostic, classified as a project
+mutation and absent from the public MCP schema, host dispatch, and `NetworkOperationCatalog`.
+Its `inspectOwner` mode checks that an IO system has exactly one controller interface
+`DeviceItem` owner. The effectful modes separately prove the deepest strict ancestor
+`DeviceItem` that directly hosts the unique master `PlcSoftware` through
+`SoftwareContainer` and exposes `ICompilable`; they compile that hardware item, not the
+interface owner or containing `Device`. Missing or ambiguous owner, PLC role, compiler
+service, or pre/post identity continuity stops the operation. The guarded private harness
+uses read-only Inventory and Preview evidence. Compile accepts matching Inventory or
+Preview evidence; one-field Apply requires matching Preview evidence. Both effectful modes
+require a frozen candidate, unchanged evidence, an effectful switch, and an exact confirmation
+phrase. Apply rechecks the current value and session identity, commits before post-read and
+hardware compile, and reports a known post-commit failure without claiming rollback.
+
+The 2026-09-26 worker-only V21 matrix verified distinct owner and compiler targets for PN-B
+and DP-B, baseline hardware compiles, and bounded one-field edit/restoration evidence. It
+qualified PN and DP modeled `Name`/`Number` and PN
+`UseIoSystemNameAsDeviceNameExtension`; it excluded PN `MultipleUseIoSystem` after a
+committed edit made linked PN-name evidence unavailable, and excluded
+`MaxNumberIWlanLinksPerSegment` because the fixture reported `unknownAttribute`.
+The [historical acceptance report](superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md)
+records the harness limits and final clean reopen; the
+[qualified contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
+is input to later public slices. This diagnostic has no public safety token or write audit,
+and `update_io_system` is not shipped. Retire the probe with the final live-harness cleanup
+after the later public acceptance work.
+
 ## 8. Write safety
 
 Generic batch data writes use a two-tool flow; lifecycle and network writes are

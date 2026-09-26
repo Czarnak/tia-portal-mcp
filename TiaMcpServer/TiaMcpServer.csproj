@@ -5,7 +5,9 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>tia-mcp</ToolCommandName>
     <PackageId>TiaMcpServer</PackageId>
-    <Description>Model Context Protocol (MCP) server for Siemens SIMATIC TIA Portal V21. Enables MCP clients and AI agents to inspect, diagnose, and automate TIA Portal projects via Siemens Openness.</Description>
+    <Description>Model Context Protocol (MCP) server for Siemens SIMATIC TIA Portal V21. Enables MCP
+      clients and AI agents to inspect, diagnose, and automate TIA Portal projects via Siemens
+      Openness.</Description>
     <PackageTags>mcp;model-context-protocol;tia-portal;siemens;automation;plc;openness</PackageTags>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,7 +19,6 @@
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
   </ItemGroup>
 

@@ -11,24 +11,24 @@ and post-restoration compile checks recorded here.
 - Branch: `feat/project-tree-safety-scopes`
 - Commit: `cc63a93`
 - Startup host command:
-  `dotnet run --project TiaMcpServer -- --project C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`
+  `dotnet run --project TiaMcpServer -- --project C:\path\to\Fixture-A.ap21`
 - Disposable project:
-  `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`
+  `C:\path\to\Fixture-A.ap21`
 - TIA Portal version: `V21`, observed through public `get_project_status`.
 - `get_project_status` success before preview: `true` for both owner scopes in Preview and Apply
   modes; the separate Inventory status gate also succeeded.
 - Payload `isOpen` before preview: `true`.
 - Payload `path` before preview:
-  `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`.
+  `C:\path\to\Fixture-A.ap21`.
 - Envelope `sessionIdentity.projectPath` before preview:
-  `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`.
+  `C:\path\to\Fixture-A.ap21`.
 - Repeated `get_project_status` success before final compile: `true` before all six
   post-restoration compile checks in each owner scope.
 - Repeated payload `isOpen` before final compile: `true`.
 - Repeated payload `path` before final compile:
-  `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`.
+  `C:\path\to\Fixture-A.ap21`.
 - Repeated envelope `sessionIdentity.projectPath` before final compile:
-  `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21`.
+  `C:\path\to\Fixture-A.ap21`.
 
 The PLC-global fixture was `PLC_LAD/Blocks/PR6_Fixture`, with occupied FC
 `PLC_LAD/Blocks/PR6_Fixture/PR6_Occupied`. The Software Unit fixture was

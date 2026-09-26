@@ -57,7 +57,7 @@ the live acceptance evidence. The failed first Apply attempt remains part of tha
 - Date: 2026-09-05T15:13:41.3889267Z
 - TIA Portal version: V21 prerequisite; project version not reported
 - Host build: C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll; SHA256=F02D34DACCF120C63B29DC9A005BD74116D773ADB1C02B9A6017B3DD9FA8A51E
-- Disposable project path: C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21
+- Disposable project path: C:\path\to\Fixture-A.ap21
 - Binding verification: PASS: exact project path and worker/session/Portal identity fc8d88025e684f168d671bfd23d3eab6/2/54096
 - Block target: PLC_LAD/Blocks/100_Inputs/InputValues_DB
 - Type target: PLC_LAD/Types/AnalogInputSettings
@@ -92,7 +92,7 @@ the live acceptance evidence. The failed first Apply attempt remains part of tha
 - Date: 2026-09-05T15:34:00.0925519Z
 - TIA Portal version: V21 prerequisite; project version not reported
 - Host build: C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll; SHA256=F02D34DACCF120C63B29DC9A005BD74116D773ADB1C02B9A6017B3DD9FA8A51E
-- Disposable project path: C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21
+- Disposable project path: C:\path\to\Fixture-A.ap21
 - Binding verification: PASS: exact project path and worker/session/Portal identity 4e5a5208a2274fbf9480dc6d4286bc8f/2/54096
 - Block target: PLC_LAD/Blocks/100_Inputs/InputValues_DB
 - Type target: PLC_LAD/Types/AnalogInputSettings
@@ -127,7 +127,7 @@ the live acceptance evidence. The failed first Apply attempt remains part of tha
 - Date: 2026-09-05T15:34:36.0127998Z
 - TIA Portal version: V21 prerequisite; project version not reported
 - Host build: C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll; SHA256=F02D34DACCF120C63B29DC9A005BD74116D773ADB1C02B9A6017B3DD9FA8A51E
-- Disposable project path: C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21
+- Disposable project path: C:\path\to\Fixture-A.ap21
 - Binding verification: PASS: exact project path and worker/session/Portal identity faa274f50b844c4e89a2520415d72e47/2/54096
 - Block target: PLC_LAD/Blocks/100_Inputs/InputValues_DB
 - Type target: PLC_LAD/Types/AnalogInputSettings
@@ -162,7 +162,7 @@ the live acceptance evidence. The failed first Apply attempt remains part of tha
 - Date: 2026-09-05T15:36:47.1841594Z
 - TIA Portal version: V21 prerequisite; project version not reported
 - Host build: C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll; SHA256=F02D34DACCF120C63B29DC9A005BD74116D773ADB1C02B9A6017B3DD9FA8A51E
-- Disposable project path: C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21
+- Disposable project path: C:\path\to\Fixture-A.ap21
 - Binding verification: PASS: exact project path and worker/session/Portal identity ff64b915d5b94d5ea109be92fba4262e/2/54096
 - Block target: PLC_LAD/Blocks/100_Inputs/InputValues_DB
 - Type target: PLC_LAD/Types/AnalogInputSettings
@@ -197,7 +197,7 @@ the live acceptance evidence. The failed first Apply attempt remains part of tha
 - Date: 2026-09-05T15:45:36.7944391Z
 - TIA Portal version: V21 prerequisite; project version not reported
 - Host build: C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll; SHA256=F02D34DACCF120C63B29DC9A005BD74116D773ADB1C02B9A6017B3DD9FA8A51E
-- Disposable project path: C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21
+- Disposable project path: C:\path\to\Fixture-A.ap21
 - Binding verification: PASS: exact project path and worker/session/Portal identity 84467691db48449a9582d9289d1bbe1e/2/54096
 - Block target: PLC_LAD/Blocks/100_Inputs/InputValues_DB
 - Type target: PLC_LAD/Types/HMI_COUNTERS_UDTs/UDT_WORK_CNT
@@ -232,7 +232,7 @@ the live acceptance evidence. The failed first Apply attempt remains part of tha
 - Date: 2026-09-05T15:45:58.8698473Z
 - TIA Portal version: V21 prerequisite; project version not reported
 - Host build: C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp\TiaMcpServer\bin\Debug\net8.0\TiaMcpServer.dll; SHA256=F02D34DACCF120C63B29DC9A005BD74116D773ADB1C02B9A6017B3DD9FA8A51E
-- Disposable project path: C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\SimpleProject\SimpleProject.ap21
+- Disposable project path: C:\path\to\Fixture-A.ap21
 - Binding verification: PASS: exact project path and worker/session/Portal identity a37ce5e1aa784019809aa49e7d3cdf7e/2/54096
 - Block target: PLC_LAD/Blocks/100_Inputs/InputValues_DB
 - Type target: PLC_LAD/Types/HMI_COUNTERS_UDTs/UDT_WORK_CNT

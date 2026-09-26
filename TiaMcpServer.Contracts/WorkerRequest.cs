@@ -331,6 +331,13 @@ public class WorkerRequest
 
     #endregion
 
+    #region Internal Network Phase 5 IO-system qualification probe
+
+    /// <summary>Forwarded only by: probe_io_system_qualification.</summary>
+    public IoSystemQualificationProbeInfo? IoSystemQualification { get; set; }
+
+    #endregion
+
     #region Project lifecycle
 
     /// <summary>Forwarded by: create_project.</summary>
