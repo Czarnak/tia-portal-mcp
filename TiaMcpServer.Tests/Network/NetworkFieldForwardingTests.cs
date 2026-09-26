@@ -114,6 +114,28 @@ public class NetworkFieldForwardingTests
     }
 
     [Fact]
+    public async Task AddNetworkDevice_DistinctDeviceAndItemNames_AreForwardedUnchanged()
+    {
+        var operation = new NetworkOperationRequest
+        {
+            OperationId = "add-distinct-names",
+            Operation = "add_network_device",
+            ProjectPath = "echo",
+            TypeIdentifier = "OrderNumber:6ES7",
+            DeviceName = "MCP_Station",
+            DeviceItemName = "MCP_PLC",
+        };
+
+        using var client = await CreateClientAsync();
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+
+        Assert.True(result.Success, result.Error);
+        using var document = JsonDocument.Parse(result.Payload);
+        Assert.Equal("MCP_Station", document.RootElement.GetProperty("deviceName").GetString());
+        Assert.Equal("MCP_PLC", document.RootElement.GetProperty("deviceItemName").GetString());
+    }
+
+    [Fact]
     public async Task ConfigureNetworkDevice_ForwardsEveryExactIdentityAndChange()
     {
         var operation = new NetworkOperationRequest
