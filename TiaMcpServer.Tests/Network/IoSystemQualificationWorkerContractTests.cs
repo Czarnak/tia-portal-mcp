@@ -275,6 +275,23 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
+    public void Mutation_PostCommitFailureCannotReportPreEditOwnerAsCurrent()
+    {
+        var body = ExtractMethodBody(Source, "SetAndCompile");
+        Ordered(body, "transaction.CommitOnDispose();", "result.MutationCommitted = true;",
+            "result.OwnerTarget = null;", "result.OwnerIdentityVerified = false;",
+            "result.OwnerMatchCount = 0;", "result.CompileTarget = null;",
+            "result.CompileTargetProof = null;", "ReadAppliedStateAndNewSelector(project, request)",
+            "RequireSameMasterPlcCompilerTarget(project, applied, preEditOwner, preEditCompiler)",
+            "result.OwnerTarget = verified.Owner.Selector;",
+            "result.OwnerIdentityVerified = true;", "result.OwnerMatchCount = 1;",
+            "SetCompileTargetEvidence(result, preEditCompiler, verified, true)", "CompileHardware(verified.Item, result)");
+        Assert.Contains("SetCompileTargetEvidence(result, preEditCompiler, preEditCompiler, false)", body);
+        Assert.DoesNotContain("result.OriginalCompileTarget = null", body);
+        Assert.Contains("result.CompileState = \"postCommitFailure\"", body);
+    }
+
+    [Fact]
     public void Mutation_CapturesCompleteAffectedPnNamesOnBothSidesOfCommit()
     {
         var body = ExtractMethodBody(Source, "SetAndCompile");
