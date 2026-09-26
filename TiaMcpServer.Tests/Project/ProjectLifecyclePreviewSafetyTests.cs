@@ -16,6 +16,136 @@ public sealed class ProjectLifecyclePreviewSafetyTests
     private const string DestinationPath = @"C:\Lifecycle\B.ap21";
 
     [Fact]
+    public async Task LifecyclePreviews_OmittedPath_ShowResolvedSource()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        const string source = "lifecycle-probe-only";
+        const string targetDirectory = @"C:\Lifecycle\Copies";
+        const string targetName = "Copy";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
+        var resolvedSource = Assert.IsType<string>(binding.CaptureSnapshot().ProjectPath);
+        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        try
+        {
+            using var save = JsonDocument.Parse(await ProjectWriteTools.SaveProject(client, safety));
+            AssertResolvedSourcePreview(save.RootElement, resolvedSource, new { projectPath = (string?)null });
+
+            using var saveAs = JsonDocument.Parse(await ProjectWriteTools.SaveProjectAs(
+                client, safety, targetDirectory, targetName));
+            AssertResolvedSourcePreview(saveAs.RootElement, resolvedSource,
+                new { projectPath = (string?)null, targetDirectory, targetName, rebind = true });
+
+            using var archive = JsonDocument.Parse(await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory, "Backup"));
+            AssertResolvedSourcePreview(archive.RootElement, resolvedSource,
+                new { projectPath = (string?)null, archiveDirectory, archiveName = "Backup", mode = (string?)null, saveBeforeArchive = true });
+            Assert.True(archive.RootElement.GetProperty("target").GetProperty("saveBeforeArchive").GetBoolean());
+            Assert.Contains("save", archive.RootElement.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
+
+            using var close = JsonDocument.Parse(await ProjectWriteTools.CloseProject(client, safety));
+            AssertResolvedSourcePreview(close.RootElement, resolvedSource,
+                new { projectPath = (string?)null, saveBeforeClose = true });
+            Assert.True(close.RootElement.GetProperty("target").GetProperty("saveBeforeClose").GetBoolean());
+            Assert.Contains("save", close.RootElement.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
+            AssertNoAudit(audit);
+
+            var appliedSave = await ProjectWriteTools.SaveProject(
+                client, safety, confirm: true,
+                safetyToken: save.RootElement.GetProperty("safetyToken").GetString());
+            using var appliedDocument = JsonDocument.Parse(appliedSave);
+            Assert.True(appliedDocument.RootElement.GetProperty("success").GetBoolean());
+        }
+        finally
+        {
+            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(DestinationPath, true)]
+    [InlineData(@"C:\Lifecycle\B-ui-owned.ap21", false)]
+    public async Task OpenProject_ForceRebindPreview_NamesSourceDestinationAndDisposition(
+        string destination, bool willCloseSource)
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+
+        var preview = await ProjectWriteTools.OpenProject(client, safety, destination, forceRebind: true);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+        var target = root.GetProperty("target");
+        var summary = root.GetProperty("summary").GetString();
+
+        Assert.Equal(SourcePath, target.GetProperty("sourceProjectPath").GetString());
+        Assert.Equal(destination, target.GetProperty("destinationProjectPath").GetString());
+        Assert.Contains(SourcePath, summary, StringComparison.Ordinal);
+        Assert.Contains(destination, summary, StringComparison.Ordinal);
+        Assert.Contains(willCloseSource ? "close" : "remain open", summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(
+            new { projectPath = destination, forceRebind = true })),
+            root.GetProperty("requestedInputHash").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("safetyToken").GetString()));
+        await AssertNoOpenProjectCallsAsync(client, SourcePath);
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task LifecyclePreviews_ExplicitPathAndSaveChoice_AreAccurate()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        const string source = "lifecycle-probe-only";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
+        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        try
+        {
+            using var archive = JsonDocument.Parse(await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory, "Backup", saveBeforeArchive: false, projectPath: source));
+            var archiveRoot = archive.RootElement;
+            Assert.Equal(source, archiveRoot.GetProperty("target").GetProperty("projectPath").GetString());
+            Assert.False(archiveRoot.GetProperty("target").GetProperty("saveBeforeArchive").GetBoolean());
+            Assert.Contains(source, archiveRoot.GetProperty("summary").GetString(), StringComparison.Ordinal);
+            Assert.Contains("without saving", archiveRoot.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(
+                new { projectPath = source, archiveDirectory, archiveName = "Backup", mode = (string?)null, saveBeforeArchive = false })),
+                archiveRoot.GetProperty("requestedInputHash").GetString());
+
+            using var close = JsonDocument.Parse(await ProjectWriteTools.CloseProject(
+                client, safety, projectPath: source, saveBeforeClose: false));
+            var closeRoot = close.RootElement;
+            Assert.Equal(source, closeRoot.GetProperty("target").GetProperty("projectPath").GetString());
+            Assert.False(closeRoot.GetProperty("target").GetProperty("saveBeforeClose").GetBoolean());
+            Assert.Contains(source, closeRoot.GetProperty("summary").GetString(), StringComparison.Ordinal);
+            Assert.Contains("without saving", closeRoot.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(
+                new { projectPath = source, saveBeforeClose = false })),
+                closeRoot.GetProperty("requestedInputHash").GetString());
+            AssertNoAudit(audit);
+        }
+        finally
+        {
+            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
+        }
+    }
+
+    private static void AssertResolvedSourcePreview(JsonElement preview, string source, object requestedInput)
+    {
+        Assert.Equal(source, preview.GetProperty("target").GetProperty("projectPath").GetString());
+        Assert.Contains(source, preview.GetProperty("summary").GetString(), StringComparison.Ordinal);
+        Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(requestedInput)),
+            preview.GetProperty("requestedInputHash").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(preview.GetProperty("safetyToken").GetString()));
+    }
+
+    [Fact]
     public async Task OpenProject_DifferentBoundPathWithoutForce_PreviewBindingConflictWithoutToken()
     {
         using var audit = new TempAuditDirectory();
@@ -334,6 +464,10 @@ public sealed class ProjectLifecyclePreviewSafetyTests
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, SourcePath);
         using var previewDocument = JsonDocument.Parse(preview);
+        var samePathTarget = previewDocument.RootElement.GetProperty("target");
+        Assert.Equal(SourcePath, samePathTarget.GetProperty("sourceProjectPath").GetString());
+        Assert.Equal(SourcePath, samePathTarget.GetProperty("destinationProjectPath").GetString());
+        Assert.Contains("remain open", previewDocument.RootElement.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
         var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
 
         var apply = await ProjectWriteTools.OpenProject(
@@ -392,6 +526,9 @@ public sealed class ProjectLifecyclePreviewSafetyTests
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, destination);
         using var previewDocument = JsonDocument.Parse(preview);
+        var unboundTarget = previewDocument.RootElement.GetProperty("target");
+        Assert.Equal(JsonValueKind.Null, unboundTarget.GetProperty("sourceProjectPath").ValueKind);
+        Assert.Equal(destination, unboundTarget.GetProperty("destinationProjectPath").GetString());
         var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
 
         var apply = await ProjectWriteTools.OpenProject(

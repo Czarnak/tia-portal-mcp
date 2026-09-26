@@ -161,6 +161,14 @@ the plain project status only — it never enumerates history or the extended me
 
 Supported archive modes are `None`, `DiscardRestorableData`, `Compressed`, and `DiscardRestorableDataAndCompressed`. Lifecycle tools are single-tool operations and cannot be included in a batch.
 
+### What a lifecycle preview shows
+
+The preview names the effective project in `target.projectPath` and in its summary for `save_project`, `save_project_as`, `archive_project`, and `close_project`. When `projectPath` is omitted, that displayed path comes from the verified session binding; omission is still preserved as `null` in the token's requested-input hash. Passing an explicit path keeps that original input in the hash. The preview and confirmed apply reconstruct the same target, so changing the input or the binding requires a fresh preview.
+
+For a force-rebind `open_project` preview, `target` distinguishes `sourceProjectPath` from `destinationProjectPath`; the summary names both projects and says whether the source will close or remain open, based on the exact rebind-state probe. A worker-owned source with unsaved changes that would close is refused at preview with `validation_error` and no token. A UI-owned source remains open; a same-path open is idempotent, and an unbound session has no source project to close. These are previewed consequences, not proof that a later apply has occurred.
+
+Archive and close previews show `saveBeforeArchive` and `saveBeforeClose`, including when the caller chooses not to save first. An archive directory must already exist and must not be the project's own folder or a subdirectory; both conditions are checked before a token is issued, and existence is checked again on apply before worker mutation. The own-folder diagnostic takes precedence when both restrictions apply.
+
 ### MCP client hints
 
 `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, and

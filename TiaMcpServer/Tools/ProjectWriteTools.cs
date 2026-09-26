@@ -27,7 +27,6 @@ public class ProjectWriteTools
     [Description("Open a TIA Portal project and bind this MCP session to it. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
     public static async Task<string> OpenProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Path to the .ap21 project file to open.")] string projectPath, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null, [Description("Set true to allow rebinding this MCP session from a previously bound project.")] bool forceRebind = false)
     {
-        var target = new { projectPath };
         var requestedInput = new { projectPath, forceRebind };
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
@@ -98,16 +97,24 @@ public class ProjectWriteTools
                         "The worker-owned source project has unsaved changes and would be closed by this rebind. Save or close it explicitly before previewing again."));
                 }
 
+                var sourceProjectPath = workerClient is null
+                    ? null
+                    : ProjectPathNormalization.Canonicalize(workerClient.BindingSnapshot.ProjectPath);
+                var destinationProjectPath = ProjectPathNormalization.Canonicalize(projectPath) ?? projectPath;
+                var previewTarget = new { projectPath, sourceProjectPath, destinationProjectPath };
                 return WriteSafetyTooling.CreatePreview(
-                    safety, "open_project", projectPath, target,
-                    $"Open and bind TIA Portal project '{projectPath}'.", requestedInput,
+                    safety, "open_project", projectPath, previewTarget,
+                    DescribeOpenProjectPreview(sourceProjectPath, projectPath, currentState), requestedInput,
                     currentState, diff: null, instructions: ApplyInstructions("open_project"));
             }, recoveredBinding).ConfigureAwait(false);
         }
         if (!confirm) return ConfirmRequired("open_project");
-        var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("open_project"), "open_project", projectPath, target, requestedInput, () => ReadOpenProjectCurrentStateAsync(workerClient, projectPath, forceRebind), () => workerClient.OpenProjectAsync(projectPath, forceRebind), async (context, operationResult) =>
+        var applySourceProjectPath = ProjectPathNormalization.Canonicalize(workerClient?.BindingSnapshot.ProjectPath);
+        var applyDestinationProjectPath = ProjectPathNormalization.Canonicalize(projectPath) ?? projectPath;
+        var target = new { projectPath, sourceProjectPath = applySourceProjectPath, destinationProjectPath = applyDestinationProjectPath };
+        var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient!, safety, safetyToken, PreviewHint("open_project"), "open_project", projectPath, target, requestedInput, () => ReadOpenProjectCurrentStateAsync(workerClient!, projectPath, forceRebind), () => workerClient!.OpenProjectAsync(projectPath, forceRebind), async (context, operationResult) =>
         {
-            var verification = operationResult.Success ? (await workerClient.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
+            var verification = operationResult.Success ? (await workerClient!.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
             safety.AppendAudit("open_project", projectPath, target, requestedInput, context.CurrentState, operationResult.ToText());
             return verification;
         }).ConfigureAwait(false);
@@ -115,6 +122,36 @@ public class ProjectWriteTools
         if (!safetyContext.IsValid) return SafetyFailure("open_project", safetyContext);
         var result = apply.OperationResult!;
         return WriteSafetyTooling.BuildApplyResult("open_project", result, "get_project_status", apply.VerificationResult);
+    }
+
+    private static string DescribeOpenProjectPreview(
+        string? sourceProjectPath,
+        string destinationProjectPath,
+        WorkerCallResult currentState)
+    {
+        if (sourceProjectPath is null)
+        {
+            return $"No source project is bound. Open and bind destination project '{destinationProjectPath}'.";
+        }
+
+        if (string.Equals(sourceProjectPath, destinationProjectPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Project '{sourceProjectPath}' is already bound; it will remain open.";
+        }
+
+        if (!currentState.Success)
+        {
+            return $"Open destination project '{destinationProjectPath}' from source '{sourceProjectPath}'.";
+        }
+
+        using var document = JsonDocument.Parse(currentState.Payload);
+        var state = document.RootElement;
+        var source = state.GetProperty("sourceProjectPath").GetString();
+        var destination = state.GetProperty("destinationProjectPath").GetString();
+        var willCloseSource = state.GetProperty("willCloseSource").GetBoolean();
+        return willCloseSource
+            ? $"Open destination project '{destination}' and close worker-owned source project '{source}'."
+            : $"Open destination project '{destination}'; source project '{source}' will remain open.";
     }
 
     private static async Task<WorkerCallResult> ReadOpenProjectCurrentStateAsync(
@@ -245,12 +282,20 @@ public class ProjectWriteTools
     [Description("Save the active TIA Portal project. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
     public static async Task<string> SaveProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
     {
-        var target = new { projectPath };
         var requestedInput = new { projectPath };
         if (!string.IsNullOrWhiteSpace(safetyToken) && !confirm) return ConfirmRequired("save_project");
         var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
         if (!bindingGate.Success) return WriteSafetyTooling.BuildApplyResult("save_project", bindingGate);
-        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "save_project", async () => WriteSafetyTooling.CreatePreview(safety, "save_project", projectPath, target, "Save the active TIA Portal project.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project"))).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "save_project", async () =>
+        {
+            var displayedPath = ResolveDisplayedProjectPath(workerClient, projectPath);
+            var previewTarget = new { projectPath = displayedPath };
+            return WriteSafetyTooling.CreatePreview(safety, "save_project", projectPath, previewTarget,
+                $"Save project '{displayedPath}'.", requestedInput,
+                await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false),
+                diff: null, instructions: ApplyInstructions("save_project"));
+        }).ConfigureAwait(false);
+        var target = new { projectPath = ResolveDisplayedProjectPath(workerClient, projectPath) };
         var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("save_project"), "save_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath), () => workerClient.SaveProjectAsync(projectPath), async (context, operationResult) =>
         {
             var verification = operationResult.Success ? (await workerClient.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
@@ -278,12 +323,20 @@ public class ProjectWriteTools
                 WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, OpennessWorkerClient.RebindFalseUnsupportedMessage));
         }
 
-        var target = new { projectPath, targetDirectory, targetName };
         var requestedInput = new { projectPath, targetDirectory, targetName, rebind };
         if (!string.IsNullOrWhiteSpace(safetyToken) && !confirm) return ConfirmRequired("save_project_as");
         var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
         if (!bindingGate.Success) return WriteSafetyTooling.BuildApplyResult("save_project_as", bindingGate);
-        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "save_project_as", async () => WriteSafetyTooling.CreatePreview(safety, "save_project_as", projectPath, target, $"Save active project as '{targetName}' in '{targetDirectory}'.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("save_project_as"))).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "save_project_as", async () =>
+        {
+            var displayedPath = ResolveDisplayedProjectPath(workerClient, projectPath);
+            var previewTarget = new { projectPath = displayedPath, targetDirectory, targetName };
+            return WriteSafetyTooling.CreatePreview(safety, "save_project_as", projectPath, previewTarget,
+                $"Save source project '{displayedPath}' as '{targetName}' in '{targetDirectory}' and rebind to the copy.",
+                requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false),
+                diff: null, instructions: ApplyInstructions("save_project_as"));
+        }).ConfigureAwait(false);
+        var target = new { projectPath = ResolveDisplayedProjectPath(workerClient, projectPath), targetDirectory, targetName };
         var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("save_project_as"), "save_project_as", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath), () => workerClient.SaveProjectAsAsync(projectPath, targetDirectory, targetName, rebind), async (context, operationResult) =>
         {
             var verification = operationResult.Success ? (await workerClient.GetBasicProjectStatusAsync(null).ConfigureAwait(false)).ToText() : null;
@@ -307,12 +360,23 @@ public class ProjectWriteTools
         var resolvedArchiveName = ArchiveModeNames.TryNormalize(mode, out var normalizedMode, out _)
             ? ArchiveModeNames.EnsureArchiveExtension(archiveName, normalizedMode)
             : archiveName;
-        var target = new { projectPath, archiveDirectory, archiveName = resolvedArchiveName };
         var requestedInput = new { projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive };
         if (!string.IsNullOrWhiteSpace(safetyToken) && !confirm) return ConfirmRequired("archive_project");
         var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
         if (!bindingGate.Success) return WriteSafetyTooling.BuildApplyResult("archive_project", bindingGate);
-        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "archive_project", async () => WriteSafetyTooling.CreatePreview(safety, "archive_project", projectPath, target, $"Archive active project to '{archiveDirectory}\\{resolvedArchiveName}'.", requestedInput, RejectIfArchiveDirectoryWithinProjectFolder(await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), archiveDirectory), diff: null, instructions: ApplyInstructions("archive_project"))).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "archive_project", async () =>
+        {
+            var displayedPath = ResolveDisplayedProjectPath(workerClient, projectPath);
+            var previewTarget = new { projectPath = displayedPath, archiveDirectory, archiveName = resolvedArchiveName, saveBeforeArchive };
+            var summary = saveBeforeArchive
+                ? $"Save project '{displayedPath}', then archive it to '{archiveDirectory}\\{resolvedArchiveName}'."
+                : $"Archive project '{displayedPath}' to '{archiveDirectory}\\{resolvedArchiveName}' without saving first.";
+            return WriteSafetyTooling.CreatePreview(safety, "archive_project", projectPath, previewTarget, summary,
+                requestedInput, RejectIfArchiveDirectoryWithinProjectFolder(
+                    await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), archiveDirectory),
+                diff: null, instructions: ApplyInstructions("archive_project"));
+        }).ConfigureAwait(false);
+        var target = new { projectPath = ResolveDisplayedProjectPath(workerClient, projectPath), archiveDirectory, archiveName = resolvedArchiveName, saveBeforeArchive };
         var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("archive_project"), "archive_project", projectPath, target, requestedInput, async () => RejectIfArchiveDirectoryWithinProjectFolder(await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), archiveDirectory), () => workerClient.ArchiveProjectAsync(projectPath, archiveDirectory, archiveName, mode, saveBeforeArchive), async (context, operationResult) =>
         {
             var verification = operationResult.Success ? (await workerClient.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
@@ -333,12 +397,22 @@ public class ProjectWriteTools
     [Description("Close the active TIA Portal project and clear this MCP session binding. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]
     public static async Task<string> CloseProject(OpennessWorkerClient workerClient, WriteSafetyService safety, [Description("Optional path to a .ap21 project file. If omitted, closes the currently bound/open project.")] string? projectPath = null, [Description("Save the project before closing it.")] bool saveBeforeClose = true, [Description("Set to true together with safetyToken to apply. Ignored on the preview call.")] bool confirm = false, [Description("Safety token from this tool's preview call. Omit to get a preview + token.")] string? safetyToken = null)
     {
-        var target = new { projectPath };
         var requestedInput = new { projectPath, saveBeforeClose };
         if (!string.IsNullOrWhiteSpace(safetyToken) && !confirm) return ConfirmRequired("close_project");
         var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
         if (!bindingGate.Success) return WriteSafetyTooling.BuildApplyResult("close_project", bindingGate);
-        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "close_project", async () => WriteSafetyTooling.CreatePreview(safety, "close_project", projectPath, target, "Close the active TIA Portal project.", requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false), diff: null, instructions: ApplyInstructions("close_project"))).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "close_project", async () =>
+        {
+            var displayedPath = ResolveDisplayedProjectPath(workerClient, projectPath);
+            var previewTarget = new { projectPath = displayedPath, saveBeforeClose };
+            var summary = saveBeforeClose
+                ? $"Save project '{displayedPath}', then close it."
+                : $"Close project '{displayedPath}' without saving.";
+            return WriteSafetyTooling.CreatePreview(safety, "close_project", projectPath, previewTarget, summary,
+                requestedInput, await workerClient.ProbeProjectStatusForLifecycleAsync(projectPath).ConfigureAwait(false),
+                diff: null, instructions: ApplyInstructions("close_project"));
+        }).ConfigureAwait(false);
+        var target = new { projectPath = ResolveDisplayedProjectPath(workerClient, projectPath), saveBeforeClose };
         var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("close_project"), "close_project", projectPath, target, requestedInput, () => workerClient.ProbeProjectStatusForLifecycleAsync(projectPath), () => workerClient.CloseProjectAsync(projectPath, saveBeforeClose), (context, operationResult) =>
         {
             safety.AppendAudit("close_project", projectPath, target, requestedInput, context.CurrentState, operationResult.ToText());
@@ -349,6 +423,9 @@ public class ProjectWriteTools
         var result = apply.OperationResult!;
         return WriteSafetyTooling.BuildApplyResult("close_project", result, "get_project_status", null);
     }
+
+    private static string? ResolveDisplayedProjectPath(OpennessWorkerClient workerClient, string? requestedProjectPath)
+        => requestedProjectPath ?? workerClient.BindingSnapshot.ProjectPath;
 
     private static WorkerCallResult RejectIfArchiveDirectoryWithinProjectFolder(WorkerCallResult probe, string archiveDirectory)
     {
