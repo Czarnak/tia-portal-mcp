@@ -55,9 +55,15 @@ status failed solely on transient project-size drift, and the clean close-withou
 result. No failed hardware compile was induced. `update_io_system` remains unshipped. The next
 public slice still needs a fresh plan from merged `main`, strict TDD, the canonical safety and
 audit gate, and its own live public-path acceptance.
-Post-live host/test project-reference and CI changes in `7a51365` mean the recorded
-`03bf387` live matrix does not qualify the later branch HEAD for merge; candidate re-pin
-or scope resolution under the delivery plan remains open.
+The live Portal matrix ran at `03bf387`, not at the later branch HEAD. After
+the post-live host/test project-reference and CI changes, no `.cs` or `.ps1`
+file changed; the rebuilt dependency manifest still matched, although five
+of 53 core PE files differed. The user accepted the changes as having no live
+impact. A fresh full coverage run passed 3,371/3,371 at line rate 0.9409
+against the 0.80 threshold, and both serial builds passed with zero errors
+and seven existing warnings. PR 2 is merge-ready by the explicit
+source/behavioral-equivalence carry-forward, not by binary identity or a
+current-HEAD Portal rerun. No merge was performed.
 
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 

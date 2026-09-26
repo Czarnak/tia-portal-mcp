@@ -19,12 +19,17 @@ This was a diagnostic worker route, not a public `network_write` acceptance run.
 | Fixture | One user-authorized disposable V21 copy, with PN-B and DP-B aliases. Exact project path, selectors, requested values, session identity, and raw transport records remain ignored locally. |
 | Route | Public `network_read` Inventory/Preview plus guarded worker-only `probe_io_system_qualification` Compile/Apply. The worker probe is classified as a project mutation and has no public MCP registration. |
 
-**Current-HEAD gate remains pending.** Post-live commit `7a51365` changed
-host and test project references and CI after candidate `03bf387` was frozen.
-This report establishes live behavior only for the recorded candidate; it
-does not qualify the later branch HEAD for merge. Re-pin the executable
-candidate and resolve the changed-scope gate under the delivery plan before
-claiming current-HEAD live acceptance or PR 2 merge readiness.
+**Post-live carry-forward decision.** The Portal run occurred only at
+`03bf387`; the later branch HEAD was not run against Portal. Commit `7a51365`
+changed host/test project references and CI, and `f057f4c` corrected CI's
+coverage invocation. No `.cs` or `.ps1` file changed after the frozen live
+candidate. A comparison against the manifest found five differing rebuilt
+core PE files among 53 files, so byte identity is not claimed. The current
+`TiaMcpServer.deps.json` hash matches the frozen manifest, and neither output
+contains a Registry runtime payload. The user accepted the project/CI changes
+as having no live impact. On that explicit decision, this branch is treated as
+live-qualified by source and behavioral equivalence to the tested candidate,
+not by a current-HEAD Portal run or binary identity.
 
 The earlier attached-MCP read and earlier candidate probes were reconnaissance,
 not substitutes for these frozen-candidate results. The ignored manifest and
@@ -106,17 +111,20 @@ mode change. No persistence, plant, or installed-package acceptance is claimed.
 
 ## Offline verification after the live run
 
-One full test-suite run with coverage reported 3,370 passed and one failed:
+The first post-change full coverage run reported 3,370 passed and one failed:
 `DirectPack_WithSdk10_IncludesCanonicalWorkerPayload(noBuild: True)`.
-Its Cobertura line rate was 0.9409, above the required 0.80. After the
-post-live project-reference change, a fresh restore and serial stub and
-installed-V21 solution builds each passed with zero errors and seven xUnit
-analyzer warnings. The single failed packaging test then passed in a focused
-coverage run. The cause of its earlier failure was not established, and the
-full suite was not repeated on the later HEAD. Commit `f057f4c` corrected the
-CI coverage command's xUnit argument separator; test discovery validated the
-corrected invocation. These offline checks do not extend the frozen live
-candidate's evidence to the later HEAD.
+That packaging test passed on a focused repeat. A fresh later full suite with
+coverage passed **3,371/3,371**; Cobertura line rate was **0.9409**, above the
+required **0.80**. Fresh restore and both serial solution builds, one with
+reference stubs and one with installed V21 references, passed with zero errors
+and seven existing xUnit analyzer warnings each. Commit `f057f4c` corrected
+CI's xUnit coverage argument separator. These are offline gates, distinct
+from the bounded live run at `03bf387`.
+
+With the green post-change offline gates, the accepted live-evidence
+carry-forward, and the separate historical-document privacy redaction, PR 2
+is **merge-ready**. No merge, public `network_write` operation, project save,
+download, plant acceptance, or installed-package acceptance was performed.
 
 PR 3 and later public slices require their own strict TDD, public preview/apply
 and audit acceptance, stale-state rejection, bounded known-committed failure

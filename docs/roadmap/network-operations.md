@@ -21,8 +21,13 @@ the frozen candidate. See the
 and [Phase 4 operation reference](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
 for the full contract and evidence status. Phase 5 PR 2 worker-only fixture and hardware-compile
 qualification completed on 2026-09-26; public IO-system editing and Phases 6 and later remain open.
-Post-live project-reference and CI changes in `7a51365` leave current-HEAD
-live qualification and PR 2 merge readiness pending candidate re-pin or scope resolution.
+The Portal matrix ran at `03bf387`, not at the later branch HEAD. After
+post-live project/CI changes, no `.cs` or `.ps1` file changed; the rebuilt
+dependency manifest matched, while five of 53 PE files differed. The user
+accepted those changes as having no live impact, and the fresh full coverage
+suite passed 3,371/3,371 with line rate 0.9409 against 0.80. PR 2 is
+merge-ready on that explicit source/behavioral-equivalence decision; no merge
+or current-HEAD Portal run is claimed.
 
 Phase 2 completion is scoped narrowly: Tasks 1-7 of
 `docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md` are implemented and
