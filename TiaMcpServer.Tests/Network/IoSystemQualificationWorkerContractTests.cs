@@ -10,6 +10,63 @@ public class IoSystemQualificationWorkerContractTests
     private static string Source => File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/IoSystemQualificationProbeService.cs"));
 
     [Fact]
+    public void MasterPlcSelection_RequiresUniqueDeviceSoftwareAndFreshAncestorIdentity()
+    {
+        var plc = new object();
+        var ancestors = new[] { new object(), new object() };
+        var selected = QualificationEvidence.SelectMasterPlcAncestor(
+            new[] { plc }, ancestors, item => ReferenceEquals(item, ancestors[1]) ? plc : null,
+            _ => true, depth => ancestors[depth - 1]);
+        Assert.NotNull(selected);
+        Assert.Same(ancestors[1], selected.Item);
+        Assert.Equal(2, selected.Depth);
+
+        Assert.Null(QualificationEvidence.SelectMasterPlcAncestor(
+            new[] { plc, new object() }, ancestors, _ => plc, _ => true, depth => ancestors[depth - 1]));
+        Assert.Null(QualificationEvidence.SelectMasterPlcAncestor(
+            new[] { plc }, ancestors, item => ReferenceEquals(item, ancestors[1]) ? plc : null,
+            _ => true, _ => new object()));
+    }
+
+    [Fact]
+    public void MasterPlcSelection_RejectsMissingRoleOrCompileService()
+    {
+        var plc = new object();
+        var ancestor = new object();
+        Assert.Null(QualificationEvidence.SelectMasterPlcAncestor(
+            Array.Empty<object>(), new[] { ancestor }, _ => plc, _ => true, _ => ancestor));
+        Assert.Null(QualificationEvidence.SelectMasterPlcAncestor(
+            new[] { plc }, new[] { ancestor }, _ => new object(), _ => true, _ => ancestor));
+        Assert.Null(QualificationEvidence.SelectMasterPlcAncestor(
+            new[] { plc }, new[] { ancestor }, _ => plc, _ => false, _ => ancestor));
+        Assert.Null(QualificationEvidence.SelectMasterPlcAncestor(
+            new[] { plc }, new[] { ancestor }, _ => throw new InvalidOperationException(),
+            _ => true, _ => ancestor));
+    }
+
+    [Fact]
+    public void MasterPlcCompile_UsesSeparateProvenAncestorAndReprovesAfterCommit()
+    {
+        Assert.NotNull(typeof(IoSystemQualificationResultInfo).GetProperty("CompileTarget"));
+        Assert.NotNull(typeof(IoSystemQualificationResultInfo).GetProperty("CompileTargetProof"));
+        var selection = ExtractMethodBody(Source, "RequireMasterPlcCompilerTarget");
+        Ordered(selection, "owner.Ancestors", "SelectMasterPlcAncestor", "ResolveQualificationDeviceItem");
+        Assert.Contains("GetService<SoftwareContainer>()", selection);
+        Assert.Contains("GetService<ICompilable>()", selection);
+
+        var baseline = ExtractMethodBody(Source, "CompileBaseline");
+        Ordered(baseline, "RequireExactOwningDeviceItem(", "RequireMasterPlcCompilerTarget(",
+            "ReadFiveAttributeSnapshot(", "RequireSameMasterPlcCompilerTarget(", "CompileHardware(");
+        Assert.DoesNotContain("CompileHardware(owner.Item", baseline);
+
+        var mutation = ExtractMethodBody(Source, "SetAndCompile");
+        Ordered(mutation, "portal.ExclusiveAccess(", "RequireMasterPlcCompilerTarget(",
+            "exclusive.Transaction(project,", "ApplySingleField(", "transaction.CommitOnDispose();",
+            "RequireSameMasterPlcCompilerTarget(", "CompileHardware(");
+        Assert.DoesNotContain("CompileHardware(owner.Item", mutation);
+    }
+
+    [Fact]
     public void Dispatch_ValidatesBeforeSessionAccess_AndRemainsProtected()
     {
         var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
