@@ -318,6 +318,103 @@ public class CrossReferenceReaderTests
         Assert.Equal(2, service.Result.Sources.YieldedItemCount);
     }
 
+    [Theory]
+    [InlineData("service")]
+    [InlineData("query")]
+    [InlineData("source")]
+    [InlineData("target")]
+    [InlineData("location")]
+    public void Read_ExactInvalidOperationRetainsPartialDataAndSanitizesDiagnostics(string stage)
+    {
+        const string privateDetail = @"C:\private\fixture.ap21: adapter detail";
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("retained") });
+        plc.BlockGroup.Blocks.Items.Add(AdapterFailureOwner(stage, new InvalidOperationException(privateDetail)));
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("later") });
+        var savedError = Console.Error;
+        using var warning = new StringWriter();
+        CrossReferenceReport report;
+        try
+        {
+            Console.SetError(warning);
+            report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.UnusedObjects);
+        }
+        finally { Console.SetError(savedError); }
+
+        var result = Assert.Single(report.Plcs);
+        Assert.Contains(result.Sources, s => s.Name == "retained");
+        Assert.Contains(result.Sources, s => s.Name == "later");
+        Assert.Equal(3, result.OwnerQueryCount);
+        Assert.Equal(stage is "service" or "query" ? 2 : 3, result.SuccessfulOwnerQueryCount);
+        Assert.Equal(stage is "target" or "location" ? 3 : 2, report.TotalSourceCount);
+        Assert.Equal(stage == "location" ? 1 : 0, report.TotalReferenceCount);
+        Assert.Equal(0, report.TotalLocationCount);
+        Assert.False(result.IsComplete);
+        Assert.False(report.IsComplete);
+        Assert.InRange(Assert.Single(result.Messages).Length, 1, 300);
+        Assert.DoesNotContain(privateDetail, result.Messages[0]);
+        Assert.DoesNotContain("private", result.Messages[0]);
+        Assert.Single(warning.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.InRange(warning.ToString().Length, 1, 300);
+        Assert.DoesNotContain("private", warning.ToString());
+        Assert.DoesNotContain("adapter detail", warning.ToString());
+    }
+
+    public static IEnumerable<object[]> UnexpectedAdapterFailures()
+    {
+        foreach (var stage in new[] { "service", "query", "source", "target", "location" })
+            foreach (var kind in new[] { "session", "derivedInvalidOperation", "io", "cancel", "unexpected" })
+                yield return new object[] { stage, kind };
+    }
+
+    [Theory]
+    [MemberData(nameof(UnexpectedAdapterFailures))]
+    public void Read_UnexpectedAdapterFailurePropagatesEvenAfterEarlierSuccess(string stage, string kind)
+    {
+        Exception failure = kind switch
+        {
+            "session" => new NonRecoverableException("session lost"),
+            "derivedInvalidOperation" => new ObjectDisposedException("disposed adapter"),
+            "io" => new IOException("transport lost"),
+            "cancel" => new OperationCanceledException("interrupted"),
+            _ => new FormatException("unexpected adapter fault")
+        };
+        var (project, plc) = Fixture();
+        var first = Service("retained-before-fault");
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = first });
+        plc.BlockGroup.Blocks.Items.Add(AdapterFailureOwner(stage, failure));
+
+        var propagated = Assert.ThrowsAny<Exception>(() =>
+            CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects));
+
+        Assert.Same(failure, propagated);
+        Assert.Single(first.Queries);
+        Assert.Equal(1, first.Result.Sources.YieldedItemCount);
+    }
+
+    private static FC AdapterFailureOwner(string stage, Exception failure)
+    {
+        var service = Service("partially-projected");
+        var owner = new FC { CrossReferenceService = service };
+        if (stage == "service") owner.CrossReferenceServiceFailure = failure;
+        else if (stage == "query") service.Failure = failure;
+        else
+        {
+            var source = service.Result.Sources.Items[0];
+            if (stage == "source") source.TypeNameFailure = failure;
+            else
+            {
+                var target = new ReferenceObject { Name = "target" };
+                source.References.Items.Add(target);
+                if (stage == "target") target.TypeNameFailure = failure;
+                else if (stage == "location")
+                    target.Locations.Items.Add(new Location { TypeNameFailure = failure });
+                else throw new ArgumentOutOfRangeException(nameof(stage));
+            }
+        }
+        return owner;
+    }
+
     private static FC FailingOwner(string failure) => new()
     {
         Name = "private" + new string('x', 3000),

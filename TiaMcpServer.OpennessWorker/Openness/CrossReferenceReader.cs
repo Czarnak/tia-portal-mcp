@@ -163,7 +163,8 @@ public static class CrossReferenceReader
     private static void TryRead(Action read, PlcCrossReferenceInfo result)
     {
         try { read(); }
-        catch (Exception ex) when (ex is EngineeringException && ex is not NonRecoverableException)
+        catch (Exception ex) when (ex is not NonRecoverableException &&
+            (ex is EngineeringException || ex.GetType() == typeof(InvalidOperationException)))
         {
             MarkIncomplete(result);
         }
