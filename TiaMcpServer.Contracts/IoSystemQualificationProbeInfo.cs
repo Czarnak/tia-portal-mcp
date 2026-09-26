@@ -105,6 +105,10 @@ public sealed class IoSystemQualificationResultInfo
     public NetworkObjectSelectorInfo? OriginalTarget { get; set; }
     public NetworkObjectSelectorInfo? AppliedTarget { get; set; }
     public NetworkObjectSelectorInfo? OwnerTarget { get; set; }
+    /// <summary>The proven strict-ancestor DeviceItem used for hardware compilation.</summary>
+    public NetworkObjectSelectorInfo? CompileTarget { get; set; }
+    public NetworkObjectSelectorInfo? OriginalCompileTarget { get; set; }
+    public IoSystemQualificationCompileTargetProofInfo? CompileTargetProof { get; set; }
     public int OwnerMatchCount { get; set; }
     public bool OwnerIdentityVerified { get; set; }
     public IoSystemQualificationOwnerDiagnosticInfo? OwnerDiagnostics { get; set; }
@@ -128,6 +132,18 @@ public sealed class IoSystemQualificationResultInfo
     public System.Collections.Generic.List<string> Messages { get; set; } = new();
     public int OmittedMessageCount { get; set; }
     public string RestorationGuidance { get; set; } = string.Empty;
+}
+
+/// <summary>Worker-only evidence for the selected master PLC hardware item.</summary>
+public sealed class IoSystemQualificationCompileTargetProofInfo
+{
+    public int AncestorPathDepth { get; set; }
+    public bool DirectPlcSoftwareHostVerified { get; set; }
+    public bool UniquePlcSoftwareInDevice { get; set; }
+    public bool ResolvedItemIdentityVerified { get; set; }
+    public bool PlcSoftwareIdentityVerified { get; set; }
+    public bool CompileServiceAvailable { get; set; }
+    public bool PostReadContinuityVerified { get; set; }
 }
 
 /// <summary>Closed, identifier-free compile scope observation; this never authorizes compilation.</summary>

@@ -34,16 +34,22 @@ public static class IoSystemQualificationProbeService
             diagnostic.Reason = "compile_service_unverified";
             var compiler = ((IEngineeringServiceProvider)owner.Item).GetService<ICompilable>();
             result.HardwareCompileServiceAvailable = compiler is not null;
-            if (compiler is null)
+            diagnostic.Stage = "masterPlcTarget";
+            diagnostic.Reason = "master_plc_target_unverified";
+            try
             {
-                diagnostic.Stage = "compileService";
-                diagnostic.Reason = "compile_service_unavailable";
-                result.RestorationGuidance = "The exact owning hardware item has no compile service. Do not compile or mutate this target.";
-            }
-            else
-            {
+                var selected = RequireMasterPlcCompilerTarget(project, owner);
+                var verified = RequireSameMasterPlcCompilerTarget(project, target, owner, selected);
+                SetCompileTargetEvidence(result, selected, verified, true);
                 diagnostic.Stage = "verification";
                 diagnostic.Reason = "verified";
+            }
+            catch (Exception)
+            {
+                result.CompileTarget = null;
+                result.OriginalCompileTarget = null;
+                result.CompileTargetProof = null;
+                result.RestorationGuidance = "The master PLC hardware compile target is unverified. Do not compile or mutate this target.";
             }
             if (!IoSystemQualificationEvidence.FitsResultBudget(result))
             {
@@ -70,33 +76,38 @@ public static class IoSystemQualificationProbeService
         using var exclusive = portal.ExclusiveAccess();
         var target = RequireExactIoSystem(project, request.Target!);
         var owner = RequireExactOwningDeviceItem(project, target);
+        var selected = RequireMasterPlcCompilerTarget(project, owner);
         var result = NewResult(request, target, owner);
         result.Before = ReadFiveAttributeSnapshot(target);
-        CompileHardware(owner.Item, result);
+        var current = RequireExactIoSystem(project, request.Target!);
+        var verified = RequireSameMasterPlcCompilerTarget(project, current, owner, selected);
+        SetCompileTargetEvidence(result, selected, verified, true);
+        CompileHardware(verified.Item, result);
         return result;
     }
 
     public static IoSystemQualificationResultInfo SetAndCompile(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)
     {
         IoSystemQualificationResultInfo result;
-        DeviceItem preEditOwnerItem;
+        Owner preEditOwner;
+        MasterPlcTarget preEditCompiler;
         using (var exclusive = portal.ExclusiveAccess())
         {
+            var target = RequireExactIoSystem(project, request.Target!);
+            preEditOwner = RequireExactOwningDeviceItem(project, target);
+            preEditCompiler = RequireMasterPlcCompilerTarget(project, preEditOwner);
+            result = NewResult(request, target, preEditOwner);
+            SetCompileTargetEvidence(result, preEditCompiler, preEditCompiler, false);
+            result.Before = ReadFiveAttributeSnapshot(target);
+            result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target);
+            result.PnDeviceNameEvidenceScope = GetPnDeviceNameEvidenceScope(target);
+            if (result.BeforePnDeviceNames.Any(node => !node.Available))
+                throw Failure("A linked PN device name is unavailable before the edit.");
+            RequireExpectedValueAndWritableMetadata(target, result.Before, request);
+            if (!IoSystemQualificationEvidence.FitsResultBudget(result))
+                throw Failure("Pre-edit qualification evidence exceeds the result limit.");
             using (var transaction = exclusive.Transaction(project, "Qualify IO system"))
             {
-                var target = RequireExactIoSystem(project, request.Target!);
-                var owner = RequireExactOwningDeviceItem(project, target);
-                RequireCompiler(owner.Item);
-                result = NewResult(request, target, owner);
-                preEditOwnerItem = owner.Item;
-                result.Before = ReadFiveAttributeSnapshot(target);
-                result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target);
-                result.PnDeviceNameEvidenceScope = GetPnDeviceNameEvidenceScope(target);
-                if (result.BeforePnDeviceNames.Any(node => !node.Available))
-                    throw Failure("A linked PN device name is unavailable before the edit.");
-                RequireExpectedValueAndWritableMetadata(target, result.Before, request);
-                if (!IoSystemQualificationEvidence.FitsResultBudget(result))
-                    throw Failure("Pre-edit qualification evidence exceeds the result limit.");
                 ApplySingleField(target, request);
                 transaction.CommitOnDispose();
             }
@@ -114,16 +125,15 @@ public static class IoSystemQualificationProbeService
                 if (result.AfterPnDeviceNames.Any(node => !node.Available)
                     || !IoSystemQualificationEvidence.SamePnNodeIdentities(result.BeforePnDeviceNames, result.AfterPnDeviceNames))
                     throw Failure("Linked PN node evidence changed or became unavailable after the committed edit.");
-                var owner = RequireExactOwningDeviceItem(project, applied);
-                if (!object.Equals(preEditOwnerItem, owner.Item))
-                    throw Failure("Hardware ownership changed after the committed edit.");
+                var verified = RequireSameMasterPlcCompilerTarget(project, applied, preEditOwner, preEditCompiler);
                 var actual = result.After.Single(attribute => attribute.Name == request.AttributeName);
                 if (!actual.Available || !IoSystemQualificationEvidence.Equal(actual.Value, request.DesiredValue))
                     throw Failure("The committed attribute did not match its requested value.");
-                result.OwnerTarget = owner.Selector;
+                result.OwnerTarget = verified.Owner.Selector;
+                SetCompileTargetEvidence(result, preEditCompiler, verified, true);
                 if (!IoSystemQualificationEvidence.FitsResultBudget(result))
                     throw Failure("Post-edit qualification evidence exceeds the result limit.");
-                CompileHardware(owner.Item, result);
+                CompileHardware(verified.Item, result);
             }
             catch (Exception)
             {
@@ -166,11 +176,100 @@ public static class IoSystemQualificationProbeService
         return RequireExactIoSystem(project, selector);
     }
 
-    private static ICompilable RequireCompiler(DeviceItem owningDeviceItem)
+    private static MasterPlcTarget RequireMasterPlcCompilerTarget(Project project, Owner owner)
     {
-        var compiler = ((IEngineeringServiceProvider)owningDeviceItem).GetService<ICompilable>();
-        if (compiler is null) throw Failure("The exact owning hardware item has no compile service.");
-        return compiler;
+        var path = owner.Selector.ItemPath;
+        if (path is null || path.Count is < 2 or > 16 || owner.Ancestors.Count != path.Count - 1)
+            throw Failure("The controller interface has no verifiable strict ancestor path.");
+        var devicePlcSoftware = new List<PlcSoftware>();
+        CollectPlcSoftware(owner.Device.DeviceItems, devicePlcSoftware);
+        var selected = IoSystemQualificationEvidence.SelectMasterPlcAncestor(
+            devicePlcSoftware, owner.Ancestors,
+            item => ((IEngineeringServiceProvider)item).GetService<SoftwareContainer>()?.Software as PlcSoftware,
+            item => ((IEngineeringServiceProvider)item).GetService<ICompilable>() is not null,
+            depth => NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project,
+                new NetworkObjectSelectorInfo
+                {
+                    Kind = NetworkObjectKinds.DeviceItem, DeviceName = owner.Selector.DeviceName,
+                    ItemPath = path.Take(depth).ToList()
+                }));
+        if (selected is null)
+            throw Failure("The unique master PLC hardware compile target could not be verified.");
+        var selector = new NetworkObjectSelectorInfo
+        {
+            Kind = NetworkObjectKinds.DeviceItem, DeviceName = owner.Selector.DeviceName,
+            ItemPath = path.Take(selected.Depth).ToList()
+        };
+        var resolvedSoftware = ((IEngineeringServiceProvider)selected.Item)
+            .GetService<SoftwareContainer>()?.Software as PlcSoftware;
+        if (resolvedSoftware is null || !object.Equals(resolvedSoftware, devicePlcSoftware[0])
+            || ((IEngineeringServiceProvider)selected.Item).GetService<ICompilable>() is null)
+            throw Failure("The selected master PLC hardware item lost its software or compile service.");
+        return new MasterPlcTarget(selected.Item, selector, resolvedSoftware, owner);
+    }
+
+    private static MasterPlcTarget RequireSameMasterPlcCompilerTarget(Project project,
+        ResolvedNetworkObject currentTarget, Owner originalOwner, MasterPlcTarget original)
+    {
+        var currentOwner = RequireExactOwningDeviceItem(project, currentTarget);
+        if (!object.Equals(currentOwner.Item, originalOwner.Item)
+            || !object.Equals(currentOwner.Device, originalOwner.Device)
+            || !SameIndexedPath(originalOwner.Selector, currentOwner.Selector))
+            throw Failure("The controller interface identity or indexed path changed.");
+        var current = RequireMasterPlcCompilerTarget(project, currentOwner);
+        if (!object.Equals(current.Item, original.Item)
+            || !object.Equals(current.Software, original.Software)
+            || !object.Equals(current.Owner.Device, original.Owner.Device)
+            || !SameIndexedPath(original.Selector, current.Selector))
+            throw Failure("The master PLC hardware target identity or indexed path changed.");
+        return current;
+    }
+
+    private static bool SameIndexedPath(NetworkObjectSelectorInfo original, NetworkObjectSelectorInfo current)
+    {
+        if (original.Kind != NetworkObjectKinds.DeviceItem || current.Kind != NetworkObjectKinds.DeviceItem
+            || original.ItemPath is null || current.ItemPath is null
+            || original.ItemPath.Count != current.ItemPath.Count)
+            return false;
+        for (var index = 0; index < original.ItemPath.Count; index++)
+        {
+            var before = original.ItemPath[index];
+            var after = current.ItemPath[index];
+            if (before.Index != after.Index || before.PositionNumber != after.PositionNumber
+                || !string.Equals(before.TypeIdentifier, after.TypeIdentifier, StringComparison.Ordinal))
+                return false;
+        }
+        return true;
+    }
+
+    private static void CollectPlcSoftware(DeviceItemComposition items, List<PlcSoftware> software)
+    {
+        foreach (DeviceItem item in items)
+        {
+            if (((IEngineeringServiceProvider)item).GetService<SoftwareContainer>()?.Software is PlcSoftware plc)
+                software.Add(plc);
+            if (software.Count > 1) return;
+            CollectPlcSoftware(item.DeviceItems, software);
+            if (software.Count > 1) return;
+        }
+    }
+
+    private static void SetCompileTargetEvidence(IoSystemQualificationResultInfo result,
+        MasterPlcTarget original, MasterPlcTarget current, bool continuityVerified)
+    {
+        result.OriginalCompileTarget = original.Selector;
+        result.CompileTarget = current.Selector;
+        result.HardwareTargetAlias = "master-plc-hardware-item";
+        result.CompileTargetProof = new IoSystemQualificationCompileTargetProofInfo
+        {
+            AncestorPathDepth = current.Selector.ItemPath!.Count,
+            DirectPlcSoftwareHostVerified = true,
+            UniquePlcSoftwareInDevice = true,
+            ResolvedItemIdentityVerified = true,
+            PlcSoftwareIdentityVerified = true,
+            CompileServiceAvailable = true,
+            PostReadContinuityVerified = continuityVerified
+        };
     }
     private static ResolvedNetworkObject RequireExactIoSystem(Project project, NetworkObjectSelectorInfo selector)
     {
@@ -487,5 +586,15 @@ public static class IoSystemQualificationProbeService
         public NetworkObjectSelectorInfo Selector { get; }
         public Device Device { get; }
         public List<DeviceItem> Ancestors { get; }
+    }
+
+    private sealed class MasterPlcTarget
+    {
+        public MasterPlcTarget(DeviceItem item, NetworkObjectSelectorInfo selector, PlcSoftware software, Owner owner)
+        { Item = item; Selector = selector; Software = software; Owner = owner; }
+        public DeviceItem Item { get; }
+        public NetworkObjectSelectorInfo Selector { get; }
+        public PlcSoftware Software { get; }
+        public Owner Owner { get; }
     }
 }

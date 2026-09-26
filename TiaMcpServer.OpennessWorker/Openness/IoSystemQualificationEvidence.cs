@@ -12,6 +12,35 @@ internal static class IoSystemQualificationEvidence
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
+    public static MasterPlcAncestorSelection<TItem>? SelectMasterPlcAncestor<TItem, TSoftware>(
+        IReadOnlyList<TSoftware> devicePlcSoftware, IReadOnlyList<TItem> strictAncestors,
+        Func<TItem, TSoftware?> readDirectPlcSoftware, Func<TItem, bool> hasCompiler,
+        Func<int, TItem?> resolveAtDepth)
+        where TItem : class where TSoftware : class
+    {
+        if (devicePlcSoftware is null || devicePlcSoftware.Count != 1 || devicePlcSoftware[0] is null
+            || strictAncestors is null || readDirectPlcSoftware is null || hasCompiler is null
+            || resolveAtDepth is null)
+            return null;
+        try
+        {
+            for (var index = strictAncestors.Count - 1; index >= 0; index--)
+            {
+                var item = strictAncestors[index];
+                if (item is null) return null;
+                var software = readDirectPlcSoftware(item);
+                if (software is null) continue;
+                if (!object.Equals(software, devicePlcSoftware[0]) || !hasCompiler(item))
+                    return null;
+                var resolved = resolveAtDepth(index + 1);
+                return resolved is not null && object.Equals(resolved, item)
+                    ? new MasterPlcAncestorSelection<TItem>(resolved, index + 1) : null;
+            }
+        }
+        catch (Exception) { /* Unreadable identity, role, or service is never selection proof. */ }
+        return null;
+    }
+
     public static IoSystemQualificationOwnerDiagnosticInfo InspectOwner<T>(
         Action<System.Collections.Generic.List<T>> collectMatches,
         Func<T, IoSystemQualificationOwnerPathEvidenceInfo> readPath,
@@ -288,4 +317,12 @@ internal static class IoSystemQualificationEvidence
         };
         return JsonSerializer.Serialize(bounded, JsonOptions);
     }
+}
+
+internal sealed class MasterPlcAncestorSelection<TItem> where TItem : class
+{
+    public MasterPlcAncestorSelection(TItem item, int depth)
+    { Item = item; Depth = depth; }
+    public TItem Item { get; }
+    public int Depth { get; }
 }

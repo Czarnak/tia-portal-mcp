@@ -119,27 +119,28 @@ public class IoSystemQualificationWorkerContractTests
     }
 
     [Fact]
-    public void OwnerInspection_MissingExactOwnerCompilerPreservesBoundedReadOnlyEvidence()
+    public void OwnerInspection_MissingMasterTargetPreservesBoundedReadOnlyEvidence()
     {
         var body = ExtractMethodBody(Source, "InspectOwner");
         Ordered(body, "RequireExactOwningDeviceItem(project, target, diagnostic)",
             "result.BeforePnDeviceNames = ReadAffectedPnDeviceNames(project, target)",
             "result.Before = ReadFiveAttributeSnapshot(target)",
             "((IEngineeringServiceProvider)owner.Item).GetService<ICompilable>()",
-            "if (compiler is null)", "diagnostic.Reason = \"compile_service_unavailable\"",
-            "result.RestorationGuidance = \"The exact owning hardware item has no compile service.",
+            "diagnostic.Stage = \"masterPlcTarget\"",
+            "diagnostic.Reason = \"master_plc_target_unverified\"",
+            "RequireMasterPlcCompilerTarget(project, owner)",
             "IoSystemQualificationEvidence.FitsResultBudget(result)", "return result;");
         Assert.Contains("result.HardwareCompileServiceAvailable = compiler is not null", body);
-        Assert.Contains("diagnostic.Stage = \"compileService\"", body);
+        Assert.Contains("result.CompileTarget = null", body);
+        Assert.Contains("result.OriginalCompileTarget = null", body);
         Assert.Contains("Do not compile or mutate", body);
-        Assert.DoesNotContain("RequireCompiler(owner.Item)", body);
         Assert.DoesNotContain("CompileHardware", body);
         Assert.DoesNotContain("SetAttribute", body);
         Assert.DoesNotContain("OwnerIdentityVerified = false", body);
         var baseline = ExtractMethodBody(Source, "CompileBaseline");
         var mutation = ExtractMethodBody(Source, "SetAndCompile");
-        Assert.Contains("CompileHardware(owner.Item, result)", baseline);
-        Ordered(mutation, "RequireExactOwningDeviceItem(project, target)", "RequireCompiler(owner.Item)",
+        Assert.Contains("CompileHardware(verified.Item, result)", baseline);
+        Ordered(mutation, "RequireExactOwningDeviceItem(project, target)", "RequireMasterPlcCompilerTarget(project, preEditOwner)",
             "ApplySingleField(target, request)");
     }
 
@@ -178,8 +179,8 @@ public class IoSystemQualificationWorkerContractTests
 
         var baseline = ExtractMethodBody(Source, "CompileBaseline");
         var mutation = ExtractMethodBody(Source, "SetAndCompile");
-        Assert.Contains("CompileHardware(owner.Item, result)", baseline);
-        Assert.Contains("CompileHardware(owner.Item, result)", mutation);
+        Assert.Contains("CompileHardware(verified.Item, result)", baseline);
+        Assert.Contains("CompileHardware(verified.Item, result)", mutation);
     }
 
     [Fact]
@@ -231,8 +232,10 @@ public class IoSystemQualificationWorkerContractTests
     public void Mutation_CommitsBeforeFreshReadAndCompile()
     {
         var body = ExtractMethodBody(Source, "SetAndCompile");
-        Ordered(body, "portal.ExclusiveAccess(", "exclusive.Transaction(project,", "RequireExactIoSystem(",
-            "RequireExactOwningDeviceItem(", "ReadFiveAttributeSnapshot(", "RequireExpectedValueAndWritableMetadata(",
+        Ordered(body, "portal.ExclusiveAccess(", "RequireExactIoSystem(",
+            "RequireExactOwningDeviceItem(", "RequireMasterPlcCompilerTarget(",
+            "ReadFiveAttributeSnapshot(", "RequireExpectedValueAndWritableMetadata(",
+            "exclusive.Transaction(project,",
             "ApplySingleField(", "transaction.CommitOnDispose();", "ReadAppliedStateAndNewSelector(", "CompileHardware(");
         Assert.DoesNotContain("project.Save(", Source);
         Assert.DoesNotContain("PlcSoftware", body);
@@ -254,7 +257,7 @@ public class IoSystemQualificationWorkerContractTests
             "result.AfterPnDeviceNames = ReadAffectedPnDeviceNames(project, applied)",
             "result.AfterPnDeviceNames.Any(node => !node.Available)",
             "SamePnNodeIdentities(result.BeforePnDeviceNames, result.AfterPnDeviceNames)",
-            "CompileHardware(owner.Item, result)");
+            "CompileHardware(verified.Item, result)");
         Assert.Contains("result.MutationCommitted = true", body);
         Assert.Contains("result.CompileState = \"postCommitFailure\"", body);
         Assert.DoesNotContain("project.Save(", body);
@@ -920,9 +923,11 @@ public class IoSystemQualificationWorkerContractTests
         Assert.Contains("string.Equals(typeIdentifier, requestedSegment.TypeIdentifier, StringComparison.Ordinal)",
             ExtractMethodBody(resolver, "MatchDeviceItem"));
         var apply = ExtractMethodBody(Source, "SetAndCompile");
-        Ordered(apply, "preEditOwnerItem = owner.Item", "ApplySingleField(target, request)",
-            "transaction.CommitOnDispose();", "RequireExactOwningDeviceItem(project, applied)",
-            "object.Equals(preEditOwnerItem, owner.Item)", "CompileHardware(owner.Item, result)");
+        Ordered(apply, "preEditOwner = RequireExactOwningDeviceItem(project, target)",
+            "preEditCompiler = RequireMasterPlcCompilerTarget(project, preEditOwner)",
+            "ApplySingleField(target, request)", "transaction.CommitOnDispose();",
+            "RequireSameMasterPlcCompilerTarget(project, applied, preEditOwner, preEditCompiler)",
+            "CompileHardware(verified.Item, result)");
         Assert.DoesNotContain("ReferenceEquals(original, owner.Item)", apply);
         Assert.DoesNotContain("ResolveQualificationDeviceItem(project, originalOwner)", apply);
         var traversal = ExtractMethodBody(Source, "FindOwners");
