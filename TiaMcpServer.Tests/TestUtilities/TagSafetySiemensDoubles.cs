@@ -33,7 +33,44 @@ namespace Siemens.Engineering
 
     public enum ExportOptions { None }
     public enum DocumentInfoOptions { None }
-    public class EngineeringException : Exception { }
+    public class EngineeringException : Exception
+    {
+        public EngineeringException() { }
+        public EngineeringException(string message) : base(message) { }
+    }
+
+    public interface IEngineeringServiceProvider
+    {
+        T? GetService<T>() where T : class;
+    }
+}
+
+namespace Siemens.Engineering.Compiler
+{
+    public interface ICompilable
+    {
+        CompilerResult Compile();
+    }
+
+    public enum CompilerResultState { Success, Warning, Error }
+
+    public sealed class CompilerResult
+    {
+        public CompilerResultState State { get; set; }
+        public int ErrorCount { get; set; }
+        public int WarningCount { get; set; }
+        public List<CompilerResultMessage> Messages { get; } = new();
+    }
+
+    public class CompilerResultMessage
+    {
+        public string Description { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public CompilerResultState State { get; set; }
+        public int ErrorCount { get; set; }
+        public int WarningCount { get; set; }
+        public List<CompilerResultMessage> Messages { get; } = new();
+    }
 }
 
 namespace Siemens.Engineering.HW
@@ -72,7 +109,7 @@ namespace Siemens.Engineering.HW.Features
 
 namespace Siemens.Engineering.SW
 {
-    public sealed class PlcSoftware : NamedObject
+    public sealed class PlcSoftware : NamedObject, IEngineeringServiceProvider
     {
         private readonly Blocks.PlcBlockSystemGroup blockGroup = new();
         public Tags.PlcTagTableGroup TagTableGroup { get; } = new();
@@ -80,7 +117,9 @@ namespace Siemens.Engineering.SW
         public Blocks.PlcBlockSystemGroup BlockGroup => BlockGroupFailure is null ? blockGroup : throw BlockGroupFailure;
         public Types.PlcTypeGroup TypeGroup { get; } = new();
         public Units.PlcUnitProvider? UnitProvider { get; set; }
-        public T? GetService<T>() where T : class => UnitProvider as T;
+        public ExternalSources.PlcExternalSourceSystemGroup ExternalSourceGroup { get; } = new();
+        public Compiler.ICompilable? CompilerService { get; set; }
+        public T? GetService<T>() where T : class => UnitProvider as T ?? CompilerService as T;
     }
 }
 
@@ -115,8 +154,10 @@ namespace Siemens.Engineering.SW.Tags
 
 namespace Siemens.Engineering.SW.Blocks
 {
-    public class PlcBlock : NamedObject
+    public class PlcBlock : NamedObject, IEngineeringServiceProvider
     {
+        public Compiler.ICompilable? CompilerService { get; set; }
+        public T? GetService<T>() where T : class => CompilerService as T;
         public int Number { get; set; }
         public string ProgrammingLanguage { get; set; } = "SCL";
         public string? HeaderAuthor { get; set; }
@@ -139,6 +180,7 @@ namespace Siemens.Engineering.SW.Blocks
     {
         public Composition<PlcSystemBlockGroup> SystemBlockGroups { get; } = new();
     }
+    public sealed class PlcBlockUserGroup : PlcBlockGroup { }
     public sealed class PlcSystemBlockGroup : NamedObject
     {
         public Composition<PlcBlock> Blocks { get; } = new();
@@ -156,6 +198,11 @@ namespace Siemens.Engineering.SW.Types
     }
 }
 
+namespace Siemens.Engineering.SW.ExternalSources
+{
+    public sealed class PlcExternalSourceSystemGroup { }
+}
+
 namespace Siemens.Engineering.SW.Units
 {
     public sealed class PlcUnitProvider
@@ -171,5 +218,6 @@ namespace Siemens.Engineering.SW.Units
         public Blocks.PlcBlockGroup BlockGroup { get; } = new();
         public Tags.PlcTagTableGroup TagTableGroup { get; } = new();
         public Types.PlcTypeGroup TypeGroup { get; } = new();
+        public ExternalSources.PlcExternalSourceSystemGroup ExternalSourceGroup { get; } = new();
     }
 }

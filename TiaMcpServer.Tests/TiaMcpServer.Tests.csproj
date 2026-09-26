@@ -38,6 +38,12 @@
       Link="Linked\Openness\ProjectTreeSnapshotWalker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcSoftwareLocator.cs"
       Link="Linked\Openness\PlcSoftwareLocator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileChecker.cs"
+      Link="Linked\Openness\CompileChecker.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileReportProjection.cs"
+      Link="Linked\Openness\CompileReportProjection.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockTargetResolver.cs"
+      Link="Linked\Openness\BlockTargetResolver.cs" />
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj"
       ReferenceOutputAssembly="false" />

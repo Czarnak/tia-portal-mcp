@@ -106,6 +106,30 @@ public class CompileCheckInfoTests
         Assert.Equal("Success", roundTripped.OverallState);
     }
 
+    [Fact]
+    public void DeviceIdentitySurvivesJsonRoundTrip()
+    {
+        const string json = "{\"plcName\":\"PLC_DP\",\"deviceName\":\"Station_1\",\"state\":\"Success\"}";
+        var plc = JsonSerializer.Deserialize<PlcCompileInfo>(json, JsonOptions)!;
+
+        using var roundTripped = JsonDocument.Parse(JsonSerializer.Serialize(plc, JsonOptions));
+
+        Assert.Equal("PLC_DP", roundTripped.RootElement.GetProperty("plcName").GetString());
+        Assert.True(roundTripped.RootElement.TryGetProperty("deviceName", out var deviceName));
+        Assert.Equal("Station_1", deviceName.GetString());
+    }
+
+    [Fact]
+    public void LegacyJsonDoesNotInventADeviceIdentity()
+    {
+        var plc = JsonSerializer.Deserialize<PlcCompileInfo>("{\"plcName\":\"Legacy_PLC\"}", JsonOptions)!;
+
+        using var roundTripped = JsonDocument.Parse(JsonSerializer.Serialize(plc, JsonOptions));
+
+        Assert.Equal("Legacy_PLC", plc.PlcName);
+        Assert.False(roundTripped.RootElement.TryGetProperty("deviceName", out _));
+    }
+
     private static CompileCheckReport RoundTrip(CompileCheckReport report)
     {
         var json = JsonSerializer.Serialize(report, JsonOptions);

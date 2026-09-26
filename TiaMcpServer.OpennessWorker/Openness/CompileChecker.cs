@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -13,12 +12,11 @@ public static class CompileChecker
 {
     public static CompileCheckReport Compile(Project project, string? plcName, string? blockPath)
     {
-        if (!string.IsNullOrWhiteSpace(blockPath))
-        {
-            return CompileBlock(project, plcName, blockPath!);
-        }
-
-        return CompilePlcSoftware(project, plcName);
+        var report = !string.IsNullOrWhiteSpace(blockPath)
+            ? CompileBlock(project, plcName, blockPath!)
+            : CompilePlcSoftware(project, plcName);
+        CompileReportProjection.BoundSerializedReport(report);
+        return report;
     }
 
     private static CompileCheckReport CompileBlock(Project project, string? plcName, string blockPath)
@@ -29,7 +27,9 @@ public static class CompileChecker
             address = BlockAddress.Parse(plcName + "/" + blockPath);
         }
 
-        var target = BlockTargetResolver.ResolveForExport(project, address);
+        var selectedPlc = PlcSoftwareLocator.FindAll(project, address.PlcName).FirstOrDefault()
+            ?? throw new InvalidOperationException("No matching PLC software was found in the project.");
+        var target = BlockTargetResolver.ResolveForExport(selectedPlc.Software, address);
 
         if (target.Block == null)
         {
@@ -37,16 +37,8 @@ public static class CompileChecker
         }
 
         var result = CompileObject(target.Block);
-        string resolvedPlcName = address.PlcName ?? string.Empty;
-        var usedFirstPlc = false;
-        if (string.IsNullOrEmpty(resolvedPlcName))
-        {
-            resolvedPlcName = FindFirstDeviceName(project) ?? string.Empty;
-            usedFirstPlc = true;
-        }
-
-        var plc = BuildPlcCompileInfo(resolvedPlcName, result);
-        if (usedFirstPlc)
+        var plc = BuildPlcCompileInfo(selectedPlc, result, new CompileReportProjection.Budget());
+        if (address.PlcName == null)
         {
             plc.DiagnosticNotes.Add("No PLC qualifier was specified; compiled using the first PLC found.");
         }
@@ -64,11 +56,6 @@ public static class CompileChecker
         return report;
     }
 
-    private static string? FindFirstDeviceName(Project project)
-    {
-        return PlcSoftwareLocator.FindAll(project, null).FirstOrDefault()?.DeviceName;
-    }
-
     private static CompileCheckReport CompilePlcSoftware(Project project, string? plcName)
     {
         var report = new CompileCheckReport
@@ -76,23 +63,18 @@ public static class CompileChecker
             Scope = "plc",
             OverallState = "Success"
         };
+        var budget = new CompileReportProjection.Budget();
 
         foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
         {
             try
             {
                 var result = CompileObject(plc.Software);
-                report.Plcs.Add(BuildPlcCompileInfo(plc.DeviceName, result));
+                report.Plcs.Add(BuildPlcCompileInfo(plc, result, budget));
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException)
             {
-                var failed = new PlcCompileInfo
-                {
-                    PlcName = plc.DeviceName,
-                    State = "Error"
-                };
-                failed.DiagnosticNotes.Add($"Compile failed for PLC '{plc.DeviceName}': {ex.Message}");
-                report.Plcs.Add(failed);
+                report.Plcs.Add(BuildPlcCompileInfo(plc, null, budget));
             }
         }
 
@@ -112,16 +94,33 @@ public static class CompileChecker
         return report;
     }
 
-    private static PlcCompileInfo BuildPlcCompileInfo(string plcName, CompilerResult result)
+    private static PlcCompileInfo BuildPlcCompileInfo(PlcSoftwareLocator.DiscoveredPlcSoftware selectedPlc,
+        CompilerResult? result, CompileReportProjection.Budget budget)
     {
-        return new PlcCompileInfo
+        var plc = new PlcCompileInfo
         {
-            PlcName = plcName,
-            State = MapState(result.State),
-            ErrorCount = result.ErrorCount,
-            WarningCount = result.WarningCount,
-            Messages = MapMessages(result.Messages)
+            PlcName = selectedPlc.Software.Name,
+            DeviceName = selectedPlc.DeviceName,
+            State = result == null ? "Error" : MapState(result.State),
+            ErrorCount = result?.ErrorCount ?? 0,
+            WarningCount = result?.WarningCount ?? 0
         };
+        if (result == null)
+        {
+            plc.DiagnosticNotes.Add("PLC compilation failed; compiler details are unavailable.");
+            return plc;
+        }
+
+        var projection = CompileReportProjection.Flatten(result.Messages,
+            message => message.Description,
+            ReadMessagePath,
+            MapMessageSeverity,
+            message => message.Messages,
+            budget);
+        plc.Messages = projection.Messages;
+        if (projection.WasTruncated)
+            CompileReportProjection.NoteOmission(plc);
+        return plc;
     }
 
     private static CompilerResult CompileObject(object compilable)
@@ -191,43 +190,22 @@ public static class CompileChecker
         }
     }
 
-    private static List<CompileMessageInfo> MapMessages(IEnumerable<CompilerResultMessage> messages)
-    {
-        var result = new List<CompileMessageInfo>();
-
-        foreach (CompilerResultMessage message in messages)
-        {
-            result.Add(new CompileMessageInfo
-            {
-                Description = message.Description,
-                Path = ReadMessagePath(message),
-                Severity = MapMessageSeverity(message)
-            });
-        }
-
-        return result;
-    }
-
     private static string MapMessageSeverity(CompilerResultMessage message)
     {
-        if (message.ErrorCount > 0)
-        {
-            return "Error";
-        }
-
-        if (message.WarningCount > 0)
-        {
-            return "Warning";
-        }
-
-        return "Information";
+        // Counts may include child messages. The row's own State is authoritative.
+        // Resolve reflectively because the compile-time stubs may omit this property.
+        var property = message.GetType().GetProperty("State")
+            ?? throw new InvalidOperationException("Compiler message state is unavailable.");
+        var state = property.GetValue(message, null)?.ToString();
+        return state == "Error" ? "Error" : state == "Warning" ? "Warning" : "Information";
     }
 
     private static string ReadMessagePath(CompilerResultMessage message)
     {
         // Path is not declared on the compile-time Openness stub; resolved at runtime from the full V21 assembly.
-        PropertyInfo? property = message.GetType().GetProperty("Path");
-        return property?.GetValue(message, null)?.ToString() ?? string.Empty;
+        var property = message.GetType().GetProperty("Path")
+            ?? throw new InvalidOperationException("Compiler message path is unavailable.");
+        return property.GetValue(message, null)?.ToString() ?? string.Empty;
     }
 
     private static string WorstState(string current, string candidate)
