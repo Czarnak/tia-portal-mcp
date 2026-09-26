@@ -473,6 +473,71 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         AssertNoAudit(audit);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OpenProject_InvalidatedBlankPath_RejectsBeforeRecovery(bool forceRebind)
+    {
+        using var audit = new TempAuditDirectory();
+        // A status call to this source returns "invalid value" instead of the required
+        // input error; forceRebind=true would also change the binding revision during recovery.
+        var binding = new ProjectSessionBinding("worker-error-with-category");
+        binding.Invalidate("Simulated stale binding");
+        var before = binding.CaptureSnapshot();
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var preview = await ProjectWriteTools.OpenProject(client, safety, "   ", forceRebind: forceRebind);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
+        Assert.Equal("Project path is required.", root.GetProperty("error").GetString());
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task OpenProject_ConfiguredBlankPath_RejectsBeforeStatusPromotion()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding("worker-error-with-category");
+        var before = binding.CaptureSnapshot();
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var preview = await ProjectWriteTools.OpenProject(client, safety, "   ", forceRebind: true);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
+        Assert.Equal("Project path is required.", root.GetProperty("error").GetString());
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+        AssertNoAudit(audit);
+    }
+
+    [Fact]
+    public async Task OpenProject_ConfiguredDifferentPathWithoutForce_RejectsBeforeStatusPromotion()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding("worker-error-with-category");
+        var before = binding.CaptureSnapshot();
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+
+        var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: false);
+        using var document = JsonDocument.Parse(preview);
+        var root = document.RootElement;
+
+        Assert.False(root.TryGetProperty("safetyToken", out _));
+        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
+        Assert.Contains("already bound", root.GetProperty("error").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+        AssertNoAudit(audit);
+    }
+
     [Fact]
     public async Task OpenProject_InvalidatedStatusFailure_PreservesCategoryAndIssuesNoToken()
     {

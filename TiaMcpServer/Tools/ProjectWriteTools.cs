@@ -31,6 +31,18 @@ public class ProjectWriteTools
         var requestedInput = new { projectPath, forceRebind };
         if (string.IsNullOrWhiteSpace(safetyToken))
         {
+            // Reject impossible requests before recovery or configured-source verification can
+            // contact the worker or change the binding. The pinned check below still protects
+            // against a binding change between this precheck and token creation.
+            if (workerClient is not null)
+            {
+                var initialBindingCheck = workerClient.CheckOpenProjectBinding(projectPath, forceRebind);
+                if (!initialBindingCheck.Success)
+                {
+                    return WriteSafetyTooling.BuildApplyResult("open_project", initialBindingCheck);
+                }
+            }
+
             ProjectBindingSnapshot? recoveredBinding = null;
             if (workerClient is not null &&
                 workerClient.BindingSnapshot.State == ProjectBindingSnapshot.InvalidatedState)
