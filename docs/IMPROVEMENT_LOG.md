@@ -41,16 +41,20 @@ not shipped behavior and should proceed only if additional measurements justify 
 changing the approved public contract. Acceptance of the current implementation does not complete
 this optimization.
 
-## Open: Network Phase 5 IO-system qualification
+## Open: Network Phase 5 public IO-system editing
 
-The temporary worker-only qualification probe and guarded private harness are implemented. The
-read-only owner inspection verified the PROFINET controller's exact `DeviceItem`. DP ownership
-is unverified because one of two controller-path segments lacks `TypeIdentifier`; the exact-owner
-gate rejects the incomplete path. Inventory and Preview are read-only. Compile and one-field Apply
-require frozen-candidate and unchanged-preview checks plus explicit effectful gates, and have not
-run in this qualification step. No hardware compile, edit/restoration, project save, or download
-is evidenced here. No IO-system field has an approved editing contract or public write operation.
-The remaining live matrix and contract review require separate exact-target authorization.
+PR 2's 2026-09-26 guarded worker-only V21 matrix verified exact PN/DP controller interface
+owners, their distinct master PLC hardware compile targets, baseline compiles, and one-field
+edit/restoration evidence. The [qualified contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
+admits PN/DP `Name` and `Number` plus PN `UseIoSystemNameAsDeviceNameExtension` for later
+public planning. PN `MultipleUseIoSystem` remains excluded after linked PN-name evidence became
+unavailable following a committed edit; `MaxNumberIWlanLinksPerSegment` remains unproved.
+The [acceptance report](superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md)
+records two reverse `Name` runs whose worker edit/compile succeeded but whose final harness
+status failed solely on transient project-size drift, and the clean close-without-save/reopen
+result. No failed hardware compile was induced. `update_io_system` remains unshipped. The next
+public slice still needs a fresh plan from merged `main`, strict TDD, the canonical safety and
+audit gate, and its own live public-path acceptance.
 
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 
