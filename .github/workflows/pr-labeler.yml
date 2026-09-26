@@ -1,0 +1,24 @@
+name: PR labeler
+
+# Adds "area: *", documentation, and github_actions labels from the paths a pull request
+# changes. The rules live in .github/labeler.yml.
+#
+# pull_request_target (not pull_request) is used so labeling also works on PRs from forks and
+# from Dependabot, whose pull_request runs only get a read-only token. The trade-off is that
+# pull_request_target runs with a write-capable token, so this workflow must never check out
+# or execute code from the pull request. actions/labeler does not: it reads the changed file
+# list through the API and the rules from the default branch.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply labels from changed paths
+        uses: actions/labeler@v7
