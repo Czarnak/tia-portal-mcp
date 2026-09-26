@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
@@ -28,9 +29,47 @@ public class ProjectWriteTools
     {
         var target = new { projectPath };
         var requestedInput = new { projectPath, forceRebind };
-        if (string.IsNullOrWhiteSpace(safetyToken)) return await CreatePinnedPreviewAsync(workerClient, "open_project", () => Task.FromResult(WriteSafetyTooling.CreatePreview(safety, "open_project", projectPath, target, $"Open and bind TIA Portal project '{projectPath}'.", requestedInput, WorkerCallResult.Ok(WriteSafetyTooling.DescribePathState(projectPath)), diff: null, instructions: ApplyInstructions("open_project")))).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(safetyToken))
+        {
+            // A configured path is only a caller assertion. Ground it before pinning the
+            // preview lease; otherwise the status promotion would change the pinned binding.
+            if (workerClient is not null &&
+                workerClient.BindingSnapshot.State == ProjectBindingSnapshot.ConfiguredUnverifiedState)
+            {
+                var configuredPath = workerClient.BindingSnapshot.ProjectPath;
+                var verification = await workerClient.GetProjectStatusAsync(configuredPath).ConfigureAwait(false);
+                if (!verification.Success)
+                {
+                    return WriteSafetyTooling.BuildApplyResult("open_project", verification);
+                }
+
+                if (!workerClient.BindingSnapshot.IsVerified)
+                {
+                    return WriteSafetyTooling.BuildApplyResult("open_project", WorkerCallResult.Fail(
+                        WorkerFailureCategories.BindingConflict,
+                        "The configured source project could not be verified for rebind preview."));
+                }
+            }
+
+            return await CreatePinnedPreviewAsync(workerClient!, "open_project", async () =>
+            {
+                var currentState = await ReadOpenProjectCurrentStateAsync(
+                    workerClient!, projectPath, forceRebind).ConfigureAwait(false);
+                if (currentState.Success && WouldCloseModifiedSource(currentState.Payload))
+                {
+                    return WriteSafetyTooling.BuildApplyResult("open_project", WorkerCallResult.Fail(
+                        WorkerFailureCategories.ValidationError,
+                        "The worker-owned source project has unsaved changes and would be closed by this rebind. Save or close it explicitly before previewing again."));
+                }
+
+                return WriteSafetyTooling.CreatePreview(
+                    safety, "open_project", projectPath, target,
+                    $"Open and bind TIA Portal project '{projectPath}'.", requestedInput,
+                    currentState, diff: null, instructions: ApplyInstructions("open_project"));
+            }).ConfigureAwait(false);
+        }
         if (!confirm) return ConfirmRequired("open_project");
-        var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("open_project"), "open_project", projectPath, target, requestedInput, () => Task.FromResult(WorkerCallResult.Ok(WriteSafetyTooling.DescribePathState(projectPath))), () => workerClient.OpenProjectAsync(projectPath, forceRebind), async (context, operationResult) =>
+        var apply = await WriteSafetyTooling.ValidateAndExecuteForApplyAsync(workerClient, safety, safetyToken, PreviewHint("open_project"), "open_project", projectPath, target, requestedInput, () => ReadOpenProjectCurrentStateAsync(workerClient, projectPath, forceRebind), () => workerClient.OpenProjectAsync(projectPath, forceRebind), async (context, operationResult) =>
         {
             var verification = operationResult.Success ? (await workerClient.GetBasicProjectStatusAsync(projectPath).ConfigureAwait(false)).ToText() : null;
             safety.AppendAudit("open_project", projectPath, target, requestedInput, context.CurrentState, operationResult.ToText());
@@ -40,6 +79,102 @@ public class ProjectWriteTools
         if (!safetyContext.IsValid) return SafetyFailure("open_project", safetyContext);
         var result = apply.OperationResult!;
         return WriteSafetyTooling.BuildApplyResult("open_project", result, "get_project_status", apply.VerificationResult);
+    }
+
+    private static async Task<WorkerCallResult> ReadOpenProjectCurrentStateAsync(
+        OpennessWorkerClient workerClient,
+        string projectPath,
+        bool forceRebind)
+    {
+        var destinationState = WriteSafetyTooling.DescribePathState(projectPath);
+        if (workerClient is null)
+        {
+            // Pure filesystem preview tests have no worker and therefore no source binding.
+            return WorkerCallResult.Ok(destinationState);
+        }
+
+        var binding = workerClient.BindingSnapshot;
+        if (binding.State == ProjectBindingSnapshot.ConfiguredUnverifiedState ||
+            binding.State == ProjectBindingSnapshot.InvalidatedState)
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "The source project binding is not verified for rebind preview.");
+        }
+
+        var source = ProjectPathNormalization.Canonicalize(binding.ProjectPath);
+        var destination = ProjectPathNormalization.Canonicalize(projectPath);
+        if (destination is null)
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.ValidationError,
+                "A destination project path is required for open_project preview.");
+        }
+
+        if (!binding.IsVerified)
+        {
+            return WorkerCallResult.Ok(destinationState);
+        }
+
+        if (source is null)
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                "The verified source project path is unavailable for rebind preview.");
+        }
+
+        if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkerCallResult.Ok(destinationState);
+        }
+
+        var probe = await workerClient.ProbeOpenProjectRebindAsync(source, destination).ConfigureAwait(false);
+        if (!probe.Success)
+        {
+            return probe;
+        }
+
+        ProjectRebindStateInfo? state;
+        try
+        {
+            state = JsonSerializer.Deserialize<ProjectRebindStateInfo>(
+                probe.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+        catch (JsonException)
+        {
+            state = null;
+        }
+
+        if (state is null ||
+            !string.Equals(state.SourceProjectPath, source, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(state.DestinationProjectPath, destination, StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.ProtocolError,
+                "The rebind-state probe did not match the pinned source and destination.");
+        }
+
+        using var destinationDocument = JsonDocument.Parse(destinationState);
+        var combinedState = JsonSerializer.Serialize(new
+        {
+            destination = destinationDocument.RootElement,
+            sourceProjectPath = state.SourceProjectPath,
+            destinationProjectPath = state.DestinationProjectPath,
+            sourceIsModified = state.SourceIsModified,
+            sourceOpenedByWorker = state.SourceOpenedByWorker,
+            willCloseSource = state.WillCloseSource
+        });
+        return WorkerCallResult.Ok(combinedState, probe.Warnings);
+    }
+
+    private static bool WouldCloseModifiedSource(string currentState)
+    {
+        using var document = JsonDocument.Parse(currentState);
+        var root = document.RootElement;
+        return root.TryGetProperty("willCloseSource", out var willClose) &&
+            willClose.ValueKind == JsonValueKind.True &&
+            root.TryGetProperty("sourceIsModified", out var modified) &&
+            modified.ValueKind == JsonValueKind.True;
     }
 
     [McpServerTool(

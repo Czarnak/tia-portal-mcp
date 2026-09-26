@@ -69,6 +69,8 @@ var tagSafetySnapshotReadCount = 0;
 var tagSafetyMutationCount = 0;
 var tagSafetySnapshotReadsAtMutation = 0;
 var tagSafetyBroadReadCount = 0;
+var lifecycleRebindProbeReadCount = 0;
+var lifecycleRebindOpenProjectCalls = 0;
 var tagSafetyTargetExists = true;
 var tagSafetyTargetTagName = "Start";
 var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Before",
@@ -189,7 +191,18 @@ while ((line = Console.In.ReadLine()) is not null)
             // A normal open: the worker reports the SAME path it was asked to open. Both the
             // open_project call and the follow-up get_project_status call resolve here, so a
             // full open preview/apply round trip succeeds and the session binds to this path.
+            if (ReadMethod(line) == "open_project")
+            {
+                lifecycleRebindOpenProjectCalls++;
+            }
             Respond("""{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\open\\Line.ap21"}""");
+            break;
+        case @"C:\Lifecycle\B-ui-owned.ap21":
+            if (ReadMethod(line) == "open_project")
+            {
+                lifecycleRebindOpenProjectCalls++;
+            }
+            Respond(SuccessWithResolvedPath("{\"isOpen\":true}", @"C:\Lifecycle\B-ui-owned.ap21"));
             break;
         case "C:\\bound\\Session.ap21":
             // Used by the "already bound but worker reports a different project" test: the
@@ -768,9 +781,23 @@ while ((line = Console.In.ReadLine()) is not null)
         case @"C:\FakeWorker\lifecycle-rebind-probe-binding-conflict.ap21":
             // One persistent process first verifies source A, then handles the internal probe.
             // The destination travels only in rebindDestinationProjectPath, never projectPath.
-            Respond(ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null
-                ? Success("{\"isOpen\":true}")
-                : RebindProbeResponse(line, scenario));
+            if (ReadMethod(line) == "get_project_status")
+            {
+                Respond(Success(ToCamelCaseJson(new { isOpen = true, openProjectCalls = lifecycleRebindOpenProjectCalls })));
+            }
+            else if (ReadMethod(line) == "get_basic_project_status")
+            {
+                Respond(Success("{\"isOpen\":true}"));
+            }
+            else if (ReadMethod(line) == "open_project")
+            {
+                lifecycleRebindOpenProjectCalls++;
+                Respond(SuccessWithResolvedPath("{\"isOpen\":true}", scenario));
+            }
+            else
+            {
+                Respond(RebindProbeResponse(line, scenario));
+            }
             break;
         case "save-as-uncertain-state":
             // Simulates the real worker's postcondition_failed when save_project_as saved a copy
@@ -1297,9 +1324,18 @@ string Success(string payload) => JsonSerializer.Serialize(new { success = true,
 string RebindProbeResponse(string requestLine, string sourcePath)
 {
     const string destinationPath = @"C:\Lifecycle\B.ap21";
+    const string modifiedDestinationPath = @"C:\Lifecycle\B-modified.ap21";
+    const string uiOwnedDestinationPath = @"C:\Lifecycle\B-ui-owned.ap21";
+    const string driftDestinationPath = @"C:\open\Line.ap21";
+    var requestedDestination = ReadField(requestLine, "rebindDestinationProjectPath");
+    var knownDestination = string.Equals(requestedDestination, destinationPath, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(requestedDestination, modifiedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(requestedDestination, uiOwnedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(requestedDestination, driftDestinationPath, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(requestedDestination, sourcePath, StringComparison.OrdinalIgnoreCase);
     if (ReadMethod(requestLine) != "probe_open_project_rebind" ||
         !string.Equals(ReadField(requestLine, "projectPath"), sourcePath, StringComparison.OrdinalIgnoreCase) ||
-        !string.Equals(ReadField(requestLine, "rebindDestinationProjectPath"), destinationPath, StringComparison.OrdinalIgnoreCase))
+        !knownDestination)
     {
         return JsonSerializer.Serialize(new
         {
@@ -1319,7 +1355,13 @@ string RebindProbeResponse(string requestLine, string sourcePath)
         });
     }
 
-    var state = ProjectRebindStateInfo.Create(sourcePath, destinationPath, false, true);
+    var isDrift = string.Equals(requestedDestination, driftDestinationPath, StringComparison.OrdinalIgnoreCase);
+    var isModified = string.Equals(requestedDestination, modifiedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(requestedDestination, uiOwnedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(requestedDestination, sourcePath, StringComparison.OrdinalIgnoreCase) ||
+        (isDrift && ++lifecycleRebindProbeReadCount > 1);
+    var workerOwned = !string.Equals(requestedDestination, uiOwnedDestinationPath, StringComparison.OrdinalIgnoreCase);
+    var state = ProjectRebindStateInfo.Create(sourcePath, requestedDestination!, isModified, workerOwned);
     if (sourcePath.EndsWith("-missing-source.ap21", StringComparison.Ordinal))
     {
         state.SourceProjectPath = null;
