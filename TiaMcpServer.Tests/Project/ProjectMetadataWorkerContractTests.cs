@@ -176,22 +176,86 @@ public class ProjectMetadataWorkerContractTests
     }
 
     [Fact]
-    public void LifecycleWriteTools_PostWriteVerification_UsesBasicStatusReadNotMetadataRead()
+    public void LifecycleWriteTools_StatusReads_AreLimitedToConfiguredPreviewAndBasicPostWriteVerification()
     {
         var writeToolsSource = File.ReadAllText(
             FindRepositoryFile("TiaMcpServer", "Tools", "ProjectWriteTools.cs"));
         var lifecycleToolsSource = File.ReadAllText(
             FindRepositoryFile("TiaMcpServer", "Tools", "ProjectLifecycleTools.cs"));
 
-        // The five registered write tools (open/create/save/save-as/archive) verify with the
-        // basic-status read only: ProjectWriteTools never calls GetProjectStatusAsync (the
-        // extended-metadata read) at all and each write tool uses GetBasicProjectStatusAsync
-        // exactly once. ProjectLifecycleTools is a thin compatibility wrapper, so it owns
-        // neither direct status reads nor post-write verification reads.
-        Assert.Equal(0, CountOccurrences(writeToolsSource, "GetProjectStatusAsync"));
-        Assert.Equal(0, CountOccurrences(lifecycleToolsSource, "GetProjectStatusAsync"));
-        Assert.Equal(5, CountOccurrences(writeToolsSource, "GetBasicProjectStatusAsync"));
-        Assert.Equal(0, CountOccurrences(lifecycleToolsSource, "GetBasicProjectStatusAsync"));
+        var open = SliceBetween(writeToolsSource, "public static async Task<string> OpenProject(",
+            "private static string DescribeOpenProjectPreview(");
+        var create = SliceBetween(writeToolsSource, "public static async Task<string> CreateProject(",
+            "public static async Task<string> SaveProject(");
+        var save = SliceBetween(writeToolsSource, "public static async Task<string> SaveProject(",
+            "public static async Task<string> SaveProjectAs(");
+        var saveAs = SliceBetween(writeToolsSource, "public static async Task<string> SaveProjectAs(",
+            "public static async Task<string> ArchiveProject(");
+        var archive = SliceBetween(writeToolsSource, "public static async Task<string> ArchiveProject(",
+            "public static async Task<string> CloseProject(");
+        var close = SliceBetween(writeToolsSource, "public static async Task<string> CloseProject(",
+            "private static string? ResolveDisplayedProjectPath(");
+
+        // A configured source is verified before open preview/token pinning. This is the sole
+        // permitted extended-metadata read; it is guarded by ConfiguredUnverifiedState and is
+        // not a post-write verification read.
+        var configuredGuard = ExtractBraceBlockAfter(open,
+            "workerClient.BindingSnapshot.State == ProjectBindingSnapshot.ConfiguredUnverifiedState");
+        Assert.Equal(1, CountOccurrences(writeToolsSource, "GetProjectStatusAsync("));
+        Assert.Equal(1, CountOccurrences(configuredGuard, "GetProjectStatusAsync("));
+        Assert.Contains("GetProjectStatusAsync(configuredPath)", configuredGuard, StringComparison.Ordinal);
+        Assert.True(open.IndexOf("GetProjectStatusAsync(configuredPath)", StringComparison.Ordinal)
+            < open.IndexOf("return await CreatePinnedPreviewAsync(", StringComparison.Ordinal));
+        Assert.DoesNotContain("GetProjectStatusAsync(",
+            open.Substring(open.IndexOf("if (!confirm) return ConfirmRequired(\"open_project\");", StringComparison.Ordinal)),
+            StringComparison.Ordinal);
+
+        // The five successful write finalizers each use one plain basic-status read. Their
+        // surrounding methods have no second basic read, and no finalizer uses full status.
+        foreach (var (tool, body) in new[]
+        {
+            ("open_project", open), ("create_project", create), ("save_project", save),
+            ("save_project_as", saveAs), ("archive_project", archive)
+        })
+        {
+            var finalizer = ExtractBraceBlockAfter(body, "async (context, operationResult) =>");
+            Assert.Equal(1, CountOccurrences(finalizer, "GetBasicProjectStatusAsync("));
+            Assert.Equal(1, CountOccurrences(body, "GetBasicProjectStatusAsync("));
+            Assert.DoesNotContain("GetProjectStatusAsync(", finalizer, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(5, CountOccurrences(writeToolsSource, "GetBasicProjectStatusAsync("));
+        Assert.Equal(0, CountOccurrences(close, "GetProjectStatusAsync("));
+        Assert.Equal(0, CountOccurrences(close, "GetBasicProjectStatusAsync("));
+        Assert.Equal(0, CountOccurrences(lifecycleToolsSource, "GetProjectStatusAsync("));
+        Assert.Equal(0, CountOccurrences(lifecycleToolsSource, "GetBasicProjectStatusAsync("));
+    }
+
+    private static string SliceBetween(string source, string startMarker, string endMarker)
+    {
+        var start = source.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Missing source marker: {startMarker}");
+        var end = source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+        Assert.True(end > start, $"Missing source marker: {endMarker}");
+        return source.Substring(start, end - start);
+    }
+
+    private static string ExtractBraceBlockAfter(string source, string marker)
+    {
+        var markerIndex = source.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(markerIndex >= 0, $"Missing source marker: {marker}");
+        var start = source.IndexOf('{', markerIndex + marker.Length);
+        Assert.True(start >= 0, $"Missing brace after: {marker}");
+        var depth = 0;
+        for (var index = start; index < source.Length; index++)
+        {
+            if (source[index] == '{') depth++;
+            if (source[index] != '}') continue;
+            depth--;
+            if (depth == 0) return source.Substring(start, index - start + 1);
+        }
+
+        throw new InvalidOperationException($"Unbalanced source block after: {marker}");
     }
 
     private static int CountOccurrences(string source, string value)
