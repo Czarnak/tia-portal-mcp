@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text.Json;
 using TiaMcpServer.Contracts;
 
@@ -92,7 +93,7 @@ internal static class CompileReportProjection
                     {
                         children = readChildren(message);
                     }
-                    catch (Exception)
+                    catch (Exception ex) when (IsExpectedDetailFailure(ex))
                     {
                         projection.WasTruncated = true;
                         continue;
@@ -101,7 +102,7 @@ internal static class CompileReportProjection
                         return false;
                 }
             }
-            catch (Exception)
+            catch (Exception ex) when (IsExpectedDetailFailure(ex))
             {
                 // Enumeration/disposal can also cross the Siemens remoting boundary.
                 projection.WasTruncated = true;
@@ -113,12 +114,21 @@ internal static class CompileReportProjection
         string ReadText(Func<TMessage, string> read, TMessage message, string fallback = "")
         {
             try { return read(message) ?? fallback; }
-            catch (Exception)
+            catch (Exception ex) when (IsExpectedDetailFailure(ex))
             {
                 projection.WasTruncated = true;
                 return fallback;
             }
         }
+    }
+
+    private static bool IsExpectedDetailFailure(Exception exception)
+    {
+        // Reflection is a transport wrapper, not evidence that a failure is recoverable.
+        // Keep this projection seam Siemens-free and reject derived/infrastructure faults.
+        while (exception is TargetInvocationException reflection && reflection.InnerException != null)
+            exception = reflection.InnerException;
+        return exception.GetType() == typeof(InvalidOperationException);
     }
 
     public static void NoteOmission(PlcCompileInfo plc)

@@ -224,7 +224,7 @@ public static class CompileChecker
         // Resolve reflectively because the compile-time stubs may omit this property.
         var property = message.GetType().GetProperty("State")
             ?? throw new InvalidOperationException("Compiler message state is unavailable.");
-        var state = property.GetValue(message, null)?.ToString();
+        var state = ReadMessageProperty(property, message)?.ToString();
         return state == "Error" ? "Error" : state == "Warning" ? "Warning" : "Information";
     }
 
@@ -233,7 +233,23 @@ public static class CompileChecker
         // Path is not declared on the compile-time Openness stub; resolved at runtime from the full V21 assembly.
         var property = message.GetType().GetProperty("Path")
             ?? throw new InvalidOperationException("Compiler message path is unavailable.");
-        return property.GetValue(message, null)?.ToString() ?? string.Empty;
+        return ReadMessageProperty(property, message)?.ToString() ?? string.Empty;
+    }
+
+    private static object? ReadMessageProperty(PropertyInfo property, CompilerResultMessage message)
+    {
+        try
+        {
+            return property.GetValue(message, null);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        {
+            Exception failure = ex.InnerException;
+            while (failure is TargetInvocationException reflection && reflection.InnerException != null)
+                failure = reflection.InnerException;
+            ExceptionDispatchInfo.Capture(failure).Throw();
+            throw;
+        }
     }
 
     private static string WorstState(string current, string candidate)

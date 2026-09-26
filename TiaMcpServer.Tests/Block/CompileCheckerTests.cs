@@ -438,6 +438,87 @@ public class CompileCheckerTests
             Assert.Empty(plc.DiagnosticNotes);
     }
 
+    [Theory]
+    [InlineData("path")]
+    [InlineData("severity")]
+    public void Compile_NestedReflectedExpectedFailureIsSanitized(string field)
+    {
+        var result = ResultWithNestedReflectedFailure(field,
+            new InvalidOperationException("private-project-path-secret"));
+
+        var report = CompileChecker.Compile(ProjectWithCompiler(result), null, null);
+
+        var plc = Assert.Single(report.Plcs);
+        AssertIdentity(plc);
+        Assert.Equal("Error", plc.State);
+        Assert.Equal(7, plc.ErrorCount);
+        Assert.Equal(3, plc.WarningCount);
+        Assert.Equal(new[] { "parent", "child", "grandchild" }, plc.Messages.Select(m => m.Description));
+        Assert.Equal(field == "path" ? "" : "child-path", plc.Messages[1].Path);
+        Assert.Equal(field == "severity" ? "Information" : "Error", plc.Messages[1].Severity);
+        Assert.Single(plc.DiagnosticNotes);
+        var json = JsonSerializer.Serialize(report, TiaJson.Presentation);
+        Assert.DoesNotContain("private-project-path-secret", json);
+        Assert.True(json.Length < 60000);
+    }
+
+    public static IEnumerable<object[]> NestedReflectedInfrastructureFailures()
+    {
+        foreach (var field in new[] { "path", "severity" })
+        foreach (var kind in new[] { "session", "io", "cancel", "format", "derived-invalid-operation" })
+            yield return new object[] { field, kind };
+    }
+
+    [Theory]
+    [MemberData(nameof(NestedReflectedInfrastructureFailures))]
+    public void Compile_NestedReflectedInfrastructureFailurePropagates(string field, string kind)
+    {
+        Exception failure = kind switch
+        {
+            "session" => new NonRecoverableException("private-session-path"),
+            "io" => new IOException("private-io-path"),
+            "cancel" => new OperationCanceledException("private-cancel-path"),
+            "format" => new FormatException("private-format-path"),
+            "derived-invalid-operation" => new UnexpectedInvalidOperationException(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+        var result = ResultWithNestedReflectedFailure(field, failure);
+
+        var propagated = Assert.ThrowsAny<Exception>(() =>
+            CompileChecker.Compile(ProjectWithCompiler(result), null, null));
+
+        // Match CompileObject's existing reflection boundary: preserve the real exception.
+        Assert.Same(failure, propagated);
+    }
+
+    private static CompilerResult ResultWithNestedReflectedFailure(string field, Exception failure)
+    {
+        CompilerResultMessage child = field == "path"
+            ? new FailingPathMessage(failure)
+            : new FailingStateMessage(failure);
+        child.Description = "child";
+        child.Path = "child-path";
+        child.State = CompilerResultState.Error;
+        child.Messages.Add(new CompilerResultMessage { Description = "grandchild" });
+        var parent = new CompilerResultMessage { Description = "parent" };
+        parent.Messages.Add(child);
+        var result = new CompilerResult { State = CompilerResultState.Error, ErrorCount = 7, WarningCount = 3 };
+        result.Messages.Add(parent);
+        return result;
+    }
+
+    private sealed class FailingPathMessage(Exception failure) : CompilerResultMessage
+    {
+        public new string Path => throw failure;
+    }
+
+    private sealed class FailingStateMessage(Exception failure) : CompilerResultMessage
+    {
+        public new CompilerResultState State => throw failure;
+    }
+
+    private sealed class UnexpectedInvalidOperationException : InvalidOperationException { }
+
     private static void AssertIdentity(TiaMcpServer.Contracts.PlcCompileInfo plc)
     {
         Assert.Equal("PLC_DP", plc.PlcName);

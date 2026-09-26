@@ -1,3 +1,5 @@
+using System.Reflection;
+using Siemens.Engineering;
 using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;
 
@@ -182,6 +184,95 @@ public class CompileReportProjectionTests
         Assert.Empty(projection.Messages);
         Assert.False(projection.WasTruncated);
     }
+
+    public static IEnumerable<object[]> NestedFailureStages()
+    {
+        foreach (var stage in new[] { "description", "path", "severity", "children", "move-next" })
+        foreach (var wrapped in new[] { false, true })
+            yield return new object[] { stage, wrapped };
+    }
+
+    public static IEnumerable<object[]> NestedInfrastructureFailures()
+    {
+        foreach (var stage in NestedFailureStages())
+        foreach (var kind in new[] { "session", "io", "cancel", "format", "derived-invalid-operation" })
+            yield return new[] { stage[0], stage[1], kind };
+    }
+
+    [Theory]
+    [MemberData(nameof(NestedFailureStages))]
+    public void Flatten_NestedExpectedFailureRetainsBoundedSanitizedDiagnostics(string stage, bool wrapped)
+    {
+        var failure = Wrap(new InvalidOperationException("private-project-path-secret"), wrapped);
+
+        var projection = ProjectWithNestedFailure(stage, failure);
+
+        Assert.True(projection.WasTruncated);
+        Assert.Equal("parent", projection.Messages[0].Description);
+        Assert.Equal(stage == "children" ? 2 : 3, projection.Messages.Count);
+        var child = projection.Messages[1];
+        Assert.Equal(stage == "description" ? "" : "child", child.Description);
+        Assert.Equal(stage == "path" ? "" : "child-path", child.Path);
+        Assert.Equal(stage == "severity" ? "Information" : "Error", child.Severity);
+        if (stage != "children")
+            Assert.Equal("grandchild", projection.Messages[2].Description);
+        var json = System.Text.Json.JsonSerializer.Serialize(projection.Messages);
+        Assert.DoesNotContain("private-project-path-secret", json);
+        Assert.True(json.Length < 60000);
+    }
+
+    [Theory]
+    [MemberData(nameof(NestedInfrastructureFailures))]
+    public void Flatten_NestedInfrastructureFailurePropagates(string stage, bool wrapped, string kind)
+    {
+        Exception failure = kind switch
+        {
+            "session" => new NonRecoverableException("private-session-path"),
+            "io" => new IOException("private-io-path"),
+            "cancel" => new OperationCanceledException("private-cancel-path"),
+            "format" => new FormatException("private-format-path"),
+            "derived-invalid-operation" => new UnexpectedInvalidOperationException(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+
+        var propagated = Assert.ThrowsAny<Exception>(() => ProjectWithNestedFailure(stage, Wrap(failure, wrapped)));
+
+        // The generic seam may preserve the reflection wrapper or unwrap it; neither may
+        // turn the underlying infrastructure/interruption failure into partial success.
+        if (propagated is TargetInvocationException reflectionFailure)
+            propagated = reflectionFailure.InnerException!;
+        Assert.Same(failure, propagated);
+    }
+
+    private static Exception Wrap(Exception failure, bool wrapped) =>
+        wrapped ? new TargetInvocationException(failure) : failure;
+
+    private static CompileReportProjection.Projection ProjectWithNestedFailure(string stage, Exception failure)
+    {
+        var parent = new Message("parent", "parent-path", "Information");
+        var child = new Message("child", "child-path", "Error");
+        child.Children.Add(new Message("grandchild", "grandchild-path", "Warning"));
+        parent.Children.Add(child);
+
+        IEnumerable<Message> ChildrenThenFailure()
+        {
+            foreach (var message in child.Children)
+                yield return message;
+            // This is thrown by MoveNext only after real nested diagnostics were retained.
+            throw failure;
+        }
+
+        return CompileReportProjection.Flatten(new[] { parent },
+            m => ReferenceEquals(m, child) && stage == "description" ? throw failure : m.Description,
+            m => ReferenceEquals(m, child) && stage == "path" ? throw failure : m.Path,
+            m => ReferenceEquals(m, child) && stage == "severity" ? throw failure : m.Severity,
+            m => ReferenceEquals(m, child)
+                ? stage == "children" ? throw failure : stage == "move-next" ? ChildrenThenFailure() : m.Children
+                : m.Children,
+            new CompileReportProjection.Budget());
+    }
+
+    private sealed class UnexpectedInvalidOperationException : InvalidOperationException { }
 
     private static CompileReportProjection.Projection Flatten(IEnumerable<Message> roots,
         CompileReportProjection.Budget? budget = null) =>
