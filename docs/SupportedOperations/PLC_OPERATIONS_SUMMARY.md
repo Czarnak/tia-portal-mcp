@@ -13,6 +13,73 @@
 
 Tree browsing and compilation are standalone tools. `compile_check` is a read-write-mode engineering operation and does not use a safety token.
 
+## Compiler diagnostics (`compile_check`)
+
+Compilation can change TIA Portal's in-memory project state. A returned report is not evidence of
+saving, downloading, or PLC/plant acceptance.
+
+Each PLC result uses `plcName` for the actual PLC software name and `deviceName` for the containing
+hardware device. The input `plcName` selector continues accepting either name. The same identities
+are returned for PLC and selected-block compilation, including expected compiler failures.
+
+Nested compiler messages are flattened in deterministic parent-before-child order. Each row uses
+that message's own description, path, and severity. Siemens-reported `state`, `errorCount`, and
+`warningCount` are preserved whenever a compiler result is available; they are not recomputed from
+the displayed rows and remain available on handled root-diagnostic collection access failures.
+
+One projection budget is shared across all selected PLCs:
+
+- Maximum message depth: 16, counting roots as depth 1.
+- Maximum projected message count: 200.
+- Maximum length of each description and path: 1,024 UTF-16 code units.
+- Maximum combined description/path text: 32,000 UTF-16 code units.
+
+The serialized compile report is additionally kept below 60,000 characters, including JSON
+escaping. Trailing message rows may be removed to meet that bound without changing reported totals
+or identities. Each affected PLC receives one sanitized omission note in `diagnosticNotes` when
+diagnostics are shortened, omitted, or unreadable. If metadata alone exceeds the response limit,
+the operation fails with bounded guidance: compilation may have run, so inspect the current
+in-memory project state before deciding whether to retry.
+
+When an expected compiler invocation failure leaves no compiler result, the typed PLC result keeps
+both identities, reports `state: "Error"`, and includes a sanitized unavailable-details note.
+Its zero counts are fallback values, not evidence of an error-free compilation.
+
+## Cross-reference coverage (`read_cross_references`)
+
+Cross references are queried on supported source objects: OB, FB, FC, GlobalDB, InstanceDB, and
+ArrayDB blocks; PLC tags; PLC system constants; and PLC user data types. Traversal includes nested
+block/tag-table/type groups, system-block groups, and those supported objects in software units.
+`PlcSoftware`, tag tables themselves, and user constants are not cross-reference service owners.
+
+The result retains the source/child-source, reference, and location hierarchy. It does not
+deduplicate overlapping results from different owners. `maxResults` limits top-level source roots
+across the selected PLCs; source/reference/location totals count the retained hierarchy, including
+descendants. All four filters listed above are forwarded to each queried owner.
+
+Each PLC result reports actual software `plcName`, containing `deviceName`, `ownerQueryCount`
+(attempts, including unavailable services), `successfulOwnerQueryCount`, and `isComplete`.
+The input selector accepts either software or device name. Report-level `isComplete` is true only
+when every selected PLC has complete coverage.
+
+- A successful owner query returning no roots is a genuine empty result. Complete successful
+  coverage can therefore have zero sources, references, and locations.
+- If no owner query succeeds anywhere in the selected PLC set, the operation fails with
+  `worker_operation_failed`; unavailable services or no supported owners are not reported as a
+  successful empty read.
+- With some successful queries, unavailable/failed owners, traversal or projection skips, and
+  `maxResults` truncation retain the available data and set affected PLCs and the report to
+  `isComplete: false`. Expected recoverable engineering failures and exact ordinary
+  `InvalidOperationException` are handled this way; session loss, derived invalid-operation,
+  I/O, cancellation, and unexpected faults propagate rather than masquerading as partial success.
+  Incomplete reports include one bounded sanitized note per affected PLC and one concise worker
+  warning, without raw exception details.
+
+An incomplete `UnusedObjects` result is not an authoritative unused-object audit and must not be
+used as proof that objects can safely be deleted. When reading older JSON that omits the additive
+coverage fields, completeness defaults to false, query counts to zero, and device identity to null;
+absence of those fields does not establish complete coverage.
+
 ## Supported write operations
 
 The operations below run through `preview_write_batch` and `apply_write_batch`.
