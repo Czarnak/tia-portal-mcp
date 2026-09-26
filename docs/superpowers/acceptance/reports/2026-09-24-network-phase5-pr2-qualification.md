@@ -104,6 +104,20 @@ worker-only probe calls are not written to that public audit. The probe and
 reset procedure requested no project save, download, commissioning, or PLC
 mode change. No persistence, plant, or installed-package acceptance is claimed.
 
+## Offline verification after the live run
+
+One full test-suite run with coverage reported 3,370 passed and one failed:
+`DirectPack_WithSdk10_IncludesCanonicalWorkerPayload(noBuild: True)`.
+Its Cobertura line rate was 0.9409, above the required 0.80. After the
+post-live project-reference change, a fresh restore and serial stub and
+installed-V21 solution builds each passed with zero errors and seven xUnit
+analyzer warnings. The single failed packaging test then passed in a focused
+coverage run. The cause of its earlier failure was not established, and the
+full suite was not repeated on the later HEAD. Commit `f057f4c` corrected the
+CI coverage command's xUnit argument separator; test discovery validated the
+corrected invocation. These offline checks do not extend the frozen live
+candidate's evidence to the later HEAD.
+
 PR 3 and later public slices require their own strict TDD, public preview/apply
 and audit acceptance, stale-state rejection, bounded known-committed failure
 contract, and scope-specific live run from the then-current merged `main`.
