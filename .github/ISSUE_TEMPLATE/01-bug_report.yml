@@ -1,0 +1,230 @@
+name: Bug report
+description: The server, the Openness worker, or the tia-mcp CLI does not behave as documented.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. The details below let the problem be reproduced without access to your machine.
+
+        **Keep project data out of this issue.** Tool requests, responses, `doctor` output, and audit records can contain block logic, tag names, IP addresses, and project paths. Reproduce on a disposable project where you can, and redact anything confidential before pasting.
+
+        **Security vulnerabilities do not belong here.** Report them privately as described in [SECURITY.md](https://github.com/Czarnak/tia-portal-mcp/blob/main/SECURITY.md).
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I checked the [troubleshooting guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/troubleshooting.md).
+          required: true
+        - label: I ran `tia-mcp doctor` and either it reports no failures or I included its output below.
+          required: true
+        - label: I removed confidential project data from everything I paste below.
+          required: true
+
+  # --- Environment -------------------------------------------------------------------
+
+  - type: input
+    id: version
+    attributes:
+      label: tia-mcp version
+      description: Output of `tia-mcp --version`.
+      placeholder: "1.2.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation method
+      options:
+        - NuGet global tool (dotnet tool install -g TiaMcpServer)
+        - Self-contained win-x64 archive from Releases
+        - Built from source
+    validations:
+      required: true
+
+  - type: input
+    id: tia-version
+    attributes:
+      label: TIA Portal version
+      description: Include the update level. TIA Portal shows it under Help > Installed software.
+      placeholder: V21 Update 1
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 Pro 24H2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mcp-client
+    attributes:
+      label: MCP client
+      options:
+        - Claude Code
+        - Codex
+        - OpenCode
+        - MiMoCode
+        - MCP Inspector
+        - Other (name it under Additional context)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: access-mode
+    attributes:
+      label: Access mode
+      options:
+        - read-only (default)
+        - read-write
+    validations:
+      required: true
+
+  # --- Where it fails ------------------------------------------------------------------
+  # The Area options map to "area: *" labels in .github/workflows/issue-labeler.yml.
+  # Keep the option text identical in both places, and never put a comma in an option:
+  # GitHub joins multiple selections with ", ", which the workflow splits on.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Pick every area involved. Choose "Not sure" if you cannot tell.
+      multiple: true
+      options:
+        - PLC blocks and types
+        - Tags and user constants
+        - Network and hardware
+        - Project tree and lifecycle
+        - Write safety (preview and apply)
+        - MCP protocol and tool schemas
+        - Openness worker or connection to TIA Portal
+        - CLI (doctor / install / version)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: tool
+    attributes:
+      label: Tool and operation
+      description: Leave empty for CLI problems.
+      placeholder: execute_read_batch > get_block_content
+    validations:
+      required: false
+
+  - type: input
+    id: failure-category
+    attributes:
+      label: failureCategory
+      description: >-
+        The categorized failure from the response, if there was one. Common values are
+        validation_error, binding_conflict, state_changed, target_ambiguous,
+        worker_operation_failed, worker_timeout, worker_crashed, protocol_error, and
+        postcondition_failed.
+      placeholder: state_changed
+    validations:
+      required: false
+
+  - type: dropdown
+    id: project-changed
+    attributes:
+      label: Was the TIA Portal project changed?
+      description: >-
+        Write batches apply operations one by one, stop at the first failure, and do not roll
+        back. For a write, say what state the project was left in.
+      options:
+        - Not a write operation
+        - No - nothing was changed
+        - Partially - some operations were applied
+        - Yes - the change was applied but the result is wrong
+        - Unknown - not checked
+    validations:
+      required: true
+
+  # --- What happened -------------------------------------------------------------------
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the error message and any entries from the warnings array.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        Numbered steps, starting from the project state they need: CPU family and firmware,
+        block language, device types, or whatever else the problem depends on.
+      placeholder: |
+        1. Open a project with one S7-1500 CPU and an FB written in LAD
+        2. Call execute_read_batch with get_block_content for that FB
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: request
+    attributes:
+      label: Tool request
+      description: The arguments sent to the tool. Redact confidential values.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: response
+    attributes:
+      label: Tool response
+      description: The response returned by the tool. Trim large payloads to the relevant part.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: tia-mcp doctor --json output
+      description: >-
+        Recommended for every bug. Check whether normalizedProjectPath or other path values
+        reveal a customer or project name before pasting.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: audit
+    attributes:
+      label: Audit record
+      description: >-
+        Write problems only. The JSONL line for the affected apply, from the audit folder
+        under %LOCALAPPDATA%\TiaMcpServer\audit.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, such as project size, recent changes to your setup, or screenshots.
+    validations:
+      required: false

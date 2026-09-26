@@ -1,0 +1,40 @@
+name: Documentation issue
+description: Something in the docs is wrong, missing, outdated, or hard to follow.
+labels: ["documentation", "needs-triage"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type of problem
+      options:
+        - Incorrect or outdated
+        - Missing information
+        - Unclear or hard to follow
+        - Broken link
+        - Typo or formatting
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Where is it?
+      description: File path, URL, or section heading.
+      placeholder: docs/guides/installation.md, section "Access modes"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong?
+      description: If the docs disagree with what the server actually does, include what you observed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+    validations:
+      required: false

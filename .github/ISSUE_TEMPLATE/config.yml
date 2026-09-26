@@ -1,0 +1,17 @@
+# Issue template chooser configuration.
+#
+# Blank issues are disabled so every report arrives through a form with the environment
+# details needed for triage. Anything that is not a bug, feature request, or docs problem
+# is routed to one of the links below instead.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Question or idea
+    url: https://github.com/Czarnak/tia-portal-mcp/discussions
+    about: Ask how to use the server, share a workflow, or discuss an idea before writing a feature request.
+  - name: Security vulnerability
+    url: https://github.com/Czarnak/tia-portal-mcp/security/advisories/new
+    about: Report privately through a security advisory. Never open a public issue for a vulnerability.
+  - name: Troubleshooting guide
+    url: https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/troubleshooting.md
+    about: Common failures and verified TIA Portal V21 behavior. Check it before filing a bug.

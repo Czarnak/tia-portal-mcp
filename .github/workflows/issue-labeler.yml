@@ -1,0 +1,83 @@
+name: Issue labeler
+
+# Adds "area: *" labels from the Area dropdown of the bug report and feature request forms.
+#
+# It runs only when an issue is opened. Running on edits too would re-add any area label the
+# maintainer removed during triage whenever the reporter fixed a typo. It only ever adds labels.
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply area labels from the issue form
+        uses: actions/github-script@v9
+        with:
+          # The issue body is untrusted input. It is read from context.payload inside the
+          # script, never interpolated into the script text with a workflow expression,
+          # which is what keeps a crafted issue body from injecting code.
+          script: |
+            // Area option text -> label. Must match the options in
+            // .github/ISSUE_TEMPLATE/01-bug_report.yml and 02-feature_request.yml.
+            const areaLabels = {
+              'PLC blocks and types': 'area: plc-blocks',
+              'Tags and user constants': 'area: plc-tags',
+              'Network and hardware': 'area: network',
+              'Project tree and lifecycle': 'area: project',
+              'Write safety (preview and apply)': 'area: write-safety',
+              'MCP protocol and tool schemas': 'area: mcp-protocol',
+              'Openness worker or connection to TIA Portal': 'area: worker',
+              'CLI (doctor / install / version)': 'area: cli',
+            };
+            // Options that intentionally map to no label.
+            const unlabeled = new Set([
+              'Not sure',
+              'New capability area (see ROADMAP)',
+              '_No response_',
+            ]);
+
+            // A form renders every field as "### <field label>" followed by the answer.
+            // Keep the first occurrence of each heading, so a "### Area" line pasted into a
+            // later free-text field cannot override the real dropdown answer.
+            const body = (context.payload.issue.body ?? '').replace(/\r\n/g, '\n');
+            const sections = new Map();
+            for (const block of body.split(/^### /m).slice(1)) {
+              const [heading, ...answer] = block.split('\n');
+              if (!sections.has(heading.trim())) {
+                sections.set(heading.trim(), answer.join('\n').trim());
+              }
+            }
+
+            const area = sections.get('Area');
+            if (area === undefined) {
+              core.info('No "Area" field: this issue was not created from a form that has one.');
+              return;
+            }
+
+            // A multi-select dropdown joins the chosen options with ", ".
+            const labels = [];
+            for (const option of area.split(', ').map((o) => o.trim()).filter(Boolean)) {
+              if (option in areaLabels) {
+                labels.push(areaLabels[option]);
+              } else if (!unlabeled.has(option)) {
+                core.warning(`Area option "${option}" has no label mapping. Update issue-labeler.yml.`);
+              }
+            }
+
+            if (labels.length === 0) {
+              core.info('No area labels to add.');
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels,
+            });
+            core.info(`Added labels: ${labels.join(', ')}`);

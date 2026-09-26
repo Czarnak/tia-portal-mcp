@@ -1,0 +1,124 @@
+# Path-to-label rules for .github/workflows/pr-labeler.yml (actions/labeler).
+#
+# Most rules match on file-name prefixes anywhere in the repository ("**/Block*"), because
+# host, worker, contract, and test files for one domain share a prefix: BlockExporter.cs in
+# the worker, BlockAddress.cs in Contracts, BlockExporterTests.cs in the tests. A new file
+# that follows the existing naming is therefore labeled without touching this file.
+#
+# Labels are only ever added (sync-labels is off). Because every rule is derived from the
+# changed paths, an added label is always accurate for the current diff.
+
+"area: plc-blocks":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/Block*"
+          - "**/PlcType*"
+          - "**/TypeOperation*"
+          - "**/Source*"
+          - "**/CrossReference*"
+          - "**/PlcCrossReference*"
+          - "**/Compile*"
+          - "**/PlcCompile*"
+          - "**/PlcOnline*"
+          - "TiaMcpServer.Tests/Fixtures/**"
+
+"area: plc-tags":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/Tag*"
+          - "**/UserConstant*"
+
+"area: network":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "TiaMcpServer/Network/**"
+          - "TiaMcpServer.Tests/Network/**"
+          - "**/Network*"
+          - "**/Hardware*"
+          - "**/Subnet*"
+          - "**/Io*"
+          - "**/Device*"
+          - "**/AddDevice*"
+          - "**/ConfigureNetworkDevice*"
+          - "**/Catalog*"
+          - "**/EquipmentCatalog*"
+          - "**/Communication*"
+          - "**/Connection*"
+          - "**/NodeInfo*"
+          - "**/DynamicNumericAttribute*"
+          - "**/EngineeringAttribute*"
+          - "**/ResolvedNetworkObject*"
+          - "scripts/live-test-network-*"
+
+"area: project":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "TiaMcpServer/ProjectTree/**"
+          - "TiaMcpServer.Tests/Project/**"
+          - "**/Project*"
+          - "**/Archive*"
+          - "**/TiaPortalSession*"
+          - "**/TiaPortalTargetSelector*"
+          - "scripts/live-test-project-tree-*"
+
+"area: write-safety":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "TiaMcpServer/Safety/**"
+          - "TiaMcpServer.Tests/Safety/**"
+          - "**/*Safety*"
+          - "**/*PreviewDiff*"
+          - "**/OperationPolicyCatalog*"
+          - "**/OperationCapability*"
+          - "**/McpAccessMode*"
+          - "**/WorkerOperationAuthorization*"
+
+"area: mcp-protocol":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "TiaMcpServer/Program.cs"
+          - "TiaMcpServer/Json/**"
+          - "TiaMcpServer/OperationBatches/**"
+          - "TiaMcpServer/Cursors/**"
+          - "TiaMcpServer.Tests/Json/**"
+          - "TiaMcpServer.Tests/OperationBatches/**"
+          - "TiaMcpServer.Tests/Cursors/**"
+          - "TiaMcpServer.Tests/Tools/**"
+          - "**/*Batch*"
+          - "**/Structured*"
+          - "**/Standalone*"
+          - "**/Canonical*"
+          - "**/*Cursor*"
+          - "**/McpProtocolTestHarness*"
+
+# Anything that runs inside the Openness worker or crosses the host-worker boundary.
+# Contracts is included because its logic (for example IoTagMatcher) executes in the worker.
+# On a PR this label means: verify on a real TIA Portal V21 installation before merging.
+"area: worker":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "TiaMcpServer.OpennessWorker/**"
+          - "TiaMcpServer.Contracts/**"
+          - "TiaMcpServer.FakeWorker/**"
+          - "TiaMcpServer/Worker/**"
+          - "TiaMcpServer.Tests/Worker/**"
+          - "ref/**"
+
+"area: cli":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "TiaMcpServer/Cli/**"
+          - "TiaMcpServer/Diagnostics/**"
+          - "TiaMcpServer.Tests/Cli/**"
+          - "TiaMcpServer.Tests/Diagnostics/**"
+          - "scripts/verify-doctor-package.ps1"
+
+# Only documentation-only PRs: every changed file must be under docs/ or a Markdown file.
+# Most feature PRs also update docs, so a looser rule would put this label on nearly all PRs.
+documentation:
+  - changed-files:
+      - all-globs-to-all-files: "{docs/**,**/*.md}"
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file: ".github/workflows/**"
