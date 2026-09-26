@@ -19,6 +19,13 @@ This was a diagnostic worker route, not a public `network_write` acceptance run.
 | Fixture | One user-authorized disposable V21 copy, with PN-B and DP-B aliases. Exact project path, selectors, requested values, session identity, and raw transport records remain ignored locally. |
 | Route | Public `network_read` Inventory/Preview plus guarded worker-only `probe_io_system_qualification` Compile/Apply. The worker probe is classified as a project mutation and has no public MCP registration. |
 
+**Current-HEAD gate remains pending.** Post-live commit `7a51365` changed
+host and test project references and CI after candidate `03bf387` was frozen.
+This report establishes live behavior only for the recorded candidate; it
+does not qualify the later branch HEAD for merge. Re-pin the executable
+candidate and resolve the changed-scope gate under the delivery plan before
+claiming current-HEAD live acceptance or PR 2 merge readiness.
+
 The earlier attached-MCP read and earlier candidate probes were reconnaissance,
 not substitutes for these frozen-candidate results. The ignored manifest and
 records bind the executable hashes, exact project/session, target, and evidence

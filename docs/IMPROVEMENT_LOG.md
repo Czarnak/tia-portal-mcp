@@ -55,6 +55,9 @@ status failed solely on transient project-size drift, and the clean close-withou
 result. No failed hardware compile was induced. `update_io_system` remains unshipped. The next
 public slice still needs a fresh plan from merged `main`, strict TDD, the canonical safety and
 audit gate, and its own live public-path acceptance.
+Post-live host/test project-reference and CI changes in `7a51365` mean the recorded
+`03bf387` live matrix does not qualify the later branch HEAD for merge; candidate re-pin
+or scope resolution under the delivery plan remains open.
 
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 

@@ -21,6 +21,8 @@ the frozen candidate. See the
 and [Phase 4 operation reference](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md)
 for the full contract and evidence status. Phase 5 PR 2 worker-only fixture and hardware-compile
 qualification completed on 2026-09-26; public IO-system editing and Phases 6 and later remain open.
+Post-live project-reference and CI changes in `7a51365` leave current-HEAD
+live qualification and PR 2 merge readiness pending candidate re-pin or scope resolution.
 
 Phase 2 completion is scoped narrowly: Tasks 1-7 of
 `docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md` are implemented and
