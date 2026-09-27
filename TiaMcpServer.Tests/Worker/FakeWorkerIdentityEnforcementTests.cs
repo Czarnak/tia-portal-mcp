@@ -78,6 +78,26 @@ public sealed class FakeWorkerIdentityEnforcementTests
     }
 
     [Fact]
+    public async Task GetTypeContent_SuppliedMismatchedExpectedIdentity_ReturnsBindingConflict()
+    {
+        using var transport = CreateTransport();
+        var observed = await PrimeAsync(transport);
+
+        var response = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "get_type_content",
+            ProjectPath = "network-roundtrip",
+            TypePath = "PLC_1/Types/AnalogInputSettings",
+            ExpectedSessionIdentity = Change(observed, "workerSessionId")
+        });
+
+        Assert.False(response.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+        Assert.Contains("does not match the FakeWorker session", response.Error);
+        Assert.Null(response.SessionIdentity);
+    }
+
+    [Fact]
     public async Task RejectedRequestDoesNotStampResponseOrMutateTheFakeWorkerSession()
     {
         using var transport = CreateTransport();

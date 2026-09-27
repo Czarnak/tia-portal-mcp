@@ -27,6 +27,37 @@ public class TypeOperationFakeWorkerTests
     private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding)
         => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
 
+    private static OpennessWorkerClient CreateReadOnlyClient(ProjectSessionBinding binding)
+        => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+
+    private static BatchOperationRequest ReadOp(string operation, string? projectPath) => new()
+    {
+        OperationId = operation,
+        Operation = operation,
+        BlockPath = operation == "get_block_content" ? "PLC_1/Blocks/Main" : null,
+        TypePath = operation == "get_type_content" ? TypePath : null,
+        ProjectPath = projectPath,
+    };
+
+    private static async Task<(string Status, string? Category, string Result)> ExecuteSingleReadAsync(
+        OpennessWorkerClient client, string operation, string? projectPath)
+    {
+        using var doc = JsonDocument.Parse(await BatchTools.ExecuteReadBatch(
+            client, new[] { ReadOp(operation, projectPath) }));
+        Assert.True(doc.RootElement.TryGetProperty("operations", out var items), doc.RootElement.ToString());
+        var item = items[0];
+        return (item.GetProperty("status").GetString()!,
+            item.TryGetProperty("failureCategory", out var category) ? category.GetString() : null,
+            item.GetProperty("result").GetString()!);
+    }
+
+    private static void AssertEchoRead(string result, string operation)
+    {
+        using var request = JsonDocument.Parse(result);
+        Assert.Equal(operation, request.RootElement.GetProperty("method").GetString());
+    }
+
     private static WriteSafetyService CreateSafety(TempAuditDirectory audit, ProjectSessionBinding binding)
         => new(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
 
@@ -70,6 +101,97 @@ public class TypeOperationFakeWorkerTests
         Assert.Equal("r1", operation.GetProperty("operationId").GetString());
         Assert.Equal("succeeded", operation.GetProperty("status").GetString());
         Assert.Contains("AnalogInputSettings", operation.GetProperty("result").GetString());
+    }
+
+    [Fact]
+    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_BoundMatchesBlockContent()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateReadOnlyClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
+
+        foreach (var operation in new[] { "get_block_content", "get_type_content" })
+        {
+            var result = await ExecuteSingleReadAsync(client, operation, "echo");
+            Assert.Equal("succeeded", result.Status);
+            AssertEchoRead(result.Result, operation);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundExplicitPathMatchesBlockContent()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateReadOnlyClient(binding);
+
+        foreach (var operation in new[] { "get_block_content", "get_type_content" })
+        {
+            var result = await ExecuteSingleReadAsync(client, operation, "echo");
+            Assert.Equal("succeeded", result.Status);
+            AssertEchoRead(result.Result, operation);
+        }
+        Assert.False(binding.IsVerified);
+    }
+
+    [Fact]
+    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundConfiguredPathMatchesBlockContent()
+    {
+        foreach (var operation in new[] { "get_block_content", "get_type_content" })
+        {
+            var binding = new ProjectSessionBinding("echo");
+            using var client = CreateReadOnlyClient(binding);
+            Assert.False(binding.IsVerified);
+
+            var result = await ExecuteSingleReadAsync(client, operation, null);
+            Assert.Equal("succeeded", result.Status);
+            AssertEchoRead(result.Result, operation);
+            Assert.True(binding.IsVerified);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundWithoutPath_MatchesBlockContent()
+    {
+        async Task<(string Status, string? Category, string Result, int DispatchCount)> RunAsync(
+            string operation)
+        {
+            var binding = new ProjectSessionBinding(null);
+            using var client = CreateReadOnlyClient(binding);
+            var result = await ExecuteSingleReadAsync(client, operation, null);
+            var probe = await client.GetProjectStatusAsync("ok");
+            Assert.True(probe.Success, probe.Error);
+            using var probePayload = JsonDocument.Parse(probe.Payload);
+            var sequence = probePayload.RootElement.GetProperty("seq").GetInt32();
+            return (result.Status, result.Category, result.Result, sequence - 1);
+        }
+
+        var block = await RunAsync("get_block_content");
+        var type = await RunAsync("get_type_content");
+
+        Assert.Equal(block.DispatchCount, type.DispatchCount);
+        Assert.Equal(block.Status, type.Status);
+        Assert.Equal(block.Category, type.Category);
+        Assert.Equal(block.Result, type.Result);
+    }
+
+    [Fact]
+    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_BoundProjectPathConflictFailsBeforeDispatch()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateReadOnlyClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "ok");
+
+        foreach (var operation in new[] { "get_block_content", "get_type_content" })
+        {
+            var result = await ExecuteSingleReadAsync(client, operation, "other");
+            Assert.Equal("failed", result.Status);
+            Assert.Equal(WorkerFailureCategories.BindingConflict, result.Category);
+        }
+
+        var probe = await client.GetProjectStatusAsync("ok");
+        Assert.True(probe.Success, probe.Error);
+        using var payload = JsonDocument.Parse(probe.Payload);
+        Assert.Equal(2, payload.RootElement.GetProperty("seq").GetInt32());
     }
 
     [Fact]
