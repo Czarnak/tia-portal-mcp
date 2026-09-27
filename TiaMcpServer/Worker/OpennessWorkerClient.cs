@@ -824,31 +824,31 @@ public class OpennessWorkerClient : IDisposable
             },
             string.Empty).ConfigureAwait(false);
 
+        if (result.DispatchState != WorkerDispatchState.Sent)
+        {
+            return result with
+            {
+                BlockImportOutcome = BlockImportOutcomeSynthesizer.Synthesize(
+                    result.DispatchState,
+                    validationFormat)
+            };
+        }
+
         if (BlockImportOutcomeValidator.Validate(result.BlockImportOutcome, validationFormat))
         {
             return result;
         }
 
-        if (result.DispatchState == WorkerDispatchState.Sent)
+        return WorkerCallResult.Fail(
+            WorkerFailureCategories.ProtocolError,
+            "The TIA Openness worker returned invalid block-import outcome evidence.",
+            result.Warnings) with
         {
-            return WorkerCallResult.Fail(
-                WorkerFailureCategories.ProtocolError,
-                "The TIA Openness worker returned invalid block-import outcome evidence.",
-                result.Warnings) with
-            {
-                ResolvedProjectPath = result.ResolvedProjectPath,
-                SessionIdentity = result.SessionIdentity,
-                DispatchState = WorkerDispatchState.Sent,
-                BlockImportOutcome = BlockImportOutcomeSynthesizer.Synthesize(
-                    WorkerDispatchState.Sent,
-                    validationFormat)
-            };
-        }
-
-        return result with
-        {
+            ResolvedProjectPath = result.ResolvedProjectPath,
+            SessionIdentity = result.SessionIdentity,
+            DispatchState = WorkerDispatchState.Sent,
             BlockImportOutcome = BlockImportOutcomeSynthesizer.Synthesize(
-                result.DispatchState,
+                WorkerDispatchState.Sent,
                 validationFormat)
         };
     }

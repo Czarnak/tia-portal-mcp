@@ -125,6 +125,32 @@ public sealed class BlockUpdateDispatchProvenanceTests
     }
 
     [Fact]
+    public async Task ConfiguredProjectVerificationFailure_DiscardsStaleCompletedOutcomeBeforeValidation()
+    {
+        const string scenario = "block-outcome-status-failure-with-stale-outcome";
+        var binding = new ProjectSessionBinding(scenario);
+        using var client = CreateClient(binding);
+
+        var result = await client.UpdateBlockLogicAsync(
+            "PLC/Blocks/Main",
+            "secret",
+            scenario,
+            SourceFormatNames.Source);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Equal("configured project verification failed on request 1", result.Error);
+        Assert.Equal(
+            new[] { "Project state may have changed; inspect the project before retrying." },
+            result.Warnings);
+        Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
+        AssertNotStarted(result.BlockImportOutcome, "not_created");
+
+        var secondStatus = await client.GetProjectStatusAsync(scenario);
+        Assert.Equal("configured project verification failed on request 2", secondStatus.Error);
+    }
+
+    [Fact]
     public async Task PinnedBindingDrift_IsNotSent()
     {
         var binding = new ProjectSessionBinding(null);

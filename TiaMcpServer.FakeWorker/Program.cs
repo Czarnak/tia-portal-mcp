@@ -384,6 +384,19 @@ while ((line = Console.In.ReadLine()) is not null)
         case "block-outcome-status-failure":
             Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"configured project verification failed"}""");
             break;
+        case "block-outcome-status-failure-with-stale-outcome":
+            Respond(ReadMethod(line) == "get_project_status"
+                ? BlockOutcomeResponse(
+                    false,
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    $"configured project verification failed on request {seq}",
+                    CompletedBlockOutcome(SourceFormatNames.Source, "succeeded"))
+                : BlockOutcomeResponse(
+                    false,
+                    WorkerFailureCategories.ProtocolError,
+                    $"update_block_logic must not be sent; observed request {seq}",
+                    CompletedBlockOutcome(SourceFormatNames.Source, "succeeded")));
+            break;
         case "create-block-postcondition-failed":
             // Fixture bootstrap must not consume the protected write's attempt sequence.
             if (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
