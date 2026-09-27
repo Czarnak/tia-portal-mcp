@@ -45,6 +45,8 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-27 | [Wave 2 I2 — truthful block-import outcomes](plans/2026-09-27-wave2-i2-truthful-block-import-outcomes.md) |
+| 2026-09-27 | [Wave 2 T2 — type-content binding policy](plans/2026-09-27-wave2-t2-type-content-binding-policy.md) |
 | 2026-09-26 | [Wave 1 L1 — lifecycle rebind and preview safety](plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md) |
 | 2026-09-26 | [Wave 1 K1 — per-item batch failure categories](plans/2026-09-26-wave1-k1-batch-failure-categories.md) |
 | 2026-09-26 | [Wave 1 P1 — PLC compile and cross-reference read integrity](plans/2026-09-26-wave1-p1-plc-read-integrity.md) |
