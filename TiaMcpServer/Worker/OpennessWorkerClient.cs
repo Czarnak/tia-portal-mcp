@@ -798,19 +798,59 @@ public class OpennessWorkerClient : IDisposable
             string.Empty);
     }
 
-    public Task<WorkerCallResult> UpdateBlockLogicAsync(string blockPath, string yamlContent, string? projectPath, string? format = null)
+    public async Task<WorkerCallResult> UpdateBlockLogicAsync(
+        string blockPath,
+        string yamlContent,
+        string? projectPath,
+        string? format = null)
     {
-        return SendBoundProjectRequestAsync(
+        var hasNormalizedFormat = SourceFormatNames.TryNormalize(
+            format,
+            SourceFormatNames.Xml,
+            out var normalizedFormat,
+            out _);
+        var requestFormat = hasNormalizedFormat ? normalizedFormat : format;
+        var validationFormat = hasNormalizedFormat ? normalizedFormat : null;
+
+        var result = await SendBoundProjectRequestAsync(
             "update_block_logic",
             projectPath,
             request =>
             {
                 request.BlockPath = blockPath;
                 request.YamlContent = yamlContent;
-                request.Format = format;
+                request.Format = requestFormat;
                 request.AllowTiaConfirmations = true;
             },
-            string.Empty);
+            string.Empty).ConfigureAwait(false);
+
+        if (BlockImportOutcomeValidator.Validate(result.BlockImportOutcome, validationFormat))
+        {
+            return result;
+        }
+
+        if (result.DispatchState == WorkerDispatchState.Sent)
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.ProtocolError,
+                "The TIA Openness worker returned invalid block-import outcome evidence.",
+                result.Warnings) with
+            {
+                ResolvedProjectPath = result.ResolvedProjectPath,
+                SessionIdentity = result.SessionIdentity,
+                DispatchState = WorkerDispatchState.Sent,
+                BlockImportOutcome = BlockImportOutcomeSynthesizer.Synthesize(
+                    WorkerDispatchState.Sent,
+                    validationFormat)
+            };
+        }
+
+        return result with
+        {
+            BlockImportOutcome = BlockImportOutcomeSynthesizer.Synthesize(
+                result.DispatchState,
+                validationFormat)
+        };
     }
 
     /// <summary>
@@ -1708,7 +1748,9 @@ public class OpennessWorkerClient : IDisposable
             var verification = await GetProjectStatusAsync(initial.ProjectPath).ConfigureAwait(false);
             if (!verification.Success)
             {
-                return verification;
+                return method == "update_block_logic"
+                    ? verification with { DispatchState = WorkerDispatchState.NotSent }
+                    : verification;
             }
         }
 
@@ -1718,7 +1760,10 @@ public class OpennessWorkerClient : IDisposable
                 out var effectiveProjectPath,
                 out var bindingError))
         {
-            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!);
+            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, bindingError!) with
+            {
+                DispatchState = WorkerDispatchState.NotSent
+            };
         }
 
         var bindingBeforeCall = pinnedBinding ?? currentBinding;
@@ -1726,7 +1771,10 @@ public class OpennessWorkerClient : IDisposable
         {
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.BindingConflict,
-                "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.");
+                "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.") with
+            {
+                DispatchState = WorkerDispatchState.NotSent
+            };
         }
 
         var request = new WorkerRequest
@@ -2016,7 +2064,12 @@ public class OpennessWorkerClient : IDisposable
                     ? WorkerFailureCategories.PostconditionFailed
                     : WorkerFailureCategories.BindingConflict,
                 promoteError ?? "The worker did not return a verifiable project identity.",
-                result.Warnings) with { SessionIdentity = result.SessionIdentity };
+                result.Warnings) with
+            {
+                SessionIdentity = result.SessionIdentity,
+                BlockImportOutcome = result.BlockImportOutcome,
+                DispatchState = result.DispatchState
+            };
         }
 
         if (string.Equals(bindingBeforeCall.State, ProjectBindingSnapshot.VerifiedState, StringComparison.Ordinal))
@@ -2028,7 +2081,12 @@ public class OpennessWorkerClient : IDisposable
                     WorkerFailureCategories.BindingConflict,
                     "The MCP project binding changed while this worker request was in flight. "
                     + "The response was discarded and the newer binding was left intact.",
-                    result.Warnings) with { SessionIdentity = result.SessionIdentity };
+                    result.Warnings) with
+                {
+                    SessionIdentity = result.SessionIdentity,
+                    BlockImportOutcome = result.BlockImportOutcome,
+                    DispatchState = result.DispatchState
+                };
             }
 
             if (_projectSessionBinding.MatchesVerifiedIdentity(result.SessionIdentity, out var identityError))
@@ -2045,13 +2103,23 @@ public class OpennessWorkerClient : IDisposable
                     ? WorkerFailureCategories.PostconditionFailed
                     : WorkerFailureCategories.BindingConflict,
                 identityError ?? "The worker session identity changed.",
-                result.Warnings) with { SessionIdentity = result.SessionIdentity };
+                result.Warnings) with
+            {
+                SessionIdentity = result.SessionIdentity,
+                BlockImportOutcome = result.BlockImportOutcome,
+                DispatchState = result.DispatchState
+            };
         }
 
         return WorkerCallResult.Fail(
             WorkerFailureCategories.BindingConflict,
             "The MCP project binding is invalidated. Rebind explicitly before continuing.",
-            result.Warnings);
+            result.Warnings) with
+        {
+            SessionIdentity = result.SessionIdentity,
+            BlockImportOutcome = result.BlockImportOutcome,
+            DispatchState = result.DispatchState
+        };
     }
 
     private static IReadOnlyList<string> AppendWarning(IReadOnlyList<string> warnings, string warning)
@@ -2075,7 +2143,7 @@ public class OpennessWorkerClient : IDisposable
             var denial = _accessPolicy.Authorize(request.Method);
             if (denial is not null)
             {
-                return denial;
+                return denial with { DispatchState = WorkerDispatchState.NotSent };
             }
         }
 
@@ -2096,7 +2164,9 @@ public class OpennessWorkerClient : IDisposable
                 return WorkerCallResult.Ok(response.Payload ?? string.Empty, warnings) with
                 {
                     ResolvedProjectPath = response.ResolvedProjectPath,
-                    SessionIdentity = response.SessionIdentity
+                    SessionIdentity = response.SessionIdentity,
+                    BlockImportOutcome = response.BlockImportOutcome,
+                    DispatchState = WorkerDispatchState.Sent
                 };
             }
 
@@ -2109,7 +2179,9 @@ public class OpennessWorkerClient : IDisposable
                 warnings) with
             {
                 ResolvedProjectPath = response.ResolvedProjectPath,
-                SessionIdentity = response.SessionIdentity
+                SessionIdentity = response.SessionIdentity,
+                BlockImportOutcome = response.BlockImportOutcome,
+                DispatchState = WorkerDispatchState.Sent
             };
             if (failureCategory == WorkerFailureCategories.BindingConflict && _projectSessionBinding.IsVerified)
             {
@@ -2128,21 +2200,30 @@ public class OpennessWorkerClient : IDisposable
                 WorkerFailureCategories.WorkerOperationFailed,
                 $"Failed to launch the TIA Openness worker process ({ex.Message}). "
                 + "Verify that .NET Framework 4.8 is installed and that the 'openness-worker' folder "
-                + "beside the MCP server executable is complete; rebuild or reinstall if files are missing.");
+                + "beside the MCP server executable is complete; rebuild or reinstall if files are missing.") with
+            {
+                DispatchState = WorkerDispatchState.NotSent
+            };
         }
         catch (TimeoutException)
         {
             InvalidateVerifiedBinding("the Openness worker timed out and its session outcome is unknown");
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.WorkerTimeout,
-                WorkerTransportFailureGuidance.TimeoutGuidance(request.Method));
+                WorkerTransportFailureGuidance.TimeoutGuidance(request.Method)) with
+            {
+                DispatchState = WorkerDispatchState.Unknown
+            };
         }
         catch (PersistentWorkerTransport.WorkerProtocolMismatchException ex)
         {
             InvalidateVerifiedBinding("the Openness worker protocol is incompatible with this host");
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.ProtocolError,
-                ex.Message);
+                ex.Message) with
+            {
+                DispatchState = WorkerDispatchState.NotSent
+            };
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException)
         {
@@ -2152,7 +2233,10 @@ public class OpennessWorkerClient : IDisposable
             InvalidateVerifiedBinding("the Openness worker crashed or its protocol stream was lost");
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.WorkerCrashed,
-                WorkerTransportFailureGuidance.CrashGuidance(request.Method));
+                WorkerTransportFailureGuidance.CrashGuidance(request.Method)) with
+            {
+                DispatchState = WorkerDispatchState.Unknown
+            };
         }
     }
 

@@ -17,6 +17,12 @@ public sealed class WorkerProtocolHandshakeTests
     }
 
     [Fact]
+    public void ProtocolRequiresTypedBlockImportOutcomeCapability()
+    {
+        Assert.Contains("typed-block-import-outcome-v1", WorkerProtocol.RequiredCapabilities);
+    }
+
+    [Fact]
     public async Task CurrentFakeWorker_CompletesHelloBeforeFirstEngineeringRequest()
     {
         using var transport = new PersistentWorkerTransport(
@@ -39,6 +45,7 @@ public sealed class WorkerProtocolHandshakeTests
     [Theory]
     [InlineData("missing-hello-contract")]
     [InlineData("wrong-protocol-version")]
+    [InlineData("missing-block-import-outcome-capability")]
     public async Task LegacyWorker_HandshakeFailsBeforeOriginalEngineeringMethodIsSent(string legacyMode)
     {
         var tempDirectory = Path.Combine(
@@ -65,6 +72,15 @@ public sealed class WorkerProtocolHandshakeTests
                     payload = "{}",
                     protocolVersion = "legacy-project-binding-v0",
                     capabilities = WorkerProtocol.RequiredCapabilities
+                }),
+                "missing-block-import-outcome-capability" => JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    payload = "{}",
+                    protocolVersion = WorkerProtocol.Version,
+                    capabilities = WorkerProtocol.RequiredCapabilities
+                        .Where(capability => capability != "typed-block-import-outcome-v1")
+                        .ToArray()
                 }),
                 _ => throw new InvalidOperationException($"Unknown legacy mode '{legacyMode}'.")
             };
@@ -97,8 +113,11 @@ public sealed class WorkerProtocolHandshakeTests
             var exception = await Assert.ThrowsAsync<PersistentWorkerTransport.WorkerProtocolMismatchException>(() =>
                 transport.SendAsync(new WorkerRequest
                 {
-                    Method = "browse_project_tree",
-                    ProjectPath = "C:\\Projects\\MustNeverBeSent.ap21"
+                    Method = "update_block_logic",
+                    ProjectPath = "C:\\Projects\\MustNeverBeSent.ap21",
+                    BlockPath = "PLC_1/Blocks/MustNeverBeSent",
+                    YamlContent = "MustNeverBeSentContent",
+                    Format = SourceFormatNames.Source
                 }));
 
             Assert.Contains("protocol handshake failed before any Siemens operation", exception.Message);
@@ -110,8 +129,9 @@ public sealed class WorkerProtocolHandshakeTests
             Assert.Equal(
                 WorkerProtocol.Version,
                 helloDocument.RootElement.GetProperty("protocolVersion").GetString());
-            Assert.DoesNotContain("browse_project_tree", sentLines[0]);
+            Assert.DoesNotContain("update_block_logic", sentLines[0]);
             Assert.DoesNotContain("MustNeverBeSent", sentLines[0]);
+            Assert.DoesNotContain("MustNeverBeSentContent", sentLines[0]);
         }
         finally
         {
