@@ -73,8 +73,8 @@ public class TiaPortalSession : IDisposable
 
             throw new WorkerOperationException(
                 WorkerFailureCategories.BindingConflict,
-                "This operation requires the exact WorkerSessionIdentity returned by a successful "
-                + "get_project_status/open_project/create_project call.");
+                "This operation requires a verified project binding. Use open_project or "
+                + "create_project, or configure --project and let the host verify it before this operation.");
         }
 
         var current = GetSessionIdentity();
