@@ -163,6 +163,7 @@ public class ReadOnlyModeTests
     [Theory]
     [InlineData("read_hardware_config", false)]
     [InlineData("get_block_content", false)]
+    [InlineData("get_type_content", false)]
     [InlineData("open_project", false)]
     [InlineData("create_project", false)]
     [InlineData("compile_check", true)]
@@ -171,6 +172,8 @@ public class ReadOnlyModeTests
     [InlineData("update_block_logic", true)]
     [InlineData("start_plc", true)]
     [InlineData("unknown-operation", true)]
+    [InlineData("get_type_content_unrecognized", true)]
+    [InlineData("update_type_content", true)]
     [InlineData("", true)]
     public void ExpectedSessionIdentityPolicy_IsFailClosed(
         string operation,
@@ -189,6 +192,7 @@ public class ReadOnlyModeTests
     [InlineData("read_cross_references")]
     [InlineData("list_tag_tables")]
     [InlineData("get_block_content")]
+    [InlineData("get_type_content")]
     [InlineData("list_network_objects")]
     [InlineData("inspect_network_object")]
     public void ReadOnlyMode_AllowsApprovedOperations(string operation)
@@ -206,6 +210,8 @@ public class ReadOnlyModeTests
     [InlineData("archive_project")]
     [InlineData("close_project")]
     [InlineData("update_block_logic")]
+    [InlineData("update_type_content")]
+    [InlineData("get_type_content_unrecognized")]
     [InlineData("create_block")]
     [InlineData("delete_block")]
     [InlineData("create_block_group")]
@@ -280,6 +286,7 @@ public class ReadOnlyModeTests
         Assert.Null(policy.Authorize("get_project_status"));
         Assert.Null(policy.Authorize("browse_project_tree_v3_snapshot"));
         Assert.Null(policy.Authorize("get_block_content"));
+        Assert.Null(policy.Authorize("get_type_content"));
     }
 
     [Fact]
@@ -485,12 +492,14 @@ public class ReadOnlyModeTests
         Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "get_project_status"));
         Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "browse_project_tree_v3_snapshot"));
         Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "get_block_content"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "get_type_content"));
     }
 
     [Fact]
     public void WorkerOperationAuthorization_ReadOnly_AllowsTemporaryExport()
     {
         Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "get_block_content"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, "get_type_content"));
     }
 
     [Fact]
