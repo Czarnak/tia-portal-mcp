@@ -280,9 +280,11 @@ sent to the worker.
 
 ## 7a. The opt-in canonical JSON seam and the Network Phase 2/3 structured contract
 
-`network_read` and `network_write` are the first (and, as of this writing, only) tools to opt
-into a reusable canonical-JSON gate. This is deliberately additive: every other tool keeps its
-existing text contract unchanged.
+`network_read` and `network_write` were the first tools to opt into a reusable canonical-JSON
+gate; `browse_project_tree` (project-tree v3, §3) uses it too. It is deliberately additive: every
+other tool keeps its existing text contract until it migrates. The
+[JSON contract roadmap](roadmap/json-contract.md) records the target envelope, the migration order,
+and the batch tools' exclusion from it.
 
 - `TiaMcpServer/Json/CanonicalJson.cs` provides strict typed parsing (rejects duplicate
   properties, unmapped members, and case-mismatched names) and a repository-defined canonical
@@ -301,7 +303,11 @@ existing text contract unchanged.
   rejecting a changed value, type, or array order.
 
 Any future tool that wants a single-layer structured JSON contract reuses this same seam rather
-than inventing a parallel one.
+than inventing a parallel one. `TiaMcpServer.Tests/Tools/ToolOutputContractConformanceTests.cs`
+enforces that through the MCP protocol: every registered tool either advertises an output schema
+and passes a success probe and a rejection probe (one canonical document in both representations,
+no JSON inside strings, the expected `isError`), or is listed in its legacy register with the
+reason it has not migrated.
 
 ### Typed Network payload registry
 
@@ -734,7 +740,8 @@ The read-only test suite covers:
 - conditional tool surfaces;
 - batch access validation;
 - confirmation and safety-token bypass prevention;
-- doctor output and CLI parity.
+- doctor output and CLI parity;
+- the output contract of every registered tool (§7a).
 
 Manual integration testing with a live TIA Portal remains necessary to validate
 Siemens-specific attachment, confirmation, project-path, packaging, and worker

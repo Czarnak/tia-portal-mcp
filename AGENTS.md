@@ -57,11 +57,11 @@ Every write goes through preview-then-apply. This is non-negotiable.
 
 ## Structured JSON contract rules (Network Phase 2 and beyond)
 
-`network_read`/`network_write` are the first tools on the opt-in canonical JSON contract
+`network_read`/`network_write` were the first tools on the opt-in canonical JSON contract
 (`TiaMcpServer/Json/CanonicalJson.cs`, `TiaMcpServer/Tools/StructuredToolResult.cs`,
 `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs`,
-`TiaMcpServer/Safety/CanonicalWriteSafety.cs`). These rules are durable for any future tool that
-migrates onto it — not just Network:
+`TiaMcpServer/Safety/CanonicalWriteSafety.cs`), and `browse_project_tree` also uses it. These
+rules are durable for any future tool that migrates onto it — not just Network:
 
 - **Reuse the shared gate.** A new structured tool builds on `StructuredToolResult` /
   `StructuredOperationBatch` / `CanonicalWriteSafety`; do not hand-roll a parallel canonical-JSON
@@ -77,6 +77,12 @@ migrates onto it — not just Network:
 - **No nested JSON strings.** A migrated tool's operation results are real JSON objects/arrays
   under the response document, never an escaped JSON string a caller has to parse a second time.
   This is exactly the Phase 1 defect Phase 2 removed for Network.
+- **Every tool is structured or registered as legacy.**
+  `TiaMcpServer.Tests/Tools/ToolOutputContractConformanceTests.cs` fails when a tool is neither
+  on this contract nor listed in its legacy register with a reason. When a tool migrates, remove it
+  from that register and add a success probe and a rejection probe. The target envelope and
+  migration order are in `docs/roadmap/json-contract.md`; the three batch tools are excluded from
+  it pending their own redesign.
 
 See `docs/ARCHITECTURE.md` §7a for the full seam description and the exact host-to-worker
 selector boundary, and `docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md` for the concrete
