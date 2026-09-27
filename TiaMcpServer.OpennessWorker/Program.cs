@@ -139,7 +139,12 @@ internal static class Program
             var denial = WorkerOperationAuthorization.Authorize(_accessMode, request.Method);
             if (denial is not null)
             {
-                return denial;
+                return request.Method == "update_block_logic"
+                    ? BlockUpdateOutcomeDecorator.Decorate(
+                        denial,
+                        BlockUpdateOutcomeDecorator.NormalizeFormatOrNull(request.Format),
+                        importerEntered: false)
+                    : denial;
             }
 
             return request.Method switch
@@ -215,7 +220,7 @@ internal static class Program
         }
         catch (WorkerOperationException ex)
         {
-            return Failure(ex.FailureCategory, ex.Message, ex.Warnings);
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome);
         }
         catch (Exception ex)
         {
@@ -841,23 +846,40 @@ internal static class Program
 
     private static WorkerResponse UpdateBlockLogic(WorkerRequest request)
     {
-        if (string.IsNullOrEmpty(request.BlockPath))
+        var normalizedFormat = BlockUpdateOutcomeDecorator.NormalizeFormatOrNull(request.Format);
+        var importerEntered = false;
+        try
         {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
+            if (string.IsNullOrEmpty(request.BlockPath))
+            {
+                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
+            }
+
+            if (string.IsNullOrEmpty(request.YamlContent))
+            {
+                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "YamlContent is required.");
+            }
+
+            normalizedFormat = NormalizeBlockFormat(request.Format);
+
+            var response = WithProject(request, project =>
+            {
+                importerEntered = true;
+                var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!, normalizedFormat);
+                return RawPayload(result.Payload, result.Warnings, result.Outcome);
+            });
+            return response.Success
+                ? response
+                : BlockUpdateOutcomeDecorator.Decorate(response, normalizedFormat, importerEntered);
         }
-
-        if (string.IsNullOrEmpty(request.YamlContent))
+        catch (WorkerOperationException exception)
         {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "YamlContent is required.");
+            return BlockUpdateOutcomeDecorator.Decorate(exception, normalizedFormat, importerEntered);
         }
-
-        var format = NormalizeBlockFormat(request.Format);
-
-        return WithProject(request, project =>
+        catch (Exception exception)
         {
-            var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!, format);
-            return RawPayload(result.Payload, result.Warnings);
-        });
+            return BlockUpdateOutcomeDecorator.Decorate(exception, normalizedFormat, importerEntered);
+        }
     }
 
     private static WorkerResponse GetTypeContent(WorkerRequest request)
@@ -1593,24 +1615,33 @@ internal static class Program
         };
     }
 
-    private static WorkerResponse RawPayload(string payload, IReadOnlyList<string>? warnings = null)
+    private static WorkerResponse RawPayload(
+        string payload,
+        IReadOnlyList<string>? warnings = null,
+        BlockImportOutcomeInfo? blockImportOutcome = null)
     {
         return new WorkerResponse
         {
             Success = true,
             Payload = payload,
-            Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null
+            Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
+            BlockImportOutcome = blockImportOutcome
         };
     }
 
-    private static WorkerResponse Failure(string failureCategory, string error, IReadOnlyList<string>? warnings = null)
+    private static WorkerResponse Failure(
+        string failureCategory,
+        string error,
+        IReadOnlyList<string>? warnings = null,
+        BlockImportOutcomeInfo? blockImportOutcome = null)
     {
         return new WorkerResponse
         {
             Success = false,
             Error = error,
             FailureCategory = failureCategory,
-            Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null
+            Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
+            BlockImportOutcome = blockImportOutcome
         };
     }
 }

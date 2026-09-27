@@ -67,6 +67,10 @@
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
       Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\BlockImportOutcomeValidator.cs"
+      Link="Host\BlockImportOutcomeValidator.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\BlockImportOutcomeSynthesizer.cs"
+      Link="Host\BlockImportOutcomeSynthesizer.cs" />
     <Compile Include="..\TiaMcpServer\Worker\HardwarePageWorkerCallResult.cs"
       Link="Host\HardwarePageWorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
@@ -173,6 +177,8 @@
       Link="Linked\Openness\WorkerOperationException.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationAuthorization.cs"
       Link="Linked\Openness\WorkerOperationAuthorization.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\BlockUpdateOutcomeDecorator.cs"
+      Link="Linked\Openness\BlockUpdateOutcomeDecorator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\HardwarePageDescriptorSet.cs"
       Link="Worker\HardwarePageDescriptorSet.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\HardwarePageCandidateReader.cs"
@@ -195,6 +201,16 @@
       Link="Linked\Openness\BlockExporterXmlBundle.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportResult.cs"
       Link="Linked\Openness\BlockImportResult.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportInvocationBoundary.cs"
+      Link="Linked\Openness\BlockImportInvocationBoundary.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceArtifactTracker.cs"
+      Link="Linked\Openness\BlockSourceArtifactTracker.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockCompileObservation.cs"
+      Link="Linked\Openness\BlockCompileObservation.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportOutcomeProjection.cs"
+      Link="Linked\Openness\BlockImportOutcomeProjection.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDiagnosticSanitizer.cs"
+      Link="Linked\Openness\BlockImportDiagnosticSanitizer.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportCoordinator.cs"
       Link="Linked\Openness\BlockImportCoordinator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockCreationCoordinator.cs"

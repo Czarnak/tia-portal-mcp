@@ -217,7 +217,8 @@ public static class BatchWorkerInvoker
     private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
             () => BuildRequest(op),
-            request => client.UpdateBlockLogicAsync(request.BlockPath!, request.YamlContent!, op.ProjectPath, request.Format));
+            request => client.UpdateBlockLogicAsync(request.BlockPath!, request.YamlContent!, op.ProjectPath, request.Format),
+            decorateBlockUpdateRejection: true);
 
     private static Task<WorkerCallResult> InvokeGetTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
@@ -239,7 +240,10 @@ public static class BatchWorkerInvoker
     /// other rejected-before-the-worker case in this class already returns (compare the catalog-miss
     /// fallback arms above and ReadCrossReferencesAsync's filter validation).
     /// </summary>
-    private static Task<WorkerCallResult> WithValidatedFormat<T>(Func<T> build, Func<T, Task<WorkerCallResult>> invoke)
+    private static Task<WorkerCallResult> WithValidatedFormat<T>(
+        Func<T> build,
+        Func<T, Task<WorkerCallResult>> invoke,
+        bool decorateBlockUpdateRejection = false)
     {
         T value;
         try
@@ -248,7 +252,16 @@ public static class BatchWorkerInvoker
         }
         catch (ArgumentException ex)
         {
-            return Task.FromResult(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, ex.Message));
+            var failure = WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, ex.Message);
+            return Task.FromResult(decorateBlockUpdateRejection
+                ? failure with
+                {
+                    DispatchState = WorkerDispatchState.NotSent,
+                    BlockImportOutcome = BlockImportOutcomeSynthesizer.Synthesize(
+                        WorkerDispatchState.NotSent,
+                        normalizedFormatOrNull: null)
+                }
+                : failure);
         }
 
         return invoke(value);

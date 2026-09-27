@@ -4,6 +4,13 @@ using TiaMcpServer.Json;
 
 namespace TiaMcpServer.Worker;
 
+internal enum WorkerDispatchState
+{
+    NotSent,
+    Sent,
+    Unknown
+}
+
 /// <summary>
 /// Structured outcome of one TIA Openness worker invocation. Replaces the "Error:"
 /// string-prefix convention: success/failure is carried structurally and payload text
@@ -27,6 +34,12 @@ public sealed record WorkerCallResult(
 
     /// <summary>Complete worker/Portal/project identity observed for this response.</summary>
     public WorkerSessionIdentity? SessionIdentity { get; init; }
+
+    /// <summary>Typed update_block_logic evidence; absent for unrelated calls.</summary>
+    public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
+
+    /// <summary>Host-observed request dispatch provenance; never serialized to callers.</summary>
+    internal WorkerDispatchState DispatchState { get; init; } = WorkerDispatchState.Unknown;
 
     public static WorkerCallResult Ok(string payload, IReadOnlyList<string>? warnings = null)
         => new(true, payload, null, null, warnings ?? Array.Empty<string>());

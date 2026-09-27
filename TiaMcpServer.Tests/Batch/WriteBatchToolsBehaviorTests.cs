@@ -47,6 +47,20 @@ public sealed class WriteBatchToolsBehaviorTests
             SourceContent = "TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n",
         };
 
+    private static BatchOperationRequest UpdateBlockLogicOp(
+        string operationId,
+        string projectPath,
+        string blockPath,
+        string content) => new()
+        {
+            OperationId = operationId,
+            Operation = "update_block_logic",
+            ProjectPath = projectPath,
+            BlockPath = blockPath,
+            YamlContent = content,
+            Format = SourceFormatNames.Source,
+        };
+
     private static int CountAuditLines(string directory)
         => Directory.Exists(directory)
             ? Directory.GetFiles(directory).Sum(file => File.ReadAllLines(file).Length)
@@ -154,5 +168,84 @@ public sealed class WriteBatchToolsBehaviorTests
         Assert.True(Directory.Exists(audit.Path));
         Assert.NotEmpty(Directory.GetFiles(audit.Path));
         Assert.Equal(defaultBefore, CountAuditLines(defaultDirectory));
+    }
+
+    [Fact]
+    public async Task ApplyWriteBatch_UpdateBlockLogicFailure_EmitsOutcomeAndSkipsLaterItem()
+    {
+        using var audit = new TempAuditDirectory();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding);
+        var safety = CreateSafety(audit, binding);
+        const string scenario = "block-outcome-audit-failure";
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+
+        var operations = new[]
+        {
+            UpdateBlockLogicOp(
+                "first",
+                scenario,
+                "PLC_1/Blocks/SecretSubmittedTarget",
+                "SECRET_SUBMITTED_SOURCE_CONTENT"),
+            UpdateBlockLogicOp(
+                "second",
+                scenario,
+                "PLC_1/Blocks/MustBeSkipped",
+                "SECOND_SECRET_CONTENT")
+        };
+
+        var preview = await WriteBatchTools.PreviewWriteBatch(client, safety, operations);
+        using var previewDoc = JsonDocument.Parse(preview);
+        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var requestedInputHash = previewDoc.RootElement.GetProperty("requestedInputHash").GetString();
+        var currentStateHash = previewDoc.RootElement.GetProperty("currentStateHash").GetString();
+
+        var applied = await WriteBatchTools.ApplyWriteBatch(
+            client,
+            safety,
+            operations,
+            confirm: true,
+            safetyToken: token);
+
+        using var appliedDoc = JsonDocument.Parse(applied);
+        var items = appliedDoc.RootElement.GetProperty("operations");
+        Assert.Equal("failed", items[0].GetProperty("status").GetString());
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, items[0].GetProperty("failureCategory").GetString());
+        Assert.Equal("skipped", items[1].GetProperty("status").GetString());
+        var outcome = items[0].GetProperty("blockImportOutcome");
+        Assert.Equal("completed", outcome.GetProperty("importStage").GetString());
+        Assert.True(outcome.GetProperty("targetMutationCommitted").GetBoolean());
+        Assert.Equal("unavailable", outcome.GetProperty("compileStage").GetString());
+        Assert.True(outcome.GetProperty("compileDetailsOmitted").GetBoolean());
+        Assert.Contains("attempt 1", items[0].GetProperty("result").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(items[0].GetProperty("warnings").EnumerateArray(), warning =>
+            warning.GetString() == "Project state may have changed; inspect the project before retrying.");
+
+        var auditFiles = Directory.GetFiles(audit.Path);
+        Assert.Single(auditFiles);
+        var auditLines = await File.ReadAllLinesAsync(auditFiles[0]);
+        Assert.Single(auditLines);
+        using var auditDoc = JsonDocument.Parse(auditLines[0]);
+        var auditRecord = auditDoc.RootElement;
+        Assert.Equal(requestedInputHash, auditRecord.GetProperty("requestedInputHash").GetString());
+        Assert.Equal(currentStateHash, auditRecord.GetProperty("currentStateHash").GetString());
+        Assert.Equal(WriteSafetyService.HashText(applied), auditRecord.GetProperty("resultHash").GetString());
+        var previewText = auditRecord.GetProperty("resultPreview").GetString();
+        Assert.NotNull(previewText);
+        Assert.Equal(2000, previewText!.Length);
+        Assert.Equal(applied[..2000], previewText);
+        Assert.DoesNotContain("SECRET_SUBMITTED_SOURCE_CONTENT", previewText, StringComparison.Ordinal);
+        Assert.DoesNotContain("SecretSubmittedTarget", previewText, StringComparison.Ordinal);
+        Assert.DoesNotContain("SECOND_SECRET_CONTENT", previewText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MustBeSkipped", previewText, StringComparison.Ordinal);
+
+        var replay = await WriteBatchTools.ApplyWriteBatch(
+            client,
+            safety,
+            operations,
+            confirm: true,
+            safetyToken: token);
+        Assert.Contains("expired, consumed, or unknown", replay, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, CountAuditLines(audit.Path));
     }
 }

@@ -24,14 +24,20 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 internal sealed class ExternalSourceScope : IDisposable
 {
     private readonly string _tempDirectory;
+    private readonly BlockSourceArtifactTracker? _observer;
     private PlcExternalSource? _source;
     private bool _disposed;
 
-    private ExternalSourceScope(string tempDirectory, PlcExternalSource source, string filePath)
+    private ExternalSourceScope(
+        string tempDirectory,
+        PlcExternalSource source,
+        string filePath,
+        BlockSourceArtifactTracker? observer)
     {
         _tempDirectory = tempDirectory;
         _source = source;
         FilePath = filePath;
+        _observer = observer;
     }
 
     public PlcExternalSource Source =>
@@ -50,7 +56,8 @@ internal sealed class ExternalSourceScope : IDisposable
     public static ExternalSourceScope Create(
         PlcExternalSourceSystemGroup externalSourceGroup,
         string fileName,
-        string content)
+        string content,
+        BlockSourceArtifactTracker? observer = null)
     {
         if (externalSourceGroup is null) throw new ArgumentNullException(nameof(externalSourceGroup));
         if (string.IsNullOrWhiteSpace(fileName)) throw new ArgumentException("A file name is required.", nameof(fileName));
@@ -67,13 +74,23 @@ internal sealed class ExternalSourceScope : IDisposable
             var sourceName = Path.GetFileNameWithoutExtension(fileName)
                 + "_tiamcp_" + Guid.NewGuid().ToString("N").Substring(0, 8);
 
+            observer?.BeforeCreateFromFile();
             var source = externalSourceGroup.ExternalSources.CreateFromFile(sourceName, filePath);
+            observer?.AfterCreateFromFileReturned();
 
-            return new ExternalSourceScope(tempDirectory, source, filePath);
+            return new ExternalSourceScope(tempDirectory, source, filePath, observer);
         }
-        catch
+        catch (Exception exception)
         {
             TryDeleteDirectory(tempDirectory);
+            if (observer is not null)
+            {
+                throw new WorkerOperationException(
+                    TiaMcpServer.Contracts.WorkerFailureCategories.WorkerOperationFailed,
+                    BlockImportDiagnosticSanitizer.Failure(
+                        BlockImportDiagnosticContext.SourceNodeCreation,
+                        exception));
+            }
             throw;
         }
     }
@@ -96,11 +113,15 @@ internal sealed class ExternalSourceScope : IDisposable
         {
             // Surfaced as a worker warning rather than swallowed: a surviving node is a real,
             // user-visible change to their project that they need to know about.
-            Console.Error.WriteLine(
-                $"Failed to remove the temporary external source node from the project: {ex.Message}");
+            Console.Error.WriteLine(_observer is null
+                ? $"Failed to remove the temporary external source node from the project: {ex.Message}"
+                : BlockImportDiagnosticSanitizer.Failure(
+                    BlockImportDiagnosticContext.SourceNodeDeletion,
+                    ex));
         }
         finally
         {
+            _observer?.AfterDeleteAttempt(ProjectNodeRemoved);
             _source = null;
             TryDeleteDirectory(_tempDirectory);
         }

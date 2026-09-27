@@ -635,6 +635,101 @@ public class OpennessWorkerClientIntegrationTests
         Assert.Contains(result.Warnings, warning =>
             warning.Contains("project state may have changed", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("attempt 1", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+        Assert.NotNull(result.BlockImportOutcome);
+        Assert.Equal("completed", result.BlockImportOutcome.ImportStage);
+        Assert.True(result.BlockImportOutcome.TargetMutationCommitted);
+    }
+
+    [Theory]
+    [InlineData("block-outcome-success", true, null)]
+    [InlineData("block-outcome-postcondition", false, WorkerFailureCategories.PostconditionFailed)]
+    [InlineData("block-outcome-partial", true, null)]
+    public async Task UpdateBlockLogic_ValidReceivedOutcome_PreservesCategoryWarningsAndEvidence(
+        string scenario,
+        bool expectedSuccess,
+        string? expectedCategory)
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+
+        var result = await client.UpdateBlockLogicAsync(
+            "PLC/Blocks/Main",
+            "submitted private content",
+            scenario,
+            SourceFormatNames.Source);
+
+        Assert.Equal(expectedSuccess, result.Success);
+        Assert.Equal(expectedCategory, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+        Assert.NotNull(result.BlockImportOutcome);
+        Assert.True(BlockImportOutcomeValidator.Validate(result.BlockImportOutcome, SourceFormatNames.Source));
+        Assert.True(result.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("completed", result.BlockImportOutcome.ImportStage);
+        Assert.Contains("attempt 1", result.Success ? result.Payload : result.Error, StringComparison.OrdinalIgnoreCase);
+        if (scenario == "block-outcome-partial")
+        {
+            Assert.Equal("unavailable", result.BlockImportOutcome.CompileStage);
+            Assert.NotNull(result.BlockImportOutcome.CompileReport);
+            Assert.True(result.BlockImportOutcome.CompileDetailsOmitted);
+        }
+    }
+
+    [Theory]
+    [InlineData("block-outcome-preimport-validation", WorkerFailureCategories.ValidationError)]
+    [InlineData("block-outcome-preimport-access", WorkerFailureCategories.AccessDenied)]
+    [InlineData("block-outcome-preimport-no-project", WorkerFailureCategories.WorkerOperationFailed)]
+    [InlineData("block-outcome-preimport-project-open", WorkerFailureCategories.WorkerOperationFailed)]
+    [InlineData("block-outcome-preimport-identity", WorkerFailureCategories.BindingConflict)]
+    public async Task UpdateBlockLogic_ReceivedPreImportRefusal_PreservesCategoryAndNotStartedEvidence(
+        string scenario,
+        string expectedCategory)
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+
+        var result = await client.UpdateBlockLogicAsync(
+            "PLC/Blocks/Main", "submitted private content", scenario, SourceFormatNames.Source);
+
+        Assert.False(result.Success);
+        Assert.Equal(expectedCategory, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+        Assert.NotNull(result.BlockImportOutcome);
+        Assert.Equal("not_started", result.BlockImportOutcome.ImportStage);
+        Assert.False(result.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("not_created", result.BlockImportOutcome.TemporarySourceState);
+    }
+
+    [Theory]
+    [InlineData("block-outcome-missing-success")]
+    [InlineData("block-outcome-missing-failure")]
+    [InlineData("block-outcome-invalid")]
+    [InlineData("block-outcome-oversized")]
+    public async Task UpdateBlockLogic_MissingOrInvalidReceivedOutcome_FailsClosedWithoutEcho(string scenario)
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+
+        var result = await client.UpdateBlockLogicAsync(
+            "PLC/Blocks/SecretTarget",
+            "submitted private content",
+            scenario,
+            SourceFormatNames.Source);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+        Assert.Equal("The TIA Openness worker returned invalid block-import outcome evidence.", result.Error);
+        Assert.DoesNotContain("SecretTarget", result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("submitted private content", result.Error, StringComparison.Ordinal);
+        Assert.DoesNotContain("untrusted marker", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result.BlockImportOutcome);
+        Assert.Equal("unknown", result.BlockImportOutcome.ImportStage);
+        Assert.Null(result.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("unknown", result.BlockImportOutcome.TemporarySourceState);
     }
 
     [Fact]

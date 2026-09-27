@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.Contracts;
 
@@ -22,6 +23,10 @@ public class WorkerResponse
     /// <see cref="ResolvedProjectPath"/>, which are patched in after the fact. Null on success.
     /// </summary>
     public string? FailureCategory { get; init; }
+
+    /// <summary>Typed evidence for update_block_logic; omitted for unrelated methods.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BlockImportOutcomeInfo? BlockImportOutcome { get; set; }
 
     /// <summary>
     /// Non-fatal degradation notes captured from the worker's Console.Error while THIS

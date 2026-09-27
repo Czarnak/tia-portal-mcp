@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using System.Text.Json;
 using Siemens.Engineering;
 using Siemens.Engineering.Compiler;
 using TiaMcpServer.Contracts;
@@ -11,16 +12,83 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class CompileChecker
 {
+    private static readonly JsonSerializerOptions ObservationJson = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public static CompileCheckReport Compile(Project project, string? plcName, string? blockPath)
     {
-        var report = !string.IsNullOrWhiteSpace(blockPath)
-            ? CompileBlock(project, plcName, blockPath!)
-            : CompilePlcSoftware(project, plcName);
+        var report = CompileCore(project, plcName, blockPath, out _, out _);
         CompileReportProjection.BoundSerializedReport(report);
         return report;
     }
 
-    private static CompileCheckReport CompileBlock(Project project, string? plcName, string blockPath)
+    internal static CompileObservationInput CompileObserved(
+        Project project,
+        string? plcName,
+        string? blockPath)
+    {
+        try
+        {
+            var report = CompileCore(
+                project,
+                plcName,
+                blockPath,
+                out var allInvocationsAvailable,
+                out var detailsOmitted);
+            detailsOmitted |= JsonSerializer.Serialize(report, ObservationJson).Length >= 60_000;
+            CompileReportProjection.BoundSerializedReport(report);
+            return new CompileObservationInput(
+                report,
+                targetSelectionAvailable: true,
+                sessionAvailable: true,
+                allInvocationsAvailable,
+                detailsOmitted);
+        }
+        catch (NonRecoverableException)
+        {
+            return new CompileObservationInput(
+                report: null,
+                targetSelectionAvailable: true,
+                sessionAvailable: false,
+                allInvocationsAvailable: false);
+        }
+        catch (Exception)
+        {
+            return new CompileObservationInput(
+                report: null,
+                targetSelectionAvailable: false,
+                sessionAvailable: true,
+                allInvocationsAvailable: false);
+        }
+    }
+
+    private static CompileCheckReport CompileCore(
+        Project project,
+        string? plcName,
+        string? blockPath,
+        out bool allInvocationsAvailable,
+        out bool detailsOmitted) =>
+        !string.IsNullOrWhiteSpace(blockPath)
+            ? CompileBlock(
+                project,
+                plcName,
+                blockPath!,
+                out allInvocationsAvailable,
+                out detailsOmitted)
+            : CompilePlcSoftware(
+                project,
+                plcName,
+                out allInvocationsAvailable,
+                out detailsOmitted);
+
+    private static CompileCheckReport CompileBlock(
+        Project project,
+        string? plcName,
+        string blockPath,
+        out bool allInvocationsAvailable,
+        out bool detailsOmitted)
     {
         var address = BlockAddress.Parse(blockPath);
         if (address.PlcName == null && !string.IsNullOrWhiteSpace(plcName))
@@ -37,7 +105,12 @@ public static class CompileChecker
             throw new InvalidOperationException($"Block '{address.BlockName}' not found.");
         }
 
-        var plc = CompileTarget(selectedPlc, target.Block, new CompileReportProjection.Budget());
+        var plc = CompileTarget(
+            selectedPlc,
+            target.Block,
+            new CompileReportProjection.Budget(),
+            out allInvocationsAvailable,
+            out detailsOmitted);
         if (address.PlcName == null)
         {
             plc.DiagnosticNotes.Add("No PLC qualifier was specified; compiled using the first PLC found.");
@@ -56,7 +129,11 @@ public static class CompileChecker
         return report;
     }
 
-    private static CompileCheckReport CompilePlcSoftware(Project project, string? plcName)
+    private static CompileCheckReport CompilePlcSoftware(
+        Project project,
+        string? plcName,
+        out bool allInvocationsAvailable,
+        out bool detailsOmitted)
     {
         var report = new CompileCheckReport
         {
@@ -64,10 +141,19 @@ public static class CompileChecker
             OverallState = "Success"
         };
         var budget = new CompileReportProjection.Budget();
+        allInvocationsAvailable = true;
+        detailsOmitted = false;
 
         foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
         {
-            report.Plcs.Add(CompileTarget(plc, plc.Software, budget));
+            report.Plcs.Add(CompileTarget(
+                plc,
+                plc.Software,
+                budget,
+                out var invocationAvailable,
+                out var plcDetailsOmitted));
+            allInvocationsAvailable &= invocationAvailable;
+            detailsOmitted |= plcDetailsOmitted;
         }
 
         if (report.Plcs.Count == 0)
@@ -87,9 +173,13 @@ public static class CompileChecker
     }
 
     private static PlcCompileInfo CompileTarget(PlcSoftwareLocator.DiscoveredPlcSoftware selectedPlc,
-        object target, CompileReportProjection.Budget budget)
+        object target,
+        CompileReportProjection.Budget budget,
+        out bool invocationAvailable,
+        out bool detailsOmitted)
     {
         CompilerResult? result;
+        invocationAvailable = true;
         try
         {
             result = CompileObject(target);
@@ -99,10 +189,11 @@ public static class CompileChecker
             // Compiler/service invocation failed. Keep the selected identity, but no compiler
             // result is known. Never forward exception text across the worker boundary.
             result = null;
+            invocationAvailable = false;
         }
 
         // Diagnostic access failures must not be mistaken for compiler invocation failures.
-        return BuildPlcCompileInfo(selectedPlc, result, budget);
+        return BuildPlcCompileInfo(selectedPlc, result, budget, out detailsOmitted);
     }
 
     private static bool IsExpectedCompileFailure(Exception exception) =>
@@ -111,8 +202,11 @@ public static class CompileChecker
         (exception is EngineeringException || exception.GetType() == typeof(InvalidOperationException));
 
     private static PlcCompileInfo BuildPlcCompileInfo(PlcSoftwareLocator.DiscoveredPlcSoftware selectedPlc,
-        CompilerResult? result, CompileReportProjection.Budget budget)
+        CompilerResult? result,
+        CompileReportProjection.Budget budget,
+        out bool detailsOmitted)
     {
+        detailsOmitted = false;
         var plc = new PlcCompileInfo
         {
             PlcName = selectedPlc.Software.Name,
@@ -136,6 +230,7 @@ public static class CompileChecker
         {
             // State and totals above are already known, even when message acquisition fails.
             CompileReportProjection.NoteOmission(plc);
+            detailsOmitted = true;
             return plc;
         }
 
@@ -147,7 +242,10 @@ public static class CompileChecker
             budget);
         plc.Messages = projection.Messages;
         if (projection.WasTruncated)
+        {
             CompileReportProjection.NoteOmission(plc);
+            detailsOmitted = true;
+        }
         return plc;
     }
 
