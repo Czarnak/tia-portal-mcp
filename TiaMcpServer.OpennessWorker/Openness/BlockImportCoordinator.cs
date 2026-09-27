@@ -156,17 +156,14 @@ internal static class BlockImportCoordinator
         {
             invocation = boundary.Snapshot();
         }
-        catch
+        catch (Exception snapshotFailure)
         {
-            try
-            {
-                _ = cleanup?.Invoke();
-            }
-            catch
-            {
-                // Preserve the original ambiguous boundary failure.
-            }
-            throw;
+            throw CreateAmbiguousBoundaryFailure(
+                primaryFailure ?? snapshotFailure,
+                sourceTracker,
+                observePostcondition,
+                failureContext,
+                cleanup);
         }
 
         BlockPostconditionEvidence evidence;
@@ -247,6 +244,65 @@ internal static class BlockImportCoordinator
             "Import succeeded.",
             outcome,
             BlockImportDiagnosticSanitizer.SanitizeWarnings(warnings));
+    }
+
+    private static WorkerOperationException CreateAmbiguousBoundaryFailure(
+        Exception failure,
+        BlockSourceArtifactTracker sourceTracker,
+        Func<bool, BlockPostconditionEvidence> observePostcondition,
+        BlockImportDiagnosticContext failureContext,
+        Func<string?>? cleanup)
+    {
+        var warnings = new List<string>();
+        if (failure is WorkerOperationException workerFailure)
+            AddWarnings(warnings, workerFailure.Warnings);
+
+        BlockPostconditionEvidence evidence;
+        try
+        {
+            var observed = observePostcondition(false)
+                ?? throw new InvalidOperationException("Block update observation returned no evidence.");
+            evidence = BlockPostconditionEvidence.Import(
+                BlockCompileObservation.Unavailable(report: null),
+                observed.FinalReadStage,
+                observed.TargetPresent,
+                observed.Warnings);
+        }
+        catch (Exception observationFailure)
+        {
+            warnings.Add(BlockImportDiagnosticSanitizer.Failure(
+                BlockImportDiagnosticContext.Verification, observationFailure));
+            evidence = BlockPostconditionEvidence.Import(
+                BlockCompileObservation.Unavailable(report: null), "unavailable", null);
+        }
+
+        AddWarnings(warnings, evidence.Warnings);
+        if (cleanup is not null)
+        {
+            try
+            {
+                var cleanupWarning = cleanup();
+                if (!string.IsNullOrEmpty(cleanupWarning))
+                    warnings.Add(cleanupWarning!);
+            }
+            catch
+            {
+                warnings.Add(BlockImportDiagnosticSanitizer.StagingCleanupWarning());
+            }
+        }
+
+        var outcome = BlockPostconditionVerifier.CreateImportOutcome(
+            evidence,
+            new BlockImportInvocationSnapshot("unknown", "unavailable", null),
+            sourceTracker.Snapshot());
+
+        return new WorkerOperationException(
+            failure is WorkerOperationException categorized
+                ? categorized.FailureCategory
+                : WorkerFailureCategories.WorkerOperationFailed,
+            BlockImportDiagnosticSanitizer.Failure(failureContext, failure),
+            BlockImportDiagnosticSanitizer.SanitizeWarnings(warnings),
+            outcome);
     }
 
     private static BlockPostconditionEvidence UpgradeLegacyEvidence(BlockPostconditionEvidence evidence)

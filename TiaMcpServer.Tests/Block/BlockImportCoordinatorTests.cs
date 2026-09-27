@@ -236,16 +236,17 @@ public class BlockImportCoordinatorTests
     }
 
     [Fact]
-    public void Execute_ReturnedTargetWithoutResultMarkerEscapesUnannotatedForImporterFallback()
+    public void Execute_ReturnedTargetWithoutResultMarkerRetainsObservedEvidenceAndCleansOnce()
     {
         var targetCalls = 0;
         var observationCalls = 0;
         var cleanupCalls = 0;
+        bool? observedCompileAllowed = null;
         string? stagingPath = null;
 
         try
         {
-            var exception = Assert.Throws<InvalidOperationException>(() => BlockImportCoordinator.Execute(
+            var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
                 "Main.xml",
                 "<Main />",
                 (directory, _, boundary) =>
@@ -255,33 +256,131 @@ public class BlockImportCoordinatorTests
                     targetCalls++;
                     boundary.AfterSiemensCallReturned();
                 },
-                _ =>
+                compileAllowed =>
                 {
                     observationCalls++;
+                    observedCompileAllowed = compileAllowed;
                     return BlockPostconditionEvidence.Import(
                         BlockCompileObservation.Unavailable(report: null),
-                        finalReadStage: "unavailable",
-                        targetPresent: null);
+                        finalReadStage: "succeeded",
+                        targetPresent: true);
                 },
                 cleanupDirectory: path =>
                 {
                     cleanupCalls++;
                     Directory.Delete(path, recursive: true);
-                    throw new IOException("cleanup warning must not replace the boundary failure");
                 }));
 
-            Assert.Equal("A returned Siemens target call has no closed result.", exception.Message);
+            Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, exception.FailureCategory);
+            Assert.Equal(BlockImportDiagnosticSanitizer.Failure(BlockImportDiagnosticContext.Import), exception.Message);
             Assert.Equal(1, targetCalls);
-            Assert.Equal(0, observationCalls);
+            Assert.Equal(1, observationCalls);
+            Assert.False(observedCompileAllowed);
             Assert.Equal(1, cleanupCalls);
             Assert.NotNull(stagingPath);
             Assert.False(Directory.Exists(stagingPath));
+            Assert.Empty(exception.Warnings);
+            Assert.NotNull(exception.BlockImportOutcome);
+            Assert.Equal("unknown", exception.BlockImportOutcome.ImportStage);
+            Assert.Equal("unavailable", exception.BlockImportOutcome.ImportResultState);
+            Assert.Null(exception.BlockImportOutcome.TargetMutationCommitted);
+            Assert.Equal("unavailable", exception.BlockImportOutcome.CompileStage);
+            Assert.Null(exception.BlockImportOutcome.CompileReport);
+            Assert.Equal("succeeded", exception.BlockImportOutcome.FinalReadStage);
+            Assert.True(exception.BlockImportOutcome.TargetPresent);
+            Assert.Equal("not_applicable", exception.BlockImportOutcome.TemporarySourceState);
         }
         finally
         {
             if (stagingPath is not null && Directory.Exists(stagingPath))
                 Directory.Delete(stagingPath, recursive: true);
         }
+    }
+
+    [Fact]
+    public void Execute_SnapshotFailureCarriesClosedCleanupWarningWhenDeletionFails()
+    {
+        var cleanupCalls = 0;
+        string? stagingPath = null;
+
+        try
+        {
+            var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+                "Main.xml",
+                "<Main />",
+                (directory, _, boundary) =>
+                {
+                    stagingPath = directory.FullName;
+                    boundary.BeforeSiemensCall();
+                    boundary.AfterSiemensCallReturned();
+                },
+                _ => BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.Unavailable(report: null),
+                    finalReadStage: "succeeded",
+                    targetPresent: false),
+                cleanupDirectory: _ =>
+                {
+                    cleanupCalls++;
+                    throw new IOException("C:\\private\\Fixture.ap21");
+                }));
+
+            Assert.Equal(1, cleanupCalls);
+            Assert.Equal(BlockImportDiagnosticSanitizer.StagingCleanupWarning(), Assert.Single(exception.Warnings));
+            Assert.DoesNotContain("Fixture.ap21", exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("Fixture.ap21", string.Join(" ", exception.Warnings), StringComparison.Ordinal);
+            Assert.Equal("succeeded", exception.BlockImportOutcome!.FinalReadStage);
+            Assert.False(exception.BlockImportOutcome.TargetPresent);
+        }
+        finally
+        {
+            if (stagingPath is not null && Directory.Exists(stagingPath))
+                Directory.Delete(stagingPath, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ExecuteSource_SnapshotAndObservationFailureRetainsTruthfulSourceAndFallbackEvidence()
+    {
+        var observationCalls = 0;
+        bool? observedCompileAllowed = null;
+
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockImportCoordinator.ExecuteSource(
+                (boundary, sourceTracker) =>
+                {
+                    sourceTracker.BeforeCreateFromFile();
+                    sourceTracker.AfterCreateFromFileReturned();
+                    sourceTracker.AfterDeleteAttempt(removed: true);
+                    boundary.BeforeSiemensCall();
+                    boundary.AfterSiemensCallReturned();
+                },
+                compileAllowed =>
+                {
+                    observationCalls++;
+                    observedCompileAllowed = compileAllowed;
+                    throw new IOException("Project/PLC/SecretNode C:\\private\\Fixture.ap21");
+                }));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, exception.FailureCategory);
+        Assert.Equal(
+            BlockImportDiagnosticSanitizer.Failure(BlockImportDiagnosticContext.Generation),
+            exception.Message);
+        Assert.Equal(1, observationCalls);
+        Assert.False(observedCompileAllowed);
+        Assert.Equal(
+            "Block import reported additional sanitized diagnostic information.",
+            Assert.Single(exception.Warnings));
+        Assert.DoesNotContain("SecretNode", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fixture.ap21", string.Join(" ", exception.Warnings), StringComparison.Ordinal);
+        Assert.NotNull(exception.BlockImportOutcome);
+        Assert.Equal("unknown", exception.BlockImportOutcome.ImportStage);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.ImportResultState);
+        Assert.Null(exception.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.CompileStage);
+        Assert.Null(exception.BlockImportOutcome.CompileReport);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.FinalReadStage);
+        Assert.Null(exception.BlockImportOutcome.TargetPresent);
+        Assert.Equal("removed", exception.BlockImportOutcome.TemporarySourceState);
     }
 
     [Fact]
