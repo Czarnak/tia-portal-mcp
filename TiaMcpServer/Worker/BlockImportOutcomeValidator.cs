@@ -89,7 +89,7 @@ public static class BlockImportOutcomeValidator
         if (report.Plcs is null || report.Plcs.Count > MaxPlcs
             || report.TotalErrorCount < 0 || report.TotalWarningCount < 0
             || !OneOf(report.OverallState, "Success", "Warning", "Error")
-            || !ValidField(report.Scope) || !ValidField(report.BlockPath))
+            || !ValidRequiredField(report.Scope) || !ValidOptionalField(report.BlockPath))
             return false;
 
         var hasErrors = report.TotalErrorCount > 0 || report.OverallState == "Error";
@@ -103,8 +103,8 @@ public static class BlockImportOutcomeValidator
         foreach (var plc in report.Plcs)
         {
             if (plc is null || plc.Messages is null || plc.DiagnosticNotes is null
-                || !ValidField(plc.PlcName) || !ValidField(plc.DeviceName)
-                || !ValidField(plc.State) || plc.ErrorCount < 0 || plc.WarningCount < 0)
+                || !ValidRequiredField(plc.PlcName) || !ValidOptionalField(plc.DeviceName)
+                || !ValidRequiredField(plc.State) || plc.ErrorCount < 0 || plc.WarningCount < 0)
                 return false;
 
             messages += plc.Messages.Count;
@@ -114,8 +114,8 @@ public static class BlockImportOutcomeValidator
 
             foreach (var message in plc.Messages)
             {
-                if (message is null || !ValidField(message.Description)
-                    || !ValidField(message.Path) || !ValidField(message.Severity))
+                if (message is null || !ValidRequiredField(message.Description)
+                    || !ValidRequiredField(message.Path) || !ValidRequiredField(message.Severity))
                     return false;
                 diagnosticChars += message.Description.Length + message.Path.Length;
                 if (diagnosticChars > MaxDiagnosticChars)
@@ -124,7 +124,7 @@ public static class BlockImportOutcomeValidator
 
             foreach (var note in plc.DiagnosticNotes)
             {
-                if (!ValidField(note))
+                if (!ValidRequiredField(note))
                     return false;
                 diagnosticChars += note.Length;
                 if (diagnosticChars > MaxDiagnosticChars)
@@ -135,8 +135,11 @@ public static class BlockImportOutcomeValidator
         return true;
     }
 
-    private static bool ValidField(string? value)
-        => value is null || value.Length <= MaxFieldChars;
+    private static bool ValidRequiredField(string? value)
+        => value is not null && value.Length <= MaxFieldChars;
+
+    private static bool ValidOptionalField(string? value)
+        => value is null || ValidRequiredField(value);
 
     private static bool OneOf(string? value, params string[] allowed)
         => allowed.Contains(value, StringComparer.Ordinal);

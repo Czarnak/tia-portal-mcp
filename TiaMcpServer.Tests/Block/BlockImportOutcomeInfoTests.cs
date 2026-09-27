@@ -26,6 +26,71 @@ public class BlockImportOutcomeInfoTests
         TargetMutationCommitted = true
     };
 
+    private static CompileCheckReport CompleteReport() => new()
+    {
+        Scope = "plc",
+        OverallState = "Success",
+        Plcs = new List<PlcCompileInfo>
+        {
+            new()
+            {
+                PlcName = "PLC_1",
+                State = "Success",
+                Messages = new List<CompileMessageInfo>
+                {
+                    new() { Description = "checked", Path = "Blocks/FB1", Severity = "Information" }
+                },
+                DiagnosticNotes = new List<string> { "available" }
+            }
+        }
+    };
+
+    [Theory]
+    [InlineData("report.scope")]
+    [InlineData("plc.plcName")]
+    [InlineData("plc.state")]
+    [InlineData("message.description")]
+    [InlineData("message.path")]
+    [InlineData("message.severity")]
+    [InlineData("plc.diagnosticNotes[0]")]
+    public void Validate_MalformedWorkerJson_NullRequiredReportStringReturnsFalse(string field)
+    {
+        var report = CompleteReport();
+        var plc = report.Plcs[0];
+        var message = plc.Messages[0];
+        switch (field)
+        {
+            case "report.scope": report.Scope = null!; break;
+            case "plc.plcName": plc.PlcName = null!; break;
+            case "plc.state": plc.State = null!; break;
+            case "message.description": message.Description = null!; break;
+            case "message.path": message.Path = null!; break;
+            case "message.severity": message.Severity = null!; break;
+            case "plc.diagnosticNotes[0]": plc.DiagnosticNotes[0] = null!; break;
+        }
+
+        var wireOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        };
+        var wireJson = JsonSerializer.Serialize(report, wireOptions);
+        var wireReport = JsonSerializer.Deserialize<CompileCheckReport>(wireJson, wireOptions)!;
+        var outcome = Completed() with { CompileStage = "succeeded", CompileReport = wireReport };
+        Assert.False(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));
+    }
+
+    [Fact]
+    public void Validate_NullOptionalBlockPathAndDeviceNameAreAccepted()
+    {
+        var report = CompleteReport();
+        report.BlockPath = null;
+        report.Plcs[0].DeviceName = null;
+        Assert.True(BlockImportOutcomeValidator.Validate(
+            Completed() with { CompileStage = "succeeded", CompileReport = report },
+            SourceFormatNames.Xml));
+    }
+
     [Theory]
     [InlineData("not_started", false, "unavailable")]
     [InlineData("unknown", null, "unavailable")]
