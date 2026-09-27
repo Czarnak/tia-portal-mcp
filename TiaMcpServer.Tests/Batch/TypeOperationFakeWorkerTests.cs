@@ -136,16 +136,17 @@ public class TypeOperationFakeWorkerTests
     [Fact]
     public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundConfiguredPathMatchesBlockContent()
     {
-        var binding = new ProjectSessionBinding("echo");
-        using var client = CreateReadOnlyClient(binding);
-
         foreach (var operation in new[] { "get_block_content", "get_type_content" })
         {
+            var binding = new ProjectSessionBinding("echo");
+            using var client = CreateReadOnlyClient(binding);
+            Assert.False(binding.IsVerified);
+
             var result = await ExecuteSingleReadAsync(client, operation, null);
             Assert.Equal("succeeded", result.Status);
             AssertEchoRead(result.Result, operation);
+            Assert.True(binding.IsVerified);
         }
-        Assert.True(binding.IsVerified);
     }
 
     [Fact]
