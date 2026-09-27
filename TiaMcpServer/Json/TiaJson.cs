@@ -6,14 +6,16 @@ namespace TiaMcpServer.Json;
 /// Shared System.Text.Json configuration for host-process output.
 ///
 /// <para>
-/// This covers host-side serialization: text rendered back to the MCP client, the audit
-/// JSONL records written by WriteSafetyService, the stable hashing that backs safety
-/// tokens, and OperationBatchPayloadBudget's read-batch response length prediction. The
-/// host↔worker wire format is deliberately NOT shared from here: those options live with
-/// each process's transport (TiaMcpServer/Worker/PersistentWorkerTransport.cs and the
-/// worker's Program.cs), they differ on purpose — the worker omits nulls when writing —
-/// and unifying them would require a System.Text.Json package reference on the
-/// dependency-free TiaMcpServer.Contracts assembly.
+/// This covers host-side serialization for the legacy text contract: text rendered back to
+/// the MCP client by tools not yet on the structured contract, the presentation audit JSONL
+/// records written by WriteSafetyService, the stable hashing that backs presentation-bound
+/// safety tokens, and OperationBatchPayloadBudget's read-batch response length prediction.
+/// Structured tools render through CanonicalJson instead. The host↔worker wire format is not
+/// shared from here either: those options live with each process's transport
+/// (TiaMcpServer/Worker/PersistentWorkerTransport.cs and the worker's Program.cs) and
+/// currently differ — the worker omits nulls when writing. Consolidating them in
+/// TiaMcpServer.Contracts, which already references System.Text.Json, is Phase 1 of
+/// docs/roadmap/json-contract.md.
 /// </para>
 /// </summary>
 public static class TiaJson

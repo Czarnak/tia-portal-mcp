@@ -1,0 +1,235 @@
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
+using TiaMcpServer.Contracts;
+using Xunit;
+
+namespace TiaMcpServer.Tests.Tools;
+
+/// <summary>
+/// Phase 0 guard of docs/roadmap/json-contract.md, observed through the real MCP protocol on the
+/// production read-write surface.
+///
+/// <para>
+/// Every registered tool is either on the structured JSON contract - it advertises an output
+/// schema - or is listed in <see cref="LegacyTextContractTools"/> with the reason it has not
+/// migrated. The register only shrinks: migrating a tool without removing it here fails, and so does
+/// registering a tool that is neither structured nor listed. Every structured tool also carries a
+/// success probe and a rejection probe in <see cref="StructuredToolProbes"/>, and each probe must
+/// return one canonical document, identical in both representations, with no JSON inside a string.
+/// </para>
+/// </summary>
+[Collection("Mcp protocol serial")]
+public sealed class ToolOutputContractConformanceTests
+{
+    private const string BatchRedesign =
+        "Excluded from the JSON contract roadmap: the batch tools are redesigned separately.";
+
+    private const string Phase2 = "Phase 2 of docs/roadmap/json-contract.md.";
+
+    private const string Phase3 = "Phase 3 of docs/roadmap/json-contract.md.";
+
+    /// <summary>Tools still on a legacy text contract, each with the reason it has not migrated.</summary>
+    private static readonly IReadOnlyDictionary<string, string> LegacyTextContractTools =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["execute_read_batch"] = BatchRedesign,
+            ["preview_write_batch"] = BatchRedesign,
+            ["apply_write_batch"] = BatchRedesign,
+            ["get_project_status"] = Phase2,
+            ["compile_check"] = Phase2,
+            ["open_project"] = Phase3,
+            ["create_project"] = Phase3,
+            ["save_project"] = Phase3,
+            ["save_project_as"] = Phase3,
+            ["archive_project"] = Phase3,
+            ["close_project"] = Phase3,
+        };
+
+    private static readonly IReadOnlyDictionary<string, ToolProbe> StructuredToolProbes = new[]
+    {
+        new ToolProbe(
+            "network_read",
+            "rejected",
+            ExpectIsError: true,
+            StartupProjectPath: null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe(
+            "network_read",
+            "succeeded",
+            ExpectIsError: false,
+            StartupProjectPath: null,
+            new Dictionary<string, object?>
+            {
+                ["operations"] = new[]
+                {
+                    new
+                    {
+                        operationId = "hardware",
+                        operation = "read_hardware_config",
+                        projectPath = "network-roundtrip",
+                    },
+                },
+            }),
+        new ToolProbe(
+            "network_write",
+            "rejected",
+            ExpectIsError: true,
+            StartupProjectPath: null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe(
+            "network_write",
+            "previewed",
+            ExpectIsError: false,
+            StartupProjectPath: "network-roundtrip",
+            new Dictionary<string, object?>
+            {
+                ["operations"] = new object[]
+                {
+                    new
+                    {
+                        operationId = "add",
+                        operation = "add_network_device",
+                        projectPath = "network-roundtrip",
+                        typeIdentifier = "OrderNumber:TEST",
+                        deviceName = "PLC_1",
+                    },
+                    new
+                    {
+                        operationId = "configure",
+                        operation = "configure_network_device",
+                        projectPath = "network-roundtrip",
+                        target = new { deviceName = "PLC_1", nodeId = "node-1" },
+                        changes = new { ipAddress = "192.168.0.10" },
+                    },
+                },
+            }),
+        new ToolProbe(
+            "browse_project_tree",
+            "rejected",
+            ExpectIsError: true,
+            StartupProjectPath: null,
+            new Dictionary<string, object?> { ["pageSize"] = 0 }),
+        new ToolProbe(
+            "browse_project_tree",
+            "succeeded",
+            ExpectIsError: false,
+            StartupProjectPath: null,
+            new Dictionary<string, object?>
+            {
+                ["projectPath"] = "project-tree-v3-small",
+                ["pageSize"] = 4,
+            }),
+    }.ToDictionary(probe => probe.Name, StringComparer.Ordinal);
+
+    public static TheoryData<string> ProbeNames
+    {
+        get
+        {
+            var names = new TheoryData<string>();
+            foreach (var name in StructuredToolProbes.Keys.Order(StringComparer.Ordinal))
+            {
+                names.Add(name);
+            }
+
+            return names;
+        }
+    }
+
+    [Fact]
+    public async Task EveryRegisteredToolIsStructuredOrListedAsLegacy()
+    {
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.ReadWrite);
+        var tools = await harness.Client.ListToolsAsync();
+        var registered = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
+        var structured = tools
+            .Where(tool => tool.ProtocolTool.OutputSchema is not null)
+            .Select(tool => tool.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var unlisted = registered
+            .Where(name => !structured.Contains(name) && !LegacyTextContractTools.ContainsKey(name))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(
+            unlisted.Length == 0,
+            "These tools advertise no output schema and are not listed in LegacyTextContractTools: "
+                + string.Join(", ", unlisted));
+
+        var migrated = LegacyTextContractTools.Keys
+            .Where(structured.Contains)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(
+            migrated.Length == 0,
+            "These tools now advertise an output schema; remove them from LegacyTextContractTools "
+                + "and give them probes: " + string.Join(", ", migrated));
+
+        var stale = LegacyTextContractTools.Keys
+            .Where(name => !registered.Contains(name))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(
+            stale.Length == 0,
+            "LegacyTextContractTools lists tools that are not registered: " + string.Join(", ", stale));
+
+        var withoutBothProbes = structured
+            .Where(name => !HasProbe(name, expectIsError: true) || !HasProbe(name, expectIsError: false))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(
+            withoutBothProbes.Length == 0,
+            "These structured tools need both a success and a rejection probe in StructuredToolProbes: "
+                + string.Join(", ", withoutBothProbes));
+
+        var probedButNotStructured = StructuredToolProbes.Values
+            .Select(probe => probe.Tool)
+            .Where(name => !structured.Contains(name))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(
+            probedButNotStructured.Length == 0,
+            "StructuredToolProbes probes tools that advertise no output schema: "
+                + string.Join(", ", probedButNotStructured));
+    }
+
+    [Theory]
+    [MemberData(nameof(ProbeNames))]
+    public async Task StructuredToolReturnsOneCanonicalDocumentWithoutNestedJson(string probeName)
+    {
+        var probe = StructuredToolProbes[probeName];
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.ReadWrite,
+            audit.Path,
+            probe.StartupProjectPath);
+
+        var result = await harness.Client.CallToolAsync(probe.Tool, probe.Arguments);
+
+        var violations = StructuredContractInspector.FindViolations(result);
+        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
+        Assert.True(
+            probe.ExpectIsError == (result.IsError == true),
+            $"Expected isError={probe.ExpectIsError}. Response: {TextOf(result)}");
+    }
+
+    private static bool HasProbe(string tool, bool expectIsError)
+        => StructuredToolProbes.Values.Any(probe =>
+            string.Equals(probe.Tool, tool, StringComparison.Ordinal) && probe.ExpectIsError == expectIsError);
+
+    private static string TextOf(CallToolResult result)
+        => string.Join(
+            Environment.NewLine,
+            result.Content.OfType<TextContentBlock>().Select(block => block.Text));
+
+    private sealed record ToolProbe(
+        string Tool,
+        string Case,
+        bool ExpectIsError,
+        string? StartupProjectPath,
+        Dictionary<string, object?> Arguments)
+    {
+        public string Name => $"{Tool}/{Case}";
+    }
+}
