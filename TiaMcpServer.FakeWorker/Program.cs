@@ -454,7 +454,20 @@ while ((line = Console.In.ReadLine()) is not null)
         case "echo":
             // Returns the received request verbatim so tests can assert which fields survived
             // the BatchOperationRequest -> WorkerRequest hop.
-            Respond(JsonSerializer.Serialize(new { success = true, payload = line }));
+            Respond(ReadMethod(line) == "update_block_logic"
+                ? BlockOutcomeResponse(
+                    true,
+                    null,
+                    line,
+                    CompletedBlockOutcome(
+                        string.Equals(
+                            ReadField(line, "format"),
+                            SourceFormatNames.Source,
+                            StringComparison.Ordinal)
+                                ? SourceFormatNames.Source
+                                : SourceFormatNames.Xml,
+                        "unavailable"))
+                : JsonSerializer.Serialize(new { success = true, payload = line }));
             break;
         case "tag-safety-all-routes":
         case "tag-safety-invalid-routes":
@@ -847,7 +860,11 @@ while ((line = Console.In.ReadLine()) is not null)
             {
                 ("get_project_status", _) => """{"success":true,"payload":"{\"isOpen\":true}"}""",
                 ("get_block_content", "source") => """{"success":true,"payload":"DATA_BLOCK \"Recipe\"\r\nSTRUCT\r\nEND_STRUCT;\r\nBEGIN\r\nEND_DATA_BLOCK\r\n"}""",
-                ("update_block_logic", "source") => """{"success":true,"payload":"{}"}""",
+                ("update_block_logic", "source") => BlockOutcomeResponse(
+                    true,
+                    null,
+                    "{}",
+                    CompletedBlockOutcome(SourceFormatNames.Source, "unavailable")),
                 var other => $$"""{"success":false,"error":"expected format 'source' for both methods, got method '{{other.Item1}}' with format '{{other.Item2}}'"}"""
             });
             break;
