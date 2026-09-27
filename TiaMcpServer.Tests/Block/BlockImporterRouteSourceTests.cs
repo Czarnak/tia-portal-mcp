@@ -18,7 +18,7 @@ public class BlockImporterRouteSourceTests
             "target.Group.Blocks.ImportFromDocuments(",
             "boundary.RecordReturnedResult(result.State == DocumentResultState.Success");
         AssertBracketed(source,
-            "scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None);",
+            "scope.Source.GenerateBlocksFromSource(preflight.Target.UserGroup, GenerateBlockOption.None);",
             "boundary.RecordReturnedResult(BlockImportReturnedState.Success);");
         AssertBracketed(source,
             "scope.Source.GenerateBlocksFromSource(GenerateBlockOption.None);",
@@ -78,20 +78,36 @@ public class BlockImporterRouteSourceTests
     }
 
     [Fact]
-    public void XmlAndSourcePreflightShareTypedPreTargetOutcomeDecoration()
+    public void XmlAndSourcePreflightDecorationEndsBeforeCoordinatorEntry()
     {
         var source = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker", "Openness", "BlockImporter.cs");
 
-        Assert.Equal(1, Count(source, "BlockImportCoordinator.ExecuteWithPreTargetOutcome("));
-        Assert.Contains("sourceApplicable: !string.Equals(format, SourceFormatNames.Xml", source,
+        Assert.Equal(2, Count(source, "BlockImportCoordinator.ExecuteWithPreTargetOutcome("));
+
+        var xmlWrapper = source.IndexOf(
+            "BlockImportCoordinator.ExecuteWithPreTargetOutcome(", StringComparison.Ordinal);
+        var xmlPreflight = source.IndexOf(
+            "BlockWritePreflight.PrepareUpdate(", xmlWrapper, StringComparison.Ordinal);
+        var xmlWrapperEnd = source.IndexOf(
+            "sourceApplicable: false);", xmlPreflight, StringComparison.Ordinal);
+        var xmlCoordinator = source.IndexOf(
+            "return BlockImportCoordinator.Execute(", xmlWrapperEnd, StringComparison.Ordinal);
+        Assert.True(xmlWrapper >= 0 && xmlWrapper < xmlPreflight);
+        Assert.True(xmlPreflight < xmlWrapperEnd && xmlWrapperEnd < xmlCoordinator);
+
+        var sourceWrapper = source.IndexOf(
+            "BlockImportCoordinator.ExecuteWithPreTargetOutcome(", xmlWrapper + 1,
             StringComparison.Ordinal);
-        AssertBefore(source,
-            "BlockImportCoordinator.ExecuteWithPreTargetOutcome(",
-            "BlockWritePreflight.PrepareUpdate(");
-        AssertBefore(source,
-            "BlockImportCoordinator.ExecuteWithPreTargetOutcome(",
-            "PlcTypeSourcePreflight.TryReadDeclaredName(");
+        var sourcePreflight = source.IndexOf(
+            "PlcTypeSourcePreflight.TryReadDeclaredName(", sourceWrapper, StringComparison.Ordinal);
+        var sourceWrapperEnd = source.IndexOf(
+            "sourceApplicable: true);", sourcePreflight, StringComparison.Ordinal);
+        var sourceCoordinator = source.IndexOf(
+            "return BlockImportCoordinator.ExecuteSource(", sourceWrapperEnd,
+            StringComparison.Ordinal);
+        Assert.True(sourceWrapper > xmlCoordinator && sourceWrapper < sourcePreflight);
+        Assert.True(sourcePreflight < sourceWrapperEnd && sourceWrapperEnd < sourceCoordinator);
     }
 
     [Fact]

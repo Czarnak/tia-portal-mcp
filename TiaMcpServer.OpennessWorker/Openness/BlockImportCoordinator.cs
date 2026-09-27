@@ -111,8 +111,8 @@ internal static class BlockImportCoordinator
             cleanup: null);
     }
 
-    internal static BlockImportResult ExecuteWithPreTargetOutcome(
-        Func<BlockImportResult> operation,
+    internal static T ExecuteWithPreTargetOutcome<T>(
+        Func<T> operation,
         bool sourceApplicable)
     {
         if (operation is null) throw new ArgumentNullException(nameof(operation));

@@ -20,38 +20,40 @@ public static class BlockImporter
         if (project is null) throw new ArgumentNullException(nameof(project));
         if (yamlContent is null) throw new ArgumentNullException(nameof(yamlContent));
 
-        return BlockImportCoordinator.ExecuteWithPreTargetOutcome(
+        if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
+            return ImportSource(project, blockPath, yamlContent);
+
+        var preflight = BlockImportCoordinator.ExecuteWithPreTargetOutcome(
             () =>
             {
-                if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
-                    return ImportSource(project, blockPath, yamlContent);
-
                 var fallbackDocumentName = Path.GetFileName(blockPath) + ".xml";
-                var preflight = BlockWritePreflight.PrepareUpdate(
-                    blockPath,
+                return new XmlImportPreflight(
                     fallbackDocumentName,
-                    yamlContent);
-
-                return BlockImportCoordinator.Execute(
-                    fallbackDocumentName,
-                    yamlContent,
-                    (directory, bundle, boundary) => ImportDocuments(
-                        project,
-                        preflight.Address,
+                    BlockWritePreflight.PrepareUpdate(
                         blockPath,
-                        directory,
-                        bundle,
-                        boundary),
-                    compileAllowed => ObservePostconditions(
-                        project,
-                        preflight.Address,
-                        blockPath,
-                        SourceFormatNames.Xml,
-                        preflight.Bundle.PrimaryDocumentName,
-                        compileAllowed,
-                        warnings: null));
+                        fallbackDocumentName,
+                        yamlContent));
             },
-            sourceApplicable: !string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal));
+            sourceApplicable: false);
+
+        return BlockImportCoordinator.Execute(
+            preflight.FallbackDocumentName,
+            yamlContent,
+            (directory, bundle, boundary) => ImportDocuments(
+                project,
+                preflight.Prepared.Address,
+                blockPath,
+                directory,
+                bundle,
+                boundary),
+            compileAllowed => ObservePostconditions(
+                project,
+                preflight.Prepared.Address,
+                blockPath,
+                SourceFormatNames.Xml,
+                preflight.Prepared.Bundle.PrimaryDocumentName,
+                compileAllowed,
+                warnings: null));
     }
 
     private static void ImportDocuments(
@@ -105,47 +107,54 @@ public static class BlockImporter
         string blockPath,
         string sourceContent)
     {
-        var address = BlockWritePreflight.ParseAddress(blockPath);
-        var target = BlockTargetResolver.ResolveForImport(project, address);
-        if (target.Block is null)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                $"No block exists at '{address.ToDisplayPath()}'. update_block_logic only updates a "
-                + "block that is already in the project; it never creates one.");
-        }
+        var preflight = BlockImportCoordinator.ExecuteWithPreTargetOutcome(
+            () =>
+            {
+                var address = BlockWritePreflight.ParseAddress(blockPath);
+                var target = BlockTargetResolver.ResolveForImport(project, address);
+                if (target.Block is null)
+                {
+                    throw new WorkerOperationException(
+                        WorkerFailureCategories.ValidationError,
+                        $"No block exists at '{address.ToDisplayPath()}'. update_block_logic only updates a "
+                        + "block that is already in the project; it never creates one.");
+                }
 
-        var decision = BlockExporter.DecideSourceFormat(target.Block, address);
-        var targetName = target.Block.Name;
-        if (!PlcTypeSourcePreflight.TryReadDeclaredName(
-                sourceContent,
-                SourceFormatNames.Source,
-                decision.ExpectedKind,
-                out var declaredName,
-                out var preflightError))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                preflightError ?? "The submitted document declares no object name.");
-        }
+                var decision = BlockExporter.DecideSourceFormat(target.Block, address);
+                var targetName = target.Block.Name;
+                if (!PlcTypeSourcePreflight.TryReadDeclaredName(
+                        sourceContent,
+                        SourceFormatNames.Source,
+                        decision.ExpectedKind,
+                        out var declaredName,
+                        out var preflightError))
+                {
+                    throw new WorkerOperationException(
+                        WorkerFailureCategories.ValidationError,
+                        preflightError ?? "The submitted document declares no object name.");
+                }
 
-        if (!string.Equals(declaredName, targetName, StringComparison.Ordinal))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                $"The submitted document declares '{declaredName}' but '{address.ToDisplayPath()}' "
-                + $"resolves to '{targetName}'. update_block_logic never renames and never creates: "
-                + $"submit a document declaring '{targetName}', or address the block the document "
-                + "actually declares.");
-        }
+                if (!string.Equals(declaredName, targetName, StringComparison.Ordinal))
+                {
+                    throw new WorkerOperationException(
+                        WorkerFailureCategories.ValidationError,
+                        $"The submitted document declares '{declaredName}' but '{address.ToDisplayPath()}' "
+                        + $"resolves to '{targetName}'. update_block_logic never renames and never creates: "
+                        + $"submit a document declaring '{targetName}', or address the block the document "
+                        + "actually declares.");
+                }
+
+                return new SourceImportPreflight(address, target, decision, targetName);
+            },
+            sourceApplicable: true);
 
         var warnings = new List<string>();
         return BlockImportCoordinator.ExecuteSource(
             (boundary, sourceTracker) =>
             {
                 var scope = ExternalSourceScope.Create(
-                    target.ExternalSourceGroup,
-                    targetName + decision.Extension,
+                    preflight.Target.ExternalSourceGroup,
+                    preflight.TargetName + preflight.Decision.Extension,
                     sourceContent,
                     sourceTracker);
                 IList<IEngineeringObject>? generated = null;
@@ -153,9 +162,9 @@ public static class BlockImporter
                 try
                 {
                     boundary.BeforeSiemensCall();
-                    if (target.UserGroup is not null)
+                    if (preflight.Target.UserGroup is not null)
                     {
-                        generated = scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None);
+                        generated = scope.Source.GenerateBlocksFromSource(preflight.Target.UserGroup, GenerateBlockOption.None);
                     }
                     else
                     {
@@ -175,12 +184,44 @@ public static class BlockImporter
             },
             compileAllowed => ObservePostconditions(
                 project,
-                address,
+                preflight.Address,
                 blockPath,
                 SourceFormatNames.Source,
                 primaryDocumentName: null,
                 compileAllowed,
                 warnings));
+    }
+
+    private sealed class XmlImportPreflight
+    {
+        public XmlImportPreflight(string fallbackDocumentName, BlockUpdatePreflight prepared)
+        {
+            FallbackDocumentName = fallbackDocumentName;
+            Prepared = prepared;
+        }
+
+        public string FallbackDocumentName { get; }
+        public BlockUpdatePreflight Prepared { get; }
+    }
+
+    private sealed class SourceImportPreflight
+    {
+        public SourceImportPreflight(
+            BlockAddress address,
+            ResolvedBlockTarget target,
+            SourceFormatDecision decision,
+            string targetName)
+        {
+            Address = address;
+            Target = target;
+            Decision = decision;
+            TargetName = targetName;
+        }
+
+        public BlockAddress Address { get; }
+        public ResolvedBlockTarget Target { get; }
+        public SourceFormatDecision Decision { get; }
+        public string TargetName { get; }
     }
 
     private static BlockPostconditionEvidence ObservePostconditions(

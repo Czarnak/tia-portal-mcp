@@ -236,6 +236,35 @@ public class BlockImportCoordinatorTests
     }
 
     [Fact]
+    public void Execute_ReturnedTargetWithoutResultMarkerEscapesUnannotatedForImporterFallback()
+    {
+        var targetCalls = 0;
+        var observationCalls = 0;
+
+        var exception = Assert.Throws<InvalidOperationException>(() => BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _, boundary) =>
+            {
+                boundary.BeforeSiemensCall();
+                targetCalls++;
+                boundary.AfterSiemensCallReturned();
+            },
+            _ =>
+            {
+                observationCalls++;
+                return BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.Unavailable(report: null),
+                    finalReadStage: "unavailable",
+                    targetPresent: null);
+            }));
+
+        Assert.Equal("A returned Siemens target call has no closed result.", exception.Message);
+        Assert.Equal(1, targetCalls);
+        Assert.Equal(0, observationCalls);
+    }
+
+    [Fact]
     public void Execute_NormalTargetReturnCompilesAndObservesFinalStateOnce()
     {
         var targetCalls = 0;
@@ -289,7 +318,7 @@ public class BlockImportCoordinatorTests
     public void ExecuteWithPreTargetOutcome_SourcePreflightPreservesCategoryAndSanitizesEvidence()
     {
         var exception = Assert.Throws<WorkerOperationException>(() =>
-            BlockImportCoordinator.ExecuteWithPreTargetOutcome(
+            BlockImportCoordinator.ExecuteWithPreTargetOutcome<BlockImportResult>(
                 () => throw new WorkerOperationException(
                     WorkerFailureCategories.ValidationError,
                     "Project/PLC/SecretNode submitted-snippet",
