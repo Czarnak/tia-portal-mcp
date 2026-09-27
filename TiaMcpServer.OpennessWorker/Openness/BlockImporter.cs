@@ -11,12 +11,6 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class BlockImporter
 {
-    /// <param name="format">
-    /// <see cref="SourceFormatNames.Xml"/> (the block default) takes the Simatic ML bundle route
-    /// this operation has always taken. <see cref="SourceFormatNames.Source"/> takes the Siemens
-    /// external-source route and is only available for a global data block. The host normalizes
-    /// this to exactly one of the two before it reaches the worker.
-    /// </param>
     internal static BlockImportResult Import(
         Project project,
         string blockPath,
@@ -27,9 +21,7 @@ public static class BlockImporter
         if (yamlContent is null) throw new ArgumentNullException(nameof(yamlContent));
 
         if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
-        {
             return ImportSource(project, blockPath, yamlContent);
-        }
 
         var fallbackDocumentName = Path.GetFileName(blockPath) + ".xml";
         var preflight = BlockWritePreflight.PrepareUpdate(
@@ -40,16 +32,21 @@ public static class BlockImporter
         return BlockImportCoordinator.Execute(
             fallbackDocumentName,
             yamlContent,
-            (directory, bundle) => ImportDocuments(
+            (directory, bundle, boundary) => ImportDocuments(
                 project,
                 preflight.Address,
                 blockPath,
                 directory,
-                bundle),
-            () => VerifyPostconditions(
+                bundle,
+                boundary),
+            compileAllowed => ObservePostconditions(
                 project,
+                preflight.Address,
                 blockPath,
-                preflight.Bundle.PrimaryDocumentName));
+                SourceFormatNames.Xml,
+                preflight.Bundle.PrimaryDocumentName,
+                compileAllowed,
+                warnings: null));
     }
 
     private static void ImportDocuments(
@@ -57,134 +54,54 @@ public static class BlockImporter
         BlockAddress address,
         string blockPath,
         DirectoryInfo directory,
-        ParsedBlockImportBundle bundle)
+        ParsedBlockImportBundle bundle,
+        BlockImportInvocationBoundary boundary)
     {
         var target = BlockTargetResolver.ResolveForImport(project, address);
 
         if (BlockImportRouting.SelectRoute(bundle) == BlockImportRoute.SimaticMl)
         {
             var authoritative = BlockImportRouting.SelectAuthoritativeDocument(bundle);
-
             if (bundle.Documents.Count > 1)
             {
                 var current = BlockImportBundleParser.Parse(
                     authoritative.LogicalName,
                     BlockExporter.Export(project, blockPath, SourceFormatNames.Xml));
                 BlockImportRouting.EnsureOnlyAuthoritativeDocumentChanged(
-                    bundle, current, authoritative.LogicalName);
+                    bundle,
+                    current,
+                    authoritative.LogicalName);
             }
 
-            // A single Simatic ML XML document must go through Import(FileInfo, ImportOptions).
-            // ImportFromDocuments is only for SIMATIC SD packages keyed by an extension-less
-            // base name; passing it a bare .xml produces a misleading "file does not exist".
             var xmlPath = Path.Combine(directory.FullName, authoritative.SafeFileName);
+            boundary.BeforeSiemensCall();
             target.Group.Blocks.Import(new FileInfo(xmlPath), ImportOptions.Override);
+            boundary.AfterSiemensCallReturned();
+            boundary.RecordReturnedResult(BlockImportReturnedState.Success);
             return;
         }
 
+        boundary.BeforeSiemensCall();
         var result = target.Group.Blocks.ImportFromDocuments(
             directory,
             BlockImportRouting.SimaticSdBaseName(bundle),
             ImportDocumentOptions.Override);
+        boundary.AfterSiemensCallReturned();
+        boundary.RecordReturnedResult(result.State == DocumentResultState.Success
+            ? BlockImportReturnedState.Success
+            : BlockImportReturnedState.NonSuccess);
 
         if (result.State != DocumentResultState.Success)
-        {
-            throw new InvalidOperationException("Import failed with state: " + result.State);
-        }
+            throw new InvalidOperationException("SIMATIC SD import returned a non-success state.");
     }
 
-    private static BlockPostconditionEvidence VerifyPostconditions(
+    private static BlockImportResult ImportSource(
         Project project,
         string blockPath,
-        string primaryDocumentName)
+        string sourceContent)
     {
-        var compileFailure = CompileAndBuildFailureEvidence(
-            project, plcName: null, blockPath, "block import", warnings: null);
-
-        if (compileFailure is not null)
-        {
-            return compileFailure;
-        }
-
-        return BlockExporter.VerifyPrimaryDocument(project, blockPath, primaryDocumentName);
-    }
-
-    /// <summary>
-    /// Compiles and returns failure evidence, or null when the compile is clean and the caller
-    /// should go on to its own re-export check.
-    ///
-    /// <para>
-    /// Shared by both write routes on purpose: the predicate below is this repo's definition of
-    /// "the write broke the project", and a route that drifted from it would start accepting writes
-    /// the other route rejects. The routes differ only in compile scope — the Simatic ML route
-    /// compiles the one block, the external-source route compiles the whole PLC — and in the phrase
-    /// that names the operation in the diagnostic.
-    /// </para>
-    /// </summary>
-    /// <param name="messageSuffix">
-    /// Names the operation inside "Compilation reported errors after {suffix}." and
-    /// "Compilation could not complete after {suffix}: …".
-    /// </param>
-    private static BlockPostconditionEvidence? CompileAndBuildFailureEvidence(
-        Project project,
-        string? plcName,
-        string? blockPath,
-        string messageSuffix,
-        IReadOnlyList<string>? warnings)
-    {
-        try
-        {
-            var report = CompileChecker.Compile(project, plcName, blockPath);
-            if (report.TotalErrorCount != 0
-                || string.Equals(report.OverallState, "Error", StringComparison.OrdinalIgnoreCase))
-            {
-                return new BlockPostconditionEvidence(
-                    compileSucceeded: false,
-                    reExportSucceeded: false,
-                    diagnosticMessage: $"Compilation reported errors after {messageSuffix}.",
-                    warnings: warnings);
-            }
-        }
-        catch (Exception exception)
-        {
-            return new BlockPostconditionEvidence(
-                compileSucceeded: false,
-                reExportSucceeded: false,
-                diagnosticMessage: $"Compilation could not complete after {messageSuffix}: " + exception.Message,
-                warnings: warnings);
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Updates one existing global data block from Siemens external-source text (.db), mirroring
-    /// <see cref="PlcTypeImporter"/>.
-    ///
-    /// <para>
-    /// Strictly an update. Three refusals come before any project mutation: the block must already
-    /// exist, it must be a global data block, and the name the submitted document declares must
-    /// match the block the path resolved to. Openness' GenerateBlocksFromSource has no notion of a
-    /// target object — it creates whatever the source declares — so without those refusals a typo
-    /// in the path would silently add a stray block instead of failing.
-    /// </para>
-    /// <para>
-    /// It does not go through <see cref="BlockImportCoordinator"/>: that coordinator exists to
-    /// stage a multi-document Simatic ML bundle onto disk and verify the staged files, and an
-    /// external source is a single document whose temp file and project node are owned by
-    /// <see cref="ExternalSourceScope"/> instead.
-    /// </para>
-    /// </summary>
-    private static BlockImportResult ImportSource(Project project, string blockPath, string sourceContent)
-    {
-        // 1. Parse the path and resolve the target. Same defensive parse as the Simatic ML route,
-        // so a malformed path is a validation error rather than an uncategorized failure.
         var address = BlockWritePreflight.ParseAddress(blockPath);
         var target = BlockTargetResolver.ResolveForImport(project, address);
-
-        // 2/3. Refuse if the block does not exist, or is not one this format is defined for. This
-        // is an update, never an upsert. DecideSourceFormat throws the refusal itself and also
-        // yields the file extension and the declaration kind the submitted source must carry.
         if (target.Block is null)
         {
             throw new WorkerOperationException(
@@ -195,9 +112,6 @@ public static class BlockImporter
 
         var decision = BlockExporter.DecideSourceFormat(target.Block, address);
         var targetName = target.Block.Name;
-
-        // 4. Refuse if the submitted document declares more than one object, an object of the wrong
-        // kind, or a different name.
         if (!PlcTypeSourcePreflight.TryReadDeclaredName(
                 sourceContent,
                 SourceFormatNames.Source,
@@ -220,106 +134,143 @@ public static class BlockImporter
                 + "actually declares.");
         }
 
-        // 5. Apply the document through the Siemens external-source pipeline.
-        //
-        // target.ExternalSourceGroup, not one re-derived from the block: for a block inside a
-        // software unit this is the unit's own group, and registering under the top-level PLC
-        // instead would generate a stray block there and leave the real one untouched.
-        // The extension comes from the resolved block, never from the caller — .db for a global
-        // data block, .scl for an SCL block.
-        var scope = ExternalSourceScope.Create(
-            target.ExternalSourceGroup, targetName + decision.Extension, sourceContent);
-
-        IList<IEngineeringObject>? generated;
-
-        try
-        {
-            if (target.UserGroup is not null)
+        var warnings = new List<string>();
+        return BlockImportCoordinator.ExecuteSource(
+            (boundary, sourceTracker) =>
             {
-                generated = scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None);
-            }
-            else
-            {
-                // The Program blocks root is a PlcBlockSystemGroup, not a user group, so there is
-                // no group to pass. GenerateBlockOption.None is still passed explicitly: the truly
-                // parameterless overload leaves the on-error behaviour implicit, and both branches
-                // must refuse to keep partially generated blocks.
-                generated = scope.Source.GenerateBlocksFromSource(GenerateBlockOption.None);
-            }
-        }
-        finally
-        {
-            scope.Dispose();
-        }
+                var scope = ExternalSourceScope.Create(
+                    target.ExternalSourceGroup,
+                    targetName + decision.Extension,
+                    sourceContent,
+                    sourceTracker);
+                IList<IEngineeringObject>? generated = null;
 
-        // 6. Verify. The warnings seeded here are the two things verification itself cannot see.
-        var warnings = BlockSourceWriteWarnings.Build(
-            address, scope.ProjectNodeRemoved, generated?.Count ?? 0);
-
-        var evidence = VerifySourcePostconditions(project, address, blockPath, warnings);
-
-        try
-        {
-            BlockPostconditionVerifier.Verify(evidence);
-        }
-        catch (WorkerOperationException failure)
-        {
-            // The shared verifier does not know about the evidence's own warnings, and a residual
-            // external source node is exactly the kind of unrequested project change a failed write
-            // must still report.
-            var failureWarnings = new List<string>(evidence.Warnings);
-            failureWarnings.AddRange(failure.Warnings);
-
-            throw new WorkerOperationException(failure.FailureCategory, failure.Message, failureWarnings);
-        }
-
-        return new BlockImportResult("Import succeeded.", evidence.Warnings);
+                try
+                {
+                    boundary.BeforeSiemensCall();
+                    if (target.UserGroup is not null)
+                    {
+                        generated = scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None);
+                    }
+                    else
+                    {
+                        generated = scope.Source.GenerateBlocksFromSource(GenerateBlockOption.None);
+                    }
+                    boundary.AfterSiemensCallReturned();
+                    boundary.RecordReturnedResult(BlockImportReturnedState.Success);
+                }
+                finally
+                {
+                    scope.Dispose();
+                    if (!scope.ProjectNodeRemoved)
+                        warnings.Add(BlockImportDiagnosticSanitizer.SourceNodeCleanupWarning());
+                    if (generated is not null && generated.Count != 1)
+                        warnings.Add(BlockImportDiagnosticSanitizer.GeneratedCountWarning(generated.Count));
+                }
+            },
+            compileAllowed => ObservePostconditions(
+                project,
+                address,
+                blockPath,
+                SourceFormatNames.Source,
+                primaryDocumentName: null,
+                compileAllowed,
+                warnings));
     }
 
-    /// <summary>
-    /// Compiles the PLC and re-exports the block as source.
-    ///
-    /// <para>
-    /// The PLC is compiled as a whole rather than just the block — unlike the Simatic ML route —
-    /// because rewriting a block's declaration silently invalidates every block that reads its
-    /// members, and the compiler is the only thing that knows which. This mirrors
-    /// <see cref="PlcTypePostconditionVerifier"/>, which makes the same trade for the same reason.
-    /// </para>
-    /// </summary>
-    private static BlockPostconditionEvidence VerifySourcePostconditions(
+    private static BlockPostconditionEvidence ObservePostconditions(
         Project project,
         BlockAddress address,
         string blockPath,
-        IReadOnlyList<string> warnings)
+        string format,
+        string? primaryDocumentName,
+        bool compileAllowed,
+        IReadOnlyList<string>? warnings)
     {
-        var compileFailure = CompileAndBuildFailureEvidence(
-            project, address.PlcName, blockPath: null, "the source-format block update", warnings);
+        var compile = compileAllowed
+            ? BlockCompileObservation.Observe(CompileChecker.CompileObserved(
+                project,
+                string.Equals(format, SourceFormatNames.Source, StringComparison.Ordinal)
+                    ? address.PlcName
+                    : null,
+                string.Equals(format, SourceFormatNames.Source, StringComparison.Ordinal)
+                    ? null
+                    : blockPath))
+            : BlockCompileObservation.Unavailable(report: null);
 
-        if (compileFailure is not null)
+        return ObserveFinalState(
+            project,
+            address,
+            blockPath,
+            format,
+            primaryDocumentName,
+            compile,
+            warnings);
+    }
+
+    private static BlockPostconditionEvidence ObserveFinalState(
+        Project project,
+        BlockAddress address,
+        string blockPath,
+        string format,
+        string? primaryDocumentName,
+        BlockCompileObservation compile,
+        IReadOnlyList<string>? warnings)
+    {
+        ResolvedBlockTarget target;
+        try
         {
-            return compileFailure;
+            target = BlockTargetResolver.ResolveForImport(project, address);
+        }
+        catch (Exception)
+        {
+            return BlockPostconditionEvidence.Import(
+                compile,
+                finalReadStage: "unavailable",
+                targetPresent: null,
+                warnings);
+        }
+
+        if (target.Block is null)
+        {
+            return BlockPostconditionEvidence.Import(
+                compile,
+                finalReadStage: "succeeded",
+                targetPresent: false,
+                warnings);
         }
 
         try
         {
-            var reExported = BlockExporter.Export(project, blockPath, SourceFormatNames.Source);
-            var reExportSucceeded = !string.IsNullOrWhiteSpace(reExported);
+            bool exportSucceeded;
+            if (string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
+            {
+                var verification = BlockExporter.VerifyPrimaryDocument(
+                    project,
+                    blockPath,
+                    primaryDocumentName
+                        ?? throw new InvalidOperationException("Primary XML document is unavailable."));
+                exportSucceeded = verification.ReExportSucceeded;
+            }
+            else
+            {
+                exportSucceeded = !string.IsNullOrWhiteSpace(
+                    BlockExporter.Export(project, blockPath, SourceFormatNames.Source));
+            }
 
-            return new BlockPostconditionEvidence(
-                compileSucceeded: true,
-                reExportSucceeded: reExportSucceeded,
-                diagnosticMessage: reExportSucceeded
-                    ? "Verified."
-                    : "Re-export produced an empty document after the source-format block update.",
-                warnings: warnings);
+            return BlockPostconditionEvidence.Import(
+                compile,
+                exportSucceeded ? "succeeded" : "unavailable",
+                targetPresent: true,
+                warnings);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            return new BlockPostconditionEvidence(
-                compileSucceeded: true,
-                reExportSucceeded: false,
-                diagnosticMessage: "Re-export could not complete after the source-format block update: " + exception.Message,
-                warnings: warnings);
+            return BlockPostconditionEvidence.Import(
+                compile,
+                finalReadStage: "unavailable",
+                targetPresent: true,
+                warnings);
         }
     }
 }

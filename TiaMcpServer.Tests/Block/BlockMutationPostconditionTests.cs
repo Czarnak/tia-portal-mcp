@@ -34,6 +34,20 @@ public class BlockMutationPostconditionTests
     }
 
     [Fact]
+    public void LegacyCreateVerifierRemainsIndependentOfImportOutcomeContract()
+    {
+        var evidence = new BlockPostconditionEvidence(
+            compileSucceeded: true,
+            reExportSucceeded: true,
+            diagnosticMessage: "Created block resolved and compiled.");
+
+        BlockPostconditionVerifier.Verify(evidence, "create");
+
+        Assert.True(evidence.CompileSucceeded);
+        Assert.True(evidence.ReExportSucceeded);
+    }
+
+    [Fact]
     public void Execute_CompileFailurePreventsSuccessAndDoesNotRetryImport()
     {
         var importCalls = 0;

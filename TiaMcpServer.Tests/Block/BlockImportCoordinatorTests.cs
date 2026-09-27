@@ -8,6 +8,118 @@ namespace TiaMcpServer.Tests.Block;
 public class BlockImportCoordinatorTests
 {
     [Fact]
+    public void InvocationBoundary_PreflightSnapshotIsNotStartedAndUncommitted()
+    {
+        var snapshot = new BlockImportInvocationBoundary().Snapshot();
+
+        Assert.Equal("not_started", snapshot.ImportStage);
+        Assert.Equal("unavailable", snapshot.ImportResultState);
+        Assert.False(snapshot.TargetMutationCommitted);
+    }
+
+    [Fact]
+    public void InvocationBoundary_StartedCallThatThrowsIsUnknown()
+    {
+        var boundary = new BlockImportInvocationBoundary();
+        boundary.BeforeSiemensCall();
+
+        var snapshot = boundary.Snapshot();
+
+        Assert.Equal("unknown", snapshot.ImportStage);
+        Assert.Equal("unavailable", snapshot.ImportResultState);
+        Assert.Null(snapshot.TargetMutationCommitted);
+    }
+
+    [Theory]
+    [InlineData("Success", "success")]
+    [InlineData("NonSuccess", "non_success")]
+    public void InvocationBoundary_NormalReturnRecordsClosedResult(
+        string stateName,
+        string expectedResult)
+    {
+        var state = Enum.Parse<BlockImportReturnedState>(stateName);
+        var boundary = new BlockImportInvocationBoundary();
+        boundary.BeforeSiemensCall();
+        boundary.AfterSiemensCallReturned();
+        boundary.RecordReturnedResult(state);
+
+        var snapshot = boundary.Snapshot();
+
+        Assert.Equal("completed", snapshot.ImportStage);
+        Assert.Equal(expectedResult, snapshot.ImportResultState);
+        Assert.True(snapshot.TargetMutationCommitted);
+    }
+
+    [Fact]
+    public void InvocationBoundary_InvalidOrDuplicateMarkersFailClosed()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            new BlockImportInvocationBoundary().AfterSiemensCallReturned());
+        Assert.Throws<InvalidOperationException>(() =>
+            new BlockImportInvocationBoundary().RecordReturnedResult(BlockImportReturnedState.Success));
+
+        var started = new BlockImportInvocationBoundary();
+        started.BeforeSiemensCall();
+        Assert.Throws<InvalidOperationException>(() => started.BeforeSiemensCall());
+
+        var returned = new BlockImportInvocationBoundary();
+        returned.BeforeSiemensCall();
+        returned.AfterSiemensCallReturned();
+        Assert.Throws<InvalidOperationException>(() => returned.AfterSiemensCallReturned());
+        Assert.Throws<InvalidOperationException>(() => returned.Snapshot());
+
+        returned.RecordReturnedResult(BlockImportReturnedState.Success);
+        Assert.Throws<InvalidOperationException>(() =>
+            returned.RecordReturnedResult(BlockImportReturnedState.Success));
+    }
+
+    [Theory]
+    [InlineData(false, "not_applicable")]
+    [InlineData(true, "not_created")]
+    public void SourceArtifactTracker_InitialStateDistinguishesXmlAndSource(
+        bool sourceApplicable,
+        string expected)
+    {
+        Assert.Equal(expected, new BlockSourceArtifactTracker(sourceApplicable).Snapshot());
+    }
+
+    [Fact]
+    public void SourceArtifactTracker_TracksCreationThrowAndDeleteOutcome()
+    {
+        var creationThrow = new BlockSourceArtifactTracker(sourceApplicable: true);
+        creationThrow.BeforeCreateFromFile();
+        Assert.Equal("unknown", creationThrow.Snapshot());
+
+        var removed = new BlockSourceArtifactTracker(sourceApplicable: true);
+        removed.BeforeCreateFromFile();
+        removed.AfterCreateFromFileReturned();
+        Assert.Equal("unknown", removed.Snapshot());
+        removed.AfterDeleteAttempt(removed: true);
+        Assert.Equal("removed", removed.Snapshot());
+
+        var residue = new BlockSourceArtifactTracker(sourceApplicable: true);
+        residue.BeforeCreateFromFile();
+        residue.AfterCreateFromFileReturned();
+        residue.AfterDeleteAttempt(removed: false);
+        Assert.Equal("residue_possible", residue.Snapshot());
+    }
+
+    [Fact]
+    public void SourceArtifactTracker_InvalidOrDuplicateMarkersFailClosed()
+    {
+        var tracker = new BlockSourceArtifactTracker(sourceApplicable: true);
+        Assert.Throws<InvalidOperationException>(() => tracker.AfterCreateFromFileReturned());
+        Assert.Throws<InvalidOperationException>(() => tracker.AfterDeleteAttempt(removed: true));
+
+        tracker.BeforeCreateFromFile();
+        Assert.Throws<InvalidOperationException>(() => tracker.BeforeCreateFromFile());
+        tracker.AfterCreateFromFileReturned();
+        Assert.Throws<InvalidOperationException>(() => tracker.AfterCreateFromFileReturned());
+        tracker.AfterDeleteAttempt(removed: false);
+        Assert.Throws<InvalidOperationException>(() => tracker.AfterDeleteAttempt(removed: true));
+    }
+
+    [Fact]
     public void Execute_InvokesImportOnceAfterEveryStagedFileExists()
     {
         var importCalls = 0;
@@ -71,6 +183,110 @@ public class BlockImportCoordinatorTests
     }
 
     [Fact]
+    public void Execute_StartedTargetThrowRunsOneFinalObservationWithoutCompileOrRetry()
+    {
+        var targetCalls = 0;
+        var observations = 0;
+        var compileRequests = 0;
+
+        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _, boundary) =>
+            {
+                boundary.BeforeSiemensCall();
+                targetCalls++;
+                throw new InvalidOperationException("C:\\private\\Fixture.ap21");
+            },
+            compileAllowed =>
+            {
+                observations++;
+                if (compileAllowed) compileRequests++;
+                return BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.Unavailable(report: null),
+                    finalReadStage: "unavailable",
+                    targetPresent: null);
+            }));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, exception.FailureCategory);
+        Assert.Equal(1, targetCalls);
+        Assert.Equal(1, observations);
+        Assert.Equal(0, compileRequests);
+        Assert.Equal("unknown", exception.BlockImportOutcome!.ImportStage);
+        Assert.Null(exception.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.FinalReadStage);
+    }
+
+    [Fact]
+    public void Execute_NormalTargetReturnCompilesAndObservesFinalStateOnce()
+    {
+        var targetCalls = 0;
+        var observations = 0;
+
+        var result = BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _, boundary) =>
+            {
+                boundary.BeforeSiemensCall();
+                targetCalls++;
+                boundary.AfterSiemensCallReturned();
+                boundary.RecordReturnedResult(BlockImportReturnedState.Success);
+            },
+            compileAllowed =>
+            {
+                observations++;
+                Assert.True(compileAllowed);
+                return BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.FromReport(CleanReport()),
+                    finalReadStage: "succeeded",
+                    targetPresent: true);
+            });
+
+        Assert.Equal(1, targetCalls);
+        Assert.Equal(1, observations);
+        Assert.Equal("completed", result.Outcome.ImportStage);
+        Assert.Equal("success", result.Outcome.ImportResultState);
+        Assert.True(result.Outcome.TargetMutationCommitted);
+        Assert.Equal("not_applicable", result.Outcome.TemporarySourceState);
+    }
+
+    [Fact]
+    public void ExecuteSource_FailureBeforeCreateMarkerIsNotCreated()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockImportCoordinator.ExecuteSource(
+                (_, _) => throw new WorkerOperationException(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    BlockImportDiagnosticSanitizer.Failure(
+                        BlockImportDiagnosticContext.SourceNodeCreation)),
+                _ => throw new InvalidOperationException("Observation must not run.")));
+
+        Assert.Equal("not_started", exception.BlockImportOutcome!.ImportStage);
+        Assert.False(exception.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("not_created", exception.BlockImportOutcome.TemporarySourceState);
+    }
+
+    [Fact]
+    public void ExecuteSource_CreateFromFileThrowIsUnknown()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockImportCoordinator.ExecuteSource(
+                (_, source) =>
+                {
+                    source.BeforeCreateFromFile();
+                    throw new WorkerOperationException(
+                        WorkerFailureCategories.WorkerOperationFailed,
+                        BlockImportDiagnosticSanitizer.Failure(
+                            BlockImportDiagnosticContext.SourceNodeCreation));
+                },
+                _ => throw new InvalidOperationException("Observation must not run.")));
+
+        Assert.Equal("not_started", exception.BlockImportOutcome!.ImportStage);
+        Assert.Equal("unknown", exception.BlockImportOutcome.TemporarySourceState);
+    }
+
+    [Fact]
     public void Execute_CleansStagingAfterSuccessAndFailure()
     {
         string? successfulStagingPath = null;
@@ -117,8 +333,8 @@ public class BlockImportCoordinatorTests
 
             Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, exception.FailureCategory);
             var warning = Assert.Single(exception.Warnings);
-            Assert.StartsWith("Block import staging cleanup failed: ", warning);
-            Assert.Equal(512, warning.Length);
+            Assert.Equal(BlockImportDiagnosticSanitizer.StagingCleanupWarning(), warning);
+            Assert.DoesNotContain(cleanupFailure, warning, StringComparison.Ordinal);
             return;
         }
 
@@ -131,7 +347,18 @@ public class BlockImportCoordinatorTests
 
         Assert.Equal("Import succeeded.", result.Payload);
         var successWarning = Assert.Single(result.Warnings);
-        Assert.StartsWith("Block import staging cleanup failed: ", successWarning);
-        Assert.Equal(512, successWarning.Length);
+        Assert.Equal(BlockImportDiagnosticSanitizer.StagingCleanupWarning(), successWarning);
+        Assert.DoesNotContain(cleanupFailure, successWarning, StringComparison.Ordinal);
     }
+
+    private static CompileCheckReport CleanReport() => new()
+    {
+        Scope = "block",
+        BlockPath = "PLC/Blocks/Main",
+        OverallState = "Success",
+        Plcs =
+        {
+            new PlcCompileInfo { PlcName = "PLC", State = "Success" }
+        }
+    };
 }

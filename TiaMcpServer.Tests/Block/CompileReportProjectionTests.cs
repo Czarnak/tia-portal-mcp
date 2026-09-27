@@ -8,6 +8,128 @@ namespace TiaMcpServer.Tests.Block;
 public class CompileReportProjectionTests
 {
     [Fact]
+    public void BlockOutcomeProjectionCopiesAndBoundsEveryComponentWithoutMutatingInput()
+    {
+        var report = new TiaMcpServer.Contracts.CompileCheckReport
+        {
+            Scope = new string('s', 400),
+            BlockPath = "C:\\private\\" + new string('p', 400),
+            OverallState = "Error",
+            TotalErrorCount = 25,
+            TotalWarningCount = 9
+        };
+        for (var plcIndex = 0; plcIndex < 10; plcIndex++)
+        {
+            var plc = new TiaMcpServer.Contracts.PlcCompileInfo
+            {
+                PlcName = "PLC-" + plcIndex + "-" + new string('n', 300),
+                DeviceName = "Device-" + new string('d', 300),
+                State = "Error",
+                ErrorCount = plcIndex == 0 ? 25 : 0,
+                WarningCount = plcIndex == 0 ? 9 : 0
+            };
+            for (var messageIndex = 0; messageIndex < 5; messageIndex++)
+            {
+                plc.Messages.Add(new TiaMcpServer.Contracts.CompileMessageInfo
+                {
+                    Description = "SECRET_CONTENT-" + new string('x', 300),
+                    Path = "C:\\private\\Fixture.ap21\\" + new string('y', 300),
+                    Severity = "Error"
+                });
+            }
+            plc.DiagnosticNotes.Add("\\\\server\\share\\private " + new string('z', 300));
+            report.Plcs.Add(plc);
+        }
+
+        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+        {
+            ImportStage = "completed",
+            ImportResultState = "success",
+            TargetMutationCommitted = true,
+            CompileStage = "failed",
+            CompileReport = report,
+            FinalReadStage = "succeeded",
+            TargetPresent = true,
+            ContentRelation = "unknown",
+            TemporarySourceState = "not_applicable"
+        });
+
+        Assert.NotSame(report, projected.CompileReport);
+        Assert.Equal(10, report.Plcs.Count);
+        Assert.True(projected.CompileDetailsOmitted);
+        Assert.InRange(projected.CompileReport!.Plcs.Count, 1, 8);
+        Assert.Null(projected.CompileReport.BlockPath);
+        Assert.InRange(projected.CompileReport.Plcs.Sum(plc => plc.Messages.Count), 0, 20);
+        Assert.InRange(projected.CompileReport.Plcs.Sum(plc => plc.DiagnosticNotes.Count), 0, 8);
+        Assert.Equal(25, projected.CompileReport.TotalErrorCount);
+        Assert.Equal(9, projected.CompileReport.TotalWarningCount);
+        Assert.All(projected.CompileReport.Plcs, plc =>
+        {
+            Assert.InRange(plc.PlcName.Length, 0, 256);
+            if (plc.DeviceName is not null) Assert.InRange(plc.DeviceName.Length, 0, 256);
+            Assert.All(plc.Messages, message =>
+            {
+                Assert.InRange(message.Description.Length, 0, 256);
+                Assert.InRange(message.Path.Length, 0, 256);
+                Assert.DoesNotContain("C:\\private", message.Path, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("SECRET_CONTENT", message.Description, StringComparison.Ordinal);
+            });
+        });
+        Assert.True(TiaMcpServer.Worker.BlockImportOutcomeValidator.Validate(projected, "xml"));
+    }
+
+    [Fact]
+    public void BlockOutcomeProjectionBoundsEscapeHeavySerializedDocument()
+    {
+        var report = new TiaMcpServer.Contracts.CompileCheckReport
+        {
+            Scope = new string('"', 256),
+            BlockPath = new string('\\', 256),
+            OverallState = "Warning",
+            TotalWarningCount = 20
+        };
+        for (var plcIndex = 0; plcIndex < 8; plcIndex++)
+        {
+            var plc = new TiaMcpServer.Contracts.PlcCompileInfo
+            {
+                PlcName = new string('"', 256),
+                DeviceName = new string('\\', 256),
+                State = "Warning",
+                WarningCount = plcIndex == 0 ? 20 : 0
+            };
+            plc.Messages.Add(new TiaMcpServer.Contracts.CompileMessageInfo
+            {
+                Description = new string('\u0001', 256),
+                Path = new string('"', 256),
+                Severity = "Warning"
+            });
+            plc.DiagnosticNotes.Add(new string('\\', 256));
+            report.Plcs.Add(plc);
+        }
+
+        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+        {
+            ImportStage = "completed",
+            ImportResultState = "success",
+            TargetMutationCommitted = true,
+            CompileStage = "succeeded",
+            CompileReport = report,
+            FinalReadStage = "succeeded",
+            TargetPresent = true,
+            ContentRelation = "unknown",
+            TemporarySourceState = "not_applicable"
+        });
+
+        var json = System.Text.Json.JsonSerializer.Serialize(projected, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        });
+        Assert.InRange(json.Length, 1, 12000);
+        Assert.True(TiaMcpServer.Worker.BlockImportOutcomeValidator.Validate(projected, "xml"));
+    }
+
+    [Fact]
     public void Flatten_PreservesTopLevelFields()
     {
         // Catches field loss at the extracted projection seam independently of Siemens access.
