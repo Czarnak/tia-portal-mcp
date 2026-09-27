@@ -18,6 +18,8 @@ Data operations run through one of three batch tools:
 
 Every batch item contains an `operationId`, an `operation` name, and the fields for that operation. Read and write operation names are separate; project-lifecycle operations are not valid batch items.
 
+In `execute_read_batch` and `apply_write_batch` responses, each `operations[]` item includes `failureCategory`. A failed item retains its approved worker failure category; succeeded, skipped, and omitted items have `failureCategory: null`. The existing `result` text and item status remain available.
+
 #### Read operations
 
 `execute_read_batch` supports:

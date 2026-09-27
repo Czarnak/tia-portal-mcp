@@ -60,7 +60,8 @@ public static class OperationBatchResultFormatter
                 operation = result.Operation,
                 status = result.Status,
                 result = result.Result,
-                warnings = result.Warnings
+                warnings = result.Warnings,
+                failureCategory = result.FailureCategory
             })
             .ToArray();
 }

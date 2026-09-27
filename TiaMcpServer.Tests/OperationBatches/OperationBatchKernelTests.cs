@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -30,7 +31,9 @@ public class OperationBatchKernelTests
 
         Assert.Equal(new[] { "a", "b" }, invoked);
         Assert.Equal(OperationBatchStatus.Failed, results[0].Status);
+        Assert.Equal("validation_error", results[0].FailureCategory);
         Assert.Equal(OperationBatchStatus.Succeeded, results[1].Status);
+        Assert.Null(results[1].FailureCategory);
     }
 
     [Fact]
@@ -57,6 +60,9 @@ public class OperationBatchKernelTests
                 OperationBatchStatus.Skipped
             },
             results.Select(result => result.Status));
+        Assert.Null(results[0].FailureCategory);
+        Assert.Equal("worker_operation_failed", results[1].FailureCategory);
+        Assert.Null(results[2].FailureCategory);
     }
 
     [Fact]
@@ -153,6 +159,7 @@ public class OperationBatchKernelTests
             _ => Task.FromResult(WorkerCallResult.Ok("Error: literal SCL comment text")));
 
         Assert.Equal(OperationBatchStatus.Succeeded, results[0].Status);
+        Assert.Null(results[0].FailureCategory);
     }
 
     [Fact]
@@ -191,6 +198,7 @@ public class OperationBatchKernelTests
         Assert.Equal(1, root.GetProperty("succeeded").GetInt32());
         Assert.Equal(1, root.GetProperty("omitted").GetInt32());
         Assert.Equal("warning", root.GetProperty("operations")[0].GetProperty("warnings")[0].GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("operations")[1].GetProperty("failureCategory").ValueKind);
     }
 
     [Fact]
@@ -201,11 +209,15 @@ public class OperationBatchKernelTests
             new[]
             {
                 new OperationBatchResult("a", "first", OperationBatchStatus.Succeeded, "x"),
-                new OperationBatchResult("b", "second", OperationBatchStatus.Failed, "Error: nope")
+                new OperationBatchResult(
+                    "b", "second", OperationBatchStatus.Failed, "Error: nope",
+                    FailureCategory: WorkerFailureCategories.ValidationError)
             }));
 
         Assert.False(document.RootElement.GetProperty("success").GetBoolean());
         Assert.Equal(1, document.RootElement.GetProperty("failed").GetInt32());
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("operations")[0].GetProperty("failureCategory").ValueKind);
+        Assert.Equal("validation_error", document.RootElement.GetProperty("operations")[1].GetProperty("failureCategory").GetString());
     }
 
     [Fact]
@@ -216,7 +228,9 @@ public class OperationBatchKernelTests
             new[]
             {
                 new OperationBatchResult("a", "first", OperationBatchStatus.Succeeded, "ok"),
-                new OperationBatchResult("b", "second", OperationBatchStatus.Failed, "Error: boom"),
+                new OperationBatchResult(
+                    "b", "second", OperationBatchStatus.Failed, "Error: boom",
+                    FailureCategory: WorkerFailureCategories.WorkerOperationFailed),
                 new OperationBatchResult("c", "third", OperationBatchStatus.Skipped, null)
             }));
 
@@ -226,5 +240,8 @@ public class OperationBatchKernelTests
         Assert.Equal(1, root.GetProperty("succeeded").GetInt32());
         Assert.Equal(1, root.GetProperty("failed").GetInt32());
         Assert.Equal(1, root.GetProperty("skipped").GetInt32());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("operations")[0].GetProperty("failureCategory").ValueKind);
+        Assert.Equal("worker_operation_failed", root.GetProperty("operations")[1].GetProperty("failureCategory").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("operations")[2].GetProperty("failureCategory").ValueKind);
     }
 }

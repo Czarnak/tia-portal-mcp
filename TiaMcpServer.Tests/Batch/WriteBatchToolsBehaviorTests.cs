@@ -138,13 +138,18 @@ public sealed class WriteBatchToolsBehaviorTests
 
         Assert.Equal(new[] { "first", "second", "third" }, items.EnumerateArray().Select(i => i.GetProperty("operationId").GetString()).ToArray());
         Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, items[0].GetProperty("failureCategory").ValueKind);
         Assert.Equal("failed", items[1].GetProperty("status").GetString());
+        Assert.Equal(WorkerFailureCategories.WorkerCrashed, items[1].GetProperty("failureCategory").GetString());
         Assert.Contains(
             "The TIA Openness worker stopped before completion was confirmed. The project or PLC runtime state may have changed. Inspect current state before retrying.",
             items[1].GetProperty("result").GetString(),
             StringComparison.Ordinal);
         Assert.DoesNotContain("this is not json", items[1].GetProperty("result").GetString(), StringComparison.Ordinal);
         Assert.Equal("skipped", items[2].GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, items[2].GetProperty("failureCategory").ValueKind);
+        Assert.Equal(1, appliedDoc.RootElement.GetProperty("failed").GetInt32());
+        Assert.Equal(1, appliedDoc.RootElement.GetProperty("skipped").GetInt32());
 
         Assert.True(Directory.Exists(audit.Path));
         Assert.NotEmpty(Directory.GetFiles(audit.Path));

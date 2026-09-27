@@ -13,7 +13,8 @@ public sealed record OperationBatchResult(
     string Operation,
     string Status,
     string? Result,
-    IReadOnlyList<string>? Warnings = null);
+    IReadOnlyList<string>? Warnings = null,
+    string? FailureCategory = null);
 
 public sealed record OperationBatchTarget(
     string OperationId,
