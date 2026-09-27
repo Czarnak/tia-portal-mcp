@@ -6,6 +6,8 @@ public class PlcCompileInfo
 {
     public string PlcName { get; set; } = string.Empty;
 
+    public string? DeviceName { get; set; }
+
     public string State { get; set; } = string.Empty;
 
     public int ErrorCount { get; set; }

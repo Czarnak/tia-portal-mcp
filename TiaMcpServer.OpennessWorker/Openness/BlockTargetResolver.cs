@@ -26,7 +26,11 @@ internal static class BlockTargetResolver
     public static ResolvedBlockTarget ResolveForExport(Project project, BlockAddress address)
     {
         PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        return ResolveForExport(plcSoftware, address);
+    }
 
+    public static ResolvedBlockTarget ResolveForExport(PlcSoftware plcSoftware, BlockAddress address)
+    {
         if (address.IsDeterministic)
         {
             var owner = ResolveOwnerForDeterministicPath(plcSoftware, address);
