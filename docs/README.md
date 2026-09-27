@@ -40,6 +40,7 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 | [Roadmap](../ROADMAP.md) | Directional priorities for the project as a whole |
 | [Network operations roadmap](roadmap/network-operations.md) | Phased delivery of the network tool surface and its JSON contract |
 | [Export/import format roadmap](roadmap/export-import-format.md) | Source-format exchange for UDTs, data blocks, and SCL |
+| [JSON contract roadmap](roadmap/json-contract.md) | One structured JSON output contract across the tool surface: target envelope, migration phases, the conformance guard, and the batch-tool exclusion |
 | [Improvement log](IMPROVEMENT_LOG.md) | Open follow-ups above, completed engineering work below |
 
 ## Project history
