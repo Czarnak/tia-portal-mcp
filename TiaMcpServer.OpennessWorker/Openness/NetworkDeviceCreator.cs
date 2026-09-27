@@ -24,7 +24,7 @@ public static class NetworkDeviceCreator
         {
             // EngineeringException propagates on purpose: a failed CreateWithItem must surface as
             // WorkerResponse.Success=false (via Program.Execute), never as a success with a warning.
-            device = project.Devices.CreateWithItem(typeIdentifier, deviceName, deviceItemName);
+            device = project.Devices.CreateWithItem(typeIdentifier, deviceItemName, deviceName);
         }
         catch (Exception ex) when (ex is not EngineeringException)
         {
