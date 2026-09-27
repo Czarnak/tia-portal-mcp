@@ -29,6 +29,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | [Local MCP sandbox testing](development/local-mcp-testing.md) | The MCP Inspector loop against a disposable project copy |
 | [Packaging](development/packaging.md) | Build the NuGet package and install a local branch build as the `tia-mcp` global tool |
 | [Bug-fix wave orchestration](development/bug-fix-wave-orchestration.md) | Branch/worktree ownership, wave barriers, offline/live gates, PR creation, and merge protocol |
+| [Wave 2 I2/T2 orchestration handoff](development/bug-fix-wave2-i2-t2-orchestration.md) | Current-scope ownership, independent merge policy, I2 live gate, and future-session dispatch instructions |
 
 Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 
@@ -48,7 +49,9 @@ acceptance reports produced while building features. It is historical process ma
 current documentation — see its index for what is there and how to read it.
 
 Latest process entries: [Open bug parallel pull-request delivery design](superpowers/specs/2026-09-26-open-bug-parallel-pr-delivery-design.md),
-with Wave 1 plans for [L1 lifecycle rebind and preview safety](superpowers/plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md),
+with current Wave 2 plans for [I2 truthful block-import outcomes](superpowers/plans/2026-09-27-wave2-i2-truthful-block-import-outcomes.md)
+and [T2 type-content binding policy](superpowers/plans/2026-09-27-wave2-t2-type-content-binding-policy.md),
+plus Wave 1 plans for [L1 lifecycle rebind and preview safety](superpowers/plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md),
 [K1 per-item batch failure categories](superpowers/plans/2026-09-26-wave1-k1-batch-failure-categories.md),
 [P1 PLC compile and cross-reference read integrity](superpowers/plans/2026-09-26-wave1-p1-plc-read-integrity.md),
 and [N1 network-device creation names](superpowers/plans/2026-09-26-wave1-n1-network-device-creation.md),
