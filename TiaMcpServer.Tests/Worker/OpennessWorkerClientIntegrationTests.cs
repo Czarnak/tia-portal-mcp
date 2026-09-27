@@ -293,6 +293,96 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task InvalidatedOpenRecovery_RegroundsRetainedSourceWithCompleteIdentity()
+    {
+        const string source = @"C:\FakeWorker\lifecycle-rebind-probe.ap21";
+        const string destination = @"C:\Lifecycle\B.ap21";
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
+        binding.Invalidate("Simulated stale binding");
+        var invalidated = binding.CaptureSnapshot();
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, invalidated.State);
+        Assert.Equal(source, invalidated.ProjectPath);
+
+        // The recovery API accepts no destination path: only retained A can be reasserted.
+        var recovered = await client.RegroundInvalidatedSourceForOpenAsync(forceRebind: true);
+
+        Assert.True(recovered.Success, recovered.Failure?.Error);
+        var promoted = Assert.IsType<ProjectBindingSnapshot>(recovered.Value);
+        Assert.True(promoted.IsVerified);
+        Assert.True(promoted.SameBinding(binding.CaptureSnapshot()));
+        Assert.Equal(source, promoted.ProjectPath);
+        Assert.True(promoted.Revision >= invalidated.Revision + 2);
+        Assert.NotEqual(invalidated.BindingId, promoted.BindingId);
+        var identity = Assert.IsType<WorkerSessionIdentity>(promoted.ToWorkerIdentity());
+        Assert.False(string.IsNullOrWhiteSpace(identity.WorkerSessionId));
+        Assert.True(identity.PortalProcessId > 0);
+        Assert.Equal(source, identity.ProjectPath);
+
+        // The subsequent probe can succeed only with the promoted exact A identity; FakeWorker
+        // rejects a missing or mismatched ExpectedSessionIdentity before scenario dispatch.
+        var probe = await client.ProbeOpenProjectRebindAsync(source, destination);
+        Assert.True(probe.Success, probe.Error);
+        Assert.True(promoted.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Theory]
+    [InlineData("worker-error-with-category", WorkerFailureCategories.ValidationError)]
+    [InlineData("missing-session-identity", WorkerFailureCategories.PostconditionFailed)]
+    public async Task InvalidatedOpenRecovery_FailedGroundingPreservesCategoryAndInvalidatedState(
+        string source,
+        string expectedCategory)
+    {
+        var binding = new ProjectSessionBinding(source);
+        binding.Invalidate("Simulated stale binding");
+        var invalidated = binding.CaptureSnapshot();
+        using var client = CreateClient(binding: binding);
+
+        var recovered = await client.RegroundInvalidatedSourceForOpenAsync(forceRebind: true);
+
+        Assert.False(recovered.Success);
+        Assert.Null(recovered.Value);
+        Assert.Equal(expectedCategory, recovered.Failure?.FailureCategory);
+        var after = binding.CaptureSnapshot();
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, after.State);
+        Assert.Equal(invalidated.ProjectPath, after.ProjectPath);
+        Assert.True(after.Revision > invalidated.Revision);
+    }
+
+    [Fact]
+    public async Task InvalidatedOpenRecovery_NoForceDoesNotGroundOrAdvanceRevision()
+    {
+        const string source = @"C:\FakeWorker\lifecycle-rebind-probe.ap21";
+        var binding = new ProjectSessionBinding(source);
+        binding.Invalidate("Simulated stale binding");
+        var invalidated = binding.CaptureSnapshot();
+        using var client = CreateClient(binding: binding);
+
+        var recovered = await client.RegroundInvalidatedSourceForOpenAsync(forceRebind: false);
+
+        Assert.False(recovered.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, recovered.Failure?.FailureCategory);
+        Assert.True(invalidated.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Fact]
+    public async Task InvalidatedOpenRecovery_MissingRetainedSourceDoesNotGroundOrStartWorker()
+    {
+        var binding = new ProjectSessionBinding(null);
+        binding.Invalidate("Simulated stale binding without a source");
+        var invalidated = binding.CaptureSnapshot();
+        var absentExecutable = Path.Combine(Path.GetTempPath(), $"tia-absent-{Guid.NewGuid():N}.exe");
+        using var client = CreateClient(workerPath: absentExecutable, binding: binding);
+
+        var recovered = await client.RegroundInvalidatedSourceForOpenAsync(forceRebind: true);
+
+        Assert.False(recovered.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, recovered.Failure?.FailureCategory);
+        Assert.True(invalidated.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Fact]
     public async Task OpenProject_BlankProjectPath_IsValidationErrorNotBindingConflict()
     {
         using var client = CreateClient();
@@ -1103,22 +1193,29 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        try
+        {
+            var preview = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory: archiveDirectory, archiveName: "Backup", projectPath: projectPath);
+            using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
+            var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
 
-        var preview = await ProjectWriteTools.ArchiveProject(
-            client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+            var applied = await ProjectWriteTools.ArchiveProject(
+                client, safety, archiveDirectory: archiveDirectory, archiveName: "Backup", projectPath: projectPath,
+                confirm: true, safetyToken: token);
+            using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
 
-        var applied = await ProjectWriteTools.ArchiveProject(
-            client, safety, archiveDirectory: "C:\\Archives", archiveName: "Backup", projectPath: projectPath,
-            confirm: true, safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+            Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        }
+        finally
+        {
+            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
+        }
     }
 
     [Fact]
-    public async Task ArchiveProject_PreviewRejectsArchiveDirectoryInsideProjectFolder_WithoutIssuingSafetyToken()
+    public async Task ArchiveProject_MissingDirectoryInsideProjectFolder_PreservesOwnFolderError()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
@@ -1126,10 +1223,12 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient(binding: binding);
         const string projectPath = "C:\\Projects\\SimpleProject\\SimpleProject.ap21";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var archiveDirectory = $@"C:\Projects\SimpleProject\Missing-{Guid.NewGuid():N}";
+        Assert.False(Directory.Exists(archiveDirectory));
 
         var preview = await ProjectWriteTools.ArchiveProject(
             client, safety,
-            archiveDirectory: "C:\\Projects\\SimpleProject\\Sub",
+            archiveDirectory: archiveDirectory,
             archiveName: "Backup",
             mode: "Compressed",
             projectPath: projectPath);

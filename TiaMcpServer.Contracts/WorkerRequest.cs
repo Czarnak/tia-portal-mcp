@@ -362,6 +362,12 @@ public class WorkerRequest
     public bool ForceRebind { get; set; }
 
     /// <summary>
+    /// Destination B for the internal probe_open_project_rebind operation. ProjectPath remains
+    /// the currently bound source A so the existing expected-session-identity gate applies.
+    /// </summary>
+    public string? RebindDestinationProjectPath { get; set; }
+
+    /// <summary>
     /// Forwarded by: save_project_as. Whether the session rebinds to the saved copy.
     /// Distinct from ForceRebind.
     /// </summary>

@@ -187,11 +187,16 @@ public class TiaPortalSession : IDisposable
         {
             if (_projectOpenedByWorker)
             {
-                Console.Error.WriteLine($"Closing project '{currentPath ?? "(unknown)"}' before opening '{requestedPath}'.");
+                var currentProject = Project;
                 try
                 {
                     ProjectRebindCloseGuard.CloseBeforeRebind(
-                        Project.Close,
+                        () => currentProject.IsModified,
+                        () =>
+                        {
+                            Console.Error.WriteLine($"Closing project '{currentPath ?? "(unknown)"}' before opening '{requestedPath}'.");
+                            currentProject.Close();
+                        },
                         () =>
                         {
                             Project = null;
@@ -223,6 +228,45 @@ public class TiaPortalSession : IDisposable
 
     /// <summary>Absolute path of the attached project, or null when nothing is attached.</summary>
     public string? CurrentProjectPath => TryReadCurrentProjectPath();
+
+    /// <summary>Reads the selected project's rebind state without opening or closing a project.</summary>
+    internal ProjectRebindStateInfo ReadProjectRebindState(string destinationProjectPath)
+    {
+        ThrowIfDisposed();
+
+        var destination = ProjectPathNormalization.Canonicalize(destinationProjectPath)
+            ?? throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "A destination project path is required for the rebind-state probe.");
+        var source = ProjectPathNormalization.Canonicalize(TryReadCurrentProjectPath());
+        if (source is null)
+        {
+            return ProjectRebindStateInfo.Create(null, destination, null, sourceOpenedByWorker: false);
+        }
+
+        var currentProject = Project;
+        if (currentProject is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed,
+                "The selected source project became unavailable during the rebind-state probe.");
+        }
+
+        bool isModified;
+        try
+        {
+            isModified = currentProject.IsModified;
+        }
+        catch (Exception)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed,
+                "Could not verify whether the selected source project has unsaved changes. "
+                + "No project was opened or closed.");
+        }
+
+        return ProjectRebindStateInfo.Create(source, destination, isModified, _projectOpenedByWorker);
+    }
 
     internal void TrackWorkerOpenedProject(Project project)
         => AdoptProject(project, openedByWorker: true, expectedProjectPath: null);

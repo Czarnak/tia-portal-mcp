@@ -186,6 +186,7 @@ internal static class Program
                 "delete_user_constant" => DeleteUserConstant(request),
                 "get_project_status"  => GetProjectStatus(request),
                 "probe_project_status_for_lifecycle" => ProbeProjectStatusForLifecycle(request),
+                "probe_open_project_rebind" => ProbeOpenProjectRebind(request),
                 "get_basic_project_status" => GetBasicProjectStatus(request),
                 "create_block"        => CreateBlock(request),
                 "delete_block"        => DeleteBlock(request),
@@ -1242,6 +1243,20 @@ internal static class Program
         }, requiresConfirm: false);
     }
 
+    /// <summary>Internal, non-mutating read of the live source before a proposed rebind.</summary>
+    private static WorkerResponse ProbeOpenProjectRebind(WorkerRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RebindDestinationProjectPath))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "RebindDestinationProjectPath is required for the rebind-state probe.");
+        }
+
+        return WithSession(request, session =>
+            Success(session.ReadProjectRebindState(request.RebindDestinationProjectPath!)));
+    }
+
     private static WorkerResponse OpenProject(WorkerRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ProjectPath))
@@ -1568,7 +1583,7 @@ internal static class Program
     private static WorkerResponse Success<T>(T payload)
     {
         // These closed-shape contracts require nullable members to remain explicit on the wire.
-        var payloadOptions = payload is NetworkObjectListInfo or ProjectTreeBrowseResultInfo
+        var payloadOptions = payload is NetworkObjectListInfo or ProjectTreeBrowseResultInfo or ProjectRebindStateInfo
             ? NetworkObjectListJsonOptions
             : JsonOptions;
         return new WorkerResponse

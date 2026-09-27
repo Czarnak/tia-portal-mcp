@@ -9,6 +9,7 @@ using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Tests.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Safety;
@@ -166,6 +167,7 @@ public class ReadOnlyModeTests
     [InlineData("create_project", false)]
     [InlineData("compile_check", true)]
     [InlineData("probe_project_status_for_lifecycle", true)]
+    [InlineData("probe_open_project_rebind", true)]
     [InlineData("update_block_logic", true)]
     [InlineData("start_plc", true)]
     [InlineData("unknown-operation", true)]
@@ -196,6 +198,7 @@ public class ReadOnlyModeTests
 
     [Theory]
     [InlineData("compile_check")]
+    [InlineData("probe_open_project_rebind")]
     [InlineData("open_project")]
     [InlineData("create_project")]
     [InlineData("save_project")]
@@ -232,6 +235,16 @@ public class ReadOnlyModeTests
     {
         Assert.Equal(OperationCapability.Compile, OperationPolicyCatalog.GetCapability("compile_check"));
         Assert.False(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, "compile_check"));
+    }
+
+    [Fact]
+    public void RebindProbe_IsProjectLifecycleAndRequiresExpectedIdentity()
+    {
+        Assert.Equal(
+            OperationCapability.ProjectLifecycle,
+            OperationPolicyCatalog.GetCapability("probe_open_project_rebind"));
+        Assert.True(OperationPolicyCatalog.RequiresExpectedSessionIdentity("probe_open_project_rebind"));
+        Assert.False(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, "probe_open_project_rebind"));
     }
 
     #endregion
@@ -345,6 +358,27 @@ public class ReadOnlyModeTests
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
+    }
+
+    [Fact]
+    public async Task OpennessWorkerClient_ReadOnly_DeniesRebindProbeWithVerifiedRuntimeBinding()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding,
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
+        var bindingBefore = binding.CaptureSnapshot();
+        var sourceProjectPath = Assert.IsType<string>(bindingBefore.ProjectPath);
+
+        var result = await client.ProbeOpenProjectRebindAsync(
+            sourceProjectPath,
+            @"C:\Lifecycle\B.ap21");
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
+        Assert.True(bindingBefore.SameBinding(binding.CaptureSnapshot()));
     }
 
     [Fact]
