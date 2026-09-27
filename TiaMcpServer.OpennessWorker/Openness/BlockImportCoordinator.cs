@@ -39,25 +39,53 @@ internal static class BlockImportCoordinator
         string rawContent,
         Action<DirectoryInfo, ParsedBlockImportBundle, BlockImportInvocationBoundary> importDocuments,
         Func<bool, BlockPostconditionEvidence> observePostcondition,
-        Action<string>? cleanupDirectory = null)
+        Action<string>? cleanupDirectory = null,
+        Action<string>? createStagingDirectory = null,
+        Func<string, ParsedBlockImportBundle, IReadOnlyList<string>>? stageDocuments = null)
     {
         if (importDocuments is null) throw new ArgumentNullException(nameof(importDocuments));
         if (observePostcondition is null) throw new ArgumentNullException(nameof(observePostcondition));
 
-        var bundle = BlockImportBundleParser.Parse(documentName, rawContent);
-        var stagingPath = Path.Combine(
-            Path.GetTempPath(), "tia-mcp-import-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(stagingPath);
+        ParsedBlockImportBundle bundle;
+        try
+        {
+            bundle = BlockImportBundleParser.Parse(documentName, rawContent);
+        }
+        catch (Exception failure)
+        {
+            throw CreatePreTargetFailure(failure, sourceApplicable: false);
+        }
+
+        string stagingPath;
+        try
+        {
+            stagingPath = Path.Combine(
+                Path.GetTempPath(), "tia-mcp-import-" + Guid.NewGuid().ToString("N"));
+        }
+        catch (Exception failure)
+        {
+            throw CreatePreTargetFailure(failure, sourceApplicable: false);
+        }
 
         try
         {
-            var stagedPaths = BlockImportStager.StageDocuments(stagingPath, bundle);
+            if (createStagingDirectory is null)
+                Directory.CreateDirectory(stagingPath);
+            else
+                createStagingDirectory(stagingPath);
+
+            var stagedPaths = stageDocuments is null
+                ? BlockImportStager.StageDocuments(stagingPath, bundle)
+                : stageDocuments(stagingPath, bundle);
             VerifyStagedDocuments(stagingPath, bundle, stagedPaths);
         }
-        catch
+        catch (Exception failure)
         {
-            TryCleanupStaging(stagingPath, cleanupDirectory, warnings: null);
-            throw;
+            var warnings = new List<string>();
+            var cleanupWarning = TryCleanupStaging(stagingPath, cleanupDirectory);
+            if (!string.IsNullOrEmpty(cleanupWarning))
+                warnings.Add(cleanupWarning!);
+            throw CreatePreTargetFailure(failure, sourceApplicable: false, warnings);
         }
 
         return RunOutcome(
@@ -81,6 +109,26 @@ internal static class BlockImportCoordinator
             observePostcondition,
             BlockImportDiagnosticContext.Generation,
             cleanup: null);
+    }
+
+    internal static BlockImportResult ExecuteWithPreTargetOutcome(
+        Func<BlockImportResult> operation,
+        bool sourceApplicable)
+    {
+        if (operation is null) throw new ArgumentNullException(nameof(operation));
+
+        try
+        {
+            return operation();
+        }
+        catch (WorkerOperationException failure) when (failure.BlockImportOutcome is null)
+        {
+            throw CreatePreTargetFailure(failure, sourceApplicable);
+        }
+        catch (Exception failure) when (failure is not WorkerOperationException)
+        {
+            throw CreatePreTargetFailure(failure, sourceApplicable);
+        }
     }
 
     private static BlockImportResult RunOutcome(
@@ -200,16 +248,47 @@ internal static class BlockImportCoordinator
             evidence.Warnings);
     }
 
+    private static WorkerOperationException CreatePreTargetFailure(
+        Exception failure,
+        bool sourceApplicable,
+        IReadOnlyList<string>? warnings = null)
+    {
+        var combinedWarnings = new List<string>();
+        if (failure is WorkerOperationException workerFailure)
+            AddWarnings(combinedWarnings, workerFailure.Warnings);
+        if (warnings is not null)
+            AddWarnings(combinedWarnings, warnings);
+
+        var evidence = BlockPostconditionEvidence.Import(
+            BlockCompileObservation.NotStarted(),
+            finalReadStage: "not_started",
+            targetPresent: null);
+        var outcome = BlockPostconditionVerifier.CreateImportOutcome(
+            evidence,
+            new BlockImportInvocationBoundary().Snapshot(),
+            new BlockSourceArtifactTracker(sourceApplicable).Snapshot());
+        var context = sourceApplicable
+            ? BlockImportDiagnosticContext.Generation
+            : BlockImportDiagnosticContext.Import;
+
+        return new WorkerOperationException(
+            failure is WorkerOperationException categorized
+                ? categorized.FailureCategory
+                : WorkerFailureCategories.WorkerOperationFailed,
+            BlockImportDiagnosticSanitizer.Failure(context, failure),
+            BlockImportDiagnosticSanitizer.SanitizeWarnings(combinedWarnings),
+            outcome);
+    }
+
     private static string? TryCleanupStaging(
         string stagingPath,
         Action<string>? cleanupDirectory,
         List<string>? warnings = null)
     {
-        if (!Directory.Exists(stagingPath))
-            return null;
-
         try
         {
+            if (!Directory.Exists(stagingPath))
+                return null;
             (cleanupDirectory ?? (path => Directory.Delete(path, recursive: true)))(stagingPath);
             return null;
         }

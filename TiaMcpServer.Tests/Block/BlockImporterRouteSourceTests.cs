@@ -29,6 +29,8 @@ public class BlockImporterRouteSourceTests
         var coordinator = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker", "Openness", "BlockImportCoordinator.cs");
         Assert.Equal(1, Count(coordinator, "private static BlockImportResult RunOutcome"));
+        Assert.Equal(3, Count(source, "boundary.BeforeSiemensCall();"));
+        Assert.Equal(3, Count(source, "boundary.AfterSiemensCallReturned();"));
     }
 
     [Fact]
@@ -66,14 +68,47 @@ public class BlockImporterRouteSourceTests
         var source = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker", "Openness", "BlockImporter.cs");
 
-        Assert.Equal(2, Count(source, "ObserveFinalState("));
+        Assert.Equal(2, Count(source, "compileAllowed => ObservePostconditions("));
+        Assert.Equal(1, Count(source, "return ObserveFinalState("));
+        Assert.Equal(1, Count(source,
+            "private static BlockPostconditionEvidence ObserveFinalState("));
         Assert.Contains("BlockTargetResolver.ResolveForImport(project, address)", source, StringComparison.Ordinal);
         Assert.Contains("BlockExporter.VerifyPrimaryDocument(", source, StringComparison.Ordinal);
         Assert.Contains("BlockExporter.Export(project, blockPath, SourceFormatNames.Source)", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void XmlAndSourcePreflightShareTypedPreTargetOutcomeDecoration()
+    {
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "BlockImporter.cs");
+
+        Assert.Equal(1, Count(source, "BlockImportCoordinator.ExecuteWithPreTargetOutcome("));
+        Assert.Contains("sourceApplicable: !string.Equals(format, SourceFormatNames.Xml", source,
+            StringComparison.Ordinal);
+        AssertBefore(source,
+            "BlockImportCoordinator.ExecuteWithPreTargetOutcome(",
+            "BlockWritePreflight.PrepareUpdate(");
+        AssertBefore(source,
+            "BlockImportCoordinator.ExecuteWithPreTargetOutcome(",
+            "PlcTypeSourcePreflight.TryReadDeclaredName(");
+    }
+
+    [Fact]
+    public void OutcomeProjectionBudgetIncludesNullsLikeTheHostValidator()
+    {
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "BlockImportOutcomeProjection.cs");
+
+        Assert.Contains("PropertyNamingPolicy = JsonNamingPolicy.CamelCase", source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("DefaultIgnoreCondition", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonIgnoreCondition.WhenWritingNull", source, StringComparison.Ordinal);
+    }
+
     private static void AssertBracketed(string source, string call, string resultMarker)
     {
+        Assert.Equal(1, Count(source, call));
         var callIndex = source.IndexOf(call, StringComparison.Ordinal);
         Assert.True(callIndex >= 0, $"Expected target call '{call}'.");
 

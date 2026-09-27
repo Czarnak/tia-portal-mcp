@@ -147,18 +147,36 @@ public class BlockImportCoordinatorTests
     }
 
     [Fact]
-    public void Execute_InvalidBundle_DoesNotInvokeImport()
+    public void Execute_ParseFailureCarriesSanitizedNotStartedXmlOutcomeWithoutCleanupOrObservation()
     {
         var importCalls = 0;
+        var observationCalls = 0;
+        var cleanupCalls = 0;
 
         var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
             "fallback.xml",
-            "--- FILE: ../escape.xml ---\n<Invalid />",
+            "--- FILE: ../escape.xml ---\n<SECRET_CONTENT />",
             (_, _) => importCalls++,
-            () => new BlockPostconditionEvidence(true, true, "Verified.")));
+            () =>
+            {
+                observationCalls++;
+                return new BlockPostconditionEvidence(true, true, "Verified.");
+            },
+            cleanupDirectory: _ => cleanupCalls++));
 
         Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+        Assert.Equal(BlockImportDiagnosticSanitizer.Failure(BlockImportDiagnosticContext.Import), exception.Message);
         Assert.Equal(0, importCalls);
+        Assert.Equal(0, observationCalls);
+        Assert.Equal(0, cleanupCalls);
+        Assert.NotNull(exception.BlockImportOutcome);
+        Assert.Equal("not_started", exception.BlockImportOutcome.ImportStage);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.ImportResultState);
+        Assert.False(exception.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("not_started", exception.BlockImportOutcome.CompileStage);
+        Assert.Equal("not_started", exception.BlockImportOutcome.FinalReadStage);
+        Assert.Equal("not_applicable", exception.BlockImportOutcome.TemporarySourceState);
+        Assert.DoesNotContain("SECRET_CONTENT", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -268,6 +286,126 @@ public class BlockImportCoordinatorTests
     }
 
     [Fact]
+    public void ExecuteWithPreTargetOutcome_SourcePreflightPreservesCategoryAndSanitizesEvidence()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockImportCoordinator.ExecuteWithPreTargetOutcome(
+                () => throw new WorkerOperationException(
+                    WorkerFailureCategories.ValidationError,
+                    "Project/PLC/SecretNode submitted-snippet",
+                    new[] { "C:\\private\\Fixture.ap21" }),
+                sourceApplicable: true));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+        Assert.Equal(
+            BlockImportDiagnosticSanitizer.Failure(BlockImportDiagnosticContext.Generation),
+            exception.Message);
+        Assert.DoesNotContain("SecretNode", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fixture.ap21", string.Join(" ", exception.Warnings), StringComparison.Ordinal);
+        Assert.NotNull(exception.BlockImportOutcome);
+        Assert.Equal("not_started", exception.BlockImportOutcome.ImportStage);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.ImportResultState);
+        Assert.False(exception.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("not_started", exception.BlockImportOutcome.CompileStage);
+        Assert.Equal("not_started", exception.BlockImportOutcome.FinalReadStage);
+        Assert.Equal("not_created", exception.BlockImportOutcome.TemporarySourceState);
+    }
+
+    [Fact]
+    public void Execute_DirectoryCreationFailureIsSanitizedWithoutCleanupTargetOrObservation()
+    {
+        var targetCalls = 0;
+        var observationCalls = 0;
+        var cleanupCalls = 0;
+
+        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _, _) => targetCalls++,
+            _ =>
+            {
+                observationCalls++;
+                return BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.NotStarted(), "not_started", null);
+            },
+            cleanupDirectory: _ => cleanupCalls++,
+            createStagingDirectory: _ => throw new IOException("C:\\private\\Fixture.ap21")));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, exception.FailureCategory);
+        Assert.Equal(BlockImportDiagnosticSanitizer.Failure(BlockImportDiagnosticContext.Import), exception.Message);
+        Assert.Equal(0, targetCalls);
+        Assert.Equal(0, observationCalls);
+        Assert.Equal(0, cleanupCalls);
+        AssertNotStartedXml(exception);
+    }
+
+    [Fact]
+    public void Execute_StagingFailurePreservesCategoryAndSanitizedCleanupWarning()
+    {
+        var targetCalls = 0;
+        var observationCalls = 0;
+
+        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _, _) => targetCalls++,
+            _ =>
+            {
+                observationCalls++;
+                return BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.NotStarted(), "not_started", null);
+            },
+            cleanupDirectory: path =>
+            {
+                Directory.Delete(path, recursive: true);
+                throw new IOException("\\\\server\\share\\Fixture.ap21");
+            },
+            stageDocuments: (_, _) => throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "submitted-snippet")));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+        Assert.Equal(BlockImportDiagnosticSanitizer.Failure(BlockImportDiagnosticContext.Import), exception.Message);
+        Assert.Equal(0, targetCalls);
+        Assert.Equal(0, observationCalls);
+        Assert.Equal(BlockImportDiagnosticSanitizer.StagingCleanupWarning(), Assert.Single(exception.Warnings));
+        AssertNotStartedXml(exception);
+    }
+
+    [Fact]
+    public void Execute_StagedDocumentVerificationFailureIsSanitizedBeforeTarget()
+    {
+        var targetCalls = 0;
+        var observationCalls = 0;
+        var cleanupCalls = 0;
+
+        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _, _) => targetCalls++,
+            _ =>
+            {
+                observationCalls++;
+                return BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.NotStarted(), "not_started", null);
+            },
+            cleanupDirectory: path =>
+            {
+                cleanupCalls++;
+                Directory.Delete(path, recursive: true);
+            },
+            stageDocuments: (_, _) => Array.Empty<string>()));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, exception.FailureCategory);
+        Assert.Equal(BlockImportDiagnosticSanitizer.Failure(BlockImportDiagnosticContext.Import), exception.Message);
+        Assert.Equal(0, targetCalls);
+        Assert.Equal(0, observationCalls);
+        Assert.Equal(1, cleanupCalls);
+        Assert.Empty(exception.Warnings);
+        AssertNotStartedXml(exception);
+    }
+
+    [Fact]
     public void ExecuteSource_CreateFromFileThrowIsUnknown()
     {
         var exception = Assert.Throws<WorkerOperationException>(() =>
@@ -361,4 +499,15 @@ public class BlockImportCoordinatorTests
             new PlcCompileInfo { PlcName = "PLC", State = "Success" }
         }
     };
+
+    private static void AssertNotStartedXml(WorkerOperationException exception)
+    {
+        Assert.NotNull(exception.BlockImportOutcome);
+        Assert.Equal("not_started", exception.BlockImportOutcome.ImportStage);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.ImportResultState);
+        Assert.False(exception.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal("not_started", exception.BlockImportOutcome.CompileStage);
+        Assert.Equal("not_started", exception.BlockImportOutcome.FinalReadStage);
+        Assert.Equal("not_applicable", exception.BlockImportOutcome.TemporarySourceState);
+    }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
@@ -17,8 +16,8 @@ internal static class BlockImportOutcomeProjection
 
     private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        // Match the host validator's TiaJson.Presentation representation: camelCase with nulls.
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
     public static BlockImportOutcomeInfo Project(BlockImportOutcomeInfo source)
@@ -77,11 +76,13 @@ internal static class BlockImportOutcomeProjection
         var report = new CompileCheckReport
         {
             Scope = SafeMetadata(source.Scope, required: true, ref omitted) ?? string.Empty,
-            BlockPath = SafeOptionalPath(source.BlockPath, ref omitted),
+            BlockPath = null,
             TotalErrorCount = source.TotalErrorCount,
             TotalWarningCount = source.TotalWarningCount,
             OverallState = SafeMetadata(source.OverallState, required: true, ref omitted) ?? string.Empty
         };
+        if (source.BlockPath is not null)
+            omitted = true;
 
         var messageCount = 0;
         var noteCount = 0;
@@ -124,13 +125,11 @@ internal static class BlockImportOutcomeProjection
                     continue;
                 }
 
-                var description = SafeDiagnostic(
-                    sourceMessage.Description,
-                    "Compiler diagnostic detail was omitted.",
+                var description = FixedDiagnostic(
+                    "Compiler diagnostic omitted.",
                     ref diagnosticChars,
                     ref omitted);
-                var path = SafeDiagnostic(
-                    sourceMessage.Path,
+                var path = FixedDiagnostic(
                     string.Empty,
                     ref diagnosticChars,
                     ref omitted);
@@ -150,9 +149,9 @@ internal static class BlockImportOutcomeProjection
                     omitted = true;
                     break;
                 }
-                plc.DiagnosticNotes.Add(SafeDiagnostic(
-                    sourceNote,
-                    "Compiler diagnostic note was omitted.",
+                _ = sourceNote;
+                plc.DiagnosticNotes.Add(FixedDiagnostic(
+                    "Compiler note omitted.",
                     ref diagnosticChars,
                     ref omitted));
                 noteCount++;
@@ -180,28 +179,13 @@ internal static class BlockImportOutcomeProjection
         return sanitized;
     }
 
-    private static string? SafeOptionalPath(string? value, ref bool omitted)
-    {
-        if (value is not null && LooksSensitive(value))
-        {
-            omitted = true;
-            return null;
-        }
-        return SafeMetadata(value, required: false, ref omitted);
-    }
-
-    private static string SafeDiagnostic(
-        string? value,
-        string sensitiveReplacement,
+    private static string FixedDiagnostic(
+        string replacement,
         ref int usedChars,
         ref bool omitted)
     {
-        var sanitized = ReplaceControls(value ?? string.Empty).Trim();
-        if (LooksSensitive(sanitized) || sanitized.Length > MaxFieldChars)
-        {
-            sanitized = sensitiveReplacement;
-            omitted = true;
-        }
+        omitted = true;
+        var sanitized = replacement;
 
         var remaining = MaxDiagnosticChars - usedChars;
         if (sanitized.Length > remaining)
@@ -212,21 +196,6 @@ internal static class BlockImportOutcomeProjection
 
         usedChars += sanitized.Length;
         return sanitized;
-    }
-
-    private static bool LooksSensitive(string value)
-    {
-        if (value.StartsWith("\\\\", StringComparison.Ordinal)
-            || value.IndexOf("tia-mcp-", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-
-        for (var index = 0; index + 2 < value.Length; index++)
-        {
-            if (char.IsLetter(value[index]) && value[index + 1] == ':'
-                && (value[index + 2] == '\\' || value[index + 2] == '/'))
-                return true;
-        }
-        return false;
     }
 
     private static string ReplaceControls(string value)

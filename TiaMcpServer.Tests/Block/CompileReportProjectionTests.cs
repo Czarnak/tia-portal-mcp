@@ -1,5 +1,6 @@
 using System.Reflection;
 using Siemens.Engineering;
+using TiaMcpServer.Json;
 using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;
 
@@ -120,13 +121,126 @@ public class CompileReportProjectionTests
             TemporarySourceState = "not_applicable"
         });
 
-        var json = System.Text.Json.JsonSerializer.Serialize(projected, new System.Text.Json.JsonSerializerOptions
-        {
-            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-        });
+        var json = System.Text.Json.JsonSerializer.Serialize(projected, TiaJson.Presentation);
         Assert.InRange(json.Length, 1, 12000);
         Assert.True(TiaMcpServer.Worker.BlockImportOutcomeValidator.Validate(projected, "xml"));
+    }
+
+    [Fact]
+    public void BlockOutcomeProjectionUsesTheHostNullInclusiveBudgetNearTheLimit()
+    {
+        var maximumHostLength = 0;
+        for (var severityLength = 1; severityLength <= 256; severityLength++)
+        {
+            var report = new TiaMcpServer.Contracts.CompileCheckReport
+            {
+                Scope = new string('"', 256),
+                BlockPath = null,
+                OverallState = "Warning",
+                TotalWarningCount = 20
+            };
+            for (var plcIndex = 0; plcIndex < 8; plcIndex++)
+            {
+                var plc = new TiaMcpServer.Contracts.PlcCompileInfo
+                {
+                    PlcName = new string('"', 256),
+                    DeviceName = null,
+                    State = "Warning",
+                    WarningCount = plcIndex == 0 ? 20 : 0
+                };
+                for (var messageIndex = 0; messageIndex < (plcIndex < 4 ? 3 : 2); messageIndex++)
+                {
+                    plc.Messages.Add(new TiaMcpServer.Contracts.CompileMessageInfo
+                    {
+                        Description = string.Empty,
+                        Path = string.Empty,
+                        Severity = new string('"', severityLength)
+                    });
+                }
+                report.Plcs.Add(plc);
+            }
+
+            var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+            {
+                ImportStage = "completed",
+                ImportResultState = "success",
+                TargetMutationCommitted = true,
+                CompileStage = "succeeded",
+                CompileReport = report,
+                FinalReadStage = "unavailable",
+                TargetPresent = null,
+                ContentRelation = "unknown",
+                TemporarySourceState = "not_applicable"
+            });
+
+            var hostLength = System.Text.Json.JsonSerializer.Serialize(projected, TiaJson.Presentation).Length;
+            maximumHostLength = Math.Max(maximumHostLength, hostLength);
+            Assert.InRange(hostLength, 1, 12_000);
+            Assert.True(TiaMcpServer.Worker.BlockImportOutcomeValidator.Validate(projected, "xml"));
+        }
+
+        Assert.InRange(maximumHostLength, 11_500, 12_000);
+    }
+
+    [Fact]
+    public void BlockOutcomeProjectionReplacesShortSecretsAndRelativeNodePathsDeterministically()
+    {
+        var report = new TiaMcpServer.Contracts.CompileCheckReport
+        {
+            Scope = "block",
+            BlockPath = "PLC/Blocks/SecretNode",
+            OverallState = "Warning",
+            TotalWarningCount = 1,
+            Plcs =
+            {
+                new TiaMcpServer.Contracts.PlcCompileInfo
+                {
+                    PlcName = "PLC A",
+                    DeviceName = "Device A",
+                    State = "Warning",
+                    WarningCount = 1,
+                    Messages =
+                    {
+                        new TiaMcpServer.Contracts.CompileMessageInfo
+                        {
+                            Description = "pw",
+                            Path = "Project/PLC/Blocks/SecretNode",
+                            Severity = "Warning"
+                        }
+                    },
+                    DiagnosticNotes = { "submitted-snippet" }
+                }
+            }
+        };
+
+        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+        {
+            ImportStage = "completed",
+            ImportResultState = "success",
+            TargetMutationCommitted = true,
+            CompileStage = "succeeded",
+            CompileReport = report,
+            FinalReadStage = "succeeded",
+            TargetPresent = true,
+            ContentRelation = "unknown",
+            TemporarySourceState = "not_applicable"
+        });
+
+        var projectedReport = Assert.IsType<TiaMcpServer.Contracts.CompileCheckReport>(projected.CompileReport);
+        var plc = Assert.Single(projectedReport.Plcs);
+        var message = Assert.Single(plc.Messages);
+        var note = Assert.Single(plc.DiagnosticNotes);
+        Assert.Null(projectedReport.BlockPath);
+        Assert.Equal("PLC A", plc.PlcName);
+        Assert.Equal("Device A", plc.DeviceName);
+        Assert.Equal("Warning", message.Severity);
+        Assert.Equal("Compiler diagnostic omitted.", message.Description);
+        Assert.Equal(string.Empty, message.Path);
+        Assert.Equal("Compiler note omitted.", note);
+        var json = System.Text.Json.JsonSerializer.Serialize(projected, TiaJson.Presentation);
+        Assert.DoesNotContain("pw", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("SecretNode", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("submitted-snippet", json, StringComparison.Ordinal);
     }
 
     [Fact]

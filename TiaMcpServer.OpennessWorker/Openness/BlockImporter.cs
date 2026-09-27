@@ -20,33 +20,38 @@ public static class BlockImporter
         if (project is null) throw new ArgumentNullException(nameof(project));
         if (yamlContent is null) throw new ArgumentNullException(nameof(yamlContent));
 
-        if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
-            return ImportSource(project, blockPath, yamlContent);
+        return BlockImportCoordinator.ExecuteWithPreTargetOutcome(
+            () =>
+            {
+                if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
+                    return ImportSource(project, blockPath, yamlContent);
 
-        var fallbackDocumentName = Path.GetFileName(blockPath) + ".xml";
-        var preflight = BlockWritePreflight.PrepareUpdate(
-            blockPath,
-            fallbackDocumentName,
-            yamlContent);
+                var fallbackDocumentName = Path.GetFileName(blockPath) + ".xml";
+                var preflight = BlockWritePreflight.PrepareUpdate(
+                    blockPath,
+                    fallbackDocumentName,
+                    yamlContent);
 
-        return BlockImportCoordinator.Execute(
-            fallbackDocumentName,
-            yamlContent,
-            (directory, bundle, boundary) => ImportDocuments(
-                project,
-                preflight.Address,
-                blockPath,
-                directory,
-                bundle,
-                boundary),
-            compileAllowed => ObservePostconditions(
-                project,
-                preflight.Address,
-                blockPath,
-                SourceFormatNames.Xml,
-                preflight.Bundle.PrimaryDocumentName,
-                compileAllowed,
-                warnings: null));
+                return BlockImportCoordinator.Execute(
+                    fallbackDocumentName,
+                    yamlContent,
+                    (directory, bundle, boundary) => ImportDocuments(
+                        project,
+                        preflight.Address,
+                        blockPath,
+                        directory,
+                        bundle,
+                        boundary),
+                    compileAllowed => ObservePostconditions(
+                        project,
+                        preflight.Address,
+                        blockPath,
+                        SourceFormatNames.Xml,
+                        preflight.Bundle.PrimaryDocumentName,
+                        compileAllowed,
+                        warnings: null));
+            },
+            sourceApplicable: !string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal));
     }
 
     private static void ImportDocuments(
