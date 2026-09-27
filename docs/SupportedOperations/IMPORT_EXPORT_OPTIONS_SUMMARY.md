@@ -37,7 +37,14 @@ Updates are strict updates to an existing object:
 - External-source generation uses `GenerateBlockOption.None`.
 - Root groups, user groups, and software-unit-owned external-source groups are resolved according to the addressed path.
 
-For block updates, the worker validates the document, performs the import, compiles the affected scope, and checks the postcondition by re-exporting the block. External-source global DB updates compile the PLC because changing a DB declaration can affect dependent blocks.
+For block updates, the worker attempts validation, target import or generation, compile observation,
+and an independent fresh postcondition read in order, then reports which stages were established. A
+proven refusal before target invocation leaves import, compile, and final read `not_started`. If
+target invocation starts but its return cannot be established, commitment is `unknown`; compile and
+any unestablished final read are `unavailable`. On the normal-return path, the worker compiles the
+affected scope and checks the postcondition by freshly resolving and re-exporting the block.
+External-source global DB updates on that path compile the PLC because changing a DB declaration can
+affect dependent blocks.
 
 ### Block-update outcome evidence
 
@@ -59,7 +66,7 @@ The object uses these fields and closed values:
 | `compileReport` | A nullable bounded copy of the whole aggregate compile report. It is null when compilation did not start and may be null when no report could be established; a partial report is retained when available. Full aggregate error/warning totals are preserved even when detail is omitted. |
 | `compileDetailsOmitted` | `true` when any PLC, message, note, or string detail was omitted or shortened by the bounded projection. |
 | `finalReadStage` | `not_started`, `succeeded`, or `unavailable`. |
-| `targetPresent` | Nullable Boolean established only by the independent fresh final resolver/read; it is null when that read is unavailable or unreliable. It does not imply import commitment. |
+| `targetPresent` | Nullable Boolean. It is `true` or `false` when the independent fresh resolver establishes presence or absence, and null only when resolution itself is unavailable or unreliable. A later export/read failure can leave `finalReadStage=unavailable` while preserving `targetPresent=true`. Presence does not imply import commitment. |
 | `contentRelation` | Always `unknown` in this contract. The final export is not claimed to equal either the requested content or the prior content. |
 | `temporarySourceState` | `not_applicable`, `not_created`, `removed`, `residue_possible`, or `unknown`. XML uses `not_applicable`; source updates distinguish refusal before `CreateFromFile`, confirmed removal, possible residue, and ambiguous creation/cleanup. No temporary node name or path is exposed. |
 
