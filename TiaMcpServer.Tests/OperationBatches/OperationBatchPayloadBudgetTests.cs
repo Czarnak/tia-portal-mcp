@@ -276,4 +276,14 @@ public class OperationBatchPayloadBudgetTests
         Assert.DoesNotContain("startpath", normalized);
         Assert.DoesNotContain("depth", normalized);
     }
+
+    [Fact]
+    public void PayloadBudget_UnrelatedOperation_KeepsSameOmissionDecision()
+    {
+        var budgeted = Apply(
+            new[] { Ok("a", new string('x', 150)), Ok("b", new string('y', 150)) },
+            maxItemChars: 200, maxBatchChars: 500);
+        Assert.Equal(new[] { "omitted", "omitted" }, budgeted.Select(item => item.Status));
+        Assert.True(OperationBatchResultFormatter.Read(ToolName, budgeted).Length <= 500);
+    }
 }

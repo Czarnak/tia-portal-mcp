@@ -19,7 +19,13 @@ public sealed class WorkerOperationException : Exception
     /// <summary>Warnings gathered before the failure. Never null; empty when none were supplied.</summary>
     public IReadOnlyList<string> Warnings { get; }
 
-    public WorkerOperationException(string failureCategory, string message, IReadOnlyList<string>? warnings = null)
+    public BlockImportOutcomeInfo? BlockImportOutcome { get; }
+
+    public WorkerOperationException(
+        string failureCategory,
+        string message,
+        IReadOnlyList<string>? warnings = null,
+        BlockImportOutcomeInfo? blockImportOutcome = null)
         : base(message)
     {
         if (!WorkerFailureCategories.IsKnown(failureCategory))
@@ -31,5 +37,6 @@ public sealed class WorkerOperationException : Exception
 
         FailureCategory = failureCategory;
         Warnings = warnings is null ? Array.Empty<string>() : new List<string>(warnings).AsReadOnly();
+        BlockImportOutcome = blockImportOutcome;
     }
 }

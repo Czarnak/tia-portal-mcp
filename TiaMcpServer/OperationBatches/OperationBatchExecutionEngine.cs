@@ -54,5 +54,8 @@ public static class OperationBatchExecutionEngine
             workerResult.Success ? OperationBatchStatus.Succeeded : OperationBatchStatus.Failed,
             workerResult.ToText(),
             workerResult.Warnings.Count == 0 ? null : workerResult.Warnings,
-            workerResult.FailureCategory);
+            workerResult.FailureCategory)
+        {
+            BlockImportOutcome = workerResult.BlockImportOutcome
+        };
 }

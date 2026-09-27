@@ -129,4 +129,31 @@ public class WorkerResponseJsonTests
 
         Assert.DoesNotContain("\"failureCategory\"", json);
     }
+
+    [Fact]
+    public void BlockImportOutcome_RoundTripsOnFailedResponseAndOmittedOtherwise()
+    {
+        var outcome = new BlockImportOutcomeInfo
+        {
+            ImportStage = "unknown", ImportResultState = "unavailable",
+            TargetMutationCommitted = null, CompileStage = "unavailable",
+            FinalReadStage = "unavailable", TemporarySourceState = "unknown",
+            ContentRelation = "unknown"
+        };
+        var response = new WorkerResponse
+        {
+            Success = false, Error = "bounded failure",
+            FailureCategory = WorkerFailureCategories.PostconditionFailed,
+            Warnings = new List<string> { "bounded warning" },
+            BlockImportOutcome = outcome
+        };
+
+        var json = JsonSerializer.Serialize(response, JsonOptions);
+        var restored = JsonSerializer.Deserialize<WorkerResponse>(json, JsonOptions)!;
+        Assert.Equal("unknown", restored.BlockImportOutcome!.ImportStage);
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, restored.FailureCategory);
+        Assert.Equal("bounded warning", Assert.Single(restored.Warnings!));
+        Assert.DoesNotContain("blockImportOutcome", JsonSerializer.Serialize(
+            new WorkerResponse { Success = true }, JsonOptions));
+    }
 }

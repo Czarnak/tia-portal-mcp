@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 
 namespace TiaMcpServer.OperationBatches;
@@ -54,14 +56,28 @@ public static class OperationBatchResultFormatter
 
     private static IReadOnlyList<object> Project(IReadOnlyList<OperationBatchResult> results)
         => results
-            .Select(result => (object)new
+            .Select(result => (object)new ProjectedOperation
             {
-                operationId = result.OperationId,
-                operation = result.Operation,
-                status = result.Status,
-                result = result.Result,
-                warnings = result.Warnings,
-                failureCategory = result.FailureCategory
+                OperationId = result.OperationId,
+                Operation = result.Operation,
+                Status = result.Status,
+                Result = result.Result,
+                Warnings = result.Warnings,
+                FailureCategory = result.FailureCategory,
+                BlockImportOutcome = result.BlockImportOutcome
             })
             .ToArray();
+
+    private sealed class ProjectedOperation
+    {
+        public required string OperationId { get; init; }
+        public required string Operation { get; init; }
+        public required string Status { get; init; }
+        public string? Result { get; init; }
+        public IReadOnlyList<string>? Warnings { get; init; }
+        public string? FailureCategory { get; init; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
+    }
 }

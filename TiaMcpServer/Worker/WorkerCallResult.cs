@@ -28,6 +28,9 @@ public sealed record WorkerCallResult(
     /// <summary>Complete worker/Portal/project identity observed for this response.</summary>
     public WorkerSessionIdentity? SessionIdentity { get; init; }
 
+    /// <summary>Typed update_block_logic evidence; absent for unrelated calls.</summary>
+    public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
+
     public static WorkerCallResult Ok(string payload, IReadOnlyList<string>? warnings = null)
         => new(true, payload, null, null, warnings ?? Array.Empty<string>());
 

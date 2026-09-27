@@ -1,3 +1,5 @@
+using TiaMcpServer.Contracts;
+
 namespace TiaMcpServer.OperationBatches;
 
 public static class OperationBatchStatus
@@ -14,7 +16,10 @@ public sealed record OperationBatchResult(
     string Status,
     string? Result,
     IReadOnlyList<string>? Warnings = null,
-    string? FailureCategory = null);
+    string? FailureCategory = null)
+{
+    public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
+}
 
 public sealed record OperationBatchTarget(
     string OperationId,

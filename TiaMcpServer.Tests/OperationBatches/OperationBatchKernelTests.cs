@@ -244,4 +244,49 @@ public class OperationBatchKernelTests
         Assert.Equal("worker_operation_failed", root.GetProperty("operations")[1].GetProperty("failureCategory").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("operations")[2].GetProperty("failureCategory").ValueKind);
     }
+
+    [Fact]
+    public void Formatter_UnrelatedOperation_RemainsByteIdentical()
+    {
+        var json = OperationBatchResultFormatter.Apply("apply_write_batch",
+            new[] { new OperationBatchResult("a", "set_tag", OperationBatchStatus.Succeeded, "ok") });
+        Assert.Equal(
+            """{"tool":"apply_write_batch","success":true,"operationCount":1,"succeeded":1,"failed":0,"skipped":0,"operations":[{"operationId":"a","operation":"set_tag","status":"succeeded","result":"ok","warnings":null,"failureCategory":null}]}""",
+            json);
+    }
+
+    [Fact]
+    public async Task ApplyWritesAsync_PropagatesTypedFailureAndSkipsLaterItem()
+    {
+        var outcome = new BlockImportOutcomeInfo
+        {
+            ImportStage = "completed", ImportResultState = "success",
+            TargetMutationCommitted = true, CompileStage = "failed",
+            CompileReport = new CompileCheckReport { OverallState = "Error", TotalErrorCount = 1 },
+            FinalReadStage = "unavailable", TemporarySourceState = "not_applicable",
+            ContentRelation = "unknown"
+        };
+        var invoked = new List<string>();
+        var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
+            new[] { new Item("a", "update_block_logic"), new Item("b", "set_tag") },
+            item =>
+            {
+                invoked.Add(item.OperationId);
+                return Task.FromResult(WorkerCallResult.Fail(
+                    WorkerFailureCategories.PostconditionFailed, "compile failed",
+                    new[] { "bounded warning" }) with { BlockImportOutcome = outcome });
+            });
+        var json = OperationBatchResultFormatter.Apply("apply_write_batch", results);
+        using var document = JsonDocument.Parse(json);
+        var operations = document.RootElement.GetProperty("operations");
+        Assert.Equal(new[] { "a" }, invoked);
+        Assert.Equal("failed", operations[0].GetProperty("status").GetString());
+        Assert.Equal("Error: compile failed", operations[0].GetProperty("result").GetString());
+        Assert.Equal("postcondition_failed", operations[0].GetProperty("failureCategory").GetString());
+        Assert.Equal("bounded warning", operations[0].GetProperty("warnings")[0].GetString());
+        Assert.Equal("completed", operations[0].GetProperty("blockImportOutcome")
+            .GetProperty("importStage").GetString());
+        Assert.Equal("skipped", operations[1].GetProperty("status").GetString());
+        Assert.False(operations[1].TryGetProperty("blockImportOutcome", out _));
+    }
 }

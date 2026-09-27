@@ -67,6 +67,8 @@
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
       Link="Host\PersistentWorkerTransport.cs" />
     <Compile Include="..\TiaMcpServer\Worker\WorkerCallResult.cs" Link="Host\WorkerCallResult.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\BlockImportOutcomeValidator.cs"
+      Link="Host\BlockImportOutcomeValidator.cs" />
     <Compile Include="..\TiaMcpServer\Worker\HardwarePageWorkerCallResult.cs"
       Link="Host\HardwarePageWorkerCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
