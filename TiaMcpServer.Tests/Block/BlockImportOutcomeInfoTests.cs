@@ -23,7 +23,24 @@ public class BlockImportOutcomeInfoTests
     {
         ImportStage = "completed",
         ImportResultState = "success",
-        TargetMutationCommitted = true
+        TargetMutationCommitted = true,
+        CompileStage = "unavailable",
+        FinalReadStage = "unavailable"
+    };
+
+    private static BlockImportOutcomeInfo Unknown() => Valid() with
+    {
+        ImportStage = "unknown",
+        TargetMutationCommitted = null,
+        CompileStage = "unavailable",
+        FinalReadStage = "unavailable"
+    };
+
+    private static BlockImportOutcomeInfo AtImportStage(string stage) => stage switch
+    {
+        "completed" => Completed(),
+        "unknown" => Unknown(),
+        _ => Valid()
     };
 
     private static CompileCheckReport CompleteReport() => new()
@@ -98,7 +115,78 @@ public class BlockImportOutcomeInfoTests
     [InlineData("completed", true, "non_success")]
     public void Validate_AcceptsClosedTargetMatrix(string stage, bool? committed, string result)
     {
-        var outcome = Valid() with { ImportStage = stage, TargetMutationCommitted = committed, ImportResultState = result };
+        var outcome = AtImportStage(stage) with { TargetMutationCommitted = committed, ImportResultState = result };
+        Assert.True(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));
+    }
+
+    [Theory]
+    [InlineData("not_started", "unavailable", "not_started")]
+    [InlineData("not_started", "not_started", "unavailable")]
+    [InlineData("unknown", "not_started", "unavailable")]
+    [InlineData("unknown", "unavailable", "not_started")]
+    [InlineData("completed", "not_started", "unavailable")]
+    [InlineData("completed", "unavailable", "not_started")]
+    public void Validate_RejectsCrossStageNotStartedOrUnavailableContradictions(
+        string importStage, string compileStage, string finalReadStage)
+    {
+        var outcome = AtImportStage(importStage) with
+        {
+            CompileStage = compileStage,
+            FinalReadStage = finalReadStage
+        };
+        Assert.False(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));
+    }
+
+    [Theory]
+    [InlineData("succeeded")]
+    [InlineData("failed")]
+    public void Validate_UnknownImportRejectsObservedCompileCompletion(string compileStage)
+    {
+        var report = CompleteReport();
+        if (compileStage == "failed")
+        {
+            report.OverallState = "Error";
+            report.TotalErrorCount = 1;
+        }
+        var outcome = Unknown() with { CompileStage = compileStage, CompileReport = report };
+        Assert.False(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));
+    }
+
+    [Fact]
+    public void Validate_UnavailableFinalReadRejectsObservedAbsence()
+        => Assert.False(BlockImportOutcomeValidator.Validate(
+            Completed() with { TargetPresent = false }, SourceFormatNames.Xml));
+
+    [Theory]
+    [InlineData("unknown", "unavailable", null)]
+    [InlineData("unknown", "unavailable", true)]
+    [InlineData("unknown", "succeeded", true)]
+    [InlineData("unknown", "succeeded", false)]
+    [InlineData("completed", "unavailable", null)]
+    [InlineData("completed", "unavailable", true)]
+    [InlineData("completed", "succeeded", true)]
+    [InlineData("completed", "succeeded", false)]
+    public void Validate_AcceptsPostImportFinalReadEvidence(
+        string importStage, string finalReadStage, bool? targetPresent)
+    {
+        var outcome = AtImportStage(importStage) with
+        {
+            FinalReadStage = finalReadStage,
+            TargetPresent = targetPresent
+        };
+        Assert.True(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));
+    }
+
+    [Theory]
+    [InlineData("succeeded", "Success", 0)]
+    [InlineData("failed", "Error", 1)]
+    public void Validate_CompletedImportAcceptsObservedCompileResult(
+        string compileStage, string overallState, int errors)
+    {
+        var report = CompleteReport();
+        report.OverallState = overallState;
+        report.TotalErrorCount = errors;
+        var outcome = Completed() with { CompileStage = compileStage, CompileReport = report };
         Assert.True(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));
     }
 
@@ -121,7 +209,7 @@ public class BlockImportOutcomeInfoTests
             "unknown" => ((bool?)null, "unavailable"),
             _ => ((bool?)false, "unavailable")
         };
-        var outcome = Valid() with { ImportStage = stage, TargetMutationCommitted = committed,
+        var outcome = AtImportStage(stage) with { TargetMutationCommitted = committed,
             ImportResultState = result, TemporarySourceState = sourceState };
         Assert.True(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Source));
     }
@@ -159,7 +247,7 @@ public class BlockImportOutcomeInfoTests
     [InlineData("completed", false, "success")]
     public void Validate_RejectsContradictoryTargetMatrix(string stage, bool? committed, string result)
     {
-        var outcome = Valid() with { ImportStage = stage, TargetMutationCommitted = committed, ImportResultState = result };
+        var outcome = AtImportStage(stage) with { TargetMutationCommitted = committed, ImportResultState = result };
         Assert.False(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));
     }
 
@@ -177,8 +265,7 @@ public class BlockImportOutcomeInfoTests
     [InlineData("not_created")]
     public void Validate_SourceRejectsImpossibleLifecycle(string sourceState)
         => Assert.False(BlockImportOutcomeValidator.Validate(
-            Valid() with { ImportStage = "completed", ImportResultState = "success",
-                TargetMutationCommitted = true, TemporarySourceState = sourceState }, SourceFormatNames.Source));
+            Completed() with { TemporarySourceState = sourceState }, SourceFormatNames.Source));
 
     [Theory]
     [InlineData(null)]
@@ -211,7 +298,7 @@ public class BlockImportOutcomeInfoTests
     [Fact]
     public void Validate_UnavailableCompileMayLackReport()
         => Assert.True(BlockImportOutcomeValidator.Validate(
-            Valid() with { CompileStage = "unavailable" }, SourceFormatNames.Xml));
+            Completed(), SourceFormatNames.Xml));
 
     [Theory]
     [InlineData("not_started", false, "unavailable")]
@@ -220,9 +307,8 @@ public class BlockImportOutcomeInfoTests
         string importStage, bool? committed, string resultState)
     {
         var report = new CompileCheckReport { OverallState = "Success" };
-        var outcome = Valid() with
+        var outcome = AtImportStage(importStage) with
         {
-            ImportStage = importStage,
             TargetMutationCommitted = committed,
             ImportResultState = resultState,
             CompileStage = "succeeded",
@@ -234,11 +320,8 @@ public class BlockImportOutcomeInfoTests
     [Fact]
     public void Validate_NonCompletedImportRejectsPartialCompileReport()
     {
-        var outcome = Valid() with
+        var outcome = Unknown() with
         {
-            ImportStage = "unknown",
-            TargetMutationCommitted = null,
-            CompileStage = "unavailable",
             CompileReport = new CompileCheckReport()
         };
         Assert.False(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Xml));

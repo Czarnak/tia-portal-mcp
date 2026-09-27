@@ -41,6 +41,19 @@ public static class BlockImportOutcomeValidator
             return false;
         }
 
+        if (outcome.ImportStage switch
+            {
+                "not_started" => outcome.CompileStage != "not_started"
+                    || outcome.FinalReadStage != "not_started",
+                "unknown" => outcome.CompileStage != "unavailable"
+                    || outcome.FinalReadStage == "not_started",
+                _ => outcome.CompileStage == "not_started"
+                    || outcome.FinalReadStage == "not_started"
+            })
+        {
+            return false;
+        }
+
         if (normalizedFormatOrNull == SourceFormatNames.Xml)
         {
             if (outcome.TemporarySourceState != "not_applicable")
@@ -68,6 +81,8 @@ public static class BlockImportOutcomeValidator
         if (outcome.FinalReadStage == "not_started" && outcome.TargetPresent is not null)
             return false;
         if (outcome.FinalReadStage == "succeeded" && outcome.TargetPresent is null)
+            return false;
+        if (outcome.FinalReadStage == "unavailable" && outcome.TargetPresent == false)
             return false;
 
         if (outcome.CompileReport is { } report && !ValidReport(report, outcome.CompileStage))
