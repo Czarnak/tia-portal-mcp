@@ -240,28 +240,48 @@ public class BlockImportCoordinatorTests
     {
         var targetCalls = 0;
         var observationCalls = 0;
+        var cleanupCalls = 0;
+        string? stagingPath = null;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => BlockImportCoordinator.Execute(
-            "Main.xml",
-            "<Main />",
-            (_, _, boundary) =>
-            {
-                boundary.BeforeSiemensCall();
-                targetCalls++;
-                boundary.AfterSiemensCallReturned();
-            },
-            _ =>
-            {
-                observationCalls++;
-                return BlockPostconditionEvidence.Import(
-                    BlockCompileObservation.Unavailable(report: null),
-                    finalReadStage: "unavailable",
-                    targetPresent: null);
-            }));
+        try
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() => BlockImportCoordinator.Execute(
+                "Main.xml",
+                "<Main />",
+                (directory, _, boundary) =>
+                {
+                    stagingPath = directory.FullName;
+                    boundary.BeforeSiemensCall();
+                    targetCalls++;
+                    boundary.AfterSiemensCallReturned();
+                },
+                _ =>
+                {
+                    observationCalls++;
+                    return BlockPostconditionEvidence.Import(
+                        BlockCompileObservation.Unavailable(report: null),
+                        finalReadStage: "unavailable",
+                        targetPresent: null);
+                },
+                cleanupDirectory: path =>
+                {
+                    cleanupCalls++;
+                    Directory.Delete(path, recursive: true);
+                    throw new IOException("cleanup warning must not replace the boundary failure");
+                }));
 
-        Assert.Equal("A returned Siemens target call has no closed result.", exception.Message);
-        Assert.Equal(1, targetCalls);
-        Assert.Equal(0, observationCalls);
+            Assert.Equal("A returned Siemens target call has no closed result.", exception.Message);
+            Assert.Equal(1, targetCalls);
+            Assert.Equal(0, observationCalls);
+            Assert.Equal(1, cleanupCalls);
+            Assert.NotNull(stagingPath);
+            Assert.False(Directory.Exists(stagingPath));
+        }
+        finally
+        {
+            if (stagingPath is not null && Directory.Exists(stagingPath))
+                Directory.Delete(stagingPath, recursive: true);
+        }
     }
 
     [Fact]

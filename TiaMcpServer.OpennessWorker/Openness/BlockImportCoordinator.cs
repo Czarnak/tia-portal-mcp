@@ -151,7 +151,24 @@ internal static class BlockImportCoordinator
             primaryFailure = exception;
         }
 
-        var invocation = boundary.Snapshot();
+        BlockImportInvocationSnapshot invocation;
+        try
+        {
+            invocation = boundary.Snapshot();
+        }
+        catch
+        {
+            try
+            {
+                _ = cleanup?.Invoke();
+            }
+            catch
+            {
+                // Preserve the original ambiguous boundary failure.
+            }
+            throw;
+        }
+
         BlockPostconditionEvidence evidence;
         if (invocation.ImportStage == "not_started")
         {
