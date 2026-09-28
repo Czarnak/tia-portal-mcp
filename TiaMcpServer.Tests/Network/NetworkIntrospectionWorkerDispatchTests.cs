@@ -1,5 +1,8 @@
 namespace TiaMcpServer.Tests.Network;
 
+using System.Text.Json;
+using TiaMcpServer.Contracts;
+using TiaMcpServer.Tests.TestUtilities;
 using Xunit;
 
 public class NetworkIntrospectionWorkerDispatchTests
@@ -20,11 +23,11 @@ public class NetworkIntrospectionWorkerDispatchTests
     [Fact]
     public void WorkerProgram_PreservesRequiredNullMembersInNetworkObjectListPayloads()
     {
-        var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        var payload = WorkerSerializationHarness.Serialize(new NetworkObjectListInfo()).Payload!;
+        using var json = JsonDocument.Parse(payload);
 
-        Assert.Contains("NetworkObjectListJsonOptions", source, StringComparison.Ordinal);
-        Assert.Contains("DefaultIgnoreCondition = JsonIgnoreCondition.Never", source, StringComparison.Ordinal);
-        Assert.Contains("payload is NetworkObjectListInfo", source, StringComparison.Ordinal);
+        Assert.False(WorkerJson.OmitsNullMembers(typeof(NetworkObjectListInfo)));
+        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("nextCursor").ValueKind);
     }
 
     [Fact]
