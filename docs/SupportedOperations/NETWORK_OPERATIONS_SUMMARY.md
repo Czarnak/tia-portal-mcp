@@ -110,7 +110,8 @@ ordered `attributes` array, and non-fatal `messages`. Every attribute independen
 - `diagnostic`: category, message, and optional CLR type name when a value is unavailable.
 
 An unknown or failed attribute does not fail the inspection and does not suppress later
-attributes. Successfully read CLR null is represented by a value with `kind:"null"`; an arbitrary
+attributes. Successfully read CLR null is represented by a value with `kind:"null"` and an
+explicit `value:null`; an arbitrary
 CLR object is `unrepresentable` and is never published through `ToString()`.
 
 ## Hardware configuration pagination

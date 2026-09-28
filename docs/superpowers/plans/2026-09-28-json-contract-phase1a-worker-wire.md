@@ -296,7 +296,7 @@ Expected: 5 passed.
 
 ```bash
 git add TiaMcpServer.Contracts/WorkerJson.cs TiaMcpServer.Contracts/LegacyNullOmissionAttribute.cs TiaMcpServer.Tests/Worker/WorkerJsonTests.cs
-git commit -m "feat(worker): add shared worker wire JSON policy"
+git commit -m "feat(worker): add WorkerJson wire policy"
 ```
 
 ---
@@ -412,7 +412,7 @@ Expected: PASS. Then build the solution with the stub command from Global Constr
 
 ```bash
 git add TiaMcpServer.Contracts TiaMcpServer.OpennessWorker TiaMcpServer.Tests/Worker/WorkerPayloadNullPolicyRegisterTests.cs
-git commit -m "feat(worker): mark payload contracts that still omit nulls"
+git commit -m "feat(worker): mark null-omitting payload contracts"
 ```
 
 ---
@@ -497,7 +497,7 @@ Expected: all pass, including `NetworkObjectList_StillPreservesRequiredNullCurso
 
 ```bash
 git add TiaMcpServer.OpennessWorker/Program.cs TiaMcpServer.Tests/TestUtilities/WorkerSerializationHarness.targets TiaMcpServer.Tests/Project/ProjectTreeWorkerProducerContractTests.cs
-git commit -m "refactor(worker): render worker responses through WorkerJson"
+git commit -m "refactor(worker): serialize through WorkerJson"
 ```
 
 ---
@@ -580,7 +580,7 @@ Expected: all pass except possibly the four environmental `DoctorPackageVerifica
 
 ```bash
 git add TiaMcpServer/Worker/PersistentWorkerTransport.cs TiaMcpServer.FakeWorker/Program.cs TiaMcpServer.Tests/Worker/FakeWorkerWireParityTests.cs
-git commit -m "test(worker): give the FakeWorker the production wire policy"
+git commit -m "test(worker): give FakeWorker the production wire"
 ```
 
 ---
@@ -619,7 +619,7 @@ Expected: all pass unchanged. The resolved options have the same settings as the
 
 ```bash
 git add TiaMcpServer.Tests
-git commit -m "test(worker): use WorkerJson instead of copied worker options"
+git commit -m "test(worker): use WorkerJson over copied options"
 ```
 
 ---
@@ -804,7 +804,7 @@ Expected: all pass. A failure means a test supplied a rebind payload that the ol
 
 ```bash
 git add TiaMcpServer/Worker/ProjectRebindStatePayloadContract.cs TiaMcpServer.Contracts/ProjectRebindStateInfo.cs TiaMcpServer/Worker/OpennessWorkerClient.cs TiaMcpServer/Tools/ProjectWriteTools.cs TiaMcpServer.Tests/TiaMcpServer.Tests.csproj TiaMcpServer.Tests/Worker/ProjectRebindStatePayloadContractTests.cs
-git commit -m "fix(project): decode rebind-state payloads strictly"
+git commit -m "fix(project): decode rebind state strictly"
 ```
 
 ---
@@ -841,7 +841,7 @@ Check that every relative link in the changed docs resolves. Then:
 
 ```bash
 git add docs AGENTS.md TiaMcpServer/Json/TiaJson.cs
-git commit -m "docs(mcp-protocol): record Phase 1a worker wire normalization"
+git commit -m "docs: record JSON contract phase 1a"
 ```
 
 ---
@@ -852,3 +852,13 @@ git commit -m "docs(mcp-protocol): record Phase 1a worker wire normalization"
 - [ ] Full `dotnet test TiaMcpServer.Tests`: all pass. The four environmental packaging cases (if they fail in the parallel run) must pass when `DoctorPackageVerificationScriptTests` runs alone.
 - [ ] `git diff cf32acb --stat -- TiaMcpServer.OpennessWorker` shows only `Program.cs` and the three marked worker types.
 - [ ] Record in the PR that no tool output, schema, or real-worker wire byte changed. The only wire difference is host requests now omitting null members, which the worker reads identically.
+
+## Execution notes (2026-09-28)
+
+The Task 4 full run failed 8 tests. Following the Task 4 stop rule, the causes were reported and decided before continuing:
+
+- **Production defect exposed by FakeWorker parity.** The real worker omitted `attributes[].value.value` for a successfully read CLR null (kind `null`). `NetworkPayloadContract` requires that member, so `inspect_network_object` failed with `protocol_error` for any object with a null attribute. This was already on `cf32acb`; the old FakeWorker wrote explicit nulls and hid it. Decision: fix it in 1a. `NetworkAttributeValueInfo.Value` now carries `[JsonIgnore(Condition = Never)]`, proven first with a test through the real worker `Success<T>` (`fix(network): keep null attribute values on the wire`). This is the one real-worker byte change in 1a.
+- **Request bytes.** Five forwarding tests pin explicit nulls in the host request. Decision: host requests keep writing null members. `WorkerJson.Request` (explicit nulls) writes requests; `Envelope` reads both directions and writes responses. 1a changes no request byte.
+- **Stale source-text test from Task 3.** `WorkerProgram_PreservesRequiredNullMembersInNetworkObjectListPayloads` searched the worker source for the deleted `NetworkObjectListJsonOptions`. It now checks the policy through the real `Success<T>` (`test(worker): check list null policy by behavior`).
+
+Also beyond the plan: the FakeWorker's `BlockOutcomeResponse` envelope now serializes with `WorkerJson.Envelope`, like the real worker's responses.

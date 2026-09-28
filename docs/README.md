@@ -49,7 +49,8 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: [Open bug parallel pull-request delivery design](superpowers/specs/2026-09-26-open-bug-parallel-pr-delivery-design.md),
+Latest process entries: the [JSON contract Phase 1a worker-wire plan](superpowers/plans/2026-09-28-json-contract-phase1a-worker-wire.md),
+[Open bug parallel pull-request delivery design](superpowers/specs/2026-09-26-open-bug-parallel-pr-delivery-design.md),
 with current Wave 2 plans for [I2 truthful block-import outcomes](superpowers/plans/2026-09-27-wave2-i2-truthful-block-import-outcomes.md)
 and [T2 type-content binding policy](superpowers/plans/2026-09-27-wave2-t2-type-content-binding-policy.md),
 plus Wave 1 plans for [L1 lifecycle rebind and preview safety](superpowers/plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md),

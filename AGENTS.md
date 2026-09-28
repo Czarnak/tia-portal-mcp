@@ -94,6 +94,7 @@ Network contract these rules describe in the abstract.
 - **Tests link host source files** via `<Compile Include>` — when editing files in `TiaMcpServer/Worker/`, `TiaMcpServer/Batch/`, `TiaMcpServer/Network/`, `TiaMcpServer/OperationBatches/`, `TiaMcpServer/Safety/`, `TiaMcpServer/Tools/`, `TiaMcpServer/Diagnostics/`, or `TiaMcpServer/Cli/`, the test project picks up changes automatically
 - **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a generic batch operation; network operations use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
+- **Worker payload JSON** goes through `WorkerJson.SerializePayload`. A new payload contract writes null members; `[LegacyNullOmission]` is only for the reasons in `LegacyNullOmissionReason`, and adding or removing one updates `WorkerPayloadNullPolicyRegisterTests`
 - Siemens DLLs are **never committed** to the repo or the NuGet package
 
 ## Documentation layout
