@@ -478,6 +478,14 @@ public class NetworkPayloadContractTests
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"selector":null,"diagnostics":[],"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
 
+        // list_network_objects: items[].kind, items[].selectable, and items[].diagnostics are each
+        // required root members of an item, isolated here from an otherwise fully valid item (a
+        // required bool like selectable is caught only by this required-member check, never by a
+        // nullability check, since JSON member absence is indistinguishable from CLR-default false).
+        { "list_network_objects", $$$"""{"items":[{"selectable":true,"selector":{"kind":"node","deviceName":"{{{LeakToken}}}","nodeId":"n1"},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","selector":{"kind":"node","deviceName":"{{{LeakToken}}}","nodeId":"n1"},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"selector":{"kind":"node","deviceName":"{{{LeakToken}}}","nodeId":"n1"},"evidence":{}}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+
         // list_network_objects: itemPath[] segment members (index, name, positionNumber,
         // typeIdentifier) are each required raw-JSON keys, checked before typed decode.
         { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"positionNumber":1,"typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
