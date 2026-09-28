@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-28 | [JSON contract Phase 1b — required-member enforcement](specs/2026-09-28-json-contract-phase1b-required-members-design.md) |
 | 2026-09-26 | [Open bug parallel pull-request delivery](specs/2026-09-26-open-bug-parallel-pr-delivery-design.md) |
 | 2026-09-26 | [Network Phase 5 qualified IO-system contract for later public slices](specs/2026-09-24-network-phase5-qualified-contract.md) |
 | 2026-09-21 | [Network Phases 4-6 completion and delivery](specs/2026-09-21-network-phases-4-6-delivery-design.md) |
