@@ -2,8 +2,6 @@ using System.ComponentModel;
 using System.Reflection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts;
-using TiaMcpServer.Safety;
-using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;

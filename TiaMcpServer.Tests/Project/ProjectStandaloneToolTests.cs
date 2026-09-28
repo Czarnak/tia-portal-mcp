@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;

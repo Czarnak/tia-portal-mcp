@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace TiaMcpServer.Contracts;
 
 /// <summary>One device candidate, with its stable offset and candidate-scoped degradation messages.</summary>

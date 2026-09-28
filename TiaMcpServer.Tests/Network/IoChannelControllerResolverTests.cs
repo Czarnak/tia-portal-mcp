@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using TiaMcpServer.Contracts;
 using Xunit;
 

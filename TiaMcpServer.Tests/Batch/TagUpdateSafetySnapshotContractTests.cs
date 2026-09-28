@@ -1,6 +1,5 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
-using TiaMcpServer.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;

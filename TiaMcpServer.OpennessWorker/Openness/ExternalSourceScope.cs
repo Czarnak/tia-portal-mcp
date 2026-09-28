@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using Siemens.Engineering.SW.ExternalSources;
 
 namespace TiaMcpServer.OpennessWorker.Openness;

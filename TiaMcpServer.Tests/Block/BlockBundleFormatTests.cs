@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;

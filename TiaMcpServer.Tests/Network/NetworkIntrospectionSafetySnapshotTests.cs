@@ -1,11 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;

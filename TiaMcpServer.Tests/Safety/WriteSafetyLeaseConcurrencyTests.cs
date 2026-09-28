@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using TiaMcpServer.Contracts;
-using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;

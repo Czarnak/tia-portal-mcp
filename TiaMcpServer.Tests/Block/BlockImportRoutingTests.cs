@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;

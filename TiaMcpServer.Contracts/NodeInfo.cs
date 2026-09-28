@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace TiaMcpServer.Contracts;
 
 public class NodeInfo

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Server;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Cli;
 using TiaMcpServer.Cli.Install;

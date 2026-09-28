@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace TiaMcpServer.Contracts;
 
 public static class ProjectTreeNodeTypes
