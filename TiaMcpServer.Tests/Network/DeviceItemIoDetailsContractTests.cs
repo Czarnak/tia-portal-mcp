@@ -276,10 +276,13 @@ public class DeviceItemIoDetailsContractTests
     // and a tagMatches[] member holding a non-string JSON value).
     // ---------------------------------------------------------------------------------------
 
-    [Fact]
-    public void Project_RejectsControllerNamesThatIsNotAnArray()
+    [Theory]
+    [InlineData("\"PLC_1\"")]
+    [InlineData("[123]")]
+    [InlineData("[null]")]
+    public void Project_RejectsControllerNamesWithAnInvalidShape(string controllerNamesJson)
     {
-        var payload = """
+        var payload = $$"""
             {
               "devices": [
                 {
@@ -294,81 +297,7 @@ public class DeviceItemIoDetailsContractTests
                       "selectorDiagnostics": ["unavailable"],
                       "ioDetails": {
                         "addresses": [
-                          { "ioType": "Input", "controllerNames": "PLC_1" }
-                        ],
-                        "channels": []
-                      }
-                    }
-                  ]
-                }
-              ],
-              "subnets": [],
-              "messages": []
-            }
-            """;
-
-        var item = Project(payload, includeIoDetails: true);
-
-        Assert.Equal(OperationBatchStatus.Failed, item.Status);
-        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
-    }
-
-    [Fact]
-    public void Project_RejectsControllerNamesContainingANumber()
-    {
-        var payload = """
-            {
-              "devices": [
-                {
-                  "name": "PLC_1",
-                  "items": [
-                    {
-                      "networkInterfaces": [],
-                      "communicationConnections": [],
-                      "items": [],
-                      "selectable": false,
-                      "selector": null,
-                      "selectorDiagnostics": ["unavailable"],
-                      "ioDetails": {
-                        "addresses": [
-                          { "ioType": "Input", "controllerNames": [123] }
-                        ],
-                        "channels": []
-                      }
-                    }
-                  ]
-                }
-              ],
-              "subnets": [],
-              "messages": []
-            }
-            """;
-
-        var item = Project(payload, includeIoDetails: true);
-
-        Assert.Equal(OperationBatchStatus.Failed, item.Status);
-        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
-    }
-
-    [Fact]
-    public void Project_RejectsControllerNamesContainingANull()
-    {
-        var payload = """
-            {
-              "devices": [
-                {
-                  "name": "PLC_1",
-                  "items": [
-                    {
-                      "networkInterfaces": [],
-                      "communicationConnections": [],
-                      "items": [],
-                      "selectable": false,
-                      "selector": null,
-                      "selectorDiagnostics": ["unavailable"],
-                      "ioDetails": {
-                        "addresses": [
-                          { "ioType": "Input", "controllerNames": [null] }
+                          { "ioType": "Input", "controllerNames": {{controllerNamesJson}} }
                         ],
                         "channels": []
                       }
