@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-28 | [Multiuser Engineering](specs/2026-09-28-multiuser-engineering-design.md) |
 | 2026-09-26 | [Open bug parallel pull-request delivery](specs/2026-09-26-open-bug-parallel-pr-delivery-design.md) |
 | 2026-09-26 | [Network Phase 5 qualified IO-system contract for later public slices](specs/2026-09-24-network-phase5-qualified-contract.md) |
 | 2026-09-21 | [Network Phases 4-6 completion and delivery](specs/2026-09-21-network-phases-4-6-delivery-design.md) |
