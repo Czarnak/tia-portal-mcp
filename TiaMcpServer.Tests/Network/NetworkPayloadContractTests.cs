@@ -16,7 +16,7 @@ namespace TiaMcpServer.Tests.Network;
 /// decode its valid payload into declared JSON, and must reject anything else as
 /// <c>protocol_error</c> without echoing the payload that failed.
 /// </summary>
-public class NetworkPayloadContractTests
+public partial class NetworkPayloadContractTests
 {
     private const string LeakToken = "payload-leak-canary";
 
@@ -700,8 +700,8 @@ public class NetworkPayloadContractTests
         // Unmapped member.
         { "read_hardware_config", $$"""{"devices":[],"subnets":[],"messages":[],"x":"{{LeakToken}}"}""" },
 
-        // Explicit null defeating a non-null collection default: representable in JSON, not
-        // representable through CLR initialization, so a type-specific validator must reject it.
+        // Explicit null in a declared non-null collection: representable in JSON, not through CLR
+        // initialization; the worker-payload reader rejects it through the nullable annotations.
         { "read_hardware_config", $$"""{"devices":null,"subnets":[],"messages":["{{LeakToken}}"]}""" },
 
         // Wrong root kind: an array where an object is declared.

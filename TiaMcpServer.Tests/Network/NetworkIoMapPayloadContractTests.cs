@@ -107,8 +107,8 @@ public class NetworkIoMapPayloadContractTests
     [Fact]
     public void Project_AcceptsIoDetailsWithEmptyCollectionsAndNullScalars()
     {
-        // Unreadable scalars stay null and empty collections are legal: only EXPLICIT null
-        // collections (which CLR initialization can never produce) are rejected.
+        // Unreadable scalars stay null and empty collections are legal; a collection that is null
+        // or omitted is rejected.
         var payload = """
             {
               "devices": [
