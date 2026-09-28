@@ -183,6 +183,157 @@ public class HardwarePagePayloadContractTests
         AssertProtocolFailure(decoded, SecretSession);
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Characterization: the raw JSON-shape checks ValidateRequiredJsonShape applies below the
+    // nine required root members (already pinned above by Decode_RejectsEveryMissingRequiredRootMember).
+    // ---------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("42")]
+    public void Decode_RejectsRootMessagesContainingNullOrANonString(string extraElement)
+    {
+        var operation = Operation();
+        var payload = ValidPayload(operation).Replace("\"page-message\"", $"\"page-message\",{extraElement}");
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(payload),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, null);
+    }
+
+    [Fact]
+    public void Decode_RejectsADeviceCandidateThatIsNull()
+    {
+        var operation = Operation();
+        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
+        root["deviceCandidates"]!.AsArray()[0] = null;
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, null);
+    }
+
+    [Fact]
+    public void Decode_RejectsADeviceCandidateThatIsNotAnObject()
+    {
+        var operation = Operation();
+        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
+        root["deviceCandidates"]!.AsArray()[0] = "not-an-object";
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, null);
+    }
+
+    // The identical RequireObject/RequireMembers helpers back both deviceCandidates[] and
+    // subnetCandidates[], so "a candidate" is characterized through deviceCandidates[] for the
+    // null/non-object/missing-member cases and through subnetCandidates[] for device-vs-subnet
+    // asymmetric members (subnet, and this file's only payload with a subnet candidate).
+
+    [Theory]
+    [InlineData("offset")]
+    [InlineData("device")]
+    [InlineData("messages")]
+    public void Decode_RejectsADeviceCandidateMissingARequiredMember(string member)
+    {
+        var operation = Operation();
+        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
+        root["deviceCandidates"]!.AsArray()[0]!.AsObject().Remove(member);
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, member);
+    }
+
+    [Theory]
+    [InlineData("offset")]
+    [InlineData("subnet")]
+    [InlineData("messages")]
+    public void Decode_RejectsASubnetCandidateMissingARequiredMember(string member)
+    {
+        var operation = Operation();
+        var payload = CandidatePayload(
+            operation,
+            startOffset: 0,
+            totalDevices: 0,
+            totalSubnets: 1,
+            deviceOffsets: Array.Empty<int>(),
+            subnetOffsets: new[] { 0 });
+        var root = JsonNode.Parse(payload)!.AsObject();
+        root["subnetCandidates"]!.AsArray()[0]!.AsObject().Remove(member);
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, member);
+    }
+
+    [Fact]
+    public void Decode_RejectsADeviceThatIsNotAnObject()
+    {
+        var operation = Operation();
+        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
+        root["deviceCandidates"]!.AsArray()[0]!.AsObject()["device"] = "not-an-object";
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, null);
+    }
+
+    [Fact]
+    public void Decode_RejectsASubnetThatIsNotAnObject()
+    {
+        var operation = Operation();
+        var payload = CandidatePayload(
+            operation,
+            startOffset: 0,
+            totalDevices: 0,
+            totalSubnets: 1,
+            deviceOffsets: Array.Empty<int>(),
+            subnetOffsets: new[] { 0 });
+        var root = JsonNode.Parse(payload)!.AsObject();
+        root["subnetCandidates"]!.AsArray()[0]!.AsObject()["subnet"] = "not-an-object";
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, null);
+    }
+
+    [Fact]
+    public void Decode_RejectsADeviceCandidateMessagesContainingNull()
+    {
+        var operation = Operation();
+        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
+        root["deviceCandidates"]!.AsArray()[0]!.AsObject()["messages"]!.AsArray().Add(null);
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+
+        AssertProtocolFailure(decoded, null);
+    }
+
     [Fact]
     public void Decode_AcceptsTheExactTypedCandidateContract()
     {

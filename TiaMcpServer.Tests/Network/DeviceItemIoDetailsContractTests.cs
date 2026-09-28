@@ -2,6 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
+using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -12,10 +15,19 @@ namespace TiaMcpServer.Tests.Network;
 /// <see cref="IoChannelInfo"/>, <see cref="IoTagMatchInfo"/>): non-null collections, null
 /// unreadable scalars, JSON round trips, and the <see cref="JsonIgnoreCondition.WhenWritingNull"/>
 /// guarantee that a default read serializes byte-identically to the pre-I/O-map shape.
+///
+/// A second group (<c>Project_*</c>) characterizes today's worker-payload shape rejections that
+/// <see cref="NetworkPayloadContract"/> applies to <c>ioDetails</c> members not already pinned in
+/// <c>NetworkIoMapPayloadContractTests</c>: see the phase1b-required-members task-1 brief.
 /// </summary>
 public class DeviceItemIoDetailsContractTests
 {
     private static readonly JsonSerializerOptions WebOptions = new(JsonSerializerDefaults.Web);
+
+    private static StructuredOperationItem Project(string payload, bool includeIoDetails = true)
+        => NetworkPayloadContract.Project(
+            new NetworkOperationRequest { OperationId = "op-1", Operation = "read_hardware_config", IncludeIoDetails = includeIoDetails },
+            WorkerCallResult.Ok(payload));
 
     [Fact]
     public void IoDetails_IsNullByDefaultOnADeviceItem()
@@ -256,5 +268,162 @@ public class DeviceItemIoDetailsContractTests
         Assert.Null(roundTripped.LogicalAddress);
         Assert.Equal(96, roundTripped.ChannelAddressBits);
         Assert.Equal(32u, roundTripped.ChannelWidthBits);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Characterization: today's worker-payload shape rejections for ioDetails members not
+    // already pinned by NetworkIoMapPayloadContractTests (controllerNames wrong-shape elements,
+    // and a tagMatches[] member holding a non-string JSON value).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Project_RejectsControllerNamesThatIsNotAnArray()
+    {
+        var payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [
+                          { "ioType": "Input", "controllerNames": "PLC_1" }
+                        ],
+                        "channels": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsControllerNamesContainingANumber()
+    {
+        var payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [
+                          { "ioType": "Input", "controllerNames": [123] }
+                        ],
+                        "channels": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsControllerNamesContainingANull()
+    {
+        var payload = """
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [
+                          { "ioType": "Input", "controllerNames": [null] }
+                        ],
+                        "channels": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Theory]
+    [InlineData("""{"name":123,"dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":123,"logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":123,"tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":123,"folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":123}""")]
+    public void Project_RejectsNonStringMemberInsideATagMatch(string tagMatchJson)
+    {
+        var payload = $$"""
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [],
+                        "channels": [{"number": 0, "ioType": "Input", "tagMatches": [{{tagMatchJson}}]}]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
     }
 }

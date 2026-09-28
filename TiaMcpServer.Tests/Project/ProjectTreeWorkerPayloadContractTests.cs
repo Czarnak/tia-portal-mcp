@@ -151,7 +151,28 @@ public sealed class ProjectTreeWorkerPayloadContractTests
             $"{{\"startSelector\":null,\"depth\":null,\"roots\":[{{\"name\":\"secret-marker\",\"nodeType\":\"Device\",\"children\":[]}}]}}",
             $"{{\"startSelector\":[{{\"nodeType\":\"Device\",\"name\":\"PLC_1\",\"marker\":\"secret-marker\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
             $"{{\"startSelector\":[{{\"NodeType\":\"Device\",\"name\":\"secret-marker\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
-            $"{{\"startSelector\":[{{\"nodeType\":\"Device\"}}],\"depth\":null,\"roots\":[{validNode}]}}"
+            $"{{\"startSelector\":[{{\"nodeType\":\"Device\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
+
+            // Root members startSelector and depth are required raw-JSON keys (roots missing is
+            // already covered two rows above).
+            "{\"depth\":null,\"roots\":[]}",
+            "{\"startSelector\":null,\"roots\":[]}",
+
+            // A startSelector[] segment's nodeType/name are required to be strings, not merely
+            // present (missing nodeType/name are already covered above via wrong casing).
+            "{\"startSelector\":[{\"nodeType\":123,\"name\":\"PLC_1\"}],\"depth\":null,\"roots\":[]}",
+            "{\"startSelector\":[{\"nodeType\":\"Device\",\"name\":123}],\"depth\":null,\"roots\":[]}",
+
+            // A null element in startSelector[] (roots[]/children[] null elements are already
+            // covered above).
+            "{\"startSelector\":[null],\"depth\":null,\"roots\":[]}",
+
+            // A node missing nodeType or children (name and details are already covered above).
+            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"details\":{},\"children\":[]}]}",
+            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{}}]}",
+
+            // A roots[] element that is not an object at all (not just null).
+            "{\"startSelector\":null,\"depth\":null,\"roots\":[\"not-an-object\"]}"
         };
     }
 

@@ -466,6 +466,31 @@ public class NetworkPayloadContractTests
         { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"x","selector":{"kind":"node","deviceName":"PLC","nodeId":"n1","subnetId":"{{{LeakToken}}}"}}],"messages":[]}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"node","displayName":"x","selector":{"kind":"node","deviceName":"PLC","nodeId":"n1","interfaceName":" "}}],"messages":["{{{LeakToken}}}"]}""" },
 
+        // list_network_objects: each root member is required, even one (nextCursor) that a CLR
+        // default would otherwise tolerate as absent.
+        { "list_network_objects", $$$"""{"totalCount":0,"returnedCount":0,"nextCursor":null,"displayName":"{{{LeakToken}}}"}""" },
+        { "list_network_objects", $$$"""{"items":[],"returnedCount":0,"nextCursor":null,"displayName":"{{{LeakToken}}}"}""" },
+        { "list_network_objects", $$$"""{"items":[],"totalCount":0,"nextCursor":null,"displayName":"{{{LeakToken}}}"}""" },
+        { "list_network_objects", $$$"""{"items":[],"totalCount":0,"returnedCount":0,"displayName":"{{{LeakToken}}}"}""" },
+
+        // list_network_objects: items[].selector and items[].evidence are required root members of
+        // an item, distinct from an explicit null (selector) or a CLR-initialized default (evidence).
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"selector":null,"diagnostics":[],"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+
+        // list_network_objects: itemPath[] segment members (index, name, positionNumber,
+        // typeIdentifier) are each required raw-JSON keys, checked before typed decode.
+        { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"positionNumber":1,"typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"name":"if1","typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+        { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"name":"if1","positionNumber":1,"displayName":"{{{LeakToken}}}"}]},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+
+        // inspect_network_object: target.itemPath[] segment members (index, name, positionNumber,
+        // typeIdentifier) are each required raw-JSON keys, checked before typed decode.
+        { "inspect_network_object", $$$"""{"target":{"itemPath":[{"name":"if1","positionNumber":1,"typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+        { "inspect_network_object", $$$"""{"target":{"itemPath":[{"index":0,"positionNumber":1,"typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+        { "inspect_network_object", $$$"""{"target":{"itemPath":[{"index":0,"name":"if1","typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+        { "inspect_network_object", $$$"""{"target":{"itemPath":[{"index":0,"name":"if1","positionNumber":1,"displayName":"{{{LeakToken}}}"}]},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
+
         // inspect_network_object: the alternate public shape is not retained as an alias.
         { "inspect_network_object", $$$"""{"kind":"node","displayName":"{{{LeakToken}}}","evidence":{"kind":"node","selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"messages":[]},"attributes":[],"messages":[]}""" },
 
@@ -516,6 +541,19 @@ public class NetworkPayloadContractTests
 
         // inspect_network_object: null attributes collection.
         { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"name":"{{{LeakToken}}}","deviceItemPath":[]},"attributes":null,"messages":[]}""" },
+
+        // inspect_network_object: attributes[].value is a required raw-JSON key when availability
+        // is 'available', distinct from an explicit null value (already covered above).
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"{{{LeakToken}}}","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available"}],"messages":[]}""" },
+
+        // inspect_network_object: a present value object requires its own 'kind' and 'value' members.
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"{{{LeakToken}}}","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"value":"x"}}],"messages":[]}""" },
+        { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"{{{LeakToken}}}","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"kind":"string"}}],"messages":[]}""" },
+
+        // inspect_network_object: an enum value requires typeName, symbol, and numericValue.
+        { "inspect_network_object", $$$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"mode","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"symbol":"{{{{LeakToken}}}}","numericValue":1}}}],"messages":[]}""" },
+        { "inspect_network_object", $$$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"mode","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"{{{{LeakToken}}}}","numericValue":1}}}],"messages":[]}""" },
+        { "inspect_network_object", $$$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"mode","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Mode","symbol":"{{{{LeakToken}}}}"}}}],"messages":[]}""" },
 
         // Wrong root kind for list_network_objects (array instead of object).
         { "list_network_objects", $$$"""["{{{LeakToken}}}"]""" },
@@ -648,6 +686,11 @@ public class NetworkPayloadContractTests
         // must not silently invent zero for an absent index or positionNumber.
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"name":"CPU","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"CPU","typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
+
+        // The itemPath[] name and typeIdentifier members are likewise required raw-JSON keys on a
+        // hardware-config nested selector (index and positionNumber are covered just above).
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
+        { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"CPU","positionNumber":1}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
     };
 
     [Theory]
