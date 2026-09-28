@@ -658,6 +658,7 @@ internal static class SubnetLifecycleMutationProbeService
         => (device.Name ?? string.Empty) + "\u001f" + (device.TypeIdentifier ?? string.Empty);
 }
 
+[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 internal sealed class SubnetLifecycleMutationProbeResult
 {
     public string Operation { get; set; } = string.Empty;

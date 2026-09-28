@@ -178,6 +178,7 @@ internal static class PlcTypeImporter
 }
 
 /// <summary>Payload of a completed <c>update_type_content</c>.</summary>
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 internal sealed class PlcTypeImportResult
 {
     public bool Success { get; set; } = true;

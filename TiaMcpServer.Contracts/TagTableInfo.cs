@@ -1,5 +1,6 @@
 namespace TiaMcpServer.Contracts;
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public class TagTableInfo
 {
     public string Name { get; set; } = string.Empty;

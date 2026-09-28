@@ -36,18 +36,21 @@ public sealed record TagCollisionProbeInfo(
     string? LogicalAddress,
     [property: JsonRequired] bool IsTarget);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record CreateTagTableSafetySnapshotInfo(
     [property: JsonRequired] string PlcName,
     [property: JsonRequired] string FolderPath,
     [property: JsonRequired] string RequestedTableName,
     [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> TableNameCollisions);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record DeleteTagTableSafetySnapshotInfo(
     [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
     [property: JsonRequired] string ExportedSimaticMl,
     [property: JsonRequired] string ExportSha256,
     [property: JsonRequired] int CharacterCount);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record CreateTagSafetySnapshotInfo(
     [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
     [property: JsonRequired] string EffectiveName,
@@ -55,6 +58,7 @@ public sealed record CreateTagSafetySnapshotInfo(
     [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions,
     [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> AddressCollisions);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record UpdateTagSafetySnapshotInfo(
     [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
     [property: JsonRequired] TagSafetyIdentityInfo TargetTag,
@@ -63,21 +67,25 @@ public sealed record UpdateTagSafetySnapshotInfo(
     [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions,
     [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> AddressCollisions);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record DeleteTagSafetySnapshotInfo(
     [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
     [property: JsonRequired] TagSafetyIdentityInfo TargetTag);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record CreateUserConstantSafetySnapshotInfo(
     [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
     [property: JsonRequired] string EffectiveName,
     [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record UpdateUserConstantSafetySnapshotInfo(
     [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
     [property: JsonRequired] UserConstantSafetyIdentityInfo TargetConstant,
     [property: JsonRequired] string EffectiveName,
     [property: JsonRequired] IReadOnlyList<TagCollisionProbeInfo> NameCollisions);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record DeleteUserConstantSafetySnapshotInfo(
     [property: JsonRequired] TagTableSafetyIdentityInfo TargetTable,
     [property: JsonRequired] UserConstantSafetyIdentityInfo TargetConstant);

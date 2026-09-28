@@ -1,5 +1,6 @@
 namespace TiaMcpServer.Contracts;
 
+[LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
 public class ProjectLifecycleResultInfo
 {
     public bool Success { get; set; } = true;

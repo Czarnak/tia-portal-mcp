@@ -1,5 +1,6 @@
 namespace TiaMcpServer.Contracts;
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public class BlockMutationResultInfo
 {
     public bool Success { get; set; } = true;

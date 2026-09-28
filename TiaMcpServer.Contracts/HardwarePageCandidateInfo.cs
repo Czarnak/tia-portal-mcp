@@ -18,6 +18,7 @@ public sealed record HardwareSubnetPageCandidateInfo(
 /// Worker-internal candidate enumeration result. Session identity stays in the WorkerResponse
 /// envelope and is deliberately not duplicated in this payload.
 /// </summary>
+[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 public sealed record HardwarePageCandidateResultInfo(
     int OrderingVersion,
     string QueryHash,
