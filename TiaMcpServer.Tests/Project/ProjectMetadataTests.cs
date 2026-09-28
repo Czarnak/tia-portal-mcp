@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
@@ -17,12 +16,7 @@ namespace TiaMcpServer.Tests.Project;
 /// </summary>
 public class ProjectMetadataTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+    private static readonly JsonSerializerOptions JsonOptions = WorkerJson.PayloadOptionsFor(typeof(ProjectLifecycleResultInfo));
 
     private static OpennessWorkerClient CreateClient(string workerPath)
         => new(

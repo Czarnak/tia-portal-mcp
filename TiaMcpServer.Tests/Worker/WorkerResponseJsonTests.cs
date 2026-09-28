@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts;
 using Xunit;
 
@@ -8,11 +7,7 @@ namespace TiaMcpServer.Tests.Worker;
 
 public class WorkerResponseJsonTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+    private static readonly JsonSerializerOptions JsonOptions = WorkerJson.Envelope;
 
     [Fact]
     public void SerializesWarningsWithCamelCaseWireName()
