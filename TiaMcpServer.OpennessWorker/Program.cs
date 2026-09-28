@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Siemens.Engineering;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker.Openness;
@@ -9,20 +8,6 @@ namespace TiaMcpServer.OpennessWorker;
 
 internal static class Program
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
-    private static readonly JsonSerializerOptions NetworkObjectListJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.Never
-    };
-
     // TIA Portal 권한 요청 다이얼로그는 Attach() 호출마다 뜬다.
     // 세션을 프로세스 수명 동안 재사용해 Attach()를 최초 1회만 호출한다.
     private static readonly WorkerTiaPortalSession _sharedSession = new(allowTiaConfirmations: true);
@@ -46,7 +31,7 @@ internal static class Program
         while ((line = Console.In.ReadLine()) is not null)
         {
             var response = HandleLineWithCapturedStderr(line);
-            Console.Out.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
+            Console.Out.WriteLine(JsonSerializer.Serialize(response, WorkerJson.Envelope));
             Console.Out.Flush();
         }
     }
@@ -98,7 +83,7 @@ internal static class Program
     {
         try
         {
-            var request = JsonSerializer.Deserialize<WorkerRequest>(line, JsonOptions);
+            var request = JsonSerializer.Deserialize<WorkerRequest>(line, WorkerJson.Envelope);
             if (request is null)
             {
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Worker request was empty.");
@@ -1604,14 +1589,10 @@ internal static class Program
 
     private static WorkerResponse Success<T>(T payload)
     {
-        // These closed-shape contracts require nullable members to remain explicit on the wire.
-        var payloadOptions = payload is NetworkObjectListInfo or ProjectTreeBrowseResultInfo or ProjectRebindStateInfo
-            ? NetworkObjectListJsonOptions
-            : JsonOptions;
         return new WorkerResponse
         {
             Success = true,
-            Payload = JsonSerializer.Serialize(payload, payloadOptions)
+            Payload = WorkerJson.SerializePayload(payload)
         };
     }
 

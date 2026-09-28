@@ -1,6 +1,7 @@
 <Project>
-  <!-- Compile the real worker's serializer members without Program's TIA session/static
-       initialization. No copied serializer policy and no Siemens assembly or process. -->
+  <!-- Compile the real worker's Success<T> (and any serializer fields it still declares) without
+       Program's TIA session/static initialization. No copied serializer policy and no Siemens
+       assembly or process. -->
   <UsingTask TaskName="GenerateWorkerSerializationHarness" TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
@@ -18,7 +19,7 @@
         ).Cast<Match>().Select(match => match.Value).ToArray();
         var success = Regex.Matches(source,
             @"(?ms)^    private static WorkerResponse Success<T>\(T payload\).*?^    }");
-        if (fields.Length == 0 || success.Count != 1)
+        if (success.Count != 1)
         {
             Log.LogError("Could not extract the actual worker serialization members; update the offline harness.");
             return false;
