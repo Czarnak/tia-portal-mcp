@@ -159,6 +159,20 @@ public class CanonicalJsonWorkerPayloadTests
             () => CanonicalJson.DeserializeWorkerPayload<ArrayElementDto[]>(json));
     }
 
+    [Fact]
+    public void DeserializeWorkerPayload_RejectsCatalogEntryInfoArrayRootElementMissingAMember()
+    {
+        // Carry-over from Task 2: CatalogEntryInfo no longer carries
+        // [LegacyNullOmission(RequiredMemberEnforcement)] (removed in Task 3), so the real
+        // CatalogEntryInfo[] root can now be exercised directly instead of the unmarked
+        // ArrayElementDto stand-in above. Second element is missing "description".
+        const string json =
+            """[{"typeName":"A","articleNumber":"6ES7 123-4BB00","version":"V1.0","typeIdentifier":"1","typeIdentifierNormalized":"1-normalized","catalogPath":"TypeCatalog/A","description":"Desc A"},{"typeName":"B","articleNumber":null,"version":null,"typeIdentifier":"2","typeIdentifierNormalized":null,"catalogPath":null}]""";
+
+        Assert.Throws<JsonException>(
+            () => CanonicalJson.DeserializeWorkerPayload<CatalogEntryInfo[]>(json));
+    }
+
     // --- Accepted -------------------------------------------------------------------------------
 
     [Fact]
@@ -222,6 +236,21 @@ public class CanonicalJsonWorkerPayloadTests
         Assert.Equal(2, value.Length);
         Assert.Equal("A", value[0].TypeName);
         Assert.Equal("2", value[1].TypeIdentifier);
+    }
+
+    [Fact]
+    public void DeserializeWorkerPayload_AcceptsCatalogEntryInfoArrayRoot()
+    {
+        // Carry-over from Task 2: exercises the reader on the real CatalogEntryInfo[] root now
+        // that Task 3 removed its [LegacyNullOmission(RequiredMemberEnforcement)] marker.
+        const string json =
+            """[{"typeName":"A","articleNumber":"6ES7 123-4BB00","version":"V1.0","typeIdentifier":"1","typeIdentifierNormalized":"1-normalized","catalogPath":"TypeCatalog/A","description":"Desc A"},{"typeName":"B","articleNumber":null,"version":null,"typeIdentifier":"2","typeIdentifierNormalized":null,"catalogPath":null,"description":null}]""";
+
+        var value = CanonicalJson.DeserializeWorkerPayload<CatalogEntryInfo[]>(json);
+
+        Assert.Equal(2, value.Length);
+        Assert.Equal("A", value[0].TypeName);
+        Assert.Null(value[1].ArticleNumber);
     }
 
     // --- Refused --------------------------------------------------------------------------------

@@ -2,7 +2,6 @@ using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker;
 
-[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 internal sealed class NetworkAttributeProbeInfo
 {
     public NetworkObjectSelectorInfo Target { get; set; } = new();

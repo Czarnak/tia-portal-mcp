@@ -1,6 +1,5 @@
 namespace TiaMcpServer.Contracts;
 
-[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 public class ConfigureNetworkDeviceResultInfo
 {
     public string DeviceName { get; set; } = string.Empty;

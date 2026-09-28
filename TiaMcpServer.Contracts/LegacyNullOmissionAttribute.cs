@@ -8,9 +8,6 @@ public enum LegacyNullOmissionReason
 
     /// <summary>Returned by a tool still on the legacy text contract; switches when that tool migrates (roadmap Phases 2-3).</summary>
     ToolMigration,
-
-    /// <summary>A network payload; switches together with required-member enforcement (roadmap Phase 1b).</summary>
-    RequiredMemberEnforcement,
 }
 
 /// <summary>

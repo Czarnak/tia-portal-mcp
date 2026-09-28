@@ -7,11 +7,11 @@ namespace TiaMcpServer.Tests.Worker;
 /// <summary>
 /// Register of the Contracts payload types that still omit null members on the wire, with the
 /// reason each has not switched (docs/roadmap/json-contract.md). The register only shrinks:
-/// Phase 1b removes the RequiredMemberEnforcement entries, Phases 2-3 the ToolMigration entries,
-/// and the batch redesign the rest. Adding or removing a marker without updating it fails here, so
-/// a wire-policy change is always a reviewed change. The three worker-assembly contracts
-/// (PlcTypeImportResult, NetworkAttributeProbeInfo, SubnetLifecycleMutationProbeResult) are not
-/// visible to this assembly and are listed in the plan instead.
+/// Phase 1b is done — the RequiredMemberEnforcement entries are gone — and Phases 2-3 (the
+/// ToolMigration entries) and the batch redesign (the rest) remain. Adding or removing a marker
+/// without updating it fails here, so a wire-policy change is always a reviewed change. The
+/// worker-assembly contract (PlcTypeImportResult) is not visible to this assembly and is listed
+/// in the plan instead.
 /// </summary>
 public sealed class WorkerPayloadNullPolicyRegisterTests
 {
@@ -36,13 +36,6 @@ public sealed class WorkerPayloadNullPolicyRegisterTests
             ["PlcOnlineResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["CompileCheckReport"] = LegacyNullOmissionReason.ToolMigration,
             ["ProjectLifecycleResultInfo"] = LegacyNullOmissionReason.ToolMigration,
-            ["HardwareConfigInfo"] = LegacyNullOmissionReason.RequiredMemberEnforcement,
-            ["HardwarePageCandidateResultInfo"] = LegacyNullOmissionReason.RequiredMemberEnforcement,
-            ["NetworkObjectInspectionInfo"] = LegacyNullOmissionReason.RequiredMemberEnforcement,
-            ["CatalogEntryInfo"] = LegacyNullOmissionReason.RequiredMemberEnforcement,
-            ["AddDeviceResultInfo"] = LegacyNullOmissionReason.RequiredMemberEnforcement,
-            ["ConfigureNetworkDeviceResultInfo"] = LegacyNullOmissionReason.RequiredMemberEnforcement,
-            ["SubnetLifecycleResultInfo"] = LegacyNullOmissionReason.RequiredMemberEnforcement,
         };
 
     [Fact]

@@ -171,7 +171,9 @@ public class HardwareConfigInfoTests
         var json = JsonSerializer.Serialize(item, JsonOptions);
         var roundTripped = JsonSerializer.Deserialize<DeviceItemInfo>(json, JsonOptions);
 
-        Assert.DoesNotContain("address", json);
+        // HardwareConfigInfo no longer carries [LegacyNullOmission(RequiredMemberEnforcement)]
+        // (Task 3): a null Address is now written explicitly instead of omitted.
+        Assert.Contains("\"address\":null", json);
         Assert.NotNull(roundTripped);
         Assert.Null(roundTripped.Address);
     }
