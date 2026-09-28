@@ -18,12 +18,6 @@ namespace TiaMcpServer.Worker;
 /// </summary>
 public sealed class PersistentWorkerTransport : IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
-
     private const int RecentStderrCapacity = 30;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -79,7 +73,7 @@ public sealed class PersistentWorkerTransport : IDisposable
     {
         try
         {
-            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request, JsonOptions))
+            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request, WorkerJson.Request))
                 .ConfigureAwait(false);
             await process.StandardInput.FlushAsync().ConfigureAwait(false);
         }
@@ -114,7 +108,7 @@ public sealed class PersistentWorkerTransport : IDisposable
         WorkerResponse? response;
         try
         {
-            response = JsonSerializer.Deserialize<WorkerResponse>(responseLine, JsonOptions);
+            response = JsonSerializer.Deserialize<WorkerResponse>(responseLine, WorkerJson.Envelope);
         }
         catch (JsonException)
         {

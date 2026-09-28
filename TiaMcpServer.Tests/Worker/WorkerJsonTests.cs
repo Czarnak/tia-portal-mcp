@@ -60,6 +60,16 @@ public sealed class WorkerJsonTests
             JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "{}" }, WorkerJson.Envelope));
     }
 
+    [Fact]
+    public void Request_WritesNullMembers()
+    {
+        var json = JsonSerializer.Serialize(new WorkerRequest { Method = "get_project_status" }, WorkerJson.Request);
+
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal("get_project_status", document.RootElement.GetProperty("method").GetString());
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("projectPath").ValueKind);
+    }
+
     private sealed class UnmarkedPayload
     {
         public string Name { get; set; } = string.Empty;

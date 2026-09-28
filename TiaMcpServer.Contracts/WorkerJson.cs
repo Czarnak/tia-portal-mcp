@@ -11,16 +11,20 @@ namespace TiaMcpServer.Contracts;
 /// The single definition of the host-worker wire format.
 ///
 /// <para>
-/// <see cref="Envelope"/> covers <see cref="WorkerRequest"/> and <see cref="WorkerResponse"/> in
-/// both directions. <see cref="SerializePayload{T}"/> renders the <see cref="WorkerResponse.Payload"/>
-/// document: members are written even when null, unless the payload contract carries
-/// <see cref="LegacyNullOmissionAttribute"/>. A collection payload follows its element contract.
+/// <see cref="Envelope"/> reads <see cref="WorkerRequest"/> and <see cref="WorkerResponse"/> and
+/// writes responses; <see cref="Request"/> writes requests. <see cref="SerializePayload{T}"/>
+/// renders the <see cref="WorkerResponse.Payload"/> document: members are written even when null,
+/// unless the payload contract carries <see cref="LegacyNullOmissionAttribute"/>. A collection
+/// payload follows its element contract.
 /// </para>
 /// </summary>
 public static class WorkerJson
 {
-    /// <summary>Request and response envelope, both directions: camelCase, case-insensitive read, null members omitted.</summary>
+    /// <summary>Envelope reads (both directions) and response writes: camelCase, case-insensitive read, null members omitted.</summary>
     public static JsonSerializerOptions Envelope { get; } = Create(JsonIgnoreCondition.WhenWritingNull);
+
+    /// <summary>Request writes: every member is written, null or not, so a request states what it leaves unset.</summary>
+    public static JsonSerializerOptions Request { get; } = Create(JsonIgnoreCondition.Never);
 
     /// <summary>Payload options for unmarked contracts: every member is written, null or not.</summary>
     public static JsonSerializerOptions ExplicitNullPayload { get; } = Create(JsonIgnoreCondition.Never);
