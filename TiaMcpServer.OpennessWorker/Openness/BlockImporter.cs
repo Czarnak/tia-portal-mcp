@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
-using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.ExternalSources;
 using TiaMcpServer.Contracts;
 

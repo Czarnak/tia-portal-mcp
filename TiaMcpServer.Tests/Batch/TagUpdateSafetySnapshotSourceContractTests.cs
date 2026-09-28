@@ -1,4 +1,3 @@
-using TiaMcpServer.Batch;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;

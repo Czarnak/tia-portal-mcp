@@ -1,5 +1,3 @@
-using System;
-
 namespace TiaMcpServer.OpennessWorker.Openness;
 
 internal static class BlockCreationCoordinator

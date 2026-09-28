@@ -1,5 +1,4 @@
 using TiaMcpServer.OperationBatches;
-using System.Text;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.Batch;

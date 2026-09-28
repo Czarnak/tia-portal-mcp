@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.OpennessWorker.Openness;

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
 using TiaMcpServer.Contracts;

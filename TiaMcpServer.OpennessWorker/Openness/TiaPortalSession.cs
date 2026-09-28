@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
 using Siemens.Engineering;
 using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 

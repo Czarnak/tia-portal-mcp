@@ -1,10 +1,8 @@
-using System.Linq;
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
-using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 using Xunit;

@@ -1,5 +1,3 @@
-using System;
-
 namespace TiaMcpServer.Contracts;
 
 /// <summary>Why a worker payload contract still omits null members on the wire.</summary>

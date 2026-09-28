@@ -1,4 +1,3 @@
-using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
 using Xunit;

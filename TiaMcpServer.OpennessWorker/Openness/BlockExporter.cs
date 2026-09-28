@@ -1,5 +1,3 @@
-using System.Text;
-using System.Collections.Generic;
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;

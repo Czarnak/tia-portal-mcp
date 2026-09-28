@@ -1,5 +1,3 @@
-using System;
-
 namespace TiaMcpServer.Contracts;
 
 public enum ProjectOpenDecision

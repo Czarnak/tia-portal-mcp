@@ -1,7 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Diagnostics.Checks;
-using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Cli;
 

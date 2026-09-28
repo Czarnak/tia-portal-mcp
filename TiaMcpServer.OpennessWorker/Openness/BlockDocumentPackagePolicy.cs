@@ -1,5 +1,3 @@
-using System;
-
 namespace TiaMcpServer.OpennessWorker.Openness;
 
 /// <summary>The outcome of asking what a failed s7dcl document-package export means.</summary>

@@ -1,6 +1,4 @@
-using System;
 using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 

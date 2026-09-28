@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.OpennessWorker.Openness;

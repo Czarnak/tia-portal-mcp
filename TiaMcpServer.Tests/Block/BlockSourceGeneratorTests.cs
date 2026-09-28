@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Xml.Linq;
 using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;
