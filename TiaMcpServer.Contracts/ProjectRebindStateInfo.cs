@@ -1,18 +1,24 @@
 using System;
+using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.Contracts;
 
 /// <summary>Live source state for one proposed open-project rebind.</summary>
 public sealed class ProjectRebindStateInfo
 {
+    [JsonRequired]
     public string? SourceProjectPath { get; set; }
 
+    [JsonRequired]
     public string DestinationProjectPath { get; set; } = string.Empty;
 
+    [JsonRequired]
     public bool? SourceIsModified { get; set; }
 
+    [JsonRequired]
     public bool SourceOpenedByWorker { get; set; }
 
+    [JsonRequired]
     public bool WillCloseSource { get; set; }
 
     public static ProjectRebindStateInfo Create(
