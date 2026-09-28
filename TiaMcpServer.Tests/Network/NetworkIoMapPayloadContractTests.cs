@@ -114,8 +114,13 @@ public class NetworkIoMapPayloadContractTests
               "devices": [
                 {
                   "name": "PLC_1",
+                  "typeIdentifier": null,
                   "items": [
                     {
+                      "name": null,
+                      "typeIdentifier": null,
+                      "positionNumber": null,
+                      "address": null,
                       "networkInterfaces": [],
                       "communicationConnections": [],
                       "items": [],
@@ -156,8 +161,13 @@ public class NetworkIoMapPayloadContractTests
               "devices": [
                 {
                   "name": "PLC_1",
+                  "typeIdentifier": null,
                   "items": [
                     {
+                      "name": null,
+                      "typeIdentifier": null,
+                      "positionNumber": null,
+                      "address": null,
                       "networkInterfaces": [],
                       "communicationConnections": [],
                       "items": [],
@@ -353,8 +363,13 @@ public class NetworkIoMapPayloadContractTests
               "devices": [
                 {
                   "name": "PLC_1",
+                  "typeIdentifier": null,
                   "items": [
                     {
+                      "name": null,
+                      "typeIdentifier": null,
+                      "positionNumber": null,
+                      "address": null,
                       "networkInterfaces": [],
                       "communicationConnections": [],
                       "items": [],
@@ -363,7 +378,7 @@ public class NetworkIoMapPayloadContractTests
                       "selectorDiagnostics": ["unavailable"],
                       "ioDetails": {
                         "addresses": [],
-                        "channels": [{"number": 0, "ioType": "Input", "tagMatches": [{{tagMatchJson}}]}]
+                        "channels": [{"number": 0, "ioType": "Input", "type": null, "channelAddressBits": null, "channelWidthBits": null, "logicalAddress": null, "tagMatches": [{{tagMatchJson}}]}]
                       }
                     }
                   ]
@@ -381,10 +396,14 @@ public class NetworkIoMapPayloadContractTests
         Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
         Assert.DoesNotContain(LeakToken, item.Failure.Message, StringComparison.Ordinal);
 
-        // The precise rejection location is reported through the bounded protocol diagnostic
-        // (validator chain), never through the public failure message.
+        // The worker-payload reader rejects an explicit null in a declared non-nullable member
+        // while deserializing, before any typed validator runs. The bounded protocol diagnostic
+        // therefore names the operation and the decode step only, never a validator and never the
+        // rejected payload; the public failure message carries neither.
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Contains("ValidateIoDetails", diagnostic, StringComparison.Ordinal);
+        Assert.Equal(
+            "TiaMcpServer: worker payload contract rejection: operation=read_hardware_config; validators=Decode.",
+            diagnostic);
         Assert.DoesNotContain(LeakToken, diagnostic, StringComparison.Ordinal);
     }
 
@@ -477,20 +496,27 @@ public class NetworkIoMapPayloadContractTests
     public void Project_LogsBoundedValidatorLocationWithoutLeakingTheRejectedPayload()
     {
         var diagnostics = new List<string>();
+        // A null address element passes the reader (it does not inspect collection elements) and
+        // is rejected by ValidateIoDetails, so the diagnostic names that validator.
         var payload = """
             {
               "devices": [
                 {
                   "name": "PLC_1",
+                  "typeIdentifier": null,
                   "items": [
                     {
+                      "name": null,
+                      "typeIdentifier": null,
+                      "positionNumber": null,
+                      "address": null,
                       "networkInterfaces": [],
                       "communicationConnections": [],
                       "items": [],
                       "selectable": false,
                       "selector": null,
                       "selectorDiagnostics": ["unavailable"],
-                      "ioDetails": {"addresses": null, "channels": []}
+                      "ioDetails": {"addresses": [null], "channels": []}
                     }
                   ]
                 }
@@ -853,8 +879,13 @@ public class NetworkIoMapPayloadContractTests
               "devices": [
                 {
                   "name": "PLC_1",
+                  "typeIdentifier": null,
                   "items": [
                     {
+                      "name": null,
+                      "typeIdentifier": null,
+                      "positionNumber": null,
+                      "address": null,
                       "networkInterfaces": [],
                       "communicationConnections": [],
                       "selectable": false,
@@ -863,6 +894,10 @@ public class NetworkIoMapPayloadContractTests
                       "ioDetails": { "addresses": [], "channels": [] },
                       "items": [
                         {
+                          "name": null,
+                          "typeIdentifier": null,
+                          "positionNumber": null,
+                          "address": null,
                           "networkInterfaces": [],
                           "communicationConnections": [],
                           "items": [],
@@ -902,7 +937,7 @@ public class NetworkIoMapPayloadContractTests
     [Fact]
     public void DecodeHardwareConfig_OfALegacyPayloadKeepsCanonicalSerializationFreeOfIoDetails()
     {
-        const string legacy = """{"devices":[{"name":"PLC_1","items":[{"networkInterfaces":[],"communicationConnections":[],"items":[],"selectable":false,"selector":null,"selectorDiagnostics":["unavailable"]}]}],"subnets":[],"messages":[]}""";
+        const string legacy = """{"devices":[{"name":"PLC_1","typeIdentifier":null,"items":[{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"networkInterfaces":[],"communicationConnections":[],"items":[],"selectable":false,"selector":null,"selectorDiagnostics":["unavailable"]}]}],"subnets":[],"messages":[]}""";
 
         var decoded = NetworkPayloadContract.DecodeHardwareConfig(legacy);
 

@@ -626,7 +626,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 // PLC plus a multi-homed PC station so node, subnet and IO-system identities are
                 // observable end to end.
                 "read_hardware_config" => Success(HardwareConfigPayload()),
-                "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"typeIdentifier\":\"OrderNumber:TEST\"}]"}""",
+                "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"articleNumber\":null,\"version\":null,\"typeIdentifier\":\"OrderNumber:TEST\",\"typeIdentifierNormalized\":null,\"catalogPath\":null,\"description\":null}]"}""",
                 // The write payloads must satisfy AddDeviceResultInfo / ConfigureNetworkDeviceResultInfo
                 // too. Their free-text members carry seq so request ordering stays observable
                 // without smuggling an unmapped member past the declared contract.

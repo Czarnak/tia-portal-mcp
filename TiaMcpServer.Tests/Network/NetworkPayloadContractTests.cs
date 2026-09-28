@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
@@ -29,7 +32,7 @@ public class NetworkPayloadContractTests
         JsonValueKind.Object)]
     [InlineData(
         "search_equipment_catalog",
-        """[{"typeName":"CPU 1510","typeIdentifier":"OrderNumber:6ES7 510-1DJ01-0AB0/V2.0"}]""",
+        """[{"typeName":"CPU 1510","articleNumber":null,"version":null,"typeIdentifier":"OrderNumber:6ES7 510-1DJ01-0AB0/V2.0","typeIdentifierNormalized":null,"catalogPath":null,"description":null}]""",
         JsonValueKind.Array)]
     [InlineData(
         "add_network_device",
@@ -115,7 +118,20 @@ public class NetworkPayloadContractTests
                     "deviceName": "PLC_1",
                     "itemPath": [
                       {"index":0,"name":"PROFINET interface_1","positionNumber":1,"typeIdentifier":"OrderNumber:TEST"}
-                    ]
+                    ],
+                    "interfaceName": null,
+                    "interfaceType": null,
+                    "interfaceOperatingMode": null,
+                    "nodeId": null,
+                    "nodeIndex": null,
+                    "subnetId": null,
+                    "number": null,
+                    "ioSystemIndex": null,
+                    "ioSystemName": null,
+                    "connectionIndex": null,
+                    "connectionType": null,
+                    "localConnectionName": null,
+                    "localConnectionId": null
                   },
                   "selectorDiagnostics": [],
                   "communicationConnections": [
@@ -132,6 +148,15 @@ public class NetworkPayloadContractTests
                         "itemPath": [
                           {"index":0,"name":"PROFINET interface_1","positionNumber":1,"typeIdentifier":"OrderNumber:TEST"}
                         ],
+                        "interfaceName": null,
+                        "interfaceType": null,
+                        "interfaceOperatingMode": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "subnetId": null,
+                        "number": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
                         "connectionIndex": 0,
                         "connectionType": "S7Connection",
                         "localConnectionName": "S7_Connection_1",
@@ -150,7 +175,19 @@ public class NetworkPayloadContractTests
                         "itemPath": [
                           {"index":0,"name":"PROFINET interface_1","positionNumber":1,"typeIdentifier":"OrderNumber:TEST"}
                         ],
-                        "interfaceName": "PROFINET interface_1"
+                        "interfaceName": "PROFINET interface_1",
+                        "interfaceType": null,
+                        "interfaceOperatingMode": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "subnetId": null,
+                        "number": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "localConnectionName": null,
+                        "localConnectionId": null
                       },
                       "selectorDiagnostics": [],
                       "nodes": [
@@ -164,7 +201,7 @@ public class NetworkPayloadContractTests
                           "subnetName": "PN/IE_1",
                           "ioSystemName": "IO system_1",
                           "selectable": true,
-                          "selector": {"kind":"node","deviceName":"PLC_1","nodeId":"0"},
+                          "selector": {"kind":"node","deviceName":"PLC_1","itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":"0","nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},
                           "selectorDiagnostics": []
                         }
                       ]
@@ -182,7 +219,7 @@ public class NetworkPayloadContractTests
               "networkType": "Ethernet",
               "typeIdentifier": "Ethernet",
               "selectable": true,
-              "selector": {"kind":"subnet","subnetId":"subnet-1"},
+              "selector": {"kind":"subnet","deviceName":null,"itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":null,"nodeIndex":null,"subnetId":"subnet-1","number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},
               "selectorDiagnostics": [],
               "ioSystems": [
                 {
@@ -190,7 +227,7 @@ public class NetworkPayloadContractTests
                   "number": 100,
                   "ioControllerName": "PLC_1",
                   "selectable": true,
-                  "selector": {"kind":"ioSystem","subnetId":"subnet-1","number":100},
+                  "selector": {"kind":"ioSystem","deviceName":null,"itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":null,"nodeIndex":null,"subnetId":"subnet-1","number":100,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},
                   "selectorDiagnostics": [],
                   "connectedDeviceNames": ["ET200SP_1"]
                 }
@@ -209,7 +246,7 @@ public class NetworkPayloadContractTests
         JsonValueKind.Object)]
     [InlineData(
         "inspect_network_object",
-        """{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"nodeName":"X1","nodeType":"Ethernet","deviceItemPath":[]},"attributes":[],"messages":[]}""",
+        """{"target":{"kind":"node","deviceName":"PLC_1","itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":"node-1","nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},"evidence":{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":"X1","nodeType":"Ethernet","subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},"attributes":[],"messages":[]}""",
         JsonValueKind.Object)]
     public void Project_DecodesPhase3OperationsIntoTheirResultTypes(
         string operation,
@@ -235,13 +272,35 @@ public class NetworkPayloadContractTests
                 "itemPath": [
                   {"index":0,"name":"CPU_1","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}
                 ],
+                "interfaceName": null,
+                "interfaceType": null,
+                "interfaceOperatingMode": null,
+                "nodeId": null,
+                "nodeIndex": null,
+                "subnetId": null,
+                "number": null,
+                "ioSystemIndex": null,
+                "ioSystemName": null,
                 "connectionIndex": 0,
                 "connectionType": "S7Connection",
                 "localConnectionName": "S7_Connection_1",
                 "localConnectionId": "16#1001"
               },
               "evidence": {
+                "name": null,
+                "typeIdentifier": null,
+                "positionNumber": null,
+                "address": null,
                 "deviceItemPath": ["CPU_1"],
+                "interfaceName": null,
+                "interfaceType": null,
+                "interfaceOperatingMode": null,
+                "nodeName": null,
+                "nodeType": null,
+                "subnetName": null,
+                "networkType": null,
+                "ioSystemName": null,
+                "ioControllerName": null,
                 "connectionIsValid": true,
                 "localEndpointName": "X1",
                 "partnerEndpointName": "X1",
@@ -255,7 +314,8 @@ public class NetworkPayloadContractTests
                   "access": "readOnly",
                   "supportedTypes": ["System.String"],
                   "availability": "available",
-                  "value": {"kind":"string","value":"16#1001","typeName":"System.String"}
+                  "value": {"kind":"string","value":"16#1001","typeName":"System.String"},
+                  "diagnostic": null
                 }
               ],
               "messages": []
@@ -276,12 +336,12 @@ public class NetworkPayloadContractTests
         var payload = """
             {
               "items": [
-                {"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}]},"evidence":{"name":"if_1"},"diagnostics":[]},
-                {"kind":"networkInterface","selectable":true,"selector":{"kind":"networkInterface","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}],"interfaceName":"PROFINET interface_1"},"evidence":{"interfaceName":"PROFINET interface_1"},"diagnostics":[]},
-                {"kind":"node","selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"nodeName":"X1"},"diagnostics":[]},
-                {"kind":"subnet","selectable":true,"selector":{"kind":"subnet","subnetId":"subnet-1"},"evidence":{"subnetName":"PN/IE_1"},"diagnostics":[]},
-                {"kind":"ioSystem","selectable":true,"selector":{"kind":"ioSystem","subnetId":"subnet-1","number":100},"evidence":{"ioSystemName":"IO system_1"},"diagnostics":[]},
-                {"kind":"communicationConnection","selectable":false,"selector":null,"evidence":{"localEndpointName":"S7 connection"},"diagnostics":["Connection identity unavailable."]}
+                {"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":null,"nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},"evidence":{"name":"if_1","typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":null,"nodeType":null,"subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},"diagnostics":[]},
+                {"kind":"networkInterface","selectable":true,"selector":{"kind":"networkInterface","deviceName":"PLC_1","itemPath":[{"index":0,"name":"if_1","positionNumber":1,"typeIdentifier":"T"}],"interfaceName":"PROFINET interface_1","interfaceType":null,"interfaceOperatingMode":null,"nodeId":null,"nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},"evidence":{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":"PROFINET interface_1","interfaceType":null,"interfaceOperatingMode":null,"nodeName":null,"nodeType":null,"subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},"diagnostics":[]},
+                {"kind":"node","selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":"node-1","nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},"evidence":{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":"X1","nodeType":null,"subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},"diagnostics":[]},
+                {"kind":"subnet","selectable":true,"selector":{"kind":"subnet","deviceName":null,"itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":null,"nodeIndex":null,"subnetId":"subnet-1","number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},"evidence":{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":null,"nodeType":null,"subnetName":"PN/IE_1","networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},"diagnostics":[]},
+                {"kind":"ioSystem","selectable":true,"selector":{"kind":"ioSystem","deviceName":null,"itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":null,"nodeIndex":null,"subnetId":"subnet-1","number":100,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},"evidence":{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":null,"nodeType":null,"subnetName":null,"networkType":null,"ioSystemName":"IO system_1","ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},"diagnostics":[]},
+                {"kind":"communicationConnection","selectable":false,"selector":null,"evidence":{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":null,"nodeType":null,"subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":"S7 connection","partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},"diagnostics":["Connection identity unavailable."]}
               ],
               "totalCount": 6,
               "returnedCount": 6,
@@ -311,7 +371,7 @@ public class NetworkPayloadContractTests
                   "kind":"node",
                   "selectable":false,
                   "selector":null,
-                  "evidence":{"nodeName":"X1"},
+                  "evidence":{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":"X1","nodeType":null,"subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},
                   "diagnostics":["Node identity could not be read; selector not available."]
                 }
               ],
@@ -334,7 +394,7 @@ public class NetworkPayloadContractTests
     {
         var payload = """
             {
-              "target": {"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},
+              "target": {"kind":"node","deviceName":"PLC_1","itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":"node-1","nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},
               "evidence": {
                 "name": "X1",
                 "typeIdentifier": "OrderNumber:TEST",
@@ -357,15 +417,15 @@ public class NetworkPayloadContractTests
                 "partnerSubnetName": "PN/IE_1"
               },
               "attributes": [
-                {"name":"nullAttribute","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"kind":"null","value":null}},
-                {"name":"stringAttribute","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"192.168.0.10"}},
-                {"name":"booleanAttribute","source":"modeled","access":"readOnly","supportedTypes":["boolean"],"availability":"available","value":{"kind":"boolean","value":true}},
-                {"name":"integerAttribute","source":"modeled","access":"readOnly","supportedTypes":["integer"],"availability":"available","value":{"kind":"integer","value":1500}},
-                {"name":"numberAttribute","source":"modeled","access":"readOnly","supportedTypes":["number"],"availability":"available","value":{"kind":"number","value":3.14}},
-                {"name":"enumAttribute","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Siemens.TransferMode","symbol":"Ethernet","numericValue":1}}},
-                {"name":"unknownAttribute","source":null,"access":"unknown","supportedTypes":[],"availability":"unknownAttribute","diagnostic":{"category":"unknown_attribute","message":"Attribute was not recognized."}},
-                {"name":"readFailed","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"readFailed","diagnostic":{"category":"read_error","message":"read failed"}},
-                {"name":"unrepresentable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"unrepresentable","diagnostic":{"category":"type_error","message":"cannot represent value"}}
+                {"name":"nullAttribute","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available","value":{"kind":"null","value":null,"typeName":null},"diagnostic":null},
+                {"name":"stringAttribute","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"192.168.0.10","typeName":null},"diagnostic":null},
+                {"name":"booleanAttribute","source":"modeled","access":"readOnly","supportedTypes":["boolean"],"availability":"available","value":{"kind":"boolean","value":true,"typeName":null},"diagnostic":null},
+                {"name":"integerAttribute","source":"modeled","access":"readOnly","supportedTypes":["integer"],"availability":"available","value":{"kind":"integer","value":1500,"typeName":null},"diagnostic":null},
+                {"name":"numberAttribute","source":"modeled","access":"readOnly","supportedTypes":["number"],"availability":"available","value":{"kind":"number","value":3.14,"typeName":null},"diagnostic":null},
+                {"name":"enumAttribute","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Siemens.TransferMode","symbol":"Ethernet","numericValue":1},"typeName":null},"diagnostic":null},
+                {"name":"unknownAttribute","source":null,"access":"unknown","supportedTypes":[],"availability":"unknownAttribute","value":null,"diagnostic":{"category":"unknown_attribute","message":"Attribute was not recognized.","clrTypeName":null}},
+                {"name":"readFailed","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"readFailed","value":null,"diagnostic":{"category":"read_error","message":"read failed","clrTypeName":null}},
+                {"name":"unrepresentable","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"unrepresentable","value":null,"diagnostic":{"category":"type_error","message":"cannot represent value","clrTypeName":null}}
               ],
               "messages": []
             }
@@ -392,11 +452,11 @@ public class NetworkPayloadContractTests
     {
         var payload = """
             {
-              "target": {"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},
-              "evidence": {"nodeName":"X1","nodeType":"Ethernet","deviceItemPath":[]},
+              "target": {"kind":"node","deviceName":"PLC_1","itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":"node-1","nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null},
+              "evidence": {"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":"X1","nodeType":"Ethernet","subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},
               "attributes": [
-                {"name":"First","source":"dynamic","access":"readOnly","supportedTypes":["System.String"],"availability":"readFailed","diagnostic":{"category":"read_error","message":"first failed"}},
-                {"name":"Later","source":"dynamic","access":"readOnly","supportedTypes":["System.String"],"availability":"available","value":{"kind":"string","value":"still present","typeName":"System.String"}}
+                {"name":"First","source":"dynamic","access":"readOnly","supportedTypes":["System.String"],"availability":"readFailed","value":null,"diagnostic":{"category":"read_error","message":"first failed","clrTypeName":null}},
+                {"name":"Later","source":"dynamic","access":"readOnly","supportedTypes":["System.String"],"availability":"available","value":{"kind":"string","value":"still present","typeName":"System.String"},"diagnostic":null}
               ],
               "messages": []
             }
@@ -477,6 +537,11 @@ public class NetworkPayloadContractTests
         // an item, distinct from an explicit null (selector) or a CLR-initialized default (evidence).
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"selector":null,"diagnostics":[],"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
+
+        // list_network_objects: items[].selector alone is missing from an otherwise complete,
+        // unselectable item. Absence reads as null, which agrees with selectable=false, so only the
+        // required-member rule can reject it.
+        { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":false,"evidence":{{{CompleteEvidence}}},"diagnostics":["{{{LeakToken}}}"]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
 
         // list_network_objects: items[].kind, items[].selectable, and items[].diagnostics are each
         // required root members of an item, isolated here from an otherwise fully valid item (a
@@ -595,7 +660,7 @@ public class NetworkPayloadContractTests
                   "kind": "{{{LeakToken}}}",
                   "selectable": false,
                   "selector": null,
-                  "evidence": { "deviceItemPath": [] },
+                  "evidence": {"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":null,"nodeType":null,"subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null},
                   "diagnostics": ["selector unavailable"]
                 }
               ],
@@ -763,7 +828,20 @@ public class NetworkPayloadContractTests
                         "deviceName": "PLC_1",
                         "itemPath": [
                           {"index": 0, "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": "OrderNumber:IF"}
-                        ]
+                        ],
+                        "interfaceName": null,
+                        "interfaceType": null,
+                        "interfaceOperatingMode": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "subnetId": null,
+                        "number": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "localConnectionName": null,
+                        "localConnectionId": null
                       },
                       "selectorDiagnostics": [],
                       "communicationConnections": [
@@ -780,9 +858,19 @@ public class NetworkPayloadContractTests
                             "itemPath": [
                               {"index": 0, "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": "OrderNumber:IF"}
                             ],
+                            "interfaceName": null,
+                            "interfaceType": null,
+                            "interfaceOperatingMode": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "subnetId": null,
+                            "number": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
                             "connectionIndex": 0,
                             "connectionType": "HmiConnection",
-                            "localConnectionName": "HMI_Connection_1"
+                            "localConnectionName": "HMI_Connection_1",
+                            "localConnectionId": null
                           },
                           "selectorDiagnostics": []
                         }
@@ -797,7 +885,19 @@ public class NetworkPayloadContractTests
                             "itemPath": [
                               {"index": 0, "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": "OrderNumber:IF"}
                             ],
-                            "interfaceName": "PROFINET interface_1"
+                            "interfaceName": "PROFINET interface_1",
+                            "interfaceType": null,
+                            "interfaceOperatingMode": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "subnetId": null,
+                            "number": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
+                            "connectionIndex": null,
+                            "connectionType": null,
+                            "localConnectionName": null,
+                            "localConnectionId": null
                           },
                           "selectorDiagnostics": [],
                           "nodes": [
@@ -806,8 +906,12 @@ public class NetworkPayloadContractTests
                               "nodeId": "node-1",
                               "nodeType": "Ethernet",
                               "ipAddress": "192.168.0.10",
+                              "subnetMask": null,
+                              "pnDeviceName": null,
+                              "subnetName": null,
+                              "ioSystemName": null,
                               "selectable": true,
-                              "selector": {"kind": "node", "deviceName": "PLC_1", "nodeId": "node-1"},
+                              "selector": {"kind": "node", "deviceName": "PLC_1", "itemPath": null, "interfaceName": null, "interfaceType": null, "interfaceOperatingMode": null, "nodeId": "node-1", "nodeIndex": null, "subnetId": null, "number": null, "ioSystemIndex": null, "ioSystemName": null, "connectionIndex": null, "connectionType": null, "localConnectionName": null, "localConnectionId": null},
                               "selectorDiagnostics": []
                             }
                           ]
@@ -825,7 +929,7 @@ public class NetworkPayloadContractTests
                   "networkType": "Ethernet",
                   "typeIdentifier": "Ethernet",
                   "selectable": true,
-                  "selector": {"kind": "subnet", "subnetId": "subnet-1"},
+                  "selector": {"kind": "subnet", "deviceName": null, "itemPath": null, "interfaceName": null, "interfaceType": null, "interfaceOperatingMode": null, "nodeId": null, "nodeIndex": null, "subnetId": "subnet-1", "number": null, "ioSystemIndex": null, "ioSystemName": null, "connectionIndex": null, "connectionType": null, "localConnectionName": null, "localConnectionId": null},
                   "selectorDiagnostics": [],
                   "ioSystems": [
                     {
@@ -833,7 +937,7 @@ public class NetworkPayloadContractTests
                       "number": 100,
                       "ioControllerName": "PLC_1",
                       "selectable": true,
-                      "selector": {"kind": "ioSystem", "subnetId": "subnet-1", "number": 100},
+                      "selector": {"kind": "ioSystem", "deviceName": null, "itemPath": null, "interfaceName": null, "interfaceType": null, "interfaceOperatingMode": null, "nodeId": null, "nodeIndex": null, "subnetId": "subnet-1", "number": 100, "ioSystemIndex": null, "ioSystemName": null, "connectionIndex": null, "connectionType": null, "localConnectionName": null, "localConnectionId": null},
                       "selectorDiagnostics": [],
                       "connectedDeviceNames": []
                     }
@@ -897,6 +1001,279 @@ public class NetworkPayloadContractTests
             """;
 
         var item = Project("read_hardware_config", payload);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Complete fixtures: every declared member present, the way the worker writes it (explicit
+    // nulls for nullable members). A rejection of a mutated complete fixture can only come from
+    // the one mutation, so these isolate what the typed validators and the reader enforce.
+    // ---------------------------------------------------------------------------------------
+
+    private const string CompleteEvidence = """{"name":null,"typeIdentifier":null,"positionNumber":null,"address":null,"deviceItemPath":[],"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeName":"X1","nodeType":"Ethernet","subnetName":null,"networkType":null,"ioSystemName":null,"ioControllerName":null,"connectionIsValid":null,"localEndpointName":null,"partnerEndpointName":null,"localSubnetName":null,"partnerSubnetName":null}""";
+
+    private const string CompleteNodeSelector = """{"kind":"node","deviceName":"PLC_1","itemPath":null,"interfaceName":null,"interfaceType":null,"interfaceOperatingMode":null,"nodeId":"node-1","nodeIndex":null,"subnetId":null,"number":null,"ioSystemIndex":null,"ioSystemName":null,"connectionIndex":null,"connectionType":null,"localConnectionName":null,"localConnectionId":null}""";
+
+    /// <summary>Read with <c>includeIoDetails: true</c>, so the device item carries its I/O map.</summary>
+    private const string CompleteHardwareConfig = """
+        {
+          "devices": [
+            {
+              "name": "PLC_1",
+              "typeIdentifier": null,
+              "items": [
+                {
+                  "name": "CPU",
+                  "typeIdentifier": null,
+                  "positionNumber": null,
+                  "address": null,
+                  "ioDetails": {
+                    "addresses": [
+                      { "ioType": "Input", "startAddress": 0, "length": 2, "context": null, "controllerNames": ["PLC_1"] }
+                    ],
+                    "channels": [
+                      {
+                        "number": 0,
+                        "ioType": "Input",
+                        "type": null,
+                        "channelAddressBits": 0,
+                        "channelWidthBits": 1,
+                        "logicalAddress": "%I0.0",
+                        "tagMatches": [
+                          { "name": "Start", "dataType": "Bool", "logicalAddress": "%I0.0", "tableName": "Tags", "folderPath": "" }
+                        ]
+                      }
+                    ]
+                  },
+                  "selectable": false,
+                  "selector": null,
+                  "selectorDiagnostics": ["unavailable"],
+                  "communicationConnections": [
+                    {
+                      "connectionType": "S7Connection",
+                      "localConnectionName": "S7_Connection_1",
+                      "localConnectionId": null,
+                      "partnerName": null,
+                      "isValid": true,
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"]
+                    }
+                  ],
+                  "networkInterfaces": [
+                    {
+                      "name": "PROFINET interface_1",
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "nodes": [
+                        {
+                          "name": "X1",
+                          "nodeId": "0",
+                          "nodeType": null,
+                          "ipAddress": null,
+                          "subnetMask": null,
+                          "pnDeviceName": null,
+                          "subnetName": null,
+                          "ioSystemName": null,
+                          "selectable": false,
+                          "selector": null,
+                          "selectorDiagnostics": ["unavailable"]
+                        }
+                      ]
+                    }
+                  ],
+                  "items": []
+                }
+              ]
+            }
+          ],
+          "subnets": [
+            {
+              "name": "PN/IE_1",
+              "subnetId": "subnet-1",
+              "networkType": null,
+              "typeIdentifier": null,
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": ["unavailable"],
+              "ioSystems": [
+                {
+                  "name": "IO system_1",
+                  "number": null,
+                  "ioControllerName": null,
+                  "selectable": false,
+                  "selector": null,
+                  "selectorDiagnostics": ["unavailable"],
+                  "connectedDeviceNames": []
+                }
+              ],
+              "connectedNodeNames": []
+            }
+          ],
+          "messages": []
+        }
+        """;
+
+    private const string CompleteCatalog = """[{"typeName":"CPU 1510","articleNumber":null,"version":null,"typeIdentifier":"OrderNumber:X","typeIdentifierNormalized":null,"catalogPath":null,"description":null}]""";
+
+    private const string CompleteAddDeviceResult = """{"deviceName":"PLC_1","rootItemName":"PLC_1","typeIdentifier":"OrderNumber:X","warnings":[]}""";
+
+    private const string CompleteConfigureResult = """{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{},"messages":[]}""";
+
+    private static readonly string CompleteObjectList = $$"""{"items":[{"kind":"node","selectable":false,"selector":null,"evidence":{{CompleteEvidence}},"diagnostics":["unavailable"]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""";
+
+    /// <summary>Attributes: [0] available string, [1] available enum, [2] unknown attribute.</summary>
+    private static readonly string CompleteInspection = $$$"""
+        {
+          "target": {{{CompleteNodeSelector}}},
+          "evidence": {{{CompleteEvidence}}},
+          "attributes": [
+            {"name":"IpAddress","source":"modeled","access":"readOnly","supportedTypes":["string"],"availability":"available","value":{"kind":"string","value":"192.0.2.1","typeName":null},"diagnostic":null},
+            {"name":"Mode","source":"modeled","access":"readOnly","supportedTypes":["enum"],"availability":"available","value":{"kind":"enum","value":{"typeName":"Mode","symbol":"On","numericValue":1},"typeName":"Mode"},"diagnostic":null},
+            {"name":"Missing","source":null,"access":"unknown","supportedTypes":[],"availability":"unknownAttribute","value":null,"diagnostic":{"category":"unknown_attribute","message":"not found","clrTypeName":null}}
+          ],
+          "messages": []
+        }
+        """;
+
+    private static string CompleteFixture(string operation) => operation switch
+    {
+        "read_hardware_config" => CompleteHardwareConfig,
+        "search_equipment_catalog" => CompleteCatalog,
+        "add_network_device" => CompleteAddDeviceResult,
+        "configure_network_device" => CompleteConfigureResult,
+        "list_network_objects" => CompleteObjectList,
+        "inspect_network_object" => CompleteInspection,
+        _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null),
+    };
+
+    private static StructuredOperationItem ProjectComplete(string operation, string payload)
+        => NetworkPayloadContract.Project(
+            new NetworkOperationRequest
+            {
+                OperationId = "op-1",
+                Operation = operation,
+                IncludeIoDetails = operation == "read_hardware_config" ? true : null,
+            },
+            WorkerCallResult.Ok(payload));
+
+    /// <summary>
+    /// Returns <paramref name="json"/> with the member at <paramref name="path"/> (for example
+    /// <c>devices[0].items</c> or <c>[0].typeName</c>) set to JSON null. The member must already
+    /// exist: adding it would make the payload fail as an unmapped member instead.
+    /// </summary>
+    private static string WithNullAt(string json, string path)
+    {
+        var root = JsonNode.Parse(json)!;
+        var steps = Regex.Matches(path, @"\[\d+\]|[^.\[\]]+").Select(match => match.Value).ToArray();
+        var parent = root;
+        foreach (var step in steps[..^1])
+        {
+            parent = step.StartsWith('[')
+                ? parent.AsArray()[int.Parse(step[1..^1], CultureInfo.InvariantCulture)]!
+                : parent.AsObject()[step]!;
+        }
+
+        var last = steps[^1];
+        var container = parent.AsObject();
+        Assert.True(container.ContainsKey(last), $"'{path}' is not a member of the complete fixture.");
+        container[last] = null;
+        return root.ToJsonString();
+    }
+
+    [Theory]
+    [InlineData("read_hardware_config")]
+    [InlineData("search_equipment_catalog")]
+    [InlineData("add_network_device")]
+    [InlineData("configure_network_device")]
+    [InlineData("list_network_objects")]
+    [InlineData("inspect_network_object")]
+    public void Project_AcceptsEachCompleteFixture(string operation)
+    {
+        var item = ProjectComplete(operation, CompleteFixture(operation));
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+    }
+
+    [Fact]
+    public void Project_RejectsAnAvailableAttributeWithANullValue_WhenEveryMemberIsPresent()
+    {
+        var item = ProjectComplete("inspect_network_object", WithNullAt(CompleteInspection, "attributes[0].value"));
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    /// <summary>
+    /// Every member the contract declares non-nullable, on the real Contracts types. An explicit
+    /// null in any of them is rejected by the worker-payload reader's nullable annotations.
+    /// </summary>
+    public static TheoryData<string, string> DeclaredNonNullableMembers() => new()
+    {
+        { "read_hardware_config", "devices" },
+        { "read_hardware_config", "subnets" },
+        { "read_hardware_config", "messages" },
+        { "read_hardware_config", "devices[0].items" },
+        { "read_hardware_config", "devices[0].items[0].selectorDiagnostics" },
+        { "read_hardware_config", "devices[0].items[0].communicationConnections" },
+        { "read_hardware_config", "devices[0].items[0].networkInterfaces" },
+        { "read_hardware_config", "devices[0].items[0].items" },
+        { "read_hardware_config", "devices[0].items[0].communicationConnections[0].connectionType" },
+        { "read_hardware_config", "devices[0].items[0].communicationConnections[0].localConnectionName" },
+        { "read_hardware_config", "devices[0].items[0].communicationConnections[0].selectorDiagnostics" },
+        { "read_hardware_config", "devices[0].items[0].networkInterfaces[0].selectorDiagnostics" },
+        { "read_hardware_config", "devices[0].items[0].networkInterfaces[0].nodes" },
+        { "read_hardware_config", "devices[0].items[0].networkInterfaces[0].nodes[0].selectorDiagnostics" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.addresses" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.channels" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.addresses[0].controllerNames" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.channels[0].tagMatches" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.channels[0].tagMatches[0].name" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.channels[0].tagMatches[0].dataType" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.channels[0].tagMatches[0].logicalAddress" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.channels[0].tagMatches[0].tableName" },
+        { "read_hardware_config", "devices[0].items[0].ioDetails.channels[0].tagMatches[0].folderPath" },
+        { "read_hardware_config", "subnets[0].name" },
+        { "read_hardware_config", "subnets[0].selectorDiagnostics" },
+        { "read_hardware_config", "subnets[0].ioSystems" },
+        { "read_hardware_config", "subnets[0].connectedNodeNames" },
+        { "read_hardware_config", "subnets[0].ioSystems[0].selectorDiagnostics" },
+        { "read_hardware_config", "subnets[0].ioSystems[0].connectedDeviceNames" },
+        { "search_equipment_catalog", "[0].typeName" },
+        { "search_equipment_catalog", "[0].typeIdentifier" },
+        { "add_network_device", "deviceName" },
+        { "add_network_device", "rootItemName" },
+        { "add_network_device", "typeIdentifier" },
+        { "add_network_device", "warnings" },
+        { "configure_network_device", "deviceName" },
+        { "configure_network_device", "appliedSettings" },
+        { "configure_network_device", "skippedSettings" },
+        { "configure_network_device", "messages" },
+        { "list_network_objects", "items" },
+        { "list_network_objects", "items[0].evidence" },
+        { "list_network_objects", "items[0].evidence.deviceItemPath" },
+        { "list_network_objects", "items[0].diagnostics" },
+        { "inspect_network_object", "target" },
+        { "inspect_network_object", "evidence" },
+        { "inspect_network_object", "evidence.deviceItemPath" },
+        { "inspect_network_object", "attributes" },
+        { "inspect_network_object", "messages" },
+        { "inspect_network_object", "attributes[0].name" },
+        { "inspect_network_object", "attributes[0].supportedTypes" },
+        { "inspect_network_object", "attributes[1].value.value.typeName" },
+        { "inspect_network_object", "attributes[1].value.value.symbol" },
+        { "inspect_network_object", "attributes[2].diagnostic.category" },
+        { "inspect_network_object", "attributes[2].diagnostic.message" },
+    };
+
+    [Theory]
+    [MemberData(nameof(DeclaredNonNullableMembers))]
+    public void Project_RejectsAnExplicitNullInADeclaredNonNullableMember(string operation, string memberPath)
+    {
+        var item = ProjectComplete(operation, WithNullAt(CompleteFixture(operation), memberPath));
 
         Assert.Equal(OperationBatchStatus.Failed, item.Status);
         Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
