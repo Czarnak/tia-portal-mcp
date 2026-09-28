@@ -45,6 +45,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-28 | [JSON contract Phase 1a — worker wire normalization](plans/2026-09-28-json-contract-phase1a-worker-wire.md) |
 | 2026-09-27 | [Wave 2 I2 — truthful block-import outcomes](plans/2026-09-27-wave2-i2-truthful-block-import-outcomes.md) |
 | 2026-09-27 | [Wave 2 T2 — type-content binding policy](plans/2026-09-27-wave2-t2-type-content-binding-policy.md) |
 | 2026-09-26 | [Wave 1 L1 — lifecycle rebind and preview safety](plans/2026-09-26-wave1-l1-lifecycle-rebind-preview-safety.md) |

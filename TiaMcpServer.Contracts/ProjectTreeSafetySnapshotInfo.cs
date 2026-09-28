@@ -34,6 +34,7 @@ public sealed record ProjectTreeGroupDescendantInfo(
     string? Content,
     [property: JsonRequired] IReadOnlyList<ProjectTreeGroupDescendantInfo> Children);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record CreateBlockSafetySnapshotInfo(
     [property: JsonRequired] ProjectTreeOwnerScopeInfo Owner,
     [property: JsonRequired] string ParentPath,
@@ -41,12 +42,14 @@ public sealed record CreateBlockSafetySnapshotInfo(
     [property: JsonRequired] IReadOnlyList<ProjectTreeOccupancyInfo> Occupancies,
     ProjectTreeBlockExportInfo? OccupiedBlock);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record CreateBlockGroupSafetySnapshotInfo(
     [property: JsonRequired] ProjectTreeOwnerScopeInfo Owner,
     [property: JsonRequired] string ParentPath,
     [property: JsonRequired] IReadOnlyList<ProjectTreeAncestorInfo> Ancestors,
     [property: JsonRequired] IReadOnlyList<ProjectTreeOccupancyInfo> Occupancies);
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public sealed record DeleteBlockGroupSafetySnapshotInfo(
     [property: JsonRequired] ProjectTreeOwnerScopeInfo Owner,
     [property: JsonRequired] string ParentPath,

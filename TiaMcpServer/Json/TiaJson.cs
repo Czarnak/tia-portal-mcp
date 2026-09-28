@@ -10,12 +10,8 @@ namespace TiaMcpServer.Json;
 /// the MCP client by tools not yet on the structured contract, the presentation audit JSONL
 /// records written by WriteSafetyService, the stable hashing that backs presentation-bound
 /// safety tokens, and OperationBatchPayloadBudget's read-batch response length prediction.
-/// Structured tools render through CanonicalJson instead. The host↔worker wire format is not
-/// shared from here either: those options live with each process's transport
-/// (TiaMcpServer/Worker/PersistentWorkerTransport.cs and the worker's Program.cs) and
-/// currently differ — the worker omits nulls when writing. Consolidating them in
-/// TiaMcpServer.Contracts, which already references System.Text.Json, is Phase 1 of
-/// docs/roadmap/json-contract.md.
+/// Structured tools render through CanonicalJson instead. The host↔worker wire format lives in
+/// TiaMcpServer.Contracts.WorkerJson.
 /// </para>
 /// </summary>
 public static class TiaJson

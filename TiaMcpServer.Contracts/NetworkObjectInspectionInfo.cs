@@ -5,6 +5,7 @@ namespace TiaMcpServer.Contracts;
 /// <summary>
 /// Detailed result returned by an <c>inspect_network_object</c> operation.
 /// </summary>
+[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 public sealed class NetworkObjectInspectionInfo
 {
     /// <summary>Verified selector for the object that was inspected.</summary>

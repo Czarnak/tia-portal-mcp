@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts;
 using Xunit;
 
@@ -7,12 +6,7 @@ namespace TiaMcpServer.Tests.Block;
 
 public class CompileCheckInfoTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+    private static readonly JsonSerializerOptions JsonOptions = WorkerJson.PayloadOptionsFor(typeof(CompileCheckReport));
 
     [Fact]
     public void EmptyReportSerializesWithDefaultValues()

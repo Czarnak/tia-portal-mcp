@@ -12,10 +12,7 @@ var fakeSessionGeneration = 1L;
 string? fakeProjectPath = null;
 string? currentProjectPath = null;
 string? currentMethod = null;
-var requestJsonOptions = new JsonSerializerOptions
-{
-    PropertyNameCaseInsensitive = true
-};
+var requestJsonOptions = WorkerJson.Envelope;
 
 // Process-local, mutable hardware state for the "multi-homed-network" scenario (see below): a
 // single PC station exposing two ports on separate interfaces. Declared once per FakeWorker
@@ -140,7 +137,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Payload = "{}",
             ProtocolVersion = WorkerProtocol.Version,
             Capabilities = WorkerProtocol.RequiredCapabilities.ToList()
-        }));
+        }, WorkerJson.Envelope));
         Console.Out.Flush();
         continue;
     }
@@ -501,10 +498,9 @@ while ((line = Console.In.ReadLine()) is not null)
                 "list_tag_tables" => """{"success":false,"error":"wrong route: list_tag_tables"}""",
                 "read_delete_tag_safety_snapshot" when scenario.Contains("tag-safety-dedup-proof", StringComparison.Ordinal) && ++tagSafetyDedupReadCount > 1
                     => """{"success":false,"error":"dedup missing: repeated read_delete_tag_safety_snapshot"}""",
-                "read_delete_tag_safety_snapshot" => Success(JsonSerializer.Serialize(new DeleteTagSafetySnapshotInfo(
+                "read_delete_tag_safety_snapshot" => Success(ToCamelCaseJson(new DeleteTagSafetySnapshotInfo(
                     new("PLC_1", "", "Inputs", "PLC_1/Inputs"),
-                    new("PLC_1", "", "Inputs", "Start", "PLC_1/Inputs/Start", "Bool", "%I0.0", true, true, false)),
-                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })),
+                    new("PLC_1", "", "Inputs", "Start", "PLC_1/Inputs/Start", "Bool", "%I0.0", true, true, false)))),
                 _ => """{"success":false,"error":"unexpected tag safety route-proof method"}"""
             });
             break;
@@ -1485,7 +1481,7 @@ string BlockOutcomeResponse(
                 "Project state may have changed; inspect the project before retrying."
             },
         BlockImportOutcome = outcome
-    });
+    }, WorkerJson.Envelope);
 
 BlockImportOutcomeInfo CompletedBlockOutcome(
     string format,
@@ -1704,12 +1700,10 @@ bool HasNonNullField(string requestLine, string propertyName)
     }
 }
 
-// Renders a real Contracts DTO as camelCase JSON. Used by scenarios that must serialize through
-// complete contract-shaped objects (HardwareConfigInfo, ConfigureNetworkDeviceResultInfo) rather
-// than hand-maintained escaped JSON string fragments: the CLR type is the source of truth for
-// which members exist, so a contract change here is a compile error, not a silently stale literal.
-string ToCamelCaseJson<T>(T value)
-    => JsonSerializer.Serialize(value, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+// Renders a payload exactly as the real worker does (WorkerJson.SerializePayload), from a real
+// Contracts DTO: the CLR type decides which members exist, and the shared policy decides whether
+// null members are written, so a fixture can never show the host a wire shape production does not.
+string ToCamelCaseJson<T>(T value) => WorkerJson.SerializePayload(value);
 
 // Hardware fixtures are serialized from the shared Contracts DTOs and carry the same deterministic
 // selectors the real worker now emits. Keeping this construction in one place means a future

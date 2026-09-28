@@ -236,6 +236,17 @@ sends a `hello` request and requires an exact protocol version and capability
 set. A missing or incompatible handshake terminates that worker and returns
 `protocol_error`; the original engineering request is never forwarded to it.
 
+`TiaMcpServer.Contracts/WorkerJson.cs` is the single definition of the wire
+format, used by the worker, `PersistentWorkerTransport`, and the FakeWorker.
+`WorkerJson.Envelope` reads `WorkerRequest` and `WorkerResponse` (camelCase,
+case-insensitive) and writes responses with null members omitted;
+`WorkerJson.Request` writes requests with every member, null or not.
+`WorkerJson.SerializePayload` renders the `payload` document and writes null
+members unless the payload root carries `[LegacyNullOmission(reason)]`; a
+collection payload follows its element type. The marked set, and the reason each
+type has not switched yet, is pinned by `WorkerPayloadNullPolicyRegisterTests`
+(see [the JSON contract roadmap](roadmap/json-contract.md)).
+
 `OpennessWorkerClient` is the typed host facade. It constructs `WorkerRequest`
 objects, performs host authorization, invokes the transport, normalizes failure
 categories, caps warning output, and applies project-binding transitions.

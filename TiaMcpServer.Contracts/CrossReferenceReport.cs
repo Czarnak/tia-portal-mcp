@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 namespace TiaMcpServer.Contracts;
 
+[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public class CrossReferenceReport
 {
     public string Filter { get; set; } = CrossReferenceFilterNames.Default;

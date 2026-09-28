@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 namespace TiaMcpServer.Contracts;
 
+[LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
 public class CompileCheckReport
 {
     public string Scope { get; set; } = "plc";

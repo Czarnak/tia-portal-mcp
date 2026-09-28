@@ -207,20 +207,12 @@ public class ProjectWriteTools
             return probe;
         }
 
-        ProjectRebindStateInfo? state;
+        ProjectRebindStateInfo state;
         try
         {
-            state = JsonSerializer.Deserialize<ProjectRebindStateInfo>(
-                probe.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            state = ProjectRebindStatePayloadContract.Decode(probe.Payload, source, destination);
         }
         catch (JsonException)
-        {
-            state = null;
-        }
-
-        if (state is null ||
-            !string.Equals(state.SourceProjectPath, source, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(state.DestinationProjectPath, destination, StringComparison.OrdinalIgnoreCase))
         {
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.ProtocolError,

@@ -1,5 +1,10 @@
 namespace TiaMcpServer.Tests.Network;
 
+using System.Text.Json;
+using TiaMcpServer.Contracts;
+using TiaMcpServer.Network;
+using TiaMcpServer.Tests.TestUtilities;
+using TiaMcpServer.Worker;
 using Xunit;
 
 public class NetworkIntrospectionWorkerDispatchTests
@@ -20,11 +25,44 @@ public class NetworkIntrospectionWorkerDispatchTests
     [Fact]
     public void WorkerProgram_PreservesRequiredNullMembersInNetworkObjectListPayloads()
     {
-        var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        var payload = WorkerSerializationHarness.Serialize(new NetworkObjectListInfo()).Payload!;
+        using var json = JsonDocument.Parse(payload);
 
-        Assert.Contains("NetworkObjectListJsonOptions", source, StringComparison.Ordinal);
-        Assert.Contains("DefaultIgnoreCondition = JsonIgnoreCondition.Never", source, StringComparison.Ordinal);
-        Assert.Contains("payload is NetworkObjectListInfo", source, StringComparison.Ordinal);
+        Assert.False(WorkerJson.OmitsNullMembers(typeof(NetworkObjectListInfo)));
+        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("nextCursor").ValueKind);
+    }
+
+    // A successfully read CLR null is a typed value of kind "null", and the host contract requires
+    // its "value" member. The inspection payload still omits other null members, so the real
+    // worker's bytes must keep this one explicit or every inspection with a null attribute fails.
+    [Fact]
+    public void WorkerProgram_InspectionWithANullAttributeValue_PassesTheHostPayloadContract()
+    {
+        var payload = WorkerSerializationHarness.Serialize(new NetworkObjectInspectionInfo
+        {
+            Target = new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = "PLC_1", NodeId = "node-1" },
+            Evidence = new NetworkObjectEvidenceInfo { Name = "X1" },
+            Attributes = new List<NetworkAttributeInfo>
+            {
+                new()
+                {
+                    Name = "nullAttribute",
+                    Source = "modeled",
+                    Access = "readOnly",
+                    Availability = "available",
+                    Value = new NetworkAttributeValueInfo { Kind = "null", Value = null },
+                },
+            },
+        }).Payload!;
+        var diagnostics = new List<string>();
+
+        var item = NetworkPayloadContract.Project(
+            new NetworkOperationRequest { OperationId = "inspect-1", Operation = "inspect_network_object" },
+            WorkerCallResult.Ok(payload),
+            diagnostics.Add);
+
+        Assert.Empty(diagnostics);
+        Assert.Equal("succeeded", item.Status);
     }
 
     [Fact]

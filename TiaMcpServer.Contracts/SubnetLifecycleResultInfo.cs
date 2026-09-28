@@ -1,5 +1,6 @@
 namespace TiaMcpServer.Contracts;
 
+[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 public sealed class SubnetLifecycleResultInfo
 {
     public string SubnetId { get; set; } = string.Empty;

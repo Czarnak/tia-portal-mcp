@@ -1,7 +1,8 @@
 # JSON Contract Normalization Roadmap
 
-Status: Phase 0 (decision and guard) is complete. Phases 1-4 are not started. The three batch
-tools are excluded from this roadmap; see [Scope](#scope).
+Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normalization) is
+complete; Phase 1b and Phases 2-4 are not started. The three batch tools are excluded from this
+roadmap; see [Scope](#scope).
 
 ## Objective
 
@@ -48,16 +49,21 @@ for them: a handled failure is a successful MCP call carrying `success: false` i
 
 Below the tool surface, the host and worker also disagree about JSON:
 
-- The worker writes nulls as omitted members, except for a hard-coded list of three payload types
-  (`TiaMcpServer.OpennessWorker/Program.cs`, `Success<T>`). The structured contract writes explicit
-  nulls. The FakeWorker serializes its Contracts DTO fixtures with explicit nulls, so IPC tests
-  see a different shape than production does.
+- Null handling is declared per worker payload contract (Phase 1a). `WorkerJson.SerializePayload`
+  (`TiaMcpServer.Contracts/WorkerJson.cs`) writes null members unless the payload root carries
+  `[LegacyNullOmission(reason)]`. Every root except `NetworkObjectListInfo`,
+  `ProjectTreeBrowseResultInfo` and `ProjectRebindStateInfo` still carries it, for one of three
+  reasons: `BatchRedesign` (consumed only by the batch tools), `ToolMigration` (returned by a
+  tool still on the legacy contract), or `RequiredMemberEnforcement` (a network payload that
+  switches in Phase 1b). The worker, `PersistentWorkerTransport` and the FakeWorker all render
+  through `WorkerJson`, so IPC tests see the production shape.
 - Required members are enforced three ways: `[JsonRequired]` on the newer Contracts records, not
   at all on the older mutable Contracts classes, and hand-written member lists
   (`RequireJsonMembers`) in `NetworkPayloadContract`.
-- The host decodes worker payloads at five strictness levels: strict `CanonicalJson`, lenient
-  `JsonSerializerDefaults.Web` (`ProjectWriteTools`, `ProjectRebindStateInfo`), untyped
-  `GetProperty` lookups, raw pass-through, and the case-insensitive transport.
+- The host decodes worker payloads at four strictness levels: strict `CanonicalJson`, untyped
+  `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
+  the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
+  rebind-state readers now go through `ProjectRebindStatePayloadContract`.
 - The audit JSONL holds two record shapes in the same file (`resultPreview` string versus `result`
   object), with no record discriminator.
 
@@ -139,23 +145,54 @@ No tool output changed.
 
 ### Phase 1: Worker Wire Normalization
 
-Not visible to clients unless noted.
+Not visible to clients unless noted. Decisions (2026-09-28):
 
-- Define one set of worker-wire serializer options in `TiaMcpServer.Contracts`, which already
-  references System.Text.Json. Use it in the worker, `PersistentWorkerTransport`, and the
-  FakeWorker, so tests see the production shape.
-- Write explicit nulls, removing the worker's per-type null-policy switch. Keep `WhenWritingNull`
-  only on documented opt-in members.
+- Payload types that only the batch tools consume keep omitting nulls until the batch redesign:
+  the batch tools forward raw worker payload text, so explicit nulls would change their output.
+- Payload types returned by `get_project_status`, `compile_check` and the lifecycle tools keep
+  omitting nulls until those tools migrate (Phases 2-3), so Phase 1 stays invisible to clients.
+- Phase 1 ships as two pull requests, 1a and 1b.
+- Host requests keep writing null members, so 1a changes no request byte.
+- The `inspect_network_object` null-value defect found during 1a is fixed in 1a.
+
+#### Phase 1a: Worker Wire Normalization — Complete
+
+- One wire definition, `TiaMcpServer.Contracts/WorkerJson.cs`: `Envelope` for reading both
+  directions and writing responses, `Request` for writing requests (null members kept), and
+  `SerializePayload`, which writes null members unless the payload root carries
+  `[LegacyNullOmission(reason)]`. The worker, `PersistentWorkerTransport` and the FakeWorker use
+  it; the worker's hard-coded per-type switch and every copied options block in the tests are
+  gone.
+- Every payload root that omitted nulls before carries the marker with its reason, and
+  `WorkerPayloadNullPolicyRegisterTests` pins the marked set. The register only shrinks.
+- The FakeWorker renders its DTO fixtures through the production policy, so IPC tests no longer
+  see explicit nulls that the real worker omits (`FakeWorkerWireParityTests`).
+- `probe_open_project_rebind` payloads decode through one strict typed contract,
+  `ProjectRebindStatePayloadContract`, which replaced an untyped member check in
+  `OpennessWorkerClient` and a lenient `JsonSerializerDefaults.Web` decode in `ProjectWriteTools`.
+
+No tool schema and no host request byte changed. The one real-worker byte change is a bug fix
+that the FakeWorker parity exposed: the worker omitted `attributes[].value.value` for a
+successfully read CLR null (kind `null`), which the host's inspection contract requires, so
+`inspect_network_object` failed with `protocol_error` for any object with a null attribute.
+`NetworkAttributeValueInfo.Value` is now always written.
+
+Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture returns a bare
+`ProjectStatusInfo`, while the real worker wraps it in `ProjectLifecycleResultInfo`.
+
+#### Phase 1b: Required-Member Enforcement
+
 - Enforce required members generically in the strict reader
   (`RespectRequiredConstructorParameters`, `RespectNullableAnnotations`) and move the older mutable
-  Contracts classes to records, so the hand-written `RequireJsonMembers` lists can go.
-- Route the lenient and untyped host decodes through `CanonicalJson.Deserialize` with typed
-  Contracts.
-
-Decision reserved for Phase 1 design: the batch tools forward raw worker payload text, so an
-explicit-null switch changes their visible output (members that were omitted appear as `null`).
-Either accept that additive change, or leave the payload types that only batch operations use on
-the current policy until the batch redesign.
+  Contracts classes to records, so the three hand-written required-member validators (Network,
+  hardware page, project tree) can go.
+- Remove the `RequiredMemberEnforcement` markers in the same change, so the network payloads
+  switch to explicit nulls together with the validators that read them. Until then, a member
+  that a hand-written validator requires but the real worker omits when null fails the same way
+  the inspection value did; the FakeWorker now renders that shape, so any fixture holding such
+  a null exposes it.
+- Other host decodes of worker payloads move to the strict gate with the tools that consume them
+  (Phases 2-3).
 
 ### Phase 2: `get_project_status` and `compile_check`
 

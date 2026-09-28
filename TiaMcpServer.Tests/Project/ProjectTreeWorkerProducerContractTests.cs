@@ -189,15 +189,28 @@ public class ProjectTreeWorkerProducerContractTests
     }
 
     [Fact]
-    public void LegacyAndUnrelatedPayloads_KeepOmittingNulls()
+    public void MarkedPayloadContracts_KeepOmittingNullMembers()
     {
-        var legacy = WorkerSerializationHarness.Serialize(new List<ProjectTreeNode>
-        {
-            new() { Name = "PLC_1", NodeType = "Device" }
-        });
-        Assert.Equal("[{\"name\":\"PLC_1\",\"nodeType\":\"Device\"}]", legacy.Payload);
-        Assert.Equal("{\"name\":\"unchanged\"}", WorkerSerializationHarness.Serialize(
-            new { Name = "unchanged", Optional = (string?)null }).Payload);
+        Assert.Equal(
+            """{"success":true,"operation":"start_plc","plcName":"PLC_1"}""",
+            WorkerSerializationHarness.Serialize(new PlcOnlineResultInfo { Operation = "start_plc", PlcName = "PLC_1" }).Payload);
+        Assert.Equal(
+            """{"success":true,"operation":"save_project"}""",
+            WorkerSerializationHarness.Serialize(new ProjectLifecycleResultInfo { Operation = "save_project" }).Payload);
+        Assert.Equal(
+            """[{"typeName":"CPU","typeIdentifier":"OrderNumber:X"}]""",
+            WorkerSerializationHarness.Serialize(new List<CatalogEntryInfo>
+            {
+                new() { TypeName = "CPU", TypeIdentifier = "OrderNumber:X" }
+            }).Payload);
+    }
+
+    [Fact]
+    public void UnmarkedPayloadContracts_WriteNullMembers()
+    {
+        Assert.Equal(
+            """{"name":"unchanged","optional":null}""",
+            WorkerSerializationHarness.Serialize(new { Name = "unchanged", Optional = (string?)null }).Payload);
     }
 
     [Fact]
