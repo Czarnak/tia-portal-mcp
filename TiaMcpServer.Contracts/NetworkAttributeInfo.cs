@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
@@ -57,8 +59,10 @@ public sealed class NetworkAttributeValueInfo
 
     /// <summary>
     /// The value itself: null, a JSON string, boolean, integer, number, or a
-    /// <see cref="NetworkEnumValueInfo"/> object.
+    /// <see cref="NetworkEnumValueInfo"/> object. Always written, even when null: kind
+    /// <c>null</c> is a successfully read value, and the host contract requires the member.
     /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public object? Value { get; set; }
 
     /// <summary>CLR type name the worker resolved for this value, or null.</summary>
