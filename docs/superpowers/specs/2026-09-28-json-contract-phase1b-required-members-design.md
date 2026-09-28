@@ -149,8 +149,10 @@ Stay on `CanonicalJson.Deserialize`:
 - `WorkerPayloadNullPolicyRegisterTests` shrinks to the `BatchRedesign` and `ToolMigration`
   entries.
 
-The two probe results are read only by worker diagnostics and the live qualification script. They
-follow the marker removal, and the live run confirms that the script still reads them.
+The two probe results follow the marker removal with no script change.
+`live-test-network-phase5-qualification.ps1` reads only `sessionIdentity` from the
+`probe_network_object_attributes` response, and nothing in the repository reads the
+`probe_subnet_lifecycle_mutations` payload.
 
 ### What is deleted
 
