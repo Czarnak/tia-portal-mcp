@@ -446,11 +446,14 @@ Rules:
 
 ## Reference-stub strategy
 
-The current compile-time Siemens stubs do not expose the complete `ProjectBase`, `MultiuserProject`,
-`LocalSession`, `LocalSessionComposition`, and Project Server surface needed by this design.
+The tracked `ref/` assemblies already expose `ProjectBase`, `MultiuserProject`, `LocalSession`,
+`LocalSessionComposition`, and the Project Server type family. Metadata revalidation after design
+approval confirmed that they are strong-named V21 reference assemblies with a much broader,
+opaque surface than this server needs; their source definition is not present in the repository.
 
-Before production code depends on those types, the reference-foundation PR must create a
-reproducible, repository-owned way to build the minimal compile-time surface. The result must:
+Before production code depends on those types, the reference-foundation PR must replace that
+opaque baseline with a reproducible, repository-owned way to build the minimal compile-time
+surface. The result must:
 
 - contain no Siemens proprietary binaries;
 - model only signatures required by production compilation and deterministic tests;

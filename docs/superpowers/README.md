@@ -46,6 +46,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-28 | [Multiuser PR 1 — reference and contract foundation](plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md) |
 | 2026-09-28 | [JSON contract Phase 1a — worker wire normalization](plans/2026-09-28-json-contract-phase1a-worker-wire.md) |
 | 2026-09-27 | [Wave 2 I2 — truthful block-import outcomes](plans/2026-09-27-wave2-i2-truthful-block-import-outcomes.md) |
 | 2026-09-27 | [Wave 2 T2 — type-content binding policy](plans/2026-09-27-wave2-t2-type-content-binding-policy.md) |
