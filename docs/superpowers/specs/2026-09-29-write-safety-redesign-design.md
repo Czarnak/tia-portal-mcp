@@ -2,8 +2,8 @@
 
 **Date:** 2026-09-29
 **Status:** Draft under discussion. Points marked **Decided 2026-09-29** were settled with the
-maintainer; the acknowledgement model (§4.3, §4.6) and the preview shape (§4.4) are still open.
-Nothing is implemented.
+maintainer. Still open: the default of the per-tool forced-approval marker (§4.6) and the
+access-mode tiers (§4.11). Nothing is implemented.
 **Supersedes when accepted:** the token-flow parts of
 [write-safety hardening (2026-09-01)](2026-09-01-write-safety-hardening-design.md); Phase 3 and
 part of Phase 4 of [the JSON contract roadmap](../../roadmap/json-contract.md).
@@ -187,7 +187,7 @@ working, and it puts the specific consequence into the tool-call arguments, wher
 permission prompt shows it to the human. That is the strongest lever a server has over client-side
 consent: make the dangerous intent visible in the call itself.
 
-### 4.4 `dryRun`
+### 4.4 `dryRun` (decided 2026-09-29)
 
 Every write tool accepts `dryRun: bool = false`. A dry run executes the pipeline through guard
 evaluation, mutates nothing, and returns `phase: preview` with the same `effects` and `guards`
@@ -195,11 +195,11 @@ members an applied write would carry. For content replacement it includes the bo
 evidence from `BatchPreviewDiff`. There is no token in the response and nothing to carry into a
 later call. This keeps "the server tells you the consequences" without a mandatory second call.
 
-Trade-off to decide (open question 3, still open): with `dryRun` on a `Destructive=true` tool, a
-client that prompts on destructive tools will prompt for the dry run too. A separate read-only
-preview tool avoids that at the cost of a second tool name per surface. Recommendation: the flag.
-The domain split already gives every write tool a read-only sibling, and a client that prompts on a
-dry run shows the human the plan, which is not a bad outcome.
+Accepted trade-off: with `dryRun` on a `Destructive=true` tool, a client that prompts on
+destructive tools prompts for the dry run too, and a tool carrying the forced-approval marker
+(§4.6) prompts on every dry run. The domain split already gives every write tool a read-only
+sibling, and a client that prompts on a dry run shows the human the plan, which is not a bad
+outcome. A separate preview tool per surface was rejected as naming churn.
 
 ### 4.5 Required stale-content precondition (decided 2026-09-29)
 
@@ -215,16 +215,20 @@ explicit values (`update_tag`, `configure_network_device`) do not need it: their
 resolution at write time already refuses a renamed or deleted target, and the new values are the
 request.
 
-### 4.6 Asking the human
+### 4.6 Asking the human (elicitation decided 2026-09-29; marker default open)
 
-Two protocol mechanisms exist; both depend on the client.
+The acknowledgement model is settled: the agent-side `acknowledge` array of §4.3 is the baseline,
+and elicitation is the opt-in upgrade described below. Three mechanisms exist; all depend on the
+client.
 
-- **Elicitation (form mode).** When `server.ClientCapabilities?.Elicitation` is present and the
-  server is started with an opt-in switch (name provisional: `--confirm-with-user`), an
-  `acknowledge`-severity guard can be satisfied by the user accepting an `ElicitAsync` prompt that
-  carries the guard message and a single boolean, instead of by the agent's `acknowledge` list. A
-  decline or cancel fails the write with `access_denied`. Without the capability or the switch,
-  behaviour is exactly §4.3.
+- **Elicitation (form mode). Decided.** With the opt-in switch `--confirm-with-user` (name
+  provisional) on and `server.ClientCapabilities?.Elicitation` present, an `acknowledge`-severity
+  guard is satisfied only by the user accepting an `ElicitAsync` prompt that carries the guard
+  message and a single boolean. The agent's `acknowledge` list is ignored while the switch is on.
+  Decline, cancel, and request timeout all fail the write with `access_denied`. With the switch
+  on and the capability absent, `acknowledge`-severity writes are refused with a message naming
+  the missing client capability rather than falling back to the agent: the switch means what it
+  says. With the switch off, behaviour is exactly §4.3.
 - **Multi-round-trip requests.** The 2026-07-28 revision lets a tool return `input_required` with
   an elicitation request and a `requestState`, and the client retries the call with the user's
   answer attached. This is the protocol-native version of preview→confirm and needs no server-side
@@ -234,11 +238,17 @@ Two protocol mechanisms exist; both depend on the client.
   on every call, in every permission mode including `auto` and `bypassPermissions`, with no
   "don't ask again" option; allow rules do not skip it, and in non-interactive runs the call is
   denied. Other clients ignore the marker. This is the original goal of the token flow, delivered
-  as metadata. Proposal: a startup switch (name provisional: `--require-user-approval`) that stamps
-  the marker on every write tool; default off, because the client's ordinary permission prompt
-  already covers the default case and the marker removes the user's ability to allow-list.
-  Whether it should default on is open question 1b. See Appendix A for how these mechanisms
-  behave in practice and which clients were verified.
+  as metadata. A startup switch (name provisional: `--user-approval`) controls which tools carry
+  it. The maintainer leans towards marking every write tool by default. The recommendation in
+  §4.11 is to tie the default to the access-mode tiers instead: on for the irreversible tools
+  (lifecycle and online control), off for in-project edits, with the switch able to widen it to
+  all writes or remove it. Three costs of marking every write tool drive that recommendation:
+  the marker overrides client allow rules, so the user can never allow-list `tag_write` even
+  when they want to; every `dryRun` on a marked tool prompts; and non-interactive runs deny
+  marked tools outright, so headless engineering edits stop working unless the switch is
+  changed. When both the marker and `--confirm-with-user` apply to one call, the human answers
+  twice, once before the call on the arguments and once during it on the computed consequence;
+  that is accepted for the dangerous case. See Appendix A for verified client behaviour.
 
 Honesty clause for the documentation: even with elicitation, the server only knows that the client
 returned `accept`. Whether a human saw the prompt depends on the client. The server never claims to
@@ -314,6 +324,56 @@ The read-write tool count depends on the domain split. Either way this is a brea
 every write tool's input schema and output shape and belongs to the next major version, released
 once (decided 2026-09-29: phases merge to `main` as they complete; nothing is tagged until Phase 5).
 
+### 4.11 Access-mode tiers (proposal, open)
+
+Today there are two modes, `read-only` and `read-write`, and `read-write` allows everything. The
+maintainer asked whether to add per-tool server permissions or one more mode for the operations
+that cannot be reverted. The recommendation is the second, and the unit is the capability class,
+not the tool name.
+
+The boundary that matters in TIA Portal is persistence. An in-memory edit to a block, tag, or
+network object is undone by closing the project without saving; TIA's own undo also covers much of
+it. Saving, saving as, archiving, creating, opening, and closing change what is on disk or which
+project the session is bound to, and the server cannot undo them. Starting or stopping a PLC is
+not project state at all. `OperationCapability` already draws exactly these lines:
+`ProjectMutation` and `Compile` on one side, `ProjectLifecycle` and `OnlineControl` on the other.
+A third mode is therefore a preset over classes that exist:
+
+| Mode | Capability classes | Registered tools | Undo path |
+| --- | --- | --- | --- |
+| `read-only` | `Observe`, `TemporaryExport` | the four read tools | none needed |
+| `read-write` | + `Compile`, `ProjectMutation` | + `compile_check`, `network_write`, the domain write tools | close without saving in the TIA UI, or TIA undo |
+| `full` | + `ProjectLifecycle`, `OnlineControl` | + the six lifecycle tools, PLC start/stop | none |
+
+In `read-write` the session still binds without `open_project`: through the `--project` startup
+path, through a `projectPath` on a read when nothing is attached (the existing `OpenRequested`
+behaviour, which opens but never switches or closes), or through the project already open in the
+TIA Portal UI. The human saves or discards in the UI. That is the workflow the maintainer
+described: agent and human in the same open project, with the human owning persistence.
+
+`SafetyRead` disappears with the snapshot readers. `McpAccessMode` gains one value,
+`OperationPolicyCatalog.IsAllowed` becomes a preset lookup instead of a two-way branch, tool
+registration in `Program.cs` gains one tier, and the read-only test suite gains a `read-write`
+ceiling suite. Moving lifecycle out of `read-write` is a breaking change for existing
+configurations and rides the same major release; the migration note says "if you used
+`read-write` and need save or close, use `full`".
+
+Per-tool server-side allow and deny lists are not recommended. The client already offers exactly
+that, for example Claude Code's `settings.local.json` allow rules, and a server-side copy would
+have to track every tool rename of the domain split. What the server must own is the ceiling: the
+client's allow list is the client's decision, while a mode is enforced at worker dispatch
+regardless of which client connected, and hides the tools it excludes from discovery so the agent
+is never tempted. Modes set the ceiling, the marker and the client prompt decide per call, and the
+client allow list fine-tunes prompting under that ceiling. If a finer server-side cut is ever
+needed, the capability class is the unit to expose (`--deny-capability online-control`), not the
+tool name.
+
+The tiers also give the forced-approval marker a natural default: on for every tool that only
+`full` registers, off for the tools `read-write` registers, and `--user-approval all|full|none`
+to override. Under that default a `read-write` session can allow-list its write tools and run
+headless, while a `full` session always puts a person in front of a save, close, archive, or PLC
+stop.
+
 ## 5. What is deleted
 
 Only after its replacement is in place and tested (see phases). Test files are listed for scope;
@@ -362,6 +422,7 @@ it touches the worker, live TIA Portal V21 acceptance. Sizes are relative.
 | --- | --- | --- | --- |
 | 0 — Decide and tell the truth | Accept this design (amended). Edit `README.md`, `AGENTS.md`, and `ARCHITECTURE.md` §8 so they describe the token flow as a server-side consistency check, not as user consent, and point at this spec. Amend `roadmap/json-contract.md`: Phase 3 becomes "lifecycle onto the guarded write pipeline"; the batch exclusion is resolved by Phase 4 below. | Docs no longer imply a human approves writes. | S |
 | 1 — Foundation | `WriteExecution` pipeline, guard catalog and `acknowledge` validation, `dryRun` support, structured envelope records, `IWriteAuditSink` with the JSONL implementation and the detailed record, `contentHash` on the two content read tools (additive). Built beside the old machinery; no registered tool changes. Spike: wire `ElicitAsync` and the `anthropic/requiresUserInteraction` marker behind switches, verify against Claude Code, MCP Inspector, and Claude Desktop; record results in Appendix A. | Pipeline and guards unit-tested through FakeWorker; old tools unchanged; spike results written down. | M |
+| 1b — Access-mode tiers and approval marker | Add the `full` mode as a preset over capability classes, move `ProjectLifecycle` and `OnlineControl` behind it, wire the `--user-approval` switch and the `--confirm-with-user` switch, extend the read-only enforcement tests with a `read-write` ceiling suite. Independent of the pipeline; can ship before or after 1. | Three-layer enforcement holds for the new tier; marker visible in `tools/list` for the chosen tools. | S |
 | 2 — Lifecycle | Six lifecycle tools onto the pipeline and structured contract: `dryRun`, `acknowledge`, the six lifecycle guards, typed verification. Remove the lifecycle token paths and `ProjectLifecycleTools.cs`. Remove the six tools from the conformance guard's legacy register and add probes. | Live V21 acceptance of open/close/save-as/archive with each guard firing once. | M |
 | 3 — Network | `network_write` loses `confirm` and `safetyToken`; gains `dryRun`, `acknowledge`, `deletes_subnet_with_connected_nodes`, and current → requested `effects` (closes the network half of #78). Target resolution stays exactly where it is (fresh read under the lease). Delete `CanonicalWriteSafety.cs`. | Live V21 acceptance of the multi-homed configure and subnet delete paths. | S–M |
 | 4 — Domain write tools | Owned by the separate batch-split redesign, which gets its own spec. Each domain write tool (`block_write`, `tag_write`, …) is built on the pipeline with the requirements of §4.9. As a family lands, its snapshot reader's fail-closed rules move into the worker write methods with tests, and the reader is deleted. When the domain tools cover every legacy operation, delete the batch token paths, `BatchTools.cs`, the snapshot contracts, and the two legacy tools. | Live V21 acceptance per operation family; #78 and #79 closed. | L (in that redesign) |
@@ -410,16 +471,18 @@ spike is positive, otherwise a later slice.
 
 Still open:
 
-1. **Acknowledgement model.** Agent-side `acknowledge` list as the baseline with elicitation as an
-   opt-in upgrade (this proposal), or elicitation-only where the client supports it and refuse
-   otherwise? See Appendix A before answering.
-   1b. Should `--require-user-approval` (the `anthropic/requiresUserInteraction` marker on every
-   write tool) default on or off? Proposal: off, documented as the one-switch way to get the token
-   flow's original goal in Claude Code.
-3. **Preview shape.** `dryRun` flag on every write tool (recommended), or a separate read-only
-   preview tool per surface?
+1b. **Forced-approval marker default.** Maintainer leaning: on for every write tool.
+   Recommendation (§4.11): on for the tools only `full` registers, off for `read-write` tools,
+   `--user-approval all|full|none` to override. The difference is whether a `read-write` session
+   can allow-list its write tools and run headless.
+9. **Access-mode tiers.** Add `full` as a third mode over the existing capability classes
+   (§4.11), or keep two modes? Per-tool server lists are recommended against.
 
 Decided 2026-09-29:
+
+1. **Acknowledgement model.** Agent-side `acknowledge` list as the baseline; `--confirm-with-user`
+   makes elicitation the only way to satisfy an `acknowledge` guard when on (§4.6).
+3. **Preview shape.** `dryRun` flag on every write tool (§4.4).
 
 2. **Stale-state protection.** Required `expectedContentHash` on the content-replacement tools;
    the maintainer and the agent share the project and the agent must not undo the maintainer's
