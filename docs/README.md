@@ -49,7 +49,8 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
+Latest process entries: the [write-safety redesign draft (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md),
+the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
 and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md),
 the [JSON contract Phase 1a worker-wire plan](superpowers/plans/2026-09-28-json-contract-phase1a-worker-wire.md),
 [Open bug parallel pull-request delivery design](superpowers/specs/2026-09-26-open-bug-parallel-pr-delivery-design.md),
