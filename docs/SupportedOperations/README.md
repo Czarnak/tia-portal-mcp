@@ -14,7 +14,7 @@ Data operations run through one of three batch tools:
 |---|---|
 | `execute_read_batch` | Executes up to 50 independent read operations. A failed item does not stop the remaining items. |
 | `preview_write_batch` | Validates and previews up to 50 data-write operations, then returns one single-use `safetyToken`. |
-| `apply_write_batch` | Applies the exact previewed operation list in order after confirmation. |
+| `apply_write_batch` | Applies the exact previewed operation list in order. Requires `confirm=true` and the preview's `safetyToken`; both are set by the caller and are not a user approval. |
 
 Every batch item contains an `operationId`, an `operation` name, and the fields for that operation. Read and write operation names are separate; project-lifecycle operations are not valid batch items.
 

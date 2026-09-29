@@ -3,9 +3,9 @@
 **Date:** 2026-09-29
 **Status:** Design accepted 2026-09-29. Every open question in §9 was settled with the maintainer
 the same day; points marked **Decided 2026-09-29** record the answer next to the design they
-change. Nothing is implemented. Next step: the Phase 0 documentation changes and the Phase 1 and
-1b implementation plans.
-**Supersedes when accepted:** the token-flow parts of
+change. Phase 0 (documentation) is complete; nothing else is implemented. Next step: the Phase 1
+and 1b implementation plans.
+**Supersedes:** the token-flow parts of
 [write-safety hardening (2026-09-01)](2026-09-01-write-safety-hardening-design.md); Phase 3 and
 part of Phase 4 of [the JSON contract roadmap](../../roadmap/json-contract.md).
 **Unblocks:** the safety integration boundary in

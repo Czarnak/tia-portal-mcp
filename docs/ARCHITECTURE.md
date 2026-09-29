@@ -583,8 +583,16 @@ after the later public acceptance work.
 
 ## 8. Write safety
 
-Generic batch data writes use a two-tool flow; lifecycle and network writes are
-self-previewing:
+The preview→apply safety token is a server-side consistency check. It proves that an apply call
+carries exactly the input that was previewed, for the same tool and verified project binding,
+against unchanged project state. It does not prove that a person saw the preview or approved the
+write: an agent can read the token out of a preview response and apply it in the same turn, and
+MCP gives a server no way to require a human in between. Consent belongs to the client, which
+decides whether to prompt before a call. The
+[write-safety redesign](superpowers/specs/2026-09-29-write-safety-redesign-design.md) replaces the
+token flow with guarded single-call writes (`dryRun`, guards with an explicit `acknowledge`, and
+opt-in elicitation), delivered in phases. Until the phase covering a tool lands, this section
+describes that tool's current behavior.
 
 ### MCP tool annotations
 
@@ -594,7 +602,13 @@ tool; they neither authorize a request nor relax server behavior. In particular,
 `preview_write_batch` is marked as a non-destructive preview even though the follow-up
 `apply_write_batch` is destructive, and lifecycle writes carry conservative mutating hints even
 though their first call remains a preview. The access policy, safety-token validation, pinned
-binding lease, current-state re-read, and audit trail below remain the server-enforced authority.
+binding lease, current-state re-read, and audit trail below are what the server enforces; none of
+them records a human approval.
+
+### Preview→apply token flow
+
+Generic batch data writes use a two-tool flow; lifecycle and network writes are
+self-previewing:
 
 1. The preview call (`preview_write_batch`, or the same lifecycle/network tool with no
    token and `confirm:false`) reads current state, produces a human-readable description,
@@ -605,7 +619,8 @@ binding lease, current-state re-read, and audit trail below remain the server-en
    token may retain an unbound/configured revision, and a successful response must then
    establish a continuity-checked binding from worker ground truth.
 2. The apply call (`apply_write_batch`, or the same lifecycle/network tool) supplies
-   `confirm=true` and the token. The server reads current
+   `confirm=true` and the token. `confirm` is an argument the caller sets, not a user
+   confirmation. The server reads current
    state again and consumes the token only when every bound value still matches.
 
 For `update_block_logic` and `update_type_content`, `preview_write_batch` may include a
@@ -630,7 +645,7 @@ Changed input, changed project state, wrong tool, wrong project, expiry, or toke
 reuse causes rejection. Completed writes are appended to the audit log under
 `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
-Read-only mode is categorically stronger than this token flow: confirmation and
+Read-only mode is categorically stronger than this token flow: `confirm=true` and
 a valid token cannot override the access policy.
 
 The eight tag/table/user-constant writes bind typed, operation-specific safety snapshots instead

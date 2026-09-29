@@ -1,8 +1,11 @@
 # JSON Contract Normalization Roadmap
 
 Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normalization) and
-Phase 1b (required-member enforcement) are complete; Phases 2-4 are not started. The three batch
-tools are excluded from this roadmap; see [Scope](#scope).
+Phase 1b (required-member enforcement) are complete; Phases 2-4 are not started. On 2026-09-29 the
+[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
+Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
+tokens) and added the token core to Phase 4. The three batch tools are excluded from this roadmap;
+the redesign's Phase 4 resolves that exclusion. See [Scope](#scope).
 
 ## Objective
 
@@ -22,16 +25,20 @@ it without inventing a second mechanism.
 | `network_read`, `network_write` | Structured (canonical seam) | Phase 4: align envelope members |
 | `browse_project_tree` | Structured (canonical seam, v3 envelope) | Phase 4: align envelope members |
 | `get_project_status`, `compile_check` | Legacy worker envelope | Phase 2 |
-| `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Legacy lifecycle preview/apply text | Phase 3 |
-| `execute_read_batch`, `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded** |
+| `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Legacy lifecycle preview/apply text | Phase 3 (delivered as write-safety redesign Phase 2) |
+| `execute_read_batch`, `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 |
 
-The batch tools are excluded because a separate redesign of them is planned. This roadmap does not
-constrain that redesign. Until it lands, they keep their current output, and the legacy machinery
-they depend on stays in place: `OperationBatchResult`, `OperationBatchExecutionEngine`,
+The batch tools are excluded because a separate redesign splits them into domain read/write tools
+(`block_read`, `tag_write`, and so on) in the `network_read`/`network_write` shape. The
+[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) sets what
+those write tools must do (its §4.9) and, in its Phase 4, retires the batch pair once the domain
+tools cover every operation it offers. This roadmap does not otherwise constrain that redesign.
+Until it lands, the batch tools keep their current output, and the legacy machinery they depend on
+stays in place: `OperationBatchResult`, `OperationBatchExecutionEngine`,
 `OperationBatchPayloadBudget`, `OperationBatchResultFormatter`, the presentation-serializer methods
 on `WriteSafetyService` (`CreatePreview`, `ValidateEnvelope`, `ValidateAndConsume`, `AppendAudit`),
-and the legacy audit record. If that redesign lands on the structured contract, the batch tools
-leave the guard's legacy register like any other migrated tool.
+and the legacy audit record. The domain tools are built on the structured contract, and the batch
+tools leave the guard's legacy register when they are retired.
 
 ## Current State
 
@@ -81,8 +88,9 @@ This is the contract every in-scope tool ends on.
 - The tool declares `UseStructuredContent = true` and an `OutputSchemaType` naming its response
   record.
 - `isError` is `true` exactly when the tool rejected the call before anything ran (validation,
-  access mode, safety token, binding). A call that ran and partly or wholly failed is not a
-  protocol error: `isError` is `false` and the envelope says what failed.
+  access mode, binding, or a guard that blocked the write). Until a tool leaves the token flow, a
+  rejected safety token is also such a rejection. A call that ran and partly or wholly failed is
+  not a protocol error: `isError` is `false` and the envelope says what failed.
 
 ### Envelope
 
@@ -93,8 +101,9 @@ This is the contract every in-scope tool ends on.
 | `success` | boolean | `true` only when the whole call did everything requested. |
 | `error` | `{ category, message }` or null | Tool-level rejection. `category` is a `WorkerFailureCategories` value. Non-null exactly when `isError` is `true`. |
 | `warnings` | string array | Always present; empty when there are none. |
-| `phase` | string | Only on tools with a preview/apply flow: `preview`, `apply`, or `error`. |
-| payload | object or null | Tool-specific and declared in the output schema: `result` for a single result, `batch` for a `StructuredOperationBatch`, `preview` for a typed preview. Null when `error` is set. |
+| `phase` | string | Only on write tools: `preview` (a `dryRun`), `applied`, `blocked` (a guard refused), or `error`, per write-safety redesign §4.7. `network_write` reports `preview`, `apply`, or `error` until it moves onto the guarded pipeline. |
+| `guards`, `effects`, `verification` | per write-safety redesign §4.7 | Only on write tools: the guards that fired, what the write did or would do per item, and the typed post-write read. |
+| payload | object or null | Tool-specific and declared in the output schema: `result` for a single result, `batch` for a `StructuredOperationBatch`. `network_write` also carries `preview` until the guarded pipeline replaces it with `effects`. Null when `error` is set. |
 
 Per-operation items keep the existing `StructuredOperationItem` shape: `operationId`, `operation`,
 `status`, `result`, `failure { category, message }`, `omission`, `skipReason`, `warnings`.
@@ -111,9 +120,11 @@ Per-operation items keep the existing `StructuredOperationItem` shape: `operatio
   `subject.identifier`. Each such member's schema description must say when it appears.
 - **Never cut a JSON value to fit a budget.** Omit it whole with an omission record and report the
   truncation, as `StructuredOperationBatchPayloadBudget` already does.
-- **Canonical safety binding.** Structured write tools bind tokens and write audit records through
-  `CanonicalWriteSafety` (`CreateCanonicalPreview`, `ValidateAndConsumeCanonical`,
-  `AppendCanonicalAudit`).
+- **Guarded writes, no tokens.** Structured write tools run through the guarded write pipeline and
+  write one canonical audit record through its audit sink (write-safety redesign §4.1 and §4.8).
+  `network_write` binds tokens through `CanonicalWriteSafety` (`CreateCanonicalPreview`,
+  `ValidateAndConsumeCanonical`, `AppendCanonicalAudit`) until the redesign's Phase 3 removes them;
+  no other tool adopts that binding.
 
 ### Where the existing structured tools deviate
 
@@ -215,14 +226,23 @@ Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture
 - Replace the substring truncation in `StandaloneToolResultFormatter` with a whole-value omission.
 - Adopt the target envelope and add both tools' probes to the guard.
 
-### Phase 3: Project Lifecycle Tools
+### Phase 3: Lifecycle Onto the Guarded Write Pipeline
 
-- Typed preview through `CreateCanonicalPreview`; typed apply result and typed post-write
-  verification instead of `operationResult` and `verification.result` strings.
-- Canonical token binding and audit records.
-- Decision reserved for Phase 3 design: where a single operation that was attempted but failed
-  reports its failure, keeping "rejected before anything ran" (`isError: true`) distinct from
-  "ran and failed".
+Redefined 2026-09-29 and delivered as Phase 2 of the
+[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md). The
+earlier plan (typed preview through `CreateCanonicalPreview`, canonical token binding) would have
+built lifecycle tokens only for the redesign to delete them.
+
+- The six lifecycle tools move onto the structured contract and the guarded write pipeline:
+  `dryRun` and `acknowledge` instead of `confirm` and `safetyToken`, the six lifecycle guards, a
+  typed result, and typed post-write verification instead of the `operationResult` and
+  `verification.result` strings.
+- One canonical audit record per call, through the pipeline's audit sink.
+- The decision reserved here earlier, where an attempted but failed operation reports its failure,
+  is settled by redesign §4.7: `isError` is `true` only for rejection before anything ran
+  (validation, access mode, binding, `blocked`); a write that ran and failed reports
+  `success: false` with `isError: false`.
+- The six tools leave the guard's legacy register and gain success and rejection probes.
 
 ### Phase 4: Align and Retire
 
@@ -230,8 +250,11 @@ Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
 - Delete legacy pieces that only in-scope tools used: `StandaloneToolResultFormatter`,
   `WorkerCallResult.ToEnvelopeText`, and the lifecycle paths through
-  `WriteSafetyTooling.BuildApplyResult` and `WriteSafetyTooling.CreatePreview`. The presentation
-  token binding and the legacy audit record stay while the batch tools use them.
+  `WriteSafetyTooling.BuildApplyResult` and `WriteSafetyTooling.CreatePreview`.
+- Retire the token core with the write-safety redesign: `CanonicalWriteSafety` goes in its Phase 3
+  (network); the batch token paths go in its Phase 4, when the batch tools are retired; the
+  `WriteSafetyService` token core (including the presentation token binding), the legacy audit
+  record, `WriteSafetyTooling`, and `SafetyRead` go in its Phase 5.
 
 Phases 2-4 change what clients receive. `README.md` is also the NuGet readme, so each of those
 phases updates it and its release notes.
