@@ -125,9 +125,7 @@ internal static class SubnetLifecycleService
         return new SubnetLifecycleResultInfo
         {
             SubnetId = subnetId,
-            // Openness has no nullability annotations; the update already committed, so a null name
-            // read-back must not become an explicit null the host reader rejects.
-            Name = updated.Name ?? name ?? string.Empty,
+            Name = updated.Name,
             NetworkDeviceCount = deviceCountAfter,
             NetworkDeviceCountUnchanged = deviceCountUnchanged,
         };
