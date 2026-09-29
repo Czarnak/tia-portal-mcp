@@ -74,6 +74,12 @@ rules are durable for any future tool that migrates onto it — not just Network
   payload that does not decode as that type — category `protocol_error` — rather than forwarding
   worker-shaped data under a schema that does not describe it. The rejected payload is never
   echoed back.
+- **Required members are enforced by the reader.** A host decode of a worker payload whose root
+  writes explicit nulls goes through the worker-payload reader
+  (`CanonicalJson.DeserializeWorkerPayload` / `NormalizeWorkerPayload`). Every member is required
+  unless it is declared conditional with `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`.
+  A new conditional member is added to `ConditionalMemberRegisterTests`, with a description stating
+  when it appears. Do not hand-write required-member lists.
 - **No nested JSON strings.** A migrated tool's operation results are real JSON objects/arrays
   under the response document, never an escaped JSON string a caller has to parse a second time.
   This is exactly the Phase 1 defect Phase 2 removed for Network.
@@ -94,7 +100,7 @@ Network contract these rules describe in the abstract.
 - **Tests link host source files** via `<Compile Include>` — when editing files in `TiaMcpServer/Worker/`, `TiaMcpServer/Batch/`, `TiaMcpServer/Network/`, `TiaMcpServer/OperationBatches/`, `TiaMcpServer/Safety/`, `TiaMcpServer/Tools/`, `TiaMcpServer/Diagnostics/`, or `TiaMcpServer/Cli/`, the test project picks up changes automatically
 - **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a generic batch operation; network operations use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
-- **Worker payload JSON** goes through `WorkerJson.SerializePayload`. A new payload contract writes null members; `[LegacyNullOmission]` is only for the reasons in `LegacyNullOmissionReason`, and adding or removing one updates `WorkerPayloadNullPolicyRegisterTests`
+- **Worker payload JSON** goes through `WorkerJson.SerializePayload`. A new payload contract writes null members and is decoded through the worker-payload reader; `[LegacyNullOmission]` is only for the reasons in `LegacyNullOmissionReason` (a payload that omits nulls cannot go through the reader), and adding or removing one updates `WorkerPayloadNullPolicyRegisterTests`
 - Siemens DLLs are **never committed** to the repo or the NuGet package
 
 ## Documentation layout

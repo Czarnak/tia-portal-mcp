@@ -1,7 +1,7 @@
 # JSON Contract Normalization Roadmap
 
-Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normalization) is
-complete; Phase 1b and Phases 2-4 are not started. The three batch tools are excluded from this
+Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normalization) and
+Phase 1b (required-member enforcement) are complete; Phases 2-4 are not started. The three batch tools are excluded from this
 roadmap; see [Scope](#scope).
 
 ## Objective
@@ -51,15 +51,16 @@ Below the tool surface, the host and worker also disagree about JSON:
 
 - Null handling is declared per worker payload contract (Phase 1a). `WorkerJson.SerializePayload`
   (`TiaMcpServer.Contracts/WorkerJson.cs`) writes null members unless the payload root carries
-  `[LegacyNullOmission(reason)]`. Every root except `NetworkObjectListInfo`,
-  `ProjectTreeBrowseResultInfo` and `ProjectRebindStateInfo` still carries it, for one of three
-  reasons: `BatchRedesign` (consumed only by the batch tools), `ToolMigration` (returned by a
-  tool still on the legacy contract), or `RequiredMemberEnforcement` (a network payload that
-  switches in Phase 1b). The worker, `PersistentWorkerTransport` and the FakeWorker all render
-  through `WorkerJson`, so IPC tests see the production shape.
-- Required members are enforced three ways: `[JsonRequired]` on the newer Contracts records, not
-  at all on the older mutable Contracts classes, and hand-written member lists
-  (`RequireJsonMembers`) in `NetworkPayloadContract`.
+  `[LegacyNullOmission(reason)]`. The network payload roots, `ProjectTreeBrowseResultInfo` and
+  `ProjectRebindStateInfo` write explicit nulls (Phase 1b removed the network markers). The
+  remaining marked roots carry one of two reasons: `BatchRedesign` (consumed only by the batch
+  tools) or `ToolMigration` (returned by a tool still on the legacy contract). The worker,
+  `PersistentWorkerTransport` and the FakeWorker all render through `WorkerJson`, so IPC tests see
+  the production shape.
+- Required members are enforced one way (Phase 1b): the worker-payload reader in `CanonicalJson`
+  (`DeserializeWorkerPayload` / `NormalizeWorkerPayload`) makes every settable member required
+  unless it is declared conditional with `[JsonIgnore(WhenWritingNull)]`. The hand-written
+  member lists are gone. Four conditional members exist, pinned by `ConditionalMemberRegisterTests`.
 - The host decodes worker payloads at four strictness levels: strict `CanonicalJson`, untyped
   `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
   the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
@@ -180,19 +181,29 @@ successfully read CLR null (kind `null`), which the host's inspection contract r
 Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture returns a bare
 `ProjectStatusInfo`, while the real worker wraps it in `ProjectLifecycleResultInfo`.
 
-#### Phase 1b: Required-Member Enforcement
+#### Phase 1b: Required-Member Enforcement — Complete
 
-- Enforce required members generically in the strict reader
-  (`RespectRequiredConstructorParameters`, `RespectNullableAnnotations`) and move the older mutable
-  Contracts classes to records, so the three hand-written required-member validators (Network,
-  hardware page, project tree) can go.
-- Remove the `RequiredMemberEnforcement` markers in the same change, so the network payloads
-  switch to explicit nulls together with the validators that read them. Until then, a member
-  that a hand-written validator requires but the real worker omits when null fails the same way
-  the inspection value did; the FakeWorker now renders that shape, so any fixture holding such
-  a null exposes it.
-- Other host decodes of worker payloads move to the strict gate with the tools that consume them
-  (Phases 2-3).
+- One worker-payload reader in `TiaMcpServer/Json/CanonicalJson.cs`: `DeserializeWorkerPayload<T>`
+  and `NormalizeWorkerPayload<T>`. It uses the strict read settings plus `RespectNullableAnnotations`
+  and a type-info modifier that marks every settable member required, except members declared
+  `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. It refuses a root type (or an
+  array root's element type) carrying `[LegacyNullOmission]`, because such a payload omits nulls.
+  It does not check collection elements, dictionary values or generic arguments, so the typed
+  validators keep their null-element checks.
+- The network, hardware-page, project-tree and rebind-state decoders read through it. The
+  hand-written JSON-shape layers (`RequireMembers`, `ValidateRequiredJsonShape` and friends) are
+  deleted; the typed validators keep only semantic rules and null-element checks. The contracts
+  stay classes: nothing was converted to records.
+- The network `[LegacyNullOmission]` markers are removed in the same change, so the network
+  payloads write explicit nulls together with the decoders that read them. The reasons went from
+  three to two (`RequiredMemberEnforcement` is gone).
+- The conditional members are `DeviceItemInfo.IoDetails`, `HardwareConfigInfo.Pagination`,
+  `HardwarePaginationInfo.NextCursor` and `WorkerResponse.BlockImportOutcome`, each described by
+  when it appears and pinned by `ConditionalMemberRegisterTests`.
+- Rejection is unchanged: a rejected payload is `protocol_error` with the contract's fixed message
+  and is never echoed.
+- The batch safety snapshots and the cursor decode stay on `CanonicalJson.Deserialize`. Other
+  host decodes of worker payloads move to the reader with the tools that consume them (Phases 2-3).
 
 ### Phase 2: `get_project_status` and `compile_check`
 
@@ -220,6 +231,21 @@ Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture
 
 Phases 2-4 change what clients receive. `README.md` is also the NuGet readme, so each of those
 phases updates it and its release notes.
+
+## Later: Compile-Time Completeness
+
+Not scheduled. The reader enforces required members at decode time; the next step would make a
+missing member a compile error where a contract is constructed.
+
+- Adopt C# `required init` members (not positional records), per type, once every decode path of
+  that type writes explicit nulls, together with test-data builders for the types that tests
+  construct by hand.
+- Required-ness belongs to a decode path's null policy, not to a CLR type. `CompileCheckReport` is
+  both the `compile_check` root and nested in `BlockImportOutcomeInfo` inside the null-omitting
+  worker envelope (`update_block_logic`), so a type-level `required` would couple Phase 2 to the
+  batch redesign.
+- Unverified: whether System.Text.Json recognizes the netstandard2.0 `RequiredMemberAttribute`
+  polyfill that `TiaMcpServer.Contracts` would need. Check it before committing to this direction.
 
 ## Migrating a Tool
 
