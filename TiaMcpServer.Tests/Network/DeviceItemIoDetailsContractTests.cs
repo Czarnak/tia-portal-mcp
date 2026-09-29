@@ -16,9 +16,9 @@ namespace TiaMcpServer.Tests.Network;
 /// unreadable scalars, JSON round trips, and the <see cref="JsonIgnoreCondition.WhenWritingNull"/>
 /// guarantee that a default read serializes byte-identically to the pre-I/O-map shape.
 ///
-/// A second group (<c>Project_*</c>) characterizes today's worker-payload shape rejections that
-/// <see cref="NetworkPayloadContract"/> applies to <c>ioDetails</c> members not already pinned in
-/// <c>NetworkIoMapPayloadContractTests</c>: see the phase1b-required-members task-1 brief.
+/// A second group (<c>Project_*</c>) pins the worker-payload reader's rejections of <c>ioDetails</c>
+/// members (wrong-shape or non-string elements) that <see cref="NetworkPayloadContract"/> decodes
+/// and that are not already pinned in <c>NetworkIoMapPayloadContractTests</c>.
 /// </summary>
 public class DeviceItemIoDetailsContractTests
 {
@@ -271,9 +271,9 @@ public class DeviceItemIoDetailsContractTests
     }
 
     // ---------------------------------------------------------------------------------------
-    // Characterization: today's worker-payload shape rejections for ioDetails members not
-    // already pinned by NetworkIoMapPayloadContractTests (controllerNames wrong-shape elements,
-    // and a tagMatches[] member holding a non-string JSON value).
+    // Worker-payload reader rejections for ioDetails members not already pinned by
+    // NetworkIoMapPayloadContractTests (controllerNames wrong-shape elements, and a tagMatches[]
+    // member holding a non-string JSON value).
     // ---------------------------------------------------------------------------------------
 
     [Theory]
@@ -357,7 +357,7 @@ public class DeviceItemIoDetailsContractTests
     }
 
     // ---------------------------------------------------------------------------------------
-    // Moved rules: the typed validators, not a JSON-shape pre-pass, enforce these. Every payload
+    // Typed rules: the typed validators, after the worker-payload reader, enforce these. Every payload
     // has every declared member present, so a rejection can only come from the rule under test.
     // ---------------------------------------------------------------------------------------
 

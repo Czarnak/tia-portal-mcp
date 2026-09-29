@@ -534,7 +534,8 @@ public partial class NetworkPayloadContractTests
         { "list_network_objects", $$$"""{"items":[],"totalCount":0,"returnedCount":0,"displayName":"{{{LeakToken}}}"}""" },
 
         // list_network_objects: items[].selector and items[].evidence are required root members of
-        // an item, distinct from an explicit null (selector) or a CLR-initialized default (evidence).
+        // an item, distinct from an explicit null (selector). The worker-payload reader rejects a
+        // member that is absent, so neither reads as a CLR default.
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"selector":null,"diagnostics":[],"displayName":"{{{LeakToken}}}"}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
 
@@ -544,21 +545,25 @@ public partial class NetworkPayloadContractTests
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":false,"evidence":{{{CompleteEvidence}}},"diagnostics":["{{{LeakToken}}}"]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
 
         // list_network_objects: items[].kind, items[].selectable, and items[].diagnostics are each
-        // required root members of an item, isolated here from an otherwise fully valid item (a
-        // required bool like selectable is caught only by this required-member check, never by a
-        // nullability check, since JSON member absence is indistinguishable from CLR-default false).
+        // required members of an item, so the worker-payload reader rejects an item missing any of
+        // them (a required bool like selectable is caught only by the missing-member rule, never by
+        // a nullability check, since absence is indistinguishable from CLR-default false). These
+        // rows also carry an empty evidence object, which the reader rejects on its own; the
+        // single-member removal from a complete item is pinned in the rules file.
         { "list_network_objects", $$$"""{"items":[{"selectable":true,"selector":{"kind":"node","deviceName":"{{{LeakToken}}}","nodeId":"n1"},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selector":{"kind":"node","deviceName":"{{{LeakToken}}}","nodeId":"n1"},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"node","selectable":true,"selector":{"kind":"node","deviceName":"{{{LeakToken}}}","nodeId":"n1"},"evidence":{}}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
 
         // list_network_objects: itemPath[] segment members (index, name, positionNumber,
-        // typeIdentifier) are each required raw-JSON keys, checked before typed decode.
+        // typeIdentifier) are each required; the worker-payload reader rejects a segment missing
+        // any of them.
         { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"positionNumber":1,"typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"name":"if1","typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
         { "list_network_objects", $$$"""{"items":[{"kind":"deviceItem","selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC","itemPath":[{"index":0,"name":"if1","positionNumber":1,"displayName":"{{{LeakToken}}}"}]},"evidence":{},"diagnostics":[]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""" },
 
         // inspect_network_object: target.itemPath[] segment members (index, name, positionNumber,
-        // typeIdentifier) are each required raw-JSON keys, checked before typed decode.
+        // typeIdentifier) are each required; the worker-payload reader rejects a segment missing
+        // any of them.
         { "inspect_network_object", $$$"""{"target":{"itemPath":[{"name":"if1","positionNumber":1,"typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
         { "inspect_network_object", $$$"""{"target":{"itemPath":[{"index":0,"positionNumber":1,"typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
         { "inspect_network_object", $$$"""{"target":{"itemPath":[{"index":0,"name":"if1","typeIdentifier":"T","displayName":"{{{LeakToken}}}"}]},"evidence":{"deviceItemPath":[]},"attributes":[],"messages":[]}""" },
@@ -615,8 +620,9 @@ public partial class NetworkPayloadContractTests
         // inspect_network_object: null attributes collection.
         { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"name":"{{{LeakToken}}}","deviceItemPath":[]},"attributes":null,"messages":[]}""" },
 
-        // inspect_network_object: attributes[].value is a required raw-JSON key when availability
-        // is 'available', distinct from an explicit null value (already covered above).
+        // inspect_network_object: attributes[].value is a required member of the attribute, so the
+        // worker-payload reader rejects an attribute without it, distinct from an explicit null
+        // value (already covered above).
         { "inspect_network_object", $$$"""{"target":{"kind":"node","deviceName":"PLC_1","nodeId":"node-1"},"evidence":{"deviceItemPath":[]},"attributes":[{"name":"{{{LeakToken}}}","source":"modeled","access":"readOnly","supportedTypes":[],"availability":"available"}],"messages":[]}""" },
 
         // inspect_network_object: a present value object requires its own 'kind' and 'value' members.
@@ -755,13 +761,15 @@ public partial class NetworkPayloadContractTests
         // A selectable hardware item must carry a complete, kind-correct selector.
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","nodeId":"n1"},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
-        // Required value-type path evidence must be present in raw hardware JSON. Deserialization
-        // must not silently invent zero for an absent index or positionNumber.
+        // Required value-type path evidence must be present in the hardware payload. The
+        // worker-payload reader must not silently invent zero for an absent index or
+        // positionNumber.
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"name":"CPU","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"CPU","typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
 
-        // The itemPath[] name and typeIdentifier members are likewise required raw-JSON keys on a
-        // hardware-config nested selector (index and positionNumber are covered just above).
+        // The itemPath[] name and typeIdentifier members are likewise required on a hardware-config
+        // nested selector; the worker-payload reader rejects their absence (index and
+        // positionNumber are covered just above).
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
         { "read_hardware_config", $$"""{"devices":[{"name":"{{LeakToken}}","items":[{"selectable":true,"selector":{"kind":"deviceItem","deviceName":"PLC_1","itemPath":[{"index":0,"name":"CPU","positionNumber":1}]},"selectorDiagnostics":[],"communicationConnections":[],"networkInterfaces":[],"items":[]}]}],"subnets":[],"messages":[]}""" },
     };

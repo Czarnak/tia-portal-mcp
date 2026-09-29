@@ -346,8 +346,8 @@ public sealed class ProjectTreeWorkerPayloadContractTests
             $"{{\"startSelector\":[{{\"NodeType\":\"Device\",\"name\":\"secret-marker\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
             $"{{\"startSelector\":[{{\"nodeType\":\"Device\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
 
-            // Root members startSelector and depth are required raw-JSON keys (roots missing is
-            // already covered two rows above).
+            // Root members startSelector and depth are required; the worker-payload reader rejects
+            // a root missing either (roots missing is already covered two rows above).
             "{\"depth\":null,\"roots\":[]}",
             "{\"startSelector\":null,\"roots\":[]}",
 

@@ -182,8 +182,9 @@ public class HardwarePagePayloadContractTests
     }
 
     // ---------------------------------------------------------------------------------------
-    // Characterization: the raw JSON-shape checks ValidateRequiredJsonShape applies below the
-    // nine required root members (already pinned above by Decode_RejectsEveryMissingRequiredRootMember).
+    // Worker-payload reader rejections below the nine required root members (already pinned above
+    // by Decode_RejectsEveryMissingRequiredRootMember): a null or wrongly typed candidate, device,
+    // subnet or message element, and a candidate missing a required member.
     // ---------------------------------------------------------------------------------------
 
     [Theory]
@@ -232,10 +233,10 @@ public class HardwarePagePayloadContractTests
         AssertProtocolFailure(decoded, null);
     }
 
-    // The identical RequireObject/RequireMembers helpers back both deviceCandidates[] and
-    // subnetCandidates[], so "a candidate" is characterized through deviceCandidates[] for the
-    // null/non-object/missing-member cases and through subnetCandidates[] for device-vs-subnet
-    // asymmetric members (subnet, and this file's only payload with a subnet candidate).
+    // The reader treats deviceCandidates[] and subnetCandidates[] the same way, so "a candidate"
+    // is exercised through deviceCandidates[] for the null/non-object/missing-member cases and
+    // through subnetCandidates[] for the members that differ between the two (subnet, and this
+    // file's only payload with a subnet candidate).
 
     [Theory]
     [InlineData("offset")]
