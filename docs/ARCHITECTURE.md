@@ -351,11 +351,12 @@ write explicit nulls.
 
 The other host decodes of worker payloads use the reader as well:
 `HardwarePagePayloadContract`, `ProjectTreeWorkerPayloadContract` and
-`ProjectRebindStatePayloadContract`. Three callers deliberately stay on `CanonicalJson.Deserialize`:
-the batch safety snapshots (`BatchWorkerInvoker`, `ProjectTreeSafetyPayloadContract`,
-`TagOperationSafetySnapshotContract`), whose roots still omit nulls until the batch redesign, and
-the authenticated cursor decode (`AuthenticatedCursorProtector`), which reads a host-written
-envelope rather than a worker payload.
+`ProjectRebindStatePayloadContract`. Four call sites deliberately stay on
+`CanonicalJson.Deserialize`: the three batch safety snapshot decodes (`BatchWorkerInvoker`,
+`ProjectTreeSafetyPayloadContract`, `TagOperationSafetySnapshotContract`), whose roots still omit
+nulls until the batch redesign, and the authenticated cursor decode
+(`AuthenticatedCursorProtector`), which reads a host-written envelope rather than a worker
+payload.
 
 The paged hardware seam described next is the deliberate exception: its private candidate response
 is decoded by `HardwarePagePayloadContract` before projection into the same public

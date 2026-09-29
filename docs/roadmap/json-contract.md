@@ -1,8 +1,8 @@
 # JSON Contract Normalization Roadmap
 
 Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normalization) and
-Phase 1b (required-member enforcement) are complete; Phases 2-4 are not started. The three batch tools are excluded from this
-roadmap; see [Scope](#scope).
+Phase 1b (required-member enforcement) are complete; Phases 2-4 are not started. The three batch
+tools are excluded from this roadmap; see [Scope](#scope).
 
 ## Objective
 
@@ -59,9 +59,11 @@ Below the tool surface, the host and worker also disagree about JSON:
   the production shape.
 - Required members are enforced one way (Phase 1b): the worker-payload reader in `CanonicalJson`
   (`DeserializeWorkerPayload` / `NormalizeWorkerPayload`) makes every settable member required
-  unless it is declared conditional with `[JsonIgnore(WhenWritingNull)]`. The hand-written
+  unless it is declared conditional with
+  `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. The hand-written
   member lists are gone. Four conditional members exist, pinned by `ConditionalMemberRegisterTests`.
-- The host decodes worker payloads at four strictness levels: strict `CanonicalJson`, untyped
+- The host decodes worker payloads at four strictness levels: strict `CanonicalJson` (which now
+  includes the worker-payload reader), untyped
   `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
   the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
   rebind-state readers now go through `ProjectRebindStatePayloadContract`.
@@ -200,8 +202,10 @@ Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture
 - The conditional members are `DeviceItemInfo.IoDetails`, `HardwareConfigInfo.Pagination`,
   `HardwarePaginationInfo.NextCursor` and `WorkerResponse.BlockImportOutcome`, each described by
   when it appears and pinned by `ConditionalMemberRegisterTests`.
-- Rejection is unchanged: a rejected payload is `protocol_error` with the contract's fixed message
-  and is never echoed.
+- Rejection is unchanged, with one documented exception: an explicit `"ioDetails": null` on a read
+  that did not request IO details is now accepted (previously any member named `ioDetails` there
+  was rejected). A rejected payload is `protocol_error` with the contract's fixed message and is
+  never echoed.
 - The batch safety snapshots and the cursor decode stay on `CanonicalJson.Deserialize`. Other
   host decodes of worker payloads move to the reader with the tools that consume them (Phases 2-3).
 
