@@ -136,6 +136,11 @@ validate input → verified-binding gate → resolve exact targets (fresh read)
 - **Resolve** fails closed exactly as `network_write` does today: zero, several, or unreadable
   candidates fail with `target_not_found`, `target_ambiguous`, or `postcondition_failed`.
 - **Guards** (§4.3) run against the resolved targets and fresh state.
+- **Two passes (decided 2026-09-29).** Every item is resolved and every guard evaluated before any
+  mutation, so `blocked` always means nothing ran. An item the resolver marks as depending on an
+  earlier item of the same call is resolved again immediately before its own mutation. If that
+  late resolution fires an `acknowledge` guard the call did not acknowledge, or any `block` guard,
+  the item fails with `guard_blocked` and the call stops there.
 - **Mutate** is sequential per item; stop on first failure; no rollback; the failed item carries
   the existing partial-write warning.
 - **Verify** is the existing post-write read (`get_basic_project_status`, `network_read` guidance).
@@ -182,11 +187,17 @@ Proposed initial catalog (ids provisional):
 | `partial_write_no_rollback` | any multi-item write | `info` | Always, on the failed item (existing warning). |
 
 Acknowledgement rule: the `acknowledge` array must equal exactly the set of `acknowledge`-severity
-guards that fired for this call. Unknown ids, ids for guards that did not fire, and missing ids
-all fail with `validation_error`. This prevents a blanket "acknowledge everything" habit from
-working, and it puts the specific consequence into the tool-call arguments, where a client with a
-permission prompt shows it to the human. That is the strongest lever a server has over client-side
-consent: make the dangerous intent visible in the call itself.
+guards that fired for this call. **Decided 2026-09-29** (the table above and an earlier draft of
+this paragraph disagreed): a malformed array fails with `validation_error` and `phase: error`. That
+covers a blank or duplicated id, an unknown id, the id of an `info` or `block` guard, and the id of
+a guard that did not fire. A fired `acknowledge` guard missing from the array, or any fired `block`
+guard, refuses the write with `phase: blocked` and the new failure category `guard_blocked`, and
+`guards` names each one. A dry run never blocks: it reports every fired guard with
+`acknowledged: true` or `false`, so the agent learns the exact set to send. One acknowledged id
+covers every firing of that guard in the call. This prevents a blanket "acknowledge everything"
+habit from working, and it puts the specific consequence into the tool-call arguments, where a
+client with a permission prompt shows it to the human. That is the strongest lever a server has
+over client-side consent: make the dangerous intent visible in the call itself.
 
 ### 4.4 `dryRun` (decided 2026-09-29)
 
@@ -215,6 +226,13 @@ guard bound to what the agent actually read, not to an opaque server-side snapsh
 explicit values (`update_tag`, `configure_network_device`) do not need it: their exact-target
 resolution at write time already refuses a renamed or deleted target, and the new values are the
 request.
+
+**Hash format (decided 2026-09-29).** `contentHash` is format-tagged: `xml:sha256:<hex>` or
+`source:sha256:<hex>`, over the exact text the read served. A write whose `format` differs from the
+hash's tag fails with `validation_error` naming both formats, not with a confusing `state_changed`.
+A read omits `contentHash` when its content was truncated or omitted for size, and on
+`withDependencies` reads, which cannot be written back: a hash for content the agent never saw
+would defeat the precondition.
 
 ### 4.6 Asking the human (decided 2026-09-29)
 
@@ -266,7 +284,7 @@ Aligned with the target envelope in the JSON contract roadmap, delivered through
 | --- | --- |
 | `tool`, `contractVersion`, `success`, `error`, `warnings` | As in the roadmap. |
 | `phase` | `preview` (dry run), `applied`, `blocked` (a guard refused), or `error`. |
-| `guards` | Every guard that fired: `{ id, severity, operationId?, message, acknowledged }`. |
+| `guards` | Every guard that fired: `{ id, severity, operationId, message, acknowledged }`. `operationId` is null for a call-level guard; `acknowledged` is `true` or `false` for an `acknowledge` guard and null for `info` and `block` guards. |
 | `effects` | What the write did or would do, per item: resolved target identity, the change in current → requested terms, and content diff evidence where applicable. |
 | `batch` or `result` | The typed per-item results (`StructuredOperationItem`) or single result. |
 | `verification` | The typed post-write read, when the tool performs one. |
@@ -292,6 +310,11 @@ resolver saw it, the checked preconditions (`expectedContentHash` and the fresh 
 status (`succeeded`, `failed`, `skipped`), its failure category and message, its warnings, and its
 own duration. Blocked and dry-run calls are audited too, marked by `phase`, so the log shows what
 was refused and what was only previewed, not just what was written.
+
+**File stream (decided 2026-09-29).** The new records go to their own files in the audit directory,
+`writes-yyyy-MM-dd.jsonl` (UTC date, UTF-8 without a byte-order mark), each record carrying
+`recordKind: "write"` and `recordVersion: 1`. A consumer reads one record shape; the legacy
+`yyyy-MM-dd.jsonl` files stop growing when the last token-flow tool is retired in Phase 5.
 
 ### 4.9 Generic batch tools (decided 2026-09-29: separate redesign)
 
@@ -421,7 +444,7 @@ it touches the worker, live TIA Portal V21 acceptance. Sizes are relative.
 | Phase | Scope | Exit criteria | Size |
 | --- | --- | --- | --- |
 | 0 — Decide and tell the truth | Accept this design (amended). Edit `README.md`, `AGENTS.md`, and `ARCHITECTURE.md` §8 so they describe the token flow as a server-side consistency check, not as user consent, and point at this spec. Amend `roadmap/json-contract.md`: Phase 3 becomes "lifecycle onto the guarded write pipeline"; the batch exclusion is resolved by Phase 4 below. | Docs no longer imply a human approves writes. | S |
-| 1 — Foundation | `WriteExecution` pipeline, guard catalog and `acknowledge` validation, `dryRun` support, structured envelope records, `IWriteAuditSink` with the JSONL implementation and the detailed record, `contentHash` on the two content read tools (additive). Built beside the old machinery; no registered tool changes. Spike: wire `ElicitAsync` and the `anthropic/requiresUserInteraction` marker behind switches, verify against Claude Code, MCP Inspector, and Claude Desktop; record results in Appendix A. | Pipeline and guards unit-tested through FakeWorker; old tools unchanged; spike results written down. | M |
+| 1 — Foundation | `WriteExecution` pipeline, guard catalog and `acknowledge` validation, `dryRun` support, structured envelope records, `IWriteAuditSink` with the JSONL implementation and the detailed record, `contentHash` on the two content read tools (additive). Built beside the old machinery; no registered tool changes. Spike: wire `ElicitAsync` and the `anthropic/requiresUserInteraction` marker behind switches, verify against Claude Code, Codex Desktop, and MCP Inspector; record results in Appendix A. | Pipeline and guards unit-tested through FakeWorker; old tools unchanged; spike results written down. | M |
 | 1b — Access-mode tiers and approval marker | Add the `full` mode as a preset over capability classes, move `ProjectLifecycle` and `OnlineControl` behind it, wire the `--user-approval` switch and the `--confirm-with-user` switch, extend the read-only enforcement tests with a `read-write` ceiling suite. Independent of the pipeline; can ship before or after 1. | Three-layer enforcement holds for the new tier; marker visible in `tools/list` for the chosen tools. | S |
 | 2 — Lifecycle | Six lifecycle tools onto the pipeline and structured contract: `dryRun`, `acknowledge`, the six lifecycle guards, typed verification. Remove the lifecycle token paths and `ProjectLifecycleTools.cs`. Remove the six tools from the conformance guard's legacy register and add probes. | Live V21 acceptance of open/close/save-as/archive with each guard firing once. | M |
 | 3 — Network | `network_write` loses `confirm` and `safetyToken`; gains `dryRun`, `acknowledge`, `deletes_subnet_with_connected_nodes`, and current → requested `effects` (closes the network half of #78). Target resolution stays exactly where it is (fresh read under the lease). Delete `CanonicalWriteSafety.cs`. | Live V21 acceptance of the multi-homed configure and subnet delete paths. | S–M |
@@ -531,7 +554,8 @@ It removes the blocked-call problem but needs a client on the newest revision.
 | --- | --- | --- |
 | Claude Code | Renders form and URL elicitation dialogs with no configuration. On protocol revision 2026-07-28 declares `elicitation: {form: {}, url: {}}`. A tool call waiting on a dialog is not backgrounded. Users can auto-answer via an `Elicitation` hook, and an `ElicitationResult` hook can alter the answer. Honours `_meta["anthropic/requiresUserInteraction"]` from v2.1.199. | Claude Code documentation, MCP page, sections "Respond to MCP elicitation requests" and "Require approval for a specific tool" |
 | C# SDK 2.2.0 (this server) | `ElicitAsync`, form and URL modes, `InputRequiredException`, `IsMrtrSupported`; tool `_meta` is a settable `JsonObject`. | SDK documentation |
-| Claude Desktop, VS Code, MCP Inspector, others | Not verified. Phase 1 spike. | — |
+| Codex Desktop, MCP Inspector | Not verified. Phase 1 spike (live, with Claude Code). | — |
+| Claude Desktop, VS Code, others | Not verified and not planned. | — |
 
 **Limits to state in the documentation.**
 
