@@ -13,7 +13,7 @@ internal static class ProjectRebindStatePayloadContract
 {
     public static ProjectRebindStateInfo Decode(string payload, string source, string destination)
     {
-        var state = CanonicalJson.Deserialize<ProjectRebindStateInfo>(payload);
+        var state = CanonicalJson.DeserializeWorkerPayload<ProjectRebindStateInfo>(payload);
         var willCloseSource = state.SourceOpenedByWorker && !SamePath(source, destination);
         if (state.SourceProjectPath is null
             || state.SourceIsModified is null

@@ -20,19 +20,6 @@ internal static class HardwarePagePayloadContract
         "^[0-9a-f]{64}$",
         RegexOptions.CultureInvariant);
 
-    private static readonly string[] RequiredRootMembers =
-    {
-        "orderingVersion",
-        "queryHash",
-        "snapshotHash",
-        "startOffset",
-        "totalDevices",
-        "totalSubnets",
-        "messages",
-        "deviceCandidates",
-        "subnetCandidates",
-    };
-
     internal static HardwarePagePayloadContractResult Decode(
         NetworkOperationRequest operation,
         WorkerCallResult workerResult,
@@ -55,8 +42,7 @@ internal static class HardwarePagePayloadContract
 
         try
         {
-            ValidateRequiredJsonShape(workerResult.Payload);
-            var payload = CanonicalJson.Deserialize<HardwarePageCandidateResultInfo>(workerResult.Payload);
+            var payload = CanonicalJson.DeserializeWorkerPayload<HardwarePageCandidateResultInfo>(workerResult.Payload);
             Validate(operation, payload, continuation);
             return new HardwarePagePayloadContractResult(payload, Item: null);
         }
@@ -69,39 +55,6 @@ internal static class HardwarePagePayloadContract
                     WorkerFailureCategories.ProtocolError,
                     "The hardware-page worker payload did not match its declared result contract and was rejected.",
                     warnings));
-        }
-    }
-
-    private static void ValidateRequiredJsonShape(string payload)
-    {
-        using var document = JsonDocument.Parse(payload, new JsonDocumentOptions
-        {
-            AllowTrailingCommas = false,
-            CommentHandling = JsonCommentHandling.Disallow,
-        });
-        var root = document.RootElement;
-        RequireObject(root, "hardware page payload");
-        RequireMembers(root, "hardware page payload", RequiredRootMembers);
-        RequireStringArray(root.GetProperty("messages"), "messages");
-
-        var deviceCandidates = root.GetProperty("deviceCandidates");
-        RequireArray(deviceCandidates, "deviceCandidates");
-        foreach (var candidate in deviceCandidates.EnumerateArray())
-        {
-            RequireObject(candidate, "deviceCandidates[]");
-            RequireMembers(candidate, "deviceCandidates[]", "offset", "device", "messages");
-            RequireObject(candidate.GetProperty("device"), "deviceCandidates[].device");
-            RequireStringArray(candidate.GetProperty("messages"), "deviceCandidates[].messages");
-        }
-
-        var subnetCandidates = root.GetProperty("subnetCandidates");
-        RequireArray(subnetCandidates, "subnetCandidates");
-        foreach (var candidate in subnetCandidates.EnumerateArray())
-        {
-            RequireObject(candidate, "subnetCandidates[]");
-            RequireMembers(candidate, "subnetCandidates[]", "offset", "subnet", "messages");
-            RequireObject(candidate.GetProperty("subnet"), "subnetCandidates[].subnet");
-            RequireStringArray(candidate.GetProperty("messages"), "subnetCandidates[].messages");
         }
     }
 
@@ -202,42 +155,6 @@ internal static class HardwarePagePayloadContract
         if (!string.Equals(publicProjection.Status, OperationBatchStatus.Succeeded, StringComparison.Ordinal))
         {
             throw new JsonException("Hardware candidates do not match the public hardware contract.");
-        }
-    }
-
-    private static void RequireMembers(JsonElement value, string path, params string[] members)
-    {
-        foreach (var member in members)
-        {
-            if (!value.TryGetProperty(member, out _))
-            {
-                throw new JsonException($"'{path}.{member}' is required.");
-            }
-        }
-    }
-
-    private static void RequireObject(JsonElement value, string path)
-    {
-        if (value.ValueKind != JsonValueKind.Object)
-        {
-            throw new JsonException($"'{path}' must be an object.");
-        }
-    }
-
-    private static void RequireArray(JsonElement value, string path)
-    {
-        if (value.ValueKind != JsonValueKind.Array)
-        {
-            throw new JsonException($"'{path}' must be an array.");
-        }
-    }
-
-    private static void RequireStringArray(JsonElement value, string path)
-    {
-        RequireArray(value, path);
-        if (value.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.String))
-        {
-            throw new JsonException($"'{path}' must contain only strings.");
         }
     }
 

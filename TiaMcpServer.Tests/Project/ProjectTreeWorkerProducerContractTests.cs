@@ -197,12 +197,6 @@ public class ProjectTreeWorkerProducerContractTests
         Assert.Equal(
             """{"success":true,"operation":"save_project"}""",
             WorkerSerializationHarness.Serialize(new ProjectLifecycleResultInfo { Operation = "save_project" }).Payload);
-        Assert.Equal(
-            """[{"typeName":"CPU","typeIdentifier":"OrderNumber:X"}]""",
-            WorkerSerializationHarness.Serialize(new List<CatalogEntryInfo>
-            {
-                new() { TypeName = "CPU", TypeIdentifier = "OrderNumber:X" }
-            }).Payload);
     }
 
     [Fact]
@@ -211,6 +205,15 @@ public class ProjectTreeWorkerProducerContractTests
         Assert.Equal(
             """{"name":"unchanged","optional":null}""",
             WorkerSerializationHarness.Serialize(new { Name = "unchanged", Optional = (string?)null }).Payload);
+
+        // CatalogEntryInfo no longer carries [LegacyNullOmission(RequiredMemberEnforcement)]
+        // (Task 3): its null members are now written explicitly, like any unmarked contract.
+        Assert.Equal(
+            """[{"typeName":"CPU","articleNumber":null,"version":null,"typeIdentifier":"OrderNumber:X","typeIdentifierNormalized":null,"catalogPath":null,"description":null}]""",
+            WorkerSerializationHarness.Serialize(new List<CatalogEntryInfo>
+            {
+                new() { TypeName = "CPU", TypeIdentifier = "OrderNumber:X" }
+            }).Payload);
     }
 
     [Fact]

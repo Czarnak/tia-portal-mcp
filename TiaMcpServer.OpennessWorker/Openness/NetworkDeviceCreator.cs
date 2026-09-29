@@ -70,7 +70,16 @@ public static class NetworkDeviceCreator
     {
         try
         {
-            return read();
+            // Openness has no nullability annotations; a null here would be written as an explicit
+            // null and rejected by the host reader after the device was already created.
+            var value = read();
+            if (value is null)
+            {
+                warnings.Add($"Could not read {description}: Openness returned no value.");
+                return fallback;
+            }
+
+            return value;
         }
         catch (EngineeringException ex)
         {

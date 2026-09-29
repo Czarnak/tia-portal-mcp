@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.Contracts;
 
-[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 public class HardwareConfigInfo
 {
     public List<DeviceInfo> Devices { get; set; } = new List<DeviceInfo>();

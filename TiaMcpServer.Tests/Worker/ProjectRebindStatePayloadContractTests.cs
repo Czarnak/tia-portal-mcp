@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -38,6 +40,38 @@ public sealed class ProjectRebindStatePayloadContractTests
         payload.Remove(member);
 
         Assert.ThrowsAny<JsonException>(() =>
+            ProjectRebindStatePayloadContract.Decode(payload.ToJsonString(), Source, Destination));
+    }
+
+    // The reader itself rejects a missing member, so the decoder never reaches its semantic rule.
+    [Theory]
+    [InlineData("sourceProjectPath")]
+    [InlineData("destinationProjectPath")]
+    [InlineData("sourceIsModified")]
+    [InlineData("sourceOpenedByWorker")]
+    [InlineData("willCloseSource")]
+    public void Reader_RejectsAMissingMember(string member)
+    {
+        Assert.NotNull(CanonicalJson.DeserializeWorkerPayload<ProjectRebindStateInfo>(Valid));
+        var payload = JsonNode.Parse(Valid)!.AsObject();
+        payload.Remove(member);
+
+        Assert.Throws<JsonException>(() =>
+            CanonicalJson.DeserializeWorkerPayload<ProjectRebindStateInfo>(payload.ToJsonString()));
+    }
+
+    // Explicit nulls in the nullable members pass the reader; the decoder's semantic rule (an open
+    // source with known modified state) is what rejects them.
+    [Theory]
+    [InlineData("sourceProjectPath")]
+    [InlineData("sourceIsModified")]
+    public void Decode_RejectsAnExplicitNullThatTheReaderAccepts(string member)
+    {
+        var payload = JsonNode.Parse(Valid)!.AsObject();
+        payload[member] = null;
+        Assert.NotNull(CanonicalJson.DeserializeWorkerPayload<ProjectRebindStateInfo>(payload.ToJsonString()));
+
+        Assert.Throws<JsonException>(() =>
             ProjectRebindStatePayloadContract.Decode(payload.ToJsonString(), Source, Destination));
     }
 

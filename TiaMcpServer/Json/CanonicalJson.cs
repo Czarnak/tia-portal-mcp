@@ -2,6 +2,8 @@ using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.Json;
 
@@ -35,16 +37,29 @@ public static class CanonicalJson
 
     private static readonly JsonSerializerOptions CanonicalWrite = CreateCanonicalWrite();
 
+    private static readonly JsonSerializerOptions WorkerPayloadRead = CreateWorkerPayloadRead();
+
     /// <summary>
     /// Parses <paramref name="json"/> into <typeparamref name="T"/> under the strict rules above.
     /// Throws <see cref="JsonException"/> for anything that does not match the declared contract.
     /// </summary>
-    public static T Deserialize<T>(string json)
+    public static T Deserialize<T>(string json) => DeserializeUsing<T>(json, StrictRead);
+
+    /// <summary>
+    /// Parses a worker payload's <paramref name="json"/> into <typeparamref name="T"/> under the
+    /// strict rules of <see cref="Deserialize{T}"/>, plus one more: every settable member of
+    /// <typeparamref name="T"/> (including inside nested objects and array elements) is required,
+    /// unless it is declared conditional with
+    /// <see cref="JsonIgnoreAttribute"/>'s <see cref="JsonIgnoreCondition.WhenWritingNull"/>.
+    /// Throws <see cref="InvalidOperationException"/> when <typeparamref name="T"/>'s contract
+    /// still omits null members on the wire (<see cref="WorkerJson.OmitsNullMembers"/>) — such a
+    /// contract cannot yet distinguish an absent member from an explicit null, so it cannot use
+    /// this reader.
+    /// </summary>
+    public static T DeserializeWorkerPayload<T>(string json)
     {
-        using var document = JsonDocument.Parse(json, DocumentOptions);
-        RejectDuplicateProperties(document.RootElement);
-        return document.Deserialize<T>(StrictRead)
-            ?? throw new JsonException($"Expected a {typeof(T).Name} value but the JSON was null.");
+        RefuseLegacyNullOmittingPayload(typeof(T));
+        return DeserializeUsing<T>(json, WorkerPayloadRead);
     }
 
     /// <summary>Renders <paramref name="value"/> as canonical JSON text.</summary>
@@ -86,9 +101,49 @@ public static class CanonicalJson
         Action<T>? validate = null)
     {
         var value = Deserialize<T>(json);
+        return FinishNormalize(value, validate);
+    }
+
+    /// <summary>
+    /// <see cref="DeserializeWorkerPayload{T}"/>, then the same canonical-text and validator
+    /// pipeline as <see cref="Normalize{T}"/> — one round trip, three representations that cannot
+    /// drift apart. Throws <see cref="InvalidOperationException"/> under the same condition as
+    /// <see cref="DeserializeWorkerPayload{T}"/>.
+    /// </summary>
+    public static (T Value, string Text, JsonElement Element) NormalizeWorkerPayload<T>(
+        string json,
+        Action<T>? validate = null)
+    {
+        var value = DeserializeWorkerPayload<T>(json);
+        return FinishNormalize(value, validate);
+    }
+
+    private static (T Value, string Text, JsonElement Element) FinishNormalize<T>(
+        T value,
+        Action<T>? validate)
+    {
         validate?.Invoke(value);
         var text = Serialize(value);
         return (value, text, Detach(text));
+    }
+
+    private static T DeserializeUsing<T>(string json, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.Parse(json, DocumentOptions);
+        RejectDuplicateProperties(document.RootElement);
+        return document.Deserialize<T>(options)
+            ?? throw new JsonException($"Expected a {typeof(T).Name} value but the JSON was null.");
+    }
+
+    private static void RefuseLegacyNullOmittingPayload(Type payloadType)
+    {
+        if (WorkerJson.OmitsNullMembers(payloadType))
+        {
+            throw new InvalidOperationException(
+                $"'{payloadType}' still omits null members on the wire (see " +
+                $"{nameof(WorkerJson)}.{nameof(WorkerJson.OmitsNullMembers)}) and cannot use the " +
+                "worker payload reader until its LegacyNullOmissionAttribute is removed.");
+        }
     }
 
     private static JsonElement Detach(string canonicalText)
@@ -175,6 +230,65 @@ public static class CanonicalJson
         options.MakeReadOnly(populateMissingResolver: true);
         return options;
     }
+
+    private static JsonSerializerOptions CreateWorkerPayloadRead()
+    {
+        var resolver = new DefaultJsonTypeInfoResolver();
+        resolver.Modifiers.Add(RequireDeclaredMembers);
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = false,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+            AllowTrailingCommas = false,
+            ReadCommentHandling = JsonCommentHandling.Disallow,
+
+            // Rejects an explicit null for a non-nullable property or constructor parameter. It
+            // does not check missing members (RequireDeclaredMembers below does that), collection
+            // elements, or generic type arguments on its own.
+            RespectNullableAnnotations = true,
+            TypeInfoResolver = resolver
+        };
+        options.MakeReadOnly(populateMissingResolver: true);
+        return options;
+    }
+
+    /// <summary>
+    /// Makes every settable member of an object type required, unless it carries
+    /// <c>[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]</c> — the repository's one
+    /// convention for "this member may legitimately be absent" (see
+    /// <c>ConditionalMemberRegisterTests</c>). "Settable" means <see cref="JsonPropertyInfo.Set"/>
+    /// is non-null, which holds for an ordinary property, an <c>init</c> property, and a positional
+    /// record parameter's generated property alike. A get-only property is left alone: nothing this
+    /// reader does can populate it from JSON, so requiring it would only reject every payload.
+    /// Only object types carry required-ness this way; array/enumerable and dictionary
+    /// <see cref="JsonTypeInfo"/> instances are left untouched; their elements are visited on their
+    /// own as their own (object) <see cref="JsonTypeInfo"/>.
+    /// </summary>
+    private static void RequireDeclaredMembers(JsonTypeInfo typeInfo)
+    {
+        if (typeInfo.Kind != JsonTypeInfoKind.Object)
+        {
+            return;
+        }
+
+        foreach (var property in typeInfo.Properties)
+        {
+            if (property.Set is null || IsWhenWritingNullConditional(property))
+            {
+                continue;
+            }
+
+            property.IsRequired = true;
+        }
+    }
+
+    private static bool IsWhenWritingNullConditional(JsonPropertyInfo property)
+        => property.AttributeProvider?
+            .GetCustomAttributes(typeof(JsonIgnoreAttribute), inherit: true)
+            .OfType<JsonIgnoreAttribute>()
+            .Any(attribute => attribute.Condition == JsonIgnoreCondition.WhenWritingNull) ?? false;
 
     private static JsonSerializerOptions CreateCanonicalWrite()
     {

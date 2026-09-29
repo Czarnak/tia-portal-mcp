@@ -2,6 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
+using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -12,10 +15,19 @@ namespace TiaMcpServer.Tests.Network;
 /// <see cref="IoChannelInfo"/>, <see cref="IoTagMatchInfo"/>): non-null collections, null
 /// unreadable scalars, JSON round trips, and the <see cref="JsonIgnoreCondition.WhenWritingNull"/>
 /// guarantee that a default read serializes byte-identically to the pre-I/O-map shape.
+///
+/// A second group (<c>Project_*</c>) pins the worker-payload reader's rejections of <c>ioDetails</c>
+/// members (wrong-shape or non-string elements) that <see cref="NetworkPayloadContract"/> decodes
+/// and that are not already pinned in <c>NetworkIoMapPayloadContractTests</c>.
 /// </summary>
 public class DeviceItemIoDetailsContractTests
 {
     private static readonly JsonSerializerOptions WebOptions = new(JsonSerializerDefaults.Web);
+
+    private static StructuredOperationItem Project(string payload, bool includeIoDetails = true)
+        => NetworkPayloadContract.Project(
+            new NetworkOperationRequest { OperationId = "op-1", Operation = "read_hardware_config", IncludeIoDetails = includeIoDetails },
+            WorkerCallResult.Ok(payload));
 
     [Fact]
     public void IoDetails_IsNullByDefaultOnADeviceItem()
@@ -256,5 +268,214 @@ public class DeviceItemIoDetailsContractTests
         Assert.Null(roundTripped.LogicalAddress);
         Assert.Equal(96, roundTripped.ChannelAddressBits);
         Assert.Equal(32u, roundTripped.ChannelWidthBits);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Worker-payload reader rejections for ioDetails members not already pinned by
+    // NetworkIoMapPayloadContractTests (controllerNames wrong-shape elements, and a tagMatches[]
+    // member holding a non-string JSON value).
+    // ---------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("\"PLC_1\"")]
+    [InlineData("[123]")]
+    [InlineData("[null]")]
+    public void Project_RejectsControllerNamesWithAnInvalidShape(string controllerNamesJson)
+    {
+        var payload = $$"""
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [
+                          { "ioType": "Input", "controllerNames": {{controllerNamesJson}} }
+                        ],
+                        "channels": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Theory]
+    [InlineData("""{"name":123,"dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":123,"logicalAddress":"%I4.0","tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":123,"tableName":"T","folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":123,"folderPath":"/"}""")]
+    [InlineData("""{"name":"StartButton","dataType":"Bool","logicalAddress":"%I4.0","tableName":"T","folderPath":123}""")]
+    public void Project_RejectsNonStringMemberInsideATagMatch(string tagMatchJson)
+    {
+        var payload = $$"""
+            {
+              "devices": [
+                {
+                  "name": "PLC_1",
+                  "items": [
+                    {
+                      "networkInterfaces": [],
+                      "communicationConnections": [],
+                      "items": [],
+                      "selectable": false,
+                      "selector": null,
+                      "selectorDiagnostics": ["unavailable"],
+                      "ioDetails": {
+                        "addresses": [],
+                        "channels": [{"number": 0, "ioType": "Input", "tagMatches": [{{tagMatchJson}}]}]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "subnets": [],
+              "messages": []
+            }
+            """;
+
+        var item = Project(payload, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Typed rules: the typed validators, after the worker-payload reader, enforce these. Every payload
+    // has every declared member present, so a rejection can only come from the rule under test.
+    // ---------------------------------------------------------------------------------------
+
+    private const string CompleteIoDetails = """
+        {
+          "addresses": [
+            { "ioType": "Input", "startAddress": 0, "length": 2, "context": null, "controllerNames": ["PLC_1"] }
+          ],
+          "channels": [
+            {
+              "number": 0,
+              "ioType": "Input",
+              "type": null,
+              "channelAddressBits": 0,
+              "channelWidthBits": 1,
+              "logicalAddress": "%I0.0",
+              "tagMatches": [
+                { "name": "Start", "dataType": "Bool", "logicalAddress": "%I0.0", "tableName": "Tags", "folderPath": "" }
+              ]
+            }
+          ]
+        }
+        """;
+
+    /// <summary>A device item with every declared member; <c>ioDetails</c> is omitted when null.</summary>
+    private static string CompleteDeviceItem(string name, string? ioDetailsJson, string childItemsJson = "")
+    {
+        var ioDetailsMember = ioDetailsJson is null ? string.Empty : $"\"ioDetails\": {ioDetailsJson},";
+        return $$"""
+            {
+              "name": "{{name}}",
+              "typeIdentifier": null,
+              "positionNumber": null,
+              "address": null,
+              {{ioDetailsMember}}
+              "selectable": false,
+              "selector": null,
+              "selectorDiagnostics": ["unavailable"],
+              "communicationConnections": [],
+              "networkInterfaces": [],
+              "items": [{{childItemsJson}}]
+            }
+            """;
+    }
+
+    /// <summary>A hardware config whose one device holds <paramref name="itemJson"/>.</summary>
+    private static string CompleteHardwareConfig(string itemJson) => $$"""
+        {
+          "devices": [ { "name": "PLC_1", "typeIdentifier": null, "items": [{{itemJson}}] } ],
+          "subnets": [],
+          "messages": []
+        }
+        """;
+
+    /// <summary>The outer item has I/O details; the item nested under it does not.</summary>
+    private static readonly string NestedItemWithoutIoDetails = CompleteHardwareConfig(
+        CompleteDeviceItem("CPU", CompleteIoDetails, CompleteDeviceItem("DI 8x24VDC", ioDetailsJson: null)));
+
+    /// <summary>The outer item has no I/O details; the item nested under it does.</summary>
+    private static readonly string NestedItemWithIoDetails = CompleteHardwareConfig(
+        CompleteDeviceItem("CPU", ioDetailsJson: null, CompleteDeviceItem("DI 8x24VDC", CompleteIoDetails)));
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Project_AcceptsNestedDeviceItemsWhoseIoDetailsMatchTheRequest(bool includeIoDetails)
+    {
+        var ioDetails = includeIoDetails ? CompleteIoDetails : null;
+        var payload = CompleteHardwareConfig(
+            CompleteDeviceItem("CPU", ioDetails, CompleteDeviceItem("DI 8x24VDC", ioDetails)));
+
+        var item = Project(payload, includeIoDetails);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+    }
+
+    [Fact]
+    public void Project_RejectsANestedDeviceItemWithoutIoDetails_WhenIoDetailsAreRequested()
+    {
+        var item = Project(NestedItemWithoutIoDetails, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void Project_RejectsANestedDeviceItemWithIoDetails_WhenIoDetailsAreNotRequested()
+    {
+        var item = Project(NestedItemWithIoDetails, includeIoDetails: false);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Fact]
+    public void DecodeHardwareConfig_AcceptsNestedIoDetailsEitherWay_WhenTheRequestIsUnspecified()
+    {
+        var withoutNested = NetworkPayloadContract.DecodeHardwareConfig(NestedItemWithoutIoDetails);
+        var withNested = NetworkPayloadContract.DecodeHardwareConfig(NestedItemWithIoDetails);
+
+        Assert.Null(withoutNested.Devices[0].Items[0].Items[0].IoDetails);
+        Assert.NotNull(withNested.Devices[0].Items[0].Items[0].IoDetails);
+    }
+
+    [Fact]
+    public void Project_RejectsANullControllerName_WhenEveryMemberIsPresent()
+    {
+        var valid = CompleteHardwareConfig(CompleteDeviceItem("CPU", CompleteIoDetails));
+        var withNullElement = valid.Replace(
+            "\"controllerNames\": [\"PLC_1\"]",
+            "\"controllerNames\": [\"PLC_1\", null]",
+            StringComparison.Ordinal);
+        Assert.NotEqual(valid, withNullElement);
+
+        Assert.Equal(OperationBatchStatus.Succeeded, Project(valid, includeIoDetails: true).Status);
+        var item = Project(withNullElement, includeIoDetails: true);
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
     }
 }

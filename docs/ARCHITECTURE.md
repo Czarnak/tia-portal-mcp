@@ -301,6 +301,21 @@ and the batch tools' exclusion from it.
   properties, unmapped members, and case-mismatched names) and a repository-defined canonical
   serialization (recursive ordinal property ordering, preserved array order, explicit nulls,
   compact UTF-8). It is *not* an RFC 8785 claim — see the plan's Global Constraints.
+- The same file provides the worker-payload reader, `DeserializeWorkerPayload<T>` and
+  `NormalizeWorkerPayload<T>` (the latter returns the value, its canonical text and element, and
+  runs an optional semantic validator). It applies the strict rules above plus
+  `RespectNullableAnnotations` and a rule that every settable member is required, except a member
+  declared `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. A rejected payload
+  throws `JsonException`, which the decoders turn into `protocol_error`. The rule applies to a
+  payload whose root writes explicit nulls, so the reader refuses (`InvalidOperationException`) a
+  root type, or an array root's element type, that carries `[LegacyNullOmission]`: that payload
+  omits nulls on the wire and cannot be read with required members. The reader does not check
+  collection elements, dictionary values or generic arguments, so the typed validators keep their
+  null-element checks alongside their semantic rules.
+- A member the worker legitimately omits is a *conditional member*, marked `WhenWritingNull` and
+  described by when it appears. Exactly four exist today (`DeviceItemInfo.IoDetails`,
+  `HardwareConfigInfo.Pagination`, `HardwarePaginationInfo.NextCursor`,
+  `WorkerResponse.BlockImportOutcome`), and `ConditionalMemberRegisterTests` pins that set.
 - `TiaMcpServer/Tools/StructuredToolResult.cs` renders one canonical JSON document and returns it
   as both the `content` text block and a detached `structuredContent` `JsonElement`, from a single
   `CanonicalJson.Serialize` call, so the two representations cannot drift apart.
@@ -330,7 +345,18 @@ success payloads. It maps each of the nine network operations to exactly one dec
 `delete_subnet`) and rejects anything that does not match — a malformed,
 unknown, wrongly cased, or wrongly typed payload becomes a failed item with category
 `protocol_error` rather than being forwarded under a schema that does not describe it. The
-rejected payload is never echoed back to the caller.
+rejected payload is never echoed back to the caller. Every decode, including the nested
+`NetworkEnumValueInfo` decode, goes through the worker-payload reader; the network payload roots
+write explicit nulls.
+
+The other host decodes of worker payloads use the reader as well:
+`HardwarePagePayloadContract`, `ProjectTreeWorkerPayloadContract` and
+`ProjectRebindStatePayloadContract`. Four call sites deliberately stay on
+`CanonicalJson.Deserialize`: the three batch safety snapshot decodes (`BatchWorkerInvoker`,
+`ProjectTreeSafetyPayloadContract`, `TagOperationSafetySnapshotContract`), whose roots still omit
+nulls until the batch redesign, and the authenticated cursor decode
+(`AuthenticatedCursorProtector`), which reads a host-written envelope rather than a worker
+payload.
 
 The paged hardware seam described next is the deliberate exception: its private candidate response
 is decoded by `HardwarePagePayloadContract` before projection into the same public

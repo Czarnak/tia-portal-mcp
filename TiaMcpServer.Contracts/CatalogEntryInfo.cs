@@ -1,6 +1,5 @@
 namespace TiaMcpServer.Contracts;
 
-[LegacyNullOmission(LegacyNullOmissionReason.RequiredMemberEnforcement)]
 public class CatalogEntryInfo
 {
     public string TypeName { get; set; } = string.Empty;

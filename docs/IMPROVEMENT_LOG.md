@@ -65,6 +65,30 @@ and seven existing warnings. PR 2 is merge-ready by the explicit
 source/behavioral-equivalence carry-forward, not by binary identity or a
 current-HEAD Portal rerun. No merge was performed.
 
+## Open: JSON contract Phase 1b follow-ups
+
+These came out of the Phase 1b final review ([plan](superpowers/plans/2026-09-28-json-contract-phase1b-required-members.md)).
+None of them blocks the merge.
+
+- **Tag-match null path (predates Phase 1b).** `TagTableReader` → `HardwareTagIndexResolver` →
+  `HardwareIoMapReader` pass Openness strings unguarded into the non-nullable `IoTagMatchInfo`
+  members `Name`, `DataType`, and `TableName`. A null from Openness makes the whole
+  `read_hardware_config` result `protocol_error`. That fails closed, as before the branch. A worker
+  fallback with a message would keep the read usable.
+- **Worker version mismatch.** The host now requires the network payloads to write explicit
+  nulls, so the payloads of a worker built before Phase 1b are rejected as `protocol_error`. Host
+  and worker ship in one package, so this fails safe. An optional protocol capability would turn
+  it into an explicit version-mismatch message.
+- **`update_subnet` null or blank read-back name.** If Openness reads back no name after the update
+  has committed, the host rejects the result as `protocol_error`. `postcondition_failed` would
+  describe it better, but that is new behavior and was kept out of Phase 1b.
+- **File sizes.** `TiaMcpServer/Network/NetworkPayloadContract.cs` is 831 lines and
+  `TiaMcpServer.Tests/Network/NetworkPayloadContractTests.cs` is 1281 lines. The test file repeats
+  the full 16-member selector and 19-member evidence objects about 20 times.
+- **Test precision.** The five tag-match rejection cases in `NetworkIoMapPayloadContractTests` have
+  no accepted control. `NetworkPayloadContractTests.Rules.cs` asserts that the validator appears
+  anywhere in the diagnostic chain; asserting `chain[0]` would be tighter.
+
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 
 | # | Change | Where | Why |
@@ -686,3 +710,31 @@ frozen checkout and host provenance, token redaction, and double-gated Apply. It
 verified historical repository origin. At this static checkpoint no harness mode or live TIA Portal
 acceptance had run for the current PR 1 tree. The subsequent failed attempt and successful rerun
 are recorded in the completed entry above.
+
+## JSON contract Phase 1b required-member enforcement — live acceptance completed (2026-09-29)
+
+One worker-payload reader in `CanonicalJson` now enforces required members for the Network,
+hardware-page, project-tree, and rebind-state decodes. It replaces the hand-written JSON-shape
+layers in the first three contracts. The seven network roots and two worker probes now write
+explicit nulls, and `LegacyNullOmissionReason.RequiredMemberEnforcement` is gone.
+- `NetworkPayloadContract.cs` went from 1268 to 831 lines, and `HardwarePagePayloadContract.cs`
+  from 258 to 175.
+- The builds are clean, and the full suite passed 4199/4199, up from 3858.
+- One behavior loosens, as documented: an explicit `ioDetails: null` on a read that did not
+  request IO details is now accepted.
+- A payload the reader rejects logs `validators=Decode` instead of a validator name.
+
+The branch build `3.0.1-local.33.g4de84ef` was installed as the `tia-mcp` global tool and run
+against TIA Portal V21 on a disposable copy of `SimpleProject`, 25 calls in all.
+- **Reads:** the hardware configuration (default, IO details, tag matches, and three pages), the
+  catalog search, the object list (two pages), four inspections including a `kind: "null"`
+  attribute, and the project tree (two pages plus a start selector).
+- **Writes:** `open_project`, then a `network_write` preview and apply for each of
+  `create_subnet`, `add_network_device`, `configure_network_device`, `update_subnet`, and
+  `delete_subnet`.
+
+No call returned `protocol_error`. Every response had its declared shape, and no contract changed.
+The `NetworkDeviceCreator` null fallback added by the final review did not fire, because Openness
+returned the device name and type, so that branch is verified by the build only. The copy was
+left with unsaved changes; nothing was saved, compiled, or downloaded. The per-call record is in
+the [plan's acceptance notes](superpowers/plans/2026-09-28-json-contract-phase1b-required-members.md#acceptance-notes-live-2026-09-29).
