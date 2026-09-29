@@ -1,9 +1,10 @@
 # Write-Safety Redesign: Retiring Preview→Apply Tokens
 
 **Date:** 2026-09-29
-**Status:** Draft under discussion. Points marked **Decided 2026-09-29** were settled with the
-maintainer. Still open: the default of the per-tool forced-approval marker (§4.6) and the
-access-mode tiers (§4.11). Nothing is implemented.
+**Status:** Design accepted 2026-09-29. Every open question in §9 was settled with the maintainer
+the same day; points marked **Decided 2026-09-29** record the answer next to the design they
+change. Nothing is implemented. Next step: the Phase 0 documentation changes and the Phase 1 and
+1b implementation plans.
 **Supersedes when accepted:** the token-flow parts of
 [write-safety hardening (2026-09-01)](2026-09-01-write-safety-hardening-design.md); Phase 3 and
 part of Phase 4 of [the JSON contract roadmap](../../roadmap/json-contract.md).
@@ -215,7 +216,7 @@ explicit values (`update_tag`, `configure_network_device`) do not need it: their
 resolution at write time already refuses a renamed or deleted target, and the new values are the
 request.
 
-### 4.6 Asking the human (elicitation decided 2026-09-29; marker default open)
+### 4.6 Asking the human (decided 2026-09-29)
 
 The acknowledgement model is settled: the agent-side `acknowledge` array of §4.3 is the baseline,
 and elicitation is the opt-in upgrade described below. Three mechanisms exist; all depend on the
@@ -238,15 +239,14 @@ client.
   on every call, in every permission mode including `auto` and `bypassPermissions`, with no
   "don't ask again" option; allow rules do not skip it, and in non-interactive runs the call is
   denied. Other clients ignore the marker. This is the original goal of the token flow, delivered
-  as metadata. A startup switch (name provisional: `--user-approval`) controls which tools carry
-  it. The maintainer leans towards marking every write tool by default. The recommendation in
-  §4.11 is to tie the default to the access-mode tiers instead: on for the irreversible tools
-  (lifecycle and online control), off for in-project edits, with the switch able to widen it to
-  all writes or remove it. Three costs of marking every write tool drive that recommendation:
-  the marker overrides client allow rules, so the user can never allow-list `tag_write` even
-  when they want to; every `dryRun` on a marked tool prompts; and non-interactive runs deny
-  marked tools outright, so headless engineering edits stop working unless the switch is
-  changed. When both the marker and `--confirm-with-user` apply to one call, the human answers
+  as metadata. A startup switch (name provisional: `--user-approval all|full|none`) controls
+  which tools carry it. **Decided:** the default is `full`, meaning the marker is on for every
+  tool that only the `full` access mode registers (lifecycle and PLC control) and off for the
+  tools `read-write` registers; `all` widens it to every write tool and `none` removes it. The
+  default follows the tiers of §4.11 because marking every write tool has three costs: the marker
+  overrides client allow rules, so the user could never allow-list `tag_write` even when they
+  wanted to; every `dryRun` on a marked tool prompts; and non-interactive runs deny marked tools
+  outright, so headless engineering edits would stop working unless the switch were changed. When both the marker and `--confirm-with-user` apply to one call, the human answers
   twice, once before the call on the arguments and once during it on the computed consequence;
   that is accepted for the dangerous case. See Appendix A for verified client behaviour.
 
@@ -324,12 +324,12 @@ The read-write tool count depends on the domain split. Either way this is a brea
 every write tool's input schema and output shape and belongs to the next major version, released
 once (decided 2026-09-29: phases merge to `main` as they complete; nothing is tagged until Phase 5).
 
-### 4.11 Access-mode tiers (proposal, open)
+### 4.11 Access-mode tiers (decided 2026-09-29)
 
 Today there are two modes, `read-only` and `read-write`, and `read-write` allows everything. The
 maintainer asked whether to add per-tool server permissions or one more mode for the operations
-that cannot be reverted. The recommendation is the second, and the unit is the capability class,
-not the tool name.
+that cannot be reverted. The decision is the second, and the unit is the capability class, not
+the tool name.
 
 The boundary that matters in TIA Portal is persistence. An in-memory edit to a block, tag, or
 network object is undone by closing the project without saving; TIA's own undo also covers much of
@@ -368,7 +368,7 @@ client allow list fine-tunes prompting under that ceiling. If a finer server-sid
 needed, the capability class is the unit to expose (`--deny-capability online-control`), not the
 tool name.
 
-The tiers also give the forced-approval marker a natural default: on for every tool that only
+The tiers also set the forced-approval marker's default (§4.6): on for every tool that only
 `full` registers, off for the tools `read-write` registers, and `--user-approval all|full|none`
 to override. Under that default a `read-write` session can allow-list its write tools and run
 headless, while a `full` session always puts a person in front of a save, close, archive, or PLC
@@ -469,20 +469,15 @@ spike is positive, otherwise a later slice.
 
 ## 9. Open questions for discussion
 
-Still open:
-
-1b. **Forced-approval marker default.** Maintainer leaning: on for every write tool.
-   Recommendation (§4.11): on for the tools only `full` registers, off for `read-write` tools,
-   `--user-approval all|full|none` to override. The difference is whether a `read-write` session
-   can allow-list its write tools and run headless.
-9. **Access-mode tiers.** Add `full` as a third mode over the existing capability classes
-   (§4.11), or keep two modes? Per-tool server lists are recommended against.
-
-Decided 2026-09-29:
+All settled 2026-09-29:
 
 1. **Acknowledgement model.** Agent-side `acknowledge` list as the baseline; `--confirm-with-user`
    makes elicitation the only way to satisfy an `acknowledge` guard when on (§4.6).
 3. **Preview shape.** `dryRun` flag on every write tool (§4.4).
+1b. **Forced-approval marker default.** `--user-approval` defaults to `full`: the marker is on for
+   the tools only the `full` mode registers and off for `read-write` tools (§4.6).
+9. **Access-mode tiers.** A third mode, `full`, as a preset over the existing capability classes;
+   `read-write` narrows to in-project edits and compile. No per-tool server lists (§4.11).
 
 2. **Stale-state protection.** Required `expectedContentHash` on the content-replacement tools;
    the maintainer and the agent share the project and the agent must not undo the maintainer's
