@@ -374,3 +374,103 @@ This is the definition of done. The pull request is not opened before this task 
   project, every call with its outcome, and any contract change made. Add a completed-work entry
   to `docs/IMPROVEMENT_LOG.md`.
 - [ ] **Step 7:** Commit `docs: record phase 1b live acceptance`.
+
+## Execution notes (2026-09-29)
+
+- **Task 2 sequencing.** `CatalogEntryInfo` kept its marker until Task 3, and the reader refuses
+  an array whose element type is marked, so Task 2 could not test a real `CatalogEntryInfo[]`
+  root. Task 2 used a test-local array root (accepted, and rejected when an element misses a
+  member) plus a test-local marked-element refusal. The real `CatalogEntryInfo[]` cases landed in
+  Task 3, after the marker removal. The design did not change.
+- **Rejection tests stopped reaching their rules (Task 4).** The reader rejects an incomplete
+  payload before any typed validator runs, so fixtures that omitted nullable members no longer
+  reached the rule they were named for. Task 4 completed 16 test fixtures and the FakeWorker
+  network success fixture with explicit nulls, and added
+  `NetworkPayloadContractTests.Rules.cs`. It has 122 cases, each a single mutation of one of
+  14 accepted bases, and each asserts the validator named in the diagnostic. Temporarily
+  disabling rules showed that exactly the matching cases fail. Tasks 5 and 6 use the same
+  pattern: assert that the base is accepted, that the reader accepts the mutated payload, and that
+  the typed rule rejects it.
+- **Diagnostic trade-off.** A payload the reader rejects logs `validators=Decode` rather than the
+  name of a validator. This is inherent to one generic reader and was accepted.
+- **Documented loosening.** An explicit `ioDetails: null` on a read that did not request IO details
+  is now accepted, because `ioDetails` is a conditional member. Omitting it is still accepted, and
+  a non-null `ioDetails` on an unrequested read is still rejected.
+- **Task 5.** `HardwarePagePayloadContract.Validate` already had every null-element check, so
+  Step 3 changed no production code. The `Subnet()` test fixture turned out to be rejected by the
+  public re-projection, so the subnet tests now start from a valid `ExplainedSubnetRoot` base.
+- **Task 6 premise was wrong.** `ProjectRebindStateInfo` already had `[JsonRequired]` on all five
+  members, so the reader adds no new strictness there. The rebind-state change is a one-line swap
+  plus reader-level and explicit-null tests. The tree already had its null-element checks. A null
+  `startSelector` segment is caught by `ProjectTreeNodeTypes.Validate`, which is load-bearing:
+  disabling it lets a `NullReferenceException` escape `Decode`. `payload.Roots is null` is now
+  unreachable and was kept.
+- **Line counts.** `NetworkPayloadContract.cs` 1268 → 831, `HardwarePagePayloadContract.cs`
+  258 → 175, `ProjectTreeWorkerPayloadContract.cs` 277 → 184,
+  `ProjectRebindStatePayloadContract.cs` 33 → 33.
+- **Final-review fixes.**
+  - `a21d4c0`: `NetworkDeviceCreator.ReadString` falls back with a warning when Openness returns
+    a null name or type identifier after `CreateWithItem`. Without it, the now-explicit null would
+    have been rejected after the device had already been created.
+  - `4de84ef`: reverts a `SubnetLifecycleService` guard from the same commit, which had no
+    effect.
+  - `48078cf`: the subnet-offset test now reaches `candidate.Offset < payload.TotalDevices`, the
+    Task 1 subnet cases start from the valid base, and the reader has `itemPath[]` segment rows.
+  - `ac6de1a` updates stale test comments, and `4e5eebc` corrects documentation wording.
+- **Verification.** Task 8: the real-assembly and stub builds had 0 errors and the 7 known
+  xUnit2031 warnings. The full suite passed 4199/4199 at `4e5eebc`, up from the 3858 baseline.
+  `4de84ef` touches only worker code, which the tests do not cover; it builds with 0 errors.
+
+## Acceptance notes (live, 2026-09-29)
+
+- **Installed version:** `3.0.1-local.33.g4de84ef`. It was packed against the real V21 assemblies,
+  `verify-doctor-package.ps1` passed, and it was installed as the `tia-mcp` global tool.
+- **Portal and project:** TIA Portal V21 (PID 34524) with
+  `C:\Users\LCZ\Desktop\RnD\plc-prompt-injections\_mcp_test\SimpleProject_copy\SimpleProject_copy.ap21`.
+  This is a disposable copy of `SimpleProject` that the user made and opened.
+- **Deviation:** reads and writes both ran on that copy. The plan had the reads on
+  `SimpleProject` and the writes on a `save_project_as` copy. The session was bound with
+  `open_project` before the writes.
+
+| # | Call | Outcome |
+| --- | --- | --- |
+| 1 | `get_project_status` | Succeeded; project open, unmodified. |
+| 2 | `network_read` `read_hardware_config` (default) | Succeeded; 5 devices, 3 subnets, 110 messages; no `pagination` and no `ioDetails` member. |
+| 3 | `network_read`, 5 operations: `read_hardware_config` with `includeIoDetails`, the same plus `includeTagMatches`, `pageSize: 3`, `search_equipment_catalog` ("CPU 1511", `maxResults: 5`), `list_network_objects` (all six kinds) | The two whole-project IO-detail reads were `omitted`, not `failed` (`resultExceededItemCharLimit`: 72,874 and 72,993 characters against the 60,000 per-item cap). Page 1: 3 devices, 0 subnets, `nextCursor`. Catalog: 5 entries plus the "more may exist" warning. List: 50 of 89, `nextCursor`. |
+| 4 | `network_read`, 4 operations: hardware page 2, list page 2, `ET 200SP station_1` with `includeIoDetails`, `S7-1500/ET200MP station_1` with `includeIoDetails` and `includeTagMatches` | All succeeded. Page 2: 2 devices and 1 subnet (one combined sequence), `nextCursor`. List page 2: 39 items, `nextCursor: null`. `ioDetails` on all 21 and 11 device items. |
+| 5 | `network_read`, 2 operations: hardware page 3, `ET 200SP station_1` with `includeIoDetails` and `includeTagMatches` | Both succeeded. Page 3: 0 devices and 2 subnets, `pagination` without `nextCursor`. The tag-match read reported "More than one PLC exists" and empty `tagMatches`. |
+| 6 | `network_read` `ET 200SP station_1` with `includeIoDetails`, `includeTagMatches`, and `plcName: PLC_LAD` | Succeeded; 22 tag matches across four IO modules. |
+| 7 | `network_read` `inspect_network_object` on subnet `B9DF-1`, node `E1` of `ET 200SP station_1`, and IO system `B9DF-2`/1 | All succeeded. Unrepresentable attributes carry `value: null` with a diagnostic. |
+| 8 | `network_read` `inspect_network_object` on node `IE2` of `SINAMICS G_1` (no subnet) | Succeeded. `ConnectedSubnet` is `{"kind":"null","typeName":null,"value":null}`, the null-valued attribute case. |
+| 9 | `browse_project_tree` (`pageSize: 15`) | Succeeded; 15 of 132 nodes, `nextCursor`. |
+| 10 | `browse_project_tree` continuation | Succeeded; offset 15, 15 nodes, `nextCursor`. |
+| 11 | `browse_project_tree` with `startSelector` Device/`ET 200SP station_1` > PlcSoftware/`PLC_LAD`, `depth: 1` | Succeeded; 1 node, the selector echoed in `query`, `nextCursor: null`. |
+| 12 | `network_write` preview before binding | `binding_conflict`, as expected for an unbound session. |
+| 13-14 | `open_project` preview and apply | Succeeded; binding verified at revision 1. |
+| 15-16 | `network_write` preview and apply: `create_subnet` `MCP1b_Net` (Ethernet), then `add_network_device` CPU 1511-1 PN `OrderNumber:6ES7 511-1AK00-0AB0/V1.7` as `MCP1b_Station`/`MCP1b_PLC` | Both succeeded. Subnet `B9DF-3`, `networkDeviceCountUnchanged: true`. The device result read back `MCP1b_Station`, `Rail_0`, `System:Device.S71500`, with `warnings: []`. |
+| 17 | `network_read` `list_network_objects` nodes of `MCP1b_Station` | Succeeded; 1 node, not selectable because its interface has no type identifier. |
+| 18 | `network_read` `read_hardware_config` `deviceName: MCP1b_Station` | Succeeded; node `E1`, no subnet. |
+| 19-20 | `network_write` preview and apply: `configure_network_device` node `E1` of `MCP1b_Station`, subnet `B9DF-3`, IP address `192.168.50.10`, `pnDeviceName` `mcp1b-plc` | Succeeded. `appliedSettings` holds Address and Subnet. `skippedSettings` holds PnDeviceName, which TIA makes read-only while name auto-generation is on. |
+| 21-22 | `network_write` preview and apply: `update_subnet` `B9DF-3` name → `MCP1b_Net_Renamed` | Succeeded; the name read back as `MCP1b_Net_Renamed`. |
+| 23-24 | `network_write` preview and apply: `delete_subnet` `B9DF-3`, with the node still connected | Succeeded; `networkDeviceCountUnchanged: true` (6). |
+| 25 | `network_read` `list_network_objects` subnets | Succeeded; 3 subnets, `B9DF-3` gone. |
+
+**Result:** passed.
+- No call returned `protocol_error`, and no operation failed.
+- The two `omitted` items came from the host's per-item output cap, and the per-device re-runs
+  in calls 4-6 succeeded. The single `binding_conflict` was the expected precondition.
+- Every response had its declared shape:
+  - operation results are JSON objects;
+  - conditional members appear only when their condition holds (`pagination` on paged reads
+    only, no `nextCursor` on the last page, `ioDetails` only with `includeIoDetails`);
+  - every other member is present, including explicit nulls.
+
+**Contract changes:** none, and no member was made nullable.
+
+**Not covered live:**
+- The `NetworkDeviceCreator` null fallback did not fire, because Openness returned the name and
+  type. That branch is verified only by the build and the final review.
+- The tag-match path's unguarded Openness strings were not exercised with a null.
+
+The copy was left bound, with the added `MCP1b_Station` device and unsaved changes;
+`network_write` never saves.
