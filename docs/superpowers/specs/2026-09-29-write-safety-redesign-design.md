@@ -1,7 +1,9 @@
 # Write-Safety Redesign: Retiring Preview→Apply Tokens
 
 **Date:** 2026-09-29
-**Status:** Draft for discussion. Nothing in this document is decided or implemented.
+**Status:** Draft under discussion. Points marked **Decided 2026-09-29** were settled with the
+maintainer; the acknowledgement model (§4.3, §4.6) and the preview shape (§4.4) are still open.
+Nothing is implemented.
 **Supersedes when accepted:** the token-flow parts of
 [write-safety hardening (2026-09-01)](2026-09-01-write-safety-hardening-design.md); Phase 3 and
 part of Phase 4 of [the JSON contract roadmap](../../roadmap/json-contract.md).
@@ -106,15 +108,16 @@ replacement) is display evidence outside token hashing and is worth keeping rega
 | Audit trail | `AppendAudit`, `AppendCanonicalAudit` | **Keep, simplify** to one canonical record shape. |
 | Read-only access mode | `OperationAccessPolicy`, tool registration | **Untouched.** |
 | Bounded content diff evidence | `BatchPreviewDiff` | **Keep** for `dryRun` and applied-write reports of content replacement. |
-| Stale-state protection (state hash in token) | `WriteSafetyService`, all snapshot readers | **Drop as a mandatory mechanism.** Replace with an opt-in precondition on content replacement (§4.5). |
+| Stale-state protection (state hash in token) | `WriteSafetyService`, all snapshot readers | **Drop the token hash.** Replace with a *required* `expectedContentHash` precondition on content replacement (§4.5). Decided 2026-09-29. |
 | Token issuance, expiry, single use, `confirm` flag | `WriteSafetyService`, every write tool signature | **Drop.** |
 | Two binding presentations | `WriteSafetyService` vs `CanonicalWriteSafety` | **Drop**; one canonical path. |
-| Two-tool batch pair | `preview_write_batch` / `apply_write_batch` | **Collapse** to one write tool with `dryRun` (§4.9, open question 4). |
+| Two-tool batch pair | `preview_write_batch` / `apply_write_batch` | **Out of scope here.** A separate redesign splits the batch into domain read/write tools (`block_read`, `tag_write`, …). Those tools adopt the pipeline of §4.1 as they are created; the legacy pair is retired when they cover it (§4.9). Decided 2026-09-29. |
 
 The one real loss is protection against a project change between the agent's last read and its
 write, for example the user editing a block in the TIA Portal UI while the agent works. The current
 token covers this with an opaque hash the agent never sees. The replacement (§4.5) covers the case
-that matters, content replacement, with a precondition bound to what the agent actually read.
+that matters, content replacement, with a precondition bound to what the agent actually read. The
+maintainer works in the same project as the agent, so this precondition is mandatory, not opt-in.
 
 ## 4. Target design
 
@@ -164,7 +167,7 @@ Proposed initial catalog (ids provisional):
 | Guard id | Operation | Severity | Fires when |
 | --- | --- | --- | --- |
 | `closes_source_project` | `open_project` with `forceRebind` | `info` | A worker-owned source project will be closed (saved). |
-| `discards_unsaved_source_changes` | `open_project` with `forceRebind` | `acknowledge` | The source project has unsaved changes and would be closed. Today a hard rejection. |
+| `discards_unsaved_source_changes` | `open_project` with `forceRebind` | `block` | The source project has unsaved changes and would be closed. Stays a hard rejection (decided 2026-09-29): save or close the source explicitly first. |
 | `discards_unsaved_changes` | `close_project` with `saveBeforeClose=false` | `acknowledge` | The project is modified. |
 | `archive_without_save` | `archive_project` with `saveBeforeArchive=false` | `info` | The project is modified. |
 | `archive_discards_restorable_data` | `archive_project` | `info` | Mode is `DiscardRestorableData*`. |
@@ -192,16 +195,21 @@ members an applied write would carry. For content replacement it includes the bo
 evidence from `BatchPreviewDiff`. There is no token in the response and nothing to carry into a
 later call. This keeps "the server tells you the consequences" without a mandatory second call.
 
-Trade-off to decide (open question 3): with `dryRun` on a `Destructive=true` tool, a client that
-prompts on destructive tools will prompt for the dry run too. A separate read-only preview tool
-avoids that at the cost of a second tool name per surface.
+Trade-off to decide (open question 3, still open): with `dryRun` on a `Destructive=true` tool, a
+client that prompts on destructive tools will prompt for the dry run too. A separate read-only
+preview tool avoids that at the cost of a second tool name per surface. Recommendation: the flag.
+The domain split already gives every write tool a read-only sibling, and a client that prompts on a
+dry run shows the human the plan, which is not a bad outcome.
 
-### 4.5 Opt-in stale-content precondition
+### 4.5 Required stale-content precondition (decided 2026-09-29)
 
-`update_block_logic` and `update_type_content` accept an optional `expectedContentHash`. The read
-tools (`get_block_content`, `get_type_content`) return the matching `contentHash` of the exact
-format they served. If the hash is supplied and the fresh content read at write time differs, the
-item fails with `state_changed` and nothing is written. This is the HTTP `If-Match` pattern: a
+`update_block_logic` and `update_type_content` **require** `expectedContentHash`. The read tools
+(`get_block_content`, `get_type_content`) return the matching `contentHash` of the exact format
+they served, so a content replacement always follows a read of what it replaces. A missing hash is
+`validation_error` before any worker call. If the fresh content read at write time differs from the
+hash, the item fails with `state_changed` and nothing is written. The rule exists because the
+maintainer and the agent edit the same project: the agent must never overwrite an edit it has not
+seen. This is the HTTP `If-Match` pattern: a
 guard bound to what the agent actually read, not to an opaque server-side snapshot. Tools that set
 explicit values (`update_tag`, `configure_network_device`) do not need it: their exact-target
 resolution at write time already refuses a renamed or deleted target, and the new values are the
@@ -221,6 +229,16 @@ Two protocol mechanisms exist; both depend on the client.
   an elicitation request and a `requestState`, and the client retries the call with the user's
   answer attached. This is the protocol-native version of preview→confirm and needs no server-side
   token store. It is the eventual home of the `acknowledge` flow once clients adopt the revision.
+- **Per-tool forced approval (Claude Code only).** A tool whose `tools/list` entry carries
+  `_meta["anthropic/requiresUserInteraction"] = true` makes Claude Code show its permission prompt
+  on every call, in every permission mode including `auto` and `bypassPermissions`, with no
+  "don't ask again" option; allow rules do not skip it, and in non-interactive runs the call is
+  denied. Other clients ignore the marker. This is the original goal of the token flow, delivered
+  as metadata. Proposal: a startup switch (name provisional: `--require-user-approval`) that stamps
+  the marker on every write tool; default off, because the client's ordinary permission prompt
+  already covers the default case and the marker removes the user's ability to allow-list.
+  Whether it should default on is open question 1b. See Appendix A for how these mechanisms
+  behave in practice and which clients were verified.
 
 Honesty clause for the documentation: even with elicitation, the server only knows that the client
 returned `accept`. Whether a human saw the prompt depends on the client. The server never claims to
@@ -246,32 +264,55 @@ Aligned with the target envelope in the JSON contract roadmap, delivered through
 `isError` is `true` only for rejection before anything ran (validation, access mode, binding,
 `blocked`). A write that ran and failed reports `success: false` with `isError: false`.
 
-### 4.8 Audit record
+### 4.8 Audit (decided 2026-09-29: stays, and stays detailed)
 
-One canonical shape replaces the two current ones: timestamp, tool, `contractVersion`, the
-`ProjectBindingSnapshot`, the ordered typed operations, the resolved targets, the fired guards and
-how each `acknowledge` guard was satisfied (`agent` or `user`), the `expectedContentHash`
-preconditions checked, and the exact response document. Same directory and JSONL layout; a
-`recordVersion` member discriminates old records from new.
+The audit trail is a first-class seam, not a by-product of the token flow. The pipeline writes
+through an `IWriteAuditSink` (name provisional) whose only shipped implementation is the existing
+JSONL directory, so a later consumer (a viewer, a database, a per-project log) plugs in without
+touching the pipeline. The maintainer has later plans for this data, so the record errs on the
+side of detail.
 
-### 4.9 Batches
+One canonical record per call replaces the two current shapes. Call level: timestamp, tool,
+`contractVersion`, `recordVersion`, `phase`, the `ProjectBindingSnapshot`, access mode, the
+ordered requested operations as typed JSON, the fired guards with severity and how each
+`acknowledge` guard was satisfied (`agent`, `user` via elicitation, or not at all for a blocked
+call), the exact response document and its hash, and wall-clock duration. Item level, one entry
+per operation in request order: `operationId`, operation, the resolved target identity as the
+resolver saw it, the checked preconditions (`expectedContentHash` and the fresh hash), the item
+status (`succeeded`, `failed`, `skipped`), its failure category and message, its warnings, and its
+own duration. Blocked and dry-run calls are audited too, marked by `phase`, so the log shows what
+was refused and what was only previewed, not just what was written.
 
-The generic batch becomes one tool (name to decide, §9 question 4) with `operations`, `dryRun`,
-and `acknowledge`. Items resolve sequentially at write time, so an item may depend on an earlier
-item in the same call (closes #79). In a dry run, an item whose target does not exist yet but is
-created by an earlier item reports `effects.dependsOn: <operationId>` instead of failing. Stop on
-first failure, no rollback, and the failed item's partial-write warning are unchanged.
+### 4.9 Generic batch tools (decided 2026-09-29: separate redesign)
+
+The generic batch pair is not redesigned here. A separate effort splits it into domain read/write
+tools in the `network_read`/`network_write` shape (`block_read`, `block_write`, `tag_read`,
+`tag_write`, and so on). This design only fixes what those write tools must do so that the token
+machinery can go:
+
+- run every mutation through the pipeline of §4.1 with `dryRun` and `acknowledge`;
+- resolve targets sequentially at write time, so an item may depend on an earlier item in the
+  same call (closes #79); in a dry run such an item reports `effects.dependsOn: <operationId>`
+  instead of failing;
+- require `expectedContentHash` on content replacement (§4.5);
+- describe each item's concrete target and change in `effects` (closes #78);
+- keep stop-on-first-failure, no rollback, and the partial-write warning on the failed item.
+
+`preview_write_batch` and `apply_write_batch` stay registered, on their current token flow and in
+the conformance guard's legacy register, until the domain tools cover every operation they offer.
+Then they are retired together with the snapshot readers behind them (§5, Phase 4).
 
 ### 4.10 Tool surface after the change
 
 | Today | After |
 | --- | --- |
-| `preview_write_batch` + `apply_write_batch` | one batch write tool with `dryRun` |
+| `preview_write_batch` + `apply_write_batch` | retired once the domain write tools (separate redesign) cover every operation |
 | six lifecycle tools with `confirm` + `safetyToken` | same six tools with `dryRun` + `acknowledge`, structured envelope |
 | `network_write` with `confirm` + `safetyToken` | `network_write` with `dryRun` + `acknowledge` |
 
-Read-write mode exposes thirteen tools instead of fourteen. This is a breaking change to every
-write tool's input schema and output shape and belongs to the next major version.
+The read-write tool count depends on the domain split. Either way this is a breaking change to
+every write tool's input schema and output shape and belongs to the next major version, released
+once (decided 2026-09-29: phases merge to `main` as they complete; nothing is tagged until Phase 5).
 
 ## 5. What is deleted
 
@@ -320,15 +361,17 @@ it touches the worker, live TIA Portal V21 acceptance. Sizes are relative.
 | Phase | Scope | Exit criteria | Size |
 | --- | --- | --- | --- |
 | 0 — Decide and tell the truth | Accept this design (amended). Edit `README.md`, `AGENTS.md`, and `ARCHITECTURE.md` §8 so they describe the token flow as a server-side consistency check, not as user consent, and point at this spec. Amend `roadmap/json-contract.md`: Phase 3 becomes "lifecycle onto the guarded write pipeline"; the batch exclusion is resolved by Phase 4 below. | Docs no longer imply a human approves writes. | S |
-| 1 — Foundation | `WriteExecution` pipeline, guard catalog and `acknowledge` validation, `dryRun` support, structured envelope records, `WriteAuditLog` with the v2 record, `expectedContentHash` on the two content read tools (additive). Built beside the old machinery; no registered tool changes. Elicitation spike: confirm which clients render form elicitation; record the result in the spec. | Pipeline and guards unit-tested through FakeWorker; old tools unchanged; spike result written down. | M |
+| 1 — Foundation | `WriteExecution` pipeline, guard catalog and `acknowledge` validation, `dryRun` support, structured envelope records, `IWriteAuditSink` with the JSONL implementation and the detailed record, `contentHash` on the two content read tools (additive). Built beside the old machinery; no registered tool changes. Spike: wire `ElicitAsync` and the `anthropic/requiresUserInteraction` marker behind switches, verify against Claude Code, MCP Inspector, and Claude Desktop; record results in Appendix A. | Pipeline and guards unit-tested through FakeWorker; old tools unchanged; spike results written down. | M |
 | 2 — Lifecycle | Six lifecycle tools onto the pipeline and structured contract: `dryRun`, `acknowledge`, the six lifecycle guards, typed verification. Remove the lifecycle token paths and `ProjectLifecycleTools.cs`. Remove the six tools from the conformance guard's legacy register and add probes. | Live V21 acceptance of open/close/save-as/archive with each guard firing once. | M |
 | 3 — Network | `network_write` loses `confirm` and `safetyToken`; gains `dryRun`, `acknowledge`, `deletes_subnet_with_connected_nodes`, and current → requested `effects` (closes the network half of #78). Target resolution stays exactly where it is (fresh read under the lease). Delete `CanonicalWriteSafety.cs`. | Live V21 acceptance of the multi-homed configure and subnet delete paths. | S–M |
-| 4 — Batch | The batch redesign: one write tool, sequential resolve-then-mutate, dependent items, `expectedContentHash` enforcement, delete and PLC-mode guards, purposeful `effects` per operation (closes the batch half of #78 and all of #79). Port each snapshot reader's rules into its write method, then delete the reader. Delete the batch token paths, `BatchTools.cs`, and the snapshot contracts. | Live V21 acceptance per operation family; #78 and #79 closed. | L |
-| 5 — Retire | Delete `WriteSafetyService.cs` token core, `WriteSafetyTooling.cs`, `SafetyRead`, remaining token tests. Rewrite `ARCHITECTURE.md` §8 and `README.md` write safety, update every operation summary and guide, bump the major version, write release notes and a migration note for agents and skills that hard-code the preview→apply flow. Update the vault concept note. | Zero references to `safetyToken` outside `superpowers/`. | M |
+| 4 — Domain write tools | Owned by the separate batch-split redesign, which gets its own spec. Each domain write tool (`block_write`, `tag_write`, …) is built on the pipeline with the requirements of §4.9. As a family lands, its snapshot reader's fail-closed rules move into the worker write methods with tests, and the reader is deleted. When the domain tools cover every legacy operation, delete the batch token paths, `BatchTools.cs`, the snapshot contracts, and the two legacy tools. | Live V21 acceptance per operation family; #78 and #79 closed. | L (in that redesign) |
+| 5 — Retire and release | Delete `WriteSafetyService.cs` token core, `WriteSafetyTooling.cs`, `SafetyRead`, remaining token tests. Rewrite `ARCHITECTURE.md` §8 and `README.md` write safety, update every operation summary and guide, bump the major version, write release notes and a migration note for agents and skills that hard-code the preview→apply flow. Tag the single release. | Zero references to `safetyToken` outside `superpowers/`; one tagged major release. | M |
 
-Phases 2, 3, and 4 are independent of each other once Phase 1 has merged; the order above is
-smallest-first. Elicitation-backed acknowledgement (§4.6) is a Phase 2 add-on if the spike is
-positive, otherwise a later slice.
+Phases 2, 3, and 4 are independent of each other once Phase 1 has merged; the order is
+smallest-first (decided 2026-09-29). Phases merge to `main` as they complete, but the package is
+released once, after Phase 5, so `main` carries a mix of old and new write flows in between and no
+tag is cut during that window. Elicitation-backed acknowledgement (§4.6) is a Phase 2 add-on if the
+spike is positive, otherwise a later slice.
 
 ## 7. Interactions
 
@@ -348,6 +391,9 @@ positive, otherwise a later slice.
   `changes_plc_operating_mode` guard.
 - **Network roadmap.** Its "preview-before-apply for every write" line is rewritten to
   "guarded single-call write with `dryRun`".
+- **Batch-split redesign.** It owns tool names, per-domain schemas, and delivery order for the
+  domain read/write tools. It inherits §4.9 as requirements and §4.1 as the seam. Its first write
+  tool cannot land before Phase 1 of this design.
 
 ## 8. Risks
 
@@ -362,23 +408,30 @@ positive, otherwise a later slice.
 
 ## 9. Open questions for discussion
 
-1. **Acknowledgement model.** Agent-side `acknowledge` list as the baseline, elicitation as an
-   opt-in upgrade (this proposal), or elicitation-only where supported and refuse otherwise?
-2. **Stale-state protection.** Opt-in `expectedContentHash` on the two content tools only (this
-   proposal), on more operations, or none at all?
-3. **Preview shape.** `dryRun` flag on every write tool (this proposal), or a separate read-only
-   preview tool per surface so clients with destructive-tool prompts do not prompt on previews?
-4. **Batch tool name.** Rename the pair to a single `write_batch`, or keep `apply_write_batch` as
-   the survivor to reduce the naming churn?
-5. **Guard catalog.** Which of the proposed `acknowledge` guards should be `info`, and which
-   `info` guards should require acknowledgement? Should `discards_unsaved_source_changes` stay a
-   hard rejection as it is today?
-6. **Phase ordering.** Lifecycle → network → batch (smallest first, this proposal), or batch first
-   because it carries the most user-visible pain (#78, #79)?
-7. **Compatibility window.** Ship the new tools alongside the old for one release, or cut over in
-   one major version (this proposal)?
-8. **Audit.** Keep the audit trail at all? If yes, is one record per call sufficient, or is one
-   per operation item wanted for forensics?
+Still open:
+
+1. **Acknowledgement model.** Agent-side `acknowledge` list as the baseline with elicitation as an
+   opt-in upgrade (this proposal), or elicitation-only where the client supports it and refuse
+   otherwise? See Appendix A before answering.
+   1b. Should `--require-user-approval` (the `anthropic/requiresUserInteraction` marker on every
+   write tool) default on or off? Proposal: off, documented as the one-switch way to get the token
+   flow's original goal in Claude Code.
+3. **Preview shape.** `dryRun` flag on every write tool (recommended), or a separate read-only
+   preview tool per surface?
+
+Decided 2026-09-29:
+
+2. **Stale-state protection.** Required `expectedContentHash` on the content-replacement tools;
+   the maintainer and the agent share the project and the agent must not undo the maintainer's
+   work. No hash on value-setting operations.
+4. **Batch tools.** Reworked separately into domain read/write tools; this design supplies the
+   pipeline and the requirements in §4.9.
+5. **Guard catalog.** `discards_unsaved_source_changes` stays a hard rejection (`block`). The
+   remaining severities in §4.3 stand as proposed unless implementation shows otherwise.
+6. **Phase ordering.** Smallest first: lifecycle → network → domain write tools.
+7. **Compatibility window.** Delivered in phases, released once, as one major version.
+8. **Audit.** Stays, detailed, behind a sink interface (§4.8). The maintainer has later plans for
+   the data.
 
 ## 10. Non-goals
 
@@ -386,3 +439,52 @@ positive, otherwise a later slice.
 - Transactions or rollback; Openness `Transaction`/`ExclusiveAccess` remain deferred.
 - Predicting post-write Siemens state in the host.
 - Any claim that the server guarantees a human approved a write.
+
+## Appendix A. How elicitation works, and what was verified
+
+**Mechanism.** Elicitation is a request the *server* sends to the *client* while a tool call is in
+progress (`elicitation/create`, protocol revision 2025-06-18 and later). The client shows the
+request to the user, collects an answer, and returns it; the tool call is blocked until then. Two
+modes exist: **form** (the server supplies a message and a flat JSON Schema of primitive fields,
+strings, numbers, booleans, enums; the client renders a dialog) and **url** (the server supplies a
+link the user opens for an out-of-band flow such as sign-in). The client answers with one of three
+actions: `accept` with the filled content, `decline` (the user said no), or `cancel` (the user
+dismissed the dialog). A client advertises support in its `initialize` capabilities; a server must
+check that capability before calling, because a client without it cannot answer. The specification
+forbids using form mode for secrets such as passwords or API keys.
+
+**In this server.** The C# SDK exposes it as `McpServer.ElicitAsync(ElicitRequestParams, ct)`;
+a tool method receives the `McpServer` through dependency injection and checks
+`server.ClientCapabilities?.Elicitation` first. A `close_project` with unsaved changes would send
+the message "Project 'X' has unsaved changes made 3 minutes ago. Discard them and close?" with a
+single boolean field; `accept` with `true` satisfies the guard, anything else refuses the write
+with `access_denied`. The value over the client's own permission prompt is that the server asks
+with knowledge the client does not have: which project, what is unsaved, what will be destroyed.
+
+**Multi-round-trip requests.** Revision 2026-07-28 adds a stateless variant: the tool returns
+`resultType: input_required` carrying the same elicitation request plus an opaque `requestState`,
+and the client re-issues the tool call with the user's answer attached. The SDK throws
+`InputRequiredException` for this and reports client support through `server.IsMrtrSupported`.
+It removes the blocked-call problem but needs a client on the newest revision.
+
+**Verified 2026-09-29.**
+
+| Client | Result | Source |
+| --- | --- | --- |
+| Claude Code | Renders form and URL elicitation dialogs with no configuration. On protocol revision 2026-07-28 declares `elicitation: {form: {}, url: {}}`. A tool call waiting on a dialog is not backgrounded. Users can auto-answer via an `Elicitation` hook, and an `ElicitationResult` hook can alter the answer. Honours `_meta["anthropic/requiresUserInteraction"]` from v2.1.199. | Claude Code documentation, MCP page, sections "Respond to MCP elicitation requests" and "Require approval for a specific tool" |
+| C# SDK 2.2.0 (this server) | `ElicitAsync`, form and URL modes, `InputRequiredException`, `IsMrtrSupported`; tool `_meta` is a settable `JsonObject`. | SDK documentation |
+| Claude Desktop, VS Code, MCP Inspector, others | Not verified. Phase 1 spike. | — |
+
+**Limits to state in the documentation.**
+
+- The server learns only that the client returned `accept`. A hook, a script, or an auto-approving
+  client can produce that answer without a human. Elicitation raises the bar; it does not prove
+  consent.
+- The tool call blocks while the dialog is open. In a headless or remote session with nobody
+  present, the call waits for the SDK request timeout and then fails. The pipeline must treat a
+  timeout exactly like `decline`.
+- Elicitation is per call and per guard. It is not a substitute for accurate `destructiveHint`
+  annotations, which are what let a client decide to prompt before the call even starts.
+- `anthropic/requiresUserInteraction` is Claude Code specific and coarse (per tool, not per
+  call). It is the right instrument when the point of the call is that a person agreed, and the
+  wrong one for a tool called fifty times in a session.
