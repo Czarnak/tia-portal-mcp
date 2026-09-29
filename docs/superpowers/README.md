@@ -21,6 +21,8 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-29 | [Write-safety redesign: retiring preview→apply tokens](specs/2026-09-29-write-safety-redesign-design.md) |
+| 2026-09-28 | [Multiuser Engineering](specs/2026-09-28-multiuser-engineering-design.md) |
 | 2026-09-28 | [JSON contract Phase 1b — required-member enforcement](specs/2026-09-28-json-contract-phase1b-required-members-design.md) |
 | 2026-09-26 | [Open bug parallel pull-request delivery](specs/2026-09-26-open-bug-parallel-pr-delivery-design.md) |
 | 2026-09-26 | [Network Phase 5 qualified IO-system contract for later public slices](specs/2026-09-24-network-phase5-qualified-contract.md) |
@@ -46,6 +48,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-09-28 | [Multiuser PR 1 — reference and contract foundation](plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md) |
 | 2026-09-28 | [JSON contract Phase 1b — required-member enforcement](plans/2026-09-28-json-contract-phase1b-required-members.md) |
 | 2026-09-28 | [JSON contract Phase 1a — worker wire normalization](plans/2026-09-28-json-contract-phase1a-worker-wire.md) |
 | 2026-09-27 | [Wave 2 I2 — truthful block-import outcomes](plans/2026-09-27-wave2-i2-truthful-block-import-outcomes.md) |
