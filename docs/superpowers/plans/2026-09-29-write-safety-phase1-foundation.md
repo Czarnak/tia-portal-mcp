@@ -42,7 +42,7 @@ TiaMcpServer/Safety/Pipeline/
   WriteExecution.cs         public entry point
   WriteRun.cs               internal per-call state machine (keeps WriteExecution small)
   UserConfirmation.cs       elicitation wrapper (spike helper, kept)
-  ToolApprovalMarker.cs     anthropic/requiresUserInteraction marker (spike helper, kept)
+  ToolApprovalMarker.cs     anthropic/requiresUserInteraction marker (spike helper, deleted in Task 13: marker dropped 2026-09-29)
 TiaMcpServer/Batch/BatchContentHashes.cs      attaches contentHash to batch content reads
 TiaMcpServer/Tools/ApprovalSpikeTools.cs      spike probes (Task 11, deleted in Task 13)
 TiaMcpServer.Contracts/WorkerFailureCategories.cs   + GuardBlocked
@@ -179,7 +179,7 @@ Server: `TiaMcpServer\bin\Debug\net10.0\TiaMcpServer.exe --read-only` with `TIA_
 
 ### Task 13: Remove probes and close Phase 1
 
-- [ ] Delete `ApprovalSpikeTools.cs`, its test, its csproj link, and the `Program.cs` block; keep the helpers and their tests.
+- [ ] Delete `ApprovalSpikeTools.cs`, its test, its csproj link, and the `Program.cs` block. Also delete `ToolApprovalMarker.cs`, `ToolApprovalMarkerTests.cs`, and their csproj link (marker dropped 2026-09-29, spec §4.6). Keep `UserConfirmation` and its tests.
 - [ ] Update the spec status (Phase 1 complete), add a completed entry at the end of `docs/IMPROVEMENT_LOG.md` (suite count, spike summary), and adjust `ARCHITECTURE.md` if the spike changes any statement.
 - [ ] Full suite, solution build, and an independent review of the branch diff (code-reviewer, csharp-reviewer). Commit `chore: remove approval spike probes`.
 

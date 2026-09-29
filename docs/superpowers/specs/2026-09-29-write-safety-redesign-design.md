@@ -208,8 +208,7 @@ evidence from `BatchPreviewDiff`. There is no token in the response and nothing 
 later call. This keeps "the server tells you the consequences" without a mandatory second call.
 
 Accepted trade-off: with `dryRun` on a `Destructive=true` tool, a client that prompts on
-destructive tools prompts for the dry run too, and a tool carrying the forced-approval marker
-(§4.6) prompts on every dry run. The domain split already gives every write tool a read-only
+destructive tools prompts for the dry run too. The domain split already gives every write tool a read-only
 sibling, and a client that prompts on a dry run shows the human the plan, which is not a bad
 outcome. A separate preview tool per surface was rejected as naming churn.
 
@@ -236,12 +235,13 @@ would defeat the precondition.
 
 ### 4.6 Asking the human (decided 2026-09-29)
 
-The acknowledgement model is settled: the agent-side `acknowledge` array of §4.3 is the baseline,
-and elicitation is the opt-in upgrade described below. Three mechanisms exist; all depend on the
-client.
+The acknowledgement model is settled: elicitation is the main mechanism and is on by default; the
+agent-side `acknowledge` array of §4.3 applies only when the switch below is turned off (revised
+2026-09-29 after the Phase 1 spike; the default is provisional until the maintainer has tested it
+further). The mechanisms below all depend on the client.
 
-- **Elicitation (form mode). Decided.** With the opt-in switch `--confirm-with-user` (name
-  provisional) on and `server.ClientCapabilities?.Elicitation` present, an `acknowledge`-severity
+- **Elicitation (form mode). Decided.** With the switch `--confirm-with-user` (name
+  provisional, on by default) on and `server.ClientCapabilities?.Elicitation` present, an `acknowledge`-severity
   guard is satisfied only by the user accepting an `ElicitAsync` prompt that carries the guard
   message and a single boolean. The agent's `acknowledge` list is ignored while the switch is on.
   Decline, cancel, and request timeout all fail the write with `access_denied`. With the switch
@@ -252,28 +252,21 @@ client.
   an elicitation request and a `requestState`, and the client retries the call with the user's
   answer attached. This is the protocol-native version of preview→confirm and needs no server-side
   token store. It is the eventual home of the `acknowledge` flow once clients adopt the revision.
-- **Per-tool forced approval (Claude Code only).** A tool whose `tools/list` entry carries
-  `_meta["anthropic/requiresUserInteraction"] = true` makes Claude Code show its permission prompt
-  on every call, in every permission mode including `auto` and `bypassPermissions`, with no
-  "don't ask again" option; allow rules do not skip it, and in non-interactive runs the call is
-  denied. Other clients ignore the marker. This is the original goal of the token flow, delivered
-  as metadata. A startup switch (name provisional: `--user-approval all|full|none`) controls
-  which tools carry it. **Decided:** the default is `full`, meaning the marker is on for every
-  tool that only the `full` access mode registers (lifecycle and PLC control) and off for the
-  tools `read-write` registers; `all` widens it to every write tool and `none` removes it. The
-  default follows the tiers of §4.11 because marking every write tool has three costs: the marker
-  overrides client allow rules, so the user could never allow-list `tag_write` even when they
-  wanted to; every `dryRun` on a marked tool prompts; and non-interactive runs deny marked tools
-  outright, so headless engineering edits would stop working unless the switch were changed. When both the marker and `--confirm-with-user` apply to one call, the human answers
-  twice, once before the call on the arguments and once during it on the computed consequence;
-  that is accepted for the dangerous case. See Appendix A for verified client behaviour.
+- **Per-tool forced approval marker: dropped (decided 2026-09-29).** Claude Code shows its
+  permission prompt on every call to a tool whose `tools/list` entry carries
+  `_meta["anthropic/requiresUserInteraction"] = true`. The Phase 1 spike showed that Codex
+  ignores it (Appendix A). A mechanism that only one client honours cannot carry the safety
+  model, and elicitation already reaches the user in every client tested. The `--user-approval`
+  switch is therefore not built.
 
 Honesty clause for the documentation: even with elicitation, the server only knows that the client
 returned `accept`. Whether a human saw the prompt depends on the client. The server never claims to
 guarantee consent.
 
-Whether the maintainer's clients (Claude Code first) render form elicitation is unverified and is
-the first spike in Phase 1.
+The Phase 1 spike (Appendix A) showed that Claude Code, Codex, and MCP Inspector all render form
+elicitation, while only Claude Code honours the marker. **Decided 2026-09-29:** elicitation is the
+main mechanism for asking the human, every outcome other than an explicit accept blocks, and the
+marker is dropped.
 
 ### 4.7 Response envelope
 
@@ -386,16 +379,10 @@ that, for example Claude Code's `settings.local.json` allow rules, and a server-
 have to track every tool rename of the domain split. What the server must own is the ceiling: the
 client's allow list is the client's decision, while a mode is enforced at worker dispatch
 regardless of which client connected, and hides the tools it excludes from discovery so the agent
-is never tempted. Modes set the ceiling, the marker and the client prompt decide per call, and the
-client allow list fine-tunes prompting under that ceiling. If a finer server-side cut is ever
-needed, the capability class is the unit to expose (`--deny-capability online-control`), not the
-tool name.
-
-The tiers also set the forced-approval marker's default (§4.6): on for every tool that only
-`full` registers, off for the tools `read-write` registers, and `--user-approval all|full|none`
-to override. Under that default a `read-write` session can allow-list its write tools and run
-headless, while a `full` session always puts a person in front of a save, close, archive, or PLC
-stop.
+is never tempted. Modes set the ceiling, elicitation on guarded calls (§4.6) and the client prompt
+decide per call, and the client allow list fine-tunes prompting under that ceiling. If a finer
+server-side cut is ever needed, the capability class is the unit to expose
+(`--deny-capability online-control`), not the tool name.
 
 ## 5. What is deleted
 
@@ -445,7 +432,7 @@ it touches the worker, live TIA Portal V21 acceptance. Sizes are relative.
 | --- | --- | --- | --- |
 | 0 — Decide and tell the truth | Accept this design (amended). Edit `README.md`, `AGENTS.md`, and `ARCHITECTURE.md` §8 so they describe the token flow as a server-side consistency check, not as user consent, and point at this spec. Amend `roadmap/json-contract.md`: Phase 3 becomes "lifecycle onto the guarded write pipeline"; the batch exclusion is resolved by Phase 4 below. | Docs no longer imply a human approves writes. | S |
 | 1 — Foundation | `WriteExecution` pipeline, guard catalog and `acknowledge` validation, `dryRun` support, structured envelope records, `IWriteAuditSink` with the JSONL implementation and the detailed record, `contentHash` on the two content read tools (additive). Built beside the old machinery; no registered tool changes. Spike: wire `ElicitAsync` and the `anthropic/requiresUserInteraction` marker behind switches, verify against Claude Code, Codex Desktop, and MCP Inspector; record results in Appendix A. | Pipeline and guards unit-tested through FakeWorker; old tools unchanged; spike results written down. | M |
-| 1b — Access-mode tiers and approval marker | Add the `full` mode as a preset over capability classes, move `ProjectLifecycle` and `OnlineControl` behind it, wire the `--user-approval` switch and the `--confirm-with-user` switch, extend the read-only enforcement tests with a `read-write` ceiling suite. Independent of the pipeline; can ship before or after 1. | Three-layer enforcement holds for the new tier; marker visible in `tools/list` for the chosen tools. | S |
+| 1b — Access-mode tiers and confirmation switch | Add the `full` mode as a preset over capability classes, move `ProjectLifecycle` and `OnlineControl` behind it, wire the `--confirm-with-user` switch (on by default), extend the read-only enforcement tests with a `read-write` ceiling suite. The approval marker and `--user-approval` were dropped after the spike (§4.6). Independent of the pipeline; can ship before or after 1. | Three-layer enforcement holds for the new tier; the switch default is covered by tests. | S |
 | 2 — Lifecycle | Six lifecycle tools onto the pipeline and structured contract: `dryRun`, `acknowledge`, the six lifecycle guards, typed verification. Remove the lifecycle token paths and `ProjectLifecycleTools.cs`. Remove the six tools from the conformance guard's legacy register and add probes. | Live V21 acceptance of open/close/save-as/archive with each guard firing once. | M |
 | 3 — Network | `network_write` loses `confirm` and `safetyToken`; gains `dryRun`, `acknowledge`, `deletes_subnet_with_connected_nodes`, and current → requested `effects` (closes the network half of #78). Target resolution stays exactly where it is (fresh read under the lease). Delete `CanonicalWriteSafety.cs`. | Live V21 acceptance of the multi-homed configure and subnet delete paths. | S–M |
 | 4 — Domain write tools | Owned by the separate batch-split redesign, which gets its own spec. Each domain write tool (`block_write`, `tag_write`, …) is built on the pipeline with the requirements of §4.9. As a family lands, its snapshot reader's fail-closed rules move into the worker write methods with tests, and the reader is deleted. When the domain tools cover every legacy operation, delete the batch token paths, `BatchTools.cs`, the snapshot contracts, and the two legacy tools. | Live V21 acceptance per operation family; #78 and #79 closed. | L (in that redesign) |
@@ -454,8 +441,8 @@ it touches the worker, live TIA Portal V21 acceptance. Sizes are relative.
 Phases 2, 3, and 4 are independent of each other once Phase 1 has merged; the order is
 smallest-first (decided 2026-09-29). Phases merge to `main` as they complete, but the package is
 released once, after Phase 5, so `main` carries a mix of old and new write flows in between and no
-tag is cut during that window. Elicitation-backed acknowledgement (§4.6) is a Phase 2 add-on if the
-spike is positive, otherwise a later slice.
+tag is cut during that window. The spike was positive (Appendix A), so elicitation-backed
+acknowledgement (§4.6) lands with Phase 2.
 
 ## 7. Interactions
 
@@ -488,17 +475,18 @@ spike is positive, otherwise a later slice.
 | Breaking change for existing agent prompts, skills, and client configurations. | Major version; migration note; tool descriptions state the new flow in the first sentence. No compatibility shim: keeping both flows would preserve the machinery this design removes. |
 | Snapshot-reader rules are lost when readers are deleted. | Phase 4 ports rule by rule with a test per rule before deletion; the live acceptance reports from PR 5 and PR 6 (2026-09-01 design) are the checklist. |
 | Coverage gate moves as ~430 tests are removed. | Deleted tests covered deleted code; new pipeline and guard tests cover new code. Check the scoped rate after each phase. |
-| Elicitation is unsupported by the clients that matter. | It is an add-on, not a dependency. §4.3 stands alone. |
+| Elicitation is unsupported by the clients that matter. | Retired by the Phase 1 spike: Claude Code, Codex, and MCP Inspector all support it (Appendix A). A client without the capability gets a refusal, not a silent approval. |
 
 ## 9. Open questions for discussion
 
 All settled 2026-09-29:
 
-1. **Acknowledgement model.** Agent-side `acknowledge` list as the baseline; `--confirm-with-user`
-   makes elicitation the only way to satisfy an `acknowledge` guard when on (§4.6).
+1. **Acknowledgement model.** `--confirm-with-user` is on by default, so elicitation is the only
+   way to satisfy an `acknowledge` guard; turning it off falls back to the agent-side
+   `acknowledge` list (§4.6). Revised after the Phase 1 spike; the default is provisional.
 3. **Preview shape.** `dryRun` flag on every write tool (§4.4).
-1b. **Forced-approval marker default.** `--user-approval` defaults to `full`: the marker is on for
-   the tools only the `full` mode registers and off for `read-write` tools (§4.6).
+1b. **Forced-approval marker.** Dropped after the Phase 1 spike; only Claude Code honours it
+   (§4.6, Appendix A). `--user-approval` is not built.
 9. **Access-mode tiers.** A third mode, `full`, as a preset over the existing capability classes;
    `read-write` narrows to in-project edits and compile. No per-tool server lists (§4.11).
 
@@ -554,8 +542,29 @@ It removes the blocked-call problem but needs a client on the newest revision.
 | --- | --- | --- |
 | Claude Code | Renders form and URL elicitation dialogs with no configuration. On protocol revision 2026-07-28 declares `elicitation: {form: {}, url: {}}`. A tool call waiting on a dialog is not backgrounded. Users can auto-answer via an `Elicitation` hook, and an `ElicitationResult` hook can alter the answer. Honours `_meta["anthropic/requiresUserInteraction"]` from v2.1.199. | Claude Code documentation, MCP page, sections "Respond to MCP elicitation requests" and "Require approval for a specific tool" |
 | C# SDK 2.2.0 (this server) | `ElicitAsync`, form and URL modes, `InputRequiredException`, `IsMrtrSupported`; tool `_meta` is a settable `JsonObject`. | SDK documentation |
-| Codex Desktop, MCP Inspector | Not verified. Phase 1 spike (live, with Claude Code). | — |
+| Codex Desktop, MCP Inspector | Not verified in the documentation; see the spike below. | — |
 | Claude Desktop, VS Code, others | Not verified and not planned. | — |
+
+**Phase 1 spike, 2026-09-29.** Live runs of `spike_marked_probe` (carries
+`anthropic/requiresUserInteraction`) and `spike_elicitation_probe` (one form elicitation) against
+a `--read-only` server with `TIA_MCP_APPROVAL_SPIKE=1`. Only the accept path was run in the normal
+modes; answer paths such as decline, dismiss, and timeout depend on client configuration and were
+not tested client by client.
+
+| Client | Marker probe | Elicitation probe |
+| --- | --- | --- |
+| Claude Code 2.1.285 | Permission prompt shown, also in auto mode. | Capability declared; dialog shown; `accept` returned after the user confirmed. |
+| Codex (CLI 0.159.0 on the maintainer's machine) | No prompt; the call ran. The marker is ignored. | Default approval: capability declared, dialog shown, `accept` after confirmation. Unrestricted mode: no dialog, and the client returned `decline`. |
+| MCP Inspector | Ran without a prompt (the Inspector has no approval layer). | Dialog shown. |
+
+**Conclusion (decided 2026-09-29).** Elicitation is the main mechanism for asking the human: it
+was the only one that reached the user in all three clients. The marker works only in Claude
+Code, so it is dropped. Client-side behaviour in detail (answer paths, timeouts,
+permission modes) is outside this project's scope. When an agent runs unrestricted, the
+server cannot force a human into the loop. It can still fail closed, and every outcome except an
+explicit `accept` with `true` (`decline`, `cancel`, timeout, missing capability) blocks the
+operation. Codex's unrestricted mode answers `decline`, so such operations are refused instead of
+being silently approved.
 
 **Limits to state in the documentation.**
 
@@ -567,6 +576,3 @@ It removes the blocked-call problem but needs a client on the newest revision.
   timeout exactly like `decline`.
 - Elicitation is per call and per guard. It is not a substitute for accurate `destructiveHint`
   annotations, which are what let a client decide to prompt before the call even starts.
-- `anthropic/requiresUserInteraction` is Claude Code specific and coarse (per tool, not per
-  call). It is the right instrument when the point of the call is that a person agreed, and the
-  wrong one for a tool called fifty times in a session.
