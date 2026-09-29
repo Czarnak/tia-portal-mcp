@@ -335,89 +335,110 @@ public class HardwarePagePayloadContractTests
     }
 
     // ---------------------------------------------------------------------------------------
-    // Typed rules. Each test starts from a complete payload Decode accepts, changes exactly one
-    // thing, proves the worker-payload reader still accepts it, and then proves Decode rejects it,
-    // so the rejection comes from HardwarePagePayloadContract.Validate and not from the reader.
+    // Typed rules. Each test starts from a complete base payload that Decode accepts (asserted),
+    // changes exactly one thing, proves the worker-payload reader still accepts the result, and
+    // then proves Decode rejects it, so the rejection comes from HardwarePagePayloadContract.Validate
+    // and not from the reader. Subnet-based bases use ExplainedSubnetRoot, because the shared
+    // Subnet() fixture is unselectable without a diagnostic and fails the public projection.
     // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Decode_AcceptsAPayloadWithAValidSubnetCandidate()
+    {
+        var operation = Operation();
+
+        var decoded = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(ExplainedSubnetRoot(operation).ToJsonString()),
+            continuation: null);
+
+        Assert.True(decoded.IsSuccess);
+        Assert.Single(decoded.Payload!.SubnetCandidates);
+    }
 
     [Fact]
     public void Decode_RejectsANullRootMessageElementThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
-        root["messages"]!.AsArray().Add(null);
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            DeviceRoot(operation),
+            root => root["messages"]!.AsArray().Add(null));
     }
 
     [Fact]
     public void Decode_RejectsANullDeviceCandidateElementThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
-        root["deviceCandidates"]!.AsArray()[0] = null;
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            DeviceRoot(operation),
+            root => root["deviceCandidates"]!.AsArray()[0] = null);
     }
 
     [Fact]
     public void Decode_RejectsANullSubnetCandidateElementThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = SubnetRoot(operation);
-        root["subnetCandidates"]!.AsArray()[0] = null;
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            ExplainedSubnetRoot(operation),
+            root => root["subnetCandidates"]!.AsArray()[0] = null);
     }
 
     [Fact]
     public void Decode_RejectsANullDeviceCandidateMessageElementThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
-        root["deviceCandidates"]!.AsArray()[0]!["messages"]!.AsArray().Add(null);
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            DeviceRoot(operation),
+            root => root["deviceCandidates"]!.AsArray()[0]!["messages"]!.AsArray().Add(null));
     }
 
     [Fact]
     public void Decode_RejectsANullSubnetCandidateMessageElementThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = SubnetRoot(operation);
-        root["subnetCandidates"]!.AsArray()[0]!["messages"]!.AsArray().Add(null);
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            ExplainedSubnetRoot(operation),
+            root => root["subnetCandidates"]!.AsArray()[0]!["messages"]!.AsArray().Add(null));
     }
 
     [Fact]
     public void Decode_RejectsANonPositiveOrderingVersionThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
-        root["orderingVersion"] = 0;
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(operation, DeviceRoot(operation), root => root["orderingVersion"] = 0);
     }
 
     [Fact]
     public void Decode_RejectsAQueryHashThatDoesNotMatchTheRequestThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
-        root["queryHash"] = new string('d', 64);
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            DeviceRoot(operation),
+            root => root["queryHash"] = new string('d', 64));
     }
 
     [Fact]
     public void Decode_RejectsASnapshotHashThatIsNotLowercaseSha256ThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
-        root["snapshotHash"] = new string('B', 64);
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            DeviceRoot(operation),
+            root => root["snapshotHash"] = new string('B', 64));
     }
 
     [Theory]
@@ -428,54 +449,63 @@ public class HardwarePagePayloadContractTests
     {
         var operation = Operation();
         var queryHash = HardwarePageEvidence.CreateQueryHash(null, null, false, false);
-        var continuation = new HardwarePageContinuationInfo(
+        var matching = new HardwarePageContinuationInfo(1, queryHash, SnapshotHash, 0);
+        var mismatching = new HardwarePageContinuationInfo(
             mismatched == "ordering" ? 2 : 1,
             mismatched == "query" ? new string('d', 64) : queryHash,
             mismatched == "snapshot" ? new string('c', 64) : SnapshotHash,
             0);
-        var root = JsonNode.Parse(ValidPayload(operation))!.AsObject();
 
-        AssertRejectedByTypedRules(operation, root, continuation);
+        AssertRejectedByTypedRules(
+            operation,
+            DeviceRoot(operation),
+            mutate: null,
+            baseContinuation: matching,
+            mutatedContinuation: mismatching);
     }
 
     [Fact]
     public void Decode_RejectsASubnetOffsetThatIsNotTheNextContiguousOffsetThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var payload = CandidatePayload(
+        var baseRoot = ExplainedSubnets(CandidatePayload(
             operation,
             startOffset: 0,
             totalDevices: 1,
             totalSubnets: 1,
             deviceOffsets: new[] { 0 },
-            subnetOffsets: new[] { 2 });
+            subnetOffsets: new[] { 1 }));
 
-        AssertRejectedByTypedRules(operation, JsonNode.Parse(payload)!.AsObject());
+        AssertRejectedByTypedRules(
+            operation,
+            baseRoot,
+            root => root["subnetCandidates"]!.AsArray()[0]!["offset"] = 2);
     }
 
     [Fact]
     public void Decode_RejectsASubnetOffsetInsideTheDeviceRangeThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var payload = CandidatePayload(
+        var baseRoot = ExplainedSubnets(CandidatePayload(
             operation,
             startOffset: 0,
-            totalDevices: 1,
+            totalDevices: 0,
             totalSubnets: 2,
             deviceOffsets: Array.Empty<int>(),
-            subnetOffsets: new[] { 0, 1 });
+            subnetOffsets: new[] { 0, 1 }));
 
-        AssertRejectedByTypedRules(operation, JsonNode.Parse(payload)!.AsObject());
+        AssertRejectedByTypedRules(operation, baseRoot, root => root["totalDevices"] = 1);
     }
 
     [Fact]
     public void Decode_RejectsACandidateThatFailsThePublicHardwareContractThePayloadReaderAccepts()
     {
         var operation = Operation();
-        var root = SubnetRoot(operation);
-        root["subnetCandidates"]!.AsArray()[0]!["subnet"]!["selectable"] = true;
 
-        AssertRejectedByTypedRules(operation, root);
+        AssertRejectedByTypedRules(
+            operation,
+            ExplainedSubnetRoot(operation),
+            root => root["subnetCandidates"]!.AsArray()[0]!["subnet"]!["selectable"] = true);
     }
 
     [Fact]
@@ -508,30 +538,58 @@ public class HardwarePagePayloadContractTests
         }
     }
 
-    private static JsonObject SubnetRoot(NetworkOperationRequest operation)
-        => JsonNode.Parse(CandidatePayload(
+    private static JsonObject DeviceRoot(NetworkOperationRequest operation)
+        => JsonNode.Parse(ValidPayload(operation))!.AsObject();
+
+    private static JsonObject ExplainedSubnetRoot(NetworkOperationRequest operation)
+        => ExplainedSubnets(CandidatePayload(
             operation,
             startOffset: 0,
             totalDevices: 0,
             totalSubnets: 1,
             deviceOffsets: Array.Empty<int>(),
-            subnetOffsets: new[] { 0 }))!.AsObject();
+            subnetOffsets: new[] { 0 }));
+
+    // Subnet() is unselectable with no diagnostic, which the public hardware contract rejects.
+    // Give each subnet the one diagnostic that makes it a valid unselectable subnet.
+    private static JsonObject ExplainedSubnets(string payload)
+    {
+        var root = JsonNode.Parse(payload)!.AsObject();
+        foreach (var candidate in root["subnetCandidates"]!.AsArray())
+        {
+            candidate!["subnet"]!["selectorDiagnostics"] = new JsonArray("unselectable in this fixture");
+        }
+
+        return root;
+    }
 
     /// <summary>
-    /// The reader accepts the mutated payload; Decode still rejects it, so the typed rules did it.
+    /// The unmutated base must Decode successfully; the mutated payload must still be accepted by the
+    /// reader and rejected by Decode, so the typed rules did the rejecting.
     /// </summary>
     private static void AssertRejectedByTypedRules(
         NetworkOperationRequest operation,
-        JsonObject mutated,
-        HardwarePageContinuationInfo? continuation = null)
+        JsonObject baseRoot,
+        Action<JsonObject>? mutate,
+        HardwarePageContinuationInfo? baseContinuation = null,
+        HardwarePageContinuationInfo? mutatedContinuation = null)
     {
+        var basePayload = baseRoot.ToJsonString();
+        var baseline = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(basePayload),
+            baseContinuation);
+        Assert.True(baseline.IsSuccess, "The base payload must be accepted before it is mutated.");
+
+        var mutated = JsonNode.Parse(basePayload)!.AsObject();
+        mutate?.Invoke(mutated);
         var payload = mutated.ToJsonString();
         Assert.NotNull(CanonicalJson.DeserializeWorkerPayload<HardwarePageCandidateResultInfo>(payload));
 
         var decoded = HardwarePagePayloadContract.Decode(
             operation,
             WorkerCallResult.Ok(payload),
-            continuation);
+            mutatedContinuation ?? baseContinuation);
 
         AssertProtocolFailure(decoded, payload);
     }
