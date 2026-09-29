@@ -82,6 +82,9 @@ public static class WorkerFailureCategories
     /// <summary>Required project-tree result metadata cannot fit within the response character limit.</summary>
     public const string ResultMetadataTooLarge = "result_metadata_too_large";
 
+    /// <summary>A write guard stopped the call: an unacknowledged acknowledge guard or a block guard fired.</summary>
+    public const string GuardBlocked = "guard_blocked";
+
     private static readonly HashSet<string> Known = new(StringComparer.Ordinal)
     {
         ValidationError,
@@ -106,7 +109,8 @@ public static class WorkerFailureCategories
         SnapshotTooLarge,
         SnapshotUnavailable,
         ResultItemTooLarge,
-        ResultMetadataTooLarge
+        ResultMetadataTooLarge,
+        GuardBlocked
     };
 
     /// <summary>True when <paramref name="value"/> is exactly one of the approved category constants.</summary>

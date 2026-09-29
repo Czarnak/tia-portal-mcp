@@ -62,6 +62,8 @@
     <Compile Include="..\TiaMcpServer\Cli\*.cs" Link="Host\Cli\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Cli\Install\*.cs"
       Link="Host\Cli\Install\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Safety\Pipeline\*.cs"
+      Link="Host\Safety\Pipeline\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Safety\OperationAccessPolicy.cs"
       Link="Host\OperationAccessPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
