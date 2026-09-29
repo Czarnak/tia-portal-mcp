@@ -755,6 +755,87 @@ must carry the complete, exact worker/Portal/project session identity previously
 worker. This prevents an internal safety read from silently moving to a different same-path
 session while a preview is assembled.
 
+### Guarded write pipeline (write-safety redesign Phase 1)
+
+`TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaces the token flow.
+**No registered tool uses it yet**: `WriteExecution` and its tests exist, and each write domain moves
+onto it in a later phase. Until then the token flow above is the behavior of every write tool. The
+pipeline is a consistency and safety mechanism, not consent; nothing in it records a person's
+approval, and an `acknowledge` list is an argument the calling agent sets.
+
+`WriteExecution.RunAsync(domain, call)` owns the order and the safety rules. An
+`IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
+evaluation, the mutation, verification, and the response shape. Stages, in order:
+
+1. **Validate** before any worker call: at least one operation, non-blank unique `operationId`s,
+   the domain's own validation, and a well-formed `acknowledge` list. Failure is `phase: error`.
+2. **Bind.** The pipeline snapshots the binding, runs `RequireVerifiedWriteBindingAsync`, then pins
+   the resulting snapshot. An already verified binding must be unchanged by the gate; one the gate
+   verified must now be verified for the same project. Any mismatch, and any gate failure, is
+   `binding_conflict`.
+3. **Lease.** Everything that follows, including the audit append, runs in `RunUnderLeaseAsync`
+   under the pinned snapshot; a refused lease is `binding_conflict`.
+4. **Plan.** `PlanAsync` returns one `ItemPlan` (effect, optional `DependsOn`, checked
+   preconditions) per item, or fails the call (`target_not_found`, `target_ambiguous`, and so on).
+   A count mismatch is a programming error and throws.
+5. **Guards.** `EvaluateGuards` is pure; `GuardDecisions.Decide` applies the acknowledgement rule.
+   A `dryRun` stops here as `phase: preview` with no batch and never blocks.
+6. **Mutate** sequentially. The first item that does not succeed stops the call; later items are
+   `skipped`. A dependent item is re-planned just before its own mutation.
+7. **Verify, compose, audit.** `VerifyAsync`, then `Compose`, then one audit record; the tool result
+   carries the same canonical text that was audited. `isError` is true only for `error` and
+   `blocked`; a write that ran and failed reports `success: false` under `applied`.
+
+#### Guards and acknowledgement
+
+A domain fires guards from a closed `WriteGuardCatalog`; the severity comes from the catalog, never
+from the firing site. `info` guards become top-level `warnings` and never stop a call. `acknowledge`
+guards stop the call unless their id is in the request's `acknowledge` list; one id covers every
+firing of that guard. `block` guards always stop it. A stopped call is `phase: blocked` with
+category `guard_blocked`. A malformed list (blank, duplicate, unknown id, an `info` or `block` id)
+is `validation_error` before any worker call. After planning, an acknowledged id that did not fire
+is also `validation_error`, with one exception: when the call contains an item that depends on an
+earlier item, acknowledge-severity ids that have not fired yet are accepted, because the guard may
+fire when that item is re-planned. A dry run reports `acknowledged: true|false` per guard.
+
+#### Dependent items
+
+Every item is planned and every guard evaluated before the first mutation. An item planned with
+`DependsOn` is re-planned just before its own mutation, against state the earlier items changed.
+`DecideLate` judges only the guards that re-plan fires: any `block` guard, or an `acknowledge`
+guard not in the list, fails that item with `guard_blocked` and stops the call. Acknowledged ids
+that do not fire on a re-plan are ignored, since they may belong to another item.
+
+#### Partial writes
+
+There is no rollback. In a multi-item call, the failed item that was attempted carries the
+`partial_write_no_rollback` guard and warning (`WriteExecution.PartialWriteMessage`). An item that
+stopped the call before its own mutation (a failed re-plan or late guard) gets a separate "not
+mutated" warning that says only earlier items stay applied. A single-item call and a first-item
+failure before mutation add neither.
+
+#### Audit stream
+
+Every call, in every phase, appends exactly one record to `writes-yyyy-MM-dd.jsonl` (UTC date,
+UTF-8 without a BOM) beside the legacy audit files, which it never touches. The record has
+`recordKind: "write"` and `recordVersion: 1`, and holds the tool, contract version, access mode,
+project path, the pinned binding, the requested operations, the phase, the response text and its
+`sha256:` hash, every fired guard (with `satisfiedBy: "agent"` only for an acknowledged guard on an
+applied call), and per item the target, checked preconditions, status, failure, warnings, and
+duration. Rejections before the gate (validation, binding) are audited outside the lease. An
+exception after the lease starts is audited as an `error` record and then rethrown. A failed append
+is reported on stderr and never hides the write result.
+
+#### Content hash
+
+`execute_read_batch` returns an additive `contentHash` on each succeeded `get_block_content` and
+`get_type_content` read that returned one object: `xml:sha256:<hex>` or `source:sha256:<hex>` over the
+exact served text (`BatchContentHashes`, `ContentHashes.Compute`). It is omitted on
+`withDependencies` reads and whenever the result was truncated or omitted for size. A guarded write
+compares an expected hash with a fresh read through `ContentHashes.Check`: a malformed hash or a
+format that differs from the write's format is `validation_error`, content that no longer matches
+is `state_changed`, and the comparison is recorded as a `contentHash` precondition.
+
 ## 9. Diagnostics
 
 `tia-mcp doctor` runs the environment diagnostic pipeline without starting the
