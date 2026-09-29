@@ -738,3 +738,16 @@ The `NetworkDeviceCreator` null fallback added by the final review did not fire,
 returned the device name and type, so that branch is verified by the build only. The copy was
 left with unsaved changes; nothing was saved, compiled, or downloaded. The per-call record is in
 the [plan's acceptance notes](superpowers/plans/2026-09-28-json-contract-phase1b-required-members.md#acceptance-notes-live-2026-09-29).
+
+## Write-safety redesign Phase 1 foundation — completed (2026-09-29)
+
+The guarded write pipeline (`TiaMcpServer/Safety/Pipeline/`) now exists beside the token flow, and
+`execute_read_batch` content reads return a format-tagged `contentHash`. No registered write tool
+uses the pipeline yet; Phases 2–4 move the tools onto it.
+- The full suite passed 4314/4314. The host builds clean; the solution build was blocked only by
+  running `TiaMcpServer` processes locking the output DLL, not by a compile error.
+- **Spike (Appendix A of the spec):** elicitation reached the user in Claude Code, Codex (default
+  approval), and MCP Inspector; Codex unrestricted mode answers `decline`, so it fails closed. The
+  `anthropic/requiresUserInteraction` marker works only in Claude Code, so it was dropped.
+- The spike probes, the marker helper, and their tests are deleted. `UserConfirmation` stays for
+  Phases 1b and 2.
