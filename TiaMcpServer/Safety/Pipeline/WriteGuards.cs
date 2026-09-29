@@ -1,5 +1,15 @@
 namespace TiaMcpServer.Safety.Pipeline;
 
+/// <summary>A guard a domain fired for a call; the severity comes from the catalog.</summary>
+public sealed record FiredGuard(string Id, string? OperationId, string Message);
+
+/// <summary>
+/// A fired guard as reported to the caller. <paramref name="Acknowledged"/> is null for
+/// <c>info</c> and <c>block</c> guards, and true/false for <c>acknowledge</c> guards.
+/// </summary>
+public sealed record WriteGuardReport(
+    string Id, string Severity, string? OperationId, string Message, bool? Acknowledged);
+
 /// <summary>A guard's catalog entry; severity is fixed here, never chosen at fire time.</summary>
 public sealed record WriteGuardDefinition(string Id, string Severity, string Description);
 
