@@ -14,6 +14,9 @@ public sealed class WriteExecutionTests
     private const string Block = FakeWriteDomain.BlockGuard;
     private const string Info = FakeWriteDomain.InfoGuard;
 
+    private static readonly string[] ApplyA =
+        { "validate", "plan", "guards", "mutate:a", "project:a", "verify", "compose" };
+
     private readonly FakeWriteBindingGate _gate = new();
     private readonly FakeWriteDomain _domain;
     private readonly RecordingAuditSink _audit;
@@ -47,6 +50,22 @@ public sealed class WriteExecutionTests
         Assert.Contains("'a'", ErrorMessage(doc));
         Assert.Equal(0, _gate.GateCalls);
         Assert.Equal(new[] { "compose" }, _domain.Calls);
+    }
+
+    [Fact]
+    public async Task NullItemOrBlankOperationId_IsRejectedBeforeTheGate()
+    {
+        var (nullResult, nullDoc) = await RunAsync(new[] { Item("a"), null! });
+        AssertOutcome(nullResult, nullDoc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
+        Assert.Contains("index 1", ErrorMessage(nullDoc));
+
+        var blank = new WriteExecutionTests();
+        var (blankResult, blankDoc) = await blank.RunAsync(new[] { Item(" ") });
+        AssertOutcome(blankResult, blankDoc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
+
+        Assert.Equal(0, _gate.GateCalls + blank._gate.GateCalls);
+        Assert.Equal(new[] { "compose" }, _domain.Calls);
+        Assert.Equal(new[] { "compose" }, blank._domain.Calls);
     }
 
     [Fact]
@@ -101,6 +120,53 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
+    public async Task RebindBetweenGateAndLease_IsRefusedBeforeTheLease()
+    {
+        var rebound = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.VerifiedState, "binding-2", 4, @"C:\Projects\Other\Other.ap21");
+        _gate.OnGate = gate => gate.CurrentBinding = rebound;
+
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.BindingConflict);
+        Assert.Equal(0, _gate.LeaseCalls);
+        Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
+        Assert.Equal("binding-2", _audit.Records[0].Binding!.BindingId);
+        AssertAuditedOutsideLease();
+    }
+
+    [Fact]
+    public async Task GateThatVerifiesTheStartupBinding_PinsTheVerifiedSnapshot()
+    {
+        _gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.ConfiguredUnverifiedState, "binding-0", 1, FakeWriteBindingGate.ProjectPath);
+        _gate.OnGate = gate => gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.VerifiedState, "binding-1", 2, FakeWriteBindingGate.ProjectPath);
+
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        Assert.Equal(ApplyA, _domain.Calls);
+        Assert.Equal("binding-1", _gate.LeasedBinding!.BindingId);
+        Assert.Equal(2, _audit.Records[0].Binding!.Revision);
+    }
+
+    [Fact]
+    public async Task GateThatVerifiesADifferentProject_IsRefused()
+    {
+        _gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.ConfiguredUnverifiedState, "binding-0", 1, FakeWriteBindingGate.ProjectPath);
+        _gate.OnGate = gate => gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.VerifiedState, "binding-1", 2, @"C:\Projects\Other\Other.ap21");
+
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.BindingConflict);
+        Assert.Equal(0, _gate.LeaseCalls);
+        Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
+    }
+
+    [Fact]
     public async Task PlanFailure_MutatesNothing()
     {
         _domain.PlanFailure = new WriteToolError(WorkerFailureCategories.TargetNotFound, "No such target.");
@@ -109,6 +175,20 @@ public sealed class WriteExecutionTests
 
         AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.TargetNotFound);
         Assert.Equal(new[] { "validate", "plan", "compose" }, _domain.Calls);
+        AssertAuditedInsideLease();
+    }
+
+    [Fact]
+    public async Task NullItemPlan_Throws_AndIsAudited()
+    {
+        _domain.ReturnNullPlan = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _execution.RunAsync(_domain, Call(new[] { Item("a") })));
+
+        Assert.Equal(new[] { "validate", "plan" }, _domain.Calls);
+        var record = Assert.Single(_audit.Records);
+        Assert.Equal(WritePhases.Error, record.Phase);
         AssertAuditedInsideLease();
     }
 
@@ -147,9 +227,7 @@ public sealed class WriteExecutionTests
 
         AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Equal(
-            new[] { "validate", "plan", "guards", "mutate:a", "project:a", "verify", "compose" },
-            _domain.Calls);
+        Assert.Equal(ApplyA, _domain.Calls);
         Assert.True(GuardById(doc, Ack).GetProperty("acknowledged").GetBoolean());
         Assert.Equal(GuardSatisfactions.Agent, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
@@ -161,14 +239,15 @@ public sealed class WriteExecutionTests
             new[] { Item("a", guards: new[] { Ack, Block }) }, acknowledge: new[] { Ack });
 
         AssertOutcome(result, doc, WritePhases.Blocked, isError: true, WorkerFailureCategories.GuardBlocked);
+        Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
         Assert.Equal(0, _domain.MutationCount);
         Assert.Contains(Block, ErrorMessage(doc));
     }
 
     [Fact]
-    public async Task AcknowledgementForGuardThatDidNotFire_IsValidationError()
+    public async Task AcknowledgementForGuardThatDidNotFire_WithoutDependentItems_IsValidationError()
     {
-        var (result, doc) = await RunAsync(new[] { Item("a") }, acknowledge: new[] { Ack });
+        var (result, doc) = await RunAsync(new[] { Item("a"), Item("b") }, acknowledge: new[] { Ack });
 
         AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
         Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
@@ -181,7 +260,7 @@ public sealed class WriteExecutionTests
 
         AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         Assert.Equal(new[] { $"{Info} on target-a." }, Strings(doc.GetProperty("warnings")));
-        Assert.Equal(1, _domain.MutationCount);
+        Assert.Equal(ApplyA, _domain.Calls);
     }
 
     [Fact]
@@ -215,9 +294,10 @@ public sealed class WriteExecutionTests
         var (result, doc) = await RunAsync(new[] { Item("a", failWith: WorkerFailureCategories.WorkerOperationFailed) });
 
         AssertOutcome(result, doc, WritePhases.Applied, isError: false, WorkerFailureCategories.WorkerOperationFailed);
+        Assert.False(doc.GetProperty("success").GetBoolean());
         Assert.Empty(doc.GetProperty("guards").EnumerateArray());
         Assert.Empty(doc.GetProperty("warnings").EnumerateArray());
-        Assert.Contains("verify", _domain.Calls);
+        Assert.Equal(ApplyA, _domain.Calls);
     }
 
     [Fact]
@@ -237,6 +317,28 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
+    public async Task AcknowledgedLateGuard_IsHonoured_AndTheDependentItemIsApplied()
+    {
+        var (result, doc) = await RunAsync(
+            new[] { Item("a"), Item("b", dependsOn: "a", lateGuards: new[] { Ack }) },
+            acknowledge: new[] { Ack });
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(
+            new[]
+            {
+                "validate", "plan", "guards", "mutate:a", "project:a",
+                "replan:b", "guards", "mutate:b", "project:b", "verify", "compose"
+            },
+            _domain.Calls);
+        var guard = GuardById(doc, Ack);
+        Assert.Equal("b", guard.GetProperty("operationId").GetString());
+        Assert.True(guard.GetProperty("acknowledged").GetBoolean());
+        Assert.Equal(GuardSatisfactions.Agent, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+    }
+
+    [Fact]
     public async Task LateUnacknowledgedGuard_FailsTheDependentItem_WithGuardBlocked()
     {
         var (result, doc) = await RunAsync(new[]
@@ -252,9 +354,17 @@ public sealed class WriteExecutionTests
         Assert.Equal(
             WorkerFailureCategories.GuardBlocked,
             operations[1].GetProperty("failure").GetProperty("category").GetString());
-        Assert.DoesNotContain("mutate:b", _domain.Calls);
+        var warnings = Strings(operations[1].GetProperty("warnings"));
+        Assert.Contains(WriteExecution.PartialWriteNotMutatedMessage, warnings);
+        Assert.DoesNotContain(WriteExecution.PartialWriteMessage, warnings);
         Assert.False(GuardById(doc, Ack).GetProperty("acknowledged").GetBoolean());
-        Assert.Contains("verify", _domain.Calls);
+        Assert.Equal(
+            new[]
+            {
+                "validate", "plan", "guards", "mutate:a", "project:a",
+                "replan:b", "guards", "verify", "compose"
+            },
+            _domain.Calls);
     }
 
     [Fact]
@@ -265,17 +375,53 @@ public sealed class WriteExecutionTests
         var (result, doc) = await RunAsync(new[] { Item("a"), Item("b", dependsOn: "a") });
 
         AssertOutcome(result, doc, WritePhases.Applied, isError: false, WorkerFailureCategories.TargetNotFound);
-        Assert.DoesNotContain("mutate:b", _domain.Calls);
+        Assert.False(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(
+            new[] { "validate", "plan", "guards", "mutate:a", "project:a", "replan:b", "verify", "compose" },
+            _domain.Calls);
+        Assert.Equal(
+            WriteExecution.PartialWriteNotMutatedMessage,
+            GuardById(doc, WriteGuardCatalog.PartialWriteGuardId).GetProperty("message").GetString());
     }
 
     [Fact]
     public async Task EveryMutation_AndTheAudit_RunInsideTheLease()
     {
-        await RunAsync(new[] { Item("a"), Item("b", dependsOn: "a"), Item("c") });
+        var (result, doc) = await RunAsync(new[] { Item("a"), Item("b", dependsOn: "a"), Item("c") });
 
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        Assert.Equal(
+            new[]
+            {
+                "validate", "plan", "guards", "mutate:a", "project:a", "replan:b", "guards",
+                "mutate:b", "project:b", "mutate:c", "project:c", "verify", "compose"
+            },
+            _domain.Calls);
         Assert.Equal(3, _domain.MutationCount);
         Assert.Equal(0, _domain.MutationsOutsideLease);
         Assert.Equal(1, _gate.LeaseCalls);
+        AssertAuditedInsideLease();
+    }
+
+    [Fact]
+    public async Task ExceptionAfterAMutation_IsAuditedInsideTheLease_AndRethrown()
+    {
+        _domain.ThrowOnMutate = "b";
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _execution.RunAsync(_domain, Call(new[] { Item("a"), Item("b"), Item("c") })));
+
+        Assert.Equal("b exploded.", thrown.Message);
+        Assert.Equal(new[] { "validate", "plan", "guards", "mutate:a", "project:a", "mutate:b" }, _domain.Calls);
+        var record = Assert.Single(_audit.Records);
+        Assert.Equal(WritePhases.Error, record.Phase);
+        Assert.Equal(
+            new[] { OperationBatchStatus.Succeeded, OperationBatchStatus.Failed, OperationBatchStatus.Skipped },
+            record.Items.Select(i => i.Status));
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, record.Items[1].FailureCategory);
+        Assert.Contains("b exploded.", record.Items[1].FailureMessage);
+        Assert.True(record.Items[1].DurationMs > 0);
+        Assert.Contains("b exploded.", record.ResponseText);
         AssertAuditedInsideLease();
     }
 
@@ -288,7 +434,7 @@ public sealed class WriteExecutionTests
         var record = Assert.Single(_audit.Records);
         Assert.Equal(WriteAuditRecord.Kind, record.RecordKind);
         Assert.Equal(WriteAuditRecord.CurrentVersion, record.RecordVersion);
-        Assert.True(record.Timestamp >= SteppingTimeProvider.Start);
+        Assert.Equal(SteppingTimeProvider.Start, record.Timestamp);
         Assert.Equal("fake_write_tool", record.Tool);
         Assert.Equal("fake/1", record.ContractVersion);
         Assert.Equal("read-write", record.AccessMode);
@@ -320,12 +466,15 @@ public sealed class WriteExecutionTests
     [Fact]
     public async Task PreGateRejection_IsAuditedWithEveryItemSkipped()
     {
-        await RunAsync(new[] { Item("a"), Item("a") });
+        var (result, doc) = await RunAsync(new[] { Item("a"), Item("a") });
 
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
+        Assert.Equal(new[] { "compose" }, _domain.Calls);
         var record = Assert.Single(_audit.Records);
         Assert.Equal(WritePhases.Error, record.Phase);
         Assert.All(record.Items, item => Assert.Equal(OperationBatchStatus.Skipped, item.Status));
         Assert.All(record.Items, item => Assert.Null(item.DurationMs));
+        AssertAuditedOutsideLease();
     }
 
     private static FakeWriteItem Item(
@@ -336,17 +485,21 @@ public sealed class WriteExecutionTests
         string? failWith = null)
         => new(id, DependsOn: dependsOn, Guards: guards, LateGuards: lateGuards, FailWith: failWith);
 
+    private static WriteCall<FakeWriteItem> Call(
+        IReadOnlyList<FakeWriteItem> items, bool dryRun = false, IReadOnlyList<string>? acknowledge = null)
+        => new(FakeWriteBindingGate.ProjectPath, items, dryRun, acknowledge);
+
     private async Task<(CallToolResult Result, JsonElement Document)> RunAsync(
         IReadOnlyList<FakeWriteItem> items,
         bool dryRun = false,
         IReadOnlyList<string>? acknowledge = null)
     {
-        var call = new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, items, dryRun, acknowledge);
-        var result = await _execution.RunAsync(_domain, call);
+        var recordsBefore = _audit.Records.Count;
+        var result = await _execution.RunAsync(_domain, Call(items, dryRun, acknowledge));
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         var structured = Assert.IsType<JsonElement>(result.StructuredContent);
         Assert.Equal(text, structured.GetRawText());
-        Assert.Single(_audit.Records);
+        Assert.Equal(recordsBefore + 1, _audit.Records.Count);
         return (result, JsonDocument.Parse(text).RootElement.Clone());
     }
 

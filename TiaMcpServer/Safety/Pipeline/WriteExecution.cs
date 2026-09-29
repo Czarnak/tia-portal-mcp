@@ -10,11 +10,19 @@ namespace TiaMcpServer.Safety.Pipeline;
 /// </summary>
 public sealed class WriteExecution
 {
-    /// <summary>The warning on the item that stopped a multi-item call, and its partial-write guard message.</summary>
+    /// <summary>
+    /// The warning (and partial-write guard message) on the item that stopped a multi-item call
+    /// after its own mutation was attempted.
+    /// </summary>
     public const string PartialWriteMessage =
         "This call stopped at this operation. This operation and any earlier operation in the same call "
         + "may already have changed TIA state; no rollback was attempted. Re-read the affected objects "
         + "before retrying.";
+
+    /// <summary>The partial-write warning for an item that stopped the call before its own mutation ran.</summary>
+    public const string PartialWriteNotMutatedMessage =
+        "This call stopped at this operation before it was changed. Earlier operations in the same call "
+        + "stay applied; no rollback was attempted. Re-read the affected objects before retrying.";
 
     private readonly IWriteBindingGate _gate;
     private readonly IWriteAuditSink _audit;

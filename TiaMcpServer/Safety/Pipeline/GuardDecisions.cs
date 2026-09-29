@@ -50,12 +50,16 @@ public static class GuardDecisions
     /// <summary>
     /// Decides after the planning pass: rejects acknowledgements for guards that did not fire,
     /// then applies the acknowledge rule. A dry run reports the same guards but never blocks.
+    /// When <paramref name="lateFiringsPossible"/> is true (the call has items re-planned just
+    /// before their mutation), an <c>acknowledge</c>-severity id that has not fired yet is
+    /// tolerated because it may fire late; <see cref="DecideLate"/> then honours it.
     /// </summary>
     public static GuardDecision Decide(
         IReadOnlyList<FiredGuard> fired,
         IReadOnlyList<string>? acknowledge,
         WriteGuardCatalog catalog,
-        bool dryRun)
+        bool dryRun,
+        bool lateFiringsPossible = false)
     {
         ArgumentNullException.ThrowIfNull(fired);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -63,7 +67,11 @@ public static class GuardDecisions
         var acked = ToSet(acknowledge);
         var reports = BuildReports(fired, acked, catalog);
 
-        var notFired = acked.Where(id => fired.All(g => g.Id != id)).OrderBy(id => id, StringComparer.Ordinal).ToList();
+        var notFired = acked
+            .Where(id => fired.All(g => g.Id != id))
+            .Where(id => !(lateFiringsPossible && IsAcknowledgeGuard(id, catalog)))
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
         if (notFired.Count > 0)
         {
             return new GuardDecision(
@@ -116,6 +124,9 @@ public static class GuardDecisions
             _ => null
         };
     }
+
+    private static bool IsAcknowledgeGuard(string id, WriteGuardCatalog catalog)
+        => catalog.TryGet(id, out var guard) && guard.Severity == WriteGuardSeverities.Acknowledge;
 
     private static HashSet<string> ToSet(IReadOnlyList<string>? acknowledge)
         => new(acknowledge ?? Array.Empty<string>(), StringComparer.Ordinal);

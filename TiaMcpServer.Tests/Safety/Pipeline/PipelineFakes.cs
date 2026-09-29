@@ -74,6 +74,12 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public WriteToolError? ReplanFailure { get; set; }
 
+    /// <summary>The mutation of this operation throws after it was dispatched.</summary>
+    public string? ThrowOnMutate { get; set; }
+
+    /// <summary>The plan returns a null entry in place of the first item's plan.</summary>
+    public bool ReturnNullPlan { get; set; }
+
     public int MutationCount { get; private set; }
 
     public int MutationsOutsideLease { get; private set; }
@@ -97,6 +103,11 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
                 ? ItemPlan<FakeEffect>.Resolved(EffectFor(item), PreconditionsFor(item))
                 : ItemPlan<FakeEffect>.DependsOnItem(item.DependsOn, PreconditionsFor(item)))
             .ToList();
+        if (ReturnNullPlan)
+        {
+            plans[0] = null!;
+        }
+
         return Task.FromResult(WritePlan<FakeEffect>.Ok(plans));
     }
 
@@ -139,6 +150,11 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         }
 
         MutationCount++;
+        if (ThrowOnMutate == item.OperationId)
+        {
+            throw new InvalidOperationException($"{item.OperationId} exploded.");
+        }
+
         return Task.FromResult(item.FailWith is null
             ? WorkerCallResult.Ok("{\"done\":true}")
             : WorkerCallResult.Fail(item.FailWith, $"{item.OperationId} failed."));
@@ -185,12 +201,17 @@ public sealed class FakeWriteBindingGate : IWriteBindingGate
 
     public McpAccessMode AccessMode { get; set; } = McpAccessMode.ReadWrite;
 
-    public ProjectBindingSnapshot CurrentBinding { get; } = new(
-        ProjectBindingSnapshot.VerifiedState, "binding-1", 3, ProjectPath, "session-1", 1, 4242, null);
+    public ProjectBindingSnapshot CurrentBinding { get; set; } = Snapshot(
+        ProjectBindingSnapshot.VerifiedState, "binding-1", 3, ProjectPath);
 
     public WorkerCallResult GateResult { get; set; } = WorkerCallResult.Ok("{}");
 
+    /// <summary>Runs inside the gate call, e.g. to simulate a verification or a rebind.</summary>
+    public Action<FakeWriteBindingGate>? OnGate { get; set; }
+
     public WriteToolError? LeaseRefusal { get; set; }
+
+    public ProjectBindingSnapshot? LeasedBinding { get; private set; }
 
     public int GateCalls { get; private set; }
 
@@ -198,21 +219,33 @@ public sealed class FakeWriteBindingGate : IWriteBindingGate
 
     public bool LeaseActive { get; private set; }
 
+    public static ProjectBindingSnapshot Snapshot(string state, string bindingId, long revision, string? path)
+        => new(state, bindingId, revision, path, "session-1", 1, 4242, null);
+
     public Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
     {
         GateCalls++;
+        OnGate?.Invoke(this);
         return Task.FromResult(GateResult);
     }
 
+    /// <summary>Refuses a snapshot that is not the current binding, like the real pinned lease.</summary>
     public async Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
         ProjectBindingSnapshot binding,
         Func<Task<T>> operation)
         where T : class
     {
         LeaseCalls++;
+        LeasedBinding = binding;
         if (LeaseRefusal is not null)
         {
             return WriteLeaseResult<T>.Fail(LeaseRefusal);
+        }
+
+        if (binding.BindingId != CurrentBinding.BindingId || binding.Revision != CurrentBinding.Revision)
+        {
+            return WriteLeaseResult<T>.Fail(new WriteToolError(
+                WorkerFailureCategories.BindingConflict, "Stale binding snapshot."));
         }
 
         LeaseActive = true;
