@@ -35,6 +35,8 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 
 `withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency closure. The resulting document declares several objects and is **context only** — a write refuses any source declaring more than one object, and the read carries a warning saying so. Omit the field to get a document you can edit and submit back.
 
+`get_block_content` and `get_type_content` reads also return a `contentHash` (`xml:sha256:<hex>` or `source:sha256:<hex>`) computed over the exact text served in `result`, tagged with the served format. It lets a later guarded write detect that the document changed since it was read. It is omitted for `withDependencies` reads, failed reads, and results truncated or omitted for size.
+
 ### Network operations
 
 `network_read` and `network_write` both declare an MCP output schema and return one canonical JSON document identically as the `content` text block and as `structuredContent` — never a nested JSON string inside an outer envelope. This is the Phase 2 JSON contract; see [docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md) for the exact envelopes.

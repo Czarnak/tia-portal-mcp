@@ -194,7 +194,7 @@ public static class BatchWorkerInvoker
         return request;
     }
 
-    private static string NormalizeFormat(BatchOperationRequest op)
+    internal static string NormalizeFormat(BatchOperationRequest op)
     {
         var fallback = op.Operation is "get_type_content" or "update_type_content"
             ? SourceFormatNames.Source
