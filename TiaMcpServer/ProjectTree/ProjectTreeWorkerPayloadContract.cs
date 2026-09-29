@@ -45,8 +45,8 @@ internal static class ProjectTreeWorkerPayloadContract
 
         try
         {
-            ValidateRequiredJsonShape(workerResult.Payload);
-            var payload = CanonicalJson.Deserialize<ProjectTreeBrowseResultInfo>(workerResult.Payload);
+            var payload = CanonicalJson.DeserializeWorkerPayload<ProjectTreeBrowseResultInfo>(
+                workerResult.Payload);
             Validate(payload, requestedSelector, requestedDepth);
             var path = ProjectPathNormalization.Canonicalize(workerResult.ResolvedProjectPath)
                 ?? throw new JsonException("The worker did not report a canonical resolved project path.");
@@ -181,97 +181,4 @@ internal static class ProjectTreeWorkerPayloadContract
             NodeType = segment.NodeType,
             Name = segment.Name
         }).ToArray();
-
-    private static void ValidateRequiredJsonShape(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-        RequireObject(root, "project-tree result");
-        RequireMembers(root, "project-tree result", "startSelector", "depth", "roots");
-
-        var selector = root.GetProperty("startSelector");
-        if (selector.ValueKind != JsonValueKind.Null)
-        {
-            RequireArray(selector, "startSelector");
-            foreach (var segment in selector.EnumerateArray())
-            {
-                RequireObject(segment, "startSelector[]");
-                RequireMembers(segment, "startSelector[]", "nodeType", "name");
-                RequireString(segment.GetProperty("nodeType"), "startSelector[].nodeType");
-                RequireString(segment.GetProperty("name"), "startSelector[].name");
-            }
-        }
-
-        var roots = root.GetProperty("roots");
-        RequireArray(roots, "roots");
-        foreach (var node in roots.EnumerateArray())
-        {
-            ValidateNodeJson(node, "roots[]");
-        }
-    }
-
-    private static void ValidateNodeJson(JsonElement node, string path)
-    {
-        RequireObject(node, path);
-        RequireMembers(node, path, "name", "nodeType", "details", "children");
-        RequireString(node.GetProperty("name"), $"{path}.name");
-        RequireString(node.GetProperty("nodeType"), $"{path}.nodeType");
-
-        var details = node.GetProperty("details");
-        if (details.ValueKind != JsonValueKind.Null)
-        {
-            RequireObject(details, $"{path}.details");
-            foreach (var detail in details.EnumerateObject())
-            {
-                if (string.Equals(detail.Name, "Path", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new JsonException($"'{path}.details' contains a removed Path member.");
-                }
-
-                RequireString(detail.Value, $"{path}.details.{detail.Name}");
-            }
-        }
-
-        var children = node.GetProperty("children");
-        RequireArray(children, $"{path}.children");
-        foreach (var child in children.EnumerateArray())
-        {
-            ValidateNodeJson(child, $"{path}.children[]");
-        }
-    }
-
-    private static void RequireMembers(JsonElement value, string path, params string[] members)
-    {
-        foreach (var member in members)
-        {
-            if (!value.TryGetProperty(member, out _))
-            {
-                throw new JsonException($"'{path}.{member}' is required.");
-            }
-        }
-    }
-
-    private static void RequireObject(JsonElement value, string path)
-    {
-        if (value.ValueKind != JsonValueKind.Object)
-        {
-            throw new JsonException($"'{path}' must be an object.");
-        }
-    }
-
-    private static void RequireArray(JsonElement value, string path)
-    {
-        if (value.ValueKind != JsonValueKind.Array)
-        {
-            throw new JsonException($"'{path}' must be an array.");
-        }
-    }
-
-    private static void RequireString(JsonElement value, string path)
-    {
-        if (value.ValueKind != JsonValueKind.String)
-        {
-            throw new JsonException($"'{path}' must be a string.");
-        }
-    }
 }
