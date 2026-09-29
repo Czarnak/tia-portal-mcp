@@ -108,6 +108,12 @@ namespace TiaMcpServer
                    .WithTools<NetworkWriteTools>();
             }
 
+            if (ApprovalSpikeTools.IsEnabled(Environment.GetEnvironmentVariable))
+            {
+                Console.Error.WriteLine($"{ApprovalSpikeTools.EnvironmentVariable}=1: registering temporary approval spike probes.");
+                mcp.WithTools(ApprovalSpikeTools.Create());
+            }
+
             using var host = builder.Build();
             NetworkReadTools.RegisterExecutor(
                 host.Services.GetRequiredService<OpennessWorkerClient>(),
