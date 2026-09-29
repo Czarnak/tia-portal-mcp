@@ -19,6 +19,7 @@ public sealed class JsonlWriteAuditSinkTests
             "1",
             WriteAuditRecord.ModeName(McpAccessMode.ReadWrite),
             @"C:\p\demo.ap21",
+            new WriteAuditBinding("verified", "b1", 3, @"C:\p\demo.ap21", "w1", 2, 100, null),
             JsonDocument.Parse("""[{"operationId":"a"}]""").RootElement.Clone(),
             WritePhases.Applied,
             "{\"phase\":\"applied\"}",
@@ -30,7 +31,11 @@ public sealed class JsonlWriteAuditSinkTests
                 "PLC_1/OB1",
                 [new CheckedPrecondition("contentHash", "xml:sha256:1", "xml:sha256:1", true)],
                 "succeeded",
-                12L)]);
+                null,
+                null,
+                ["w"],
+                12L)],
+            34L);
 
     [Fact]
     public void Append_TwoRecords_WritesTwoParseableLinesWithoutBom()
@@ -60,6 +65,9 @@ public sealed class JsonlWriteAuditSinkTests
         var item = first.RootElement.GetProperty("items")[0];
         Assert.Equal(12, item.GetProperty("durationMs").GetInt64());
         Assert.Equal("agent", first.RootElement.GetProperty("guards")[0].GetProperty("satisfiedBy").GetString());
+        Assert.Equal("b1", first.RootElement.GetProperty("binding").GetProperty("bindingId").GetString());
+        Assert.Equal(34, first.RootElement.GetProperty("durationMs").GetInt64());
+        Assert.Equal("w", item.GetProperty("warnings")[0].GetString());
         Assert.Equal("legacy\n", File.ReadAllText(legacy));
     }
 
@@ -68,7 +76,7 @@ public sealed class JsonlWriteAuditSinkTests
     {
         using var dir = new TempAuditDirectory();
         var sink = new JsonlWriteAuditSink(dir.Path);
-        var record = Record() with { Items = [new WriteAuditItem("a", "op", null, [], "skipped", null)] };
+        var record = Record() with { Items = [new WriteAuditItem("a", "op", null, [], "skipped", "target_not_found", "gone", [], null)] };
 
         sink.Append(record);
 
@@ -92,10 +100,16 @@ public sealed class JsonlWriteAuditSinkTests
         try
         {
             var sink = new JsonlWriteAuditSink(file);
+            var original = Console.Error;
+            var captured = new StringWriter();
+            Console.SetError(captured);
 
-            var ex = Xunit.Record.Exception(() => sink.Append(Record()));
+            Exception? ex;
+            try { ex = Xunit.Record.Exception(() => sink.Append(Record())); }
+            finally { Console.SetError(original); }
 
             Assert.Null(ex);
+            Assert.Contains("failed to write audit record for 'network_write'", captured.ToString());
         }
         finally
         {

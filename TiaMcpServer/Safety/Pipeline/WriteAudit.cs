@@ -24,7 +24,32 @@ public sealed record WriteAuditItem(
     string? Target,
     IReadOnlyList<CheckedPrecondition> Preconditions,
     string Status,
+    string? FailureCategory,
+    string? FailureMessage,
+    IReadOnlyList<string> Warnings,
     long? DurationMs);
+
+/// <summary>Serializable projection of the <see cref="ProjectBindingSnapshot"/> a call ran under.</summary>
+public sealed record WriteAuditBinding(
+    string State,
+    string BindingId,
+    long Revision,
+    string? ProjectPath,
+    string? WorkerSessionId,
+    long? SessionGeneration,
+    int? PortalProcessId,
+    string? InvalidatedReason)
+{
+    public static WriteAuditBinding From(ProjectBindingSnapshot snapshot) => new(
+        snapshot.State,
+        snapshot.BindingId,
+        snapshot.Revision,
+        snapshot.ProjectPath,
+        snapshot.WorkerSessionId,
+        snapshot.SessionGeneration,
+        snapshot.PortalProcessId,
+        snapshot.InvalidatedReason);
+}
 
 /// <summary>The one canonical audit record a guarded write call produces, whatever its phase.</summary>
 public sealed record WriteAuditRecord(
@@ -35,12 +60,14 @@ public sealed record WriteAuditRecord(
     string ContractVersion,
     string AccessMode,
     string? ProjectPath,
+    WriteAuditBinding? Binding,
     JsonElement? RequestedOperations,
     string Phase,
     string ResponseText,
     string ResponseHash,
     IReadOnlyList<WriteAuditGuard> Guards,
-    IReadOnlyList<WriteAuditItem> Items)
+    IReadOnlyList<WriteAuditItem> Items,
+    long? DurationMs)
 {
     /// <summary>Value of <see cref="RecordKind"/> for every write record.</summary>
     public const string Kind = "write";
