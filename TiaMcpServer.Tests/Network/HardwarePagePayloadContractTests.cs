@@ -104,10 +104,8 @@ public class HardwarePagePayloadContractTests
 
     [Theory]
     [InlineData(-1, 0, new[] { 0 }, new int[0])]
-    [InlineData(0, -1, new int[0], new[] { 0 })]
     [InlineData(0, 0, new[] { 0 }, new int[0])]
     [InlineData(1, 0, new[] { 1 }, new int[0])]
-    [InlineData(1, 1, new int[0], new[] { 0 })]
     [InlineData(int.MaxValue, 1, new[] { 0, 1 }, new int[0])]
     public void Decode_RejectsNegativeCountsReturnedCountsAboveTotalsAndKindInconsistentOffsets(
         int totalDevices,
@@ -264,14 +262,9 @@ public class HardwarePagePayloadContractTests
     public void Decode_RejectsASubnetCandidateMissingARequiredMember(string member)
     {
         var operation = Operation();
-        var payload = CandidatePayload(
-            operation,
-            startOffset: 0,
-            totalDevices: 0,
-            totalSubnets: 1,
-            deviceOffsets: Array.Empty<int>(),
-            subnetOffsets: new[] { 0 });
-        var root = JsonNode.Parse(payload)!.AsObject();
+        var baseRoot = ExplainedSubnetRoot(operation);
+        AssertAccepted(operation, baseRoot);
+        var root = JsonNode.Parse(baseRoot.ToJsonString())!.AsObject();
         root["subnetCandidates"]!.AsArray()[0]!.AsObject().Remove(member);
 
         var decoded = HardwarePagePayloadContract.Decode(
@@ -301,14 +294,9 @@ public class HardwarePagePayloadContractTests
     public void Decode_RejectsASubnetThatIsNotAnObject()
     {
         var operation = Operation();
-        var payload = CandidatePayload(
-            operation,
-            startOffset: 0,
-            totalDevices: 0,
-            totalSubnets: 1,
-            deviceOffsets: Array.Empty<int>(),
-            subnetOffsets: new[] { 0 });
-        var root = JsonNode.Parse(payload)!.AsObject();
+        var baseRoot = ExplainedSubnetRoot(operation);
+        AssertAccepted(operation, baseRoot);
+        var root = JsonNode.Parse(baseRoot.ToJsonString())!.AsObject();
         root["subnetCandidates"]!.AsArray()[0]!.AsObject()["subnet"] = "not-an-object";
 
         var decoded = HardwarePagePayloadContract.Decode(
@@ -485,16 +473,45 @@ public class HardwarePagePayloadContractTests
     [Fact]
     public void Decode_RejectsASubnetOffsetInsideTheDeviceRangeThePayloadReaderAccepts()
     {
+        // Base: one device (offset 0) and two subnets, page size 2, so the page returns the device
+        // and the first subnet (offset 1). Raising totalDevices to 2 keeps every count rule
+        // satisfied (total 4, returned 2 = min(2, 4)) and only moves the subnet offset inside the
+        // device range, which is the offset rule this case exists for.
         var operation = Operation();
         var baseRoot = ExplainedSubnets(CandidatePayload(
             operation,
             startOffset: 0,
-            totalDevices: 0,
+            totalDevices: 1,
             totalSubnets: 2,
-            deviceOffsets: Array.Empty<int>(),
-            subnetOffsets: new[] { 0, 1 }));
+            deviceOffsets: new[] { 0 },
+            subnetOffsets: new[] { 1 }));
 
-        AssertRejectedByTypedRules(operation, baseRoot, root => root["totalDevices"] = 1);
+        AssertRejectedByTypedRules(operation, baseRoot, root => root["totalDevices"] = 2);
+    }
+
+    [Fact]
+    public void Decode_RejectsANegativeSubnetTotalThePayloadReaderAccepts()
+    {
+        var operation = Operation();
+
+        AssertRejectedByTypedRules(
+            operation,
+            ExplainedSubnetRoot(operation),
+            root => root["totalSubnets"] = -1);
+    }
+
+    [Fact]
+    public void Decode_RejectsAReturnedCountThatDoesNotFillThePageThePayloadReaderAccepts()
+    {
+        // Rule covered: returned count must equal min(page size, total - start). Raising totalDevices
+        // to 1 makes the total 2, so a page of size 2 must return 2 candidates but returns only the
+        // one subnet. (The subnet-offset-inside-the-device-range rule is covered separately above.)
+        var operation = Operation();
+
+        AssertRejectedByTypedRules(
+            operation,
+            ExplainedSubnetRoot(operation),
+            root => root["totalDevices"] = 1);
     }
 
     [Fact]
@@ -561,6 +578,15 @@ public class HardwarePagePayloadContractTests
         }
 
         return root;
+    }
+
+    private static void AssertAccepted(NetworkOperationRequest operation, JsonObject root)
+    {
+        var baseline = HardwarePagePayloadContract.Decode(
+            operation,
+            WorkerCallResult.Ok(root.ToJsonString()),
+            continuation: null);
+        Assert.True(baseline.IsSuccess, "The base payload must be accepted before it is mutated.");
     }
 
     /// <summary>

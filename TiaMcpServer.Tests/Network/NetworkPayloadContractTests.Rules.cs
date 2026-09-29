@@ -457,4 +457,26 @@ public partial class NetworkPayloadContractTests
 
         Assert.Equal(new[] { "Decode" }, chain);
     }
+
+    /// <summary>
+    /// A complete target:deviceItem inspection with one item-path member absent. The base is
+    /// accepted first. <c>index</c> and <c>positionNumber</c> are ints, so without the reader's
+    /// missing-member rule their absence would silently read as 0.
+    /// </summary>
+    [Theory]
+    [InlineData("target.itemPath[0].index")]
+    [InlineData("target.itemPath[0].name")]
+    [InlineData("target.itemPath[0].positionNumber")]
+    [InlineData("target.itemPath[0].typeIdentifier")]
+    public void Project_RejectsAnItemPathSegmentMissingOneMemberInTheReader(string path)
+    {
+        const string BaseName = "target:deviceItem";
+        var (accepted, _) = ProjectRuleCase(OperationOf(BaseName), RuleBase(BaseName));
+        Assert.Equal(OperationBatchStatus.Succeeded, accepted.Status);
+        var payload = Edit(RuleBase(BaseName), (path, null));
+
+        var chain = AssertRejectedWithoutLeak(OperationOf(BaseName), payload);
+
+        Assert.Equal(new[] { "Decode" }, chain);
+    }
 }
