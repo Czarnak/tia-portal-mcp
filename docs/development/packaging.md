@@ -56,6 +56,16 @@ projects. Use `open_project` for deliberate session switching.
   leading `/p:...` MSBuild switches as path-like tokens and drops the `/`, which
   breaks `dotnet pack`'s version overrides silently (MSB1008 or wrong version).
 
+### Scripted install
+
+`scripts/install-local-tool.ps1` runs steps 2-7 below (version, restore, pack, package
+verification, tool swap, version check). It refuses to run on a dirty tree or while `tia-mcp`
+is running unless you pass `-AllowDirty` or `-StopRunningServer`:
+
+```powershell
+./scripts/install-local-tool.ps1 -StopRunningServer
+```
+
 ### Steps
 
 1. **Check out the branch/commit you want to test** and make sure the working tree
