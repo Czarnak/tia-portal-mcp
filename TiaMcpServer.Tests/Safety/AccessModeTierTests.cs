@@ -72,6 +72,8 @@ public class AccessModeTierTests
     {
         foreach (var mode in new[] { McpAccessMode.ReadOnly, McpAccessMode.ReadWrite, Full, (McpAccessMode)999 })
         {
+            Assert.False(OperationPolicyCatalog.IsAllowed(mode, null!));
+            Assert.False(OperationPolicyCatalog.IsAllowed(mode, "   "));
             Assert.False(OperationPolicyCatalog.IsAllowed(mode, ""));
             Assert.False(OperationPolicyCatalog.IsAllowed(mode, "unknown_operation"));
         }

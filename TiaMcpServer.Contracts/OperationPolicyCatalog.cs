@@ -15,14 +15,14 @@ public static class OperationPolicyCatalog
     /// Returns the capability for <paramref name="operation"/>, or null if the operation
     /// is not classified (unknown operations are denied in every mode).
     /// </summary>
-    public static OperationCapability? GetCapability(string operation)
-        => Classifications.TryGetValue(operation, out var cap) ? cap : null;
+    public static OperationCapability? GetCapability(string? operation)
+        => !string.IsNullOrWhiteSpace(operation) && Classifications.TryGetValue(operation!, out var cap) ? cap : null;
 
     /// <summary>
     /// True when <paramref name="operation"/> is allowed under the given access mode.
     /// Read-only mode allows Observe, TemporaryExport, and side-effect-free SafetyRead.
     /// </summary>
-    public static bool IsAllowed(McpAccessMode mode, string operation)
+    public static bool IsAllowed(McpAccessMode mode, string? operation)
     {
         var cap = GetCapability(operation);
         return cap is not null && IsCapabilityAllowed(mode, cap.Value);
