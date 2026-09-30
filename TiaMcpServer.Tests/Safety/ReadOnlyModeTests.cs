@@ -152,11 +152,11 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void ReadWriteMode_AllowsAllClassifiedOperations()
+    public void FullMode_AllowsAllClassifiedOperations()
     {
         foreach (var op in OperationPolicyCatalog.AllOperationNames)
         {
-            Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, op));
+            Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.Full, op));
         }
     }
 
@@ -290,13 +290,13 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void OperationAccessPolicy_ReadWrite_AllowsAllOperations()
+    public void OperationAccessPolicy_ReadWrite_AllowsEditsAndCompile()
     {
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         Assert.Null(policy.Authorize("update_block_logic"));
         Assert.Null(policy.Authorize("compile_check"));
         Assert.Null(policy.Authorize("get_project_status"));
-        Assert.Null(policy.Authorize("start_plc"));
+        Assert.Equal(WorkerFailureCategories.AccessDenied, policy.Authorize("start_plc")!.FailureCategory);
     }
 
     [Fact]
@@ -511,12 +511,12 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void WorkerOperationAuthorization_ReadWrite_AllowsAll()
+    public void WorkerOperationAuthorization_Full_AllowsAllClassifiedCapabilities()
     {
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "update_block_logic"));
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "open_project"));
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "compile_check"));
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "start_plc"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "update_block_logic"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "open_project"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "compile_check"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "start_plc"));
     }
 
     [Fact]

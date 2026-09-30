@@ -3,7 +3,7 @@ namespace TiaMcpServer.Contracts;
 /// <summary>
 /// Classifies every worker operation by its intent. Both the host and worker use this
 /// shared classification to enforce access policy. An operation that has no explicit
-/// classification is denied in read-only mode (deny-by-default).
+/// classification is denied in every mode (deny-by-default).
 /// </summary>
 public enum OperationCapability
 {
