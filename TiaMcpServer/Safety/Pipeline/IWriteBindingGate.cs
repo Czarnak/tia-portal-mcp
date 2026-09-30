@@ -28,6 +28,15 @@ public interface IWriteBindingGate
     /// </summary>
     Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(ProjectBindingSnapshot binding, Func<Task<T>> operation)
         where T : class;
+
+    /// <summary>Cancellation-aware lease entry; implementations must never abandon a running mutation.</summary>
+    Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
+        ProjectBindingSnapshot binding, Func<Task<T>> operation, CancellationToken cancellationToken)
+        where T : class
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return RunUnderLeaseAsync(binding, operation);
+    }
 }
 
 /// <summary>
@@ -54,9 +63,16 @@ public sealed class OpennessWriteBindingGate : IWriteBindingGate
         ProjectBindingSnapshot binding,
         Func<Task<T>> operation)
         where T : class
+        => await RunUnderLeaseAsync(binding, operation, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
+        ProjectBindingSnapshot binding,
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken)
+        where T : class
     {
         var execution = await _workerClient
-            .ExecuteWithPinnedBindingAsync(binding, operation)
+            .ExecuteWithPinnedBindingAsync(binding, operation, cancellationToken)
             .ConfigureAwait(false);
         return execution.Success
             ? WriteLeaseResult<T>.Ok(execution.Value!)

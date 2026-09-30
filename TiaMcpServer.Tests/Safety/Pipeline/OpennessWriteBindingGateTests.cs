@@ -87,6 +87,40 @@ public sealed class OpennessWriteBindingGateTests
     }
 
     [Fact]
+    public async Task CancellationWhileWaitingForLease_DoesNotRunTheCancelledOperation()
+    {
+        using var client = CreateClient(new ProjectSessionBinding(null));
+        var gate = new OpennessWriteBindingGate(client);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holder = gate.RunUnderLeaseAsync(gate.CurrentBinding, async () =>
+        {
+            entered.SetResult();
+            await release.Task;
+            return "holder";
+        });
+        await entered.Task;
+        using var cancellation = new CancellationTokenSource();
+        var invoked = false;
+        var waiting = gate.RunUnderLeaseAsync(gate.CurrentBinding, () =>
+        {
+            invoked = true;
+            return Task.FromResult("cancelled");
+        }, cancellation.Token);
+        cancellation.Cancel();
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.False(invoked);
+        }
+        finally
+        {
+            release.SetResult();
+            await holder;
+        }
+    }
+
+    [Fact]
     public void AccessMode_IsReadWriteWithoutPolicyAndFollowsThePolicyOtherwise()
     {
         using var unrestricted = CreateClient(new ProjectSessionBinding(null));

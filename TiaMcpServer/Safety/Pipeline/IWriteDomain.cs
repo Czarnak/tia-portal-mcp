@@ -36,5 +36,8 @@ public interface IWriteDomain<TItem, TEffect, TVerification, TResponse>
     /// <summary>The post-write read, or null when the domain performs none.</summary>
     Task<TVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch);
 
+    /// <summary>Whether the typed verification establishes the domain's required postcondition.</summary>
+    bool VerificationSucceeded(TVerification? verification) => true;
+
     TResponse Compose(WriteReport<TEffect, TVerification> report);
 }

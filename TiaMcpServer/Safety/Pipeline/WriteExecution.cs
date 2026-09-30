@@ -24,6 +24,11 @@ public sealed class WriteExecution
         "This call stopped at this operation before it was changed. Earlier operations in the same call "
         + "stay applied; no rollback was attempted. Re-read the affected objects before retrying.";
 
+    /// <summary>A successful dispatch is preserved when its required postcondition cannot be verified.</summary>
+    public const string VerificationFailureMessage =
+        "The write may already have changed TIA state, but its result could not be verified. "
+        + "Re-read the affected project before retrying; do not replay this write automatically.";
+
     private readonly IWriteBindingGate _gate;
     private readonly IWriteAuditSink _audit;
     private readonly WriteGuardCatalog _catalog;
@@ -57,7 +62,7 @@ public sealed class WriteExecution
         ArgumentNullException.ThrowIfNull(domain);
         ArgumentNullException.ThrowIfNull(call);
         var run = new WriteRun<TItem, TEffect, TVerification, TResponse>(
-            domain, call, _gate, _audit, _catalog, _time, bindingStrategy);
+            domain, call, _gate, _audit, _catalog, _time, bindingStrategy, confirmation, cancellationToken);
         return run.ExecuteAsync();
     }
 }
