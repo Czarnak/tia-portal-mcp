@@ -1,0 +1,12 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="TiaMcpServer.Contracts/TiaMcpServer.Contracts.csproj" />
+  <Project Path="TiaMcpServer.FakeWorker/TiaMcpServer.FakeWorker.csproj" />
+  <Project Path="TiaMcpServer.OpennessWorker/TiaMcpServer.OpennessWorker.csproj" />
+  <Project Path="TiaMcpServer.Tests/TiaMcpServer.Tests.csproj" />
+  <Project Path="TiaMcpServer/TiaMcpServer.csproj" />
+</Solution>
