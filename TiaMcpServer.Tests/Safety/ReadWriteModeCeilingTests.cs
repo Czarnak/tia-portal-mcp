@@ -18,7 +18,7 @@ public class ReadWriteModeCeilingTests
     public static IEnumerable<object[]> RestrictedOperations => new[]
     {
         "open_project", "create_project", "save_project", "save_project_as", "archive_project",
-        "close_project", "probe_project_status_for_lifecycle", "probe_open_project_rebind", "start_plc", "stop_plc"
+        "close_project", "probe_project_status_for_lifecycle", "probe_open_project_rebind", "get_basic_project_status", "start_plc", "stop_plc"
     }.Select(operation => new object[] { operation });
 
     private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding, string path, McpAccessMode mode)
@@ -149,6 +149,9 @@ public class ReadWriteModeCeilingTests
         var refused = await client.GetProjectStatusAsync(@"C:\Fixture\Other.ap21");
         Assert.Equal(WorkerFailureCategories.BindingConflict, refused.FailureCategory);
         Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+        var next = await client.GetProjectStatusAsync(project);
+        Assert.True(next.Success, next.Error);
+        Assert.Equal("{\"seq\":3}", next.Payload);
     }
 
     [Fact]
