@@ -915,6 +915,9 @@ while ((line = Console.In.ReadLine()) is not null)
                 ? Success(DirectStatusPayload(StatusWithMetadataFixture()))
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
             break;
+        case "status-malformed":
+            Respond(Success("{\"PRIVATE_STATUS_MARKER\":\"" + new string('x', 70000) + "\"}"));
+            break;
         case "status-oversized":
         {
             var status = StatusWithMetadataFixture();
