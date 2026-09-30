@@ -69,4 +69,20 @@ public sealed class StandaloneCompileToolTests
         Assert.Equal(category, root.GetProperty("error").GetProperty("category").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("result").ValueKind);
     }
+
+    [Fact]
+    public async Task IdentityFailureAfterCompilation_IsAnAttemptedFailure()
+    {
+        const string scenario = "compile-identity-drift";
+        var binding = new ProjectSessionBinding(scenario);
+        using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
+        Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
+        var response = await ProjectEngineeringTools.CompileCheck(client, scenario);
+        var root = StandaloneStatusToolTests.Document(response);
+        Assert.False(response.IsError);
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        Assert.Equal("binding_conflict", root.GetProperty("result").GetProperty("failure").GetProperty("category").GetString());
+        Assert.False(binding.IsVerified);
+    }
 }

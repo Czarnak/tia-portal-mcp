@@ -41,6 +41,9 @@ public sealed record WorkerCallResult(
     /// <summary>Host-observed request dispatch provenance; never serialized to callers.</summary>
     internal WorkerDispatchState DispatchState { get; init; } = WorkerDispatchState.Unknown;
 
+    /// <summary>The worker returned success before host identity validation rejected its response.</summary>
+    internal bool IsPostOperationFailure { get; init; }
+
     public static WorkerCallResult Ok(string payload, IReadOnlyList<string>? warnings = null)
         => new(true, payload, null, null, warnings ?? Array.Empty<string>());
 

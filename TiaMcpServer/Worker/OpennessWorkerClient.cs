@@ -2050,6 +2050,7 @@ public class OpennessWorkerClient : IDisposable
                 promoteError ?? "The worker did not return a verifiable project identity.",
                 result.Warnings) with
             {
+                IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState
@@ -2067,6 +2068,7 @@ public class OpennessWorkerClient : IDisposable
                     + "The response was discarded and the newer binding was left intact.",
                     result.Warnings) with
                 {
+                    IsPostOperationFailure = true,
                     SessionIdentity = result.SessionIdentity,
                     BlockImportOutcome = result.BlockImportOutcome,
                     DispatchState = result.DispatchState
@@ -2089,6 +2091,7 @@ public class OpennessWorkerClient : IDisposable
                 identityError ?? "The worker session identity changed.",
                 result.Warnings) with
             {
+                IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState

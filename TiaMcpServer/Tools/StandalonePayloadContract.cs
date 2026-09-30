@@ -16,7 +16,7 @@ internal static class StandalonePayloadContract
             result.Error ?? "The worker operation failed.");
 
     internal static StructuredOperationFailure? Rejection(WorkerCallResult result)
-        => !result.Success && (result.DispatchState == WorkerDispatchState.NotSent
+        => !result.Success && !result.IsPostOperationFailure && (result.DispatchState == WorkerDispatchState.NotSent
             || result.FailureCategory is WorkerFailureCategories.AccessDenied
                 or WorkerFailureCategories.BindingConflict or WorkerFailureCategories.ValidationError)
             ? Failure(result) : null;

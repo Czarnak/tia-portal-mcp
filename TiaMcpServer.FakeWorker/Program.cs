@@ -885,6 +885,8 @@ while ((line = Console.In.ReadLine()) is not null)
         case "compile-inconsistent":
         case "compile-oversized":
         case "compile-arguments":
+        case "compile-identity-drift":
+            hardwarePaginationIdentityDrift = scenario == "compile-identity-drift" && ReadMethod(line) == "compile_check";
             Respond(ReadMethod(line) switch
             {
                 "get_project_status" => Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = currentProjectPath })),
@@ -892,6 +894,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 "compile_check" => StandaloneCompileResponse(scenario, line),
                 _ => $$"""{"success":false,"error":"unexpected standalone compile method '{{ReadMethod(line)}}'"}"""
             });
+            hardwarePaginationIdentityDrift = false;
             break;
         case "status-no-project":
             // Simulates the real worker's GetStatusReadOnly when nothing is open and no path
