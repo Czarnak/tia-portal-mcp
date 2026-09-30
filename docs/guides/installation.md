@@ -103,10 +103,10 @@ Options:
 
 Project-selection diagnostics are access-mode aware:
 
-- no project binding is a warning in read-only mode and a failure in read-write mode;
+- no project binding is a warning in read-only mode and a failure in read-write or full mode;
 - an invalid, relative, non-`.ap21`, or missing project path is a failure;
 - multiple TIA Portal processes are a warning when an explicit binding is configured, because Doctor cannot verify the live match without attaching;
-- multiple TIA Portal processes with no binding are a warning in read-only mode and a failure in read-write mode.
+- multiple TIA Portal processes with no binding are a warning in read-only mode and a failure in read-write or full mode.
 
 Even an existing local project path remains a Doctor warning because Doctor deliberately does not
 Attach and cannot prove which Portal has it open. Before using project tools, open the exact project
@@ -133,7 +133,7 @@ Aliases: `claude` (Claude Code), `mimo` (MiMoCode).
 Options:
 
 - `--name <name>` - server registration name (default: `tia-portal`).
-- `--access-mode <mode>` - access mode: `read-only` or `read-write` (default: `read-only`).
+- `--access-mode <mode>` - access mode: `read-only`, `read-write`, or `full` (default: `read-only`).
 - `--tia-project <path>` - bind to a specific TIA Portal project.
 - `--server-path <path>` - explicit path to the `tia-mcp` executable.
 - `--dry-run` - print the install command without executing.
@@ -161,10 +161,27 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 ### Access modes
 
-The server supports two access modes that control which operations are available:
+The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-write** (default) - full tool surface with the existing preview-and-apply write safety model.
-- **read-only** - only observation operations are available. Write tools are not advertised to MCP clients, and prohibited operations are rejected at both the host and worker levels.
+- **read-only** - four observation tools; no compile, edits, lifecycle, or PLC control.
+- **read-write** (server startup default) - eight tools: the four reads plus `compile_check`,
+  `preview_write_batch`, `apply_write_batch`, and `network_write`. Permits in-project edits and
+  compilation with the existing preview-and-apply model. It does not save the project.
+- **full** - fourteen tools, adding `open_project`, `create_project`, `save_project`,
+  `save_project_as`, `archive_project`, and `close_project`, and permitting legacy batch PLC
+  `start_plc` / `stop_plc`. Unknown operations remain denied.
+
+**Migration:** existing read-write clients that need save, close, another lifecycle operation,
+or PLC runtime control must select `--access-mode full`. The install command still defaults
+to read-only. To preview registration without changing client configuration:
+
+```powershell
+tia-mcp install codex --access-mode full --dry-run
+```
+
+In read-write, `--project` startup, an initially unattached read's `projectPath`, and attachment
+to the project already open in TIA remain supported. A read cannot switch or close an attached
+project; that requires an explicit full-mode lifecycle call.
 
 Enable read-only mode:
 
@@ -182,9 +199,9 @@ The mode is resolved once at startup and cannot be changed during the process li
 In read-only mode, the server exposes exactly four MCP tools:
 
 - `get_project_status` — read active project metadata without opening or switching projects.
-- `browse_project_tree` — browse a bounded project subtree with optional `depth` and `startPath`.
+- `browse_project_tree` — browse a canonical paged v3 snapshot using `startSelector`, `depth`, and `pageSize`; continue with `cursor`.
 - `execute_read_batch` — run the four retained non-project generic reads in a batch.
-- `network_read` — run the two dedicated network reads in a batch.
+- `network_read` — run dedicated network reads in a batch.
 
 The following operations are **not available** in read-only mode:
 
@@ -215,5 +232,17 @@ MCP client configuration example:
 ```
 
 The `tia-mcp doctor` command reports the active access mode.
+
+### User-confirmation configuration
+
+The startup setting is independent of access mode and defaults to on. Bare
+`--confirm-with-user` or `--confirm-with-user=true` enables it; use
+`--confirm-with-user=false` to disable it. The separated form `--confirm-with-user false`,
+malformed values, and contradictory repeats are rejected. Equivalent repeats are accepted.
+
+Phase 1b registers this immutable configuration for Phase 2. Existing token tools keep their
+current behavior; this setting does not yet cause elicitation. Phase 2 will enforce user
+confirmation for guarded writes. Changing confirmation never grants additional capabilities.
+An elicitation client's `accept` response alone does not prove that a person saw a dialog.
 
 The package includes the `openness-worker` folder and required non-Siemens dependencies. It intentionally excludes `Siemens.Engineering*.dll`; those are loaded from the local TIA Portal installation at runtime.

@@ -4,7 +4,8 @@
 **Status:** Design accepted 2026-09-29. Every open question in §9 was settled with the maintainer
 the same day; points marked **Decided 2026-09-29** record the answer next to the design they
 change. Phase 0 (documentation) and Phase 1 (foundation: guarded pipeline, `contentHash`, approval
-spike) are complete. Next step: Phase 1b.
+spike) are complete. Phase 1b is implemented with offline acceptance completed 2026-09-30.
+Next step after its merge: Phase 2 (lifecycle and elicitation enforcement).
 **Supersedes:** the token-flow parts of
 [write-safety hardening (2026-09-01)](2026-09-01-write-safety-hardening-design.md); Phase 3 and
 part of Phase 4 of [the JSON contract roadmap](../../roadmap/json-contract.md).
@@ -443,6 +444,20 @@ smallest-first (decided 2026-09-29). Phases merge to `main` as they complete, bu
 released once, after Phase 5, so `main` carries a mix of old and new write flows in between and no
 tag is cut during that window. The spike was positive (Appendix A), so elicitation-backed
 acknowledgement (§4.6) lands with Phase 2.
+
+**Phase 1b delivery, 2026-09-30:** capability presets now enforce read-only/read-write/full at
+discovery, host dispatch, and worker dispatch. The current surfaces contain 4/8/14 tools;
+lifecycle and PLC runtime control require full, including legacy batch control and internal
+lifecycle probes. Read-write initial attachment remains supported without read-driven switching
+or closing. The immutable default-on confirmation setting accepts bare `--confirm-with-user`,
+`=true`, and `=false`; contradictory and malformed arguments fail startup. Phase 1b registers
+the setting only. Phase 2 must connect it to guarded writes: on ignores agent acknowledgement
+and requires supported elicitation with `accept` plus `confirm: true`; absent capability,
+decline, cancel, or timeout fails with `access_denied`. Off uses exact-set agent acknowledgement.
+Legacy token tools and `UserConfirmation.For` retain their behavior until that migration.
+The serial Release stub build and all 4,414 offline tests passed, with 93.76% scoped line
+coverage against the 80% CI gate. This is not live Siemens or client acceptance; see the
+[Phase 1b implementation record](../plans/2026-09-30-write-safety-phase1b-access-modes.md).
 
 ## 7. Interactions
 

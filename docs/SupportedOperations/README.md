@@ -26,7 +26,7 @@ In `execute_read_batch` and `apply_write_batch` responses, each `operations[]` i
 
 `read_hardware_config`, `search_equipment_catalog`, `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
 
-Project status, project-tree browsing, and compilation are separate tools: `get_project_status`, `browse_project_tree`, and `compile_check`. The first two are available in both access modes; `compile_check` is available only in read-write mode.
+Project status, project-tree browsing, and compilation are separate tools: `get_project_status`, `browse_project_tree`, and `compile_check`. The first two are available in all three access modes; `compile_check` is available in read-write and full modes. Lifecycle and PLC control require full. See [Installation](../guides/installation.md#access-modes) for the 4/8/14 surfaces and migration.
 
 #### Write operations
 

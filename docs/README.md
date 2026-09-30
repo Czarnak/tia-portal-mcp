@@ -9,7 +9,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 
 | Document | What you will find |
 | --- | --- |
-| [Installation](guides/installation.md) | Requirements, `dotnet tool install`, the `doctor` command, registering with an MCP client, and the read-only / read-write access modes |
+| [Installation](guides/installation.md) | Requirements, `dotnet tool install`, `doctor`, client registration, read-only / read-write / full modes, and confirmation configuration |
 | [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration reference and how block paths are addressed |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
@@ -51,7 +51,7 @@ current documentation — see its index for what is there and how to read it.
 
 Latest process entries: the [write-safety redesign design (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md)
 and its [Phase 1 foundation plan](superpowers/plans/2026-09-29-write-safety-phase1-foundation.md)
-and [Phase 1b access-mode discussion plan](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md),
+and [Phase 1b access-mode implementation plan](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md),
 the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
 and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md),
 the [JSON contract Phase 1b required-member enforcement design](superpowers/specs/2026-09-28-json-contract-phase1b-required-members-design.md)

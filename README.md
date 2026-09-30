@@ -16,7 +16,9 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server currently exposes 14 tools in read-write mode and 4 tools in read-only mode.
+The server exposes 4 tools in `read-only`, 8 in `read-write` (the startup default), and 14 in `full`.
+`read-write` permits in-project edits and compilation; saving, creating, opening, archiving,
+closing projects and PLC runtime control require `full`. Existing write tools retain their token flow.
 
 ### Batch operations
 
@@ -56,10 +58,10 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 
 ### Project tools
 
-- `get_project_status` — read active project metadata without opening or switching projects.
+- `get_project_status` — inspect active project metadata; writable modes may establish an initial exact-path session, while read-only asserts the currently open project. A read never switches an attached project.
 - `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata in block-node `details` (default-on string fields: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName`), `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
-- `compile_check` — compile a PLC or selected block and return compiler messages; available only in read-write mode.
-- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - project lifecycle writes. These stay single-tool only (not batchable) and are self-previewing: call the tool WITHOUT `safetyToken` to get a preview plus a single-use token, then call it again with `confirm=true` and the token to apply.
+- `compile_check` — compile a PLC or selected block and return compiler messages; available in read-write and full modes.
+- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - project lifecycle writes, available in full mode. These stay single-tool only (not batchable) and are self-previewing: call the tool WITHOUT `safetyToken` to get a preview plus a single-use token, then call it again with `confirm=true` and the token to apply.
 
 Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and bare nested-array response were removed rather than retained as aliases. See the [project operations reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#browse_project_tree-v3) for the migration request, complete response envelope, selector reconstruction, continuation, limits, and recovery behavior.
 
@@ -129,7 +131,9 @@ structured results. This custom-integration requirement is separate from the `br
 v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
-**read-only** mode by default; add `--access-mode read-write` to expose the write tools.
+**read-only** mode by default; add `--access-mode read-write` for edits and compilation, or
+`--access-mode full` for project lifecycle and PLC control. Existing read-write configurations
+that need save or close must migrate to full.
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing

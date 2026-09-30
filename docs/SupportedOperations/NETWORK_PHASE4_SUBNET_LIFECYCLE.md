@@ -21,7 +21,8 @@ network operations and the shared canonical JSON contract Phase 4 reuses unchang
 ## Supported operations
 
 Phase 4 adds exactly three write operations to the existing `network_write` tool. No new MCP tool
-was added; the read-write tool count remains 14 and the read-only tool count remains 4.
+was added. With write-safety Phase 1b, the current surface is 4 tools in read-only, 8 in
+read-write, and 14 in full. `network_write` is available in read-write and full.
 
 | Operation | Purpose | Required request fields |
 |---|---|---|

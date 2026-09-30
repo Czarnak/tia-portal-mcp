@@ -11,7 +11,10 @@
 | `execute_read_batch` | `read_cross_references` | Optional `plcName`, `filter`, `maxResults` | Reads cross-references. Filters are `AllObjects`, `ObjectsWithReferences`, `ObjectsWithoutReferences`, and `UnusedObjects`. |
 | `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, `blockPath` | Compiles the PLC or selected block scope and returns compiler messages. |
 
-Tree browsing and compilation are standalone tools. `compile_check` is a read-write-mode engineering operation and does not use a safety token.
+Tree browsing and compilation are standalone tools. `compile_check` is available in read-write
+and full modes and does not use a safety token. In-project PLC edits also work in both writable
+modes. Legacy batch `start_plc` and `stop_plc` require full; a read-write batch containing either
+is rejected before binding, snapshots, token handling, or worker activity.
 
 `get_block_content` and `get_type_content` items also carry `contentHash`: `<format>:sha256:<lower-case hex>` over the exact served `result` text, where `<format>` is the served (normalized) format, `xml` or `source`. It is omitted when `withDependencies` is true, when the read failed, and when the result was truncated or omitted for size.
 
