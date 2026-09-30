@@ -253,6 +253,24 @@ public sealed class WriteExecutionTests
         Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task AcknowledgementAbsentFromInitialGuards_WithDependentItems_IsValidationError(
+        bool dryRun, bool wouldFireLate)
+    {
+        var (result, doc) = await RunAsync(
+            new[] { Item("a"), Item("b", dependsOn: "a", lateGuards: wouldFireLate ? new[] { Ack } : null) },
+            dryRun, acknowledge: new[] { Ack });
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
+        Assert.Equal(0, _domain.MutationCount);
+        Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
+        Assert.All(Assert.Single(_audit.Records).Items, item => Assert.Equal(OperationBatchStatus.Skipped, item.Status));
+    }
+
     [Fact]
     public async Task InfoGuard_LandsInWarnings_AndDoesNotStopTheWrite()
     {
@@ -317,10 +335,10 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
-    public async Task AcknowledgedLateGuard_IsHonoured_AndTheDependentItemIsApplied()
+    public async Task InitiallyAcknowledgedGuard_CoversItsLateFiring_AndTheDependentItemIsApplied()
     {
         var (result, doc) = await RunAsync(
-            new[] { Item("a"), Item("b", dependsOn: "a", lateGuards: new[] { Ack }) },
+            new[] { Item("a", guards: new[] { Ack }), Item("b", dependsOn: "a", lateGuards: new[] { Ack }) },
             acknowledge: new[] { Ack });
 
         AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
@@ -332,10 +350,15 @@ public sealed class WriteExecutionTests
                 "replan:b", "guards", "mutate:b", "project:b", "verify", "compose"
             },
             _domain.Calls);
-        var guard = GuardById(doc, Ack);
-        Assert.Equal("b", guard.GetProperty("operationId").GetString());
-        Assert.True(guard.GetProperty("acknowledged").GetBoolean());
-        Assert.Equal(GuardSatisfactions.Agent, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+        var guards = doc.GetProperty("guards");
+        Assert.Equal(new[] { "a", "b" }, Strings(guards, "operationId"));
+        Assert.All(guards.EnumerateArray(), guard =>
+        {
+            Assert.Equal(Ack, guard.GetProperty("id").GetString());
+            Assert.True(guard.GetProperty("acknowledged").GetBoolean());
+        });
+        Assert.All(Assert.Single(_audit.Records).Guards,
+            guard => Assert.Equal(GuardSatisfactions.Agent, guard.SatisfiedBy));
     }
 
     [Fact]

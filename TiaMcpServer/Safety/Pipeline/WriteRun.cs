@@ -183,8 +183,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             _domain.EvaluateGuards(Items, plan.Items),
             _call.Acknowledge,
             _catalog,
-            _call.DryRun,
-            lateFiringsPossible: plan.Items.Any(item => item.DependsOn is not null));
+            _call.DryRun);
         _guards.AddRange(decision.Guards);
         switch (decision.Kind)
         {

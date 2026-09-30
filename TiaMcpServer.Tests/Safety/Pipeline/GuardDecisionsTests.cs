@@ -136,45 +136,15 @@ public sealed class GuardDecisionsTests
         Assert.Equal(GuardDecisionKind.Invalid, d.Kind);
     }
 
-    [Fact]
-    public void Decide_LateFiringsPossible_ToleratesUnfiredAcknowledgeId()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Decide_UnfiredAcknowledgement_IsInvalidEvenWhenAnotherGuardIsUnacknowledged(bool dryRun)
     {
-        var d = GuardDecisions.Decide(
-            new[] { Fire("note") }, new[] { "overwrite" }, Catalog, dryRun: false, lateFiringsPossible: true);
-
-        Assert.Equal(GuardDecisionKind.Proceed, d.Kind);
-        Assert.Null(d.Message);
-    }
-
-    [Fact]
-    public void Decide_LateFiringsPossible_StillRejectsUnfiredNonAcknowledgeIds()
-    {
-        foreach (var id in new[] { "note", "forbidden", "unknown" })
-        {
-            var d = GuardDecisions.Decide(
-                Array.Empty<FiredGuard>(), new[] { id }, Catalog, dryRun: false, lateFiringsPossible: true);
-
-            Assert.Equal(GuardDecisionKind.Invalid, d.Kind);
-            Assert.Contains(id, d.Message);
-        }
-    }
-
-    [Fact]
-    public void Decide_LateFiringsPossible_StillBlocksFiredUnacknowledgedGuard()
-    {
-        var d = GuardDecisions.Decide(
-            new[] { Fire("other_ack") }, new[] { "overwrite" }, Catalog, dryRun: false, lateFiringsPossible: true);
-
-        Assert.Equal(GuardDecisionKind.Blocked, d.Kind);
-        Assert.Contains("other_ack", d.Message);
-    }
-
-    [Fact]
-    public void Decide_WithoutLateFirings_RejectsUnfiredAcknowledgeId()
-    {
-        var d = GuardDecisions.Decide(Array.Empty<FiredGuard>(), new[] { "overwrite" }, Catalog, dryRun: false);
+        var d = GuardDecisions.Decide(new[] { Fire("other_ack") }, new[] { "overwrite" }, Catalog, dryRun);
 
         Assert.Equal(GuardDecisionKind.Invalid, d.Kind);
+        Assert.Contains("overwrite", d.Message);
     }
 
     [Fact]
