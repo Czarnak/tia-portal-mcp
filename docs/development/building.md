@@ -10,8 +10,8 @@ Use a stable .NET 10 SDK. The repository requires SDK `10.0.400` or newer within
 feature bands; `global.json` uses `latestFeature` roll-forward and excludes prerelease SDKs.
 
 ```powershell
-dotnet restore TiaMcpServer.sln
-dotnet build TiaMcpServer.sln -m:1
+dotnet restore TiaMcpServer.slnx
+dotnet build TiaMcpServer.slnx -m:1
 ```
 
 The `-m:1` option serializes solution builds. The MCP host project also builds and copies the net48 Openness worker, so serialized builds avoid duplicate parallel worker builds during local development.

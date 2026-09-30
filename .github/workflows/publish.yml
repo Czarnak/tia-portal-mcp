@@ -29,7 +29,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore TiaMcpServer.sln
+        run: dotnet restore TiaMcpServer.slnx
 
       - name: Resolve package version
         id: version

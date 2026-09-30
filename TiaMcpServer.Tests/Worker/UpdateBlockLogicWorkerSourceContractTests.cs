@@ -7,7 +7,7 @@ public sealed class UpdateBlockLogicWorkerSourceContractTests
     private static string ReadWorkerProgram()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.sln")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.slnx")))
         {
             directory = directory.Parent;
         }

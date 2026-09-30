@@ -28,7 +28,7 @@ public class CiWorkflowTests
             .SelectMany(ReadRunCommandBlocks)
             .SelectMany(ExpandRepositoryBuildScripts)
             .Where(command => command.Contains("dotnet build", StringComparison.OrdinalIgnoreCase))
-            .Where(command => command.Contains("TiaMcpServer.sln", StringComparison.OrdinalIgnoreCase))
+            .Where(command => command.Contains("TiaMcpServer.slnx", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
         Assert.NotEmpty(solutionBuildCommands);
@@ -38,11 +38,11 @@ public class CiWorkflowTests
     }
 
     [Theory]
-    [InlineData("dotnet build TiaMcpServer.sln -m:1", true)]
-    [InlineData("dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true", true)]
-    [InlineData("dotnet build TiaMcpServer.sln -m:10", false)]
-    [InlineData("dotnet build TiaMcpServer.sln -m:12", false)]
-    [InlineData("dotnet build TiaMcpServer.sln -m:100", false)]
+    [InlineData("dotnet build TiaMcpServer.slnx -m:1", true)]
+    [InlineData("dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true", true)]
+    [InlineData("dotnet build TiaMcpServer.slnx -m:10", false)]
+    [InlineData("dotnet build TiaMcpServer.slnx -m:12", false)]
+    [InlineData("dotnet build TiaMcpServer.slnx -m:100", false)]
     public void SingleNodeBuildFlagPattern_MatchesOnlyExactToken(string command, bool expectedMatch)
     {
         Assert.Equal(expectedMatch, SingleNodeBuildFlagPattern.IsMatch(command));
@@ -51,7 +51,7 @@ public class CiWorkflowTests
     [Fact]
     public void SingleNodeBuildFlagPattern_RejectsFalsePositive_ThatOldSubstringCheckWouldHaveAccepted()
     {
-        const string lookalikeCommand = "dotnet build TiaMcpServer.sln -m:10";
+        const string lookalikeCommand = "dotnet build TiaMcpServer.slnx -m:10";
 
         // This demonstrates the exact gap the old assertion had: "-m:10" contains the
         // literal substring "-m:1", so `Assert.Contains("-m:1", command, ...)` passed here.
@@ -191,9 +191,9 @@ public class CiWorkflowTests
             .Split('\n')
             .FirstOrDefault(line =>
                 line.Contains("dotnet build", StringComparison.OrdinalIgnoreCase) &&
-                line.Contains("TiaMcpServer.sln", StringComparison.OrdinalIgnoreCase));
+                line.Contains("TiaMcpServer.slnx", StringComparison.OrdinalIgnoreCase));
 
-        Assert.True(solutionBuildLine is not null, "Expected README.md 'Build From Source' section to contain a 'dotnet build TiaMcpServer.sln' command.");
+        Assert.True(solutionBuildLine is not null, "Expected README.md 'Build From Source' section to contain a 'dotnet build TiaMcpServer.slnx' command.");
         Assert.True(
             SingleNodeBuildFlagPattern.IsMatch(solutionBuildLine!),
             $"Expected the README 'Build From Source' solution build command to contain the exact '-m:1' flag as a standalone token, but it did not: {solutionBuildLine}");

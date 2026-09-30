@@ -25,8 +25,8 @@ External contributors without a TIA Portal license can develop and test host/con
 ### 1. Restore and build
 
 ```powershell
-dotnet restore TiaMcpServer.sln
-dotnet build TiaMcpServer.sln -m:1
+dotnet restore TiaMcpServer.slnx
+dotnet build TiaMcpServer.slnx -m:1
 ```
 
 **Important:** The `-m:1` flag serializes solution builds. The host project builds and copies the net48 Openness worker via MSBuild targets; parallel builds cause duplicate copy conflicts. Always use `-m:1`.
@@ -34,7 +34,7 @@ dotnet build TiaMcpServer.sln -m:1
 ### 2. Run tests
 
 ```powershell
-dotnet test TiaMcpServer.sln
+dotnet test TiaMcpServer.slnx
 ```
 
 Tests use xUnit and do not require TIA Portal installed (they run against the stub build). No mocking libraries are used; fakes are hand-written implementations of service interfaces.
@@ -110,7 +110,7 @@ Examples:
 Before opening a pull request, run tests locally:
 
 ```powershell
-dotnet test TiaMcpServer.sln
+dotnet test TiaMcpServer.slnx
 ```
 
 CI (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request against it. It
