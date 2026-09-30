@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -10,125 +11,46 @@ namespace TiaMcpServer.Tests.Project;
 
 public sealed class ProjectWriteToolsBehaviorTests
 {
-    [Fact]
-    public async Task OpenProject_WithTokenButNoConfirm_ReturnsRegisteredConfirmEnvelope()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveProjectAs_RebindFalse_RejectsBeforeWorkerActivity(bool dryRun)
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
-            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+            workerExecutablePath: "worker-must-not-start.exe",
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
-        var result = await ProjectWriteTools.OpenProject(
-            workerClient: client,
-            safety,
-            projectPath: @"C:\Projects\Line.ap21",
-            confirm: false,
-            safetyToken: "fake-token");
+        var result = await ProjectWriteTools.SaveProjectAs(client,
+            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false),
+            targetDirectory: @"C:\Target", targetName: "Copy", rebind: false, dryRun: dryRun);
 
-        Assert.Contains("confirm=true", result);
-        Assert.Contains("without safetyToken", result);
+        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
+        Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
     }
 
     [Fact]
-    public async Task SaveProjectAs_WithTokenButNoConfirm_ReturnsRegisteredConfirmEnvelope()
-    {
-        using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-
-        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
-            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-
-        var result = await ProjectWriteTools.SaveProjectAs(
-            workerClient: client,
-            safety,
-            targetDirectory: @"C:\Target",
-            targetName: "Copy",
-            projectPath: null,
-            rebind: true,
-            confirm: false,
-            safetyToken: "fake-token");
-
-        Assert.Contains("confirm=true", result);
-        Assert.Contains("without safetyToken", result);
-    }
-
-    [Fact]
-    public async Task SaveProjectAs_RebindFalse_RejectsBeforePreviewTokenGeneration_OnRegisteredTool()
-    {
-        using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
-
-        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
-            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-
-        var response = await ProjectWriteTools.SaveProjectAs(
-            workerClient: client,
-            safety,
-            targetDirectory: @"C:\Target",
-            targetName: "Copy",
-            projectPath: null,
-            rebind: false);
-
-        using var doc = JsonDocument.Parse(response);
-        Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(
-            WorkerFailureCategories.ValidationError,
-            doc.RootElement.GetProperty("failureCategory").GetString());
-        Assert.False(doc.RootElement.TryGetProperty("safetyToken", out _));
-    }
-
-    [Fact]
-    public async Task SaveProjectAs_Apply_MissingCopiedPath_PropagatesPostconditionFailedAndWarning()
+    public async Task SaveProjectAs_MissingCopiedPath_ReportsAttemptedFailureAndNoReplayWarning()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        var safety = new WriteSafetyService(
-            binding,
-            () => DateTimeOffset.UtcNow,
-            WriteSafetyService.DefaultTokenLifetime,
-            audit.Path);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(
-            client,
-            binding,
-            "save-as-uncertain-state");
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "save-as-uncertain-state");
+        Directory.CreateDirectory(audit.Path);
 
-        var preview = await ProjectWriteTools.SaveProjectAs(
-            client,
-            safety,
-            targetDirectory: @"C:\Target",
-            targetName: "Copy",
-            projectPath: "save-as-uncertain-state",
-            rebind: true);
-        using var previewDoc = JsonDocument.Parse(preview);
-        Assert.True(
-            previewDoc.RootElement.TryGetProperty("safetyToken", out var tokenElement),
-            preview);
-        var token = tokenElement.GetString();
+        var result = await ProjectWriteTools.SaveProjectAs(client,
+            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false),
+            targetDirectory: audit.Path, targetName: "Copy");
+        var document = LifecycleTestCalls.Document(result);
 
-        var applied = await ProjectWriteTools.SaveProjectAs(
-            client,
-            safety,
-            targetDirectory: @"C:\Target",
-            targetName: "Copy",
-            projectPath: "save-as-uncertain-state",
-            rebind: true,
-            confirm: true,
-            safetyToken: token);
-        using var appliedDoc = JsonDocument.Parse(applied);
-
-        Assert.False(appliedDoc.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(
-            WorkerFailureCategories.PostconditionFailed,
-            appliedDoc.RootElement.GetProperty("failureCategory").GetString());
-        Assert.Contains(
-            "Project state may have changed",
-            appliedDoc.RootElement.GetProperty("warnings")[0].GetString(),
-            StringComparison.Ordinal);
+        Assert.True(result.IsError != true, document.GetRawText());
+        Assert.False(document.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("error").ValueKind);
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed,
+            document.GetProperty("result").GetProperty("failure").GetProperty("category").GetString());
+        Assert.Contains(document.GetProperty("warnings").EnumerateArray(), warning =>
+            warning.GetString()!.Contains("state", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
     }
 }

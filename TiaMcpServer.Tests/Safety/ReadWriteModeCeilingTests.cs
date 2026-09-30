@@ -75,33 +75,35 @@ public class ReadWriteModeCeilingTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task LifecyclePreview_ReadWriteCannotBootstrapOrRebind(bool invalidated)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task LifecycleSingleCall_ReadWriteCannotBootstrapOrRebind(bool invalidated, bool dryRun)
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(@"C:\Fixture\Line.ap21");
         if (invalidated) binding.Invalidate("test invalidation");
         var before = binding.CaptureSnapshot();
         using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
-        var safety = new WriteSafetyService(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
-        var calls = new Func<Task<string>>[]
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
+        var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
         {
-            () => ProjectWriteTools.OpenProject(client, safety, @"C:\Fixture\Other.ap21", forceRebind: true),
-            () => ProjectWriteTools.CreateProject(client, safety, audit.Path, "Fixture"),
-            () => ProjectWriteTools.SaveProject(client, safety),
-            () => ProjectWriteTools.SaveProjectAs(client, safety, audit.Path, "Copy"),
-            () => ProjectWriteTools.ArchiveProject(client, safety, audit.Path, "Archive"),
-            () => ProjectWriteTools.CloseProject(client, safety)
+            () => ProjectWriteTools.OpenProject(client, execution, options, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
+            () => ProjectWriteTools.CreateProject(client, execution, options, audit.Path, "Fixture", dryRun: dryRun),
+            () => ProjectWriteTools.SaveProject(client, execution, options, dryRun: dryRun),
+            () => ProjectWriteTools.SaveProjectAs(client, execution, options, audit.Path, "Copy", dryRun: dryRun),
+            () => ProjectWriteTools.ArchiveProject(client, execution, options, audit.Path, "Archive", dryRun: dryRun),
+            () => ProjectWriteTools.CloseProject(client, execution, options, dryRun: dryRun)
         };
         foreach (var call in calls)
         {
-            using var json = JsonDocument.Parse(await call());
-            Assert.Equal(WorkerFailureCategories.AccessDenied, json.RootElement.GetProperty("failureCategory").GetString());
-            Assert.False(json.RootElement.TryGetProperty("safetyToken", out _));
+            LifecycleTestCalls.Rejected(await call(), WorkerFailureCategories.AccessDenied);
             Assert.True(before.SameBinding(binding.CaptureSnapshot()));
             AssertNoTransport(client);
         }
+        Assert.Equal(6, LifecycleTestCalls.AuditCount(audit));
     }
 
     [Fact]

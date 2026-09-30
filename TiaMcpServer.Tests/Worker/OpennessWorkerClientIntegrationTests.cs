@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -229,67 +230,48 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task CollapsedOpenProject_PreviewThenApply_RoundTrips()
+    public async Task GuardedOpenProject_DryRunThenSingleApply_RoundTrips()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
+        using var fixture = new LifecycleProtocolFixture();
+        var path = fixture.DestinationPath;
 
-        // "C:\\open\\Line.ap21" reports the same path back as resolvedProjectPath, so open can
-        // bind to the worker's ground truth (open now requires a resolved path to bind - a bare
-        // success with none is postcondition_failed).
-        const string projectPath = "C:\\open\\Line.ap21";
-        var preview = await ProjectWriteTools.OpenProject(client, safety, projectPath: projectPath);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var preview = await ProjectWriteTools.OpenProject(client, execution, options, path, dryRun: true);
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+        Assert.False(binding.IsVerified);
 
-        var applied = await ProjectWriteTools.OpenProject(
-            client,
-            safety,
-            projectPath: projectPath,
-            confirm: true,
-            safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-        Assert.Equal("open_project", appliedDoc.RootElement.GetProperty("toolName").GetString());
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        var applied = await ProjectWriteTools.OpenProject(client, execution, options, path);
+        var document = LifecycleTestCalls.Document(applied);
+        Assert.Equal("open_project", document.GetProperty("tool").GetString());
+        LifecycleTestCalls.Succeeded(document);
+        Assert.Equal(path, binding.BoundProjectPath);
     }
 
     [Fact]
-    public async Task CollapsedOpenProject_PreviewThenApply_WorkerFailureRendersFailureCategoryNeverSuccessShaped()
+    public async Task GuardedOpenProject_WorkerFailureHasTypedFailureAndNoTopLevelRejection()
     {
         using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = CreateClient(binding: binding);
+        using var client = CreateClient();
 
-        // "worker-error-with-category" is a FakeWorker scenario, not a real path; DescribePathState
-        // just reports it as non-existent, so preview/apply token validation proceeds normally and
-        // only the worker call itself (inside apply) fails.
-        const string projectPath = "worker-error-with-category";
+        Directory.CreateDirectory(audit.Path);
+        var path = Path.Combine(audit.Path, "worker-error-with-category.ap21");
+        File.WriteAllText(path, "scripted fixture");
+        var applied = await ProjectWriteTools.OpenProject(client,
+            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false), path);
+        var document = LifecycleTestCalls.Document(applied);
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, projectPath: projectPath);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
-
-        var applied = await ProjectWriteTools.OpenProject(
-            client,
-            safety,
-            projectPath: projectPath,
-            confirm: true,
-            safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-        var root = appliedDoc.RootElement;
-
-        Assert.Equal("open_project", root.GetProperty("toolName").GetString());
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.Equal("invalid value", root.GetProperty("error").GetString());
-        // BuildApplyResult's failure branch must never be success-shaped: no operationResult,
-        // no verification field, even though OpenProject's apply path always requests one.
-        Assert.False(root.TryGetProperty("operationResult", out _));
-        Assert.False(root.TryGetProperty("verification", out _));
+        Assert.False(applied.IsError);
+        Assert.False(document.GetProperty("success").GetBoolean());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("error").ValueKind);
+        Assert.Equal(WorkerFailureCategories.ValidationError,
+            document.GetProperty("result").GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal("invalid value",
+            document.GetProperty("result").GetProperty("failure").GetProperty("message").GetString());
+        Assert.False(document.TryGetProperty("operationResult", out _));
     }
 
     [Fact]
@@ -1003,7 +985,7 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.True(result.Success, result.Error);
         Assert.Empty(result.Warnings);
-        Assert.Equal("C:\\lifecycle\\Copy.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Target\\Copy\\Copy.ap21", binding.BoundProjectPath);
     }
 
     [Fact]
@@ -1067,10 +1049,10 @@ public class OpennessWorkerClientIntegrationTests
         // "direct-status-only" fails the call unless the worker request's method is exactly
         // get_project_status - proving the user-facing tool never routes through the internal
         // lifecycle probe.
-        var result = await ProjectLifecycleTools.GetProjectStatus(client, projectPath: "direct-status-only");
+        var result = await ProjectReadTools.GetProjectStatus(client, projectPath: "direct-status-only");
         using var doc = System.Text.Json.JsonDocument.Parse(((System.Text.Json.JsonElement)result.StructuredContent!).GetRawText());
 
-        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+        LifecycleTestCalls.Succeeded(doc.RootElement);
     }
 
     [Fact]
@@ -1078,89 +1060,77 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var client = CreateClient();
 
-        var result = await ProjectLifecycleTools.GetProjectStatus(client, projectPath: "status-no-project");
+        var result = await ProjectReadTools.GetProjectStatus(client, projectPath: "status-no-project");
         using var doc = System.Text.Json.JsonDocument.Parse(((System.Text.Json.JsonElement)result.StructuredContent!).GetRawText());
 
-        Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
+        LifecycleTestCalls.Succeeded(doc.RootElement);
         Assert.False(doc.RootElement.GetProperty("result").GetProperty("value").GetProperty("isOpen").GetBoolean());
     }
 
     [Fact]
-    public async Task SaveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    public async Task SaveProject_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
+        Directory.CreateDirectory(audit.Path);
 
-        var preview = await ProjectWriteTools.SaveProject(client, safety, projectPath: projectPath);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var preview = await ProjectWriteTools.SaveProject(client, execution, options, dryRun: true);
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-        var applied = await ProjectWriteTools.SaveProject(
-            client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        var applied = await ProjectWriteTools.SaveProject(client, execution, options);
+        LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
+        Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
     }
 
     [Fact]
-    public async Task PostWriteVerification_UsesBasicStatusRead_NotExtendedMetadataRead()
+    public async Task PostWriteVerification_UsesTypedBasicStatusWithoutExtendedMetadata()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
 
-        var preview = await ProjectWriteTools.SaveProject(client, safety, projectPath: projectPath);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var applied = await ProjectWriteTools.SaveProject(client, execution, options);
+        var document = LifecycleTestCalls.Document(applied);
+        LifecycleTestCalls.Succeeded(document);
 
-        var applied = await ProjectWriteTools.SaveProject(
-            client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
-
-        // Post-write verification must read the BASIC status ({"isOpen":true}). The
-        // "lifecycle-probe-only" scenario rejects get_project_status - the extended-metadata read -
-        // so had verification regressed to it, verification.result would carry that rejection error
-        // text instead of a parseable basic status payload.
-        var verification = appliedDoc.RootElement.GetProperty("verification");
-        Assert.Equal("get_project_status", verification.GetProperty("name").GetString());
-        using var verificationDoc = System.Text.Json.JsonDocument.Parse(
-            verification.GetProperty("result").GetString()!);
-        Assert.True(verificationDoc.RootElement.GetProperty("isOpen").GetBoolean());
+        // This fixture rejects the extended metadata read, so successful basic verification
+        // also proves that no write finalizer enumerated metadata or reopened the source.
+        var verification = document.GetProperty("verification");
+        Assert.Equal("succeeded", verification.GetProperty("status").GetString());
+        var status = verification.GetProperty("value");
+        Assert.Equal(System.Text.Json.JsonValueKind.Object, status.ValueKind);
+        Assert.True(status.GetProperty("isOpen").GetBoolean());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, status.GetProperty("metadata").ValueKind);
     }
 
     [Fact]
-    public async Task SaveProjectAs_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    public async Task SaveProjectAs_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
 
-        // rebind=true (the only supported mode): the "lifecycle-probe-only" scenario reports a
-        // resolvedProjectPath for the save_project_as write so the rebind bind succeeds; the
-        // current-state reads still route through the probe, never get_project_status.
-        var preview = await ProjectWriteTools.SaveProjectAs(
-            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: true);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var preview = await ProjectWriteTools.SaveProjectAs(client, execution, options,
+            targetDirectory: Directory.CreateDirectory(audit.Path).FullName, targetName: "Copy", dryRun: true);
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-        var applied = await ProjectWriteTools.SaveProjectAs(
-            client, safety, targetDirectory: "C:\\Target", targetName: "Copy", projectPath: projectPath, rebind: true,
-            confirm: true, safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        var applied = await ProjectWriteTools.SaveProjectAs(client, execution, options,
+            targetDirectory: audit.Path, targetName: "Copy");
+        LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
+        Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
     }
 
     // --- Task 4: save_project_as rebind guarantees ------------------------------------------
@@ -1279,90 +1249,71 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task ArchiveProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    public async Task ArchiveProject_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
+
         var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
-            var preview = await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory: archiveDirectory, archiveName: "Backup", projectPath: projectPath);
-            using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-            var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+            var preview = await ProjectWriteTools.ArchiveProject(client, execution, options,
+                archiveDirectory, "Backup", dryRun: true);
+            LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-            var applied = await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory: archiveDirectory, archiveName: "Backup", projectPath: projectPath,
-                confirm: true, safetyToken: token);
-            using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-            Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+            var applied = await ProjectWriteTools.ArchiveProject(client, execution, options,
+                archiveDirectory, "Backup");
+            LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
         }
-        finally
-        {
-            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
-        }
+        finally { if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true); }
     }
 
     [Fact]
-    public async Task ArchiveProject_MissingDirectoryInsideProjectFolder_PreservesOwnFolderError()
+    public async Task ArchiveProject_MissingDirectoryInsideProjectFolder_RejectsBeforeDispatch()
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
         using var client = CreateClient(binding: binding);
-        const string projectPath = "C:\\Projects\\SimpleProject\\SimpleProject.ap21";
+        const string projectPath = @"C:\Projects\SimpleProject\SimpleProject.ap21";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var archiveDirectory = $@"C:\Projects\SimpleProject\Missing-{Guid.NewGuid():N}";
         Assert.False(Directory.Exists(archiveDirectory));
 
-        var preview = await ProjectWriteTools.ArchiveProject(
-            client, safety,
-            archiveDirectory: archiveDirectory,
-            archiveName: "Backup",
-            mode: "Compressed",
-            projectPath: projectPath);
+        var result = await ProjectWriteTools.ArchiveProject(client,
+            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false),
+            archiveDirectory, "Backup", mode: "Compressed", projectPath: projectPath, dryRun: true);
 
-        using var doc = System.Text.Json.JsonDocument.Parse(preview);
-        Assert.Equal("archive_project", doc.RootElement.GetProperty("toolName").GetString());
-        Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(WorkerFailureCategories.ValidationError, doc.RootElement.GetProperty("failureCategory").GetString());
-        Assert.Contains("own folder or a subdirectory", doc.RootElement.GetProperty("error").GetString());
-
-        // A rejection, not a preview: no safetyToken is issued, so there is nothing to replay
-        // against the worker's real archive_project operation - the caller must fix the path and
-        // request a fresh preview instead.
-        Assert.False(doc.RootElement.TryGetProperty("safetyToken", out _));
-
-        var auditLineCount = Directory.Exists(audit.Path)
-            ? Directory.GetFiles(audit.Path).Sum(file => File.ReadAllLines(file).Length)
-            : 0;
-        Assert.Equal(0, auditLineCount);
+        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
+        var document = LifecycleTestCalls.Document(result);
+        Assert.Contains("archive directory must already exist",
+            document.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
     }
 
     [Fact]
-    public async Task CloseProject_PreviewAndApply_UseLifecycleProbeNotDirectStatus()
+    public async Task CloseProject_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
-        const string projectPath = "lifecycle-probe-only";
-        var binding = new ProjectSessionBinding(projectPath);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
+        var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
+        const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
 
-        var preview = await ProjectWriteTools.CloseProject(client, safety, projectPath: projectPath);
-        using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
-        var token = previewDoc.RootElement.GetProperty("safetyToken").GetString();
+        var preview = await ProjectWriteTools.CloseProject(client, execution, options, dryRun: true);
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-        var applied = await ProjectWriteTools.CloseProject(
-            client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
-        using var appliedDoc = System.Text.Json.JsonDocument.Parse(applied);
-
-        Assert.True(appliedDoc.RootElement.GetProperty("success").GetBoolean());
+        var applied = await ProjectWriteTools.CloseProject(client, execution, options);
+        var document = LifecycleTestCalls.Document(applied);
+        LifecycleTestCalls.Succeeded(document);
+        Assert.False(document.GetProperty("verification").GetProperty("value").GetProperty("isOpen").GetBoolean());
+        Assert.Null(binding.BoundProjectPath);
     }
 
     // --- Task 3: explicit, worker-grounded binding transitions -----------------------------

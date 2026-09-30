@@ -9,6 +9,8 @@ using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -52,7 +54,11 @@ public class McpToolSchemaTests
             store,
             projector,
             TimeProvider.System);
-        return new FakeServiceProvider(binding, workerClient, safety, coordinator);
+        var execution = new WriteExecution(new OpennessWriteBindingGate(workerClient),
+            new JsonlWriteAuditSink(Path.Combine(Path.GetTempPath(), "tia-schema-" + Guid.NewGuid().ToString("N"))),
+            LifecycleWriteDomain.Catalog, TimeProvider.System);
+        return new FakeServiceProvider(binding, workerClient, safety, coordinator, execution,
+            new UserConfirmationOptions(true));
     }
 
     private static string[] SchemaPropertyNames(Type toolType, string methodName)
@@ -121,22 +127,6 @@ public class McpToolSchemaTests
     }
 
     [Theory]
-    [InlineData(nameof(ProjectLifecycleTools.GetProjectStatus))]
-    [InlineData(nameof(ProjectLifecycleTools.OpenProject))]
-    [InlineData(nameof(ProjectLifecycleTools.CreateProject))]
-    [InlineData(nameof(ProjectLifecycleTools.SaveProject))]
-    [InlineData(nameof(ProjectLifecycleTools.SaveProjectAs))]
-    [InlineData(nameof(ProjectLifecycleTools.ArchiveProject))]
-    [InlineData(nameof(ProjectLifecycleTools.CloseProject))]
-    public void ProjectLifecycleTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
-    {
-        var properties = SchemaPropertyNames(typeof(ProjectLifecycleTools), methodName);
-
-        Assert.DoesNotContain("workerClient", properties);
-        Assert.DoesNotContain("safety", properties);
-    }
-
-    [Theory]
     [InlineData(nameof(ProjectWriteTools.OpenProject))]
     [InlineData(nameof(ProjectWriteTools.CreateProject))]
     [InlineData(nameof(ProjectWriteTools.SaveProject))]
@@ -148,13 +138,20 @@ public class McpToolSchemaTests
         var properties = SchemaPropertyNames(typeof(ProjectWriteTools), methodName);
 
         Assert.DoesNotContain("workerClient", properties);
+        Assert.DoesNotContain("execution", properties);
+        Assert.DoesNotContain("options", properties);
+        Assert.DoesNotContain("server", properties);
         Assert.DoesNotContain("safety", properties);
+        Assert.DoesNotContain("confirm", properties);
+        Assert.DoesNotContain("safetyToken", properties);
+        Assert.Contains("dryRun", properties);
+        Assert.Contains("acknowledge", properties);
     }
 
     /// <summary>
     /// Whole-assembly enumeration (not a hardcoded/spot-checked list of tool classes): finds
     /// every type carrying <see cref="McpServerToolTypeAttribute"/> in the same assembly
-    /// ProjectLifecycleTools lives in - which, for TiaMcpServer.Tests, is the test assembly
+    /// ProjectWriteTools lives in - which, for TiaMcpServer.Tests, is the test assembly
     /// itself, since the host's tool source files are compiled directly into it (see
     /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
     /// carrying [McpServerTool] and asserts the exact approved surface: 14 tools total, and the
@@ -164,7 +161,7 @@ public class McpToolSchemaTests
     [Fact]
     public void McpToolSurface_ExposesExactlyFourteenApprovedTools()
     {
-        var toolTypes = typeof(ProjectLifecycleTools).Assembly
+        var toolTypes = typeof(ProjectWriteTools).Assembly
             .GetTypes()
             .Where(t => t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null);
 
@@ -226,11 +223,13 @@ public class McpToolSchemaTests
         // Negative assertions alone would also pass if the SDK generated an empty schema for
         // every tool (e.g. a broken reflection path) - this proves it did pick up the real,
         // model-facing parameters, not just excluded the DI ones.
-        var properties = SchemaPropertyNames(typeof(ProjectLifecycleTools), nameof(ProjectLifecycleTools.OpenProject));
+        var properties = SchemaPropertyNames(typeof(ProjectWriteTools), nameof(ProjectWriteTools.OpenProject));
 
         Assert.Contains("projectPath", properties);
-        Assert.Contains("confirm", properties);
-        Assert.Contains("safetyToken", properties);
+        Assert.Contains("dryRun", properties);
+        Assert.Contains("acknowledge", properties);
+        Assert.DoesNotContain("confirm", properties);
+        Assert.DoesNotContain("safetyToken", properties);
     }
 
     [Fact]
@@ -239,8 +238,10 @@ public class McpToolSchemaTests
         var properties = SchemaPropertyNames(typeof(ProjectWriteTools), nameof(ProjectWriteTools.OpenProject));
 
         Assert.Contains("projectPath", properties);
-        Assert.Contains("confirm", properties);
-        Assert.Contains("safetyToken", properties);
+        Assert.Contains("dryRun", properties);
+        Assert.Contains("acknowledge", properties);
+        Assert.DoesNotContain("confirm", properties);
+        Assert.DoesNotContain("safetyToken", properties);
     }
 
     [Theory]
