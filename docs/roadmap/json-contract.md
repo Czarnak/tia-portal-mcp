@@ -1,7 +1,8 @@
 # JSON Contract Normalization Roadmap
 
 Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normalization) and
-Phase 1b (required-member enforcement) are complete; Phases 2-4 are not started. On 2026-09-29 the
+Phase 1b (required-member enforcement) are complete. Phase 2 is implemented with offline qualification;
+live V21 acceptance remains pending. Phases 3-4 are not started. On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
 tokens) and added the token core to Phase 4. The three batch tools are excluded from this roadmap;
@@ -15,7 +16,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. Today only three tools follow it. This roadmap moves the rest onto
+already describe that contract. Five tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
@@ -24,7 +25,7 @@ it without inventing a second mechanism.
 | --- | --- | --- |
 | `network_read`, `network_write` | Structured (canonical seam) | Phase 4: align envelope members |
 | `browse_project_tree` | Structured (canonical seam, v3 envelope) | Phase 4: align envelope members |
-| `get_project_status`, `compile_check` | Legacy worker envelope | Phase 2 |
+| `get_project_status`, `compile_check` | Structured standalone envelope (`1.0`) | Phase 2 implemented; live acceptance pending |
 | `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Legacy lifecycle preview/apply text | Phase 3 (delivered as write-safety redesign Phase 2) |
 | `execute_read_batch`, `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 |
 
@@ -42,13 +43,12 @@ tools leave the guard's legacy register when they are retired.
 
 ## Current State
 
-Four output families exist today. The findings behind this table were taken at `0862ac9`.
+Three active output families remain after Phase 2. The original findings were taken at `0862ac9`.
 
 | Family | How the response is built | Main departures from the target |
 | --- | --- | --- |
-| Structured | `StructuredToolResult` over `CanonicalJson` | Two envelope dialects (below) |
+| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone tools use the target envelope; Network/tree departures are listed below |
 | Batch (excluded) | `TiaJson.Presentation` anonymous objects | Item `result` is a string holding JSON, raw source text, `Error: …` prose, an omission marker, or JSON cut at a character limit |
-| Worker envelope | `WorkerCallResult.ToEnvelopeText()` | `payload` is a JSON string; oversized payloads are cut mid-document by `StandaloneToolResultFormatter` |
 | Lifecycle | `WriteSafetyService.CreatePreview` and `WriteSafetyTooling.BuildApplyResult` | `toolName` instead of `tool`; `operationResult` and `verification.result` are JSON strings; a failed preview is rendered in the apply-result shape |
 
 Every legacy tool returns a plain string, so the SDK never sets `isError` or `structuredContent`
@@ -191,8 +191,8 @@ successfully read CLR null (kind `null`), which the host's inspection contract r
 `inspect_network_object` failed with `protocol_error` for any object with a null attribute.
 `NetworkAttributeValueInfo.Value` is now always written.
 
-Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture returns a bare
-`ProjectStatusInfo`, while the real worker wraps it in `ProjectLifecycleResultInfo`.
+The earlier FakeWorker `status-with-metadata` root divergence is resolved in Phase 2: both direct
+status producers now use `ProjectStatusResultInfo`, while lifecycle/probe payloads keep their old root.
 
 #### Phase 1b: Required-Member Enforcement — Complete
 
@@ -220,11 +220,14 @@ Known divergence left for Phase 2: the FakeWorker `status-with-metadata` fixture
 - The batch safety snapshots and the cursor decode stay on `CanonicalJson.Deserialize`. Other
   host decodes of worker payloads move to the reader with the tools that consume them (Phases 2-3).
 
-### Phase 2: `get_project_status` and `compile_check`
+### Phase 2: `get_project_status` and `compile_check` — Implemented, Live Acceptance Pending
 
-- Typed results (`ProjectMetadataInfo`, `CompileCheckReport`) decoded through the strict gate.
-- Replace the substring truncation in `StandaloneToolResultFormatter` with a whole-value omission.
-- Adopt the target envelope and add both tools' probes to the guard.
+- Strict worker roots are `ProjectStatusResultInfo` and `CompileCheckReport`; public values are the full `ProjectStatusInfo` (including `ProjectMetadataInfo`) and compiler report.
+- Concrete output schemas use `tool`, `contractVersion: "1.0"`, `success`, rejection-only `error`, `warnings`, and `result: { status, value, failure, omission }` with explicit nulls.
+- Whole-value omission replaces substring truncation on these tools: 60,000 canonical value characters and 180,000 document characters, with measured omission metadata and retry guidance. The legacy formatter is retained until Phase 4.
+- Compilation success means compilation passed; compiler errors retain typed diagnostics with `success:false`, `error:null`, and `isError:false`. Attempted worker/protocol/identity failures use `result.failure`; pre-operation rejection sets top-level error and `isError:true`.
+- Both tools leave the legacy register, with success/rejection and malformed/error/omission probes through the real MCP SDK. Inputs, access ceilings, and binding behavior remain; compile authorization runs before binding reads.
+- The [implementation plan](../superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md) records execution. Installed-V21 producer compatibility must be qualified on a separately authorized disposable fixture before claiming live acceptance. No package release/tag is made during the write-safety transition.
 
 ### Phase 3: Lifecycle Onto the Guarded Write Pipeline
 

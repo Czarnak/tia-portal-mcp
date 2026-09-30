@@ -783,3 +783,24 @@ clients needing save, close, open, create, archive or PLC start/stop must select
 The [implementation record](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md)
 contains the completed checklist and execution decisions; the [design delivery note](superpowers/specs/2026-09-29-write-safety-redesign-design.md#6-delivery-phases)
 records the Phase 2 confirmation handoff.
+
+## JSON contract Phase 2 standalone tools — implemented, live acceptance pending (2026-09-30)
+
+`get_project_status` and `compile_check` now advertise concrete output schemas and deliver one
+canonical document in text and `structuredContent`. Version `1.0` uses a typed single result
+with `status`, `value`, `failure`, and `omission`. Status includes the full metadata model with
+explicit nulls. Compilation success means compilation passed; compiler errors and unavailable
+states retain their report with `success:false`, `error:null`, and MCP `isError:false`.
+
+The dedicated `ProjectStatusResultInfo` root keeps lifecycle/probe bytes unchanged. The compile
+root writes nulls, while its nested import envelope retains its own null policy. Strict worker
+decoding precedes whole-value omission at 60,000 canonical characters; the complete document is
+capped at 180,000. Host-only failure provenance distinguishes an attempted operation from
+identity rejection before dispatch. Compilation authorization precedes its binding gate.
+
+Focused offline verification passed 244 tests covering payload validation, boundaries,
+metadata, compiler producer behavior, compatibility and real SDK schemas/discovery/calls. The
+[implementation plan](superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md)
+tracks the final solution, coverage and independent-review gates. Live V21 producer compatibility
+requires separate authorization for a disposable fixture. No package version/tag or remote
+publication is part of this migration step; Phase 3 remains a separate successor.

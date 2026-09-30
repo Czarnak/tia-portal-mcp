@@ -123,6 +123,51 @@ Per-item Openness degradation is retained in the envelope `warnings` array rathe
 
 `compile_check` is a standalone engineering operation. It is not marked read-only, does not use a safety token, and is exposed in read-write and full modes.
 
+### Standalone status and compilation contract
+
+`get_project_status` and `compile_check` declare concrete MCP output schemas and return the same canonical JSON document in `content` text and `structuredContent`. Both use contract version `1.0` and the envelope `tool`, `contractVersion`, `success`, `error`, `warnings`, and `result`. Inputs and access modes are unchanged. This output change breaks legacy clients: replace parsing the JSON string in `payload` with reading the object at `result.value`.
+
+`result` contains four explicit members: `status` (`succeeded`, `failed`, or `omitted`), `value`, `failure`, and `omission`. The value is the complete `ProjectStatusInfo` (including `metadata`) or `CompileCheckReport`. Optional/unavailable data is represented by explicit nulls, including within nested metadata. A no-project read succeeds with `result.value.isOpen:false` and does not bind an unbound host session.
+
+Rejection before the requested operation sets `success:false`, a top-level `{category,message}` `error`, `result:null`, and MCP `isError:true`. An attempted operation that fails sets `success:false`, `error:null`, and MCP `isError:false`, with failure evidence in `result.failure` or compiler diagnostics in `result.value`. Host identity validation can fail after compilation; that remains an attempted failure and the session binding is invalidated. A timeout/crash leaves the outcome unknown; inspect current project state before deciding whether to retry.
+
+For compilation, `success` means the selected compilation passed, including warning-only reports. Errors, unavailable compiler results, and unknown/incomplete states do not pass. Compiler errors retain the report, for example:
+
+```json
+{
+  "contractVersion": "1.0",
+  "error": null,
+  "result": {
+    "failure": null,
+    "omission": null,
+    "status": "failed",
+    "value": {
+      "blockPath": "PLC_1/Blocks/Main",
+      "overallState": "Error",
+      "plcs": [{
+        "deviceName": null,
+        "diagnosticNotes": [],
+        "errorCount": 1,
+        "messages": [{"description": "Invalid expression", "path": "Main", "severity": "Error"}],
+        "plcName": "PLC_1",
+        "state": "Error",
+        "warningCount": 0
+      }],
+      "scope": "block",
+      "totalErrorCount": 1,
+      "totalWarningCount": 0
+    }
+  },
+  "success": false,
+  "tool": "compile_check",
+  "warnings": []
+}
+```
+
+The complete canonical value has a 60,000-character limit; the final document, including escaped strings, warnings and omission metadata, has a 180,000-character limit. Oversized values are replaced whole: `status:omitted`, `value:null`, `success:false`, `error:null`, and `isError:false`. `omission` reports `reason` (`resultExceededItemCharLimit` or `responseExceededDocumentCharLimit`), `limitChars`, `originalChars`, `retryTool`, and `guidance`. Compile retries can narrow `plcName` or `blockPath`; status has no metadata selector, so its guidance directs users to reduce metadata or inspect it in TIA Portal. Whole warning entries may be removed to fit the document, with a bounded count notice. Failure prose is shortened only as a last resort and marked explicitly.
+
+Strict decoding precedes budgeting: malformed or inconsistent worker success payloads become a fixed-message `protocol_error` outcome and are never echoed. Producer diagnostic limits are separate: a compiler report's `diagnosticNotes` can disclose omitted/shortened messages, and counts need not equal the number of delivered messages. A passing compilation does not prove diagnostics were exhaustive, a project was saved, or PLC code was downloaded.
+
 ### `get_project_status` metadata surface
 
 When a project is open, `get_project_status` reports the status fields plus a nested `metadata`
@@ -134,17 +179,16 @@ object carrying the extended read-only project metadata:
 | `family` | Project family, verbatim from Openness. |
 | `comment` | Multilingual project comment: `translations` list of `{ culture, text }` in the order Openness reports them, preserving every translation. `culture` is the language culture name (for example `en-US`). |
 | `languageSettings` | `languages` and `activeLanguages` as culture-name lists; `editingLanguage` and `referenceLanguage` culture names (null when unset). |
-| `historyEntries` | Text and date-time of each history entry, in Openness order, verbatim and not deduplicated. Capped at `200` entries (oldest first); when Openness reports more, `historyTruncated` is `true`. When history could not be read, both `historyEntries` and `historyTruncated` are `null` (omitted) — `historyTruncated` is `false` only when history was read completely. |
+| `historyEntries` | Text and date-time of each history entry, in Openness order, verbatim and not deduplicated. Capped at `200` entries (oldest first); when Openness reports more, `historyTruncated` is `true`. When history could not be read, both `historyEntries` and `historyTruncated` are explicit `null` — `historyTruncated` is `false` only when history was read completely. |
 | `usedProducts` | `{ name, version }` for every product Openness records, no inference and no deduplication. |
-| `compilationSettings` | V21 block-compilation toggles read through `PlcSimulationSettingsProvider` and `VirtualPlcSettingsProvider`: `isSimulationDuringBlockCompilationEnabled` and `isVirtualPlcDuringBlockCompilationEnabled`. A value is `null` (omitted) when its provider or value is unavailable, reported as a response warning — never a fabricated `false`. |
+| `compilationSettings` | V21 block-compilation toggles read through `PlcSimulationSettingsProvider` and `VirtualPlcSettingsProvider`: `isSimulationDuringBlockCompilationEnabled` and `isVirtualPlcDuringBlockCompilationEnabled`. A value is explicit `null` when its provider or value is unavailable, reported as a response warning — never a fabricated `false`. |
 
 All metadata is readable in all three access modes; metadata inspection never closes, switches, saves, or
 confirms anything. Unavailable sections degrade to a warning and `null` output rather than a
 fabricated default; unrelated errors still fail the call normally.
 
-The successful `get_project_status` response is subject to the standalone response budget
-(60000 characters, like every other standalone read): an oversized status is truncated with an
-explicit `TRUNCATED` marker naming the limit. Lifecycle post-write verification (after
+The `get_project_status` response uses the whole-value omission budget described above.
+Lifecycle post-write verification (after
 `open_project`, `create_project`, `save_project`, `save_project_as`, and `archive_project`) reads
 the plain project status only — it never enumerates history or the extended metadata surface.
 
