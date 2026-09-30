@@ -10,7 +10,7 @@
 
 **Spec:** [JSON contract roadmap Phase 3](../../roadmap/json-contract.md#phase-3-lifecycle-onto-the-guarded-write-pipeline); [accepted write-safety design](../specs/2026-09-29-write-safety-redesign-design.md), sections 4.1–4.8 and delivery Phase 2; [Phase 1b implementation record](2026-09-30-write-safety-phase1b-access-modes.md).
 
-**Status:** Discussion draft, 2026-09-30. This is the successor PR to the [standalone Phase 2 plan](2026-09-30-json-contract-phase2-standalone-tools.md). It is not yet an executable frozen plan: re-read the merged Phase 2 contracts and fresh `main`, review its acceptance evidence, and finalize this document's proposed interfaces before implementation. No implementation, live execution, commits, or remote actions are authorized by this document.
+**Status:** Implementation authorized by the maintainer on 2026-10-01, including stepwise commits on the current `phase3-json-contract` branch. The GitHub connector confirmed fresh `main` at `6b10dc28812947fc802cf96c8abc6dfa8d981ffa` (merged Phase 2 PR #101). Phase 1/1b and the merged `StandaloneToolOutcome<TPayload>` contract are present. Phase 2's live evidence still excludes compiler-error reports, no-project status, and legacy lifecycle wire compatibility; this phase must verify its own producers. Exact-target live mutation and remote writes remain separately authorized gates.
 
 ## Global Constraints
 
@@ -44,7 +44,7 @@ The foundation currently carries an attempted item's error into `WriteReport.Err
 
 The prose calls these "six lifecycle guards", but the accepted table has seven distinct lifecycle guard IDs. Implement and test the table's rules rather than dropping a rule to satisfy the prose count.
 
-## Proposed Contract and File Responsibilities
+## Frozen Contract and File Responsibilities
 
 - `TiaMcpServer/ProjectLifecycle/LifecycleWriteItem.cs`: internal single-operation request implementing `IOperationBatchItem`; public tools do not gain caller-supplied operation IDs or a batch input.
 - `LifecycleWriteDomain.cs`: operation validation, planning, guard evaluation, worker mutation, typed projection, and verification.
@@ -63,13 +63,13 @@ Proposed pipeline entry point:
 Task<CallToolResult> RunAsync<TItem, TEffect, TVerification, TResponse>(
     IWriteDomain<TItem, TEffect, TVerification, TResponse> domain,
     WriteCall<TItem> call,
-    WriteConfirmationContext confirmation,
+    WriteConfirmationContext? confirmation = null,
     IWriteBindingStrategy<TItem>? bindingStrategy = null,
     CancellationToken cancellationToken = default)
     where TItem : IOperationBatchItem;
 ```
 
-`IWriteBindingStrategy<TItem>.PrepareAsync(WriteCall<TItem> call)` returns a success/error plus the exact `ProjectBindingSnapshot` to pin. The default implementation preserves today's verified-project gate and promotion checks. Only lifecycle registration supplies the lifecycle strategy; input JSON cannot select a weaker policy. Preparation does not acquire a second pipeline or bypass the pinned lease. Verify the exact interface against current worker-client binding APIs before declaring this draft executable.
+`IWriteBindingStrategy<TItem>.PrepareAsync(WriteCall<TItem> call, CancellationToken cancellationToken = default)` returns `WriteBindingPreparation` with success/error and the exact `ProjectBindingSnapshot` to pin. The default implementation preserves today's verified-project gate and promotion checks. Only lifecycle registration supplies the lifecycle strategy; input JSON cannot select a weaker policy. Preparation does not acquire a second pipeline or bypass the pinned lease. A null confirmation context preserves opt-out behavior for unregistered foundation callers; production lifecycle calls always supply immutable startup options and a per-call confirmation adapter. `IWriteDomain.VerificationSucceeded` determines the composed success without promoting attempted failures to top-level rejection.
 
 ## Task 1: Lifecycle Binding Preparation
 
