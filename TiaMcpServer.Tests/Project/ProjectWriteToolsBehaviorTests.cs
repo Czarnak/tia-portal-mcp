@@ -16,8 +16,11 @@ public sealed class ProjectWriteToolsBehaviorTests
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
 
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
+            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+
         var result = await ProjectWriteTools.OpenProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectPath: @"C:\Projects\Line.ap21",
             confirm: false,
@@ -33,8 +36,11 @@ public sealed class ProjectWriteToolsBehaviorTests
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
 
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
+            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+
         var result = await ProjectWriteTools.SaveProjectAs(
-            workerClient: null!,
+            workerClient: client,
             safety,
             targetDirectory: @"C:\Target",
             targetName: "Copy",
@@ -53,8 +59,11 @@ public sealed class ProjectWriteToolsBehaviorTests
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
 
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
+            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+
         var response = await ProjectWriteTools.SaveProjectAs(
-            workerClient: null!,
+            workerClient: client,
             safety,
             targetDirectory: @"C:\Target",
             targetName: "Copy",
@@ -82,7 +91,8 @@ public sealed class ProjectWriteToolsBehaviorTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(
             client,
             binding,

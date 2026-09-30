@@ -23,7 +23,7 @@ public static class AccessModeParser
             if (cliMode is not null && cliMode.Value != candidate)
             {
                 return AccessModeParseResult.Fail(
-                    "Conflicting access mode arguments were supplied. Specify only one of 'read-only' or 'read-write'.");
+                    "Conflicting access mode arguments were supplied. Specify only one of 'read-only', 'read-write', or 'full'.");
             }
 
             cliMode = candidate;
@@ -63,7 +63,7 @@ public static class AccessModeParser
                     args[i + 1].StartsWith("--", StringComparison.Ordinal))
                 {
                     return AccessModeParseResult.Fail(
-                        "--access-mode requires a value. Valid values: 'read-only', 'read-write'.");
+                        "--access-mode requires a value. Valid values: 'read-only', 'read-write', 'full'.");
                 }
 
                 var parsed = ParseValue(args[++i]);
@@ -115,29 +115,23 @@ public static class AccessModeParser
     }
 
     /// <summary>
-    /// Parses a string value ("read-only" or "read-write") into an <see cref="McpAccessMode"/>.
+    /// Parses a canonical access mode name into an <see cref="McpAccessMode"/>.
     /// </summary>
     public static AccessModeParseResult ParseValue(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
             return AccessModeParseResult.Fail(
-                "Access mode value is empty. Valid values: 'read-only', 'read-write'.");
+                "Access mode value is empty. Valid values: 'read-only', 'read-write', 'full'.");
         }
 
-        var normalizedValue = value.Trim();
-        if (string.Equals(normalizedValue, "read-only", StringComparison.OrdinalIgnoreCase))
+        if (McpAccessModeNames.TryParse(value, out var mode))
         {
-            return AccessModeParseResult.Ok(McpAccessMode.ReadOnly);
-        }
-
-        if (string.Equals(normalizedValue, "read-write", StringComparison.OrdinalIgnoreCase))
-        {
-            return AccessModeParseResult.Ok(McpAccessMode.ReadWrite);
+            return AccessModeParseResult.Ok(mode);
         }
 
         return AccessModeParseResult.Fail(
-            $"Invalid access mode '{value}'. Valid values: 'read-only', 'read-write'.");
+            $"Invalid access mode '{value}'. Valid values: 'read-only', 'read-write', 'full'.");
     }
 }
 

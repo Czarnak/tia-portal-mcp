@@ -35,7 +35,7 @@ public sealed class TiaPortalProcessCheck : IDiagnosticCheck
     public DiagnosticCheckResult Run()
     {
         var evidence = Evidence.Empty();
-        evidence["accessMode"] = _accessMode == McpAccessMode.ReadOnly ? "read-only" : "read-write";
+        evidence["accessMode"] = McpAccessModeNames.ToName(_accessMode);
         evidence["projectBindingConfigured"] = _hasConfiguredProjectBinding.ToString();
 
         if (!_appInfo.IsWindows)
@@ -73,13 +73,13 @@ public sealed class TiaPortalProcessCheck : IDiagnosticCheck
                     evidence);
             }
 
-            var unsafeUnboundReadWrite =
-                _accessMode == McpAccessMode.ReadWrite && !_hasConfiguredProjectBinding;
-            var status = unsafeUnboundReadWrite
+            var unsafeUnboundWritable =
+                (_accessMode is McpAccessMode.ReadWrite or McpAccessMode.Full) && !_hasConfiguredProjectBinding;
+            var status = unsafeUnboundWritable
                 ? DiagnosticStatus.Failed
                 : DiagnosticStatus.Warning;
-            var message = unsafeUnboundReadWrite
-                ? $"Multiple TIA Portal processes were detected: {matches.Count} processes while read-write mode has no explicit project binding."
+            var message = unsafeUnboundWritable
+                ? $"Multiple TIA Portal processes were detected: {matches.Count} processes while {McpAccessModeNames.ToName(_accessMode)} mode has no explicit project binding."
                 : $"Multiple TIA Portal processes were detected: {matches.Count} processes. Doctor cannot determine which process has the intended project open without attaching.";
 
             return new DiagnosticCheckResult(

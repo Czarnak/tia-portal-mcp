@@ -43,11 +43,12 @@ public sealed class ProjectBindingCheck : IDiagnosticCheck
 
         if (configuredPath is null)
         {
-            var status = _accessMode == McpAccessMode.ReadWrite
+            var writable = _accessMode is McpAccessMode.ReadWrite or McpAccessMode.Full;
+            var status = writable
                 ? DiagnosticStatus.Failed
                 : DiagnosticStatus.Warning;
-            var message = _accessMode == McpAccessMode.ReadWrite
-                ? "Read-write mode has no explicit project binding. This configuration is not safe to report as ready."
+            var message = writable
+                ? $"{(_accessMode == McpAccessMode.Full ? "Full" : "Read-write")} mode has no explicit project binding. This configuration is not safe to report as ready."
                 : "No project binding is configured. Read-only calls would rely on an unverified project currently open in TIA Portal.";
 
             return new DiagnosticCheckResult(
@@ -129,5 +130,5 @@ public sealed class ProjectBindingCheck : IDiagnosticCheck
            !string.IsNullOrWhiteSpace(env.Get(ProjectEnvVar));
 
     private static string ModeLabel(McpAccessMode mode)
-        => mode == McpAccessMode.ReadOnly ? "read-only" : "read-write";
+        => McpAccessModeNames.ToName(mode);
 }

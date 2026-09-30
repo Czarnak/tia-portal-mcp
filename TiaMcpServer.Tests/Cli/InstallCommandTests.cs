@@ -33,6 +33,25 @@ public class InstallCommandTests
     private static ExecutableResolutionResult NotFoundClientExe(string exe)
         => new(false, exe, null, ExecutableKind.Native, $"The executable '{exe}' was not found.");
 
+    [Theory]
+    [InlineData("claude-code")]
+    [InlineData("codex")]
+    [InlineData("opencode")]
+    [InlineData("mimocode")]
+    public async Task RunAsync_FullDryRun_ForwardsModeWithoutExecuting(string client)
+    {
+        var runner = new FakeProcessRunner();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var exitCode = await InstallCommand.RunAsync(
+            new[] { client, "--access-mode", "full", "--dry-run" },
+            runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
+        Assert.Equal(0, exitCode);
+        Assert.Empty(runner.ExecutedCommands);
+        Assert.Contains("--access-mode", output.ToString());
+        Assert.Contains("full", output.ToString());
+    }
+
     [Fact]
     public async Task RunAsync_Help_ReturnsZeroAndPrintsUsage()
     {

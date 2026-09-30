@@ -30,6 +30,17 @@ Configure your MCP client to launch the tool command:
 }
 ```
 
+Without explicit access arguments the server starts in `read-write`: edits and compilation,
+with eight tools. Set `"args": ["--access-mode", "full"]` on an installed `tia-mcp` launch for
+the fourteen-tool surface, including save/close and other lifecycle operations and PLC runtime
+control. Existing read-write clients needing those operations must migrate to full.
+`tia-mcp install` has a separate read-only default (four tools).
+
+User-confirmation configuration defaults to on. Add `"--confirm-with-user=false"` to server
+arguments to disable it, or `"--confirm-with-user"` to explicitly enable it. Phase 1b only
+registers this setting; Phase 2 connects elicitation to guarded writes. It does not expand
+access permissions. See [Installation](installation.md#access-modes) for the complete modes.
+
 For local development without installing the tool, point the client at `dotnet`:
 
 ```json

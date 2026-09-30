@@ -138,7 +138,7 @@ public sealed class ToolOutputContractConformanceTests
     public async Task EveryRegisteredToolIsStructuredOrListedAsLegacy()
     {
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
-            McpAccessMode.ReadWrite);
+            McpAccessMode.Full);
         var tools = await harness.Client.ListToolsAsync();
         var registered = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
         var structured = tools
@@ -200,7 +200,7 @@ public sealed class ToolOutputContractConformanceTests
         var probe = StructuredToolProbes[probeName];
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
-            McpAccessMode.ReadWrite,
+            McpAccessMode.Full,
             audit.Path,
             probe.StartupProjectPath);
 

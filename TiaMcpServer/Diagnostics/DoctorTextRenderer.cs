@@ -10,7 +10,7 @@ public static class DoctorTextRenderer
         writer.WriteLine();
         if (accessMode.HasValue)
         {
-            var modeLabel = accessMode.Value == McpAccessMode.ReadOnly ? "READ-ONLY" : "READ-WRITE";
+            var modeLabel = McpAccessModeNames.ToName(accessMode.Value).ToUpperInvariant();
             writer.WriteLine($"Access mode: {modeLabel}");
             writer.WriteLine();
         }

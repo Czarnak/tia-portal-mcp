@@ -3,7 +3,7 @@ namespace TiaMcpServer.Contracts;
 /// <summary>
 /// Central classification of every worker operation by its capability. Both the host
 /// (OperationAccessPolicy) and the worker (WorkerOperationAuthorization) consume this
-/// single source of truth. An operation not listed here is denied in read-only mode
+/// single source of truth. An operation not listed here is denied in every mode
 /// (deny-by-default).
 /// </summary>
 public static class OperationPolicyCatalog
@@ -13,32 +13,36 @@ public static class OperationPolicyCatalog
 
     /// <summary>
     /// Returns the capability for <paramref name="operation"/>, or null if the operation
-    /// is not classified (unknown operations are denied in read-only mode).
+    /// is not classified (unknown operations are denied in every mode).
     /// </summary>
-    public static OperationCapability? GetCapability(string operation)
-        => Classifications.TryGetValue(operation, out var cap) ? cap : null;
+    public static OperationCapability? GetCapability(string? operation)
+        => !string.IsNullOrWhiteSpace(operation) && Classifications.TryGetValue(operation!, out var cap) ? cap : null;
 
     /// <summary>
     /// True when <paramref name="operation"/> is allowed under the given access mode.
     /// Read-only mode allows Observe, TemporaryExport, and side-effect-free SafetyRead.
     /// </summary>
-    public static bool IsAllowed(McpAccessMode mode, string operation)
+    public static bool IsAllowed(McpAccessMode mode, string? operation)
     {
-        if (mode == McpAccessMode.ReadWrite)
-        {
-            return true;
-        }
-
         var cap = GetCapability(operation);
-        if (cap is null)
-        {
-            return false;
-        }
-
-        return cap.Value is OperationCapability.Observe
-            or OperationCapability.TemporaryExport
-            or OperationCapability.SafetyRead;
+        return cap is not null && IsCapabilityAllowed(mode, cap.Value);
     }
+
+    /// <summary>Immutable capability presets, shared by discovery and request authorization.</summary>
+    public static bool IsCapabilityAllowed(McpAccessMode mode, OperationCapability capability)
+        => mode switch
+        {
+            McpAccessMode.ReadOnly => capability is OperationCapability.Observe
+                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead,
+            McpAccessMode.ReadWrite => capability is OperationCapability.Observe
+                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.Compile or OperationCapability.ProjectMutation,
+            McpAccessMode.Full => capability is OperationCapability.Observe
+                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.Compile or OperationCapability.ProjectMutation
+                or OperationCapability.ProjectLifecycle or OperationCapability.OnlineControl,
+            _ => false
+        };
 
     /// <summary>
     /// True when a worker request must carry the exact currently verified
@@ -117,6 +121,7 @@ public static class OperationPolicyCatalog
 
             // ProjectMutation (NOT read-only safe)
             ["update_block_logic"] = OperationCapability.ProjectMutation,
+            ["update_type_content"] = OperationCapability.ProjectMutation,
             ["create_block"] = OperationCapability.ProjectMutation,
             ["delete_block"] = OperationCapability.ProjectMutation,
             ["create_block_group"] = OperationCapability.ProjectMutation,
@@ -144,6 +149,7 @@ public static class OperationPolicyCatalog
             // Internal lifecycle probes (not read-only safe; the status probe may open a project)
             ["probe_project_status_for_lifecycle"] = OperationCapability.ProjectLifecycle,
             ["probe_open_project_rebind"] = OperationCapability.ProjectLifecycle,
+            ["get_basic_project_status"] = OperationCapability.ProjectLifecycle,
         };
 
         return dict;

@@ -25,7 +25,7 @@ internal static class Program
         Console.InputEncoding = System.Text.Encoding.UTF8;
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-        Console.Error.WriteLine($"TIA Openness worker access mode: {_accessMode.ToString().ToUpperInvariant()}");
+        Console.Error.WriteLine($"TIA Openness worker access mode: {McpAccessModeNames.ToName(_accessMode).ToUpperInvariant()}");
 
         string? line;
         while ((line = Console.In.ReadLine()) is not null)

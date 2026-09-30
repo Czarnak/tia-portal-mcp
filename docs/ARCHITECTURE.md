@@ -36,15 +36,16 @@ shared by both processes.
 
 ## 2. Host startup and access modes
 
-`TiaMcpServer/Program.cs` handles three entry paths:
+`TiaMcpServer/Program.cs` handles four entry paths:
 
+- `install` registers a client or previews registration with `--dry-run`; its default is read-only.
 - `doctor` runs environment diagnostics.
 - `--version` or `-v` prints version information.
 - All other invocations start the MCP server.
 
 The access mode is resolved once at startup with this precedence:
 
-1. `--access-mode read-only|read-write`, `--read-only`, or `--read-write`
+1. `--access-mode read-only|read-write|full`, `--read-only`, or `--read-write`
 2. `TIA_MCP_ACCESS_MODE`
 3. `read-write` by default
 
@@ -53,8 +54,27 @@ falling back to another mode.
 
 ### Read-write mode
 
-Read-write mode exposes 14 tools: the four read-only observation tools plus ten
-read-write-only tools. It preserves the preview-then-apply safety-token model.
+Read-write mode exposes eight tools: the four observation tools plus `compile_check`,
+`preview_write_batch`, `apply_write_batch`, and `network_write`. It permits `Observe`,
+`TemporaryExport`, transitional `SafetyRead`, `Compile`, and `ProjectMutation` capabilities.
+It preserves the preview-then-apply safety-token model. Legacy batch PLC control is denied
+before binding, snapshots, or dispatch. Initial startup/read attachment is allowed, but reads
+cannot switch or close an attached project.
+
+### Full mode
+
+Full exposes all fourteen tools and adds `ProjectLifecycle` and `OnlineControl` capabilities.
+Explicit open/create/save/save-as/archive/close and PLC start/stop require this mode. Existing
+read-write clients that need persistence or lifecycle must select `--access-mode full`.
+
+### Confirmation configuration
+
+`--confirm-with-user` defaults to on. Bare `--confirm-with-user` and `=true` enable it;
+`--confirm-with-user=false` disables it. Malformed values and contradictory repeats fail startup.
+The host removes these arguments before generic-host parsing and registers one immutable
+`UserConfirmationOptions` singleton. This is Phase 1b configuration only: legacy token tools
+retain their behavior. Phase 2 connects elicitation-backed acknowledgement to guarded writes;
+the switch does not relax access-mode permissions.
 
 ### Read-only mode
 
@@ -76,20 +96,20 @@ Tool registration is explicit and mode-dependent. The host always registers:
 - `ReadBatchTools`
 - `NetworkReadTools`
 
-It registers the following only in read-write mode:
+The shared `McpToolRegistration.WithAccessModeTools` helper registers these in read-write and full:
 
 - `ProjectEngineeringTools`
-- `ProjectWriteTools`
 - `WriteBatchTools`
 - `NetworkWriteTools`
+
+`ProjectWriteTools` is registered only when the mode permits `ProjectLifecycle` (full).
 
 This prevents write tools from appearing in MCP discovery when the server is
 read-only. Decorated tool classes that are not explicitly registered are not
 part of the active tool surface.
 
-`Program.cs` registers the split read/write owners directly: `ProjectReadTools`
-and `ReadBatchTools` in every mode, plus `ProjectWriteTools` and
-`WriteBatchTools` in read-write mode. `ProjectLifecycleTools` and `BatchTools`
+`Program.cs` and production-surface protocol tests use the same registration helper.
+`ProjectLifecycleTools` and `BatchTools`
 remain compatibility wrappers for existing internal callers and tests only;
 they are not registered MCP tool classes. The registered-surface delegation and
 preview-only live V21 evidence are recorded in the
@@ -153,20 +173,25 @@ A deeper direct-Openness selector resolver and depth-pruned traversal remains a 
 
 | Tool | Purpose |
 |---|---|
-| `compile_check` | Compile a PLC or selected block and return compiler messages. This engineering tool is read-write-only and does not use a safety token. |
+| `compile_check` | Compile a PLC or selected block and return compiler messages in read-write or full. Does not use a safety token. |
+| `preview_write_batch` | Validate writes, capture current state, and issue a safety token. |
+| `apply_write_batch` | Redeem the token and execute writes sequentially. |
+| `network_write` | Preview or apply an ordered dedicated-network write request. |
+
+### Additional full-mode tools
+
+| Tool | Purpose |
+|---|---|
 | `open_project` | Open and bind a project. |
 | `create_project` | Create and bind a project. |
 | `save_project` | Save the active project. |
 | `save_project_as` | Save a copy and rebind to the worker-reported project path. |
 | `archive_project` | Archive the active project. |
 | `close_project` | Close the active project and clear the binding. |
-| `preview_write_batch` | Validate writes, capture current state, and issue a safety token. |
-| `apply_write_batch` | Redeem the token and execute writes sequentially. |
-| `network_write` | Preview or apply an ordered dedicated-network write request. |
 
 ## 4. Defense-in-depth access enforcement
 
-Read-only mode is enforced independently at three layers.
+All access-mode ceilings are enforced independently at three layers.
 
 ### 4.1 Tool discovery
 
@@ -181,7 +206,9 @@ all known worker operations as observation, temporary export, compilation,
 project lifecycle, project mutation, or online control.
 
 Read-only mode allows only observation and temporary-export capabilities.
-Unknown operations are denied by default.
+Read-write adds compilation and project mutation; full adds lifecycle and online control.
+Transitional `SafetyRead` supports the remaining token tools. Unknown operations are denied
+in every mode, including full.
 
 ### 4.3 Worker authorization
 
@@ -194,8 +221,9 @@ Explicit but malformed worker configuration fails closed to read-only, so an
 argument-propagation defect cannot silently enable mutations.
 
 In read-only mode the Siemens-facing `TiaPortalSession` also refuses automatic
-confirmation dialogs. Read-write mode may accept confirmations where the
+confirmation dialogs. Read-write and full modes may accept Siemens confirmations where the
 existing write workflow explicitly allows them.
+These Siemens dialogs are independent of MCP user-confirmation elicitation.
 
 ## 5. Project attachment and binding
 
@@ -856,8 +884,8 @@ Doctor never attaches to TIA Portal or opens a project. Its project-binding chec
 validates an absolute, existing `.ap21` file but reports a warning because no live
 project match was inspected. Its process check uses the Windows process list:
 one detected process can pass that process-only check, while multiple processes
-produce a warning, or a failure for an unbound read-write configuration. An
-unbound project check is a warning in read-only mode and a failure in read-write
+produce a warning, or a failure for an unbound read-write or full configuration. An
+unbound project check is a warning in read-only mode and a failure in read-write or full
 mode. These diagnostics prevent an absent path or ambiguous process set from
 being reported as fully ready without turning Doctor into an Openness client.
 

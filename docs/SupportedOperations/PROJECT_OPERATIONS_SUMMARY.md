@@ -4,9 +4,9 @@
 
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
-| `get_project_status` | `get_project_status` | Optional `projectPath`; reads status and metadata without opening or switching projects. |
+| `get_project_status` | `get_project_status` | Optional `projectPath`; reads status and metadata. Read-only asserts the open project; writable modes can establish the initial exact-path session. Reads never switch an attached project. |
 | `browse_project_tree` | `browse_project_tree` | v3: optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`; use `cursor` to continue an immutable snapshot. |
-| `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, and `blockPath`; compiles the selected scope and returns compiler messages. Available only in read-write mode. |
+| `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, and `blockPath`; compiles the selected scope and returns compiler messages. Available in read-write and full modes. |
 
 ### `browse_project_tree` v3
 
@@ -121,7 +121,7 @@ All project-tree failures retain the same envelope with `status: "failed"`, `res
 
 Per-item Openness degradation is retained in the envelope `warnings` array rather than changing a failure into success.
 
-`compile_check` is a standalone engineering operation. It is not marked read-only, does not use a safety token, and is exposed only in read-write mode.
+`compile_check` is a standalone engineering operation. It is not marked read-only, does not use a safety token, and is exposed in read-write and full modes.
 
 ### `get_project_status` metadata surface
 
@@ -138,7 +138,7 @@ object carrying the extended read-only project metadata:
 | `usedProducts` | `{ name, version }` for every product Openness records, no inference and no deduplication. |
 | `compilationSettings` | V21 block-compilation toggles read through `PlcSimulationSettingsProvider` and `VirtualPlcSettingsProvider`: `isSimulationDuringBlockCompilationEnabled` and `isVirtualPlcDuringBlockCompilationEnabled`. A value is `null` (omitted) when its provider or value is unavailable, reported as a response warning — never a fabricated `false`. |
 
-All metadata is readable in both access modes; nothing here opens, closes, switches, saves, or
+All metadata is readable in all three access modes; metadata inspection never closes, switches, saves, or
 confirms anything. Unavailable sections degrade to a warning and `null` output rather than a
 fabricated default; unrelated errors still fail the call normally.
 
@@ -149,6 +149,11 @@ explicit `TRUNCATED` marker naming the limit. Lifecycle post-write verification 
 the plain project status only — it never enumerates history or the extended metadata surface.
 
 ## Lifecycle operations
+
+All six lifecycle tools require `full`; read-write permits edits and compilation but leaves
+persistence to the human. Its initial `--project` or unattached read `projectPath` can establish
+the session. Once attached, a read cannot switch or close the project. Read-only paths are
+assertions against the project already open and never open one.
 
 | Tool | Behavior | Main inputs |
 |---|---|---|

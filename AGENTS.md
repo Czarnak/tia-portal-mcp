@@ -1,6 +1,6 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 14 tools in read-write mode and four read-only tools in read-only mode. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 4 tools in read-only, 8 in read-write (startup default), and 14 in full mode. Read-write permits in-project edits and compile; project lifecycle and PLC runtime control require full. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
 
 ## Two-process architecture (critical to understand)
 
@@ -44,6 +44,12 @@ dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\
 ```
 
 ## Write safety model
+
+Access tiers are capability presets in the shared `OperationPolicyCatalog`, enforced at discovery,
+host dispatch before worker activity, and worker dispatch before Siemens calls. Unknown operations
+are denied in every mode. Initial project attachment remains available in read-write, but a read
+cannot switch or close an attached project. `--confirm-with-user` defaults to on; `=false` turns it
+off. Phase 1b only registers immutable `UserConfirmationOptions`; Phase 2 implements elicitation.
 
 Every write tool registered today goes through preview-then-apply, and it keeps that flow until
 its phase of the [write-safety redesign](docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md)

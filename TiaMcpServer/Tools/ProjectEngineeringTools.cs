@@ -4,12 +4,12 @@ using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tools;
 
-/// <summary>Project engineering actions exposed only in read-write mode.</summary>
+/// <summary>Project engineering actions exposed in read-write and full modes.</summary>
 [McpServerToolType]
 public class ProjectEngineeringTools
 {
     [McpServerTool(Name = "compile_check", ReadOnly = false, Destructive = false, OpenWorld = false)]
-    [Description("Compile a PLC or selected block scope and return compiler messages. Available only in read-write mode.")]
+    [Description("Compile a PLC or selected block scope and return compiler messages. Available in read-write and full modes.")]
     public static async Task<string> CompileCheck(
         OpennessWorkerClient workerClient,
         [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null,

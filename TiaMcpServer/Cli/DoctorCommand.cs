@@ -13,7 +13,7 @@ public static class DoctorCommand
           --json          Emit a single JSON document to stdout.
           --verbose       Include additional evidence.
           --project       Validate an exact .ap21 binding without opening or attaching to TIA Portal.
-          --access-mode   Report diagnostics for read-only or read-write mode.
+          --access-mode   Report diagnostics for read-only, read-write, or full mode.
           --read-only     Alias for --access-mode read-only.
           --read-write    Alias for --access-mode read-write.
           --help          Show command usage and exit.

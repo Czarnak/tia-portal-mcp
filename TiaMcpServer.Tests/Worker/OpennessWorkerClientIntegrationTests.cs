@@ -25,7 +25,7 @@ public class OpennessWorkerClientIntegrationTests
             logger: null,
             workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(),
             requestTimeout: requestTimeout,
-            accessPolicy: accessPolicy);
+            accessPolicy: accessPolicy ?? new OperationAccessPolicy(McpAccessMode.Full));
 
     private const string SafeReadTimeout =
         "The TIA Openness worker did not complete the read before the timeout. No project or PLC runtime mutation was requested. The worker session was discarded; retrying the read is safe.";
@@ -853,7 +853,7 @@ public class OpennessWorkerClientIntegrationTests
         using var boundClient = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var result = await boundClient.GetProjectStatusAsync("ok-with-resolved-path");
 
@@ -868,7 +868,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var result = await client.GetProjectStatusAsync("worker-error");
 
@@ -883,7 +883,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var result = await client.GetProjectStatusAsync("ok");
 
@@ -899,7 +899,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // No explicit projectPath: TryResolve forwards the bound path itself, so the FakeWorker
         // scenario key IS the bound path (see the "C:\\bound\\Session.ap21" case).
@@ -921,7 +921,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Bound path equals the FakeWorker "C:\\stable\\Project.ap21" scenario key, and that
         // scenario reports the identical resolvedProjectPath back - no divergence.
@@ -941,7 +941,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Finding 2 regression: the divergence check used a raw string.Equals, which would treat
         // a forward-vs-back-slash spelling of the identical path as a different project and warn
@@ -962,7 +962,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var opened = await client.OpenProjectAsync("C:\\stable\\Project.ap21", forceRebind: false);
         Assert.True(opened.Success, opened.Error);
@@ -987,7 +987,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Retain the fake process's exact worker identity, matching the verified binding an
         // explicit open would have established. This scenario reports a genuinely
@@ -1200,7 +1200,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(
             client,
             binding,
@@ -1230,7 +1230,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(
             client,
             binding,
@@ -1255,7 +1255,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(
             client,
             binding,
@@ -1376,7 +1376,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // A lifecycle call (open, forceRebind so it clears the CanBind gate) that fails at the
         // worker must leave the existing binding exactly as it was - no partial rebind.
@@ -1393,7 +1393,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Direct status is BindingTransition.None: even a success carrying a resolvedProjectPath
         // must not bind an unbound session.
@@ -1410,7 +1410,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Caller asks for "open-resolved-differs"; the worker reports it actually opened
         // "C:\\worker\\Ground.ap21". The session must bind the worker's ground truth, never the
@@ -1429,7 +1429,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Caller supplies directory "create-resolved-differs" and name "Line"; the worker reports
         // it created "C:\\worker\\Created.ap21". The session must bind the worker's ground truth,
@@ -1453,7 +1453,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // The fake succeeds but omits sessionIdentity. Open requires a complete worker/Portal/
         // project identity to bind, so this is a broken postcondition - never a silent fallback to
@@ -1472,7 +1472,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Close is BindingTransition.Clear: a successful close leaves the session with nothing
         // bound. First retain the exact identity reported by this persistent fake worker so the

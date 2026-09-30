@@ -77,7 +77,7 @@ public sealed record WriteAuditRecord(
 
     /// <summary>Spells the access mode the way the rest of the server does.</summary>
     public static string ModeName(McpAccessMode mode)
-        => mode == McpAccessMode.ReadOnly ? "read-only" : "read-write";
+        => McpAccessModeNames.ToName(mode);
 }
 
 /// <summary>Receives one record per guarded write call. Implementations must never throw.</summary>

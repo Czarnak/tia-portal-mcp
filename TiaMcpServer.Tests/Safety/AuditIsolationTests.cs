@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -38,7 +39,8 @@ public class AuditIsolationTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, projectPath: "ok");
         using var previewDoc = System.Text.Json.JsonDocument.Parse(preview);
@@ -73,7 +75,8 @@ public class AuditIsolationTests
         using var client = new OpennessWorkerClient(
             new ProjectSessionBinding(null),
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // Real token from a preview, then apply against a DIFFERENT project path: rejected as
         // binding_conflict before any worker call or audit append. A safety-rejected apply must
@@ -108,10 +111,12 @@ public class AuditIsolationTests
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
 
-        // rebind=false is rejected as validation_error before any audit append. workerClient: null!
-        // additionally proves the worker was never invoked (any call would NullReferenceException).
+        // rebind=false is rejected before audit or worker activity; an absent executable
+        // makes any accidental dispatch fail while preserving the real access policy.
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
+            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         var response = await ProjectWriteTools.SaveProjectAs(
-            workerClient: null!,
+            workerClient: client,
             safety,
             targetDirectory: "C:\\Target",
             targetName: "Copy",

@@ -751,3 +751,35 @@ uses the pipeline yet; Phases 2–4 move the tools onto it.
   `anthropic/requiresUserInteraction` marker works only in Claude Code, so it was dropped.
 - The spike probes, the marker helper, and their tests are deleted. `UserConfirmation` stays for
   Phases 1b and 2.
+
+## Write-safety redesign Phase 1b access modes — offline acceptance completed (2026-09-30)
+
+The shared capability presets now distinguish read-only observation (4 tools), read-write
+in-project edits and compilation (8), and full lifecycle/PLC runtime control (14). Startup
+still defaults to read-write; installation still defaults to read-only. Existing read-write
+clients needing save, close, open, create, archive or PLC start/stop must select full.
+
+- Discovery uses the same registration helper in production and protocol tests. Host denial
+  precedes binding, snapshots, token handling and worker activity; worker authorization is
+  independent. Tests cover hidden lifecycle calls, mixed PLC-control batches, direct previews,
+  initial attachment without cross-project worker dispatch, and full-mode launch/restart.
+- `UserConfirmationOptions` is an immutable startup singleton with default-on configuration.
+  Bare `--confirm-with-user` and `=true` enable it; `=false` disables it. Invalid and conflicting
+  values fail startup. Elicitation enforcement belongs to Phase 2; legacy token behavior remains.
+- Fresh Release stub solution build passed with 7 existing xUnit2031 analyzer warnings and no
+  errors. The complete offline suite passed **4414/4414**, with no skips, using the current CI
+  coverage settings and serialized collections. Scoped line coverage was **93.76%** (9833/10487),
+  above the **80%** gate; branch coverage was 85.48%. The existing threshold script passed.
+- The direct/transitive NuGet vulnerability check reported no vulnerable packages in any of the
+  five projects using the current sources. Changed-document links and README absolute links
+  passed local validation. No dependency or version change was required.
+- Independent preset, enforcement, CLI and whole-branch reviews were used. Their fixes include
+  null-method denial, lifecycle post-write status classification, stronger dispatch assertions,
+  serialized environment tests, and production DI coverage. Static dispatch/catalog inspection
+  matched all 56 worker methods; unknown operations remain denied in every mode.
+- No live TIA operation, client-registration change, package tag, release, push or merge was
+  performed. Stub/FakeWorker evidence covers policy, protocol and IPC behavior only.
+
+The [implementation record](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md)
+contains the completed checklist and execution decisions; the [design delivery note](superpowers/specs/2026-09-29-write-safety-redesign-design.md#6-delivery-phases)
+records the Phase 2 confirmation handoff.

@@ -5,6 +5,10 @@ using TiaMcpServer.Contracts;
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
 // stdin closes. The test encodes the scenario in the request's projectPath field.
+var launchLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_LAUNCH_LOG");
+if (!string.IsNullOrWhiteSpace(launchLog))
+    File.AppendAllText(launchLog, JsonSerializer.Serialize(new { processId = Environment.ProcessId, args }) + Environment.NewLine);
+
 var seq = 0;
 var workerSessionId = Guid.NewGuid().ToString("N");
 const int FakePortalProcessId = 4242;

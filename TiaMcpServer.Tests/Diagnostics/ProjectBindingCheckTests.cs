@@ -58,20 +58,22 @@ public class ProjectBindingCheckTests
         Assert.NotNull(result.Remediation);
     }
 
-    [Fact]
-    public void NoBinding_ReadWrite_ReturnsFailed()
+    [Theory]
+    [InlineData(McpAccessMode.ReadWrite, "Read-write")]
+    [InlineData(McpAccessMode.Full, "Full")]
+    public void NoBinding_WritableMode_ReturnsFailed(McpAccessMode mode, string label)
     {
         var env = new FakeEnvironmentVariableService();
         var check = new ProjectBindingCheck(
             env,
             new FakeFileSystemService(),
             null,
-            McpAccessMode.ReadWrite);
+            mode);
 
         var result = check.Run();
 
         Assert.Equal(DiagnosticStatus.Failed, result.Status);
-        Assert.Contains("Read-write", result.Message);
+        Assert.Contains(label, result.Message);
     }
 
     [Fact]

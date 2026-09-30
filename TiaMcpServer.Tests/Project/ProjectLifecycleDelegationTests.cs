@@ -17,7 +17,7 @@ public sealed class ProjectLifecycleDelegationTests
             binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
     [Fact]
     public async Task SaveProject_WrapperMatchesRegisteredBindingGate()

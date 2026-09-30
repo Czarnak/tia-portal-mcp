@@ -64,8 +64,8 @@ The current implemented surface remains documented in
 
 The implemented domain tools are:
 
-- `network_read`: batch network reads, registered in both read-only and read-write modes.
-- `network_write`: a self-previewing batch write tool, registered only in read-write mode.
+- `network_read`: batch network reads, registered in all three access modes.
+- `network_write`: a self-previewing batch write tool, registered in read-write and full modes.
 
 Calling `network_write` without confirmation returns a preview and safety token. Calling
 the same tool again with `confirm=true`, the unchanged operation list, and that token

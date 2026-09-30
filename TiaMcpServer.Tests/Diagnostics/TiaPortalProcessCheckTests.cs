@@ -73,8 +73,10 @@ public class TiaPortalProcessCheckTests
         Assert.Contains("3 process", result.Message);
     }
 
-    [Fact]
-    public void MultipleTiaProcesses_UnboundReadWrite_ReturnsFailed()
+    [Theory]
+    [InlineData(McpAccessMode.ReadWrite)]
+    [InlineData(McpAccessMode.Full)]
+    public void MultipleTiaProcesses_UnboundWritableMode_ReturnsFailed(McpAccessMode mode)
     {
         var processes = new FakeProcessEnumerationService
         {
@@ -88,13 +90,14 @@ public class TiaPortalProcessCheckTests
         var check = new TiaPortalProcessCheck(
             processes,
             appInfo,
-            McpAccessMode.ReadWrite,
+            mode,
             hasConfiguredProjectBinding: false);
 
         var result = check.Run();
 
         Assert.Equal(DiagnosticStatus.Failed, result.Status);
-        Assert.Contains("read-write", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(McpAccessModeNames.ToName(mode), result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(McpAccessModeNames.ToName(mode), result.Evidence!["accessMode"]);
         Assert.Contains("no explicit project binding", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 

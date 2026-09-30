@@ -80,7 +80,7 @@ internal static class WorkerOperationAuthorization
     /// Read-only mode must never auto-confirm an action that could change state.
     /// </summary>
     public static bool AllowsTiaConfirmations(McpAccessMode mode)
-        => mode == McpAccessMode.ReadWrite;
+        => mode is McpAccessMode.ReadWrite or McpAccessMode.Full;
 
     /// <summary>
     /// Returns null if the operation is allowed, or a failure response if denied.
@@ -102,18 +102,7 @@ internal static class WorkerOperationAuthorization
 
     private static McpAccessMode? ParseValue(string value)
     {
-        var normalizedValue = value.Trim();
-        if (string.Equals(normalizedValue, "read-only", StringComparison.OrdinalIgnoreCase))
-        {
-            return McpAccessMode.ReadOnly;
-        }
-
-        if (string.Equals(normalizedValue, "read-write", StringComparison.OrdinalIgnoreCase))
-        {
-            return McpAccessMode.ReadWrite;
-        }
-
-        return null;
+        return McpAccessModeNames.TryParse(value, out var mode) ? mode : null;
     }
 
     private static McpAccessMode FailClosed(string reason)
@@ -124,5 +113,5 @@ internal static class WorkerOperationAuthorization
     }
 
     private static string ModeLabel(McpAccessMode mode)
-        => mode == McpAccessMode.ReadOnly ? "read-only" : "read-write";
+        => McpAccessModeNames.ToName(mode);
 }

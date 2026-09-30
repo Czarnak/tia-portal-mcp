@@ -8,7 +8,7 @@ using TiaMcpServer.Worker;
 namespace TiaMcpServer.Batch;
 
 /// <summary>
-/// Write-only batch tools. Only exposed in read-write mode.
+/// Write-only batch tools. Exposed in read-write and full modes; PLC control requires full.
 /// </summary>
 [McpServerToolType]
 public class WriteBatchTools
@@ -45,6 +45,10 @@ public class WriteBatchTools
             return OperationBatchResultFormatter.Error(PreviewToolName,
                 "Write batch operations are not permitted in read-only mode.");
         }
+
+        var accessErrors = BatchOperationCatalog.ValidateAccessMode(operations, mode);
+        if (accessErrors.Count > 0)
+            return OperationBatchResultFormatter.Error(PreviewToolName, string.Join(" ", accessErrors), WorkerFailureCategories.AccessDenied);
 
         var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
         var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
@@ -117,6 +121,10 @@ public class WriteBatchTools
             return OperationBatchResultFormatter.Error(ApplyToolName,
                 "Write batch operations are not permitted in read-only mode.");
         }
+
+        var accessErrors = BatchOperationCatalog.ValidateAccessMode(operations, mode);
+        if (accessErrors.Count > 0)
+            return OperationBatchResultFormatter.Error(ApplyToolName, string.Join(" ", accessErrors), WorkerFailureCategories.AccessDenied);
 
         if (string.IsNullOrWhiteSpace(safetyToken))
         {

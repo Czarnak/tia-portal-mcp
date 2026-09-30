@@ -96,6 +96,8 @@
       Link="Host\ProjectReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectEngineeringTools.cs"
       Link="Host\ProjectEngineeringTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\McpToolRegistration.cs"
+      Link="Host\McpToolRegistration.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResultFormatter.cs"
       Link="Host\StandaloneToolResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectWriteTools.cs"

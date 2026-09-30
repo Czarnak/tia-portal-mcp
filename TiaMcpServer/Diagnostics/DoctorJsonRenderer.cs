@@ -17,7 +17,7 @@ public static class DoctorJsonRenderer
             writer.WriteString("hostVersion", report.HostVersion);
             if (accessMode.HasValue)
             {
-                writer.WriteString("accessMode", accessMode.Value == McpAccessMode.ReadOnly ? "read-only" : "read-write");
+                writer.WriteString("accessMode", McpAccessModeNames.ToName(accessMode.Value));
             }
 
             writer.WritePropertyName("summary");

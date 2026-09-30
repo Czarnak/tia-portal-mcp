@@ -152,11 +152,11 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void ReadWriteMode_AllowsAllClassifiedOperations()
+    public void FullMode_AllowsAllClassifiedOperations()
     {
         foreach (var op in OperationPolicyCatalog.AllOperationNames)
         {
-            Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, op));
+            Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.Full, op));
         }
     }
 
@@ -290,13 +290,13 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void OperationAccessPolicy_ReadWrite_AllowsAllOperations()
+    public void OperationAccessPolicy_ReadWrite_AllowsEditsAndCompile()
     {
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         Assert.Null(policy.Authorize("update_block_logic"));
         Assert.Null(policy.Authorize("compile_check"));
         Assert.Null(policy.Authorize("get_project_status"));
-        Assert.Null(policy.Authorize("start_plc"));
+        Assert.Equal(WorkerFailureCategories.AccessDenied, policy.Authorize("start_plc")!.FailureCategory);
     }
 
     [Fact]
@@ -439,7 +439,7 @@ public class ReadOnlyModeTests
         var binding = new ProjectSessionBinding(null);
         var client = new OpennessWorkerClient(binding);
 
-        Assert.Null(client.AccessPolicy);
+        Assert.Equal(McpAccessMode.ReadWrite, client.AccessPolicy.Mode);
     }
 
     #endregion
@@ -511,12 +511,12 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void WorkerOperationAuthorization_ReadWrite_AllowsAll()
+    public void WorkerOperationAuthorization_Full_AllowsAllClassifiedCapabilities()
     {
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "update_block_logic"));
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "open_project"));
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "compile_check"));
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, "start_plc"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "update_block_logic"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "open_project"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "compile_check"));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, "start_plc"));
     }
 
     [Fact]
@@ -603,7 +603,7 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void ReadWriteMode_HasExactlyFourteenDistinctTools()
+    public void FullSurface_HasExactlyFourteenDistinctTools()
     {
         var toolNames = typeof(ProjectLifecycleTools).Assembly
             .GetTypes()
@@ -749,9 +749,11 @@ public class ReadOnlyModeTests
     public async Task ProjectWriteTools_OpenProject_Preview_ReturnsTokenAndInstructions()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var result = await ProjectWriteTools.OpenProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectPath: @"C:\Projects\Line.ap21");
 
@@ -764,9 +766,11 @@ public class ReadOnlyModeTests
     public async Task ProjectWriteTools_CreateProject_Preview_ReturnsTokenAndInstructions()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var result = await ProjectWriteTools.CreateProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectDirectory: @"C:\Projects",
             projectName: "NewProject");
@@ -780,9 +784,11 @@ public class ReadOnlyModeTests
     public async Task ProjectWriteTools_OpenProject_ConfirmFalse_ReturnsConfirmRequired()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var result = await ProjectWriteTools.OpenProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectPath: @"C:\Projects\Line.ap21",
             confirm: false,
@@ -796,9 +802,11 @@ public class ReadOnlyModeTests
     public async Task ProjectWriteTools_CreateProject_ConfirmFalse_ReturnsConfirmRequired()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var result = await ProjectWriteTools.CreateProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectDirectory: @"C:\Projects",
             projectName: "NewProject",
@@ -812,9 +820,11 @@ public class ReadOnlyModeTests
     public async Task ProjectWriteTools_SaveProject_ConfirmFalse_ReturnsConfirmRequired()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var result = await ProjectWriteTools.SaveProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             confirm: false,
             safetyToken: "fake-token");
@@ -826,9 +836,11 @@ public class ReadOnlyModeTests
     public async Task ProjectWriteTools_ArchiveProject_ConfirmFalse_ReturnsConfirmRequired()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var result = await ProjectWriteTools.ArchiveProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             archiveDirectory: @"C:\Archive",
             archiveName: "backup",
@@ -842,9 +854,11 @@ public class ReadOnlyModeTests
     public async Task ProjectWriteTools_CloseProject_ConfirmFalse_ReturnsConfirmRequired()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var result = await ProjectWriteTools.CloseProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             confirm: false,
             safetyToken: "fake-token");
