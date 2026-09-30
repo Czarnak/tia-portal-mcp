@@ -45,7 +45,8 @@ public static class LifecyclePayloadContract
                 || !SamePath(status.Path, expectedProjectPath)
                 || !SamePath(status.Path, result.ResolvedProjectPath)
                 || !SamePath(status.Path, result.SessionIdentity?.ProjectPath)))
-            || (!expectOpen && (status.Path is not null || result.SessionIdentity?.ProjectPath is not null)))
+            || (!expectOpen && (status.Path is not null || result.ResolvedProjectPath is not null
+                || result.SessionIdentity?.ProjectPath is not null)))
             throw new JsonException(ProtocolFailureMessage);
         return status;
     }
@@ -56,9 +57,16 @@ public static class LifecyclePayloadContract
 
     private static bool IsInside(string projectPath, string directory)
     {
-        var root = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            + Path.DirectorySeparatorChar;
-        return Path.GetFullPath(projectPath).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            var root = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            return Path.GetFullPath(projectPath).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            throw new JsonException(ProtocolFailureMessage, exception);
+        }
     }
 
     public static StructuredOperationFailure Failure(WorkerCallResult result)
