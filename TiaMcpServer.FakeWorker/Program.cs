@@ -75,6 +75,7 @@ var tagSafetyBroadReadCount = 0;
 var lifecycleRebindProbeReadCount = 0;
 var lifecycleRebindOpenProjectCalls = 0;
 string? guardedLifecycleScenario = null;
+string? lifecycleProbeOnlyCopiedPath = null;
 var guardedLifecycleModified = false;
 var tagSafetyTargetExists = true;
 var tagSafetyTargetTagName = "Start";
@@ -1241,6 +1242,7 @@ void UpgradeLegacyLifecycleFixture(JsonObject response)
         var directory = Path.Combine(ReadField(currentRequestLine!, "targetDirectory")!, ReadField(currentRequestLine!, "targetName")!);
         path = Path.Combine(directory, "Copy.ap21");
         response["resolvedProjectPath"] = path;
+        lifecycleProbeOnlyCopiedPath = path;
     }
     var status = new ProjectStatusInfo
     {
@@ -1398,6 +1400,9 @@ WorkerResponse BindingConflict(string error)
 
 string? ScenarioKey(string? path)
 {
+    if (path is not null && lifecycleProbeOnlyCopiedPath is not null
+        && string.Equals(path, lifecycleProbeOnlyCopiedPath, StringComparison.OrdinalIgnoreCase))
+        return "lifecycle-probe-only";
     if (path is not null && path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
     {
         var name = Path.GetFileNameWithoutExtension(path);
