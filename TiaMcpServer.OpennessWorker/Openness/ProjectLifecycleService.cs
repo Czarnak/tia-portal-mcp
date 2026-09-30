@@ -71,19 +71,12 @@ public static class ProjectLifecycleService
     }
 
     /// <summary>
-    /// Internal state probe for save/save-as/archive/close preview and apply-time
-    /// current-state checks only - never exposed as an MCP tool. Retains the original
-    /// <c>GetStatus</c> behavior: it may open <paramref name="projectPath"/> when nothing is
-    /// open yet, because those lifecycle writes must be able to inspect a project's state
-    /// before acting on it.
+    /// Internal non-mutating state probe for guarded lifecycle planning. A dry run must
+    /// never open a project while inspecting it; the source must already be active.
     /// </summary>
     public static ProjectStatusInfo ProbeStatusForLifecycle(TiaPortalSession session, string? projectPath)
     {
-        EnsureProject(session, projectPath);
-
-        return session.Project is null
-            ? new ProjectStatusInfo { IsOpen = false }
-            : ReadStatus(session.Project);
+        return GetBasicStatusReadOnly(session, projectPath);
     }
 
     public static ProjectLifecycleResultInfo OpenProject(TiaPortalSession session, string projectPath)

@@ -190,10 +190,16 @@ public class OpennessWorkerClient : IDisposable
     /// force-rebind preview. No destination path enters this read-only status route.
     /// </summary>
     internal Task<PinnedBindingExecutionResult<ProjectBindingSnapshot>> RegroundInvalidatedSourceForOpenAsync(
-        bool forceRebind)
+        bool forceRebind, ProjectBindingSnapshot? expectedBinding = null)
         => ExecuteSerializedBindingOperationAsync(async () =>
         {
             var invalidated = _projectSessionBinding.CaptureSnapshot();
+            if (expectedBinding is not null && !expectedBinding.SameBinding(invalidated))
+            {
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    "The retained source binding changed before recovery could prepare it."));
+            }
             if (!forceRebind || invalidated.State != ProjectBindingSnapshot.InvalidatedState)
             {
                 return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
