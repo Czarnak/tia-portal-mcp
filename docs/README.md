@@ -52,6 +52,8 @@ current documentation — see its index for what is there and how to read it.
 Latest process entries: the [write-safety redesign design (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md)
 and its [Phase 1 foundation plan](superpowers/plans/2026-09-29-write-safety-phase1-foundation.md)
 and [Phase 1b access-mode implementation plan](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md),
+the discussion drafts for [JSON contract Phase 2 standalone tools](superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md)
+and [JSON contract Phase 3 guarded lifecycle / write-safety Phase 2](superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md),
 the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
 and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md),
 the [JSON contract Phase 1b required-member enforcement design](superpowers/specs/2026-09-28-json-contract-phase1b-required-members-design.md)
