@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -39,7 +40,8 @@ public sealed class WriteSafetyLeaseConcurrencyTests
 
             using var audit = new TempAuditDirectory();
             var safety = audit.CreateSafety(projectSessionBinding: binding);
-            client = new OpennessWorkerClient(binding, requestTimeout: TimeSpan.FromSeconds(5));
+            client = new OpennessWorkerClient(binding, requestTimeout: TimeSpan.FromSeconds(5),
+                accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
             InjectTransport(
                 client,
                 CreateStatefulTransport(scriptPath, mutationLogPath, projectPath));

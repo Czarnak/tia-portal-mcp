@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -139,7 +140,8 @@ public sealed class LifecycleIdentityContinuityTests
                 out var bindError), bindError);
             var before = binding.CaptureSnapshot();
 
-            client = new OpennessWorkerClient(binding, requestTimeout: TimeSpan.FromSeconds(5));
+            client = new OpennessWorkerClient(binding, requestTimeout: TimeSpan.FromSeconds(5),
+                accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
             InjectTransport(client, CreateTransport(scriptPath, response));
 
             var result = operation switch

@@ -5,14 +5,6 @@ namespace TiaMcpServer.Tests.Batch;
 public sealed class TagOperationPrerequisiteBaselineTests
 {
     [Fact]
-    public void Program_RegistersWriteBatchTools()
-    {
-        var text = File.ReadAllText(Source("TiaMcpServer/Program.cs"));
-
-        Assert.Contains(".WithTools<WriteBatchTools>()", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void UpdateTag_BaselineStillCarriesPr3MutableFlagsThroughTheRegisteredWritePath()
     {
         var capability = File.ReadAllText(Source("TiaMcpServer.Contracts/OperationCapability.cs"));

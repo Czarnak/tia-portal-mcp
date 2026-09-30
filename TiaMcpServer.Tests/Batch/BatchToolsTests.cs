@@ -209,7 +209,8 @@ public class BatchToolsTests
     {
         using var audit = new TempAuditDirectory();
         var safety = audit.CreateSafety();
-        using var client = CreateReadWriteClient();
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null),
+            workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var operations = new[]
         {
