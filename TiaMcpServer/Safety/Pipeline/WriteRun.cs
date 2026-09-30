@@ -28,6 +28,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private readonly long?[] _durations;
     private ProjectBindingSnapshot _binding;
     private StructuredOperationBatch? _batch;
+    private bool _applyStarted;
     private bool _audited;
     private int _current = -1;
     private long _itemStart;
@@ -201,6 +202,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
     private async Task<WriteReport<TEffect, TVerification>> MutateAndVerifyAsync()
     {
+        _applyStarted = true;
         var stopped = false;
         for (var index = 0; index < Items.Count; index++)
         {
@@ -219,12 +221,20 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         }
 
         _current = -1;
-        _batch = MarkPartialWrite(_outcomes.Select(item => item!).ToList());
-        _batch.Operations.ToArray().CopyTo(_outcomes, 0);
+        _batch = FinalizeBatch();
         var verification = await _domain.VerifyAsync(_call.ProjectPath, _batch).ConfigureAwait(false);
         var failure = _batch.Operations.FirstOrDefault(item => item.Failure is not null)?.Failure;
         var error = failure is null ? null : new WriteToolError(failure.Category, failure.Message);
         return Report(WritePhases.Applied, _batch.IsFullySuccessful, error, _batch, verification);
+    }
+
+    /// <summary>Snapshots the outcomes, including operations skipped after an unexpected failure.</summary>
+    private StructuredOperationBatch FinalizeBatch()
+    {
+        var items = Items.Select((item, index) => _outcomes[index] ?? Skipped(item)).ToList();
+        var batch = MarkPartialWrite(items);
+        batch.Operations.ToArray().CopyTo(_outcomes, 0);
+        return batch;
     }
 
     private async Task<StructuredOperationItem> RunItemAsync(int index)
@@ -347,6 +357,11 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
                 _durations[_current] = ElapsedMs(_itemStart);
             }
 
+            if (_applyStarted && _batch is null)
+            {
+                _batch = FinalizeBatch();
+            }
+
             var report = Report(WritePhases.Error, success: false, error, _batch);
             _audit.Append(BuildAuditRecord(report, CanonicalJson.Serialize(report)));
             _audited = true;
@@ -372,19 +387,19 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             report.Phase,
             text,
             "sha256:" + ContentHashes.Sha256Hex(text),
-            report.Guards.Select(guard => AuditGuard(guard, report.Phase)).ToArray(),
+            report.Guards.Select(AuditGuard).ToArray(),
             Items.Select(AuditItem).ToArray(),
             ElapsedMs(_startTimestamp));
 
-    /// <summary>An acknowledge guard counts as satisfied by the agent only when the write was applied.</summary>
-    private static WriteAuditGuard AuditGuard(WriteGuardReport guard, string phase)
+    /// <summary>Preserves accepted live acknowledgements even if a later stage throws.</summary>
+    private WriteAuditGuard AuditGuard(WriteGuardReport guard)
         => new(
             guard.Id,
             guard.Severity,
             guard.OperationId,
             guard.Message,
             guard.Acknowledged,
-            guard.Acknowledged == true && phase == WritePhases.Applied ? GuardSatisfactions.Agent : null);
+            guard.Acknowledged == true && _applyStarted ? GuardSatisfactions.Agent : null);
 
     /// <summary>One audit item; an operation that never ran is recorded as skipped with no duration.</summary>
     private WriteAuditItem AuditItem(TItem item, int index)

@@ -77,6 +77,10 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
     /// <summary>The mutation of this operation throws after it was dispatched.</summary>
     public string? ThrowOnMutate { get; set; }
 
+    public string? ThrowOnCall { get; set; }
+
+    public InvalidOperationException ScriptedException { get; } = new("Scripted domain failure.");
+
     /// <summary>The plan returns a null entry in place of the first item's plan.</summary>
     public bool ReturnNullPlan { get; set; }
 
@@ -86,13 +90,13 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public WriteValidation Validate(IReadOnlyList<FakeWriteItem> items, McpAccessMode accessMode)
     {
-        Calls.Add("validate");
+        RecordCall("validate");
         return Validation;
     }
 
     public Task<WritePlan<FakeEffect>> PlanAsync(string? projectPath, IReadOnlyList<FakeWriteItem> items)
     {
-        Calls.Add("plan");
+        RecordCall("plan");
         if (PlanFailure is not null)
         {
             return Task.FromResult(WritePlan<FakeEffect>.Fail(PlanFailure.Category, PlanFailure.Message));
@@ -115,7 +119,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         IReadOnlyList<FakeWriteItem> items,
         IReadOnlyList<ItemPlan<FakeEffect>> plans)
     {
-        Calls.Add("guards");
+        RecordCall("guards");
         var fired = new List<FiredGuard>();
         for (var i = 0; i < items.Count; i++)
         {
@@ -134,7 +138,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public Task<ItemReplan<FakeEffect>> ReplanAsync(string? projectPath, FakeWriteItem item)
     {
-        Calls.Add($"replan:{item.OperationId}");
+        RecordCall($"replan:{item.OperationId}");
         _replanned.Add(item.OperationId);
         return Task.FromResult(ReplanFailure is null
             ? ItemReplan<FakeEffect>.Ok(ItemPlan<FakeEffect>.Resolved(EffectFor(item), PreconditionsFor(item)))
@@ -143,7 +147,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public Task<WorkerCallResult> MutateAsync(string? projectPath, FakeWriteItem item)
     {
-        Calls.Add($"mutate:{item.OperationId}");
+        RecordCall($"mutate:{item.OperationId}");
         if (!_gate.LeaseActive)
         {
             MutationsOutsideLease++;
@@ -162,7 +166,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public StructuredOperationItem Project(FakeWriteItem item, WorkerCallResult result)
     {
-        Calls.Add($"project:{item.OperationId}");
+        RecordCall($"project:{item.OperationId}");
         return result.Success
             ? new StructuredOperationItem(
                 item.OperationId, item.Operation, OperationBatchStatus.Succeeded,
@@ -174,19 +178,28 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public Task<FakeVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
     {
-        Calls.Add("verify");
+        RecordCall("verify");
         return Task.FromResult<FakeVerification?>(new FakeVerification(MutationCount));
     }
 
     public FakeWriteResponse Compose(WriteReport<FakeEffect, FakeVerification> report)
     {
-        Calls.Add("compose");
+        RecordCall("compose");
         return new FakeWriteResponse(
             ToolName, ContractVersion, report.Phase, report.Success, report.Error, report.Warnings,
             report.Guards, report.Effects, report.Batch, report.Verification);
     }
 
     public static string HashFor(FakeWriteItem item) => $"source:sha256:{item.OperationId}";
+
+    private void RecordCall(string call)
+    {
+        Calls.Add(call);
+        if (ThrowOnCall == call)
+        {
+            throw ScriptedException;
+        }
+    }
 
     private static FakeEffect EffectFor(FakeWriteItem item) => new(item.Target, "delete");
 
