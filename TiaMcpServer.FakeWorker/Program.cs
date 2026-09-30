@@ -878,7 +878,11 @@ while ((line = Console.In.ReadLine()) is not null)
         case "status-no-project":
             // Simulates the real worker's GetStatusReadOnly when nothing is open and no path
             // was requested: isOpen:false, no resolvedProjectPath - nothing was opened.
-            Respond("""{"success":true,"payload":"{\"isOpen\":false}"}""");
+            Respond(Success(ToCamelCaseJson(new ProjectStatusResultInfo
+            {
+                Operation = "get_project_status",
+                Project = new ProjectStatusInfo { IsOpen = false }
+            })));
             break;
         case "status-with-metadata":
             // Simulates the real worker's GetStatusReadOnly WITH the extended metadata surface,

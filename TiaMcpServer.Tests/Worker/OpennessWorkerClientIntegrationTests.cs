@@ -1083,7 +1083,7 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
         using var payloadDoc = System.Text.Json.JsonDocument.Parse(doc.RootElement.GetProperty("payload").GetString()!);
-        Assert.False(payloadDoc.RootElement.GetProperty("isOpen").GetBoolean());
+        Assert.False(payloadDoc.RootElement.GetProperty("project").GetProperty("isOpen").GetBoolean());
     }
 
     [Fact]

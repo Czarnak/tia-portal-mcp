@@ -1,11 +1,26 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Tools;
 
 public sealed class StandaloneWireContractTests
 {
+    [Fact]
+    public async Task DirectStatusPayload_WritesExplicitNulls_WithoutChangingLifecyclePayloads()
+    {
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
+            workerExecutablePath: FakeWorkerLocator.Locate());
+        var result = await client.GetProjectStatusAsync("status-no-project");
+        Assert.True(result.Success, result.Error);
+        using var direct = JsonDocument.Parse(result.Payload);
+        var root = direct.RootElement;
+        Assert.Equal("get_project_status", root.GetProperty("operation").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("projectPath").ValueKind);
+        Assert.False(root.GetProperty("project").GetProperty("isOpen").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("project").GetProperty("metadata").ValueKind);
+    }
     [Fact]
     public void CompileRoot_WritesExplicitNulls_BatchImportEnvelopeKeepsItsNullPolicy()
     {

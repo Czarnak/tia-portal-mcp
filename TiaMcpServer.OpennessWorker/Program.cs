@@ -1197,16 +1197,16 @@ internal static class Program
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)
     {
-        return ProjectLifecycle(request, session =>
+        return WithSession(request, session =>
         {
             var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath);
-            return new ProjectLifecycleResultInfo
+            return Success(new ProjectStatusResultInfo
             {
                 Operation = "get_project_status",
                 ProjectPath = status.Path,
                 Project = status
-            };
-        }, requiresConfirm: false);
+            });
+        });
     }
 
     /// <summary>
