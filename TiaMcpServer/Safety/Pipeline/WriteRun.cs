@@ -223,9 +223,8 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         _current = -1;
         _batch = FinalizeBatch();
         var verification = await _domain.VerifyAsync(_call.ProjectPath, _batch).ConfigureAwait(false);
-        var failure = _batch.Operations.FirstOrDefault(item => item.Failure is not null)?.Failure;
-        var error = failure is null ? null : new WriteToolError(failure.Category, failure.Message);
-        return Report(WritePhases.Applied, _batch.IsFullySuccessful, error, _batch, verification);
+        // Dispatch failures belong to the typed outcomes, not the call rejection field.
+        return Report(WritePhases.Applied, _batch.IsFullySuccessful, error: null, _batch, verification);
     }
 
     /// <summary>Snapshots the outcomes, including operations skipped after an unexpected failure.</summary>
