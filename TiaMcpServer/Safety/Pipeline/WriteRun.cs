@@ -263,6 +263,9 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     /// <summary>The client reply covers exactly the planned identity, consequences and guard messages.</summary>
     private async Task<WriteToolError?> ConfirmAndRecheckAsync(WritePlan<TEffect> planned, IReadOnlyList<FiredGuard> fired)
     {
+        // Freeze before awaiting the client: a domain may hold mutable nested plan objects.
+        var plannedDocument = CanonicalJson.Serialize(planned.Items);
+        var guardDocument = CanonicalJson.Serialize(fired);
         var message = $"Confirm '{_domain.ToolName}':\n" + string.Join("\n", _guards
             .Where(guard => guard.Severity == WriteGuardSeverities.Acknowledge)
             .Select(guard => guard.Message));
@@ -302,8 +305,8 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
         var freshGuards = _domain.EvaluateGuards(Items, fresh.Items);
         if (!_binding.SameBinding(_gate.CurrentBinding)
-            || CanonicalJson.Serialize(planned.Items) != CanonicalJson.Serialize(fresh.Items)
-            || CanonicalJson.Serialize(fired) != CanonicalJson.Serialize(freshGuards))
+            || plannedDocument != CanonicalJson.Serialize(fresh.Items)
+            || guardDocument != CanonicalJson.Serialize(freshGuards))
         {
             return StaleConfirmation();
         }
@@ -333,12 +336,15 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             var item = await RunItemAsync(index).ConfigureAwait(false);
             _durations[index] = ElapsedMs(_itemStart);
             _outcomes[index] = item;
+            // Preserve the known result before propagating cancellation that arrived during dispatch.
+            _cancellationToken.ThrowIfCancellationRequested();
             stopped = !string.Equals(item.Status, OperationBatchStatus.Succeeded, StringComparison.Ordinal);
         }
 
         _current = -1;
         _batch = FinalizeBatch();
         var verification = await _domain.VerifyAsync(_call.ProjectPath, _batch).ConfigureAwait(false);
+        _cancellationToken.ThrowIfCancellationRequested();
         var verified = _domain.VerificationSucceeded(verification);
         if (!verified)
         {
@@ -370,6 +376,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             }
         }
 
+        _cancellationToken.ThrowIfCancellationRequested();
         _mutated[index] = true;
         var result = await _domain.MutateAsync(_call.ProjectPath, item).ConfigureAwait(false);
         return _domain.Project(item, result);

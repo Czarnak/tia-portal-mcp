@@ -151,6 +151,20 @@ public sealed class WriteConfirmationPipelineTests
     }
 
     [Fact]
+    public async Task CallerCancellation_DuringCompletedMutation_PreservesItsOutcome_AndPropagates()
+    {
+        using var source = new CancellationTokenSource();
+        _domain.OnMutate = source.Cancel;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _execution.RunAsync(
+            _domain, Call(guards: Array.Empty<string>()), new WriteConfirmationContext(new UserConfirmationOptions()), cancellationToken: source.Token));
+
+        Assert.Equal(OperationBatchStatus.Succeeded, Assert.Single(Assert.Single(_audit.Records).Items).Status);
+        Assert.True(Assert.Single(_audit.LeaseActiveAtAppend));
+        Assert.Equal(1, _domain.MutationCount);
+    }
+
+    [Fact]
     public async Task DryRun_NeverPrompts_ReportsUnacknowledgedGuards()
     {
         var (result, doc) = await RunAsync(Confirmed(), dryRun: true, acknowledge: new[] { Ack });
@@ -227,6 +241,20 @@ public sealed class WriteConfirmationPipelineTests
         Assert.Single(_prompts);
         Assert.Equal(0, _domain.MutationCount);
         Assert.Equal(GuardSatisfactions.User, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+    }
+
+    [Fact]
+    public async Task MutablePlanStateChangedDuringPrompt_IsComparedToTheOriginalSnapshot()
+    {
+        var preconditions = new List<CheckedPrecondition> { new("state", "old", "old", true) };
+        _domain.PlannedPreconditions = preconditions;
+
+        var (result, doc) = await RunAsync(Confirmed(), duringPrompt: () =>
+            preconditions[0] = new CheckedPrecondition("state", "new", "new", true));
+
+        AssertDenied(result, doc, WorkerFailureCategories.BindingConflict);
+        Assert.Single(_prompts);
+        Assert.Equal(0, _domain.MutationCount);
     }
 
     [Fact]

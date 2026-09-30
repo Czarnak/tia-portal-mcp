@@ -82,6 +82,8 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public bool VerificationPasses { get; set; } = true;
 
+    public Action? OnMutate { get; set; }
+
     /// <summary>The mutation of this operation throws after it was dispatched.</summary>
     public string? ThrowOnMutate { get; set; }
 
@@ -162,6 +164,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         }
 
         MutationCount++;
+        OnMutate?.Invoke();
         if (ThrowOnMutate == item.OperationId)
         {
             throw new InvalidOperationException($"{item.OperationId} exploded.");
