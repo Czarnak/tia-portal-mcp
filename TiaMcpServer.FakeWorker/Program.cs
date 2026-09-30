@@ -987,6 +987,10 @@ while ((line = Console.In.ReadLine()) is not null)
             {
                 Respond(Success("{\"isOpen\":true}"));
             }
+            else if (ReadMethod(line) == "probe_project_status_for_lifecycle")
+            {
+                Respond(Success("{\"isOpen\":true}"));
+            }
             else if (ReadMethod(line) == "open_project")
             {
                 lifecycleRebindOpenProjectCalls++;
@@ -1248,6 +1252,7 @@ void UpgradeLegacyLifecycleFixture(JsonObject response)
         Operation = currentMethod == "get_basic_project_status" ? "get_project_status" : currentMethod!,
         ProjectPath = path, Project = status
     });
+    response["resolvedProjectPath"] = currentMethod == "close_project" ? null : path;
 }
 
 string GuardedLifecycleResponse(string requestLine, string fixture)
@@ -1295,7 +1300,8 @@ string GuardedLifecycleResponse(string requestLine, string fixture)
         Path = noProject ? null : path,
         Name = noProject ? null : Path.GetFileNameWithoutExtension(path),
         IsModified = noProject || method == "close_project" ? null : guardedLifecycleModified,
-        Version = noProject ? null : "V21"
+        Version = noProject ? null : "V21",
+        Author = fixture.Contains("-oversized", StringComparison.OrdinalIgnoreCase) ? new string('x', 70_000) : null
     };
     if (method == "get_project_status") return Success(DirectStatusPayload(status));
     var payload = WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
@@ -1303,11 +1309,24 @@ string GuardedLifecycleResponse(string requestLine, string fixture)
         Operation = method == "get_basic_project_status" ? "get_project_status" : method!,
         ProjectPath = status.Path, Project = status
     });
+    if (fixture.Contains("-document-limit", StringComparison.OrdinalIgnoreCase))
+    {
+        // Each outcome fits individually; three copies plus the response envelope exceed its
+        // document budget. This exercises omission of a complete value after composition.
+        status.Author = new string('x', Math.Max(0, 59_999 - payload.Length));
+        payload = WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+        {
+            Operation = method == "get_basic_project_status" ? "get_project_status" : method!,
+            ProjectPath = status.Path, Project = status
+        });
+    }
     if (mutation && fixture.Contains("-malformed", StringComparison.OrdinalIgnoreCase)
         || method == "get_basic_project_status" && fixture.Contains("-verification-failure", StringComparison.OrdinalIgnoreCase))
         payload = "{\"untrustedMarker\":true}";
     return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = payload,
-        ResolvedProjectPath = method == "close_project" || noProject ? null : path }, WorkerJson.Envelope);
+        ResolvedProjectPath = method == "close_project" || noProject ? null : path,
+        Warnings = mutation && fixture.Contains("-oversized", StringComparison.OrdinalIgnoreCase)
+            ? new List<string> { new string('w', 190_000), "retained mutation warning" } : new List<string>() }, WorkerJson.Envelope);
 }
 
 WorkerResponse? ValidateExpectedSessionIdentity(

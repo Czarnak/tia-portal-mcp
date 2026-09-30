@@ -247,6 +247,18 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             warnings.Add("The complete source status was omitted to fit the lifecycle response budget.");
             response = response with { Effects = effect };
         }
+        if (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars && result?.Value is not null)
+        {
+            result = OmitOutcome(result, StructuredOperationBatchPayloadBudget.DocumentLimitReason,
+                StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+            response = response with { Result = result };
+        }
+        if (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars && verification?.Value is not null)
+        {
+            verification = OmitOutcome(verification, StructuredOperationBatchPayloadBudget.DocumentLimitReason,
+                StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+            response = response with { Verification = verification };
+        }
         var omittedWarnings = 0;
         while (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars && warnings.Count > 0)
         {
@@ -256,7 +268,15 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             omittedWarnings++;
         }
         if (omittedWarnings > 0)
+        {
             warnings.Add($"{omittedWarnings} warning entries were omitted to fit the lifecycle response budget.");
+            while (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars && warnings.Count > 1)
+            {
+                var largest = warnings.Take(warnings.Count - 1).Select((warning, index) => (warning.Length, index)).MaxBy(entry => entry.Length);
+                warnings.RemoveAt(largest.index);
+                warnings[^1] = $"{++omittedWarnings} warning entries were omitted to fit the lifecycle response budget.";
+            }
+        }
         if (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
         {
             static StructuredOperationFailure? Shorten(StructuredOperationFailure? failure) => failure is null ? null
@@ -277,14 +297,17 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
     {
         if (outcome?.Value is null) return outcome;
         var length = CanonicalJson.Serialize(outcome.Value).Length;
-        return length <= StructuredOperationBatchPayloadBudget.MaxItemChars ? outcome : outcome with
+        return length <= StructuredOperationBatchPayloadBudget.MaxItemChars ? outcome
+            : OmitOutcome(outcome, StructuredOperationBatchPayloadBudget.ItemLimitReason, StructuredOperationBatchPayloadBudget.MaxItemChars);
+    }
+
+    private static StandaloneToolOutcome<T> OmitOutcome<T>(StandaloneToolOutcome<T> outcome, string reason, int limit) where T : class
+        => outcome with
         {
             Status = OperationBatchStatus.Omitted, Value = null,
-            Omission = new(StructuredOperationBatchPayloadBudget.ItemLimitReason,
-                StructuredOperationBatchPayloadBudget.MaxItemChars, length, "get_project_status",
+            Omission = new(reason, limit, CanonicalJson.Serialize(outcome.Value).Length, "get_project_status",
                 "The complete lifecycle value was omitted. Read current project status; inspect filesystem artifacts before deciding whether to retry the mutation.")
         };
-    }
 
     private static bool ValidDirectory(string? path) => path is not null && Path.IsPathFullyQualified(path) && Directory.Exists(path);
     private static bool ValidName(string? name) => !string.IsNullOrWhiteSpace(name) && name is not "." and not ".."
