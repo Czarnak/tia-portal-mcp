@@ -794,9 +794,9 @@ guards stop the call unless their id is in the request's `acknowledge` list; one
 firing of that guard. `block` guards always stop it. A stopped call is `phase: blocked` with
 category `guard_blocked`. A malformed list (blank, duplicate, unknown id, an `info` or `block` id)
 is `validation_error` before any worker call. After planning, an acknowledged id that did not fire
-is also `validation_error`, with one exception: when the call contains an item that depends on an
-earlier item, acknowledge-severity ids that have not fired yet are accepted, because the guard may
-fire when that item is re-planned. A dry run reports `acknowledged: true|false` per guard.
+is also `validation_error`, including when the call contains dependent items or is a dry run.
+Only ids fired during initial planning can be acknowledged. A dry run reports
+`acknowledged: true|false` per guard.
 
 #### Dependent items
 
@@ -804,7 +804,9 @@ Every item is planned and every guard evaluated before the first mutation. An it
 `DependsOn` is re-planned just before its own mutation, against state the earlier items changed.
 `DecideLate` judges only the guards that re-plan fires: any `block` guard, or an `acknowledge`
 guard not in the list, fails that item with `guard_blocked` and stops the call. Acknowledged ids
-that do not fire on a re-plan are ignored, since they may belong to another item.
+that do not fire on a re-plan are ignored, since they passed the initial call-wide check and may
+belong to another item. An initially acknowledged id covers later firings of the same guard;
+a newly discovered acknowledge-severity id stops the dependent item.
 
 #### Partial writes
 
@@ -820,11 +822,18 @@ Every call, in every phase, appends exactly one record to `writes-yyyy-MM-dd.jso
 UTF-8 without a BOM) beside the legacy audit files, which it never touches. The record has
 `recordKind: "write"` and `recordVersion: 1`, and holds the tool, contract version, access mode,
 project path, the pinned binding, the requested operations, the phase, the response text and its
-`sha256:` hash, every fired guard (with `satisfiedBy: "agent"` only for an acknowledged guard on an
-applied call), and per item the target, checked preconditions, status, failure, warnings, and
-duration. Rejections before the gate (validation, binding) are audited outside the lease. An
-exception after the lease starts is audited as an `error` record and then rethrown. A failed append
-is reported on stderr and never hides the write result.
+`sha256:` hash, every fired guard, and per item the target, checked preconditions, status, failure,
+warnings, and duration. An acknowledged guard records `satisfiedBy: "agent"` once the initial guard
+gate admits the call to live apply, including when a later stage throws. Dry runs and calls
+rejected before live apply record no satisfaction. Validation and binding rejections are audited
+outside the lease.
+
+An exception after the lease starts is audited as an `error` record and then rethrown unchanged.
+If live apply was interrupted, the record includes the collected batch outcomes, the failed
+current item, skipped remaining items, and the same partial-write warnings as an ordinary failure.
+Exceptions during verification or response composition preserve an already completed batch.
+The recorded error response comes from the pipeline's own report, without calling the domain
+again. A failed append is reported on stderr and never hides the write result.
 
 #### Content hash
 
