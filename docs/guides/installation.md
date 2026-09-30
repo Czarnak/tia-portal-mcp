@@ -29,13 +29,13 @@ Local developer builds prefer real TIA Portal V21 assemblies from `TiaPortalV21D
 The repo also contains compile-time reference stubs in `ref/` so CI can build and package the MCP server without installing TIA Portal. Those stubs are fallback-only when a local TIA install is not found. To force stub references for CI/package builds:
 
 ```powershell
-dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true
+dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true
 ```
 
 To force local TIA references:
 
 ```powershell
-dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
+dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
 ```
 
 During build, the worker prints the selected reference directory:

@@ -76,7 +76,7 @@ projects. Use `open_project` for deliberate session switching.
 
    ```powershell
    cd C:\Users\LCZ\Desktop\RnD\TIA-Portal\tia-portal-mcp
-   dotnet restore TiaMcpServer.sln
+   dotnet restore TiaMcpServer.slnx
 
    $version = "2.3.2-local.39.ge65dc64"   # from step 2
    dotnet pack TiaMcpServer/TiaMcpServer.csproj -c Release --no-restore `

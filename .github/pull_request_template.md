@@ -38,7 +38,7 @@ that do not apply instead of leaving them unticked.
 
 ## Verification
 
-- [ ] `dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true` succeeds
+- [ ] `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true` succeeds
 - [ ] `dotnet test TiaMcpServer.Tests` passes locally
 - [ ] New or changed behavior is covered by tests (xUnit, hand-written fakes, `{ClassUnderTest}Tests.cs`)
 

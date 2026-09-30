@@ -53,7 +53,7 @@ public sealed class TagUpdateSafetySnapshotSourceContractTests
     private static string ReadRepositorySource(params string[] pathSegments)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "TiaMcpServer.sln")))
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "TiaMcpServer.slnx")))
         {
             root = root.Parent;
         }

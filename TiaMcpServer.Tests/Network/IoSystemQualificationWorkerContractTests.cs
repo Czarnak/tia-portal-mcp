@@ -1027,7 +1027,7 @@ public class IoSystemQualificationWorkerContractTests
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             var path = Path.Combine(dir.FullName, relative);
-            if (File.Exists(Path.Combine(dir.FullName, "TiaMcpServer.sln"))) return path;
+            if (File.Exists(Path.Combine(dir.FullName, "TiaMcpServer.slnx"))) return path;
         }
         throw new InvalidOperationException("Repository not found.");
     }

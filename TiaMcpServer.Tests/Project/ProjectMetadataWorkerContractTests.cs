@@ -274,7 +274,7 @@ public class ProjectMetadataWorkerContractTests
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.sln")))
+            if (File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.slnx")))
             {
                 return Path.Combine(new[] { directory.FullName }.Concat(segments).ToArray());
             }

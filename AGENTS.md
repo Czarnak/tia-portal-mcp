@@ -26,21 +26,21 @@ The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`
 ## Build and test
 
 ```powershell
-dotnet restore TiaMcpServer.sln
-dotnet build TiaMcpServer.sln -m:1          # -m:1 serializes builds — required to avoid parallel worker build conflicts
+dotnet restore TiaMcpServer.slnx
+dotnet build TiaMcpServer.slnx -m:1          # -m:1 serializes builds — required to avoid parallel worker build conflicts
 dotnet test TiaMcpServer.Tests
 ```
 
 CI/stub build (no TIA Portal needed):
 
 ```powershell
-dotnet build TiaMcpServer.sln -m:1 /p:UseTiaPortalReferenceStubs=true
+dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true
 ```
 
 Local dev (uses real TIA assemblies):
 
 ```powershell
-dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
+dotnet build TiaMcpServer.slnx -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
 ```
 
 ## Write safety model

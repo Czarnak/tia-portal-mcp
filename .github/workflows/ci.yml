@@ -23,10 +23,10 @@ jobs:
                   dotnet-version: "10.0.x"
 
             - name: Restore
-              run: dotnet restore TiaMcpServer.sln
+              run: dotnet restore TiaMcpServer.slnx
 
             - name: Build
-              run: dotnet build TiaMcpServer.sln -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
+              run: dotnet build TiaMcpServer.slnx -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
 
             - name: Run scoped coverage
               run: dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --configuration Release --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory TestResults -- xUnit.ParallelizeTestCollections=false

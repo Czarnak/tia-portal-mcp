@@ -12,8 +12,8 @@ For the safest local MCP test loop, use the official MCP Inspector against a dis
 3. Build the repo:
 
     ```powershell
-    dotnet restore TiaMcpServer.sln
-    dotnet build TiaMcpServer.sln -m:1
+    dotnet restore TiaMcpServer.slnx
+    dotnet build TiaMcpServer.slnx -m:1
     ```
 
 4. Launch MCP Inspector against the built server:
