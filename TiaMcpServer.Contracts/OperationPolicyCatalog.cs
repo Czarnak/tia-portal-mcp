@@ -149,6 +149,7 @@ public static class OperationPolicyCatalog
             // Internal lifecycle probes (not read-only safe; the status probe may open a project)
             ["probe_project_status_for_lifecycle"] = OperationCapability.ProjectLifecycle,
             ["probe_open_project_rebind"] = OperationCapability.ProjectLifecycle,
+            ["get_basic_project_status"] = OperationCapability.ProjectLifecycle,
         };
 
         return dict;

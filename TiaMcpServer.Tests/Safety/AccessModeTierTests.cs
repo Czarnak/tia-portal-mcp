@@ -60,6 +60,7 @@ public class AccessModeTierTests
     [InlineData("stop_plc", false)]
     [InlineData("probe_project_status_for_lifecycle", false)]
     [InlineData("probe_open_project_rebind", false)]
+    [InlineData("get_basic_project_status", false)]
     public void ReadWrite_CeilingProtectsPersistenceAndRuntime(string operation, bool allowed)
     {
         Assert.Equal(allowed, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, operation));
