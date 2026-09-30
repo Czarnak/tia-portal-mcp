@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol.Protocol;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 
@@ -21,7 +22,7 @@ namespace TiaMcpServer.Tools
             + "(expires after 10 minutes), review it, then call again with the same arguments plus confirm=true and the safetyToken.";
 
         [Description("Get status and metadata for the active TIA Portal project.")]
-        public static Task<string> GetProjectStatus(OpennessWorkerClient workerClient, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
+        public static Task<CallToolResult> GetProjectStatus(OpennessWorkerClient workerClient, [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
             => ProjectReadTools.GetProjectStatus(workerClient, projectPath);
 
         [Description("Open a TIA Portal project and bind this MCP session to it. Requires confirm=true and a safetyToken. " + SafetyFlowDescription)]

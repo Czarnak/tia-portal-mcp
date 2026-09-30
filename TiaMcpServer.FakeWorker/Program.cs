@@ -872,7 +872,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // Used to prove the direct get_project_status MCP tool routes through the
             // GetProjectStatusAsync operation only, never the internal lifecycle probe.
             Respond(ReadMethod(line) == "get_project_status"
-                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                ? Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = currentProjectPath }))
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
             break;
         case "status-no-project":
@@ -891,16 +891,14 @@ while ((line = Console.In.ReadLine()) is not null)
             // from the shared Contracts DTO so a contract change here is a compile error, never
             // a silently stale hand-written literal.
             Respond(ReadMethod(line) == "get_project_status"
-                ? Success(ToCamelCaseJson(StatusWithMetadataFixture()))
+                ? Success(DirectStatusPayload(StatusWithMetadataFixture()))
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
             break;
         case "status-oversized":
         {
-            // A get_project_status payload well over the standalone response budget (60000 chars),
-            // proving ProjectStandaloneToolTests that the direct status tool is capped by the
-            // shared StandaloneToolResultFormatter like every other standalone read.
-            var oversizedPayload = "{\"isOpen\":true,\"metadata\":{\"comment\":{\"text\":\""
-                + new string('x', 70_000) + "\"}}}";
+            var status = StatusWithMetadataFixture();
+            status.Metadata!.Comment!.Translations![0].Text = new string('x', 70_000);
+            var oversizedPayload = DirectStatusPayload(status);
             Respond(ReadMethod(line) == "get_project_status"
                 ? Success(oversizedPayload)
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
@@ -1712,6 +1710,11 @@ bool HasNonNullField(string requestLine, string propertyName)
 // Contracts DTO: the CLR type decides which members exist, and the shared policy decides whether
 // null members are written, so a fixture can never show the host a wire shape production does not.
 string ToCamelCaseJson<T>(T value) => WorkerJson.SerializePayload(value);
+
+string DirectStatusPayload(ProjectStatusInfo status) => ToCamelCaseJson(new ProjectStatusResultInfo
+{
+    Operation = "get_project_status", ProjectPath = status.Path, Project = status
+});
 
 // Hardware fixtures are serialized from the shared Contracts DTOs and carry the same deterministic
 // selectors the real worker now emits. Keeping this construction in one place means a future

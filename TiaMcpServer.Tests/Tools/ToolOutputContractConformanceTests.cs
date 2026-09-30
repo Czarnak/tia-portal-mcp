@@ -34,7 +34,6 @@ public sealed class ToolOutputContractConformanceTests
             ["execute_read_batch"] = BatchRedesign,
             ["preview_write_batch"] = BatchRedesign,
             ["apply_write_batch"] = BatchRedesign,
-            ["get_project_status"] = Phase2,
             ["compile_check"] = Phase2,
             ["open_project"] = Phase3,
             ["create_project"] = Phase3,
@@ -46,6 +45,10 @@ public sealed class ToolOutputContractConformanceTests
 
     private static readonly IReadOnlyDictionary<string, ToolProbe> StructuredToolProbes = new[]
     {
+        new ToolProbe("get_project_status", "succeeded", false, null,
+            new Dictionary<string, object?> { ["projectPath"] = "status-no-project" }),
+        new ToolProbe("get_project_status", "rejected", true, "network-roundtrip",
+            new Dictionary<string, object?> { ["projectPath"] = "different-project" }),
         new ToolProbe(
             "network_read",
             "rejected",

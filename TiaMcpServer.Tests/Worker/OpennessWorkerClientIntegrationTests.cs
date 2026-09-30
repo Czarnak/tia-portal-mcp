@@ -1068,7 +1068,7 @@ public class OpennessWorkerClientIntegrationTests
         // get_project_status - proving the user-facing tool never routes through the internal
         // lifecycle probe.
         var result = await ProjectLifecycleTools.GetProjectStatus(client, projectPath: "direct-status-only");
-        using var doc = System.Text.Json.JsonDocument.Parse(result);
+        using var doc = System.Text.Json.JsonDocument.Parse(((System.Text.Json.JsonElement)result.StructuredContent!).GetRawText());
 
         Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
     }
@@ -1079,11 +1079,10 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient();
 
         var result = await ProjectLifecycleTools.GetProjectStatus(client, projectPath: "status-no-project");
-        using var doc = System.Text.Json.JsonDocument.Parse(result);
+        using var doc = System.Text.Json.JsonDocument.Parse(((System.Text.Json.JsonElement)result.StructuredContent!).GetRawText());
 
         Assert.True(doc.RootElement.GetProperty("success").GetBoolean());
-        using var payloadDoc = System.Text.Json.JsonDocument.Parse(doc.RootElement.GetProperty("payload").GetString()!);
-        Assert.False(payloadDoc.RootElement.GetProperty("project").GetProperty("isOpen").GetBoolean());
+        Assert.False(doc.RootElement.GetProperty("result").GetProperty("value").GetProperty("isOpen").GetBoolean());
     }
 
     [Fact]

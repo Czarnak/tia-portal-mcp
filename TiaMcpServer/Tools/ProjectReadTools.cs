@@ -17,16 +17,18 @@ namespace TiaMcpServer.Tools;
 [McpServerToolType]
 public class ProjectReadTools
 {
-    [McpServerTool(Name = "get_project_status", ReadOnly = true, Destructive = false, OpenWorld = false)]
+    [McpServerTool(Name = "get_project_status", ReadOnly = true, Destructive = false, OpenWorld = false,
+        UseStructuredContent = true, OutputSchemaType = typeof(GetProjectStatusResponse))]
     [Description("Get status and metadata for the active TIA Portal project.")]
-    public static async Task<string> GetProjectStatus(
+    public static async Task<CallToolResult> GetProjectStatus(
         OpennessWorkerClient workerClient,
         [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
     {
         var result = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
-        return StandaloneToolResultFormatter.Format(
-            result,
-            "Extended metadata (history, comments, languages) was too large to return in full.");
+        var rejection = StandalonePayloadContract.Rejection(result);
+        return StructuredStandaloneResult.Create("get_project_status",
+            rejection is null ? StandalonePayloadContract.DecodeStatus(result) : null,
+            result.Warnings, rejection);
     }
 
     [McpServerTool(
