@@ -12,6 +12,8 @@
 
 **Status:** Implementation authorized 2026-09-30 and completed for Tasks 1–4 and Task 5's offline gates on branch `phase2-json-contract`, based on `ddeeae0`. The maintainer approved the plan and confirmed that `compile_check.success` means compilation passed. The [offline validation report](../acceptance/reports/2026-09-30-json-contract-phase2-offline-validation.md) records 4,513 passing tests, 93.94% coverage, and two independent reviews without findings. Live V21 acceptance requires separate authorization.
 
+**Live follow-up, 2026-10-01:** The maintainer authorized verification of the installed `b8e5508` build against the already-open Fixture A. Status, all-PLC/single-PLC/qualified-block compilation, attempted worker failure, and binding rejection responses passed their observed checks. The [live verification report](../acceptance/reports/2026-10-01-json-contract-phase2-live-verification.md) records the remaining compiler-error, no-project, and lifecycle cases; the complete producer gate below remains open.
+
 ## Global Constraints
 
 - Use the existing canonical seam; one final serialization supplies text and structured content.
