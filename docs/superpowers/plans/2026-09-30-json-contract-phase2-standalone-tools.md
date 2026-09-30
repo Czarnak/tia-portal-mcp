@@ -10,7 +10,7 @@
 
 **Spec:** [JSON contract roadmap](../../roadmap/json-contract.md), especially target contract and Phase 2; [write-safety design](../specs/2026-09-29-write-safety-redesign-design.md), for release sequencing and the Phase 3 boundary.
 
-**Status:** Implementation authorized 2026-09-30 and completed for Tasks 1–4 on branch `phase2-json-contract`, based on `ddeeae0`. The maintainer approved the plan and confirmed that `compile_check.success` means compilation passed. Task 5 offline qualification is in progress; live V21 acceptance requires separate authorization.
+**Status:** Implementation authorized 2026-09-30 and completed for Tasks 1–4 and Task 5's offline gates on branch `phase2-json-contract`, based on `ddeeae0`. The maintainer approved the plan and confirmed that `compile_check.success` means compilation passed. The [offline validation report](../acceptance/reports/2026-09-30-json-contract-phase2-offline-validation.md) records 4,513 passing tests, 93.94% coverage, and two independent reviews without findings. Live V21 acceptance requires separate authorization.
 
 ## Global Constraints
 
@@ -111,11 +111,11 @@ Compiler errors set outcome `status: failed` while retaining the report in `valu
 
 **Files:** Update `docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md`, `README.md`, `docs/ARCHITECTURE.md` section 7a, `docs/roadmap/json-contract.md`, and existing engineering/migration notes as appropriate. Index any new document in `docs/README.md`; keep README cross-document links absolute GitHub URLs.
 
-- [ ] Document the structured schemas, `success`/`isError` distinction, compiler-error example, omission guidance, and unchanged tool inputs. Correct the roadmap's status-root shorthand.
-- [ ] Run `dotnet restore TiaMcpServer.slnx`, then `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`, then `dotnet test TiaMcpServer.Tests --no-build`. Do not parallelize builds or test runs.
-- [ ] Run the repository's existing coverage check; require its 80% CI gate. Review the final diff and run `git diff --check`.
+- [x] Document the structured schemas, `success`/`isError` distinction, compiler-error example, omission guidance, and unchanged tool inputs. Correct the roadmap's status-root shorthand.
+- [x] Run `dotnet restore TiaMcpServer.slnx`, then `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`, then `dotnet test TiaMcpServer.Tests --no-build`. Do not parallelize builds or test runs.
+- [x] Run the repository's existing coverage check; require its 80% CI gate. Review the final diff and run `git diff --check`.
 - [ ] If worker producer code changes, qualify direct status/no-project, compile pass/errors, and legacy lifecycle wire compatibility against installed V21 on a separately authorized disposable fixture. Freeze the candidate first; offline gates do not constitute live acceptance. Inspect unknown outcomes instead of replaying them.
-- [ ] Record exact commands, counts, candidate identity, and evidence limits. Keep this draft's boxes unchecked until execution supplies evidence; add migration notes without tagging a package release.
+- [x] Record exact commands, counts, candidate identity, and evidence limits. Keep this draft's boxes unchecked until execution supplies evidence; add migration notes without tagging a package release.
 - [ ] After merge, revalidate and finalize the separate Phase 3 plan against fresh `main`. This plan itself does not authorize a commit, push, merge, or live run.
 
 ## Self-Review and Discussion Boundary

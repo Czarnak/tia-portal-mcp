@@ -801,6 +801,8 @@ identity rejection before dispatch. Compilation authorization precedes its bindi
 Focused offline verification passed 244 tests covering payload validation, boundaries,
 metadata, compiler producer behavior, compatibility and real SDK schemas/discovery/calls. The
 [implementation plan](superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md)
-tracks the final solution, coverage and independent-review gates. Live V21 producer compatibility
+tracks the final solution, coverage and independent-review gates. The [offline validation report](superpowers/acceptance/reports/2026-09-30-json-contract-phase2-offline-validation.md)
+records the passing Release stub build, 4,513 passing tests, 93.94% line coverage, and two
+independent reviews without findings. Live V21 producer compatibility
 requires separate authorization for a disposable fixture. No package version/tag or remote
 publication is part of this migration step; Phase 3 remains a separate successor.

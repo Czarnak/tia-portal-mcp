@@ -2,7 +2,9 @@
 
 Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normalization) and
 Phase 1b (required-member enforcement) are complete. Phase 2 is implemented with offline qualification;
-live V21 acceptance remains pending. Phases 3-4 are not started. On 2026-09-29 the
+live V21 acceptance remains pending. The [offline validation report](../superpowers/acceptance/reports/2026-09-30-json-contract-phase2-offline-validation.md)
+records 4,513 passing tests, 93.94% line coverage, and two independent reviews without findings.
+Phases 3-4 are not started. On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
 tokens) and added the token core to Phase 4. The three batch tools are excluded from this roadmap;
