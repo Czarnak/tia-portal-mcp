@@ -583,8 +583,16 @@ after the later public acceptance work.
 
 ## 8. Write safety
 
-Generic batch data writes use a two-tool flow; lifecycle and network writes are
-self-previewing:
+The preview→apply safety token is a server-side consistency check. It proves that an apply call
+carries exactly the input that was previewed, for the same tool and verified project binding,
+against unchanged project state. It does not prove that a person saw the preview or approved the
+write: an agent can read the token out of a preview response and apply it in the same turn, and
+MCP gives a server no way to require a human in between. Consent belongs to the client, which
+decides whether to prompt before a call. The
+[write-safety redesign](superpowers/specs/2026-09-29-write-safety-redesign-design.md) replaces the
+token flow with guarded single-call writes (`dryRun`, guards with an explicit `acknowledge`, and
+opt-in elicitation), delivered in phases. Until the phase covering a tool lands, this section
+describes that tool's current behavior.
 
 ### MCP tool annotations
 
@@ -594,7 +602,13 @@ tool; they neither authorize a request nor relax server behavior. In particular,
 `preview_write_batch` is marked as a non-destructive preview even though the follow-up
 `apply_write_batch` is destructive, and lifecycle writes carry conservative mutating hints even
 though their first call remains a preview. The access policy, safety-token validation, pinned
-binding lease, current-state re-read, and audit trail below remain the server-enforced authority.
+binding lease, current-state re-read, and audit trail below are what the server enforces; none of
+them records a human approval.
+
+### Preview→apply token flow
+
+Generic batch data writes use a two-tool flow; lifecycle and network writes are
+self-previewing:
 
 1. The preview call (`preview_write_batch`, or the same lifecycle/network tool with no
    token and `confirm:false`) reads current state, produces a human-readable description,
@@ -605,7 +619,8 @@ binding lease, current-state re-read, and audit trail below remain the server-en
    token may retain an unbound/configured revision, and a successful response must then
    establish a continuity-checked binding from worker ground truth.
 2. The apply call (`apply_write_batch`, or the same lifecycle/network tool) supplies
-   `confirm=true` and the token. The server reads current
+   `confirm=true` and the token. `confirm` is an argument the caller sets, not a user
+   confirmation. The server reads current
    state again and consumes the token only when every bound value still matches.
 
 For `update_block_logic` and `update_type_content`, `preview_write_batch` may include a
@@ -630,7 +645,7 @@ Changed input, changed project state, wrong tool, wrong project, expiry, or toke
 reuse causes rejection. Completed writes are appended to the audit log under
 `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
-Read-only mode is categorically stronger than this token flow: confirmation and
+Read-only mode is categorically stronger than this token flow: `confirm=true` and
 a valid token cannot override the access policy.
 
 The eight tag/table/user-constant writes bind typed, operation-specific safety snapshots instead
@@ -739,6 +754,96 @@ side-effect-free and allowed in read-only mode, but it is not an ordinary observ
 must carry the complete, exact worker/Portal/project session identity previously observed from the
 worker. This prevents an internal safety read from silently moving to a different same-path
 session while a preview is assembled.
+
+### Guarded write pipeline (write-safety redesign Phase 1)
+
+`TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaces the token flow.
+**No registered tool uses it yet**: `WriteExecution` and its tests exist, and each write domain moves
+onto it in a later phase. Until then the token flow above is the behavior of every write tool. The
+pipeline is a consistency and safety mechanism, not consent; nothing in it records a person's
+approval, and an `acknowledge` list is an argument the calling agent sets.
+
+`WriteExecution.RunAsync(domain, call)` owns the order and the safety rules. An
+`IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
+evaluation, the mutation, verification, and the response shape. Stages, in order:
+
+1. **Validate** before any worker call: at least one operation, non-blank unique `operationId`s,
+   the domain's own validation, and a well-formed `acknowledge` list. Failure is `phase: error`.
+2. **Bind.** The pipeline snapshots the binding, runs `RequireVerifiedWriteBindingAsync`, then pins
+   the resulting snapshot. An already verified binding must be unchanged by the gate; one the gate
+   verified must now be verified for the same project. Any mismatch, and any gate failure, is
+   `binding_conflict`.
+3. **Lease.** Everything that follows, including the audit append, runs in `RunUnderLeaseAsync`
+   under the pinned snapshot; a refused lease is `binding_conflict`.
+4. **Plan.** `PlanAsync` returns one `ItemPlan` (effect, optional `DependsOn`, checked
+   preconditions) per item, or fails the call (`target_not_found`, `target_ambiguous`, and so on).
+   A count mismatch is a programming error and throws.
+5. **Guards.** `EvaluateGuards` is pure; `GuardDecisions.Decide` applies the acknowledgement rule.
+   A `dryRun` stops here as `phase: preview` with no batch and never blocks.
+6. **Mutate** sequentially. The first item that does not succeed stops the call; later items are
+   `skipped`. A dependent item is re-planned just before its own mutation.
+7. **Verify, compose, audit.** `VerifyAsync`, then `Compose`, then one audit record; the tool result
+   carries the same canonical text that was audited. `isError` is true only for `error` and
+   `blocked`; a write that ran and failed reports `success: false` under `applied`.
+
+#### Guards and acknowledgement
+
+A domain fires guards from a closed `WriteGuardCatalog`; the severity comes from the catalog, never
+from the firing site. `info` guards become top-level `warnings` and never stop a call. `acknowledge`
+guards stop the call unless their id is in the request's `acknowledge` list; one id covers every
+firing of that guard. `block` guards always stop it. A stopped call is `phase: blocked` with
+category `guard_blocked`. A malformed list (blank, duplicate, unknown id, an `info` or `block` id)
+is `validation_error` before any worker call. After planning, an acknowledged id that did not fire
+is also `validation_error`, including when the call contains dependent items or is a dry run.
+Only ids fired during initial planning can be acknowledged. A dry run reports
+`acknowledged: true|false` per guard.
+
+#### Dependent items
+
+Every item is planned and every guard evaluated before the first mutation. An item planned with
+`DependsOn` is re-planned just before its own mutation, against state the earlier items changed.
+`DecideLate` judges only the guards that re-plan fires: any `block` guard, or an `acknowledge`
+guard not in the list, fails that item with `guard_blocked` and stops the call. Acknowledged ids
+that do not fire on a re-plan are ignored, since they passed the initial call-wide check and may
+belong to another item. An initially acknowledged id covers later firings of the same guard;
+a newly discovered acknowledge-severity id stops the dependent item.
+
+#### Partial writes
+
+There is no rollback. In a multi-item call, the failed item that was attempted carries the
+`partial_write_no_rollback` guard and warning (`WriteExecution.PartialWriteMessage`). An item that
+stopped the call before its own mutation (a failed re-plan or late guard) gets a separate "not
+mutated" warning that says only earlier items stay applied. A single-item call and a first-item
+failure before mutation add neither.
+
+#### Audit stream
+
+Every call, in every phase, appends exactly one record to `writes-yyyy-MM-dd.jsonl` (UTC date,
+UTF-8 without a BOM) beside the legacy audit files, which it never touches. The record has
+`recordKind: "write"` and `recordVersion: 1`, and holds the tool, contract version, access mode,
+project path, the pinned binding, the requested operations, the phase, the response text and its
+`sha256:` hash, every fired guard, and per item the target, checked preconditions, status, failure,
+warnings, and duration. An acknowledged guard records `satisfiedBy: "agent"` once the initial guard
+gate admits the call to live apply, including when a later stage throws. Dry runs and calls
+rejected before live apply record no satisfaction. Validation and binding rejections are audited
+outside the lease.
+
+An exception after the lease starts is audited as an `error` record and then rethrown unchanged.
+If live apply was interrupted, the record includes the collected batch outcomes, the failed
+current item, skipped remaining items, and the same partial-write warnings as an ordinary failure.
+Exceptions during verification or response composition preserve an already completed batch.
+The recorded error response comes from the pipeline's own report, without calling the domain
+again. A failed append is reported on stderr and never hides the write result.
+
+#### Content hash
+
+`execute_read_batch` returns an additive `contentHash` on each succeeded `get_block_content` and
+`get_type_content` read that returned one object: `xml:sha256:<hex>` or `source:sha256:<hex>` over the
+exact served text (`BatchContentHashes`, `ContentHashes.Compute`). It is omitted on
+`withDependencies` reads and whenever the result was truncated or omitted for size. A guarded write
+compares an expected hash with a fresh read through `ContentHashes.Check`: a malformed hash or a
+format that differs from the write's format is `validation_error`, content that no longer matches
+is `state_changed`, and the comparison is recorded as a `contentHash` precondition.
 
 ## 9. Diagnostics
 

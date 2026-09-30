@@ -40,8 +40,10 @@ public class ReadBatchTools
             operations,
             operation => BatchWorkerInvoker.InvokeAsync(workerClient, operation)).ConfigureAwait(false);
 
+        var hashed = BatchContentHashes.Attach(operations, results);
+
         var budgeted = OperationBatchPayloadBudget.Apply(
-            results,
+            hashed,
             toolName: "execute_read_batch",
             retryToolName: "execute_read_batch",
             narrowingHint: "Use plcName, filter, or maxResults; or split the batch.");

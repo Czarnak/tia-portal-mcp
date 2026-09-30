@@ -96,7 +96,7 @@ public static class OperationBatchPayloadBudget
 
         var trailer = TruncationTrailer(maxItemChars, narrowingHint);
         var retainedLength = Math.Max(0, maxItemChars - trailer.Length);
-        return item with { Result = text.Substring(0, retainedLength) + trailer };
+        return item with { Result = text.Substring(0, retainedLength) + trailer, ContentHash = null };
     }
 
     private static void PreserveFailureByOmittingPriorSuccessfulPayloads(
@@ -147,7 +147,7 @@ public static class OperationBatchPayloadBudget
     }
 
     private static OperationBatchResult TruncateFailureDetail(OperationBatchResult item, int maxItemChars)
-        => item with { Result = LimitMarker("[FAILED DETAIL TRUNCATED]", maxItemChars, string.Empty) };
+        => item with { Result = LimitMarker("[FAILED DETAIL TRUNCATED]", maxItemChars, string.Empty), ContentHash = null };
 
     private static void PreserveFailureByTruncatingPriorWarnings(
         List<OperationBatchResult> budgeted,
@@ -196,11 +196,12 @@ public static class OperationBatchPayloadBudget
                 maxItemChars,
                 "[OMITTED]"),
             Warnings = Array.Empty<string>(),
-            FailureCategory = null
+            FailureCategory = null,
+            ContentHash = null
         };
 
     private static OperationBatchResult CompactOmission(OperationBatchResult item, int maxItemChars)
-        => item with { Result = LimitMarker("[OMITTED]", maxItemChars, string.Empty) };
+        => item with { Result = LimitMarker("[OMITTED]", maxItemChars, string.Empty), ContentHash = null };
 
     private static bool FitsFinalReadResponse(
         IReadOnlyList<OperationBatchResult> budgeted,

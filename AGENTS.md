@@ -45,7 +45,14 @@ dotnet build TiaMcpServer.sln -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens\
 
 ## Write safety model
 
-Every write goes through preview-then-apply. This is non-negotiable.
+Every write tool registered today goes through preview-then-apply, and it keeps that flow until
+its phase of the [write-safety redesign](docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md)
+replaces it. The safety token is a **server-side consistency check**: it proves the apply carries
+exactly the previewed input, for the same tool and binding, against unchanged project state. It is
+**not user consent**. An agent can preview and apply in one turn, and no MCP server can require a
+human in between. Consent is the client's job (tool annotations and the client's permission
+prompt). Never describe the token flow as user approval in code comments, tool descriptions, or
+documentation.
 
 - **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
 - **Network writes**: call `network_write` with `confirm=false` and no token to preview, then call the same tool with `confirm=true`, the unchanged ordered operation list, and the returned token
@@ -54,6 +61,10 @@ Every write goes through preview-then-apply. This is non-negotiable.
 - Reordering, changing input, or project state changes invalidate the token
 - Apply-time state read, token consumption, mutation, verification, and audit run under one pinned project-binding lease; lifecycle rebinding uses the same lease
 - Successful writes append audit JSONL under `%LOCALAPPDATA%\TiaMcpServer\audit`
+- **No new token-bound write surfaces.** The redesign retires tokens in favor of one guarded
+  single-call pipeline (validate, verified binding, resolve targets, guards, `dryRun`, mutate,
+  verify, audit). Do not add a new snapshot reader, `SafetyRead` catalog entry, or token-bound
+  write tool; a new write domain builds on that pipeline once redesign Phase 1 has landed.
 
 ## Structured JSON contract rules (Network Phase 2 and beyond)
 
@@ -64,8 +75,9 @@ Every write goes through preview-then-apply. This is non-negotiable.
 rules are durable for any future tool that migrates onto it — not just Network:
 
 - **Reuse the shared gate.** A new structured tool builds on `StructuredToolResult` /
-  `StructuredOperationBatch` / `CanonicalWriteSafety`; do not hand-roll a parallel canonical-JSON
-  or safety-token mechanism for a new domain.
+  `StructuredOperationBatch`; do not hand-roll a parallel canonical-JSON mechanism for a new
+  domain. `CanonicalWriteSafety` is the token binding of `network_write` only and is retired by the
+  write-safety redesign; a new write tool does not adopt it (see "Write safety model").
 - **Text and structured documents are the same document.** A migrated tool's `content` text block
   and its `structuredContent` come from exactly one `CanonicalJson.Serialize` call. They must
   never be built from two independent renderings that could drift apart.
@@ -88,7 +100,7 @@ rules are durable for any future tool that migrates onto it — not just Network
   on this contract nor listed in its legacy register with a reason. When a tool migrates, remove it
   from that register and add a success probe and a rejection probe. The target envelope and
   migration order are in `docs/roadmap/json-contract.md`; the three batch tools are excluded from
-  it pending their own redesign.
+  it pending their split into domain read/write tools (write-safety redesign §4.9 and Phase 4).
 
 See `docs/ARCHITECTURE.md` §7a for the full seam description and the exact host-to-worker
 selector boundary, and `docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md` for the concrete

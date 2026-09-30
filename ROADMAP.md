@@ -13,4 +13,4 @@
 - **Strengthen controlled online and security operations** — maintain guarded PLC online workflows and add least-privilege user, role, function-right, and UMAC capabilities.
 - **Evaluate safety and automated testing extensions** — investigate Safety and TestSuite automation only where prerequisites, isolation, approval, and auditability can be established.
 
-All project-changing capabilities will retain explicit target validation, preview/approval safeguards, auditability, and proportionate automated plus live TIA Portal verification.
+All project-changing capabilities will retain explicit target validation, a preview of consequences, guards against known-dangerous changes, auditability, and proportionate automated plus live TIA Portal verification. Approving an individual write is the MCP client's decision; the server makes the consequence visible and, where the client supports it, asks the user directly (see the [write-safety redesign](docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md)).

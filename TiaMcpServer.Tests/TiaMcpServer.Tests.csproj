@@ -62,6 +62,8 @@
     <Compile Include="..\TiaMcpServer\Cli\*.cs" Link="Host\Cli\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Cli\Install\*.cs"
       Link="Host\Cli\Install\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Safety\Pipeline\*.cs"
+      Link="Host\Safety\Pipeline\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Safety\OperationAccessPolicy.cs"
       Link="Host\OperationAccessPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Worker\PersistentWorkerTransport.cs"
@@ -130,6 +132,8 @@
       Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"
       Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\Batch\BatchContentHashes.cs"
+      Link="Host\Batch\BatchContentHashes.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
       Link="Host\Batch\BatchWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagUpdateSafetyCurrentState.cs"

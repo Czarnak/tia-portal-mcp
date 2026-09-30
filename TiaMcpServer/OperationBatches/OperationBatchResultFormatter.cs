@@ -64,7 +64,8 @@ public static class OperationBatchResultFormatter
                 Result = result.Result,
                 Warnings = result.Warnings,
                 FailureCategory = result.FailureCategory,
-                BlockImportOutcome = result.BlockImportOutcome
+                BlockImportOutcome = result.BlockImportOutcome,
+                ContentHash = result.ContentHash
             })
             .ToArray();
 
@@ -79,5 +80,8 @@ public static class OperationBatchResultFormatter
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? ContentHash { get; init; }
     }
 }

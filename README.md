@@ -35,6 +35,8 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 
 `withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency closure. The resulting document declares several objects and is **context only** — a write refuses any source declaring more than one object, and the read carries a warning saying so. Omit the field to get a document you can edit and submit back.
 
+`get_block_content` and `get_type_content` reads also return a `contentHash` (`xml:sha256:<hex>` or `source:sha256:<hex>`) computed over the exact text served in `result`, tagged with the served format. It lets a later guarded write detect that the document changed since it was read. It is omitted for `withDependencies` reads, failed reads, and results truncated or omitted for size.
+
 ### Network operations
 
 `network_read` and `network_write` both declare an MCP output schema and return one canonical JSON document identically as the `content` text block and as `structuredContent` — never a nested JSON string inside an outer envelope. This is the Phase 2 JSON contract; see [docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md) for the exact envelopes.
@@ -63,7 +65,9 @@ Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and ba
 
 ## Write safety
 
-Every MCP write operation uses a preview-then-apply workflow. Generic batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Network and project lifecycle writes are self-previewing: call the same write tool WITHOUT `safetyToken` (with `confirm:false` for `network_write`) to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), review it, then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`.
+**The safety token is a consistency check, not user consent.** It guarantees that the server applies exactly the write it previewed: the same tool, the same ordered input, the same project binding, and unchanged project state. It does not show that a person saw the preview or approved the write. An agent can read the token out of a preview response and apply it in the same turn, and MCP gives a server no way to require a human in between. Approving a write is the MCP client's decision: `apply_write_batch`, `network_write`, and the six lifecycle tools are annotated `destructiveHint: true`, and if you want to approve every write yourself, keep those tools out of your client's auto-approve or allow list. The token flow is being replaced by guarded single-call writes, described in the [write-safety redesign](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md). Until that ships, the flow below is current behavior.
+
+Every MCP write operation uses a preview-then-apply workflow. Generic batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Network and project lifecycle writes are self-previewing: call the same write tool WITHOUT `safetyToken` (with `confirm:false` for `network_write`) to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`. `confirm` is an argument the caller sets; it is not a confirmation from the user.
 
 Safety tokens are single-use, expire 10 minutes after preview, and are bound to the exact tool name, target, requested input, current project state, and host binding revision. Project-scoped tokens also retain the complete verified project identity (worker id, TIA Portal PID, project generation, and canonical path). `open_project` and `create_project` may start from an unbound/configured revision, but they bind only to the successful worker response after lifecycle continuity checks. The server rejects missing, expired, reused, mismatched, stale-state, restarted-worker, or reopened-project tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 
@@ -75,7 +79,7 @@ invalidates the session until an explicit rebind.
 
 `preview_write_batch` issues one token for the whole batch, bound to the exact ordered operation list and the combined current state. Reordering items, changing any item's input, retargeting the project path, or a change in project state all invalidate the token. `apply_write_batch` re-reads the combined current state once before consuming the token, then applies items sequentially and stops on the first failure.
 
-Apply-time state validation, token consumption, mutation, post-verification, and audit capture run under one pinned project-binding lease. A concurrent rebind cannot redirect an authorized operation, and two tokens previewed from the same state cannot both write: after the first mutation, the second apply fails with `state_changed`.
+Apply-time state validation, token consumption, mutation, post-verification, and audit capture run under one pinned project-binding lease. A concurrent rebind cannot redirect a token-validated operation, and two tokens previewed from the same state cannot both write: after the first mutation, the second apply fails with `state_changed`.
 
 `network_write` snapshots topology once for preview and once for apply-time token validation. Its token is bound to the exact ordered network operation list and project state; successful apply attempts append an audit record.
 

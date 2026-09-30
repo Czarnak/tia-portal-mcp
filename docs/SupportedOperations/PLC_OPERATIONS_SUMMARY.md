@@ -13,6 +13,8 @@
 
 Tree browsing and compilation are standalone tools. `compile_check` is a read-write-mode engineering operation and does not use a safety token.
 
+`get_block_content` and `get_type_content` items also carry `contentHash`: `<format>:sha256:<lower-case hex>` over the exact served `result` text, where `<format>` is the served (normalized) format, `xml` or `source`. It is omitted when `withDependencies` is true, when the read failed, and when the result was truncated or omitted for size.
+
 ## Compiler diagnostics (`compile_check`)
 
 Compilation can change TIA Portal's in-memory project state. A returned report is not evidence of
