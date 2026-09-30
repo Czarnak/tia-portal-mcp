@@ -17,7 +17,7 @@ public static class InstallCommand
 
         Options:
           --name <name>          Server registration name (default: tia-portal).
-          --access-mode <mode>   Access mode: read-only, read-write (default: read-only).
+          --access-mode <mode>   Access mode: read-only, read-write, full (default: read-only).
           --tia-project <path>   Bind to a specific TIA Portal project.
           --server-path <path>   Explicit path to the tia-mcp executable.
           --dry-run              Print the install command without executing.

@@ -1,3 +1,5 @@
+using TiaMcpServer.Contracts;
+
 namespace TiaMcpServer.Cli.Install;
 
 public static class InstallCliParser
@@ -169,13 +171,12 @@ public static class InstallCliParser
             return Invalid("No MCP client specified. Usage: tia-mcp install <client>", json);
         }
 
-        // Validate access mode if provided
-        if (accessMode is not null &&
-            !string.Equals(accessMode, "read-only", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(accessMode, "read-write", StringComparison.OrdinalIgnoreCase))
+        if (!McpAccessModeNames.TryParse(accessMode ?? "read-only", out var parsedMode))
         {
-            return Invalid($"Invalid access mode '{accessMode}'. Valid values: 'read-only', 'read-write'.", json);
+            return Invalid($"Invalid access mode '{accessMode}'. Valid values: 'read-only', 'read-write', 'full'.", json);
         }
+
+        accessMode = McpAccessModeNames.ToName(parsedMode);
 
         // Validate MiMoCode + --json is not supported
         if (client == ClientKind.MiMoCode && json)
