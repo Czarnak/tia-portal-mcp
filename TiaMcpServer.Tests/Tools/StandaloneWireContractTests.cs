@@ -1,0 +1,40 @@
+using System.Text.Json;
+using TiaMcpServer.Contracts;
+using Xunit;
+
+namespace TiaMcpServer.Tests.Tools;
+
+public sealed class StandaloneWireContractTests
+{
+    [Fact]
+    public void CompileRoot_WritesExplicitNulls_BatchImportEnvelopeKeepsItsNullPolicy()
+    {
+        var report = new CompileCheckReport { Plcs = [new() { PlcName = "PLC_1", State = "Success" }] };
+        using var direct = JsonDocument.Parse(WorkerJson.SerializePayload(report));
+        Assert.Equal(JsonValueKind.Null, direct.RootElement.GetProperty("blockPath").ValueKind);
+        Assert.Equal(JsonValueKind.Null, direct.RootElement.GetProperty("plcs")[0].GetProperty("deviceName").ValueKind);
+
+        var envelope = new WorkerResponse
+        {
+            Success = true,
+            BlockImportOutcome = new BlockImportOutcomeInfo { CompileReport = report }
+        };
+        using var nested = JsonDocument.Parse(JsonSerializer.Serialize(envelope, WorkerJson.Envelope));
+        var nestedReport = nested.RootElement.GetProperty("blockImportOutcome").GetProperty("compileReport");
+        Assert.False(nestedReport.TryGetProperty("blockPath", out _));
+        Assert.False(nestedReport.GetProperty("plcs")[0].TryGetProperty("deviceName", out _));
+    }
+
+    [Theory]
+    [InlineData("open_project")]
+    [InlineData("create_project")]
+    [InlineData("save_project")]
+    [InlineData("save_project_as")]
+    [InlineData("archive_project")]
+    [InlineData("close_project")]
+    public void LifecyclePayloads_KeepLegacyWireBytes(string operation)
+    {
+        var payload = new ProjectLifecycleResultInfo { Operation = operation };
+        Assert.Equal("{\"success\":true,\"operation\":\"" + operation + "\"}", WorkerJson.SerializePayload(payload));
+    }
+}
