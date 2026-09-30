@@ -8,7 +8,7 @@ using TiaMcpServer.Worker;
 namespace TiaMcpServer.Batch;
 
 /// <summary>
-/// Write-only batch tools. Only exposed in read-write mode.
+/// Write-only batch tools. Exposed in read-write and full modes; PLC control requires full.
 /// </summary>
 [McpServerToolType]
 public class WriteBatchTools

@@ -603,7 +603,7 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void ReadWriteMode_HasExactlyFourteenDistinctTools()
+    public void FullSurface_HasExactlyFourteenDistinctTools()
     {
         var toolNames = typeof(ProjectLifecycleTools).Assembly
             .GetTypes()

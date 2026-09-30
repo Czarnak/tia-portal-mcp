@@ -14,7 +14,7 @@ public class WriteToolMcpAnnotationProtocolTests
         "network_read",
     };
 
-    private static readonly string[] ReadWriteToolNames =
+    private static readonly string[] FullToolNames =
     {
         "apply_write_batch",
         "archive_project",
@@ -45,13 +45,13 @@ public class WriteToolMcpAnnotationProtocolTests
     };
 
     [Fact]
-    public async Task ToolsList_ReadWriteProductionSurface_ExposesExactNamesCountsAnnotations_AndRepresentativeSchemas()
+    public async Task ToolsList_FullProductionSurface_ExposesExactNamesCountsAnnotations_AndRepresentativeSchemas()
     {
-        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full);
         var tools = (await harness.Client.ListToolsAsync()).OrderBy(tool => tool.Name).ToArray();
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
-        Assert.Equal(ReadWriteToolNames, tools.Select(tool => tool.Name));
+        Assert.Equal(FullToolNames, tools.Select(tool => tool.Name));
         Assert.Equal(14, tools.Length);
         Assert.All(
             tools,
@@ -84,7 +84,7 @@ public class WriteToolMcpAnnotationProtocolTests
         Assert.Equal(ReadOnlyToolNames, toolNames);
         Assert.Equal(4, tools.Length);
 
-        foreach (var writeToolName in ReadWriteToolNames.Except(ReadOnlyToolNames, StringComparer.Ordinal))
+        foreach (var writeToolName in FullToolNames.Except(ReadOnlyToolNames, StringComparer.Ordinal))
         {
             Assert.DoesNotContain(writeToolName, toolNames);
         }

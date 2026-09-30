@@ -93,20 +93,10 @@ namespace TiaMcpServer
                 sp.GetRequiredService<OpennessWorkerClient>(),
                 sp.GetRequiredService<HardwarePaginationCoordinator>()));
 
-            var mcp = builder.Services
+            builder.Services
                 .AddMcpServer()
                 .WithStdioServerTransport()
-                .WithProjectReadTools()
-                .WithTools<ReadBatchTools>()
-                .WithTools<NetworkReadTools>();
-
-            if (accessMode == McpAccessMode.ReadWrite)
-            {
-                mcp.WithTools<ProjectEngineeringTools>()
-                   .WithTools<ProjectWriteTools>()
-                   .WithTools<WriteBatchTools>()
-                   .WithTools<NetworkWriteTools>();
-            }
+                .WithAccessModeTools(accessMode);
 
             using var host = builder.Build();
             NetworkReadTools.RegisterExecutor(

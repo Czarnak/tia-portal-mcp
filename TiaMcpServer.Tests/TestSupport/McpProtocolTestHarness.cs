@@ -115,20 +115,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         string? startupProjectPath = null)
         => StartAsync(
             accessMode,
-            builder =>
-            {
-                builder.WithProjectReadTools()
-                       .WithTools<ReadBatchTools>()
-                       .WithTools<NetworkReadTools>();
-
-                if (accessMode == McpAccessMode.ReadWrite)
-                {
-                    builder.WithTools<ProjectEngineeringTools>()
-                           .WithTools<ProjectWriteTools>()
-                           .WithTools<WriteBatchTools>()
-                           .WithTools<NetworkWriteTools>();
-                }
-            },
+            builder => builder.WithAccessModeTools(accessMode),
             auditDirectory,
             startupProjectPath);
 
