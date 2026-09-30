@@ -50,7 +50,8 @@ acceptance reports produced while building features. It is historical process ma
 current documentation — see its index for what is there and how to read it.
 
 Latest process entries: the [write-safety redesign design (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md)
-and its [Phase 1 foundation plan](superpowers/plans/2026-09-29-write-safety-phase1-foundation.md),
+and its [Phase 1 foundation plan](superpowers/plans/2026-09-29-write-safety-phase1-foundation.md)
+and [Phase 1b access-mode discussion plan](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md),
 the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
 and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md),
 the [JSON contract Phase 1b required-member enforcement design](superpowers/specs/2026-09-28-json-contract-phase1b-required-members-design.md)
