@@ -320,8 +320,8 @@ sent to the worker.
 ## 7a. The opt-in canonical JSON seam and the Network Phase 2/3 structured contract
 
 `network_read` and `network_write` were the first tools to opt into a reusable canonical-JSON
-gate; `browse_project_tree` (project-tree v3, §3) uses it too. It is deliberately additive: every
-other tool keeps its existing text contract until it migrates. The
+gate; `browse_project_tree` (project-tree v3, §3), `get_project_status`, and `compile_check` use it too.
+Lifecycle and batch tools keep their existing text contracts until their migrations. The
 [JSON contract roadmap](roadmap/json-contract.md) records the target envelope, the migration order,
 and the batch tools' exclusion from it.
 
@@ -363,6 +363,16 @@ and passes a success probe and a rejection probe (one canonical document in both
 no JSON inside strings, the expected `isError`), or is listed in its legacy register with the
 reason it has not migrated.
 
+### Standalone status and compilation
+
+`StandalonePayloadContract` declares one strict worker root per operation: `ProjectStatusResultInfo` for direct `get_project_status` and `CompileCheckReport` for `compile_check`. The dedicated status root preserves the worker's `success`, `operation`, `projectPath`, and `project` fields while writing explicit nulls. Lifecycle and basic/probe status routes retain `ProjectLifecycleResultInfo` and its legacy null policy. Removing the compile root's legacy marker does not change its nested serialization inside the null-omitting `WorkerResponse.BlockImportOutcome` envelope.
+
+`GetProjectStatusResponse` and `CompileCheckResponse` use envelope version `1.0` with `tool`, `contractVersion`, `success`, `error`, `warnings`, and a typed `StandaloneToolOutcome<T>` result (`status`, `value`, `failure`, `omission`). Status projects the full `ProjectStatusInfo`; compilation retains diagnostics even when compilation fails. Known successful/warning states with no errors pass; unknown or unavailable states do not. Compiler totals are checked against PLC totals without equating bounded message lists with exhaustive diagnostics.
+
+`StructuredStandaloneResult` measures canonical values at 60,000 characters and the complete response at 180,000, using shared structured-budget constants and omission records. It omits whole values and warning entries, records retry guidance, and sends the final canonical text through `StructuredToolResult.CreateCanonical` for identical text/structured delivery. Strict decoding runs before any omission. Top-level `error` is present only on rejection and agrees exactly with MCP `isError`; attempted failures use `result.failure` or report diagnostics. Host-only `WorkerCallResult.IsPostOperationFailure` distinguishes a successful worker operation subsequently rejected by host identity validation from a pre-operation binding rejection.
+
+Compile authorization precedes the existing verified-binding gate and pinned lease; no compiler, input, session-transition, or lifecycle token behavior is replaced here. See the [project operations reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#standalone-status-and-compilation-contract) for the public migration contract.
+
 ### Typed Network payload registry
 
 `TiaMcpServer/Network/NetworkPayloadContract.cs` is the decoder of direct public Network worker
@@ -379,7 +389,7 @@ write explicit nulls.
 
 The other host decodes of worker payloads use the reader as well:
 `HardwarePagePayloadContract`, `ProjectTreeWorkerPayloadContract` and
-`ProjectRebindStatePayloadContract`. Four call sites deliberately stay on
+`ProjectRebindStatePayloadContract`, plus `StandalonePayloadContract`. Four call sites deliberately stay on
 `CanonicalJson.Deserialize`: the three batch safety snapshot decodes (`BatchWorkerInvoker`,
 `ProjectTreeSafetyPayloadContract`, `TagOperationSafetySnapshotContract`), whose roots still omit
 nulls until the batch redesign, and the authenticated cursor decode

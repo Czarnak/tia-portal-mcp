@@ -872,13 +872,38 @@ while ((line = Console.In.ReadLine()) is not null)
             // Used to prove the direct get_project_status MCP tool routes through the
             // GetProjectStatusAsync operation only, never the internal lifecycle probe.
             Respond(ReadMethod(line) == "get_project_status"
-                ? """{"success":true,"payload":"{\"isOpen\":true}"}"""
+                ? Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = currentProjectPath }))
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
+            break;
+        case "compile-passed":
+        case "compile-errors":
+        case "compile-warning":
+        case "compile-unknown":
+        case "compile-unavailable":
+        case "compile-attempt-failure":
+        case "compile-malformed":
+        case "compile-inconsistent":
+        case "compile-oversized":
+        case "compile-arguments":
+        case "compile-identity-drift":
+            hardwarePaginationIdentityDrift = scenario == "compile-identity-drift" && ReadMethod(line) == "compile_check";
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = currentProjectPath })),
+                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo())),
+                "compile_check" => StandaloneCompileResponse(scenario, line),
+                _ => $$"""{"success":false,"error":"unexpected standalone compile method '{{ReadMethod(line)}}'"}"""
+            });
+            hardwarePaginationIdentityDrift = false;
             break;
         case "status-no-project":
             // Simulates the real worker's GetStatusReadOnly when nothing is open and no path
             // was requested: isOpen:false, no resolvedProjectPath - nothing was opened.
-            Respond("""{"success":true,"payload":"{\"isOpen\":false}"}""");
+            Respond(Success(ToCamelCaseJson(new ProjectStatusResultInfo
+            {
+                Operation = "get_project_status",
+                Project = new ProjectStatusInfo { IsOpen = false }
+            })));
             break;
         case "status-with-metadata":
             // Simulates the real worker's GetStatusReadOnly WITH the extended metadata surface,
@@ -887,16 +912,17 @@ while ((line = Console.In.ReadLine()) is not null)
             // from the shared Contracts DTO so a contract change here is a compile error, never
             // a silently stale hand-written literal.
             Respond(ReadMethod(line) == "get_project_status"
-                ? Success(ToCamelCaseJson(StatusWithMetadataFixture()))
+                ? Success(DirectStatusPayload(StatusWithMetadataFixture()))
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
+            break;
+        case "status-malformed":
+            Respond(Success("{\"PRIVATE_STATUS_MARKER\":\"" + new string('x', 70000) + "\"}"));
             break;
         case "status-oversized":
         {
-            // A get_project_status payload well over the standalone response budget (60000 chars),
-            // proving ProjectStandaloneToolTests that the direct status tool is capped by the
-            // shared StandaloneToolResultFormatter like every other standalone read.
-            var oversizedPayload = "{\"isOpen\":true,\"metadata\":{\"comment\":{\"text\":\""
-                + new string('x', 70_000) + "\"}}}";
+            var status = StatusWithMetadataFixture();
+            status.Metadata!.Comment!.Translations![0].Text = new string('x', 70_000);
+            var oversizedPayload = DirectStatusPayload(status);
             Respond(ReadMethod(line) == "get_project_status"
                 ? Success(oversizedPayload)
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
@@ -1708,6 +1734,42 @@ bool HasNonNullField(string requestLine, string propertyName)
 // Contracts DTO: the CLR type decides which members exist, and the shared policy decides whether
 // null members are written, so a fixture can never show the host a wire shape production does not.
 string ToCamelCaseJson<T>(T value) => WorkerJson.SerializePayload(value);
+
+string DirectStatusPayload(ProjectStatusInfo status) => ToCamelCaseJson(new ProjectStatusResultInfo
+{
+    Operation = "get_project_status", ProjectPath = status.Path, Project = status
+});
+
+string StandaloneCompileResponse(string scenarioName, string requestLine)
+{
+    if (scenarioName == "compile-attempt-failure")
+        return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Compiler invocation failed." }, WorkerJson.Envelope);
+    if (scenarioName == "compile-malformed") return Success("{\"PRIVATE_COMPILER_MARKER\":true}");
+    var errors = scenarioName == "compile-errors" ? 1 : 0;
+    var warnings = scenarioName == "compile-warning" ? 1 : 0;
+    var state = scenarioName switch
+    {
+        "compile-errors" or "compile-unavailable" => "Error",
+        "compile-warning" => "Warning", "compile-unknown" => "Cancelled", _ => "Success"
+    };
+    var blockPath = ReadField(requestLine, "blockPath");
+    var report = new CompileCheckReport
+    {
+        Scope = blockPath is null ? "plc" : "block", BlockPath = blockPath,
+        TotalErrorCount = errors, TotalWarningCount = warnings,
+        OverallState = state == "Cancelled" && blockPath is null ? "Success" : state,
+        Plcs = [new PlcCompileInfo
+        {
+            PlcName = ReadField(requestLine, "plcName") ?? "PLC_1", State = state,
+            ErrorCount = errors, WarningCount = warnings,
+            Messages = errors + warnings == 0 ? [] : [new CompileMessageInfo { Description = "Compile diagnostic", Path = "Main", Severity = state }],
+            DiagnosticNotes = scenarioName == "compile-oversized" ? [new string('x', 70000)]
+                : scenarioName == "compile-unavailable" ? ["Compilation failed; compiler details are unavailable."] : []
+        }]
+    };
+    if (scenarioName == "compile-inconsistent") report.TotalErrorCount = 7;
+    return Success(ToCamelCaseJson(report));
+}
 
 // Hardware fixtures are serialized from the shared Contracts DTOs and carry the same deterministic
 // selectors the real worker now emits. Keeping this construction in one place means a future

@@ -102,7 +102,8 @@ public class ProjectLifecycleToolTests
         var registered = await ProjectReadTools.GetProjectStatus(client, "status-no-project");
         var wrapper = await ProjectLifecycleTools.GetProjectStatus(client, "status-no-project");
 
-        Assert.Equal(registered, wrapper);
+        Assert.Equal(StandaloneStatusToolTests.Document(registered).GetRawText(),
+            StandaloneStatusToolTests.Document(wrapper).GetRawText());
     }
 
     /// <summary>

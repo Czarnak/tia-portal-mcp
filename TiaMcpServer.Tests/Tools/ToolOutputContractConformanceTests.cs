@@ -23,8 +23,6 @@ public sealed class ToolOutputContractConformanceTests
     private const string BatchRedesign =
         "Excluded from the JSON contract roadmap: the batch tools are redesigned separately.";
 
-    private const string Phase2 = "Phase 2 of docs/roadmap/json-contract.md.";
-
     private const string Phase3 = "Phase 3 of docs/roadmap/json-contract.md.";
 
     /// <summary>Tools still on a legacy text contract, each with the reason it has not migrated.</summary>
@@ -34,8 +32,6 @@ public sealed class ToolOutputContractConformanceTests
             ["execute_read_batch"] = BatchRedesign,
             ["preview_write_batch"] = BatchRedesign,
             ["apply_write_batch"] = BatchRedesign,
-            ["get_project_status"] = Phase2,
-            ["compile_check"] = Phase2,
             ["open_project"] = Phase3,
             ["create_project"] = Phase3,
             ["save_project"] = Phase3,
@@ -46,6 +42,24 @@ public sealed class ToolOutputContractConformanceTests
 
     private static readonly IReadOnlyDictionary<string, ToolProbe> StructuredToolProbes = new[]
     {
+        new ToolProbe("compile_check", "succeeded", false, "compile-passed",
+            new Dictionary<string, object?>()),
+        new ToolProbe("compile_check", "rejected", true, null,
+            new Dictionary<string, object?>()),
+        new ToolProbe("compile_check", "compilerErrors", false, "compile-errors",
+            new Dictionary<string, object?>()),
+        new ToolProbe("compile_check", "malformed", false, "compile-malformed",
+            new Dictionary<string, object?>()),
+        new ToolProbe("compile_check", "omitted", false, "compile-oversized",
+            new Dictionary<string, object?>()),
+        new ToolProbe("get_project_status", "succeeded", false, null,
+            new Dictionary<string, object?> { ["projectPath"] = "status-no-project" }),
+        new ToolProbe("get_project_status", "rejected", true, "network-roundtrip",
+            new Dictionary<string, object?> { ["projectPath"] = "different-project" }),
+        new ToolProbe("get_project_status", "malformed", false, null,
+            new Dictionary<string, object?> { ["projectPath"] = "status-malformed" }),
+        new ToolProbe("get_project_status", "omitted", false, null,
+            new Dictionary<string, object?> { ["projectPath"] = "status-oversized" }),
         new ToolProbe(
             "network_read",
             "rejected",

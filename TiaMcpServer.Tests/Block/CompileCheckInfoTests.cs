@@ -114,14 +114,15 @@ public class CompileCheckInfoTests
     }
 
     [Fact]
-    public void LegacyJsonDoesNotInventADeviceIdentity()
+    public void LegacyJsonRetainsUnknownDeviceIdentityAsExplicitNull()
     {
         var plc = JsonSerializer.Deserialize<PlcCompileInfo>("{\"plcName\":\"Legacy_PLC\"}", JsonOptions)!;
 
         using var roundTripped = JsonDocument.Parse(JsonSerializer.Serialize(plc, JsonOptions));
 
         Assert.Equal("Legacy_PLC", plc.PlcName);
-        Assert.False(roundTripped.RootElement.TryGetProperty("deviceName", out _));
+        Assert.Null(plc.DeviceName);
+        Assert.Equal(JsonValueKind.Null, roundTripped.RootElement.GetProperty("deviceName").ValueKind);
     }
 
     private static CompileCheckReport RoundTrip(CompileCheckReport report)

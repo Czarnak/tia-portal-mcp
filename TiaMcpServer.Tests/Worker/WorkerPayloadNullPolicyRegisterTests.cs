@@ -34,7 +34,6 @@ public sealed class WorkerPayloadNullPolicyRegisterTests
             ["TagMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["BlockMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["PlcOnlineResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CompileCheckReport"] = LegacyNullOmissionReason.ToolMigration,
             ["ProjectLifecycleResultInfo"] = LegacyNullOmissionReason.ToolMigration,
         };
 

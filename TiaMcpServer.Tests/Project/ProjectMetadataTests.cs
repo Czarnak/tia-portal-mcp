@@ -23,12 +23,8 @@ public class ProjectMetadataTests
             logger: null,
             workerExecutablePath: workerPath);
 
-    private static JsonElement PayloadFromEnvelope(string response)
-    {
-        using var envelope = JsonDocument.Parse(response);
-        using var payload = JsonDocument.Parse(envelope.RootElement.GetProperty("payload").GetString()!);
-        return payload.RootElement.Clone();
-    }
+    private static JsonElement PayloadFromEnvelope(ModelContextProtocol.Protocol.CallToolResult response)
+        => StandaloneStatusToolTests.Document(response).GetProperty("result").GetProperty("value");
 
     [Fact]
     public void StatusWithoutMetadata_SerializesIdenticallyToPreMetadataPayload()
