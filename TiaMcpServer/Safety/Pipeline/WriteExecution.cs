@@ -48,13 +48,16 @@ public sealed class WriteExecution
     /// </summary>
     public Task<CallToolResult> RunAsync<TItem, TEffect, TVerification, TResponse>(
         IWriteDomain<TItem, TEffect, TVerification, TResponse> domain,
-        WriteCall<TItem> call)
+        WriteCall<TItem> call,
+        WriteConfirmationContext? confirmation = null,
+        IWriteBindingStrategy<TItem>? bindingStrategy = null,
+        CancellationToken cancellationToken = default)
         where TItem : IOperationBatchItem
     {
         ArgumentNullException.ThrowIfNull(domain);
         ArgumentNullException.ThrowIfNull(call);
         var run = new WriteRun<TItem, TEffect, TVerification, TResponse>(
-            domain, call, _gate, _audit, _catalog, _time);
+            domain, call, _gate, _audit, _catalog, _time, bindingStrategy);
         return run.ExecuteAsync();
     }
 }

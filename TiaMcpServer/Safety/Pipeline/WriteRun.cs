@@ -19,6 +19,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private readonly IWriteAuditSink _audit;
     private readonly WriteGuardCatalog _catalog;
     private readonly TimeProvider _time;
+    private readonly IWriteBindingStrategy<TItem>? _bindingStrategy;
     private readonly DateTimeOffset _startedAt;
     private readonly long _startTimestamp;
     private readonly List<WriteGuardReport> _guards = new();
@@ -39,7 +40,8 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         IWriteBindingGate gate,
         IWriteAuditSink audit,
         WriteGuardCatalog catalog,
-        TimeProvider time)
+        TimeProvider time,
+        IWriteBindingStrategy<TItem>? bindingStrategy = null)
     {
         _domain = domain;
         _call = call;
@@ -47,6 +49,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         _audit = audit;
         _catalog = catalog;
         _time = time;
+        _bindingStrategy = bindingStrategy;
         _startedAt = time.GetUtcNow();
         _startTimestamp = time.GetTimestamp();
         _binding = gate.CurrentBinding;
@@ -71,19 +74,34 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             return Finish(Failure(WritePhases.Error, rejection));
         }
 
-        var beforeGate = _gate.CurrentBinding;
-        var gate = await _gate.RequireVerifiedWriteBindingAsync(_call.ProjectPath).ConfigureAwait(false);
-        if (!gate.Success)
+        if (_bindingStrategy is not null)
         {
-            return Finish(Failure(WritePhases.Error, new WriteToolError(
-                WorkerFailureCategories.BindingConflict,
-                gate.Error ?? "The session holds no verified binding for this project.")));
-        }
+            var prepared = await _bindingStrategy.PrepareAsync(_call).ConfigureAwait(false);
+            if (!prepared.Success)
+            {
+                return Finish(Failure(WritePhases.Error, prepared.Error ?? new WriteToolError(
+                    WorkerFailureCategories.BindingConflict, "The lifecycle binding could not be prepared.")));
+            }
 
-        var pinFailure = PinBinding(beforeGate);
-        if (pinFailure is not null)
+            _binding = prepared.Binding ?? throw new InvalidOperationException(
+                "A successful write preparation must return the exact snapshot to pin.");
+        }
+        else
         {
-            return Finish(Failure(WritePhases.Error, pinFailure));
+            var beforeGate = _gate.CurrentBinding;
+            var gate = await _gate.RequireVerifiedWriteBindingAsync(_call.ProjectPath).ConfigureAwait(false);
+            if (!gate.Success)
+            {
+                return Finish(Failure(WritePhases.Error, new WriteToolError(
+                    WorkerFailureCategories.BindingConflict,
+                    gate.Error ?? "The session holds no verified binding for this project.")));
+            }
+
+            var pinFailure = PinBinding(beforeGate);
+            if (pinFailure is not null)
+            {
+                return Finish(Failure(WritePhases.Error, pinFailure));
+            }
         }
 
         var lease = await _gate.RunUnderLeaseAsync(_binding, RunLeasedAndFinishAsync).ConfigureAwait(false);
