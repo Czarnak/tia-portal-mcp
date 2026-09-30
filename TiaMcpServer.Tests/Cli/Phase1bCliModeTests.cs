@@ -6,6 +6,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Cli;
 
+[Collection("Process environment")]
 public class Phase1bCliModeTests
 {
     [Fact]

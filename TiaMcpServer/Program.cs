@@ -9,7 +9,6 @@ using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
-using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 
@@ -74,7 +73,7 @@ namespace TiaMcpServer
             builder.Services.AddSingleton(sp => new WriteSafetyService(
                 sp.GetRequiredService<ProjectSessionBinding>()));
             builder.Services.AddSingleton(accessPolicy);
-            builder.Services.AddSingleton(new UserConfirmationOptions(confirmationResult.ConfirmWithUser));
+            builder.Services.AddUserConfirmationOptions(confirmationResult);
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>(),

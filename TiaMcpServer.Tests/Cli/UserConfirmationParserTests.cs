@@ -21,11 +21,20 @@ public class UserConfirmationParserTests
         Assert.True(parsed.IsValid, parsed.Error);
         Assert.Equal(expected, parsed.ConfirmWithUser);
         var services = new ServiceCollection();
-        services.AddSingleton(new UserConfirmationOptions(parsed.ConfirmWithUser));
+        services.AddUserConfirmationOptions(parsed);
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<UserConfirmationOptions>();
         Assert.Equal(expected, options.ConfirmWithUser);
         Assert.Same(options, provider.GetRequiredService<UserConfirmationOptions>());
+    }
+
+    [Fact]
+    public void InvalidConfiguration_CannotBeRegistered()
+    {
+        var services = new ServiceCollection();
+        var invalid = UserConfirmationParser.Parse(new[] { "--confirm-with-user=unknown" });
+        Assert.Throws<ArgumentException>(() => services.AddUserConfirmationOptions(invalid));
+        Assert.Empty(services);
     }
 
     [Theory]
