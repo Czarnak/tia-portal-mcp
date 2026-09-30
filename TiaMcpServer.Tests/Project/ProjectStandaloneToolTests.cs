@@ -29,21 +29,6 @@ public class ProjectStandaloneToolTests
         Assert.True(binding.IsVerified);
     }
 
-    private static JsonElement WorkerRequestFromEnvelope(string response)
-    {
-        using var envelope = JsonDocument.Parse(response);
-        var payload = envelope.RootElement.GetProperty("payload").GetString();
-        Assert.False(string.IsNullOrWhiteSpace(payload));
-        using var request = JsonDocument.Parse(payload!);
-        return request.RootElement.Clone();
-    }
-
-    private static string PayloadFromEnvelope(string response)
-    {
-        using var envelope = JsonDocument.Parse(response);
-        return envelope.RootElement.GetProperty("payload").GetString()!;
-    }
-
     [Fact]
     public void BrowseProjectTree_HasReadOnlyMcpMetadata()
     {
@@ -79,7 +64,7 @@ public class ProjectStandaloneToolTests
     [Fact]
     public async Task CompileCheck_ForwardsEveryArgument()
     {
-        const string projectPath = "echo";
+        const string projectPath = "compile-arguments";
         var binding = new ProjectSessionBinding(projectPath);
         using var client = CreateClient(FakeWorkerLocator.Locate(), binding);
         await VerifyBindingAsync(client, binding, projectPath);
@@ -89,18 +74,18 @@ public class ProjectStandaloneToolTests
             projectPath,
             plcName: "PLC_1",
             blockPath: "PLC_1/Blocks/Main");
-        var request = WorkerRequestFromEnvelope(response);
-
-        Assert.Equal("compile_check", request.GetProperty("method").GetString());
-        Assert.Equal(binding.BoundProjectPath, request.GetProperty("projectPath").GetString());
-        Assert.Equal("PLC_1", request.GetProperty("plcName").GetString());
-        Assert.Equal("PLC_1/Blocks/Main", request.GetProperty("blockPath").GetString());
+        var root = StandaloneStatusToolTests.Document(response);
+        Assert.True(root.GetProperty("success").GetBoolean());
+        var report = root.GetProperty("result").GetProperty("value");
+        Assert.Equal("block", report.GetProperty("scope").GetString());
+        Assert.Equal("PLC_1", report.GetProperty("plcs")[0].GetProperty("plcName").GetString());
+        Assert.Equal("PLC_1/Blocks/Main", report.GetProperty("blockPath").GetString());
     }
 
     [Fact]
-    public async Task CompileCheck_OversizedSuccess_IsCappedAtMaxItemChars()
+    public async Task CompileCheck_OversizedBlockPath_IsWholeValueOmission()
     {
-        const string projectPath = "echo";
+        const string projectPath = "compile-arguments";
         var binding = new ProjectSessionBinding(projectPath);
         using var client = CreateClient(FakeWorkerLocator.Locate(), binding);
         await VerifyBindingAsync(client, binding, projectPath);
@@ -109,11 +94,11 @@ public class ProjectStandaloneToolTests
             client,
             projectPath,
             blockPath: new string('x', OperationBatchPayloadBudget.MaxItemChars + 100));
-        var payload = PayloadFromEnvelope(response);
-
-        Assert.Equal(OperationBatchPayloadBudget.MaxItemChars, payload.Length);
-        Assert.Contains("[TRUNCATED", payload);
-        Assert.Contains("plcName or blockPath", payload);
+        var root = StandaloneStatusToolTests.Document(response);
+        var outcome = root.GetProperty("result");
+        Assert.Equal("omitted", outcome.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, outcome.GetProperty("value").ValueKind);
+        Assert.Contains("plcName or blockPath", outcome.GetProperty("omission").GetProperty("guidance").GetString());
     }
 
 }

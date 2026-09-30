@@ -875,6 +875,24 @@ while ((line = Console.In.ReadLine()) is not null)
                 ? Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = currentProjectPath }))
                 : $$"""{"success":false,"error":"expected get_project_status, got '{{ReadMethod(line)}}'"}""");
             break;
+        case "compile-passed":
+        case "compile-errors":
+        case "compile-warning":
+        case "compile-unknown":
+        case "compile-unavailable":
+        case "compile-attempt-failure":
+        case "compile-malformed":
+        case "compile-inconsistent":
+        case "compile-oversized":
+        case "compile-arguments":
+            Respond(ReadMethod(line) switch
+            {
+                "get_project_status" => Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = currentProjectPath })),
+                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo())),
+                "compile_check" => StandaloneCompileResponse(scenario, line),
+                _ => $$"""{"success":false,"error":"unexpected standalone compile method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "status-no-project":
             // Simulates the real worker's GetStatusReadOnly when nothing is open and no path
             // was requested: isOpen:false, no resolvedProjectPath - nothing was opened.
@@ -1715,6 +1733,37 @@ string DirectStatusPayload(ProjectStatusInfo status) => ToCamelCaseJson(new Proj
 {
     Operation = "get_project_status", ProjectPath = status.Path, Project = status
 });
+
+string StandaloneCompileResponse(string scenarioName, string requestLine)
+{
+    if (scenarioName == "compile-attempt-failure")
+        return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Compiler invocation failed." }, WorkerJson.Envelope);
+    if (scenarioName == "compile-malformed") return Success("{\"PRIVATE_COMPILER_MARKER\":true}");
+    var errors = scenarioName == "compile-errors" ? 1 : 0;
+    var warnings = scenarioName == "compile-warning" ? 1 : 0;
+    var state = scenarioName switch
+    {
+        "compile-errors" or "compile-unavailable" => "Error",
+        "compile-warning" => "Warning", "compile-unknown" => "Cancelled", _ => "Success"
+    };
+    var blockPath = ReadField(requestLine, "blockPath");
+    var report = new CompileCheckReport
+    {
+        Scope = blockPath is null ? "plc" : "block", BlockPath = blockPath,
+        TotalErrorCount = errors, TotalWarningCount = warnings,
+        OverallState = state == "Cancelled" && blockPath is null ? "Success" : state,
+        Plcs = [new PlcCompileInfo
+        {
+            PlcName = ReadField(requestLine, "plcName") ?? "PLC_1", State = state,
+            ErrorCount = errors, WarningCount = warnings,
+            Messages = errors + warnings == 0 ? [] : [new CompileMessageInfo { Description = "Compile diagnostic", Path = "Main", Severity = state }],
+            DiagnosticNotes = scenarioName == "compile-oversized" ? [new string('x', 70000)]
+                : scenarioName == "compile-unavailable" ? ["Compilation failed; compiler details are unavailable."] : []
+        }]
+    };
+    if (scenarioName == "compile-inconsistent") report.TotalErrorCount = 7;
+    return Success(ToCamelCaseJson(report));
+}
 
 // Hardware fixtures are serialized from the shared Contracts DTOs and carry the same deterministic
 // selectors the real worker now emits. Keeping this construction in one place means a future
