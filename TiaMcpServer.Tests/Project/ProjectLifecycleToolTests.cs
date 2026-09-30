@@ -69,17 +69,19 @@ public class ProjectLifecycleToolTests
     public async Task SaveProjectAs_WrapperMatchesRegisteredRebindFalseValidation()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         var registered = await ProjectWriteTools.SaveProjectAs(
-            workerClient: null!,
+            workerClient: client,
             safety,
             targetDirectory: @"C:\Target",
             targetName: "Copy",
             projectPath: null,
             rebind: false);
         var wrapper = await ProjectLifecycleTools.SaveProjectAs(
-            workerClient: null!,
+            workerClient: client,
             safety,
             targetDirectory: @"C:\Target",
             targetName: "Copy",

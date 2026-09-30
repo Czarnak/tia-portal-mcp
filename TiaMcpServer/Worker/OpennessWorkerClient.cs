@@ -48,7 +48,7 @@ public class OpennessWorkerClient : IDisposable
     private readonly ILogger<OpennessWorkerClient>? _logger;
     private readonly string? _workerExecutablePathOverride;
     private readonly TimeSpan _requestTimeout;
-    private readonly Safety.OperationAccessPolicy? _accessPolicy;
+    private readonly Safety.OperationAccessPolicy _accessPolicy;
     private readonly object _transportLock = new();
     private readonly SemaphoreSlim _bindingOperationGate = new(1, 1);
     private readonly AsyncLocal<BindingOperationContext?> _bindingOperationContext = new();
@@ -65,12 +65,12 @@ public class OpennessWorkerClient : IDisposable
         _logger = logger;
         _workerExecutablePathOverride = workerExecutablePath;
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
-        _accessPolicy = accessPolicy;
+        _accessPolicy = accessPolicy ?? new Safety.OperationAccessPolicy(McpAccessMode.ReadWrite);
     }
 
-    /// <summary>The current access mode policy, if set. Used by batch tools to validate
+    /// <summary>The current access mode policy. Used by batch tools to validate
     /// operations before worker invocation.</summary>
-    public Safety.OperationAccessPolicy? AccessPolicy => _accessPolicy;
+    public Safety.OperationAccessPolicy AccessPolicy => _accessPolicy;
 
     /// <summary>Current immutable host binding snapshot, used by safety-token issuance.</summary>
     public ProjectBindingSnapshot BindingSnapshot => _projectSessionBinding.CaptureSnapshot();
@@ -1715,6 +1715,9 @@ public class OpennessWorkerClient : IDisposable
         string emptyPayload,
         BindingTransition transition)
     {
+        var denial = _accessPolicy.Authorize(method);
+        if (denial is not null) return denial with { DispatchState = WorkerDispatchState.NotSent };
+
         var pinnedBinding = _bindingOperationContext.Value?.PinnedBinding;
 
         // A configured --project is an assertion until the worker proves the live PID/path/session.
@@ -2233,9 +2236,7 @@ public class OpennessWorkerClient : IDisposable
     {
         lock (_transportLock)
         {
-            var workerArgs = _accessPolicy is not null
-                ? $"--access-mode {(_accessPolicy.Mode == Contracts.McpAccessMode.ReadOnly ? "read-only" : "read-write")}"
-                : null;
+            var workerArgs = $"--access-mode {McpAccessModeNames.ToName(_accessPolicy.Mode)}";
             _transport ??= new PersistentWorkerTransport(
                 _workerExecutablePathOverride ?? LocateWorkerExecutable(),
                 _requestTimeout,

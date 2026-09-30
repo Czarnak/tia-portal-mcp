@@ -75,10 +75,11 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
     /// </summary>
     public static Task<McpProtocolTestHarness> StartAsync<TTools>(
         string? auditDirectory = null,
-        string? startupProjectPath = null)
+        string? startupProjectPath = null,
+        McpAccessMode accessMode = McpAccessMode.ReadWrite)
         where TTools : class
         => StartAsync(
-            McpAccessMode.ReadWrite,
+            accessMode,
             builder => RegisterToolType<TTools>(builder),
             auditDirectory,
             startupProjectPath);
@@ -91,11 +92,12 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
     /// </summary>
     public static Task<McpProtocolTestHarness> StartAsync<TTools1, TTools2>(
         string? auditDirectory = null,
-        string? startupProjectPath = null)
+        string? startupProjectPath = null,
+        McpAccessMode accessMode = McpAccessMode.ReadWrite)
         where TTools1 : class
         where TTools2 : class
         => StartAsync(
-            McpAccessMode.ReadWrite,
+            accessMode,
             builder => RegisterToolType<TTools2>(RegisterToolType<TTools1>(builder)),
             auditDirectory,
             startupProjectPath);

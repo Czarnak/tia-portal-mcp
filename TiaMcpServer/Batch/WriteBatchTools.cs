@@ -46,6 +46,10 @@ public class WriteBatchTools
                 "Write batch operations are not permitted in read-only mode.");
         }
 
+        var accessErrors = BatchOperationCatalog.ValidateAccessMode(operations, mode);
+        if (accessErrors.Count > 0)
+            return OperationBatchResultFormatter.Error(PreviewToolName, string.Join(" ", accessErrors), WorkerFailureCategories.AccessDenied);
+
         var projectPath = BatchSafetySnapshot.ResolveProjectPath(operations);
         var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
         if (!bindingGate.Success)
@@ -117,6 +121,10 @@ public class WriteBatchTools
             return OperationBatchResultFormatter.Error(ApplyToolName,
                 "Write batch operations are not permitted in read-only mode.");
         }
+
+        var accessErrors = BatchOperationCatalog.ValidateAccessMode(operations, mode);
+        if (accessErrors.Count > 0)
+            return OperationBatchResultFormatter.Error(ApplyToolName, string.Join(" ", accessErrors), WorkerFailureCategories.AccessDenied);
 
         if (string.IsNullOrWhiteSpace(safetyToken))
         {

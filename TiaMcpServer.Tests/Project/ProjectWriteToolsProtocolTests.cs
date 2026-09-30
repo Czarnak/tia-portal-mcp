@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Batch;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Safety;
@@ -12,7 +13,7 @@ public sealed class ProjectWriteToolsProtocolTests
     [Fact]
     public async Task RegisteredWriteTools_ToolsList_AdvertisesExactlyEightWriteTools()
     {
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools, WriteBatchTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools, WriteBatchTools>(accessMode: McpAccessMode.Full);
 
         var names = (await harness.Client.ListToolsAsync())
             .Select(tool => tool.Name)
@@ -37,7 +38,7 @@ public sealed class ProjectWriteToolsProtocolTests
     [Fact]
     public async Task OpenProject_ProtocolPreview_ReturnsSafetyTokenThroughRegisteredTool()
     {
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools>(accessMode: McpAccessMode.Full);
         const string destination = @"C:\open\Line.ap21";
 
         var result = await harness.Client.CallToolAsync(

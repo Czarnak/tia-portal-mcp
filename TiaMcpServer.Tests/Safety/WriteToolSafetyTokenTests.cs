@@ -56,10 +56,12 @@ public class WriteToolSafetyTokenTests
     public async Task WriteToolWithoutToken_ReturnsPreviewWithTokenAndInstructions()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         var result = await ProjectWriteTools.OpenProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectPath: "C:\\Projects\\Line.ap21");
 
@@ -99,12 +101,14 @@ public class WriteToolSafetyTokenTests
     public async Task WriteToolWithTokenButNoConfirm_RejectsBeforeAnyWork()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         // confirm=false is caller input error: it must render as a categorized validation_error
         // envelope (never a raw string), so a small model reads success/category, not prose.
         var result = await ProjectWriteTools.CloseProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             confirm: false,
             safetyToken: "some-token");
@@ -122,12 +126,14 @@ public class WriteToolSafetyTokenTests
     public async Task WriteToolWithBadToken_PointsBackAtTheTokenlessCall()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         // An unknown token is a validation_error: it must render as a categorized envelope whose
         // error still points back at the tokenless preview call.
         var result = await ProjectWriteTools.OpenProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectPath: "C:\\Projects\\Line.ap21",
             confirm: true,
@@ -146,16 +152,18 @@ public class WriteToolSafetyTokenTests
     public async Task WriteToolWithChangedProjectPath_RendersBindingConflictEnvelope()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         // Token issued for project A; applying against project B is a project-path mismatch. That
-        // is binding_conflict (reason 5), rejected before any worker call (workerClient null!).
+        // is binding_conflict (reason 5), rejected before any worker call (absent worker executable).
         var preview = await ProjectWriteTools.OpenProject(
-            workerClient: null!, safety, projectPath: "C:\\Projects\\A.ap21");
+            workerClient: client, safety, projectPath: "C:\\Projects\\A.ap21");
         var token = ReadToken(preview);
 
         var applied = await ProjectWriteTools.OpenProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectPath: "C:\\Projects\\B.ap21",
             confirm: true,
@@ -171,16 +179,18 @@ public class WriteToolSafetyTokenTests
     public async Task WriteToolWithChangedInput_RendersValidationErrorEnvelope()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         // Same project path and target, but a changed non-path input field (forceRebind flips
         // false -> true) is a reordered/changed-input mismatch (reason 7): validation_error.
         var preview = await ProjectWriteTools.OpenProject(
-            workerClient: null!, safety, projectPath: "C:\\Projects\\A.ap21");
+            workerClient: client, safety, projectPath: "C:\\Projects\\A.ap21");
         var token = ReadToken(preview);
 
         var applied = await ProjectWriteTools.OpenProject(
-            workerClient: null!,
+            workerClient: client,
             safety,
             projectPath: "C:\\Projects\\A.ap21",
             confirm: true,
@@ -202,7 +212,7 @@ public class WriteToolSafetyTokenTests
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         // "C:\\open\\Line.ap21" reports itself back as the resolved path, so the first apply
         // succeeds and consumes the token. Replaying the SAME token is a consumed-token mismatch
@@ -229,7 +239,9 @@ public class WriteToolSafetyTokenTests
     public async Task WriteToolWithChangedCurrentState_RendersStateChangedEnvelope()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         // open_project's current-state read is DescribePathState(projectPath): a filesystem snapshot.
         // Preview while the path is absent, then create it before apply -> the current state hash no
@@ -238,12 +250,12 @@ public class WriteToolSafetyTokenTests
         try
         {
             var token = ReadToken(await ProjectWriteTools.OpenProject(
-                workerClient: null!, safety, projectPath: projectPath));
+                workerClient: client, safety, projectPath: projectPath));
 
             await File.WriteAllTextAsync(projectPath, "the project now exists on disk");
 
             var applied = await ProjectWriteTools.OpenProject(
-                workerClient: null!, safety, projectPath: projectPath, confirm: true, safetyToken: token);
+                workerClient: client, safety, projectPath: projectPath, confirm: true, safetyToken: token);
 
             using var doc = JsonDocument.Parse(applied);
             var root = doc.RootElement;
@@ -286,7 +298,9 @@ public class WriteToolSafetyTokenTests
     public void ValidateAndConsume_MissingToken_IsValidationError()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         var result = safety.ValidateAndConsume(null, "open_project", ProjectA, TargetA, InputA, StateA);
 
@@ -298,7 +312,9 @@ public class WriteToolSafetyTokenTests
     public void ValidateAndConsume_UnknownToken_IsValidationError()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         var result = safety.ValidateAndConsume("bogus-token", "open_project", ProjectA, TargetA, InputA, StateA);
 
@@ -325,7 +341,9 @@ public class WriteToolSafetyTokenTests
     public void ValidateAndConsume_DifferentTool_IsValidationError()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var token = IssueOpenProjectToken(safety);
 
         var result = safety.ValidateAndConsume(token, "save_project", ProjectA, TargetA, InputA, StateA);
@@ -338,7 +356,9 @@ public class WriteToolSafetyTokenTests
     public void ValidateAndConsume_DifferentProjectPath_IsBindingConflict()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var token = IssueOpenProjectToken(safety);
 
         // Only the projectPath argument differs; the project-path mismatch (reason 5) fires before
@@ -353,7 +373,9 @@ public class WriteToolSafetyTokenTests
     public void ValidateAndConsume_DifferentTarget_IsValidationError()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var token = IssueOpenProjectToken(safety);
 
         // projectPath matches (reason 5 passes) but the target JSON differs (reason 6).
@@ -368,7 +390,9 @@ public class WriteToolSafetyTokenTests
     public void ValidateAndConsume_ChangedInput_IsValidationError()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var token = IssueOpenProjectToken(safety);
 
         // projectPath and target match; only the requested input differs (reason 7).
@@ -383,7 +407,9 @@ public class WriteToolSafetyTokenTests
     public void ValidateAndConsume_ChangedCurrentState_IsStateChanged()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var token = IssueOpenProjectToken(safety);
 
         // Everything matches except the current project state (reason 8) -> state_changed.
@@ -397,7 +423,9 @@ public class WriteToolSafetyTokenTests
     public async Task ValidateForApplyAsync_MissingToken_IsValidationError()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
 
         var context = await WriteSafetyTooling.ValidateForApplyAsync(
             safety, safetyToken: null, "open_project (without safetyToken)", "open_project",
@@ -412,7 +440,9 @@ public class WriteToolSafetyTokenTests
     public async Task ValidateForApplyAsync_CurrentStateReadFailure_CarriesTheReadFailureCategory()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        var safety = audit.CreateSafety(projectSessionBinding: binding);
         var token = IssueOpenProjectToken(safety);
 
         // The pre-write current-state read itself fails with an uncertain-outcome category; the

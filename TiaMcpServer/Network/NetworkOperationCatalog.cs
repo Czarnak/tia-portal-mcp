@@ -155,7 +155,7 @@ public static class NetworkOperationCatalog
             if (!OperationPolicyCatalog.IsAllowed(mode, operation.Operation))
             {
                 errors.Add(
-                    $"Operation '{operation.Operation}' (operationId '{operation.OperationId}') is not permitted in read-only mode.");
+                    $"Operation '{operation.Operation}' (operationId '{operation.OperationId}') is not permitted in {McpAccessModeNames.ToName(mode)} mode.");
             }
         }
 

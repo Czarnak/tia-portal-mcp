@@ -21,7 +21,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         const string source = "lifecycle-probe-only";
         const string targetDirectory = @"C:\Lifecycle\Copies";
         const string targetName = "Copy";
@@ -73,7 +73,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, destination, forceRebind: true);
@@ -101,7 +101,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         const string source = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
@@ -151,7 +151,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
         var before = binding.CaptureSnapshot();
 
@@ -172,7 +172,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var archiveDirectory = Path.Combine(Path.GetTempPath(), $"tia-archive-missing-{Guid.NewGuid():N}");
@@ -195,7 +195,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
@@ -232,7 +232,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
@@ -295,7 +295,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
         var bindingBefore = binding.CaptureSnapshot();
         var expectedIdentity = Assert.IsType<WorkerSessionIdentity>(bindingBefore.ToWorkerIdentity());
@@ -333,7 +333,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, sourcePath);
 
         var result = await client.ProbeOpenProjectRebindAsync(sourcePath, DestinationPath);
@@ -350,7 +350,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, sourcePath);
 
         var result = await client.ProbeOpenProjectRebindAsync(sourcePath, DestinationPath);
@@ -363,7 +363,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
     [Fact]
     public async Task RebindProbe_IsAbsentFromEightRegisteredWriteTools()
     {
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools, WriteBatchTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools, WriteBatchTools>(accessMode: McpAccessMode.Full);
 
         var toolNames = (await harness.Client.ListToolsAsync())
             .Select(tool => tool.Name)
@@ -379,7 +379,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
 
         var preview = await ProjectWriteTools.OpenProject(
@@ -399,7 +399,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
         // Existing FakeWorker open fixture succeeds, so the RED test proves the old B-only
         // state hash reaches worker Open instead of merely hitting an unknown-scenario error.
@@ -438,7 +438,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
         const string destination = @"C:\Lifecycle\B-ui-owned.ap21";
 
@@ -459,7 +459,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, SourcePath);
@@ -484,7 +484,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: true);
@@ -503,7 +503,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding("worker-error-with-category");
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: true);
         using var document = JsonDocument.Parse(preview);
@@ -521,7 +521,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         const string destination = @"C:\open\Line.ap21";
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, destination);
@@ -543,7 +543,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, "worker-error-with-category");
         using var previewDocument = JsonDocument.Parse(preview);
@@ -565,7 +565,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
         binding.Invalidate("Simulated stale binding");
         var invalidated = binding.CaptureSnapshot();
@@ -593,7 +593,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
         binding.Invalidate("Simulated stale binding");
 
@@ -622,7 +622,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         binding.Invalidate("Simulated stale binding");
         var before = binding.CaptureSnapshot();
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, "   ", forceRebind: forceRebind);
         using var document = JsonDocument.Parse(preview);
@@ -642,7 +642,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var binding = new ProjectSessionBinding("worker-error-with-category");
         var before = binding.CaptureSnapshot();
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, "   ", forceRebind: true);
         using var document = JsonDocument.Parse(preview);
@@ -662,7 +662,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var binding = new ProjectSessionBinding("worker-error-with-category");
         var before = binding.CaptureSnapshot();
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: false);
         using var document = JsonDocument.Parse(preview);
@@ -683,7 +683,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         binding.Invalidate("Simulated stale binding");
         var invalidated = binding.CaptureSnapshot();
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(
             client, safety, DestinationPath, forceRebind: true);
@@ -708,7 +708,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var invalidated = binding.CaptureSnapshot();
         var safety = audit.CreateSafety(projectSessionBinding: binding);
         var absentExecutable = Path.Combine(Path.GetTempPath(), $"tia-absent-{Guid.NewGuid():N}.exe");
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: absentExecutable);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: absentExecutable, accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var preview = await ProjectWriteTools.OpenProject(
             client, safety, DestinationPath, forceRebind: true);
@@ -727,7 +727,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
         binding.Invalidate("Simulated stale binding");
         var invalidated = binding.CaptureSnapshot();
@@ -749,7 +749,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
         var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
 
         var oldPreview = await ProjectWriteTools.OpenProject(

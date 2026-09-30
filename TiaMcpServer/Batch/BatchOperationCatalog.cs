@@ -66,11 +66,6 @@ public static class BatchOperationCatalog
         IReadOnlyList<BatchOperationRequest> operations,
         McpAccessMode mode)
     {
-        if (mode == McpAccessMode.ReadWrite)
-        {
-            return Array.Empty<string>();
-        }
-
         var errors = new List<string>();
         foreach (var op in operations)
         {
@@ -82,7 +77,7 @@ public static class BatchOperationCatalog
             if (!OperationPolicyCatalog.IsAllowed(mode, op.Operation))
             {
                 errors.Add(
-                    $"Operation '{op.Operation}' (operationId '{op.OperationId}') is not permitted in read-only mode.");
+                    $"Operation '{op.Operation}' (operationId '{op.OperationId}') is not permitted in {McpAccessModeNames.ToName(mode)} mode.");
             }
         }
 
