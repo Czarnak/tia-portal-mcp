@@ -8,7 +8,9 @@ using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
+using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 
@@ -57,7 +59,7 @@ namespace TiaMcpServer
             }
 
             Console.Error.WriteLine($"TIA MCP access mode: {McpAccessModeNames.ToName(accessMode).ToUpperInvariant()}");
-            Console.Error.WriteLine($"TIA MCP confirm with user: {confirmationResult.ConfirmWithUser.ToString().ToLowerInvariant()} (Phase 2 gate configuration)");
+            Console.Error.WriteLine($"TIA MCP confirm with user: {confirmationResult.ConfirmWithUser.ToString().ToLowerInvariant()}");
             if (accessMode == McpAccessMode.ReadOnly)
             {
                 Console.Error.WriteLine("Project opening, compilation, writes, lifecycle operations, and PLC control are disabled.");
@@ -78,6 +80,9 @@ namespace TiaMcpServer
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>(),
                 accessPolicy: sp.GetRequiredService<OperationAccessPolicy>()));
+            builder.Services.AddSingleton(sp => new WriteExecution(
+                new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
+                new JsonlWriteAuditSink(), LifecycleWriteDomain.Catalog, TimeProvider.System));
             builder.Services.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
             builder.Services.AddSingleton(sp => new HardwarePageCursorCodec(
                 sp.GetRequiredService<AuthenticatedCursorProtector>()));

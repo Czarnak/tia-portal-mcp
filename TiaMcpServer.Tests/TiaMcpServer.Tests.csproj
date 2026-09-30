@@ -82,6 +82,8 @@
     <Compile Include="..\TiaMcpServer\Cursors\*.cs" Link="Host\Cursors\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\ProjectTree\*.cs"
       Link="Host\ProjectTree\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\ProjectLifecycle\*.cs"
+      Link="Host\ProjectLifecycle\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
       Link="Host\StructuredToolResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs"
@@ -90,8 +92,6 @@
       Link="Host\CanonicalWriteSafety.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs"
       Link="Host\WriteSafetyTooling.cs" />
-    <Compile Include="..\TiaMcpServer\Tools\ProjectLifecycleTools.cs"
-      Link="Host\ProjectLifecycleTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
       Link="Host\ProjectReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectEngineeringTools.cs"

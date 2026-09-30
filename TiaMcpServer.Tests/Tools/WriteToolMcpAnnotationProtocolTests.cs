@@ -70,8 +70,18 @@ public class WriteToolMcpAnnotationProtocolTests
 
         Assert.Contains("\"operations\"", byName["preview_write_batch"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
         Assert.Contains("\"projectPath\"", byName["open_project"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
-        Assert.Contains("\"confirm\"", byName["open_project"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
-        Assert.Contains("\"safetyToken\"", byName["open_project"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
+        foreach (var name in new[] { "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project" })
+        {
+            var properties = byName[name].ProtocolTool.InputSchema.GetProperty("properties");
+            Assert.True(properties.TryGetProperty("dryRun", out _));
+            Assert.True(properties.TryGetProperty("acknowledge", out _));
+            Assert.False(properties.TryGetProperty("confirm", out _));
+            Assert.False(properties.TryGetProperty("safetyToken", out _));
+            Assert.False(properties.TryGetProperty("server", out _));
+            Assert.False(properties.TryGetProperty("options", out _));
+            Assert.False(properties.TryGetProperty("execution", out _));
+            Assert.NotNull(byName[name].ProtocolTool.OutputSchema);
+        }
     }
 
     [Fact]
