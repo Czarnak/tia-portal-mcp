@@ -171,6 +171,46 @@ public sealed class TagOperationSafetyReaderTests
         Assert.Same(failure, Assert.Throws<IOException>(() => fixture.Read()));
     }
 
+    [Theory]
+    [InlineData("group")]
+    [InlineData("devices")]
+    [InlineData("enumeration")]
+    public void PlcResolution_PropagatesUngroupedDiscoveryFailureAfterOneMatch(string failureAt)
+    {
+        var fixture = new Fixture("create_tag_table");
+        var failure = new IOException("Cannot inspect ungrouped devices.");
+        switch (failureAt)
+        {
+            case "group": fixture.Project.UngroupedDevicesGroupFailure = failure; break;
+            case "devices": fixture.Project.UngroupedDevicesGroup.DevicesFailure = failure; break;
+            default: fixture.Project.UngroupedDevicesGroup.Devices.EnumerationFailure = failure; break;
+        }
+
+        Assert.Same(failure, Assert.Throws<IOException>(() => fixture.Read()));
+    }
+
+    [Fact]
+    public void PlcResolution_FindsPlcInUngroupedDevices()
+    {
+        var fixture = new Fixture("create_tag_table");
+        fixture.Project.UngroupedDevicesGroup.Devices.Items.Add(Assert.Single(fixture.Project.Devices.Items));
+        fixture.Project.Devices.Items.Clear();
+
+        var snapshot = Assert.IsType<CreateTagTableSafetySnapshotInfo>(fixture.Read());
+        Assert.Equal("/Destination", snapshot.FolderPath);
+    }
+
+    [Fact]
+    public void PlcResolution_RejectsDuplicateAcrossDirectAndUngroupedDevices()
+    {
+        var fixture = new Fixture("create_tag_table");
+        fixture.AddPlc(new PlcSoftware { Name = "plc_1" });
+        fixture.Project.UngroupedDevicesGroup.Devices.Items.Add(fixture.Project.Devices.Items[1]);
+        fixture.Project.Devices.Items.RemoveAt(1);
+
+        Assert.Throws<InvalidOperationException>(() => fixture.Read());
+    }
+
     private static WriteSafetyValidationResult ValidateAfterDrift(Fixture fixture, Action drift)
     {
         var safety = new WriteSafetyService();

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 
@@ -51,29 +52,37 @@ internal static class ProjectDeviceEnumerator
     {
         // Read via reflection: Project.UngroupedDevicesGroup (DeviceSystemGroup) exists in the
         // real V21 API but not in the CI reference stubs under ref/.
-        object? ungrouped;
-        try
+        var ungrouped = ReadRequiredProperty(project, "UngroupedDevicesGroup");
+        if (ReadRequiredProperty(ungrouped, "Devices") is not IEnumerable ungroupedDevices)
         {
-            ungrouped = project.GetType().GetProperty("UngroupedDevicesGroup")?.GetValue(project);
-        }
-        catch (TargetInvocationException exception)
-        {
-            Console.Error.WriteLine(
-                $"Skipping ungrouped devices: {exception.InnerException?.Message ?? exception.Message}");
-            yield break;
-        }
-
-        if (ungrouped?.GetType().GetProperty("Devices")?.GetValue(ungrouped) is not IEnumerable ungroupedDevices)
-        {
-            yield break;
+            throw new InvalidOperationException("Cannot complete device discovery: ungrouped Devices is not enumerable.");
         }
 
         foreach (object item in ungroupedDevices)
         {
-            if (item is Device device)
+            if (item is not Device device)
             {
-                yield return device;
+                throw new InvalidOperationException("Cannot complete device discovery: an ungrouped entry is not a device.");
             }
+
+            yield return device;
+        }
+    }
+
+    private static object ReadRequiredProperty(object instance, string propertyName)
+    {
+        var property = instance.GetType().GetProperty(propertyName)
+            ?? throw new InvalidOperationException($"Cannot complete device discovery: {propertyName} is unavailable.");
+        try
+        {
+            return property.GetValue(instance)
+                ?? throw new InvalidOperationException($"Cannot complete device discovery: {propertyName} is null.");
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            // Preserve the underlying Openness failure for strict readers and worker error handling.
+            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+            throw;
         }
     }
 
