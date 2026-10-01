@@ -36,17 +36,16 @@ namespace TiaMcpServer
                 return VersionCommand.Run(Console.Out);
             }
 
+            if (RemovedCliOptions.TryGetError(args, out var removedOptionError))
+            {
+                Console.Error.WriteLine($"Error: {removedOptionError}");
+                return 1;
+            }
+
             var accessModeResult = AccessModeParser.Parse(args);
             if (!accessModeResult.IsValid)
             {
                 Console.Error.WriteLine($"Error: {accessModeResult.Error}");
-                return 1;
-            }
-
-            var confirmationResult = UserConfirmationParser.Parse(args);
-            if (!confirmationResult.IsValid)
-            {
-                Console.Error.WriteLine($"Error: {confirmationResult.Error}");
                 return 1;
             }
 
@@ -59,13 +58,12 @@ namespace TiaMcpServer
             }
 
             Console.Error.WriteLine($"TIA MCP access mode: {McpAccessModeNames.ToName(accessMode).ToUpperInvariant()}");
-            Console.Error.WriteLine($"TIA MCP confirm with user: {confirmationResult.ConfirmWithUser.ToString().ToLowerInvariant()}");
             if (accessMode == McpAccessMode.ReadOnly)
             {
                 Console.Error.WriteLine("Project opening, compilation, writes, lifecycle operations, and PLC control are disabled.");
             }
 
-            // Application-specific access-mode and confirmation switches have been parsed. Remove them
+            // Application-specific access-mode switches have been parsed. Remove them
             // before generic-host configuration processes the remaining command line because
             // value-less switches such as --read-only are not valid configuration key/value pairs.
             var builder = Host.CreateApplicationBuilder(
@@ -75,7 +73,6 @@ namespace TiaMcpServer
             builder.Services.AddSingleton(sp => new WriteSafetyService(
                 sp.GetRequiredService<ProjectSessionBinding>()));
             builder.Services.AddSingleton(accessPolicy);
-            builder.Services.AddUserConfirmationOptions(confirmationResult);
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>(),

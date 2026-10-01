@@ -16,8 +16,6 @@ public static class HostArgumentFilter
             var arg = args[i];
             if (string.Equals(arg, "--read-only", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(arg, "--read-write", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(arg, "--confirm-with-user", StringComparison.OrdinalIgnoreCase) ||
-                arg.StartsWith("--confirm-with-user=", StringComparison.OrdinalIgnoreCase) ||
                 arg.StartsWith("--access-mode=", StringComparison.OrdinalIgnoreCase))
             {
                 continue;

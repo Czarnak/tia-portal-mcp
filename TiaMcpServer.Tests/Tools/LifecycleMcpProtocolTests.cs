@@ -140,12 +140,12 @@ public sealed class LifecycleMcpProtocolTests
     }
 
     [Fact]
-    public async Task Full_StartupConfirmationOption_DoesNotChangePolicy()
+    public async Task Full_ModifiedClose_UsesModePolicy()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
-            McpAccessMode.Full, audit.Path, fixture.SourcePath, confirmWithUser: false);
+            McpAccessMode.Full, audit.Path, fixture.SourcePath);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
         {
             ["saveBeforeClose"] = false
