@@ -6,7 +6,13 @@ namespace Siemens.Engineering
 {
     public abstract class NamedObject : IEngineeringServiceProvider
     {
-        public string Name { get; set; } = string.Empty;
+        private string name = string.Empty;
+        public Exception? NameFailure { get; set; }
+        public string Name
+        {
+            get => NameFailure is null ? name : throw NameFailure;
+            set => name = value;
+        }
         public CrossReference.CrossReferenceService? CrossReferenceService { get; set; }
         public Exception? CrossReferenceServiceFailure { get; set; }
         public int CrossReferenceServiceRequests { get; private set; }

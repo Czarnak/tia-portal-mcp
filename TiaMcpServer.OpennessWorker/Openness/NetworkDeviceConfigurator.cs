@@ -112,45 +112,21 @@ public static class NetworkDeviceConfigurator
     /// <summary>Matches exactly one device by name, case-insensitively. Zero or multiple matches fail closed.</summary>
     private static Device FindExactlyOneDevice(Project project, string deviceName)
     {
-        Device? match = null;
-        var count = 0;
-        foreach (Device candidate in project.Devices)
+        var matches = ProjectDeviceNameMatcher.FindMatches(
+            project,
+            deviceName,
+            exception => Console.Error.WriteLine(
+                $"Skipping a device while matching device name: {exception.Message}"));
+        if (matches.Count == 1)
         {
-            if (!NamesMatch(SafeReadDeviceName(candidate), deviceName))
-            {
-                continue;
-            }
-
-            count++;
-            if (count == 1)
-            {
-                match = candidate;
-            }
-        }
-
-        if (count == 1)
-        {
-            return match!;
+            return matches[0].Device;
         }
 
         throw new WorkerOperationException(
             WorkerFailureCategories.PostconditionFailed,
-            count > 1
+            matches.Count > 1
                 ? $"Multiple devices are named '{deviceName}'; device names must be unique to select one exactly."
                 : $"No device named '{deviceName}' was found in the project.");
-    }
-
-    private static string? SafeReadDeviceName(Device device)
-    {
-        try
-        {
-            return device.Name;
-        }
-        catch (EngineeringException ex)
-        {
-            Console.Error.WriteLine($"Skipping a device while matching device name: {ex.Message}");
-            return null;
-        }
     }
 
     /// <summary>
@@ -409,12 +385,6 @@ public static class NetworkDeviceConfigurator
             ? number
             : (int?)null;
     }
-
-    /// <summary>Case-insensitive, matching the host resolver's device-name semantics.</summary>
-    private static bool NamesMatch(string? candidateName, string? requestedName)
-        => !string.IsNullOrWhiteSpace(candidateName)
-            && !string.IsNullOrWhiteSpace(requestedName)
-            && string.Equals(candidateName, requestedName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Ordinal identity comparison for node/subnet ids. A blank candidate identity (unreadable) or a
