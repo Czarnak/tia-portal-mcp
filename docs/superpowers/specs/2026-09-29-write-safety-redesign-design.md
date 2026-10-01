@@ -236,6 +236,11 @@ would defeat the precondition.
 
 ### 4.6 Asking the human (decided 2026-09-29)
 
+> **Superseded 2026-10-01** by
+> [lifecycle tiers and project binding](2026-10-01-lifecycle-tiers-and-project-binding-design.md)
+> §3: `--confirm-with-user` and the agent `acknowledge` list are removed; `read-write` asks the user
+> on every lifecycle call and `full` never asks. Elicitation stays the mechanism.
+
 The acknowledgement model is settled: elicitation is the main mechanism and is on by default; the
 agent-side `acknowledge` array of §4.3 applies only when the switch below is turned off (revised
 2026-09-29 after the Phase 1 spike; the default is provisional until the maintainer has tested it
@@ -342,6 +347,12 @@ every write tool's input schema and output shape and belongs to the next major v
 once (decided 2026-09-29: phases merge to `main` as they complete; nothing is tagged until Phase 5).
 
 ### 4.11 Access-mode tiers (decided 2026-09-29)
+
+> **Superseded 2026-10-01** by
+> [lifecycle tiers and project binding](2026-10-01-lifecycle-tiers-and-project-binding-design.md)
+> §3–§4: `ProjectLifecycle` moves into `read-write` (prompted), `full` adds only `OnlineControl`,
+> requests never open a project implicitly, and `bind_project` binds in every mode. The binding
+> routes described below were never implemented.
 
 Today there are two modes, `read-only` and `read-write`, and `read-write` allows everything. The
 maintainer asked whether to add per-tool server permissions or one more mode for the operations
@@ -499,11 +510,13 @@ All settled 2026-09-29:
 1. **Acknowledgement model.** `--confirm-with-user` is on by default, so elicitation is the only
    way to satisfy an `acknowledge` guard; turning it off falls back to the agent-side
    `acknowledge` list (§4.6). Revised after the Phase 1 spike; the default is provisional.
+   *Superseded 2026-10-01: confirmation follows the access mode (see the §4.6 note).*
 3. **Preview shape.** `dryRun` flag on every write tool (§4.4).
 1b. **Forced-approval marker.** Dropped after the Phase 1 spike; only Claude Code honours it
    (§4.6, Appendix A). `--user-approval` is not built.
 9. **Access-mode tiers.** A third mode, `full`, as a preset over the existing capability classes;
    `read-write` narrows to in-project edits and compile. No per-tool server lists (§4.11).
+   *Superseded 2026-10-01: lifecycle returns to `read-write` behind a prompt (see the §4.11 note).*
 
 2. **Stale-state protection.** Required `expectedContentHash` on the content-replacement tools;
    the maintainer and the agent share the project and the agent must not undo the maintainer's

@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-01 | [Lifecycle in read-write, mode-derived confirmation, and runtime project binding](specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md) |
 | 2026-09-29 | [Write-safety redesign: retiring preview→apply tokens](specs/2026-09-29-write-safety-redesign-design.md) |
 | 2026-09-28 | [Multiuser Engineering](specs/2026-09-28-multiuser-engineering-design.md) |
 | 2026-09-28 | [JSON contract Phase 1b — required-member enforcement](specs/2026-09-28-json-contract-phase1b-required-members-design.md) |
