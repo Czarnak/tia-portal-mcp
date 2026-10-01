@@ -49,8 +49,33 @@ same CPU. `get_block_content` therefore succeeds with `format=xml` and carries o
 the missing document package. `format=source` remains restricted to global data blocks and
 SCL-language FB/FC/OB.
 
-`save_project_as` with `rebind: false` is resolved: it is rejected up front with a
-`validation_error` response, before any preview, safety-token issuance, Siemens `SaveAs` call, or
-audit write, so it has no side effects. `rebind: true` is required; see
-[Write safety](#write-safety). A supported SaveAs rebinds both host and worker to the
+`save_project_as` with `rebind: false` is rejected up front with a `validation_error` response,
+before Siemens `SaveAs` dispatch. Guarded lifecycle rejections are audited. `rebind: true` is required;
+see the [lifecycle reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations).
+A supported SaveAs rebinds both host and worker to the
 worker-reported copied project path; verify it with a subsequent status or read call.
+
+## Guarded lifecycle failures
+
+- `access_denied` naming elicitation: default-on confirmation requires a client with form
+  elicitation when an acknowledge guard fires. Acceptance also needs boolean `confirm:true`.
+  Decline, cancel, timeout, or request failure blocks mutation. Connect with a supporting client
+  or explicitly select `--confirm-with-user=false` and use exact guard acknowledgements.
+- `guard_blocked`: inspect `guards`. A modified no-save close requires
+  `discards_unsaved_changes`; with confirmation on the server elicits, while the off path needs
+  the exact ID. A hard block such as an existing create/save-as destination, archive inside the
+  project folder, or forced close of a modified worker-owned source cannot be acknowledged away.
+- `validation_error` for `acknowledge`: in off mode remove duplicate, blank, unknown, info/block,
+  or non-fired IDs. Run `dryRun:true` to inspect the fired guards; that preview provides no token
+  and does not authorize a later write.
+- `binding_conflict` or changed-state refusal after a prompt: the target or prepared revision
+  changed. Inspect current project identity/state and submit a new intentional call.
+- `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
+  attempted. Read the typed `result` and `verification` failures; a successful mutation can
+  precede failed verification. After timeout, crash, disconnect, or uncertain mutation, inspect
+  the project and destination artifacts before retrying. Lifecycle writes are never replayed
+  automatically.
+
+The old lifecycle public `confirm`/`safetyToken` inputs are removed. Network and legacy batch tools
+still use their token workflows. These lifecycle changes are staged for the final redesign major
+release; offline/FakeWorker checks do not establish live V21 behavior.

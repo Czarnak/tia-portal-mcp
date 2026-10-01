@@ -18,7 +18,8 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 The server exposes 4 tools in `read-only`, 8 in `read-write` (the startup default), and 14 in `full`.
 `read-write` permits in-project edits and compilation; saving, creating, opening, archiving,
-closing projects and PLC runtime control require `full`. Existing write tools retain their token flow.
+closing projects and PLC runtime control require `full`. Lifecycle uses guarded single-call writes;
+Network and legacy batch writes retain their token flow.
 
 ### Batch operations
 
@@ -61,7 +62,7 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 - `get_project_status` — inspect active project metadata; writable modes may establish an initial exact-path session, while read-only asserts the currently open project. A read never switches an attached project.
 - `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata in block-node `details` (default-on string fields: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName`), `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
 - `compile_check` — compile a PLC or selected block and return compiler messages; available in read-write and full modes.
-- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - project lifecycle writes, available in full mode. These stay single-tool only (not batchable) and are self-previewing: call the tool WITHOUT `safetyToken` to get a preview plus a single-use token, then call it again with `confirm=true` and the token to apply.
+- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - guarded single-call lifecycle writes in full mode. Set `dryRun:true` to inspect effects and guards without mutation or elicitation. These tools advertise structured outputs and no longer accept public `confirm` or `safetyToken` inputs; they remain single-tool only.
 
 `get_project_status` and `compile_check` advertise structured output schemas with contract version `1.0`. Their text and `structuredContent` contain the same canonical document; read the typed payload at `result.value`. Compiler errors set `success:false` while retaining diagnostics, with MCP `isError:false`. Oversized values are omitted whole with retry guidance. See the [standalone response contract](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#standalone-status-and-compilation-contract) for migration details.
 
@@ -69,11 +70,27 @@ Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and ba
 
 ## Write safety
 
-**The safety token is a consistency check, not user consent.** It guarantees that the server applies exactly the write it previewed: the same tool, the same ordered input, the same project binding, and unchanged project state. It does not show that a person saw the preview or approved the write. An agent can read the token out of a preview response and apply it in the same turn, and MCP gives a server no way to require a human in between. Approving a write is the MCP client's decision: `apply_write_batch`, `network_write`, and the six lifecycle tools are annotated `destructiveHint: true`, and if you want to approve every write yourself, keep those tools out of your client's auto-approve or allow list. The token flow is being replaced by guarded single-call writes, described in the [write-safety redesign](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md). Until that ships, the flow below is current behavior.
+Lifecycle tools validate input, prepare the exact binding, resolve targets, evaluate guards, mutate,
+verify, and audit in one call. `dryRun:true` returns `phase:preview` without mutation or a confirmation
+prompt and creates no token. With default-on `--confirm-with-user`, fired acknowledge guards require
+form elicitation with explicit acceptance and `confirm:true`; agent `acknowledge` cannot satisfy
+them. A client without elicitation support is refused with `access_denied` when such a guard fires.
+With `--confirm-with-user=false`, `acknowledge` must name exactly the fired acknowledge guard IDs.
+Hard block guards always refuse the write. See the [lifecycle reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
+for guards, requests, responses, and recovery.
 
-Every MCP write operation uses a preview-then-apply workflow. Generic batch data writes preview with `preview_write_batch` and apply with `apply_write_batch`. Network and project lifecycle writes are self-previewing: call the same write tool WITHOUT `safetyToken` (with `confirm:false` for `network_write`) to get the preview (summary, `currentStateHash`, `requestedInputHash`, a fresh single-use `safetyToken`, and `instructions`), then call the same tool again with the same arguments plus `confirm=true` and the `safetyToken`. `confirm` is an argument the caller sets; it is not a confirmation from the user.
+**Consent depends on the MCP client.** Elicitation proves that the client returned an accepted
+answer, not that a person saw it. All write tools retain conservative destructive hints; keep them
+out of client auto-approve lists if you want permission prompts on every call. Network and generic
+batch safety tokens remain consistency checks, not user consent. Generic writes use
+`preview_write_batch` then `apply_write_batch`; Network uses `network_write` with `confirm:false`
+and no token, followed by the unchanged arguments, `confirm:true`, and the returned token.
 
-Safety tokens are single-use, expire 10 minutes after preview, and are bound to the exact tool name, target, requested input, current project state, and host binding revision. Project-scoped tokens also retain the complete verified project identity (worker id, TIA Portal PID, project generation, and canonical path). `open_project` and `create_project` may start from an unbound/configured revision, but they bind only to the successful worker response after lifecycle continuity checks. The server rejects missing, expired, reused, mismatched, stale-state, restarted-worker, or reopened-project tokens. Successful write attempts append audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
+Those tokens are single-use, expire after ten minutes, and bind input, state, tool, and the verified
+project identity/revision. Lifecycle uses pinned binding and transition checks without tokens;
+open/create can start unbound, save-as binds the resulting copy, and close clears the binding.
+Lifecycle audits every call, including dry runs and refusals, in `writes-yyyy-MM-dd.jsonl` under
+`%LOCALAPPDATA%\TiaMcpServer\audit`; Network and batch retain their existing audit files.
 
 The worker never attaches to the first enumerated TIA Portal or selects the first open project. It
 requires an exact path match or a genuinely sole candidate; multiple possible targets fail with
@@ -87,7 +104,15 @@ Apply-time state validation, token consumption, mutation, post-verification, and
 
 `network_write` snapshots topology once for preview and once for apply-time token validation. Its token is bound to the exact ordered network operation list and project state; successful apply attempts append an audit record.
 
-Every failed write reports a categorized `failureCategory` field alongside its human-readable `error` message, so a caller can branch on the exact failure without parsing text. Common categories include `validation_error`, `binding_conflict`, `state_changed`, `target_ambiguous`, `worker_operation_failed`, `worker_timeout`, `worker_crashed`, `protocol_error`, and `postcondition_failed`. `save_project_as` requires `rebind:true`; calling it with `rebind:false` is rejected up front with `validation_error` before any preview, safety-token issuance, Siemens `SaveAs` call, or audit write, so it has no side effects. Warnings are always reported in a separate `warnings` array from the primary success/failure outcome — a populated `warnings` array never turns a failure into a success, and a categorized failure is never masked by an accompanying warning.
+Lifecycle rejection has top-level `{category,message}` `error` and MCP `isError:true`. An attempted
+write or verification failure instead has `success:false`, `error:null`, and `isError:false`, with
+typed failure evidence in `result` or `verification`. A mutation may have succeeded despite failed
+verification; inspect state before retrying. Legacy writes retain their categorized failure fields.
+`save_project_as` still requires `rebind:true`, and warnings stay separate from success/failure.
+
+Lifecycle's removed inputs and structured outputs are breaking changes staged for the redesign's
+final major release. Network/batch migration and token retirement remain separate phases; this
+step does not publish a package or complete the whole redesign.
 
 ## Architecture
 

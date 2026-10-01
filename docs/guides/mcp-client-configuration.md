@@ -37,9 +37,20 @@ control. Existing read-write clients needing those operations must migrate to fu
 `tia-mcp install` has a separate read-only default (four tools).
 
 User-confirmation configuration defaults to on. Add `"--confirm-with-user=false"` to server
-arguments to disable it, or `"--confirm-with-user"` to explicitly enable it. Phase 1b only
-registers this setting; Phase 2 connects elicitation to guarded writes. It does not expand
-access permissions. See [Installation](installation.md#access-modes) for the complete modes.
+arguments to disable it, or `"--confirm-with-user"` to explicitly enable it. Lifecycle tools apply
+this setting when acknowledge guards fire: default-on requires client form elicitation `accept`
+with boolean `confirm:true`, ignoring agent acknowledgements. A client that lacks elicitation is
+refused with `access_denied` for those calls, with no fallback to agent input. The off path requires
+exactly the fired acknowledge IDs in `acknowledge`. No guard can bypass full-mode access or a hard
+block. See [Installation](installation.md#access-modes) for the complete modes.
+
+Lifecycle inputs use `dryRun` and `acknowledge`; remove old `confirm` and `safetyToken` arguments and
+read the structured `result` and `verification` outcomes. A dry run never elicits, although a client
+may still show its destructive-tool permission prompt. Token workflows remain active for Network
+and generic batch writes. Keep destructive tools out of client auto-approve lists if you require a
+permission prompt on every call; the server cannot establish whether a human saw an accepted
+elicitation dialog. The [lifecycle reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
+documents requests, guards, typed failures, and recovery.
 
 For local development without installing the tool, point the client at `dotnet`:
 

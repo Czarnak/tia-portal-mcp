@@ -38,7 +38,7 @@ In the Inspector UI:
 - Use `network_read` with `search_equipment_catalog` before hardware insertion so you can copy an exact `typeIdentifier`.
 - Use a `get_block_content` read item on a block path returned by `browse_project_tree`.
 - Use `get_project_status` before lifecycle changes.
-- Avoid writes unless the project is disposable or backed up. Generic writes go through `preview_write_batch`, then `apply_write_batch`; network writes use self-previewing `network_write` with `confirm:false`, then the unchanged list, `confirm:true`, and the returned token.
+- Use separately authorized disposable fixtures for writes. Generic writes go through `preview_write_batch`, then `apply_write_batch`; network writes use self-previewing `network_write` with `confirm:false`, then the unchanged list, `confirm:true`, and the returned token. Lifecycle uses a single guarded call; start with `dryRun:true` to inspect effects and guards.
 
 For a bounded project-tree read, migrate the v2 request:
 
@@ -186,7 +186,18 @@ A tag write is the same flow with a one-item batch, e.g. `preview_write_batch` t
 }
 ```
 
-Project lifecycle writes remain single-tool and self-previewing. First call `open_project` with only the project path to receive the preview and token:
+Project lifecycle writes are single-call and full-only. Inspect `open_project` without mutation
+or elicitation by setting `dryRun:true`:
+
+```json
+{
+  "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
+  "dryRun": true
+}
+```
+
+An authorized actual open uses `dryRun:false` (or omits it). The server resolves fresh state;
+the dry run creates no token and provides no continuing acknowledgement:
 
 ```json
 {
@@ -194,17 +205,28 @@ Project lifecycle writes remain single-tool and self-previewing. First call `ope
 }
 ```
 
-Then call `open_project` again with the same arguments plus `confirm=true` and the returned token:
-
-```json
-{
-  "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
-  "confirm": true,
-  "safetyToken": "<token from the preview call>"
-}
-```
-
 Use archive mode values `None`, `DiscardRestorableData`, `Compressed`, or `DiscardRestorableDataAndCompressed`.
+
+Default-on `--confirm-with-user` elicits only for fired acknowledge guards, requiring `accept` plus
+boolean `confirm:true`; unsupported clients, decline/cancel, timeout, or request failure deny
+mutation. The tool's `acknowledge` array is ignored while on. With the switch off it must equal
+exactly the fired acknowledge guard IDs. Info guards and hard blocks never elicit, and hard blocks
+cannot be overridden. Confirm that all six tools expose `dryRun`/`acknowledge`, structured outputs,
+and no public `confirm`/`safetyToken`; the latter remain on Network and batch tools.
+
+Read the lifecycle `result` and `verification` as typed outcomes. A mutation or verification
+attempt that fails has `success:false`, `error:null`, and `isError:false`, with failure evidence
+inside those outcomes. Inspect state and persisted artifacts after an uncertain outcome before
+retrying. The client returning acceptance does not prove that a human saw the dialog.
+
+For lifecycle acceptance, freeze the candidate after the serial offline build/test/coverage gates
+and the installed-V21 reference build. Obtain fresh authorization for the exact disposable source
+and destinations before running open/create/save/save-as/archive/close, all seven guards (including
+target-exists for both create and save-as), accepted/declined elicitation, unsupported capability,
+and no-mutation/no-prompt dry runs. Record worker runtime, client interaction, persisted artifacts,
+and restoration separately. Any code/base change invalidates that frozen acceptance evidence.
+Offline tests, a successful reference build, and a rendered prompt cannot establish the entire live
+matrix. No automatic replay follows timeout, crash, disconnect, or possible mutation.
 
 ## Project-tree v3 read-only live acceptance
 
