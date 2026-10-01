@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety;
@@ -15,6 +16,78 @@ namespace TiaMcpServer.Tests.Project;
 [Collection(RealWorkerProcessCollection.Name)]
 public sealed class LifecycleResponseBudgetTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void LongArchiveEvidence_PreservesVerdictAndGuardsWithinDocumentBudget(bool dryRun)
+    {
+        // Each Windows path stays below its long-path limit, with valid directory segments.
+        var directory = @"C:\" + string.Join("\\", Enumerable.Repeat(new string('a', 200), 149));
+        var source = Path.Combine(directory, "Source.ap21");
+        var archive = Path.Combine(directory, "Backup.zap21");
+        var item = new LifecycleWriteItem("archive_project")
+        {
+            ArchiveDirectory = directory, ArchiveName = "Backup", SaveBeforeArchive = false,
+            Mode = ArchiveModeNames.DiscardRestorableData
+        };
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), accessPolicy: new(McpAccessMode.Full));
+        var domain = new LifecycleWriteDomain(client, item);
+        var effect = new LifecycleEffects(source, null, null,
+            new ProjectStatusInfo { IsOpen = true, Path = source, IsModified = true },
+            null, false, false, false, false, item.Mode, archive);
+        Assert.True(CanonicalJson.Serialize(effect.SourceStatus).Length < StructuredOperationBatchPayloadBudget.MaxItemChars);
+        var guards = GuardDecisions.Decide(domain.EvaluateGuards(new[] { item },
+            new[] { ItemPlan<LifecycleEffects>.Resolved(effect) }), null, LifecycleWriteDomain.Catalog, dryRun).Guards;
+        Assert.Equal(3, guards.Count);
+        var error = dryRun ? null : new WriteToolError(WorkerFailureCategories.GuardBlocked, "The archive destination is blocked.");
+        var report = new WriteReport<LifecycleEffects, StandaloneToolOutcome<ProjectStatusInfo>>(
+            dryRun ? WritePhases.Preview : WritePhases.Blocked, dryRun, error, Array.Empty<string>(),
+            guards, new[] { new WriteEffect<LifecycleEffects>(item.OperationId, effect) }, null, null);
+        var response = domain.Compose(report);
+        Assert.True(CanonicalJson.Serialize(response).Length <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        Assert.Equal(report.Phase, response.Phase);
+        Assert.Equal(report.Success, response.Success);
+        Assert.Equal(report.Error, response.Error);
+        Assert.Equal(guards.Select(guard => (guard.Id, guard.Severity, guard.OperationId, guard.Acknowledged)),
+            response.Guards.Select(guard => (guard.Id, guard.Severity, guard.OperationId, guard.Acknowledged)));
+        Assert.Contains(response.Warnings, warning => warning.Contains("omitted", StringComparison.Ordinal));
+        Assert.True(response.Effects is null || response.Effects.SourceStatus is null);
+        if (response.Effects is not null)
+        {
+            Assert.Equal(source, response.Effects.SourceProjectPath);
+            Assert.Equal(archive, response.Effects.ArchivePath);
+        }
+        Assert.Null(response.Result);
+        Assert.Null(response.Verification);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void OversizedGuardDetails_OmitsWholeMessageAndPreservesAcknowledgement(bool acknowledged)
+    {
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), accessPolicy: new(McpAccessMode.Full));
+        var domain = new LifecycleWriteDomain(client, new LifecycleWriteItem("close_project"));
+        var guard = new WriteGuardReport("discards_unsaved_changes", WriteGuardSeverities.Acknowledge,
+            "lifecycle", "Unbounded consequence details: " + new string('x', 190_000), acknowledged);
+        var error = acknowledged ? null : new WriteToolError(WorkerFailureCategories.GuardBlocked, "Acknowledgement is required.");
+        var report = new WriteReport<LifecycleEffects, StandaloneToolOutcome<ProjectStatusInfo>>(
+            acknowledged ? WritePhases.Preview : WritePhases.Blocked, acknowledged, error,
+            Array.Empty<string>(), new[] { guard }, Array.Empty<WriteEffect<LifecycleEffects>>(), null, null);
+        var response = domain.Compose(report);
+        Assert.True(CanonicalJson.Serialize(response).Length <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        var retained = Assert.Single(response.Guards);
+        Assert.Equal((guard.Id, guard.Severity, guard.OperationId, guard.Acknowledged),
+            (retained.Id, retained.Severity, retained.OperationId, retained.Acknowledged));
+        Assert.Contains("omitted", retained.Message, StringComparison.Ordinal);
+        Assert.Contains(LifecycleWriteDomain.Catalog.Get(guard.Id).Description, retained.Message, StringComparison.Ordinal);
+        Assert.Contains(response.Warnings, warning => warning.Contains("guard", StringComparison.OrdinalIgnoreCase)
+            && warning.Contains("omitted", StringComparison.Ordinal));
+        Assert.Equal(report.Phase, response.Phase);
+        Assert.Equal(report.Success, response.Success);
+        Assert.Equal(report.Error, response.Error);
+    }
+
     [Theory]
     [InlineData("oversized")]
     [InlineData("document-limit")]

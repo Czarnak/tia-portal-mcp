@@ -279,16 +279,45 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         }
         if (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
         {
-            static StructuredOperationFailure? Shorten(StructuredOperationFailure? failure) => failure is null ? null
+            static StructuredOperationFailure? Shorten(StructuredOperationFailure? failure) => failure is null || failure.Message.Length <= 120 ? failure
                 : failure with { Message = failure.Message[..Math.Min(120, failure.Message.Length)] + " [message shortened]" };
             result = result is null ? null : result with { Failure = Shorten(result.Failure) };
             verification = verification is null ? null : verification with { Failure = Shorten(verification.Failure) };
             response = response with
             {
                 Result = result, Verification = verification,
-                Error = response.Error is null ? null : response.Error with
+                Error = response.Error is null || response.Error.Message.Length <= 120 ? response.Error : response.Error with
                     { Message = response.Error.Message[..Math.Min(120, response.Error.Message.Length)] + " [message shortened]" }
             };
+        }
+        // Preview and blocked calls have no outcomes to omit. Repeated path evidence can still
+        // exceed the document limit, so discard complete evidence instead of truncating identities.
+        if (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars
+            && response.Effects?.SourceStatus is not null)
+        {
+            response = response with { Effects = response.Effects with { SourceStatus = null } };
+            warnings.Add("The complete source status was omitted to fit the lifecycle response budget.");
+        }
+        if (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars
+            && response.Effects is not null)
+        {
+            response = response with { Effects = null };
+            warnings.Add("The complete lifecycle effects were omitted to fit the lifecycle response budget. Inspect the current project and filesystem before retrying.");
+        }
+        if (CanonicalJson.Serialize(response).Length > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        {
+            var guards = response.Guards.ToArray();
+            warnings.Add("Complete detailed guard messages were omitted to fit the lifecycle response budget; guard ids, severity, and acknowledgement states are retained.");
+            foreach (var index in Enumerable.Range(0, guards.Length).OrderByDescending(index => guards[index].Message.Length))
+            {
+                if (CanonicalJson.Serialize(response).Length <= StructuredOperationBatchPayloadBudget.MaxDocumentChars) break;
+                var guard = guards[index];
+                guards[index] = guard with
+                {
+                    Message = Catalog.Get(guard.Id).Description + " [Detailed guard message omitted to fit the lifecycle response budget.]"
+                };
+                response = response with { Guards = guards };
+            }
         }
         return response;
     }
