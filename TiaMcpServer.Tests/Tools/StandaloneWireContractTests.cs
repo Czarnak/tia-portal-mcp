@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -8,7 +9,7 @@ namespace TiaMcpServer.Tests.Tools;
 public sealed class StandaloneWireContractTests
 {
     [Fact]
-    public async Task DirectStatusPayload_WritesExplicitNulls_WithoutChangingLifecyclePayloads()
+    public async Task DirectStatusPayload_WritesExplicitNulls_ForNoProject()
     {
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
             workerExecutablePath: FakeWorkerLocator.Locate());
@@ -47,9 +48,17 @@ public sealed class StandaloneWireContractTests
     [InlineData("save_project_as")]
     [InlineData("archive_project")]
     [InlineData("close_project")]
-    public void LifecyclePayloads_KeepLegacyWireBytes(string operation)
+    public void LifecyclePayloads_WriteExplicitNulls_AndDecodeThroughWorkerPayloadReader(string operation)
     {
         var payload = new ProjectLifecycleResultInfo { Operation = operation };
-        Assert.Equal("{\"success\":true,\"operation\":\"" + operation + "\"}", WorkerJson.SerializePayload(payload));
+        var serialized = WorkerJson.SerializePayload(payload);
+        using var document = JsonDocument.Parse(serialized);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("projectPath").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("project").ValueKind);
+        var decoded = CanonicalJson.DeserializeWorkerPayload<ProjectLifecycleResultInfo>(serialized);
+        Assert.True(decoded.Success);
+        Assert.Equal(operation, decoded.Operation);
+        Assert.Null(decoded.ProjectPath);
+        Assert.Null(decoded.Project);
     }
 }
