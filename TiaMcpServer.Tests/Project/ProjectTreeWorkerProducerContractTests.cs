@@ -194,9 +194,6 @@ public class ProjectTreeWorkerProducerContractTests
         Assert.Equal(
             """{"success":true,"operation":"start_plc","plcName":"PLC_1"}""",
             WorkerSerializationHarness.Serialize(new PlcOnlineResultInfo { Operation = "start_plc", PlcName = "PLC_1" }).Payload);
-        Assert.Equal(
-            """{"success":true,"operation":"save_project"}""",
-            WorkerSerializationHarness.Serialize(new ProjectLifecycleResultInfo { Operation = "save_project" }).Payload);
     }
 
     [Fact]
@@ -205,6 +202,10 @@ public class ProjectTreeWorkerProducerContractTests
         Assert.Equal(
             """{"name":"unchanged","optional":null}""",
             WorkerSerializationHarness.Serialize(new { Name = "unchanged", Optional = (string?)null }).Payload);
+
+        Assert.Equal(
+            """{"success":true,"operation":"save_project","projectPath":null,"project":null}""",
+            WorkerSerializationHarness.Serialize(new ProjectLifecycleResultInfo { Operation = "save_project" }).Payload);
 
         // CatalogEntryInfo no longer carries [LegacyNullOmission(RequiredMemberEnforcement)]
         // (Task 3): its null members are now written explicitly, like any unmarked contract.

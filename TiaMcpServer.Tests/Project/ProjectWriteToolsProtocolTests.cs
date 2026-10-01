@@ -1,8 +1,6 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Batch;
-using ModelContextProtocol.Protocol;
-using TiaMcpServer.Safety;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Tools;
 using Xunit;
 
@@ -36,29 +34,35 @@ public sealed class ProjectWriteToolsProtocolTests
     }
 
     [Fact]
-    public async Task OpenProject_ProtocolPreview_ReturnsSafetyTokenThroughRegisteredTool()
+    public async Task OpenProject_DryRun_ReturnsCanonicalPreviewThroughRegisteredTool()
     {
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools>(accessMode: McpAccessMode.Full);
-        const string destination = @"C:\open\Line.ap21";
+        using var audit = new TempAuditDirectory();
+        using var fixture = new LifecycleProtocolFixture();
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools>(
+            auditDirectory: audit.Path, accessMode: McpAccessMode.Full);
+        var before = harness.WorkerClient.BindingSnapshot;
 
         var result = await harness.Client.CallToolAsync(
             "open_project",
             new Dictionary<string, object?>
             {
-                ["projectPath"] = destination
+                ["projectPath"] = fixture.DestinationPath,
+                ["dryRun"] = true
             });
 
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.Contains("safetyToken", text, StringComparison.Ordinal);
-        Assert.Contains("open_project", text, StringComparison.Ordinal);
-        Assert.Contains("Preview only", text, StringComparison.Ordinal);
-        using var document = JsonDocument.Parse(text);
-        var root = document.RootElement;
-        var target = root.GetProperty("target");
-        Assert.Equal(JsonValueKind.Null, target.GetProperty("sourceProjectPath").ValueKind);
-        Assert.Equal(destination, target.GetProperty("destinationProjectPath").GetString());
-        Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(
-            new { projectPath = destination, forceRebind = false })),
-            root.GetProperty("requestedInputHash").GetString());
+        var document = LifecycleTestCalls.Document(result);
+        Assert.False(result.IsError == true);
+        LifecycleTestCalls.Succeeded(document);
+        LifecycleTestCalls.Phase(document, "preview");
+        Assert.Equal("open_project", document.GetProperty("tool").GetString());
+        Assert.False(document.TryGetProperty("safetyToken", out _));
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("error").ValueKind);
+        var effects = document.GetProperty("effects");
+        Assert.Equal(JsonValueKind.Null, effects.GetProperty("sourceProjectPath").ValueKind);
+        Assert.Equal(fixture.DestinationPath, effects.GetProperty("destinationProjectPath").GetString());
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("result").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("verification").ValueKind);
+        Assert.True(before.SameBinding(harness.WorkerClient.BindingSnapshot));
+        Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
     }
 }
