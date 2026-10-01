@@ -128,6 +128,7 @@ internal static class IoSystemQualificationEvidence
     {
         if (structuralLocator.StartsWith("devices/", StringComparison.Ordinal)) return "direct";
         if (structuralLocator.StartsWith("deviceGroups/", StringComparison.Ordinal)) return "grouped";
+        if (structuralLocator.StartsWith("ungroupedDevices/", StringComparison.Ordinal)) return "ungrouped";
         return "unknown";
     }
 

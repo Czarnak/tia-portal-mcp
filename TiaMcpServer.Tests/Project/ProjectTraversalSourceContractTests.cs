@@ -19,6 +19,12 @@ public class ProjectTraversalSourceContractTests
         Assert.Contains("devices/{deviceIndex}", source, StringComparison.Ordinal);
         Assert.Contains("deviceGroups/{groupIndex}", source, StringComparison.Ordinal);
         Assert.Contains("groups/{childGroupIndex}", source, StringComparison.Ordinal);
+        Assert.Contains("GetProperty(\"UngroupedDevicesGroup\")", source, StringComparison.Ordinal);
+        Assert.Contains("ungroupedDevices/{ungroupedIndex}", source, StringComparison.Ordinal);
+        Assert.True(
+            source.IndexOf("foreach (DeviceUserGroup group in project.DeviceGroups)", StringComparison.Ordinal) <
+            source.IndexOf("foreach (Device device in EnumerateUngroupedDevices(project))", StringComparison.Ordinal),
+            "Ungrouped (decentral) devices are enumerated after user device groups.");
 
         Assert.True(
             source.IndexOf("foreach (Device device in project.Devices)", StringComparison.Ordinal) <
