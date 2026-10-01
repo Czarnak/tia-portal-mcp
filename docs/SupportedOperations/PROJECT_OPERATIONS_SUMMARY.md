@@ -231,6 +231,12 @@ source. A worker-owned modified source that would close is always blocked: save 
 first. Create and save-as refuse an existing destination directory. Archive requires an existing
 output directory outside the source project's folder and descendants.
 
+Installed V21 acceptance observed that `create_project` requires no project open in that TIA
+process; close the current project explicitly before creating another. Siemens also rejects archive
+of a modified project with `saveBeforeArchive:false`; save first or use `saveBeforeArchive:true`
+before archiving. These are typed
+attempted-operation failures, so inspect state before a new call.
+
 ### Guards and confirmation
 
 | Guard ID | Operation / consequence | Severity |
@@ -317,7 +323,8 @@ their token and audit flows until their designated redesign phases.
 
 Migration is staged for the final major release: remove client preview/token/apply loops for these
 six tools, replace `confirm`/`safetyToken` with `dryRun`/`acknowledge`, and read typed outputs.
-Current branch implementation and offline tests do not establish live V21 acceptance.
+The [authorized live validation](../superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md)
+records the installed-V21 lifecycle matrix and its runtime, client, artifact, and restoration limits.
 
 ### MCP client hints
 

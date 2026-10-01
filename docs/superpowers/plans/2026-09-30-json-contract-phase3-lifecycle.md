@@ -133,11 +133,11 @@ Task<CallToolResult> RunAsync<TItem, TEffect, TVerification, TResponse>(
 - [x] Add final-major-release migration notes for removed inputs and structured outputs. Do not cut a package tag or claim whole-redesign completion.
 - [x] Run restore, serial stub solution build, full tests, existing 80% coverage gate, and `git diff --check`; review the final diff for unrelated changes.
 - [x] Build the frozen candidate against installed V21 assemblies.
-- [ ] Obtain separate exact-target authorization for live acceptance. The indexed validation record freezes the live matrix without running it early.
-- [ ] On that candidate, exercise open/create/save/save-as/archive/close and every lifecycle guard, including both target-exists operations. Also test default-on accepted/declined elicitation in the client and unsupported-capability refusal; confirm dry runs do not mutate or prompt. Use disposable fixtures and record restoration checks.
-- [ ] Inspect state after timeout/crash/disconnect/possible mutation; never automatically replay. Any code/base change invalidates the frozen acceptance evidence.
+- [x] Obtain separate exact-target authorization for live acceptance. The indexed validation record freezes the live matrix without running it early.
+- [x] On that candidate, exercise open/create/save/save-as/archive/close and every lifecycle guard, including both target-exists operations. Also test default-on accepted/declined elicitation in the client and unsupported-capability refusal; confirm dry runs do not mutate or prompt. Use disposable fixtures and record restoration checks.
+- [x] Inspect state after timeout/crash/disconnect/possible mutation; never automatically replay. Any code/base change invalidates the frozen acceptance evidence.
 - [x] Record the offline gates and explicit exclusions in the indexed validation report. Offline tests and a reference build do not establish live runtime behavior, human client confirmation, or persisted fixture artifacts.
-- [ ] After authorized live acceptance, record worker/runtime behavior, client confirmation behavior, persisted fixture artifacts, and restoration checks separately.
+- [x] After authorized live acceptance, record worker/runtime behavior, client confirmation behavior, persisted fixture artifacts, and restoration checks separately.
 - [ ] After the authorized merge, plan write-safety Network Phase 3 and JSON alignment/retirement against fresh `main`; do not infer authority to execute them from this lifecycle plan.
 
 ## Implementation and Acceptance Boundary

@@ -1,8 +1,9 @@
 # JSON Contract Phase 3 / Write-Safety Phase 2 — Validation Record
 
-Status: implementation qualified offline; installed-V21 reference build passed. Live lifecycle acceptance has
-not been performed or authorized by this record. This report distinguishes code/protocol evidence
-from installed-V21 runtime, client interaction, persisted artifact, and restoration evidence.
+Status: offline implementation qualification and the installed-V21 reference build passed.
+Subsequent separately authorized runtime, client, artifact, and restoration evidence is recorded in
+the [live lifecycle validation](2026-10-01-json-contract-phase3-live-validation.md).
+This report preserves the offline code/protocol evidence boundary.
 
 ## Candidate and authorization
 
