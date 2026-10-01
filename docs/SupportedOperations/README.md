@@ -51,13 +51,15 @@ The server also provides six single-purpose lifecycle tools:
 
 ## Write safety
 
-All writes use preview-then-apply confirmation.
+Lifecycle uses guarded single-call writes. Network and legacy batch retain preview-then-apply
+consistency tokens; those tokens do not establish user consent.
 
 - Data writes receive a batch-level token from `preview_write_batch` and require the unchanged operation list, `confirm=true`, and that token in `apply_write_batch`.
-- Lifecycle tools preview themselves when called without a token. The same tool is called again with `confirm=true` and the returned token to apply the change.
-- Tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
+- Lifecycle tools use guarded single-call writes with `dryRun` and `acknowledge`; they no longer accept public `confirm` or `safetyToken`. Default-on confirmation uses form elicitation for fired acknowledge guards; the off path requires their exact IDs. Dry runs do not mutate or elicit. See the [lifecycle reference](PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations) for all guards, typed outcomes, and recovery.
+- Network previews with `network_write` using `confirm:false` and no token; apply with the unchanged list, `confirm:true`, and its token.
+- Network/batch tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
 - A write batch is sequential rather than transactional. Application stops at the first failure; completed items remain applied and later items are marked `skipped`.
-- Successful write attempts produce audit JSONL records under `%LOCALAPPDATA%\TiaMcpServer\audit`.
+- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle records every call, including previews and refusals, in its guarded-write stream; legacy writes retain their existing audit behavior.
 
 Read responses may include `warnings` for partial or degraded data. Hardware reads also provide payload-level `messages` for unreadable members. Callers should treat these fields as part of the result contract rather than filling missing values locally.
 

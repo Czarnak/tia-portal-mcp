@@ -26,6 +26,19 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: JSON contract Phase 3 / write-safety Phase 2 frozen live acceptance
+
+Lifecycle implementation replaces public tokens with guarded single-call `dryRun`/`acknowledge`,
+default-on elicitation, typed outcomes/verification, and one audit record per call. Final offline
+qualification and independent review are recorded in the [validation record](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md).
+The code/test candidate `8f0e26f` passed the offline gates and installed-V21 reference Rebuild.
+Live acceptance remains pending: freeze the final candidate, obtain exact disposable-target
+authorization, then qualify all six operations, all seven guards,
+accepted/declined/unsupported client behavior, persisted artifacts, and restoration. Inspect unknown
+outcomes rather than replaying them. Any code/base change invalidates frozen evidence; offline and
+FakeWorker results are not live TIA acceptance. Network/batch tokens and the final major release
+remain separate delivery gates.
+
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
 The user accepted the combined offline and read-only live v3 evidence on 2026-09-12, with an
@@ -806,3 +819,35 @@ records the passing Release stub build, 4,513 passing tests, 93.94% line coverag
 independent reviews without findings. Live V21 producer compatibility
 requires separate authorization for a disposable fixture. No package version/tag or remote
 publication is part of this migration step; Phase 3 remains a separate successor.
+
+## JSON contract Phase 3 / write-safety Phase 2 — offline qualification completed (2026-10-01)
+
+The six lifecycle tools now use guarded single-call `dryRun`/`acknowledge`, concrete structured
+schemas, typed mutation/verification outcomes, and one canonical audit record per call. All seven
+lifecycle guard IDs are covered. Default-on form elicitation ignores agent acknowledgements and
+requires explicit `accept` plus boolean `confirm:true`; the off path requires the exact fired set.
+Hard blocks and dry runs never elicit. Binding preparation preserves the exact source/destination,
+ownership, recovery and save-as transitions, with a fresh post-acceptance state check. Client-returned
+acceptance does not prove a human saw a dialog.
+
+Attempted mutation/verification failure retains typed evidence with `success:false`, `error:null`,
+and MCP `isError:false`; pre-mutation rejection retains top-level error and `isError:true`.
+Whole-value and document budgets are 60,000/180,000 canonical characters, including large effects
+and guard metadata. Omission markers retain guard identity, acknowledgement, phase, and verdict;
+missing evidence calls for status/artifact inspection, never mutation replay. Lifecycle wrapper/token
+paths are retired; Network/batch tokens remain active.
+
+The qualified code/test candidate is `8f0e26f83db4faf6cd243fef7489f6419db3925b`. The final host Release
+suite passed **4,640/4,640**, with no failures or skips. The existing **80%** line-coverage gate passed
+with Cobertura line rate **0.9386** (9,997/10,650 lines), branch rate 0.8578. Serial Release stub and
+installed-V21 reference Rebuilds passed with zero errors and seven pre-existing xUnit2031 warnings.
+Independent review's P2 metadata-cap finding was reproduced and fixed with RED→GREEN evidence;
+the final fix diff has no unresolved findings. Package-cache and child-build environment corrections
+were command-only, without production-source or dependency-version changes.
+
+The [implementation record](superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md) and
+[validation report](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md)
+record the gates, diagnostic runs, and pending frozen live matrix. Live TIA lifecycle execution,
+actual client confirmation, persisted fixture artifacts/restoration, PLC download/runtime or plant
+acceptance remain unproved by these offline/reference gates. No package tag/release, push, merge,
+or whole-redesign completion is claimed.

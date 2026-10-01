@@ -72,9 +72,12 @@ read-write clients that need persistence or lifecycle must select `--access-mode
 `--confirm-with-user` defaults to on. Bare `--confirm-with-user` and `=true` enable it;
 `--confirm-with-user=false` disables it. Malformed values and contradictory repeats fail startup.
 The host removes these arguments before generic-host parsing and registers one immutable
-`UserConfirmationOptions` singleton. This is Phase 1b configuration only: legacy token tools
-retain their behavior. Phase 2 connects elicitation-backed acknowledgement to guarded writes;
-the switch does not relax access-mode permissions.
+`UserConfirmationOptions` singleton. Lifecycle calls pass that setting and the current MCP client's
+form-elicitation adapter into the guarded pipeline. With confirmation on, agent acknowledgements
+are ignored and fired acknowledge guards require `accept` plus `confirm:true`; missing capability
+or any refusal/failure denies with `access_denied`. With confirmation off, the exact fired guard
+set must be acknowledged by arguments. Dry runs, info-only calls, and hard blocks do not elicit.
+Network/batch token tools retain their behavior, and the switch never relaxes access permissions.
 
 ### Read-only mode
 
@@ -109,9 +112,9 @@ read-only. Decorated tool classes that are not explicitly registered are not
 part of the active tool surface.
 
 `Program.cs` and production-surface protocol tests use the same registration helper.
-`ProjectLifecycleTools` and `BatchTools`
-remain compatibility wrappers for existing internal callers and tests only;
-they are not registered MCP tool classes. The registered-surface delegation and
+`BatchTools` remains an unregistered compatibility wrapper for internal callers and tests.
+The lifecycle migration removes `ProjectLifecycleTools` and its now-unused token paths; it does
+not retire batch/Network token support. The earlier registered-surface delegation and
 preview-only live V21 evidence are recorded in the
 [PR 2 acceptance report](superpowers/acceptance/reports/2026-09-01-pr2-registered-tool-delegation-live.md).
 
@@ -320,8 +323,8 @@ sent to the worker.
 ## 7a. The opt-in canonical JSON seam and the Network Phase 2/3 structured contract
 
 `network_read` and `network_write` were the first tools to opt into a reusable canonical-JSON
-gate; `browse_project_tree` (project-tree v3, §3), `get_project_status`, and `compile_check` use it too.
-Lifecycle and batch tools keep their existing text contracts until their migrations. The
+gate; `browse_project_tree` (project-tree v3, §3), `get_project_status`, `compile_check`, and all six
+lifecycle tools use it too. The three excluded batch tools retain their legacy text contracts. The
 [JSON contract roadmap](roadmap/json-contract.md) records the target envelope, the migration order,
 and the batch tools' exclusion from it.
 
@@ -365,13 +368,58 @@ reason it has not migrated.
 
 ### Standalone status and compilation
 
-`StandalonePayloadContract` declares one strict worker root per operation: `ProjectStatusResultInfo` for direct `get_project_status` and `CompileCheckReport` for `compile_check`. The dedicated status root preserves the worker's `success`, `operation`, `projectPath`, and `project` fields while writing explicit nulls. Lifecycle and basic/probe status routes retain `ProjectLifecycleResultInfo` and its legacy null policy. Removing the compile root's legacy marker does not change its nested serialization inside the null-omitting `WorkerResponse.BlockImportOutcome` envelope.
+`StandalonePayloadContract` declares one strict worker root per operation: `ProjectStatusResultInfo` for direct `get_project_status` and `CompileCheckReport` for `compile_check`. The dedicated status root preserves the worker's `success`, `operation`, `projectPath`, and `project` fields while writing explicit nulls. Lifecycle and basic/probe status routes use the separate `ProjectLifecycleResultInfo` root, now also writing explicit nulls. Removing the compile root's legacy marker does not change its nested serialization inside the null-omitting `WorkerResponse.BlockImportOutcome` envelope.
 
 `GetProjectStatusResponse` and `CompileCheckResponse` use envelope version `1.0` with `tool`, `contractVersion`, `success`, `error`, `warnings`, and a typed `StandaloneToolOutcome<T>` result (`status`, `value`, `failure`, `omission`). Status projects the full `ProjectStatusInfo`; compilation retains diagnostics even when compilation fails. Known successful/warning states with no errors pass; unknown or unavailable states do not. Compiler totals are checked against PLC totals without equating bounded message lists with exhaustive diagnostics.
 
 `StructuredStandaloneResult` measures canonical values at 60,000 characters and the complete response at 180,000, using shared structured-budget constants and omission records. It omits whole values and warning entries, records retry guidance, and sends the final canonical text through `StructuredToolResult.CreateCanonical` for identical text/structured delivery. Strict decoding runs before any omission. Top-level `error` is present only on rejection and agrees exactly with MCP `isError`; attempted failures use `result.failure` or report diagnostics. Host-only `WorkerCallResult.IsPostOperationFailure` distinguishes a successful worker operation subsequently rejected by host identity validation from a pre-operation binding rejection.
 
-Compile authorization precedes the existing verified-binding gate and pinned lease; no compiler, input, session-transition, or lifecycle token behavior is replaced here. See the [project operations reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#standalone-status-and-compilation-contract) for the public migration contract.
+Compile authorization precedes the existing verified-binding gate and pinned lease; the standalone
+migration leaves compiler inputs and session transitions unchanged. See the [project operations reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#standalone-status-and-compilation-contract)
+for the public migration contract.
+
+### Guarded lifecycle contract
+
+`TiaMcpServer/ProjectLifecycle/` supplies a single-operation adapter to `WriteExecution`. Public
+lifecycle requests remain dedicated tools, without caller-supplied batch items or operation IDs.
+`LifecyclePayloadContract` reads lifecycle/basic-status worker results through the required-member
+reader and rejects incorrect operations, identities, or incomplete evidence as `protocol_error`.
+`ProjectLifecycleResultInfo` writes explicit nulls; worker and FakeWorker producers share that
+policy. Verification reads basic status only, including no-project status after close.
+`get_basic_project_status` remains an internal full-mode lifecycle observation. Observing no project
+after close does not require an expected identity; a supplied expected identity is still checked.
+This does not weaken ordinary project-write binding or make a status read reopen a project.
+
+`LifecycleWriteResponse` advertises version `1.0` with the shared envelope plus `phase`, `guards`,
+`effects`, typed `result`, and typed `verification`. The single outcomes reuse
+`StandaloneToolOutcome<T>` (`status`, `value`, `failure`, `omission`); `result.value` is
+`ProjectLifecycleResultInfo` and `verification.value` is basic `ProjectStatusInfo`, as objects
+rather than escaped JSON. A preview/rejection/mutation failure has no verification outcome.
+`effects` is one typed `LifecycleEffects` object, with resolved source/destination and saving,
+closing, rebinding, existing-target, and archive consequences. Rejections carry top-level
+`error` and `isError:true`; attempted mutation/verification failures preserve their typed outcomes,
+set `success:false`, and retain `error:null` / `isError:false`. Failed verification cannot erase
+evidence of a successful mutation. Inspect current state before any retry after an unknown outcome.
+
+Lifecycle values use the shared 60,000-character whole-value limit and the complete document is
+capped at 180,000 canonical characters. Outcome omission is distinct from operation failure:
+successful execution/verification may retain `success:true` while an oversized value is omitted.
+Strict decoding precedes budgeting; omitted evidence directs the caller to read current status or
+inspect persisted artifacts, never to replay the lifecycle mutation.
+The document budget also covers effects and guard metadata. Oversized source-status/effects evidence
+is omitted whole with a warning; oversized guard messages carry an explicit omission marker while
+retaining ID, severity, operation ID, acknowledgement, phase, and verdict. The catalog's consequence
+description survives alongside the omission marker. Whole warnings may be removed with a
+count notice. This applies to previews and blocked calls as well as applied writes, without cutting
+JSON or silently substituting a shortened path for complete identity evidence.
+Last-resort failure-prose shortening is disclosed and preserves the failure category and
+rejection-versus-attempted-failure classification.
+
+The six tools leave the output-conformance legacy register; only `execute_read_batch`,
+`preview_write_batch`, and `apply_write_batch` remain. Public `confirm`/`safetyToken` are removed
+from lifecycle schemas, while worker-internal confirmation fences remain. The [lifecycle reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
+describes guards and client migration. This is the lifecycle delivery unit, not Network/batch token
+retirement or a package-release gate.
 
 ### Typed Network payload registry
 
@@ -389,7 +437,7 @@ write explicit nulls.
 
 The other host decodes of worker payloads use the reader as well:
 `HardwarePagePayloadContract`, `ProjectTreeWorkerPayloadContract` and
-`ProjectRebindStatePayloadContract`, plus `StandalonePayloadContract`. Four call sites deliberately stay on
+`ProjectRebindStatePayloadContract`, plus `StandalonePayloadContract` and `LifecyclePayloadContract`. Four call sites deliberately stay on
 `CanonicalJson.Deserialize`: the three batch safety snapshot decodes (`BatchWorkerInvoker`,
 `ProjectTreeSafetyPayloadContract`, `TagOperationSafetySnapshotContract`), whose roots still omit
 nulls until the batch redesign, and the authenticated cursor decode
@@ -621,16 +669,18 @@ after the later public acceptance work.
 
 ## 8. Write safety
 
-The preview→apply safety token is a server-side consistency check. It proves that an apply call
+Lifecycle writes use the guarded single-call pipeline described below. Network and legacy batch
+writes retain preview→apply tokens until their own migration. Their token is a server-side consistency check. It proves that an apply call
 carries exactly the input that was previewed, for the same tool and verified project binding,
 against unchanged project state. It does not prove that a person saw the preview or approved the
 write: an agent can read the token out of a preview response and apply it in the same turn, and
 MCP gives a server no way to require a human in between. Consent belongs to the client, which
 decides whether to prompt before a call. The
 [write-safety redesign](superpowers/specs/2026-09-29-write-safety-redesign-design.md) replaces the
-token flow with guarded single-call writes (`dryRun`, guards with an explicit `acknowledge`, and
-opt-in elicitation), delivered in phases. Until the phase covering a tool lands, this section
-describes that tool's current behavior.
+token flow with guarded single-call writes (`dryRun`, guards, default-on elicitation, and an exact
+agent acknowledgement set when confirmation is switched off), delivered in phases. The token
+description below applies to Network and legacy batch tools. Client-returned elicitation acceptance
+also does not prove that a person saw a dialog.
 
 ### MCP tool annotations
 
@@ -639,24 +689,20 @@ client-facing metadata. They are untrusted advisory hints for a client deciding 
 tool; they neither authorize a request nor relax server behavior. In particular,
 `preview_write_batch` is marked as a non-destructive preview even though the follow-up
 `apply_write_batch` is destructive, and lifecycle writes carry conservative mutating hints even
-though their first call remains a preview. The access policy, safety-token validation, pinned
-binding lease, current-state re-read, and audit trail below are what the server enforces; none of
-them records a human approval.
+for a `dryRun`. The server enforces the access policy, binding lease, current-state checks, guards
+or transitional tokens, and audit. A client may prompt independently on any destructive tool call.
 
 ### Preview→apply token flow
 
-Generic batch data writes use a two-tool flow; lifecycle and network writes are
-self-previewing:
+Generic batch data writes use a two-tool flow; Network writes are self-previewing:
 
-1. The preview call (`preview_write_batch`, or the same lifecycle/network tool with no
+1. The preview call (`preview_write_batch`, or `network_write` with no
    token and `confirm:false`) reads current state, produces a human-readable description,
    and creates a short-lived, single-use safety token bound to the tool,
    host binding revision, requested input, and current-state hashes. Project-scoped
    writes require that revision to contain a complete verified worker/Portal/project
-   identity. `open_project` and `create_project` are the deliberate exception: their
-   token may retain an unbound/configured revision, and a successful response must then
-   establish a continuity-checked binding from worker ground truth.
-2. The apply call (`apply_write_batch`, or the same lifecycle/network tool) supplies
+   identity.
+2. The apply call (`apply_write_batch`, or `network_write`) supplies
    `confirm=true` and the token. `confirm` is an argument the caller sets, not a user
    confirmation. The server reads current
    state again and consumes the token only when every bound value still matches.
@@ -793,31 +839,35 @@ must carry the complete, exact worker/Portal/project session identity previously
 worker. This prevents an internal safety read from silently moving to a different same-path
 session while a preview is assembled.
 
-### Guarded write pipeline (write-safety redesign Phase 1)
+### Guarded write pipeline (foundation and lifecycle)
 
 `TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaces the token flow.
-**No registered tool uses it yet**: `WriteExecution` and its tests exist, and each write domain moves
-onto it in a later phase. Until then the token flow above is the behavior of every write tool. The
-pipeline is a consistency and safety mechanism, not consent; nothing in it records a person's
-approval, and an `acknowledge` list is an argument the calling agent sets.
+The six registered lifecycle tools use it; Network and batch migrate in later phases.
+The pipeline is a consistency and safety mechanism. A client-returned elicitation response is
+recorded distinctly from an argument the agent sets, but neither establishes that a person saw
+the consequence.
 
 `WriteExecution.RunAsync(domain, call)` owns the order and the safety rules. An
 `IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
 evaluation, the mutation, verification, and the response shape. Stages, in order:
 
 1. **Validate** before any worker call: at least one operation, non-blank unique `operationId`s,
-   the domain's own validation, and a well-formed `acknowledge` list. Failure is `phase: error`.
-2. **Bind.** The pipeline snapshots the binding, runs `RequireVerifiedWriteBindingAsync`, then pins
-   the resulting snapshot. An already verified binding must be unchanged by the gate; one the gate
-   verified must now be verified for the same project. Any mismatch, and any gate failure, is
-   `binding_conflict`.
+   the domain's own validation, and (when confirmation is off) a well-formed `acknowledge` list.
+   Failure is `phase: error`.
+2. **Bind.** The default strategy retains `RequireVerifiedWriteBindingAsync` and verifies promotion
+   of the same project. An explicit lifecycle strategy prepares the exact source revision or permits
+   genuinely unbound open/create; other lifecycle writes retain their active-source requirement.
+   Input JSON cannot select that strategy. Stale revisions and continuity failures deny the call.
 3. **Lease.** Everything that follows, including the audit append, runs in `RunUnderLeaseAsync`
    under the pinned snapshot; a refused lease is `binding_conflict`.
 4. **Plan.** `PlanAsync` returns one `ItemPlan` (effect, optional `DependsOn`, checked
    preconditions) per item, or fails the call (`target_not_found`, `target_ambiguous`, and so on).
    A count mismatch is a programming error and throws.
-5. **Guards.** `EvaluateGuards` is pure; `GuardDecisions.Decide` applies the acknowledgement rule.
-   A `dryRun` stops here as `phase: preview` with no batch and never blocks.
+5. **Guards and confirmation.** `EvaluateGuards` is pure. A `dryRun` stops as `phase: preview`
+   without mutation or elicitation and reports guards even when they would block an actual call.
+   Hard blocks refuse without prompting. Default-on confirmation elicits for acknowledge guards;
+   the off-mode path enforces the exact fired set. After an accepted prompt, re-plan and re-evaluate
+   under the same binding lease before dispatch: the TIA UI can edit while the prompt is visible.
 6. **Mutate** sequentially. The first item that does not succeed stops the call; later items are
    `skipped`. A dependent item is re-planned just before its own mutation.
 7. **Verify, compose, audit.** `VerifyAsync`, then `Compose`, then one audit record; the tool result
@@ -828,13 +878,19 @@ evaluation, the mutation, verification, and the response shape. Stages, in order
 
 A domain fires guards from a closed `WriteGuardCatalog`; the severity comes from the catalog, never
 from the firing site. `info` guards become top-level `warnings` and never stop a call. `acknowledge`
-guards stop the call unless their id is in the request's `acknowledge` list; one id covers every
-firing of that guard. `block` guards always stop it. A stopped call is `phase: blocked` with
-category `guard_blocked`. A malformed list (blank, duplicate, unknown id, an `info` or `block` id)
+guards require explicit client form acceptance with boolean `confirm:true` by default. The agent's
+list is ignored in this mode, including malformed/supplied IDs. Unsupported capability, decline,
+cancel, timeout, transport failure, or incomplete acceptance returns `access_denied`. Info-only
+calls, dry runs, and hard blocks never prompt; hard blocks always stop a mutation.
+
+With confirmation off, acknowledge IDs must equal exactly the fired set; one id covers every
+firing of that guard. A stopped call is `phase: blocked` with category `guard_blocked`.
+A malformed list (blank, duplicate, unknown id, an `info` or `block` id)
 is `validation_error` before any worker call. After planning, an acknowledged id that did not fire
 is also `validation_error`, including when the call contains dependent items or is a dry run.
 Only ids fired during initial planning can be acknowledged. A dry run reports
-`acknowledged: true|false` per guard.
+`acknowledged: true|false` for acknowledge guards (false with confirmation on) and null for info/block
+guards. The seven lifecycle guards are catalogued in the [project operations reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#guards-and-confirmation).
 
 #### Dependent items
 
@@ -861,15 +917,19 @@ UTF-8 without a BOM) beside the legacy audit files, which it never touches. The 
 `recordKind: "write"` and `recordVersion: 1`, and holds the tool, contract version, access mode,
 project path, the pinned binding, the requested operations, the phase, the response text and its
 `sha256:` hash, every fired guard, and per item the target, checked preconditions, status, failure,
-warnings, and duration. An acknowledged guard records `satisfiedBy: "agent"` once the initial guard
-gate admits the call to live apply, including when a later stage throws. Dry runs and calls
-rejected before live apply record no satisfaction. Validation and binding rejections are audited
+warnings, and duration. An accepted elicitation guard records `satisfiedBy: "user"`, including when
+the fresh post-acceptance check then refuses stale state before mutation. The explicit switch-off
+path records `satisfiedBy: "agent"` only once apply starts, including when a later stage throws.
+Dry runs and calls without accepted elicitation or admitted agent acknowledgement record no
+satisfaction. Validation and binding rejections are audited
 outside the lease.
 
 An exception after the lease starts is audited as an `error` record and then rethrown unchanged.
 If live apply was interrupted, the record includes the collected batch outcomes, the failed
 current item, skipped remaining items, and the same partial-write warnings as an ordinary failure.
 Exceptions during verification or response composition preserve an already completed batch.
+Caller cancellation propagates after auditing known mutation outcomes. A cancelled call is not
+proof that nothing changed; inspect current state and retained audit evidence before any retry.
 The recorded error response comes from the pipeline's own report, without calling the domain
 again. A failed append is reported on stderr and never hides the write result.
 
@@ -922,6 +982,12 @@ The read-only test suite covers:
 - confirmation and safety-token bypass prevention;
 - doctor output and CLI parity;
 - the output contract of every registered tool (§7a).
+
+Full-mode lifecycle regressions additionally cover explicit binding preparation and stale-revision
+refusal, all seven guards, default-on/off acknowledgement, client elicitation outcomes, post-prompt
+state changes, typed attempted failures and verification, canonical audit provenance, and removal
+of public token inputs. Production-surface protocol tests distinguish actual applied lifecycle
+calls from dry-run previews and keep legacy Network/batch tokens active.
 
 Manual integration testing with a live TIA Portal remains necessary to validate
 Siemens-specific attachment, confirmation, project-path, packaging, and worker

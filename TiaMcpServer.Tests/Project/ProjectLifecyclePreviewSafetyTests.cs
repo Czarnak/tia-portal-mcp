@@ -1,7 +1,9 @@
 using System.Text.Json;
+using ModelContextProtocol.Protocol;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -15,245 +17,187 @@ public sealed class ProjectLifecyclePreviewSafetyTests
     private const string SourcePath = @"C:\FakeWorker\lifecycle-rebind-probe.ap21";
     private const string DestinationPath = @"C:\Lifecycle\B.ap21";
 
-    [Fact]
-    public async Task LifecyclePreviews_OmittedPath_ShowResolvedSource()
+    private sealed class Fixture : IDisposable
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        const string source = "lifecycle-probe-only";
-        const string targetDirectory = @"C:\Lifecycle\Copies";
-        const string targetName = "Copy";
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
-        var resolvedSource = Assert.IsType<string>(binding.CaptureSnapshot().ProjectPath);
-        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        internal readonly TempAuditDirectory Audit = new();
+        internal readonly string Root = Directory.CreateTempSubdirectory("lifecycle-caller-").FullName;
+        internal string Source { get; private set; } = string.Empty;
+        internal readonly ProjectSessionBinding Binding;
+        internal readonly OpennessWorkerClient Client;
+        internal readonly WriteExecution Execution;
+        internal readonly UserConfirmationOptions Options = new(false);
+
+        internal Fixture(string? configured = null, string? worker = null)
+        {
+            Binding = new ProjectSessionBinding(configured);
+            Client = new OpennessWorkerClient(Binding, workerExecutablePath: worker ?? FakeWorkerLocator.Locate(),
+                accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+            Execution = LifecycleTestCalls.Execution(Client, Audit);
+        }
+
+        internal async Task Bind(string source = SourcePath)
+        {
+            Source = Physical(source);
+            await FakeWorkerBinding.BindVerifiedAsync(Client, Binding, Source);
+        }
+
+        internal string Physical(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return path;
+            var relative = Path.IsPathFullyQualified(path) ? path.Substring(Path.GetPathRoot(path)!.Length)
+                : Path.Combine("FakeWorker", path + ".ap21");
+            var result = Path.Combine(Root, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(result)!);
+            if (!File.Exists(result)) File.WriteAllText(result, "scripted fixture");
+            return result;
+        }
+
+        internal Task<CallToolResult> Open(string destination = DestinationPath,
+            bool forceRebind = true, bool dryRun = true)
+            => ProjectWriteTools.OpenProject(Client, Execution, Options, Physical(destination),
+                forceRebind: forceRebind, dryRun: dryRun);
+
+        public void Dispose()
+        {
+            Client.Dispose();
+            Audit.Dispose();
+            if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LifecycleDryRuns_OmittedPath_ReportResolvedSourceAndSaveChoices()
+    {
+        using var fixture = new Fixture();
+        await fixture.Bind("lifecycle-probe-only");
+        var source = fixture.Binding.BoundProjectPath;
+        var directory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
-            using var save = JsonDocument.Parse(await ProjectWriteTools.SaveProject(client, safety));
-            AssertResolvedSourcePreview(save.RootElement, resolvedSource, new { projectPath = (string?)null });
+            var calls = new[]
+            {
+                await ProjectWriteTools.SaveProject(fixture.Client, fixture.Execution, fixture.Options, dryRun: true),
+                await ProjectWriteTools.SaveProjectAs(fixture.Client, fixture.Execution, fixture.Options,
+                    fixture.Root, "Copy", dryRun: true),
+                await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+                    directory, "Backup", dryRun: true),
+                await ProjectWriteTools.CloseProject(fixture.Client, fixture.Execution, fixture.Options, dryRun: true)
+            };
+            foreach (var call in calls)
+            {
+                var document = LifecycleTestCalls.Document(call);
+                LifecycleTestCalls.Phase(document, "preview");
+                Assert.Equal(source, document.GetProperty("effects").GetProperty("sourceProjectPath").GetString());
+                Assert.False(document.TryGetProperty("safetyToken", out _));
+            }
+            Assert.True(LifecycleTestCalls.Document(calls[2]).GetProperty("effects").GetProperty("savesSource").GetBoolean());
+            Assert.True(LifecycleTestCalls.Document(calls[3]).GetProperty("effects").GetProperty("savesSource").GetBoolean());
+            Assert.Equal(4, LifecycleTestCalls.AuditCount(fixture.Audit));
 
-            using var saveAs = JsonDocument.Parse(await ProjectWriteTools.SaveProjectAs(
-                client, safety, targetDirectory, targetName));
-            AssertResolvedSourcePreview(saveAs.RootElement, resolvedSource,
-                new { projectPath = (string?)null, targetDirectory, targetName, rebind = true });
-
-            using var archive = JsonDocument.Parse(await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory, "Backup"));
-            AssertResolvedSourcePreview(archive.RootElement, resolvedSource,
-                new { projectPath = (string?)null, archiveDirectory, archiveName = "Backup", mode = (string?)null, saveBeforeArchive = true });
-            Assert.True(archive.RootElement.GetProperty("target").GetProperty("saveBeforeArchive").GetBoolean());
-            Assert.Contains("save", archive.RootElement.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
-
-            using var close = JsonDocument.Parse(await ProjectWriteTools.CloseProject(client, safety));
-            AssertResolvedSourcePreview(close.RootElement, resolvedSource,
-                new { projectPath = (string?)null, saveBeforeClose = true });
-            Assert.True(close.RootElement.GetProperty("target").GetProperty("saveBeforeClose").GetBoolean());
-            Assert.Contains("save", close.RootElement.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
-            AssertNoAudit(audit);
-
-            var appliedSave = await ProjectWriteTools.SaveProject(
-                client, safety, confirm: true,
-                safetyToken: save.RootElement.GetProperty("safetyToken").GetString());
-            using var appliedDocument = JsonDocument.Parse(appliedSave);
-            Assert.True(appliedDocument.RootElement.GetProperty("success").GetBoolean());
+            var applied = await ProjectWriteTools.SaveProject(fixture.Client, fixture.Execution, fixture.Options);
+            LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
         }
-        finally
-        {
-            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
-        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
     }
 
     [Theory]
     [InlineData(DestinationPath, true)]
     [InlineData(@"C:\Lifecycle\B-ui-owned.ap21", false)]
-    public async Task OpenProject_ForceRebindPreview_NamesSourceDestinationAndDisposition(
+    public async Task OpenProject_ForceRebindDryRun_ReportsSourceDestinationAndOwnership(
         string destination, bool willCloseSource)
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        using var fixture = new Fixture();
+        await fixture.Bind();
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, destination, forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
-        var target = root.GetProperty("target");
-        var summary = root.GetProperty("summary").GetString();
-
-        Assert.Equal(SourcePath, target.GetProperty("sourceProjectPath").GetString());
-        Assert.Equal(destination, target.GetProperty("destinationProjectPath").GetString());
-        Assert.Contains(SourcePath, summary, StringComparison.Ordinal);
-        Assert.Contains(destination, summary, StringComparison.Ordinal);
-        Assert.Contains(willCloseSource ? "close" : "remain open", summary, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(
-            new { projectPath = destination, forceRebind = true })),
-            root.GetProperty("requestedInputHash").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("safetyToken").GetString()));
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
+        var result = await fixture.Open(destination);
+        var document = LifecycleTestCalls.Document(result);
+        var effects = document.GetProperty("effects");
+        LifecycleTestCalls.Phase(document, "preview");
+        Assert.Equal(fixture.Source, effects.GetProperty("sourceProjectPath").GetString());
+        Assert.Equal(fixture.Physical(destination), effects.GetProperty("destinationProjectPath").GetString());
+        Assert.Equal(willCloseSource, effects.GetProperty("willCloseSource").GetBoolean());
+        Assert.Equal(willCloseSource, effects.GetProperty("sourceOpenedByWorker").GetBoolean());
+        Assert.Equal(willCloseSource, document.GetProperty("guards").EnumerateArray()
+            .Any(guard => guard.GetProperty("id").GetString() == "closes_source_project"));
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
+        Assert.Equal(1, LifecycleTestCalls.AuditCount(fixture.Audit));
     }
 
     [Fact]
-    public async Task LifecyclePreviews_ExplicitPathAndSaveChoice_AreAccurate()
+    public async Task LifecycleDryRuns_ExplicitPathAndUnsavedChoices_ReportFreshConsequences()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var fixture = new Fixture();
         const string source = "lifecycle-probe-only";
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
-        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        await fixture.Bind(source);
+        var directory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
-            using var archive = JsonDocument.Parse(await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory, "Backup", saveBeforeArchive: false, projectPath: source));
-            var archiveRoot = archive.RootElement;
-            Assert.Equal(source, archiveRoot.GetProperty("target").GetProperty("projectPath").GetString());
-            Assert.False(archiveRoot.GetProperty("target").GetProperty("saveBeforeArchive").GetBoolean());
-            Assert.Contains(source, archiveRoot.GetProperty("summary").GetString(), StringComparison.Ordinal);
-            Assert.Contains("without saving", archiveRoot.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(
-                new { projectPath = source, archiveDirectory, archiveName = "Backup", mode = (string?)null, saveBeforeArchive = false })),
-                archiveRoot.GetProperty("requestedInputHash").GetString());
-
-            using var close = JsonDocument.Parse(await ProjectWriteTools.CloseProject(
-                client, safety, projectPath: source, saveBeforeClose: false));
-            var closeRoot = close.RootElement;
-            Assert.Equal(source, closeRoot.GetProperty("target").GetProperty("projectPath").GetString());
-            Assert.False(closeRoot.GetProperty("target").GetProperty("saveBeforeClose").GetBoolean());
-            Assert.Contains(source, closeRoot.GetProperty("summary").GetString(), StringComparison.Ordinal);
-            Assert.Contains("without saving", closeRoot.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(
-                new { projectPath = source, saveBeforeClose = false })),
-                closeRoot.GetProperty("requestedInputHash").GetString());
-            AssertNoAudit(audit);
+            var archive = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+                directory, "Backup", saveBeforeArchive: false, projectPath: fixture.Source, dryRun: true);
+            var close = await ProjectWriteTools.CloseProject(fixture.Client, fixture.Execution, fixture.Options,
+                projectPath: fixture.Source, saveBeforeClose: false, dryRun: true);
+            foreach (var call in new[] { archive, close })
+            {
+                var document = LifecycleTestCalls.Document(call);
+                LifecycleTestCalls.Phase(document, "preview");
+                Assert.Equal(fixture.Binding.BoundProjectPath,
+                    document.GetProperty("effects").GetProperty("sourceProjectPath").GetString());
+                Assert.False(document.GetProperty("effects").GetProperty("savesSource").GetBoolean());
+                Assert.False(document.TryGetProperty("requestedInputHash", out _));
+            }
+            Assert.Equal(JsonValueKind.Object,
+                LifecycleTestCalls.Document(archive).GetProperty("effects").GetProperty("sourceStatus").ValueKind);
         }
-        finally
-        {
-            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
-        }
-    }
-
-    private static void AssertResolvedSourcePreview(JsonElement preview, string source, object requestedInput)
-    {
-        Assert.Equal(source, preview.GetProperty("target").GetProperty("projectPath").GetString());
-        Assert.Contains(source, preview.GetProperty("summary").GetString(), StringComparison.Ordinal);
-        Assert.Equal(WriteSafetyService.HashText(WriteSafetyService.ToStableJson(requestedInput)),
-            preview.GetProperty("requestedInputHash").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(preview.GetProperty("safetyToken").GetString()));
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
     }
 
     [Fact]
-    public async Task OpenProject_DifferentBoundPathWithoutForce_PreviewBindingConflictWithoutToken()
+    public async Task OpenProject_DifferentBoundPathWithoutForce_RejectsWithoutChangingSource()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
-        var before = binding.CaptureSnapshot();
+        using var fixture = new Fixture();
+        await fixture.Bind();
+        var before = fixture.Binding.CaptureSnapshot();
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: false);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        LifecycleTestCalls.Rejected(await fixture.Open(forceRebind: false), WorkerFailureCategories.BindingConflict);
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
-        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
+        Assert.True(before.SameBinding(fixture.Binding.CaptureSnapshot()));
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
+        Assert.Equal(1, LifecycleTestCalls.AuditCount(fixture.Audit));
     }
 
     [Fact]
-    public async Task ArchiveProject_MissingDirectory_PreviewValidationErrorWithoutToken()
+    public async Task ArchiveProject_DirectoryRemovedAfterDryRun_FreshCallRejectsBeforeMutation()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        const string projectPath = "lifecycle-probe-only";
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
-        var archiveDirectory = Path.Combine(Path.GetTempPath(), $"tia-archive-missing-{Guid.NewGuid():N}");
-        Assert.False(Directory.Exists(archiveDirectory));
-
-        var preview = await ProjectWriteTools.ArchiveProject(
-            client, safety, archiveDirectory, "Backup", projectPath: projectPath);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
-
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.False(Directory.Exists(archiveDirectory));
-        AssertNoAudit(audit);
-    }
-
-    [Fact]
-    public async Task ArchiveProject_DirectoryRemovedAfterPreview_FailsBeforeWorkerMutation()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        const string projectPath = "lifecycle-probe-only";
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
-        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
+        using var fixture = new Fixture();
+        const string source = "lifecycle-probe-only";
+        await fixture.Bind(source);
+        var directory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
-            var preview = await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory, "Backup", projectPath: projectPath);
-            using var previewDocument = JsonDocument.Parse(preview);
-            var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
-            Assert.False(string.IsNullOrWhiteSpace(token));
-            Directory.Delete(archiveDirectory);
-
-            var apply = await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory, "Backup", projectPath: projectPath,
-                confirm: true, safetyToken: token);
-            using var applyDocument = JsonDocument.Parse(apply);
-            var root = applyDocument.RootElement;
-
-            Assert.False(root.GetProperty("success").GetBoolean());
-            Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-            Assert.False(root.TryGetProperty("operationResult", out _));
-            Assert.False(Directory.Exists(archiveDirectory));
-            AssertNoAudit(audit);
+            var preview = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+                directory, "Backup", projectPath: fixture.Source, dryRun: true);
+            LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+            Directory.Delete(directory);
+            var result = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+                directory, "Backup", projectPath: fixture.Source);
+            LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
+            Assert.False(Directory.Exists(directory));
+            Assert.Equal(2, LifecycleTestCalls.AuditCount(fixture.Audit));
         }
-        finally
-        {
-            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
-        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
     }
 
     [Fact]
-    public async Task ArchiveProject_ExistingDirectory_PreviewAndApply()
+    public async Task ArchiveProject_MissingDirectory_RejectsWithoutCreatingIt()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        const string projectPath = "lifecycle-probe-only";
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
-        var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
-        try
-        {
-            var preview = await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory, "Backup", projectPath: projectPath);
-            using var previewDocument = JsonDocument.Parse(preview);
-            var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
-            Assert.False(string.IsNullOrWhiteSpace(token));
+        using var fixture = new Fixture();
+        await fixture.Bind("lifecycle-probe-only");
+        var directory = Path.Combine(Path.GetTempPath(), "tia-archive-missing-" + Guid.NewGuid().ToString("N"));
 
-            var apply = await ProjectWriteTools.ArchiveProject(
-                client, safety, archiveDirectory, "Backup", projectPath: projectPath,
-                confirm: true, safetyToken: token);
-            using var applyDocument = JsonDocument.Parse(apply);
-            Assert.True(applyDocument.RootElement.GetProperty("success").GetBoolean());
-        }
-        finally
-        {
-            if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true);
-        }
+        var result = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+            directory, "Backup", dryRun: true);
+        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
+        Assert.False(Directory.Exists(directory));
     }
 
     [Fact]
@@ -373,424 +317,228 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         Assert.DoesNotContain("probe_open_project_rebind", toolNames);
     }
 
+
     [Fact]
-    public async Task OpenProject_ModifiedWorkerOwnedSource_PreviewFailsWithoutToken()
+    public async Task OpenProject_ModifiedWorkerOwnedSource_HardBlockCannotBeAcknowledged()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        using var fixture = new Fixture();
+        await fixture.Bind();
 
-        var preview = await ProjectWriteTools.OpenProject(
-            client, safety, @"C:\Lifecycle\B-modified.ap21", forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        var result = await ProjectWriteTools.OpenProject(fixture.Client, fixture.Execution, fixture.Options,
+            fixture.Physical(@"C:\Lifecycle\B-modified.ap21"), forceRebind: true,
+            acknowledge: new[] { "discards_unsaved_source_changes" });
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
+        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(result), "error");
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
     [Fact]
-    public async Task OpenProject_SourceBecomesModified_ApplyIsStateChangedAndDoesNotOpen()
+    public async Task OpenProject_SourceBecomesModifiedAfterDryRun_FreshApplyBlocksAndDoesNotOpen()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
-        // Existing FakeWorker open fixture succeeds, so the RED test proves the old B-only
-        // state hash reaches worker Open instead of merely hitting an unknown-scenario error.
+        using var fixture = new Fixture();
+        await fixture.Bind();
         const string destination = @"C:\open\Line.ap21";
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, destination, forceRebind: true);
-        using var previewDocument = JsonDocument.Parse(preview);
-        var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
-        Assert.False(string.IsNullOrWhiteSpace(token));
+        var preview = await fixture.Open(destination);
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+        var result = await fixture.Open(destination, dryRun: false);
 
-        var apply = await ProjectWriteTools.OpenProject(
-            client, safety, destination, confirm: true, safetyToken: token, forceRebind: true);
-        using var applyDocument = JsonDocument.Parse(apply);
-        Assert.False(applyDocument.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(
-            WorkerFailureCategories.StateChanged,
-            applyDocument.RootElement.GetProperty("failureCategory").GetString());
-        Assert.Equal(SourcePath, binding.CaptureSnapshot().ProjectPath);
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
-
-        // A state-changed apply consumes the token. Retrying it must not reach worker Open.
-        var retry = await ProjectWriteTools.OpenProject(
-            client, safety, destination, confirm: true, safetyToken: token, forceRebind: true);
-        using var retryDocument = JsonDocument.Parse(retry);
-        Assert.Equal(
-            WorkerFailureCategories.ValidationError,
-            retryDocument.RootElement.GetProperty("failureCategory").GetString());
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
+        LifecycleTestCalls.Rejected(result, "guard_blocked");
+        Assert.Contains(LifecycleTestCalls.Document(result).GetProperty("guards").EnumerateArray(),
+            guard => guard.GetProperty("id").GetString() == "discards_unsaved_source_changes");
+        Assert.Equal(fixture.Source, fixture.Binding.BoundProjectPath);
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
     [Fact]
-    public async Task OpenProject_ModifiedUiOwnedSource_RemainsOpen()
+    public async Task OpenProject_ModifiedUiOwnedSource_RemainsOpenWhenDestinationIsBound()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        using var fixture = new Fixture();
+        await fixture.Bind();
         const string destination = @"C:\Lifecycle\B-ui-owned.ap21";
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, destination, forceRebind: true);
-        using var previewDocument = JsonDocument.Parse(preview);
-        var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
-
-        var apply = await ProjectWriteTools.OpenProject(
-            client, safety, destination, confirm: true, safetyToken: token, forceRebind: true);
-        using var applyDocument = JsonDocument.Parse(apply);
-        Assert.True(applyDocument.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(destination, binding.CaptureSnapshot().ProjectPath);
+        var result = await fixture.Open(destination, dryRun: false);
+        var document = LifecycleTestCalls.Document(result);
+        LifecycleTestCalls.Succeeded(document);
+        Assert.False(document.GetProperty("effects").GetProperty("willCloseSource").GetBoolean());
+        Assert.Equal(fixture.Physical(destination), fixture.Binding.BoundProjectPath);
     }
 
     [Fact]
     public async Task OpenProject_SamePathModifiedSource_IsIdempotent()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
+        const string source = @"C:\FakeWorker\guarded-lifecycle-modified.ap21";
+        using var fixture = new Fixture();
+        await fixture.Bind(source);
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, SourcePath);
-        using var previewDocument = JsonDocument.Parse(preview);
-        var samePathTarget = previewDocument.RootElement.GetProperty("target");
-        Assert.Equal(SourcePath, samePathTarget.GetProperty("sourceProjectPath").GetString());
-        Assert.Equal(SourcePath, samePathTarget.GetProperty("destinationProjectPath").GetString());
-        Assert.Contains("remain open", previewDocument.RootElement.GetProperty("summary").GetString(), StringComparison.OrdinalIgnoreCase);
-        var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
-
-        var apply = await ProjectWriteTools.OpenProject(
-            client, safety, SourcePath, confirm: true, safetyToken: token);
-        using var applyDocument = JsonDocument.Parse(apply);
-        Assert.True(applyDocument.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(SourcePath, binding.CaptureSnapshot().ProjectPath);
+        var result = await fixture.Open(source, forceRebind: false, dryRun: false);
+        var document = LifecycleTestCalls.Document(result);
+        LifecycleTestCalls.Succeeded(document);
+        Assert.True(document.GetProperty("effects").GetProperty("sourceStatus").GetProperty("isModified").GetBoolean());
+        Assert.False(document.GetProperty("effects").GetProperty("willCloseSource").GetBoolean());
+        Assert.Equal(fixture.Source, fixture.Binding.BoundProjectPath);
     }
 
     [Fact]
-    public async Task OpenProject_InconsistentSnapshot_RejectsWithoutToken()
+    public async Task OpenProject_InconsistentProbe_RejectsWithoutDispatch()
     {
         const string source = @"C:\FakeWorker\lifecycle-rebind-probe-wrong-disposition.ap21";
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
+        using var fixture = new Fixture();
+        await fixture.Bind(source);
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        LifecycleTestCalls.Rejected(await fixture.Open(), WorkerFailureCategories.ProtocolError);
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ProtocolError, root.GetProperty("failureCategory").GetString());
-        await AssertNoOpenProjectCallsAsync(client, source);
-        AssertNoAudit(audit);
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
     [Fact]
-    public async Task OpenProject_ConfiguredSourceCannotBeVerified_RejectsWithoutToken()
+    public async Task OpenProject_ConfiguredSourceCannotBeVerified_PreservesCategoryAndBinding()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding("worker-error-with-category");
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var fixture = new Fixture("worker-error-with-category");
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        LifecycleTestCalls.Rejected(await fixture.Open(), WorkerFailureCategories.ValidationError);
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.CaptureSnapshot().State);
-        AssertNoAudit(audit);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, fixture.Binding.CaptureSnapshot().State);
     }
 
     [Fact]
-    public async Task OpenProject_UnboundSource_DoesNotNeedRebindProbe()
+    public async Task OpenProject_UnboundDryRun_DoesNotNeedWorkerOrRebindProbe()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        const string destination = @"C:\open\Line.ap21";
+        using var fixture = new Fixture(worker: "worker-must-not-start.exe");
+        var before = fixture.Binding.CaptureSnapshot();
+        var result = await fixture.Open(@"C:\open\Line.ap21", forceRebind: false);
+        var effects = LifecycleTestCalls.Document(result).GetProperty("effects");
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, destination);
-        using var previewDocument = JsonDocument.Parse(preview);
-        var unboundTarget = previewDocument.RootElement.GetProperty("target");
-        Assert.Equal(JsonValueKind.Null, unboundTarget.GetProperty("sourceProjectPath").ValueKind);
-        Assert.Equal(destination, unboundTarget.GetProperty("destinationProjectPath").GetString());
-        var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
-
-        var apply = await ProjectWriteTools.OpenProject(
-            client, safety, destination, confirm: true, safetyToken: token);
-        using var applyDocument = JsonDocument.Parse(apply);
-        Assert.True(applyDocument.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, effects.GetProperty("sourceProjectPath").ValueKind);
+        Assert.Equal(fixture.Physical(@"C:\open\Line.ap21"), effects.GetProperty("destinationProjectPath").GetString());
+        Assert.True(before.SameBinding(fixture.Binding.CaptureSnapshot()));
     }
 
     [Fact]
-    public async Task OpenProject_UnboundWorkerFailure_PreservesPriorCategory()
+    public async Task OpenProject_InvalidatedForceRebind_RegroundsRetainedSourceBeforeDryRun()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var fixture = new Fixture();
+        await fixture.Bind();
+        fixture.Binding.Invalidate("Simulated stale binding");
+        var invalidated = fixture.Binding.CaptureSnapshot();
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, "worker-error-with-category");
-        using var previewDocument = JsonDocument.Parse(preview);
-        var token = previewDocument.RootElement.GetProperty("safetyToken").GetString();
+        var result = await fixture.Open();
 
-        var apply = await ProjectWriteTools.OpenProject(
-            client, safety, "worker-error-with-category", confirm: true, safetyToken: token);
-        using var applyDocument = JsonDocument.Parse(apply);
-        var root = applyDocument.RootElement;
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.Equal("invalid value", root.GetProperty("error").GetString());
-        Assert.False(root.TryGetProperty("operationResult", out _));
-    }
-
-    [Fact]
-    public async Task OpenProject_InvalidatedForceRebind_RegroundsRetainedSourceBeforePreview()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
-        binding.Invalidate("Simulated stale binding");
-        var invalidated = binding.CaptureSnapshot();
-
-        // B cannot be used for status grounding: only A is an open FakeWorker project.
-        var preview = await ProjectWriteTools.OpenProject(
-            client, safety, DestinationPath, forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var token = document.RootElement.GetProperty("safetyToken").GetString();
-
-        Assert.False(string.IsNullOrWhiteSpace(token));
-        var promoted = binding.CaptureSnapshot();
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(result), "preview");
+        var promoted = fixture.Binding.CaptureSnapshot();
         Assert.True(promoted.IsVerified);
-        Assert.Equal(SourcePath, promoted.ProjectPath);
+        Assert.Equal(fixture.Source, promoted.ProjectPath);
         Assert.True(promoted.Revision >= invalidated.Revision + 2);
         Assert.NotEqual(invalidated.BindingId, promoted.BindingId);
         Assert.NotNull(promoted.ToWorkerIdentity());
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
     [Fact]
-    public async Task OpenProject_InvalidatedModifiedSource_RecoveryStillRefusesPreview()
+    public async Task OpenProject_InvalidatedModifiedSource_RecoveryStillBlocksMutation()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
-        binding.Invalidate("Simulated stale binding");
+        using var fixture = new Fixture();
+        await fixture.Bind();
+        fixture.Binding.Invalidate("Simulated stale binding");
 
-        var preview = await ProjectWriteTools.OpenProject(
-            client, safety, @"C:\Lifecycle\B-modified.ap21", forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        LifecycleTestCalls.Rejected(await fixture.Open(@"C:\Lifecycle\B-modified.ap21", dryRun: false),
+            "guard_blocked");
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.True(binding.CaptureSnapshot().IsVerified);
-        Assert.Equal(SourcePath, binding.CaptureSnapshot().ProjectPath);
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
+        Assert.True(fixture.Binding.IsVerified);
+        Assert.Equal(fixture.Source, fixture.Binding.BoundProjectPath);
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task OpenProject_InvalidatedBlankPath_RejectsBeforeRecovery(bool forceRebind)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task OpenProject_BlankPath_RejectsBeforeGrounding(bool invalidated, bool forceRebind)
     {
-        using var audit = new TempAuditDirectory();
-        // A status call to this source returns "invalid value" instead of the required
-        // input error; forceRebind=true would also change the binding revision during recovery.
-        var binding = new ProjectSessionBinding("worker-error-with-category");
-        binding.Invalidate("Simulated stale binding");
-        var before = binding.CaptureSnapshot();
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var fixture = new Fixture("worker-error-with-category", "worker-must-not-start.exe");
+        if (invalidated) fixture.Binding.Invalidate("Simulated stale binding");
+        var before = fixture.Binding.CaptureSnapshot();
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, "   ", forceRebind: forceRebind);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
-
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.Equal("Project path is required.", root.GetProperty("error").GetString());
-        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
-        AssertNoAudit(audit);
-    }
-
-    [Fact]
-    public async Task OpenProject_ConfiguredBlankPath_RejectsBeforeStatusPromotion()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding("worker-error-with-category");
-        var before = binding.CaptureSnapshot();
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-
-        var preview = await ProjectWriteTools.OpenProject(client, safety, "   ", forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
-
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.Equal("Project path is required.", root.GetProperty("error").GetString());
-        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
-        AssertNoAudit(audit);
+        var result = await fixture.Open("   ", forceRebind);
+        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
+        Assert.Contains("path",
+            LifecycleTestCalls.Document(result).GetProperty("error").GetProperty("message").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.True(before.SameBinding(fixture.Binding.CaptureSnapshot()));
     }
 
     [Fact]
     public async Task OpenProject_ConfiguredDifferentPathWithoutForce_RejectsBeforeStatusPromotion()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding("worker-error-with-category");
-        var before = binding.CaptureSnapshot();
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var fixture = new Fixture("worker-error-with-category", "worker-must-not-start.exe");
+        var before = fixture.Binding.CaptureSnapshot();
 
-        var preview = await ProjectWriteTools.OpenProject(client, safety, DestinationPath, forceRebind: false);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        LifecycleTestCalls.Rejected(await fixture.Open(forceRebind: false), WorkerFailureCategories.BindingConflict);
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
-        Assert.Contains("already bound", root.GetProperty("error").GetString(), StringComparison.OrdinalIgnoreCase);
-        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
-        AssertNoAudit(audit);
+        Assert.True(before.SameBinding(fixture.Binding.CaptureSnapshot()));
     }
 
     [Fact]
-    public async Task OpenProject_InvalidatedStatusFailure_PreservesCategoryAndIssuesNoToken()
+    public async Task OpenProject_InvalidatedStatusFailure_PreservesFailureAndRetainedSource()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding("worker-error-with-category");
-        binding.Invalidate("Simulated stale binding");
-        var invalidated = binding.CaptureSnapshot();
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var fixture = new Fixture("worker-error-with-category");
+        fixture.Binding.Invalidate("Simulated stale binding");
+        var before = fixture.Binding.CaptureSnapshot();
 
-        var preview = await ProjectWriteTools.OpenProject(
-            client, safety, DestinationPath, forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        var result = await fixture.Open();
+        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.ValidationError, root.GetProperty("failureCategory").GetString());
-        Assert.Equal("invalid value", root.GetProperty("error").GetString());
-        var after = binding.CaptureSnapshot();
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, after.State);
-        Assert.Equal(invalidated.ProjectPath, after.ProjectPath);
-        AssertNoAudit(audit);
+        Assert.Equal("invalid value",
+            LifecycleTestCalls.Document(result).GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, fixture.Binding.CaptureSnapshot().State);
+        Assert.Equal(before.ProjectPath, fixture.Binding.BoundProjectPath);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OpenProject_InvalidatedWithoutRecoveryAuthority_RejectsWithoutGrounding(bool retainSource)
+    {
+        using var fixture = new Fixture(retainSource ? SourcePath : null, "worker-must-not-start.exe");
+        fixture.Binding.Invalidate("Simulated stale binding");
+        var before = fixture.Binding.CaptureSnapshot();
+
+        LifecycleTestCalls.Rejected(await fixture.Open(forceRebind: !retainSource), WorkerFailureCategories.BindingConflict);
+
+        Assert.True(before.SameBinding(fixture.Binding.CaptureSnapshot()));
     }
 
     [Fact]
-    public async Task OpenProject_InvalidatedWithoutRetainedSource_RejectsWithoutGrounding()
+    public async Task OpenProject_PreRecoverySnapshot_CannotDispatchAfterRegroundRevision()
     {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        binding.Invalidate("Simulated stale binding without a source");
-        var invalidated = binding.CaptureSnapshot();
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var absentExecutable = Path.Combine(Path.GetTempPath(), $"tia-absent-{Guid.NewGuid():N}.exe");
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: absentExecutable, accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var fixture = new Fixture();
+        await fixture.Bind();
+        var oldBinding = fixture.Binding.CaptureSnapshot();
+        fixture.Binding.Invalidate("Simulated stale binding");
 
-        var preview = await ProjectWriteTools.OpenProject(
-            client, safety, DestinationPath, forceRebind: true);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
+        var preview = await fixture.Open();
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+        Assert.NotEqual(oldBinding.BindingId, fixture.Binding.CaptureSnapshot().BindingId);
+        Assert.True(fixture.Binding.CaptureSnapshot().Revision > oldBinding.Revision);
+        var dispatched = false;
+        var stale = await fixture.Client.ExecuteWithPinnedBindingAsync(oldBinding, async () =>
+        {
+            dispatched = true;
+            return await fixture.Client.OpenProjectAsync(fixture.Physical(DestinationPath), forceRebind: true);
+        });
 
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
-        Assert.True(invalidated.SameBinding(binding.CaptureSnapshot()));
-        AssertNoAudit(audit);
-    }
-
-    [Fact]
-    public async Task OpenProject_InvalidatedWithoutForceRebind_RejectsWithoutGrounding()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
-        binding.Invalidate("Simulated stale binding");
-        var invalidated = binding.CaptureSnapshot();
-
-        var preview = await ProjectWriteTools.OpenProject(
-            client, safety, DestinationPath, forceRebind: false);
-        using var document = JsonDocument.Parse(preview);
-        var root = document.RootElement;
-
-        Assert.False(root.TryGetProperty("safetyToken", out _));
-        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
-        Assert.True(invalidated.SameBinding(binding.CaptureSnapshot()));
-        AssertNoAudit(audit);
-    }
-
-    [Fact]
-    public async Task OpenProject_PreRecoveryToken_CannotApplyAfterRegroundRevision()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, SourcePath);
-
-        var oldPreview = await ProjectWriteTools.OpenProject(
-            client, safety, DestinationPath, forceRebind: true);
-        using var oldDocument = JsonDocument.Parse(oldPreview);
-        var oldToken = oldDocument.RootElement.GetProperty("safetyToken").GetString();
-        var oldBinding = binding.CaptureSnapshot();
-        binding.Invalidate("Simulated stale binding");
-
-        var newPreview = await ProjectWriteTools.OpenProject(
-            client, safety, DestinationPath, forceRebind: true);
-        using var newDocument = JsonDocument.Parse(newPreview);
-        Assert.False(string.IsNullOrWhiteSpace(newDocument.RootElement.GetProperty("safetyToken").GetString()));
-        Assert.True(binding.CaptureSnapshot().IsVerified);
-        Assert.NotEqual(oldBinding.BindingId, binding.CaptureSnapshot().BindingId);
-        Assert.True(binding.CaptureSnapshot().Revision > oldBinding.Revision);
-
-        var staleApply = await ProjectWriteTools.OpenProject(
-            client, safety, DestinationPath, confirm: true, safetyToken: oldToken, forceRebind: true);
-        using var staleDocument = JsonDocument.Parse(staleApply);
-        var root = staleDocument.RootElement;
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal(WorkerFailureCategories.BindingConflict, root.GetProperty("failureCategory").GetString());
-        await AssertNoOpenProjectCallsAsync(client, SourcePath);
-        AssertNoAudit(audit);
+        Assert.False(dispatched);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, stale.Failure!.FailureCategory);
+        await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
     private static async Task AssertNoOpenProjectCallsAsync(OpennessWorkerClient client, string sourcePath)
     {
-        // The persistent FakeWorker returns this process-local counter on a bound status read.
         var status = await client.GetProjectStatusAsync(sourcePath);
         Assert.True(status.Success, status.Error);
         using var document = JsonDocument.Parse(status.Payload);
         Assert.Equal(0, document.RootElement.GetProperty("openProjectCalls").GetInt32());
-    }
-
-    private static void AssertNoAudit(TempAuditDirectory audit)
-    {
-        var lineCount = Directory.Exists(audit.Path)
-            ? Directory.GetFiles(audit.Path).Sum(file => File.ReadAllLines(file).Length)
-            : 0;
-        Assert.Equal(0, lineCount);
     }
 }

@@ -74,6 +74,16 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public WriteToolError? ReplanFailure { get; set; }
 
+    public string EffectChange { get; set; } = "delete";
+
+    public IReadOnlyList<CheckedPrecondition>? PlannedPreconditions { get; set; }
+
+    public IReadOnlyList<string>? PlannedGuards { get; set; }
+
+    public bool VerificationPasses { get; set; } = true;
+
+    public Action? OnMutate { get; set; }
+
     /// <summary>The mutation of this operation throws after it was dispatched.</summary>
     public string? ThrowOnMutate { get; set; }
 
@@ -128,7 +138,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
                 continue;
             }
 
-            var ids = _replanned.Contains(items[i].OperationId) ? items[i].LateGuards : items[i].Guards;
+            var ids = PlannedGuards ?? (_replanned.Contains(items[i].OperationId) ? items[i].LateGuards : items[i].Guards);
             fired.AddRange((ids ?? Array.Empty<string>())
                 .Select(id => new FiredGuard(id, items[i].OperationId, $"{id} on {items[i].Target}.")));
         }
@@ -154,6 +164,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         }
 
         MutationCount++;
+        OnMutate?.Invoke();
         if (ThrowOnMutate == item.OperationId)
         {
             throw new InvalidOperationException($"{item.OperationId} exploded.");
@@ -182,6 +193,8 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         return Task.FromResult<FakeVerification?>(new FakeVerification(MutationCount));
     }
 
+    public bool VerificationSucceeded(FakeVerification? verification) => VerificationPasses;
+
     public FakeWriteResponse Compose(WriteReport<FakeEffect, FakeVerification> report)
     {
         RecordCall("compose");
@@ -201,10 +214,10 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         }
     }
 
-    private static FakeEffect EffectFor(FakeWriteItem item) => new(item.Target, "delete");
+    private FakeEffect EffectFor(FakeWriteItem item) => new(item.Target, EffectChange);
 
-    private static IReadOnlyList<CheckedPrecondition> PreconditionsFor(FakeWriteItem item)
-        => new[] { new CheckedPrecondition(Precondition, HashFor(item), HashFor(item), true) };
+    private IReadOnlyList<CheckedPrecondition> PreconditionsFor(FakeWriteItem item)
+        => PlannedPreconditions ?? new[] { new CheckedPrecondition(Precondition, HashFor(item), HashFor(item), true) };
 }
 
 /// <summary>A binding gate that records gate calls and whether its lease is currently held.</summary>

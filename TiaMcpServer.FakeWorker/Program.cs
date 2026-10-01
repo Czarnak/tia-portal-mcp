@@ -16,6 +16,7 @@ var fakeSessionGeneration = 1L;
 string? fakeProjectPath = null;
 string? currentProjectPath = null;
 string? currentMethod = null;
+string? currentRequestLine = null;
 var requestJsonOptions = WorkerJson.Envelope;
 
 // Process-local, mutable hardware state for the "multi-homed-network" scenario (see below): a
@@ -73,6 +74,9 @@ var tagSafetySnapshotReadsAtMutation = 0;
 var tagSafetyBroadReadCount = 0;
 var lifecycleRebindProbeReadCount = 0;
 var lifecycleRebindOpenProjectCalls = 0;
+string? guardedLifecycleScenario = null;
+string? lifecycleProbeOnlyCopiedPath = null;
+var guardedLifecycleModified = false;
 var tagSafetyTargetExists = true;
 var tagSafetyTargetTagName = "Start";
 var tagSafetySiblingTag = new TagSafetyIdentityInfo("PLC_1", "/", "Outputs", "Before",
@@ -91,6 +95,7 @@ const int SubnetLifecycleDeviceCount = 2;
 string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {
+    currentRequestLine = line;
     seq++;
     string? scenario = null;
     currentProjectPath = null;
@@ -156,6 +161,28 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
+    if (currentProjectPath?.Contains("guarded-lifecycle", StringComparison.OrdinalIgnoreCase) == true)
+    {
+        if (!string.Equals(guardedLifecycleScenario, currentProjectPath, StringComparison.OrdinalIgnoreCase))
+            guardedLifecycleModified = currentProjectPath.Contains("-modified", StringComparison.OrdinalIgnoreCase);
+        guardedLifecycleScenario = currentProjectPath;
+    }
+    if (guardedLifecycleScenario is not null && (currentProjectPath?.Contains("guarded-lifecycle", StringComparison.OrdinalIgnoreCase) == true
+        || currentProjectPath is null && currentMethod == "get_basic_project_status"))
+    {
+        Respond(GuardedLifecycleResponse(line, guardedLifecycleScenario));
+        continue;
+    }
+
+    if (currentMethod == "get_basic_project_status" && currentProjectPath is null && fakeProjectPath is null)
+    {
+        Respond(Success(WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+        {
+            Operation = "get_project_status", Project = new ProjectStatusInfo { IsOpen = false }
+        })));
+        continue;
+    }
+
     switch (scenario)
     {
         case "ok":
@@ -197,14 +224,14 @@ while ((line = Console.In.ReadLine()) is not null)
             {
                 lifecycleRebindOpenProjectCalls++;
             }
-            Respond("""{"success":true,"payload":"{\"isOpen\":true}","resolvedProjectPath":"C:\\open\\Line.ap21"}""");
+            Respond(SuccessWithResolvedPath("{\"isOpen\":true}", currentProjectPath!));
             break;
         case @"C:\Lifecycle\B-ui-owned.ap21":
             if (ReadMethod(line) == "open_project")
             {
                 lifecycleRebindOpenProjectCalls++;
             }
-            Respond(SuccessWithResolvedPath("{\"isOpen\":true}", @"C:\Lifecycle\B-ui-owned.ap21"));
+            Respond(SuccessWithResolvedPath("{\"isOpen\":true}", currentProjectPath!));
             break;
         case "C:\\bound\\Session.ap21":
             // Used by the "already bound but worker reports a different project" test: the
@@ -961,14 +988,18 @@ while ((line = Console.In.ReadLine()) is not null)
             {
                 Respond(Success("{\"isOpen\":true}"));
             }
+            else if (ReadMethod(line) == "probe_project_status_for_lifecycle")
+            {
+                Respond(Success("{\"isOpen\":true}"));
+            }
             else if (ReadMethod(line) == "open_project")
             {
                 lifecycleRebindOpenProjectCalls++;
-                Respond(SuccessWithResolvedPath("{\"isOpen\":true}", scenario));
+                Respond(SuccessWithResolvedPath("{\"isOpen\":true}", currentProjectPath!));
             }
             else
             {
-                Respond(RebindProbeResponse(line, scenario));
+                Respond(RebindProbeResponse(line, currentProjectPath!));
             }
             break;
         case "save-as-uncertain-state":
@@ -1145,12 +1176,14 @@ void Respond(string json, bool includeSessionIdentity = true)
     {
         if (includeSessionIdentity && JsonNode.Parse(json) is JsonObject response)
         {
+            UpgradeLegacyLifecycleFixture(response);
             var resolvedPath = response["resolvedProjectPath"]?.GetValue<string>();
-            var projectPath = string.Equals(currentMethod, "close_project", StringComparison.Ordinal)
+            var successful = response["success"]?.GetValue<bool>() == true;
+            var projectPath = successful && string.Equals(currentMethod, "close_project", StringComparison.Ordinal)
                 ? null
-                : ProjectPathNormalization.Canonicalize(resolvedPath ?? currentProjectPath);
+                : ProjectPathNormalization.Canonicalize(resolvedPath ?? currentProjectPath ?? fakeProjectPath);
 
-            if (string.Equals(currentMethod, "close_project", StringComparison.Ordinal))
+            if (successful && string.Equals(currentMethod, "close_project", StringComparison.Ordinal))
             {
                 if (fakeProjectPath is not null)
                 {
@@ -1160,7 +1193,7 @@ void Respond(string json, bool includeSessionIdentity = true)
                 fakeProjectPath = null;
                 response["resolvedProjectPath"] = null;
             }
-            else if (projectPath is not null)
+            else if (successful && projectPath is not null)
             {
                 var isAuthorizedPathTransition =
                     string.Equals(currentMethod, "open_project", StringComparison.Ordinal) ||
@@ -1193,6 +1226,109 @@ void Respond(string json, bool includeSessionIdentity = true)
 
     Console.Out.WriteLine(json);
     Console.Out.Flush();
+}
+
+void UpgradeLegacyLifecycleFixture(JsonObject response)
+{
+    if (response["success"]?.GetValue<bool>() != true
+        || currentMethod is not ("open_project" or "create_project" or "save_project" or "save_project_as"
+            or "archive_project" or "close_project" or "probe_project_status_for_lifecycle" or "get_basic_project_status")) return;
+    var payload = response["payload"]?.GetValue<string>();
+    if (payload is null || JsonNode.Parse(payload) is not JsonObject root
+        || root.Any(property => property.Key != "isOpen")) return;
+    var path = ProjectPathNormalization.Canonicalize(response["resolvedProjectPath"]?.GetValue<string>() ?? currentProjectPath ?? fakeProjectPath);
+    if (currentMethod == "save_project_as" && ScenarioKey(currentProjectPath) == "lifecycle-probe-only")
+    {
+        var directory = Path.Combine(ReadField(currentRequestLine!, "targetDirectory")!, ReadField(currentRequestLine!, "targetName")!);
+        path = Path.Combine(directory, "Copy.ap21");
+        response["resolvedProjectPath"] = path;
+        lifecycleProbeOnlyCopiedPath = path;
+    }
+    var status = new ProjectStatusInfo
+    {
+        IsOpen = currentMethod != "close_project", Path = path,
+        IsModified = currentMethod == "close_project" ? null : false
+    };
+    response["payload"] = WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+    {
+        Operation = currentMethod == "get_basic_project_status" ? "get_project_status" : currentMethod!,
+        ProjectPath = path, Project = status
+    });
+    response["resolvedProjectPath"] = currentMethod == "close_project" ? null : path;
+}
+
+string GuardedLifecycleResponse(string requestLine, string fixture)
+{
+    var method = ReadMethod(requestLine);
+    var mutation = method is "open_project" or "create_project" or "save_project" or "save_project_as" or "archive_project" or "close_project";
+    if (mutation && fixture.Contains("-worker-failure", StringComparison.OrdinalIgnoreCase))
+        return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Scripted lifecycle mutation failure." }, WorkerJson.Envelope);
+    var path = ProjectPathNormalization.Canonicalize(currentProjectPath ?? fakeProjectPath);
+    if (method == "probe_open_project_rebind")
+        return Success(WorkerJson.SerializePayload(ProjectRebindStateInfo.Create(fakeProjectPath,
+            ReadField(requestLine, "rebindDestinationProjectPath")!, guardedLifecycleModified,
+            fixture.Contains("-ui-owned", StringComparison.OrdinalIgnoreCase) != true)));
+    if (method == "create_project")
+    {
+        var directory = Path.Combine(ReadField(requestLine, "projectDirectory")!, ReadField(requestLine, "projectName")!);
+        Directory.CreateDirectory(directory);
+        path = Path.Combine(directory, ReadField(requestLine, "projectName")! + ".ap21");
+        File.WriteAllText(path, "FakeWorker lifecycle artifact");
+    }
+    if (method == "save_project_as")
+    {
+        var directory = Path.Combine(ReadField(requestLine, "targetDirectory")!, ReadField(requestLine, "targetName")!);
+        Directory.CreateDirectory(directory);
+        path = Path.Combine(directory, Path.GetFileName(fakeProjectPath ?? "Project.ap21"));
+        File.WriteAllText(path, "FakeWorker copied lifecycle artifact");
+    }
+    if (method is "save_project" or "save_project_as" or "create_project") guardedLifecycleModified = false;
+    if (method == "archive_project")
+    {
+        ArchiveModeNames.TryNormalize(ReadField(requestLine, "archiveMode"), out var archiveMode, out _);
+        var name = ArchiveModeNames.EnsureArchiveExtension(ReadField(requestLine, "archiveName")!, archiveMode);
+        var target = Path.Combine(ReadField(requestLine, "archiveDirectory")!, name);
+        if (archiveMode is ArchiveModeNames.Compressed or ArchiveModeNames.DiscardRestorableDataAndCompressed)
+            File.WriteAllText(target, "FakeWorker archived lifecycle artifact");
+        else Directory.CreateDirectory(target);
+        using var request = JsonDocument.Parse(requestLine);
+        if (request.RootElement.TryGetProperty("saveBeforeArchive", out var save) && save.ValueKind == JsonValueKind.True)
+            guardedLifecycleModified = false;
+    }
+    var noProject = method == "get_basic_project_status" && fakeProjectPath is null;
+    var status = new ProjectStatusInfo
+    {
+        IsOpen = method != "close_project" && !noProject,
+        Path = noProject ? null : path,
+        Name = noProject ? null : Path.GetFileNameWithoutExtension(path),
+        IsModified = noProject || method == "close_project" ? null : guardedLifecycleModified,
+        Version = noProject ? null : "V21",
+        Author = fixture.Contains("-oversized", StringComparison.OrdinalIgnoreCase) ? new string('x', 70_000) : null
+    };
+    if (method == "get_project_status") return Success(DirectStatusPayload(status));
+    var payload = WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+    {
+        Operation = method == "get_basic_project_status" ? "get_project_status" : method!,
+        ProjectPath = status.Path, Project = status
+    });
+    if (fixture.Contains("-document-limit", StringComparison.OrdinalIgnoreCase))
+    {
+        // Each outcome fits individually; three copies plus the response envelope exceed its
+        // document budget. This exercises omission of a complete value after composition.
+        status.Author = new string('x', Math.Max(0, 59_999 - payload.Length));
+        payload = WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+        {
+            Operation = method == "get_basic_project_status" ? "get_project_status" : method!,
+            ProjectPath = status.Path, Project = status
+        });
+    }
+    if (mutation && fixture.Contains("-malformed", StringComparison.OrdinalIgnoreCase)
+        || method == "get_basic_project_status" && fixture.Contains("-verification-failure", StringComparison.OrdinalIgnoreCase))
+        payload = "{\"untrustedMarker\":true}";
+    return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = payload,
+        ResolvedProjectPath = method == "close_project" || noProject ? null : path,
+        Warnings = mutation && fixture.Contains("-oversized", StringComparison.OrdinalIgnoreCase)
+            ? new List<string> { new string('w', 190_000), "retained mutation warning" } : new List<string>() }, WorkerJson.Envelope);
 }
 
 WorkerResponse? ValidateExpectedSessionIdentity(
@@ -1264,6 +1400,17 @@ WorkerResponse BindingConflict(string error)
 
 string? ScenarioKey(string? path)
 {
+    if (path is not null && lifecycleProbeOnlyCopiedPath is not null
+        && string.Equals(path, lifecycleProbeOnlyCopiedPath, StringComparison.OrdinalIgnoreCase))
+        return "lifecycle-probe-only";
+    if (path is not null && path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
+    {
+        var name = Path.GetFileNameWithoutExtension(path);
+        if (name.StartsWith("lifecycle-rebind-probe", StringComparison.Ordinal)) return @"C:\FakeWorker\" + name + ".ap21";
+        if (name is "lifecycle-probe-only" or "worker-error-with-category" or "save-as-uncertain-state") return name;
+        if (path.EndsWith(@"\open\Line.ap21", StringComparison.OrdinalIgnoreCase)) return @"C:\open\Line.ap21";
+        if (name == "B-ui-owned") return @"C:\Lifecycle\B-ui-owned.ap21";
+    }
     if (string.IsNullOrWhiteSpace(path) || path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
     {
         return path;
@@ -1628,7 +1775,9 @@ string RebindProbeResponse(string requestLine, string sourcePath)
     const string uiOwnedDestinationPath = @"C:\Lifecycle\B-ui-owned.ap21";
     const string driftDestinationPath = @"C:\open\Line.ap21";
     var requestedDestination = ReadField(requestLine, "rebindDestinationProjectPath");
-    var knownDestination = string.Equals(requestedDestination, destinationPath, StringComparison.OrdinalIgnoreCase) ||
+    var destinationName = Path.GetFileName(requestedDestination);
+    var knownDestination = destinationName is "B.ap21" or "B-modified.ap21" or "B-ui-owned.ap21" or "Line.ap21" ||
+        string.Equals(requestedDestination, destinationPath, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(requestedDestination, modifiedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(requestedDestination, uiOwnedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(requestedDestination, driftDestinationPath, StringComparison.OrdinalIgnoreCase) ||
@@ -1655,12 +1804,11 @@ string RebindProbeResponse(string requestLine, string sourcePath)
         });
     }
 
-    var isDrift = string.Equals(requestedDestination, driftDestinationPath, StringComparison.OrdinalIgnoreCase);
-    var isModified = string.Equals(requestedDestination, modifiedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(requestedDestination, uiOwnedDestinationPath, StringComparison.OrdinalIgnoreCase) ||
+    var isDrift = requestedDestination?.EndsWith(@"\open\Line.ap21", StringComparison.OrdinalIgnoreCase) == true;
+    var isModified = destinationName is "B-modified.ap21" or "B-ui-owned.ap21" ||
         string.Equals(requestedDestination, sourcePath, StringComparison.OrdinalIgnoreCase) ||
         (isDrift && ++lifecycleRebindProbeReadCount > 1);
-    var workerOwned = !string.Equals(requestedDestination, uiOwnedDestinationPath, StringComparison.OrdinalIgnoreCase);
+    var workerOwned = destinationName != "B-ui-owned.ap21";
     var state = ProjectRebindStateInfo.Create(sourcePath, requestedDestination!, isModified, workerOwned);
     if (sourcePath.EndsWith("-missing-source.ap21", StringComparison.Ordinal))
     {

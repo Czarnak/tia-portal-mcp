@@ -240,9 +240,17 @@ The startup setting is independent of access mode and defaults to on. Bare
 `--confirm-with-user=false` to disable it. The separated form `--confirm-with-user false`,
 malformed values, and contradictory repeats are rejected. Equivalent repeats are accepted.
 
-Phase 1b registers this immutable configuration for Phase 2. Existing token tools keep their
-current behavior; this setting does not yet cause elicitation. Phase 2 will enforce user
-confirmation for guarded writes. Changing confirmation never grants additional capabilities.
-An elicitation client's `accept` response alone does not prove that a person saw a dialog.
+Lifecycle tools enforce this setting. With it on, a fired acknowledge guard requires form
+elicitation `accept` with boolean `confirm:true`; the tool's agent `acknowledge` array is ignored.
+Missing capability, decline, cancel, timeout, or request failure denies the write with
+`access_denied`. Info-only writes, hard blocks, and `dryRun:true` never elicit. After acceptance the
+server checks fresh target/state again before dispatch. With it off, `acknowledge` must name exactly
+the fired acknowledge guards; hard blocks remain blocked. Changing confirmation never grants
+additional capabilities. Network/batch token tools keep their current behavior.
+
+An elicitation client's accepted response does not prove that a person saw a dialog. Keep
+destructive tools out of client auto-approve lists to require client permission prompts on every
+call. See the [lifecycle reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
+for dry-run examples, all seven guards, and the staged major-release input/output migration.
 
 The package includes the `openness-worker` folder and required non-Siemens dependencies. It intentionally excludes `Siemens.Engineering*.dll`; those are loaded from the local TIA Portal installation at runtime.

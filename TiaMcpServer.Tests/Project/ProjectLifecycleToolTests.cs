@@ -18,11 +18,8 @@ public class ProjectLifecycleToolTests
     [InlineData("SaveProjectAs", "save_project_as", true)]
     [InlineData("ArchiveProject", "archive_project", true)]
     [InlineData("CloseProject", "close_project", true)]
-    public void ProjectLifecycleToolsHaveMcpMetadata(string methodName, string expectedToolName, bool requiresConfirm)
+    public void ProjectLifecycleToolsHaveMcpMetadata(string methodName, string expectedToolName, bool isWrite)
     {
-        // Tools have been split into ProjectReadTools and ProjectWriteTools.
-        // ProjectLifecycleTools retains the methods for backward compatibility but no longer
-        // carries [McpServerToolType]/[McpServerTool] attributes.
         var type = methodName == "GetProjectStatus"
             ? typeof(ProjectReadTools)
             : typeof(ProjectWriteTools);
@@ -37,9 +34,10 @@ public class ProjectLifecycleToolTests
         Assert.Equal(expectedToolName, toolAttribute.Name);
 
         var description = method.GetCustomAttribute<DescriptionAttribute>()?.Description ?? string.Empty;
-        if (requiresConfirm)
+        if (isWrite)
         {
-            Assert.Contains("confirm=true", description);
+            Assert.Contains("dryRun", description, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(method.GetParameters(), parameter => parameter.Name is "confirm" or "safetyToken");
         }
     }
 
@@ -66,44 +64,16 @@ public class ProjectLifecycleToolTests
     }
 
     [Fact]
-    public async Task SaveProjectAs_WrapperMatchesRegisteredRebindFalseValidation()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-
-        var registered = await ProjectWriteTools.SaveProjectAs(
-            workerClient: client,
-            safety,
-            targetDirectory: @"C:\Target",
-            targetName: "Copy",
-            projectPath: null,
-            rebind: false);
-        var wrapper = await ProjectLifecycleTools.SaveProjectAs(
-            workerClient: client,
-            safety,
-            targetDirectory: @"C:\Target",
-            targetName: "Copy",
-            projectPath: null,
-            rebind: false);
-
-        Assert.Equal(registered, wrapper);
-    }
-
-    [Fact]
-    public async Task GetProjectStatus_WrapperMatchesRegisteredNoProjectStatus()
+    public async Task GetProjectStatus_RegisteredToolReturnsCanonicalNoProjectStatus()
     {
         using var client = new OpennessWorkerClient(
-            new ProjectSessionBinding(null),
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            new ProjectSessionBinding(null), workerExecutablePath: FakeWorkerLocator.Locate());
 
-        var registered = await ProjectReadTools.GetProjectStatus(client, "status-no-project");
-        var wrapper = await ProjectLifecycleTools.GetProjectStatus(client, "status-no-project");
+        var result = await ProjectReadTools.GetProjectStatus(client, "status-no-project");
 
-        Assert.Equal(StandaloneStatusToolTests.Document(registered).GetRawText(),
-            StandaloneStatusToolTests.Document(wrapper).GetRawText());
+        var document = StandaloneStatusToolTests.Document(result);
+        Assert.True(document.GetProperty("success").GetBoolean());
+        Assert.False(document.GetProperty("result").GetProperty("value").GetProperty("isOpen").GetBoolean());
     }
 
     /// <summary>

@@ -289,7 +289,7 @@ public sealed class WriteExecutionTests
             Item("a"), Item("b", failWith: WorkerFailureCategories.WorkerOperationFailed), Item("c")
         });
 
-        AssertOutcome(result, doc, WritePhases.Applied, isError: false, WorkerFailureCategories.WorkerOperationFailed);
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         Assert.False(doc.GetProperty("success").GetBoolean());
         var operations = doc.GetProperty("batch").GetProperty("operations");
         Assert.Equal(
@@ -311,7 +311,7 @@ public sealed class WriteExecutionTests
     {
         var (result, doc) = await RunAsync(new[] { Item("a", failWith: WorkerFailureCategories.WorkerOperationFailed) });
 
-        AssertOutcome(result, doc, WritePhases.Applied, isError: false, WorkerFailureCategories.WorkerOperationFailed);
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         Assert.False(doc.GetProperty("success").GetBoolean());
         Assert.Empty(doc.GetProperty("guards").EnumerateArray());
         Assert.Empty(doc.GetProperty("warnings").EnumerateArray());
@@ -369,7 +369,7 @@ public sealed class WriteExecutionTests
             Item("a"), Item("b", dependsOn: "a", lateGuards: new[] { Ack }), Item("c")
         });
 
-        AssertOutcome(result, doc, WritePhases.Applied, isError: false, WorkerFailureCategories.GuardBlocked);
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         var operations = doc.GetProperty("batch").GetProperty("operations");
         Assert.Equal(
             new[] { OperationBatchStatus.Succeeded, OperationBatchStatus.Failed, OperationBatchStatus.Skipped },
@@ -397,7 +397,7 @@ public sealed class WriteExecutionTests
 
         var (result, doc) = await RunAsync(new[] { Item("a"), Item("b", dependsOn: "a") });
 
-        AssertOutcome(result, doc, WritePhases.Applied, isError: false, WorkerFailureCategories.TargetNotFound);
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         Assert.False(doc.GetProperty("success").GetBoolean());
         Assert.Equal(
             new[] { "validate", "plan", "guards", "mutate:a", "project:a", "replan:b", "verify", "compose" },

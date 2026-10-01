@@ -6,6 +6,7 @@ using TiaMcpServer.Contracts;
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using TiaMcpServer.OpennessWorker;
@@ -605,7 +606,7 @@ public class ReadOnlyModeTests
     [Fact]
     public void FullSurface_HasExactlyFourteenDistinctTools()
     {
-        var toolNames = typeof(ProjectLifecycleTools).Assembly
+        var toolNames = typeof(ProjectWriteTools).Assembly
             .GetTypes()
             .Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
@@ -736,7 +737,7 @@ public class ReadOnlyModeTests
         // The OperationAccessPolicy checks operation name only, not token presence.
         // This is the correct behavior: read-only mode is a higher-level restriction.
         var policy = new OperationAccessPolicy(McpAccessMode.ReadOnly);
-        var result = policy.Authorize("save_project");
+        var result = policy.Authorize("update_block_logic");
         Assert.NotNull(result);
         Assert.False(result.Success);
     }
@@ -745,125 +746,35 @@ public class ReadOnlyModeTests
 
     #region ProjectWriteTools Coverage Tests
 
-    [Fact]
-    public async Task ProjectWriteTools_OpenProject_Preview_ReturnsTokenAndInstructions()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProjectWriteTools_ReadOnlyRejectsSingleCallsAndDryRunsBeforeTransport(bool dryRun)
     {
         using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var result = await ProjectWriteTools.OpenProject(
-            workerClient: client,
-            safety,
-            projectPath: @"C:\Projects\Line.ap21");
-
-        Assert.Contains("safetyToken", result);
-        Assert.Contains("open_project", result);
-        Assert.Contains("Preview only", result);
-    }
-
-    [Fact]
-    public async Task ProjectWriteTools_CreateProject_Preview_ReturnsTokenAndInstructions()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var result = await ProjectWriteTools.CreateProject(
-            workerClient: client,
-            safety,
-            projectDirectory: @"C:\Projects",
-            projectName: "NewProject");
-
-        Assert.Contains("safetyToken", result);
-        Assert.Contains("create_project", result);
-        Assert.Contains("Preview only", result);
-    }
-
-    [Fact]
-    public async Task ProjectWriteTools_OpenProject_ConfirmFalse_ReturnsConfirmRequired()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var result = await ProjectWriteTools.OpenProject(
-            workerClient: client,
-            safety,
-            projectPath: @"C:\Projects\Line.ap21",
-            confirm: false,
-            safetyToken: "fake-token");
-
-        Assert.Contains("confirm=true", result);
-        Assert.Contains("without safetyToken", result);
-    }
-
-    [Fact]
-    public async Task ProjectWriteTools_CreateProject_ConfirmFalse_ReturnsConfirmRequired()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var result = await ProjectWriteTools.CreateProject(
-            workerClient: client,
-            safety,
-            projectDirectory: @"C:\Projects",
-            projectName: "NewProject",
-            confirm: false,
-            safetyToken: "fake-token");
-
-        Assert.Contains("confirm=true", result);
-    }
-
-    [Fact]
-    public async Task ProjectWriteTools_SaveProject_ConfirmFalse_ReturnsConfirmRequired()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var result = await ProjectWriteTools.SaveProject(
-            workerClient: client,
-            safety,
-            confirm: false,
-            safetyToken: "fake-token");
-
-        Assert.Contains("confirm=true", result);
-    }
-
-    [Fact]
-    public async Task ProjectWriteTools_ArchiveProject_ConfirmFalse_ReturnsConfirmRequired()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var result = await ProjectWriteTools.ArchiveProject(
-            workerClient: client,
-            safety,
-            archiveDirectory: @"C:\Archive",
-            archiveName: "backup",
-            confirm: false,
-            safetyToken: "fake-token");
-
-        Assert.Contains("confirm=true", result);
-    }
-
-    [Fact]
-    public async Task ProjectWriteTools_CloseProject_ConfirmFalse_ReturnsConfirmRequired()
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new TiaMcpServer.Safety.OperationAccessPolicy(McpAccessMode.Full));
-        var safety = audit.CreateSafety(projectSessionBinding: binding);
-        var result = await ProjectWriteTools.CloseProject(
-            workerClient: client,
-            safety,
-            confirm: false,
-            safetyToken: "fake-token");
-
-        Assert.Contains("confirm=true", result);
+        var binding = new ProjectSessionBinding(@"C:\Fixture\Line.ap21");
+        var before = binding.CaptureSnapshot();
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe",
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        var execution = LifecycleTestCalls.Execution(client, audit);
+        var options = new UserConfirmationOptions(false);
+        var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
+        {
+            () => ProjectWriteTools.OpenProject(client, execution, options, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
+            () => ProjectWriteTools.CreateProject(client, execution, options, audit.Path, "Fixture", dryRun: dryRun),
+            () => ProjectWriteTools.SaveProject(client, execution, options, dryRun: dryRun),
+            () => ProjectWriteTools.SaveProjectAs(client, execution, options, audit.Path, "Copy", dryRun: dryRun),
+            () => ProjectWriteTools.ArchiveProject(client, execution, options, audit.Path, "Archive", dryRun: dryRun),
+            () => ProjectWriteTools.CloseProject(client, execution, options, dryRun: dryRun)
+        };
+        foreach (var call in calls)
+        {
+            LifecycleTestCalls.Rejected(await call(), WorkerFailureCategories.AccessDenied);
+            Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+            Assert.Null(typeof(OpennessWorkerClient).GetField("_transport",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(client));
+        }
+        Assert.Equal(6, LifecycleTestCalls.AuditCount(audit));
     }
 
     #endregion

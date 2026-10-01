@@ -4,7 +4,11 @@ Status: Phase 0 (decision and guard) is complete. Phase 1a (worker wire normaliz
 Phase 1b (required-member enforcement) are complete. Phase 2 is implemented with offline qualification;
 live V21 acceptance remains pending. The [offline validation report](../superpowers/acceptance/reports/2026-09-30-json-contract-phase2-offline-validation.md)
 records 4,513 passing tests, 93.94% line coverage, and two independent reviews without findings.
-Phases 3-4 are not started. On 2026-09-29 the
+Phase 3 is implemented with offline qualification and an installed-V21 reference Rebuild; its
+[validation record](../superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md)
+records 4,640 passing tests and the passing 80% gate (Cobertura line rate `0.9386`). Separately
+authorized frozen lifecycle live acceptance remains pending.
+Phase 4 is not started. On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
 tokens) and added the token core to Phase 4. The three batch tools are excluded from this roadmap;
@@ -18,7 +22,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. Five tools now follow it. This roadmap moves the rest onto
+already describe that contract. Eleven tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
@@ -28,7 +32,7 @@ it without inventing a second mechanism.
 | `network_read`, `network_write` | Structured (canonical seam) | Phase 4: align envelope members |
 | `browse_project_tree` | Structured (canonical seam, v3 envelope) | Phase 4: align envelope members |
 | `get_project_status`, `compile_check` | Structured standalone envelope (`1.0`) | Phase 2 implemented; live acceptance pending |
-| `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Legacy lifecycle preview/apply text | Phase 3 (delivered as write-safety redesign Phase 2) |
+| `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Structured guarded lifecycle envelope (`1.0`) | Phase 3 implemented (write-safety redesign Phase 2); live acceptance pending |
 | `execute_read_batch`, `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 |
 
 The batch tools are excluded because a separate redesign splits them into domain read/write tools
@@ -45,13 +49,12 @@ tools leave the guard's legacy register when they are retired.
 
 ## Current State
 
-Three active output families remain after Phase 2. The original findings were taken at `0862ac9`.
+Two active output families remain after Phase 3. The original findings were taken at `0862ac9`.
 
 | Family | How the response is built | Main departures from the target |
 | --- | --- | --- |
-| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone tools use the target envelope; Network/tree departures are listed below |
+| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone/lifecycle tools use the target envelope; Network/tree departures are listed below |
 | Batch (excluded) | `TiaJson.Presentation` anonymous objects | Item `result` is a string holding JSON, raw source text, `Error: …` prose, an omission marker, or JSON cut at a character limit |
-| Lifecycle | `WriteSafetyService.CreatePreview` and `WriteSafetyTooling.BuildApplyResult` | `toolName` instead of `tool`; `operationResult` and `verification.result` are JSON strings; a failed preview is rendered in the apply-result shape |
 
 Every legacy tool returns a plain string, so the SDK never sets `isError` or `structuredContent`
 for them: a handled failure is a successful MCP call carrying `success: false` in text.
@@ -62,8 +65,8 @@ Below the tool surface, the host and worker also disagree about JSON:
   (`TiaMcpServer.Contracts/WorkerJson.cs`) writes null members unless the payload root carries
   `[LegacyNullOmission(reason)]`. The network payload roots, `ProjectTreeBrowseResultInfo` and
   `ProjectRebindStateInfo` write explicit nulls (Phase 1b removed the network markers). The
-  remaining marked roots carry one of two reasons: `BatchRedesign` (consumed only by the batch
-  tools) or `ToolMigration` (returned by a tool still on the legacy contract). The worker,
+  remaining marked roots are consumed by legacy batch paths. Lifecycle/basic-status roots now
+  write explicit nulls and decode through the worker-payload reader. The worker,
   `PersistentWorkerTransport` and the FakeWorker all render through `WorkerJson`, so IPC tests see
   the production shape.
 - Required members are enforced one way (Phase 1b): the worker-payload reader in `CanonicalJson`
@@ -76,8 +79,9 @@ Below the tool surface, the host and worker also disagree about JSON:
   `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
   the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
   rebind-state readers now go through `ProjectRebindStatePayloadContract`.
-- The audit JSONL holds two record shapes in the same file (`resultPreview` string versus `result`
-  object), with no record discriminator.
+- Legacy token audit files retain their existing shapes. Lifecycle uses one canonical guarded
+  write record per call in the separate `writes-yyyy-MM-dd.jsonl` stream, with a record discriminator,
+  exact response/hash, and acknowledgement provenance; blocked calls and dry runs are included.
 
 ## Target Contract
 
@@ -194,7 +198,8 @@ successfully read CLR null (kind `null`), which the host's inspection contract r
 `NetworkAttributeValueInfo.Value` is now always written.
 
 The earlier FakeWorker `status-with-metadata` root divergence is resolved in Phase 2: both direct
-status producers now use `ProjectStatusResultInfo`, while lifecycle/probe payloads keep their old root.
+status producers use `ProjectStatusResultInfo`. Lifecycle/probe payloads retain their separate root,
+which Phase 3 migrates to explicit nulls and strict required-member decoding.
 
 #### Phase 1b: Required-Member Enforcement — Complete
 
@@ -238,24 +243,46 @@ Redefined 2026-09-29 and delivered as Phase 2 of the
 earlier plan (typed preview through `CreateCanonicalPreview`, canonical token binding) would have
 built lifecycle tokens only for the redesign to delete them.
 
-- The six lifecycle tools move onto the structured contract and the guarded write pipeline:
-  `dryRun` and `acknowledge` instead of `confirm` and `safetyToken`, the six lifecycle guards, a
+- The six lifecycle tools use the structured contract and the guarded write pipeline:
+  `dryRun` and `acknowledge` instead of `confirm` and `safetyToken`, all seven lifecycle guards, a
   typed result, and typed post-write verification instead of the `operationResult` and
   `verification.result` strings.
-- One canonical audit record per call, through the pipeline's audit sink.
+- Default-on form elicitation requires explicit `accept` plus boolean `confirm:true` for fired
+  acknowledge guards, ignoring agent acknowledgements. Unsupported capability and any refusal or
+  request failure deny with `access_denied`; info-only calls, hard blocks, and dry runs never prompt.
+  The switch-off path enforces the exact fired set. Post-acceptance re-resolution refuses changed
+  identity or consequences instead of silently broadening approval.
+- Explicit lifecycle binding preparation permits genuinely unbound open/create and retains the
+  exact source/destination revision, ownership, recovery, and save-as transition checks. Ordinary
+  project writes keep the default verified-binding requirement.
+- One canonical audit record per call, through the pipeline's audit sink, including dry runs and
+  blocked calls; accepted elicitation records `user`, opt-out acknowledgement records `agent`.
 - The decision reserved here earlier, where an attempted but failed operation reports its failure,
   is settled by redesign §4.7: `isError` is `true` only for rejection before anything ran
   (validation, access mode, binding, `blocked`); a write that ran and failed reports
-  `success: false` with `isError: false`.
-- The six tools leave the guard's legacy register and gain success and rejection probes.
+  `success: false`, top-level `error:null`, and `isError:false`. Typed result and verification
+  outcomes preserve mutation success even when verification fails; unknown outcomes need inspection
+  before any retry.
+- The six tools leave the guard's legacy register and gain production-surface success/rejection,
+  schema, typed failure, omission, and elicitation probes. Only the three batch tools remain legacy.
+- `ProjectLifecycleTools` and unused lifecycle token paths are retired here. Batch/Network token
+  helpers, `SafetyRead`, and their legacy audit support remain until the designated phases.
+- The [implementation plan](../superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md) records
+  the delivery and gates. Frozen live acceptance must separately qualify all six operations, all
+  seven guards, accepted/declined/unsupported client behavior, dry runs, persisted artifacts, and
+  restoration on an exactly authorized disposable target. Offline/FakeWorker evidence is not live
+  acceptance; any code/base change invalidates prior frozen evidence.
+- Removed inputs and structured outputs are breaking changes staged for the redesign's final
+  major release. No release/tag or completion of Network/batch migration is claimed here.
 
 ### Phase 4: Align and Retire
 
 - Network: add `contractVersion` and top-level `warnings` (additive).
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
-- Delete legacy pieces that only in-scope tools used: `StandaloneToolResultFormatter`,
-  `WorkerCallResult.ToEnvelopeText`, and the lifecycle paths through
-  `WriteSafetyTooling.BuildApplyResult` and `WriteSafetyTooling.CreatePreview`.
+- Delete remaining legacy pieces such as `StandaloneToolResultFormatter` and
+  `WorkerCallResult.ToEnvelopeText` only after caller inventory proves they are unused.
+  Lifecycle wrapper/token paths are retired in Phase 3; retained batch/Network paths through
+  `WriteSafetyTooling` stay until their own migration.
 - Retire the token core with the write-safety redesign: `CanonicalWriteSafety` goes in its Phase 3
   (network); the batch token paths go in its Phase 4, when the batch tools are retired; the
   `WriteSafetyService` token core (including the presentation token binding), the legacy audit

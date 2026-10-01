@@ -23,8 +23,6 @@ public sealed class ToolOutputContractConformanceTests
     private const string BatchRedesign =
         "Excluded from the JSON contract roadmap: the batch tools are redesigned separately.";
 
-    private const string Phase3 = "Phase 3 of docs/roadmap/json-contract.md.";
-
     /// <summary>Tools still on a legacy text contract, each with the reason it has not migrated.</summary>
     private static readonly IReadOnlyDictionary<string, string> LegacyTextContractTools =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -32,16 +30,22 @@ public sealed class ToolOutputContractConformanceTests
             ["execute_read_batch"] = BatchRedesign,
             ["preview_write_batch"] = BatchRedesign,
             ["apply_write_batch"] = BatchRedesign,
-            ["open_project"] = Phase3,
-            ["create_project"] = Phase3,
-            ["save_project"] = Phase3,
-            ["save_project_as"] = Phase3,
-            ["archive_project"] = Phase3,
-            ["close_project"] = Phase3,
         };
 
     private static readonly IReadOnlyDictionary<string, ToolProbe> StructuredToolProbes = new[]
     {
+        new ToolProbe("open_project", "applied", false, null, new()),
+        new ToolProbe("open_project", "rejected", true, null, new()),
+        new ToolProbe("create_project", "applied", false, null, new()),
+        new ToolProbe("create_project", "rejected", true, null, new()),
+        new ToolProbe("save_project", "applied", false, "guarded-lifecycle", new()),
+        new ToolProbe("save_project", "rejected", true, null, new()),
+        new ToolProbe("save_project_as", "applied", false, "guarded-lifecycle", new()),
+        new ToolProbe("save_project_as", "rejected", true, null, new()),
+        new ToolProbe("archive_project", "applied", false, "guarded-lifecycle", new()),
+        new ToolProbe("archive_project", "rejected", true, null, new()),
+        new ToolProbe("close_project", "applied", false, "guarded-lifecycle", new()),
+        new ToolProbe("close_project", "rejected", true, null, new()),
         new ToolProbe("compile_check", "succeeded", false, "compile-passed",
             new Dictionary<string, object?>()),
         new ToolProbe("compile_check", "rejected", true, null,
@@ -213,18 +217,31 @@ public sealed class ToolOutputContractConformanceTests
     {
         var probe = StructuredToolProbes[probeName];
         using var audit = new TempAuditDirectory();
+        using var fixture = new LifecycleProtocolFixture();
+        var lifecycle = probe.Tool is "open_project" or "create_project" or "save_project"
+            or "save_project_as" or "archive_project" or "close_project";
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full,
             audit.Path,
-            probe.StartupProjectPath);
+            probe.StartupProjectPath == "guarded-lifecycle" ? fixture.SourcePath : probe.StartupProjectPath);
 
-        var result = await harness.Client.CallToolAsync(probe.Tool, probe.Arguments);
+        var arguments = lifecycle ? fixture.Arguments(probe.Tool, probe.ExpectIsError) : probe.Arguments;
+        var result = await harness.Client.CallToolAsync(probe.Tool, arguments);
 
         var violations = StructuredContractInspector.FindViolations(result);
         Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
         Assert.True(
             probe.ExpectIsError == (result.IsError == true),
             $"Expected isError={probe.ExpectIsError}. Response: {TextOf(result)}");
+        if (lifecycle && !probe.ExpectIsError)
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(TextOf(result));
+            Assert.Equal("applied", document.RootElement.GetProperty("phase").GetString());
+            Assert.True(document.RootElement.GetProperty("success").GetBoolean(), TextOf(result));
+            Assert.Equal("succeeded", document.RootElement.GetProperty("result").GetProperty("status").GetString());
+            Assert.Equal("succeeded", document.RootElement.GetProperty("verification").GetProperty("status").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, document.RootElement.GetProperty("error").ValueKind);
+        }
     }
 
     private static bool HasProbe(string tool, bool expectIsError)

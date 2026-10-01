@@ -188,8 +188,7 @@ confirms anything. Unavailable sections degrade to a warning and `null` output r
 fabricated default; unrelated errors still fail the call normally.
 
 The `get_project_status` response uses the whole-value omission budget described above.
-Lifecycle post-write verification (after
-`open_project`, `create_project`, `save_project`, `save_project_as`, and `archive_project`) reads
+Lifecycle post-write verification (after all six operations) reads
 the plain project status only — it never enumerates history or the extended metadata surface.
 
 ## Lifecycle operations
@@ -210,27 +209,135 @@ assertions against the project already open and never open one.
 
 Supported archive modes are `None`, `DiscardRestorableData`, `Compressed`, and `DiscardRestorableDataAndCompressed`. Lifecycle tools are single-tool operations and cannot be included in a batch.
 
-### What a lifecycle preview shows
+### Single-call writes and dry runs
 
-The preview names the effective project in `target.projectPath` and in its summary for `save_project`, `save_project_as`, `archive_project`, and `close_project`. When `projectPath` is omitted, that displayed path comes from the verified session binding; omission is still preserved as `null` in the token's requested-input hash. Passing an explicit path keeps that original input in the hash. The preview and confirmed apply reconstruct the same target, so changing the input or the binding requires a fresh preview.
+Every lifecycle tool accepts `dryRun:bool=false` and optional `acknowledge:string[]`. A normal call
+applies once its guards pass. The public `confirm` and `safetyToken` inputs are removed.
+`dryRun:true` resolves the target and reports effects and every fired guard as `phase:preview`,
+without lifecycle mutation, elicitation, or a token. A hard guard is visible in that preview;
+an actual call returns `phase:blocked`. Invalid input or an unresolved target still fails a dry run.
+A later call resolves fresh state and guards; the preview provides no continuing authorization.
 
-For a force-rebind `open_project` preview, `target` distinguishes `sourceProjectPath` from `destinationProjectPath`; the summary names both projects and says whether the source will close or remain open, based on the exact rebind-state probe. A worker-owned source with unsaved changes that would close is refused at preview with `validation_error` and no token. A UI-owned source remains open; a same-path open is idempotent, and an unbound session has no source project to close. These are previewed consequences, not proof that a later apply has occurred.
+For example, inspect opening a disposable project with:
 
-Archive and close previews show `saveBeforeArchive` and `saveBeforeClose`, including when the caller chooses not to save first. An archive directory must already exist and must not be the project's own folder or a subdirectory; both conditions are checked before a token is issued, and existence is checked again on apply before worker mutation. The own-folder diagnostic takes precedence when both restrictions apply.
+```json
+{"projectPath":"C:\\Projects\\Sandbox\\Line.ap21","dryRun":true}
+```
+
+Apply with the same operation inputs and `dryRun:false` (or omit `dryRun`). Effects name the exact
+source and destination and report whether the source will close, be saved, or stay open. Same-path
+open is idempotent; an unbound open has no source to close. Force-rebinding preserves a UI-owned
+source. A worker-owned modified source that would close is always blocked: save or close it explicitly
+first. Create and save-as refuse an existing destination directory. Archive requires an existing
+output directory outside the source project's folder and descendants.
+
+Installed V21 acceptance observed that `create_project` requires no project open in that TIA
+process; close the current project explicitly before creating another. Siemens also rejects archive
+of a modified project with `saveBeforeArchive:false`; save first or use `saveBeforeArchive:true`
+before archiving. These are typed
+attempted-operation failures, so inspect state before a new call.
+
+### Guards and confirmation
+
+| Guard ID | Operation / consequence | Severity |
+| --- | --- | --- |
+| `closes_source_project` | Force-rebind open closes a worker-owned source project. | `info` |
+| `discards_unsaved_source_changes` | Force-rebind open would close a modified worker-owned source. | `block` |
+| `discards_unsaved_changes` | Close with `saveBeforeClose:false` would discard modified project state. | `acknowledge` |
+| `archive_without_save` | Archive with `saveBeforeArchive:false` observes modified project state. | `info` |
+| `archive_discards_restorable_data` | Archive mode is `DiscardRestorableData` or `DiscardRestorableDataAndCompressed`. | `info` |
+| `archive_inside_project_folder` | Archive destination is the project folder or a descendant. | `block` |
+| `target_exists` | Create or save-as destination directory exists. | `block` |
+
+Info guards appear in warnings and never require confirmation; block guards cannot be overridden.
+With default-on `--confirm-with-user`, the server ignores the agent's `acknowledge` array and asks
+the client for form elicitation only when acknowledge guards fire. The reply must be `accept` with
+boolean `confirm:true`. Missing elicitation capability, decline, cancel, timeout, transport failure,
+or acceptance without that boolean refuses mutation with `access_denied`. Hard blocks and dry runs
+never prompt. After acceptance the server re-resolves the target and guard consequences before
+dispatch; changed state or identity cannot silently expand the accepted operation.
+
+With `--confirm-with-user=false`, the array must equal exactly the fired acknowledge guard IDs.
+Blank, duplicate, unknown, info/block, or non-fired IDs are `validation_error`; a missing fired ID
+blocks with `guard_blocked`. A dry run reports guards and acknowledgement state without blocking.
+For a known modified project, an opt-out close that discards changes is:
+
+```json
+{"saveBeforeClose":false,"acknowledge":["discards_unsaved_changes"]}
+```
+
+Use this acknowledgement only after inspecting the actual consequence. If the guard does not fire,
+the supplied ID is invalid; a blanket list of all guards is never accepted. The server records
+whether satisfaction came from client elicitation (`user`) or opt-out arguments (`agent`), but
+a client-returned accepted answer does not prove that a person saw a dialog.
+
+### Structured lifecycle response
+
+All six tools declare a concrete output schema with `tool`, `contractVersion:"1.0"`, `success`,
+`error`, `warnings`, `phase`, `guards`, `effects`, `result`, and `verification`. One canonical
+serialization supplies both MCP text and `structuredContent`. Read objects directly; the old
+`operationResult` and `verification.result` JSON strings are removed.
+
+`phase` is `preview`, `applied`, `blocked`, or `error`. `effects` is one typed object, with
+`sourceProjectPath`, `destinationProjectPath`, `destinationDirectory`, `sourceStatus`,
+`sourceOpenedByWorker`, `willCloseSource`, `savesSource`, `rebindsToDestination`, `targetExists`,
+`archiveMode`, and `archivePath`. Null members retain unavailable or inapplicable evidence;
+source/destination fields distinguish the current project from a requested copy or new project.
+
+`result` and `verification` use typed outcomes with `status`, `value`, `failure`, and `omission`.
+`result.value` contains the lifecycle root (`success`, `operation`, `projectPath`, and basic
+`project` status). Verification is null for previews, rejections, and mutation failures; otherwise
+its value contains basic
+`ProjectStatusInfo`, without enumerating extended metadata. Open/create verify the bound destination;
+save/archive verify the source; save-as verifies its rebound copy; close verifies no open project.
+Guard `acknowledged` is a boolean for acknowledge guards and explicit null for info/block guards.
+
+Pre-mutation rejection sets `success:false`, top-level `{category,message}` `error`, and MCP
+`isError:true`. An attempted mutation or verification failure keeps `error:null`, `isError:false`,
+and `success:false`, with typed failure evidence. A successful mutation remains visible if its
+verification failed; this is not a safe-replay result. Malformed worker successes become bounded
+`protocol_error` outcomes without echoing the rejected payload.
+
+Each result/verification value is limited to 60,000 canonical characters and the complete document
+to 180,000. Oversized evidence is omitted whole, with `status:omitted`, `value:null`, and measured
+`omission` guidance (`resultExceededItemCharLimit` for the value limit,
+`responseExceededDocumentCharLimit` for the total limit). An omission alone does not turn successful execution/verification into a
+failure, so `success:true` can accompany omitted evidence. Strict payload validation runs before
+these budgets. Follow `retryTool:get_project_status` or inspect the destination artifacts to recover
+evidence; do not repeat a mutation merely because its returned value was omitted. A large source
+status or the complete effects object may become null with an explicit warning. When oversized
+guard messages would exceed the document cap, they are replaced with an explicit evidence-omission
+marker alongside the catalog's consequence description; guard IDs, severities, operation IDs,
+acknowledgement state, phase, and verdict remain intact. Whole
+warning entries can be removed with an omission-count notice. The server never returns partial
+JSON or presents shortened path evidence as a complete target identity. Inspect current project
+status and destination artifacts when the returned evidence is omitted.
+Failure prose can be bounded as a last resort with a shortening notice; its category and the
+response's rejection-versus-attempted-failure classification remain intact.
+
+Each call appends one guarded-write audit record, including previews and refusals, to
+`%LOCALAPPDATA%\TiaMcpServer\audit\writes-yyyy-MM-dd.jsonl`. The record retains the exact returned
+canonical document/hash, requested operation, prepared binding, target, guards, and acknowledgement
+provenance. Lifecycle does not add or consume a safety token. Network and legacy batch tools retain
+their token and audit flows until their designated redesign phases.
+
+Migration is staged for the final major release: remove client preview/token/apply loops for these
+six tools, replace `confirm`/`safetyToken` with `dryRun`/`acknowledge`, and read typed outputs.
+The [authorized live validation](../superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md)
+records the installed-V21 lifecycle matrix and its runtime, client, artifact, and restoration limits.
 
 ### MCP client hints
 
 `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, and
 `close_project` are advertised with conservative mutating MCP hints: `readOnlyHint: false`,
 `destructiveHint: true`, and `openWorldHint: false`. These are client-facing metadata only; they
-do not bypass the safety model. The first lifecycle call still returns a preview and single-use
-safety token. It applies only on a later call with the unchanged input, `confirm=true`, and that
-token.
+do not bypass the safety model. A client may still show its own permission prompt for a destructive
+tool, including a dry run. Server elicitation applies only to fired acknowledge guards.
 
 ## Safety and session binding
 
-- A lifecycle call without a safety token returns a preview and a single-use token. Applying the change requires the same tool input, `confirm=true`, and that token.
-- Tokens expire after ten minutes and bind the exact tool input, project path, and current project state.
+- Binding preparation and mutation/verification/audit use one pinned revision; stale revisions fail closed instead of redirecting an operation to another project.
+- Open/create may start unbound. Other lifecycle writes require the appropriate active source; recovery grounds that exact source before proceeding.
 - `save_project_as` requires rebinding because Siemens `SaveAs` switches the active project to the copy.
 - Archive output is rejected when the archive directory is inside the project folder.
 - After a timeout or worker crash, inspect the current project state before deciding whether another call is safe; the server does not automatically retry lifecycle writes.

@@ -76,17 +76,18 @@ public class OpennessWorkerClient : IDisposable
     public ProjectBindingSnapshot BindingSnapshot => _projectSessionBinding.CaptureSnapshot();
 
     /// <summary>
-    /// Runs a complete preview/apply critical section against the exact host binding revision
-    /// retained by a safety token. Every nested worker request inherits that pinned identity, and
-    /// all other requests on this client wait until the section completes. This closes the gap
-    /// between token consumption and the Siemens-facing mutation.
+    /// Runs a guarded write or legacy preview/apply critical section against an exact host binding
+    /// revision. Nested worker requests inherit that pinned identity, and other requests on this
+    /// client wait until the section completes. Cancellation can end a wait without dispatching.
     /// </summary>
     public async Task<PinnedBindingExecutionResult<T>> ExecuteWithPinnedBindingAsync<T>(
         ProjectBindingSnapshot? expectedBinding,
-        Func<Task<T>> operation)
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken = default)
         where T : class
     {
         ArgumentNullException.ThrowIfNull(operation);
+        cancellationToken.ThrowIfCancellationRequested();
         if (expectedBinding is null)
         {
             return PinnedBindingExecutionResult<T>.Fail(WorkerCallResult.Fail(
@@ -109,12 +110,13 @@ public class OpennessWorkerClient : IDisposable
                 .ConfigureAwait(false);
         }
 
-        await _bindingOperationGate.WaitAsync().ConfigureAwait(false);
+        await _bindingOperationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         var previous = _bindingOperationContext.Value;
         var context = new BindingOperationContext(expectedBinding);
         _bindingOperationContext.Value = context;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return await ExecutePinnedCoreAsync(expectedBinding, operation, context)
                 .ConfigureAwait(false);
         }
@@ -188,10 +190,16 @@ public class OpennessWorkerClient : IDisposable
     /// force-rebind preview. No destination path enters this read-only status route.
     /// </summary>
     internal Task<PinnedBindingExecutionResult<ProjectBindingSnapshot>> RegroundInvalidatedSourceForOpenAsync(
-        bool forceRebind)
+        bool forceRebind, ProjectBindingSnapshot? expectedBinding = null)
         => ExecuteSerializedBindingOperationAsync(async () =>
         {
             var invalidated = _projectSessionBinding.CaptureSnapshot();
+            if (expectedBinding is not null && !expectedBinding.SameBinding(invalidated))
+            {
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict,
+                    "The retained source binding changed before recovery could prepare it."));
+            }
             if (!forceRebind || invalidated.State != ProjectBindingSnapshot.InvalidatedState)
             {
                 return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(

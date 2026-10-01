@@ -19,9 +19,13 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private readonly IWriteAuditSink _audit;
     private readonly WriteGuardCatalog _catalog;
     private readonly TimeProvider _time;
+    private readonly IWriteBindingStrategy<TItem>? _bindingStrategy;
+    private readonly WriteConfirmationContext? _confirmation;
+    private readonly CancellationToken _cancellationToken;
     private readonly DateTimeOffset _startedAt;
     private readonly long _startTimestamp;
     private readonly List<WriteGuardReport> _guards = new();
+    private readonly List<string> _warnings = new();
     private readonly ItemPlan<TEffect>?[] _plans;
     private readonly StructuredOperationItem?[] _outcomes;
     private readonly bool[] _mutated;
@@ -30,6 +34,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private StructuredOperationBatch? _batch;
     private bool _applyStarted;
     private bool _audited;
+    private bool _userAccepted;
     private int _current = -1;
     private long _itemStart;
 
@@ -39,7 +44,10 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         IWriteBindingGate gate,
         IWriteAuditSink audit,
         WriteGuardCatalog catalog,
-        TimeProvider time)
+        TimeProvider time,
+        IWriteBindingStrategy<TItem>? bindingStrategy = null,
+        WriteConfirmationContext? confirmation = null,
+        CancellationToken cancellationToken = default)
     {
         _domain = domain;
         _call = call;
@@ -47,6 +55,9 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         _audit = audit;
         _catalog = catalog;
         _time = time;
+        _bindingStrategy = bindingStrategy;
+        _confirmation = confirmation;
+        _cancellationToken = cancellationToken;
         _startedAt = time.GetUtcNow();
         _startTimestamp = time.GetTimestamp();
         _binding = gate.CurrentBinding;
@@ -59,34 +70,68 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
     private IReadOnlyList<TItem> Items => _call.Items ?? Array.Empty<TItem>();
 
+    private bool ConfirmWithUser => _confirmation?.Options.ConfirmWithUser == true;
+
+    private IReadOnlyList<string>? AgentAcknowledgement => ConfirmWithUser ? null : _call.Acknowledge;
+
     /// <summary>
     /// Validation, gate, pin, and lease failures are reported and audited outside the lease;
     /// everything from planning to the audit append runs inside it, under the pinned snapshot.
     /// </summary>
     public async Task<CallToolResult> ExecuteAsync()
     {
+        try
+        {
+            return await ExecuteCoreAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!_audited)
+        {
+            AuditUnexpectedFailure(ex);
+            throw;
+        }
+    }
+
+    private async Task<CallToolResult> ExecuteCoreAsync()
+    {
+        _cancellationToken.ThrowIfCancellationRequested();
         var rejection = ValidateInput();
         if (rejection is not null)
         {
             return Finish(Failure(WritePhases.Error, rejection));
         }
 
-        var beforeGate = _gate.CurrentBinding;
-        var gate = await _gate.RequireVerifiedWriteBindingAsync(_call.ProjectPath).ConfigureAwait(false);
-        if (!gate.Success)
+        if (_bindingStrategy is not null)
         {
-            return Finish(Failure(WritePhases.Error, new WriteToolError(
-                WorkerFailureCategories.BindingConflict,
-                gate.Error ?? "The session holds no verified binding for this project.")));
+            var prepared = await _bindingStrategy.PrepareAsync(_call, _cancellationToken).ConfigureAwait(false);
+            if (!prepared.Success)
+            {
+                return Finish(Failure(WritePhases.Error, prepared.Error ?? new WriteToolError(
+                    WorkerFailureCategories.BindingConflict, "The lifecycle binding could not be prepared.")));
+            }
+
+            _binding = prepared.Binding ?? throw new InvalidOperationException(
+                "A successful write preparation must return the exact snapshot to pin.");
+        }
+        else
+        {
+            var beforeGate = _gate.CurrentBinding;
+            var gate = await _gate.RequireVerifiedWriteBindingAsync(_call.ProjectPath).ConfigureAwait(false);
+            if (!gate.Success)
+            {
+                return Finish(Failure(WritePhases.Error, new WriteToolError(
+                    WorkerFailureCategories.BindingConflict,
+                    gate.Error ?? "The session holds no verified binding for this project.")));
+            }
+
+            var pinFailure = PinBinding(beforeGate);
+            if (pinFailure is not null)
+            {
+                return Finish(Failure(WritePhases.Error, pinFailure));
+            }
         }
 
-        var pinFailure = PinBinding(beforeGate);
-        if (pinFailure is not null)
-        {
-            return Finish(Failure(WritePhases.Error, pinFailure));
-        }
-
-        var lease = await _gate.RunUnderLeaseAsync(_binding, RunLeasedAndFinishAsync).ConfigureAwait(false);
+        _cancellationToken.ThrowIfCancellationRequested();
+        var lease = await _gate.RunUnderLeaseAsync(_binding, RunLeasedAndFinishAsync, _cancellationToken).ConfigureAwait(false);
         return lease.Success
             ? lease.Value!
             : Finish(Failure(WritePhases.Error, lease.Error ?? new WriteToolError(
@@ -143,7 +188,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             return validation.Error ?? Validation("The write request is invalid.");
         }
 
-        var acknowledge = GuardDecisions.ValidateAcknowledgeList(_call.Acknowledge, _catalog);
+        var acknowledge = GuardDecisions.ValidateAcknowledgeList(AgentAcknowledgement, _catalog);
         return acknowledge is null ? null : Validation(acknowledge);
     }
 
@@ -166,6 +211,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
     private async Task<WriteReport<TEffect, TVerification>> RunLeasedAsync()
     {
+        _cancellationToken.ThrowIfCancellationRequested();
         var plan = await _domain.PlanAsync(_call.ProjectPath, Items).ConfigureAwait(false);
         if (!plan.Success)
         {
@@ -180,9 +226,10 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         }
 
         plan.Items.ToArray().CopyTo(_plans, 0);
+        var fired = _domain.EvaluateGuards(Items, plan.Items);
         var decision = GuardDecisions.Decide(
-            _domain.EvaluateGuards(Items, plan.Items),
-            _call.Acknowledge,
+            fired,
+            AgentAcknowledgement,
             _catalog,
             _call.DryRun);
         _guards.AddRange(decision.Guards);
@@ -190,18 +237,90 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         {
             case GuardDecisionKind.Invalid:
                 return Failure(WritePhases.Error, Validation(decision.Message!));
-            case GuardDecisionKind.Blocked:
+            case GuardDecisionKind.Blocked when !ConfirmWithUser ||
+                decision.Guards.Any(guard => guard.Severity == WriteGuardSeverities.Block):
                 return Failure(WritePhases.Blocked, new WriteToolError(
                     WorkerFailureCategories.GuardBlocked, decision.Message!));
         }
 
-        return _call.DryRun
-            ? Report(WritePhases.Preview, success: true, error: null)
-            : await MutateAndVerifyAsync().ConfigureAwait(false);
+        if (_call.DryRun)
+        {
+            return Report(WritePhases.Preview, success: true, error: null);
+        }
+
+        if (ConfirmWithUser && decision.Guards.Any(guard => guard.Severity == WriteGuardSeverities.Acknowledge))
+        {
+            var refusal = await ConfirmAndRecheckAsync(plan, fired).ConfigureAwait(false);
+            if (refusal is not null)
+            {
+                return Failure(WritePhases.Blocked, refusal);
+            }
+        }
+
+        return await MutateAndVerifyAsync().ConfigureAwait(false);
     }
+
+    /// <summary>The client reply covers exactly the planned identity, consequences and guard messages.</summary>
+    private async Task<WriteToolError?> ConfirmAndRecheckAsync(WritePlan<TEffect> planned, IReadOnlyList<FiredGuard> fired)
+    {
+        // Freeze before awaiting the client: a domain may hold mutable nested plan objects.
+        var plannedDocument = CanonicalJson.Serialize(planned.Items);
+        var guardDocument = CanonicalJson.Serialize(fired);
+        var message = $"Confirm '{_domain.ToolName}':\n" + string.Join("\n", _guards
+            .Where(guard => guard.Severity == WriteGuardSeverities.Acknowledge)
+            .Select(guard => guard.Message));
+        var reply = _confirmation!.Confirmation is null
+            ? new UserConfirmationResult(UserConfirmationOutcomes.Unsupported)
+            : await _confirmation.Confirmation.AskAsync(message, _cancellationToken).ConfigureAwait(false);
+        _cancellationToken.ThrowIfCancellationRequested();
+        if (!reply.IsConfirmed)
+        {
+            return new WriteToolError(WorkerFailureCategories.AccessDenied,
+                reply.Outcome == UserConfirmationOutcomes.Unsupported
+                    ? "This write requires form elicitation, but this client does not support the required elicitation capability."
+                    : $"The write was refused because user confirmation was {reply.Outcome}.");
+        }
+
+        _userAccepted = true;
+        for (var index = 0; index < _guards.Count; index++)
+        {
+            if (_guards[index].Severity == WriteGuardSeverities.Acknowledge)
+            {
+                _guards[index] = _guards[index] with { Acknowledged = true };
+            }
+        }
+
+        if (!_binding.SameBinding(_gate.CurrentBinding))
+        {
+            return StaleConfirmation();
+        }
+
+        // The host lease excludes other host requests; it does not exclude edits in the TIA UI.
+        var fresh = await _domain.PlanAsync(_call.ProjectPath, Items).ConfigureAwait(false);
+        _cancellationToken.ThrowIfCancellationRequested();
+        if (!fresh.Success || fresh.Items.Count != Items.Count || fresh.Items.Any(item => item is null))
+        {
+            return StaleConfirmation();
+        }
+
+        var freshGuards = _domain.EvaluateGuards(Items, fresh.Items);
+        if (!_binding.SameBinding(_gate.CurrentBinding)
+            || plannedDocument != CanonicalJson.Serialize(fresh.Items)
+            || guardDocument != CanonicalJson.Serialize(freshGuards))
+        {
+            return StaleConfirmation();
+        }
+
+        return null;
+    }
+
+    private static WriteToolError StaleConfirmation() => new(WorkerFailureCategories.BindingConflict,
+        "The project identity, checked state, or consequences changed while confirmation was pending. "
+        + "Nothing was changed by this call; read the project state and start a fresh call.");
 
     private async Task<WriteReport<TEffect, TVerification>> MutateAndVerifyAsync()
     {
+        _cancellationToken.ThrowIfCancellationRequested();
         _applyStarted = true;
         var stopped = false;
         for (var index = 0; index < Items.Count; index++)
@@ -217,15 +336,22 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             var item = await RunItemAsync(index).ConfigureAwait(false);
             _durations[index] = ElapsedMs(_itemStart);
             _outcomes[index] = item;
+            // Preserve the known result before propagating cancellation that arrived during dispatch.
+            _cancellationToken.ThrowIfCancellationRequested();
             stopped = !string.Equals(item.Status, OperationBatchStatus.Succeeded, StringComparison.Ordinal);
         }
 
         _current = -1;
         _batch = FinalizeBatch();
         var verification = await _domain.VerifyAsync(_call.ProjectPath, _batch).ConfigureAwait(false);
-        var failure = _batch.Operations.FirstOrDefault(item => item.Failure is not null)?.Failure;
-        var error = failure is null ? null : new WriteToolError(failure.Category, failure.Message);
-        return Report(WritePhases.Applied, _batch.IsFullySuccessful, error, _batch, verification);
+        _cancellationToken.ThrowIfCancellationRequested();
+        var verified = _domain.VerificationSucceeded(verification);
+        if (!verified)
+        {
+            _warnings.Add(WriteExecution.VerificationFailureMessage);
+        }
+        // Dispatch failures belong to the typed outcomes, not the call rejection field.
+        return Report(WritePhases.Applied, _batch.IsFullySuccessful && verified, error: null, _batch, verification);
     }
 
     /// <summary>Snapshots the outcomes, including operations skipped after an unexpected failure.</summary>
@@ -239,6 +365,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
     private async Task<StructuredOperationItem> RunItemAsync(int index)
     {
+        _cancellationToken.ThrowIfCancellationRequested();
         var item = Items[index];
         if (_plans[index]!.DependsOn is not null)
         {
@@ -249,6 +376,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             }
         }
 
+        _cancellationToken.ThrowIfCancellationRequested();
         _mutated[index] = true;
         var result = await _domain.MutateAsync(_call.ProjectPath, item).ConfigureAwait(false);
         return _domain.Project(item, result);
@@ -269,7 +397,19 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             $"'{_domain.ToolName}' re-planned '{item.OperationId}' successfully without a plan.");
         _plans[index] = plan;
         var decision = GuardDecisions.DecideLate(
-            _domain.EvaluateGuards(new[] { item }, new[] { plan }), _call.Acknowledge, _catalog);
+            _domain.EvaluateGuards(new[] { item }, new[] { plan }), AgentAcknowledgement, _catalog);
+        if (ConfirmWithUser)
+        {
+            // Approval for one target never acknowledges another target merely because the id matches.
+            var guards = decision.Guards.Select(guard => guard.Severity == WriteGuardSeverities.Acknowledge
+                ? guard with { Acknowledged = _userAccepted && _guards.Any(accepted =>
+                    accepted.Acknowledged == true && accepted.Id == guard.Id &&
+                    accepted.OperationId == guard.OperationId && accepted.Message == guard.Message) }
+                : guard).ToArray();
+            var blocked = guards.Any(guard => guard.Severity == WriteGuardSeverities.Block || guard.Acknowledged == false);
+            decision = new GuardDecision(blocked ? GuardDecisionKind.Blocked : GuardDecisionKind.Proceed, guards,
+                blocked ? "The re-resolved operation requires acknowledgement for consequences that were not confirmed." : null);
+        }
         _guards.AddRange(decision.Guards);
         return decision.Kind == GuardDecisionKind.Blocked
             ? new WriteToolError(WorkerFailureCategories.GuardBlocked, decision.Message!)
@@ -317,6 +457,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         var warnings = _guards
             .Where(guard => guard.Severity == WriteGuardSeverities.Info)
             .Select(guard => guard.Message)
+            .Concat(_warnings)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         return new WriteReport<TEffect, TVerification>(
@@ -349,8 +490,9 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         try
         {
             var error = new WriteToolError(
-                WorkerFailureCategories.WorkerOperationFailed,
-                $"The write pipeline failed unexpectedly: {ex.GetType().Name}: {ex.Message}");
+                ex is OperationCanceledException ? WorkerFailureCategories.AccessDenied : WorkerFailureCategories.WorkerOperationFailed,
+                ex is OperationCanceledException ? "The caller cancelled the write call."
+                    : $"The write pipeline failed unexpectedly: {ex.GetType().Name}: {ex.Message}");
             if (_current >= 0 && _outcomes[_current] is null)
             {
                 _outcomes[_current] = Failed(Items[_current], error);
@@ -399,7 +541,9 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             guard.OperationId,
             guard.Message,
             guard.Acknowledged,
-            guard.Acknowledged == true && _applyStarted ? GuardSatisfactions.Agent : null);
+            guard.Acknowledged == true
+                ? _userAccepted ? GuardSatisfactions.User : _applyStarted ? GuardSatisfactions.Agent : null
+                : null);
 
     /// <summary>One audit item; an operation that never ran is recorded as skipped with no duration.</summary>
     private WriteAuditItem AuditItem(TItem item, int index)

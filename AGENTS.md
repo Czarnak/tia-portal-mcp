@@ -49,11 +49,13 @@ Access tiers are capability presets in the shared `OperationPolicyCatalog`, enfo
 host dispatch before worker activity, and worker dispatch before Siemens calls. Unknown operations
 are denied in every mode. Initial project attachment remains available in read-write, but a read
 cannot switch or close an attached project. `--confirm-with-user` defaults to on; `=false` turns it
-off. Phase 1b only registers immutable `UserConfirmationOptions`; Phase 2 implements elicitation.
+off. Lifecycle writes enforce this immutable setting through form elicitation; Network and legacy
+batch tools retain their existing token flows.
 
-Every write tool registered today goes through preview-then-apply, and it keeps that flow until
-its phase of the [write-safety redesign](docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md)
-replaces it. The safety token is a **server-side consistency check**: it proves the apply carries
+The six lifecycle tools use the guarded single-call pipeline with `dryRun` and `acknowledge`.
+Network and legacy batch writes keep preview-then-apply until their phases of the
+[write-safety redesign](docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md).
+Their safety token is a **server-side consistency check**: it proves the apply carries
 exactly the previewed input, for the same tool and binding, against unchanged project state. It is
 **not user consent**. An agent can preview and apply in one turn, and no MCP server can require a
 human in between. Consent is the client's job (tool annotations and the client's permission
@@ -62,11 +64,12 @@ documentation.
 
 - **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
 - **Network writes**: call `network_write` with `confirm=false` and no token to preview, then call the same tool with `confirm=true`, the unchanged ordered operation list, and the returned token
-- **Project lifecycle writes** (`open_project`, `create_project`, etc.): self-previewing — call the tool without `safetyToken` to get a preview + token, then call again with `confirm=true` + the token
+- **Project lifecycle writes** (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`): one call applies by default; `dryRun=true` resolves targets, effects, and guards without mutation or elicitation. Public `confirm` and `safetyToken` are removed. With confirmation on, agent `acknowledge` is ignored; fired acknowledge guards require form elicitation `accept` plus boolean `confirm:true`. Missing capability, decline, cancel, timeout, or transport failure denies with `access_denied`. With confirmation off, `acknowledge` must equal exactly the fired acknowledge guard IDs; hard blocks cannot be acknowledged away.
 - Safety tokens are single-use, expire in 10 minutes, and are bound to the exact tool name + host binding revision + requested input + current project state; project-scoped writes additionally require the complete verified project identity
 - Reordering, changing input, or project state changes invalidate the token
-- Apply-time state read, token consumption, mutation, verification, and audit run under one pinned project-binding lease; lifecycle rebinding uses the same lease
-- Successful writes append audit JSONL under `%LOCALAPPDATA%\TiaMcpServer\audit`
+- Token apply-time state read, token consumption, mutation, verification, and audit run under one pinned project-binding lease. Lifecycle uses explicit preparation and the same lease, re-resolving state after elicitation so an accepted consequence cannot silently change.
+- Lifecycle returns one canonical document with typed `result` and `verification`; rejection has top-level `error` and `isError:true`, while attempted mutation/verification failure has `success:false`, `error:null`, and `isError:false`. Inspect possible mutation before retrying.
+- Lifecycle calls append one guarded-write audit record, including dry runs and blocked calls, under `%LOCALAPPDATA%\TiaMcpServer\audit`; accepted elicitation records `user`, opt-out acknowledgement records `agent`. Legacy writes retain their existing audit stream. Client-returned acceptance does not prove a human saw a prompt.
 - **No new token-bound write surfaces.** The redesign retires tokens in favor of one guarded
   single-call pipeline (validate, verified binding, resolve targets, guards, `dryRun`, mutate,
   verify, audit). Do not add a new snapshot reader, `SafetyRead` catalog entry, or token-bound

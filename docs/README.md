@@ -10,7 +10,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Installation](guides/installation.md) | Requirements, `dotnet tool install`, `doctor`, client registration, read-only / read-write / full modes, and confirmation configuration |
-| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration reference and how block paths are addressed |
+| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, lifecycle elicitation/acknowledgement, and how block paths are addressed |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
 
@@ -26,7 +26,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | --- | --- |
 | [Contributing](../CONTRIBUTING.md) | Contribution workflow, branch focus, commit message format, pull requests |
 | [Building from source](development/building.md) | Restore, build, test with coverage, and run the server locally |
-| [Local MCP sandbox testing](development/local-mcp-testing.md) | The MCP Inspector loop against a disposable project copy |
+| [Local MCP sandbox testing](development/local-mcp-testing.md) | MCP Inspector loop, mixed write flows, and frozen lifecycle acceptance gates against disposable fixtures |
 | [Packaging](development/packaging.md) | Build the NuGet package and install a local branch build as the `tia-mcp` global tool |
 | [Bug-fix wave orchestration](development/bug-fix-wave-orchestration.md) | Branch/worktree ownership, wave barriers, offline/live gates, PR creation, and merge protocol |
 | [Wave 2 I2/T2 orchestration handoff](development/bug-fix-wave2-i2-t2-orchestration.md) | Current-scope ownership, independent merge policy, I2 live gate, and future-session dispatch instructions |
@@ -55,7 +55,9 @@ and [Phase 1b access-mode implementation plan](superpowers/plans/2026-09-30-writ
 the [JSON contract Phase 2 standalone tools implementation plan](superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md)
 and its [offline validation report (live V21 acceptance pending)](superpowers/acceptance/reports/2026-09-30-json-contract-phase2-offline-validation.md)
 and [live verification of status, compilation scopes, and failure/rejection responses (complete producer gate still open)](superpowers/acceptance/reports/2026-10-01-json-contract-phase2-live-verification.md)
-and the discussion draft for [JSON contract Phase 3 guarded lifecycle / write-safety Phase 2](superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md),
+and the implementation record for [JSON contract Phase 3 guarded lifecycle / write-safety Phase 2](superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md)
+and its [offline validation record](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md)
+and [authorized live lifecycle validation](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md),
 the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
 and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md),
 the [JSON contract Phase 1b required-member enforcement design](superpowers/specs/2026-09-28-json-contract-phase1b-required-members-design.md)

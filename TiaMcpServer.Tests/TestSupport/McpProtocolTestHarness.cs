@@ -9,8 +9,10 @@ using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
+using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 
@@ -112,12 +114,16 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
     public static Task<McpProtocolTestHarness> StartProductionSurfaceAsync(
         McpAccessMode accessMode,
         string? auditDirectory = null,
-        string? startupProjectPath = null)
-        => StartAsync(
+        string? startupProjectPath = null,
+        bool confirmWithUser = true,
+        McpClientOptions? clientOptions = null)
+        => StartCoreAsync(
             accessMode,
             builder => builder.WithAccessModeTools(accessMode),
             auditDirectory,
-            startupProjectPath);
+            startupProjectPath,
+            confirmWithUser,
+            clientOptions);
 
     private static IMcpServerBuilder RegisterToolType<TTools>(IMcpServerBuilder builder)
         where TTools : class
@@ -129,7 +135,9 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         McpAccessMode accessMode,
         Action<IMcpServerBuilder> registerTools,
         string? auditDirectory,
-        string? startupProjectPath)
+        string? startupProjectPath,
+        bool confirmWithUser = true,
+        McpClientOptions? clientOptions = null)
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
         var serverReads = new AnonymousPipeClientStream(
@@ -151,6 +159,10 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(binding);
         collection.AddSingleton(accessPolicy);
         collection.AddSingleton(workerClient);
+        collection.AddSingleton(new UserConfirmationOptions(confirmWithUser));
+        collection.AddSingleton(sp => new WriteExecution(
+            new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
+            new JsonlWriteAuditSink(auditDirectory), LifecycleWriteDomain.Catalog, TimeProvider.System));
         collection.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
         collection.AddSingleton(sp => new ProjectTreeCursorCodec(
             sp.GetRequiredService<AuthenticatedCursorProtector>()));
@@ -181,7 +193,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         var serverLoop = server.RunAsync(cancellation.Token);
 
         var client = await McpClient.CreateAsync(
-            new StreamClientTransport(serverInput: clientWrites, serverOutput: clientReads));
+            new StreamClientTransport(serverInput: clientWrites, serverOutput: clientReads), clientOptions);
 
         if (!string.IsNullOrWhiteSpace(startupProjectPath))
         {

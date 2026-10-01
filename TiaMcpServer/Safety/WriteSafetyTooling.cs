@@ -7,99 +7,6 @@ namespace TiaMcpServer.Safety;
 
 public static class WriteSafetyTooling
 {
-    /// <summary>
-    /// Runs the complete apply critical section under the binding retained by the preview token:
-    /// fresh-state read, atomic token consumption, and the Siemens-facing mutation. Serializing
-    /// all three prevents two concurrent applies from both validating against the same stale state.
-    /// </summary>
-    public static async Task<WriteSafetyExecutionContext> ValidateAndExecuteForApplyAsync(
-        OpennessWorkerClient workerClient,
-        WriteSafetyService safety,
-        string? safetyToken,
-        string previewToolName,
-        string toolName,
-        string? projectPath,
-        object target,
-        object requestedInput,
-        Func<Task<WorkerCallResult>> readCurrentState,
-        Func<Task<WorkerCallResult>> operation,
-        Func<WriteSafetyApplyContext, WorkerCallResult, Task<string?>>? finalize = null)
-    {
-        var envelope = safety.ValidateEnvelope(
-            safetyToken,
-            toolName,
-            projectPath,
-            target,
-            requestedInput,
-            previewToolName);
-        if (!envelope.IsValid)
-        {
-            return WriteSafetyExecutionContext.Invalid(WriteSafetyApplyContext.Invalid(
-                envelope.Error,
-                envelope.FailureCategory ?? WorkerFailureCategories.ValidationError));
-        }
-
-        // Pure filesystem lifecycle safety tests intentionally omit a worker and exercise a
-        // rejection that must occur before any Siemens invocation. Runtime dependency injection
-        // always supplies a client; this branch preserves the hard "no worker call" test boundary.
-        if (workerClient is null)
-        {
-            var context = await ValidateForApplyAsync(
-                safety,
-                safetyToken,
-                previewToolName,
-                toolName,
-                projectPath,
-                target,
-                requestedInput,
-                readCurrentState).ConfigureAwait(false);
-            if (!context.IsValid)
-            {
-                return WriteSafetyExecutionContext.Invalid(context);
-            }
-
-            var operationResult = await operation().ConfigureAwait(false);
-            var verificationResult = finalize is null
-                ? null
-                : await finalize(context, operationResult).ConfigureAwait(false);
-            return WriteSafetyExecutionContext.Executed(context, operationResult, verificationResult);
-        }
-
-        var execution = await workerClient.ExecuteWithPinnedBindingAsync(
-            envelope.ProjectBinding,
-            async () =>
-            {
-                var context = await ValidateForApplyAsync(
-                    safety,
-                    safetyToken,
-                    previewToolName,
-                    toolName,
-                    projectPath,
-                    target,
-                    requestedInput,
-                    readCurrentState).ConfigureAwait(false);
-                if (!context.IsValid)
-                {
-                    return WriteSafetyExecutionContext.Invalid(context);
-                }
-
-                var operationResult = await operation().ConfigureAwait(false);
-                var verificationResult = finalize is null
-                    ? null
-                    : await finalize(context, operationResult).ConfigureAwait(false);
-                return WriteSafetyExecutionContext.Executed(
-                    context,
-                    operationResult,
-                    verificationResult);
-            }).ConfigureAwait(false);
-
-        return execution.Success
-            ? execution.Value!
-            : WriteSafetyExecutionContext.Invalid(WriteSafetyApplyContext.Invalid(
-                execution.Failure!.Error ?? "The project binding changed before the write could run.",
-                execution.Failure.FailureCategory ?? WorkerFailureCategories.BindingConflict));
-    }
-
     public static async Task<WriteSafetyApplyContext> ValidateForApplyAsync(
         WriteSafetyService safety,
         string? safetyToken,
@@ -211,52 +118,6 @@ public static class WriteSafetyTooling
             TiaJson.Presentation);
     }
 
-    public static string DescribePathState(string path)
-    {
-        var normalized = WriteSafetyService.NormalizeProjectPath(path);
-        if (File.Exists(path))
-        {
-            var file = new FileInfo(path);
-            return JsonSerializer.Serialize(new
-            {
-                path = normalized,
-                exists = true,
-                length = file.Length,
-                lastWriteTimeUtc = file.LastWriteTimeUtc
-            }, TiaJson.Presentation);
-        }
-
-        if (Directory.Exists(path))
-        {
-            var directory = new DirectoryInfo(path);
-            return JsonSerializer.Serialize(new
-            {
-                path = normalized,
-                exists = true,
-                isDirectory = true,
-                lastWriteTimeUtc = directory.LastWriteTimeUtc
-            }, TiaJson.Presentation);
-        }
-
-        return JsonSerializer.Serialize(new
-        {
-            path = normalized,
-            exists = false
-        }, TiaJson.Presentation);
-    }
-
-    public static string DescribeProjectCreationState(string projectDirectory, string projectName)
-    {
-        var targetDirectory = Path.Combine(projectDirectory, projectName);
-        return JsonSerializer.Serialize(new
-        {
-            projectDirectory = WriteSafetyService.NormalizeProjectPath(projectDirectory),
-            projectName,
-            targetDirectory = WriteSafetyService.NormalizeProjectPath(targetDirectory),
-            parentExists = Directory.Exists(projectDirectory),
-            targetExists = Directory.Exists(targetDirectory)
-        }, TiaJson.Presentation);
-    }
 }
 
 public sealed record WriteSafetyApplyContext(
@@ -275,26 +136,11 @@ public sealed record WriteSafetyApplyContext(
 
     /// <summary>
     /// Builds an invalid apply context carrying an explicit <paramref name="failureCategory"/> from
-    /// the closed <see cref="WorkerFailureCategories"/> vocabulary, so the lifecycle tool can render
+    /// the closed <see cref="WorkerFailureCategories"/> vocabulary, so a legacy write can render
     /// a categorized failure envelope instead of a raw string.
     /// </summary>
     public static WriteSafetyApplyContext Invalid(string error, string failureCategory)
     {
         return new(false, error, string.Empty, failureCategory, ProjectBinding: null);
     }
-}
-
-public sealed record WriteSafetyExecutionContext(
-    WriteSafetyApplyContext SafetyContext,
-    WorkerCallResult? OperationResult,
-    string? VerificationResult)
-{
-    public static WriteSafetyExecutionContext Invalid(WriteSafetyApplyContext context)
-        => new(context, OperationResult: null, VerificationResult: null);
-
-    public static WriteSafetyExecutionContext Executed(
-        WriteSafetyApplyContext context,
-        WorkerCallResult operationResult,
-        string? verificationResult)
-        => new(context, operationResult, verificationResult);
 }
