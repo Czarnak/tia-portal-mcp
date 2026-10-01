@@ -6,7 +6,13 @@ namespace Siemens.Engineering
 {
     public abstract class NamedObject : IEngineeringServiceProvider
     {
-        public string Name { get; set; } = string.Empty;
+        private string name = string.Empty;
+        public Exception? NameFailure { get; set; }
+        public string Name
+        {
+            get => NameFailure is null ? name : throw NameFailure;
+            set => name = value;
+        }
         public CrossReference.CrossReferenceService? CrossReferenceService { get; set; }
         public Exception? CrossReferenceServiceFailure { get; set; }
         public int CrossReferenceServiceRequests { get; private set; }
@@ -41,8 +47,15 @@ namespace Siemens.Engineering
 
     public sealed class Project
     {
+        private HW.DeviceSystemGroup ungroupedDevicesGroup = new();
         public Composition<HW.Device> Devices { get; } = new();
         public Composition<HW.DeviceUserGroup> DeviceGroups { get; } = new();
+        public Exception? UngroupedDevicesGroupFailure { get; set; }
+        public HW.DeviceSystemGroup UngroupedDevicesGroup
+        {
+            get => UngroupedDevicesGroupFailure is null ? ungroupedDevicesGroup : throw UngroupedDevicesGroupFailure;
+            set => ungroupedDevicesGroup = value;
+        }
     }
 
     public enum ExportOptions { None }
@@ -156,6 +169,16 @@ namespace Siemens.Engineering.HW
     {
         public Composition<Device> Devices { get; } = new();
         public Composition<DeviceUserGroup> Groups { get; } = new();
+    }
+    public sealed class DeviceSystemGroup : NamedObject
+    {
+        private Composition<Device> devices = new();
+        public Exception? DevicesFailure { get; set; }
+        public Composition<Device> Devices
+        {
+            get => DevicesFailure is null ? devices : throw DevicesFailure;
+            set => devices = value;
+        }
     }
     public sealed class DeviceItemComposition : Composition<DeviceItem> { }
     public sealed class DeviceItem : NamedObject

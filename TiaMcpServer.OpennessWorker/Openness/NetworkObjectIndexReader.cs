@@ -26,7 +26,7 @@ public static class NetworkObjectIndexReader
 
         if (wantsDeviceTree)
         {
-            foreach (Device device in project.Devices)
+            foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
             {
                 var currentDeviceName = ReadTypedString(() => device.Name, "Device name");
                 if (deviceName is not null
@@ -43,10 +43,6 @@ public static class NetworkObjectIndexReader
                     Array.Empty<string>(),
                     requestedKinds,
                     entries);
-                if (deviceName is not null)
-                {
-                    break;
-                }
             }
         }
 

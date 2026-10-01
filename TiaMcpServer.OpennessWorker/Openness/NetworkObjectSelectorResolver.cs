@@ -604,22 +604,7 @@ public static class NetworkObjectSelectorResolver
 
     private static Match<Device> MatchDevice(Project project, string? requestedName)
     {
-        var matches = new List<(Device Device, string Name)>();
-        foreach (Device candidate in project.Devices)
-        {
-            try
-            {
-                var candidateName = candidate.Name;
-                if (string.Equals(candidateName, requestedName, StringComparison.OrdinalIgnoreCase))
-                {
-                    matches.Add((candidate, candidateName));
-                }
-            }
-            catch (EngineeringException)
-            {
-                // An unreadable name cannot satisfy the selector.
-            }
-        }
+        var matches = ProjectDeviceNameMatcher.FindMatches(project, requestedName);
 
         if (matches.Count == 0)
         {

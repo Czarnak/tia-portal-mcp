@@ -34,6 +34,8 @@
       Link="Linked\Openness\TagOperationSafetySnapshotReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectDeviceEnumerator.cs"
       Link="Linked\Openness\ProjectDeviceEnumerator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectDeviceNameMatcher.cs"
+      Link="Linked\Openness\ProjectDeviceNameMatcher.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectTreeSnapshotWalker.cs"
       Link="Linked\Openness\ProjectTreeSnapshotWalker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcSoftwareLocator.cs"

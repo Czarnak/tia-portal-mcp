@@ -749,6 +749,7 @@ public class IoSystemQualificationWorkerContractTests
     [InlineData("devices/0", "direct")]
     [InlineData("deviceGroups/0/devices/0", "grouped")]
     [InlineData("deviceGroups/0/groups/1/devices/0", "grouped")]
+    [InlineData("ungroupedDevices/0", "ungrouped")]
     [InlineData("unexpected-private-locator", "unknown")]
     public void OwnerDiagnostics_DeviceLocationIsAClosedCode(string locator, string expected)
     {

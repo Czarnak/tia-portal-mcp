@@ -85,7 +85,6 @@ public class NetworkIntrospectionWorkerDispatchTests
         Assert.Contains("GetService<NetworkInterface>()", source);
         Assert.Contains("ItemAt(siblings, requestedSegment.Index)", source);
         Assert.Contains("requestedSegment.PositionNumber != positionNumber", source);
-        Assert.Contains("StringComparison.OrdinalIgnoreCase", source);
         Assert.Contains("StringComparison.Ordinal", source);
         Assert.Contains("WorkerFailureCategories.TargetNotFound", source);
         Assert.Contains("WorkerFailureCategories.TargetAmbiguous", source);
