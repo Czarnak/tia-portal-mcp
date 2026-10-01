@@ -757,15 +757,14 @@ public class ReadOnlyModeTests
         using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe",
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
         var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
         {
-            () => ProjectWriteTools.OpenProject(client, execution, options, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
-            () => ProjectWriteTools.CreateProject(client, execution, options, audit.Path, "Fixture", dryRun: dryRun),
-            () => ProjectWriteTools.SaveProject(client, execution, options, dryRun: dryRun),
-            () => ProjectWriteTools.SaveProjectAs(client, execution, options, audit.Path, "Copy", dryRun: dryRun),
-            () => ProjectWriteTools.ArchiveProject(client, execution, options, audit.Path, "Archive", dryRun: dryRun),
-            () => ProjectWriteTools.CloseProject(client, execution, options, dryRun: dryRun)
+            () => ProjectWriteTools.OpenProject(client, execution, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
+            () => ProjectWriteTools.CreateProject(client, execution, audit.Path, "Fixture", dryRun: dryRun),
+            () => ProjectWriteTools.SaveProject(client, execution, dryRun: dryRun),
+            () => ProjectWriteTools.SaveProjectAs(client, execution, audit.Path, "Copy", dryRun: dryRun),
+            () => ProjectWriteTools.ArchiveProject(client, execution, audit.Path, "Archive", dryRun: dryRun),
+            () => ProjectWriteTools.CloseProject(client, execution, dryRun: dryRun)
         };
         foreach (var call in calls)
         {

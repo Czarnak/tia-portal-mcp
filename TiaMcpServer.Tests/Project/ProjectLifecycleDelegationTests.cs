@@ -20,7 +20,7 @@ public sealed class ProjectLifecycleDelegationTests
         var before = binding.CaptureSnapshot();
 
         var result = await ProjectWriteTools.SaveProject(client,
-            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false));
+            LifecycleTestCalls.Execution(client, audit));
 
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.BindingConflict);
         Assert.True(before.SameBinding(binding.CaptureSnapshot()));

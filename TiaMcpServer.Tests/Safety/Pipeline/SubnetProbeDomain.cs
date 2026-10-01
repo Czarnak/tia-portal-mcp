@@ -67,7 +67,7 @@ public sealed class SubnetProbeDomain
 
     public WriteValidation Validate(IReadOnlyList<NetworkOperationRequest> items, McpAccessMode accessMode)
     {
-        if (accessMode != McpAccessMode.ReadWrite)
+        if (accessMode is not (McpAccessMode.ReadWrite or McpAccessMode.Full))
         {
             return WriteValidation.Invalid(WorkerFailureCategories.ValidationError, "The session is read-only.");
         }

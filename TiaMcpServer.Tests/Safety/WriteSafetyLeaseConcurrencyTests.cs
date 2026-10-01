@@ -48,7 +48,6 @@ public sealed class WriteSafetyLeaseConcurrencyTests
                 CreateStatefulTransport(scriptPath, mutationLogPath, projectPath));
 
             var execution = LifecycleTestCalls.Execution(client, audit);
-            var options = new UserConfirmationOptions(false);
 
             // Enqueue two calls behind the shared lease. The whole first call must plan,
             // mutate, verify, and audit before the second call observes its resulting state.
@@ -64,8 +63,8 @@ public sealed class WriteSafetyLeaseConcurrencyTests
                 });
             await blockerEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-            var firstApply = ProjectWriteTools.SaveProject(client, execution, options, projectPath);
-            var secondApply = ProjectWriteTools.SaveProject(client, execution, options, projectPath);
+            var firstApply = ProjectWriteTools.SaveProject(client, execution, projectPath);
+            var secondApply = ProjectWriteTools.SaveProject(client, execution, projectPath);
 
             releaseBlocker.TrySetResult(true);
             var blockerResult = await blocker.WaitAsync(TimeSpan.FromSeconds(5));

@@ -15,6 +15,25 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
 {
     public string ToolName => item.Operation;
     public string ContractVersion => "1.0";
+    public bool ConfirmsEveryCall => true;
+
+    public string DescribeForConfirmation(IReadOnlyList<LifecycleWriteItem> items, IReadOnlyList<ItemPlan<LifecycleEffects>> plans)
+    {
+        var effect = plans.Single().Effect!;
+        return item.Operation switch
+        {
+            "open_project" => $"Confirm open_project: open '{effect.DestinationProjectPath}' and bind this session to it."
+                + (effect.WillCloseSource ? $" Close source project '{effect.SourceProjectPath}'." : string.Empty),
+            "create_project" => $"Confirm create_project: create '{effect.DestinationDirectory}' and bind this session to it.",
+            "save_project" => $"Confirm save_project: save '{effect.SourceProjectPath}'.",
+            "save_project_as" => $"Confirm save_project_as: save '{effect.SourceProjectPath}' to '{effect.DestinationDirectory}' and bind this session to the copy.",
+            "archive_project" => $"Confirm archive_project: archive '{effect.SourceProjectPath}' to '{effect.ArchivePath}' with mode '{effect.ArchiveMode}'"
+                + (item.SaveBeforeArchive ? ", saving first." : " without saving first."),
+            "close_project" => $"Confirm close_project: close '{effect.SourceProjectPath}' and clear this session binding; "
+                + (item.SaveBeforeClose ? "save before closing." : "discard unsaved changes without saving."),
+            _ => ToolName
+        };
+    }
 
     public static WriteGuardCatalog Catalog { get; } = new(new[]
     {

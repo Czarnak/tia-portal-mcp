@@ -26,7 +26,7 @@ public sealed class WriteExecutionFakeWorkerTests
         using var audit = new TempAuditDirectory();
         using var client = await CreateBoundClientAsync();
 
-        var result = await RunAsync(client, audit, ConnectedSubnet, dryRun: true, acknowledge: null);
+        var result = await RunAsync(client, audit, ConnectedSubnet, dryRun: true);
 
         var document = Structured(result);
         Assert.False(result.IsError);
@@ -41,18 +41,18 @@ public sealed class WriteExecutionFakeWorkerTests
     }
 
     [Fact]
-    public async Task ApplyWithoutAcknowledgement_IsBlockedAndLeavesTheSubnet()
+    public async Task ReadWrite_WithoutConfirmation_IsBlockedAndLeavesTheSubnet()
     {
         using var audit = new TempAuditDirectory();
         using var client = await CreateBoundClientAsync();
 
-        var result = await RunAsync(client, audit, ConnectedSubnet, dryRun: false, acknowledge: null);
+        var result = await RunAsync(client, audit, ConnectedSubnet, dryRun: false);
 
         var document = Structured(result);
         Assert.True(result.IsError);
         Assert.Equal(WritePhases.Blocked, document.GetProperty("phase").GetString());
         Assert.Equal(
-            WorkerFailureCategories.GuardBlocked,
+            WorkerFailureCategories.AccessDenied,
             document.GetProperty("error").GetProperty("category").GetString());
         Assert.Equal(JsonValueKind.Null, document.GetProperty("batch").ValueKind);
         Assert.Contains(ConnectedSubnet, await SubnetIdsAsync(client));
@@ -60,13 +60,13 @@ public sealed class WriteExecutionFakeWorkerTests
     }
 
     [Fact]
-    public async Task ApplyWithAcknowledgement_DeletesTheSubnetVerifiesTheCountAndAuditsTheTarget()
+    public async Task Full_PolicyDeletesTheSubnetVerifiesTheCountAndAuditsTheTarget()
     {
         using var audit = new TempAuditDirectory();
-        using var client = await CreateBoundClientAsync();
+        using var client = await CreateBoundClientAsync(McpAccessMode.Full);
 
         var result = await RunAsync(
-            client, audit, ConnectedSubnet, dryRun: false, acknowledge: new[] { SubnetProbeDomain.ConnectedSubnetGuard });
+            client, audit, ConnectedSubnet, dryRun: false);
 
         var document = Structured(result);
         Assert.False(result.IsError, Text(result));
@@ -87,7 +87,7 @@ public sealed class WriteExecutionFakeWorkerTests
         Assert.Equal("succeeded", item.GetProperty("status").GetString());
         Assert.Contains(ConnectedSubnet, item.GetProperty("target").GetString());
         Assert.Equal(
-            GuardSatisfactions.Agent,
+            GuardSatisfactions.Policy,
             Assert.Single(record.GetProperty("guards").EnumerateArray()).GetProperty("satisfiedBy").GetString());
     }
 
@@ -97,7 +97,7 @@ public sealed class WriteExecutionFakeWorkerTests
         using var audit = new TempAuditDirectory();
         using var client = await CreateBoundClientAsync();
 
-        var result = await RunAsync(client, audit, "subnet-eth-9", dryRun: false, acknowledge: null);
+        var result = await RunAsync(client, audit, "subnet-eth-9", dryRun: false);
 
         var document = Structured(result);
         Assert.True(result.IsError);
@@ -108,11 +108,11 @@ public sealed class WriteExecutionFakeWorkerTests
         Assert.Equal(2, (await SubnetIdsAsync(client)).Count);
     }
 
-    private static async Task<OpennessWorkerClient> CreateBoundClientAsync()
+    private static async Task<OpennessWorkerClient> CreateBoundClientAsync(McpAccessMode mode = McpAccessMode.ReadWrite)
     {
         var binding = new ProjectSessionBinding(null);
         var client = new OpennessWorkerClient(
-            binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+            binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(mode));
         try
         {
             await NetworkVerifiedWriteFixture.VerifyAsync(client, binding, Scenario);
@@ -129,8 +129,7 @@ public sealed class WriteExecutionFakeWorkerTests
         OpennessWorkerClient client,
         TempAuditDirectory audit,
         string subnetId,
-        bool dryRun,
-        IReadOnlyList<string>? acknowledge)
+        bool dryRun)
     {
         var execution = new WriteExecution(
             new OpennessWriteBindingGate(client),
@@ -138,7 +137,7 @@ public sealed class WriteExecutionFakeWorkerTests
             SubnetProbeDomain.Catalog,
             TimeProvider.System);
         var call = new WriteCall<NetworkOperationRequest>(
-            Scenario, new[] { SubnetProbeDomain.DeleteSubnet("delete", subnetId, Scenario) }, dryRun, acknowledge);
+            Scenario, new[] { SubnetProbeDomain.DeleteSubnet("delete", subnetId, Scenario) }, dryRun);
         return execution.RunAsync(new SubnetProbeDomain(client), call);
     }
 

@@ -10,7 +10,7 @@ namespace TiaMcpServer.Tests.Safety.Pipeline;
 public sealed class WriteConfirmationPipelineTests
 {
     private const string Ack = FakeWriteDomain.AcknowledgeGuard;
-    private readonly FakeWriteBindingGate _gate = new();
+    private readonly FakeWriteBindingGate _gate = new() { AccessMode = McpAccessMode.ReadWrite };
     private readonly FakeWriteDomain _domain;
     private readonly RecordingAuditSink _audit;
     private readonly WriteExecution _execution;
@@ -21,22 +21,6 @@ public sealed class WriteConfirmationPipelineTests
         _domain = new FakeWriteDomain(_gate);
         _audit = new RecordingAuditSink(_gate);
         _execution = new WriteExecution(_gate, _audit, FakeWriteDomain.Catalog, TimeProvider.System);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("unknown")]
-    [InlineData(FakeWriteDomain.InfoGuard)]
-    [InlineData(FakeWriteDomain.BlockGuard)]
-    [InlineData(Ack)]
-    public async Task DefaultOn_IgnoresMalformedOrSuppliedAgentIds(string agentId)
-    {
-        var (result, doc) = await RunAsync(Confirmed(), acknowledge: new[] { agentId, agentId });
-
-        Assert.False(result.IsError == true);
-        Assert.True(doc.GetProperty("success").GetBoolean());
-        Assert.Single(_prompts);
-        Assert.Equal(GuardSatisfactions.User, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
 
     [Fact]
@@ -60,7 +44,7 @@ public sealed class WriteConfirmationPipelineTests
     [InlineData("cancel", true)]
     public async Task UnconfirmedReply_IsAccessDenied(string action, bool? confirm)
     {
-        var (result, doc) = await RunAsync(Reply(action, confirm), acknowledge: new[] { Ack });
+        var (result, doc) = await RunAsync(Reply(action, confirm));
 
         AssertDenied(result, doc, WorkerFailureCategories.AccessDenied);
         Assert.Equal(0, _domain.MutationCount);
@@ -70,7 +54,7 @@ public sealed class WriteConfirmationPipelineTests
     [Fact]
     public async Task AbsentAdapter_IsAccessDenied_WithMissingCapabilityMessage()
     {
-        var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(new UserConfirmationOptions()));
+        var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(null));
         var doc = Document(result);
 
         AssertDenied(result, doc, WorkerFailureCategories.AccessDenied);
@@ -98,7 +82,7 @@ public sealed class WriteConfirmationPipelineTests
             return Confirmed();
         }, TimeSpan.FromMilliseconds(10));
 
-        var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(new UserConfirmationOptions(), confirmation));
+        var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(confirmation));
 
         AssertDenied(result, Document(result), WorkerFailureCategories.AccessDenied);
         Assert.Single(_audit.Records);
@@ -109,7 +93,7 @@ public sealed class WriteConfirmationPipelineTests
     public async Task RequestFailure_IsAccessDenied_WithoutEchoingTransportDetails()
     {
         var confirmation = new UserConfirmation(true, (_, _) => throw new IOException("private transport detail"), TimeSpan.FromSeconds(1));
-        var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(new UserConfirmationOptions(), confirmation));
+        var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(confirmation));
 
         AssertDenied(result, Document(result), WorkerFailureCategories.AccessDenied);
         Assert.DoesNotContain("private transport detail", _audit.Records[0].ResponseText);
@@ -128,7 +112,7 @@ public sealed class WriteConfirmationPipelineTests
         }, TimeSpan.FromSeconds(1));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _execution.RunAsync(
-            _domain, Call(), new WriteConfirmationContext(new UserConfirmationOptions(), confirmation), cancellationToken: source.Token));
+            _domain, Call(), new WriteConfirmationContext(confirmation), cancellationToken: source.Token));
 
         Assert.Single(_audit.Records);
         Assert.True(Assert.Single(_audit.LeaseActiveAtAppend));
@@ -143,7 +127,7 @@ public sealed class WriteConfirmationPipelineTests
         source.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _execution.RunAsync(
-            _domain, Call(), new WriteConfirmationContext(new UserConfirmationOptions()), cancellationToken: source.Token));
+            _domain, Call(), new WriteConfirmationContext(null), cancellationToken: source.Token));
 
         Assert.Single(_audit.Records);
         Assert.Equal(0, _gate.GateCalls);
@@ -157,7 +141,7 @@ public sealed class WriteConfirmationPipelineTests
         _domain.OnMutate = source.Cancel;
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _execution.RunAsync(
-            _domain, Call(guards: Array.Empty<string>()), new WriteConfirmationContext(new UserConfirmationOptions()), cancellationToken: source.Token));
+            _domain, Call(guards: Array.Empty<string>()), new WriteConfirmationContext(null), cancellationToken: source.Token));
 
         Assert.Equal(OperationBatchStatus.Succeeded, Assert.Single(Assert.Single(_audit.Records).Items).Status);
         Assert.True(Assert.Single(_audit.LeaseActiveAtAppend));
@@ -167,7 +151,7 @@ public sealed class WriteConfirmationPipelineTests
     [Fact]
     public async Task DryRun_NeverPrompts_ReportsUnacknowledgedGuards()
     {
-        var (result, doc) = await RunAsync(Confirmed(), dryRun: true, acknowledge: new[] { Ack });
+        var (result, doc) = await RunAsync(Confirmed(), dryRun: true);
 
         Assert.False(result.IsError == true);
         Assert.Equal(WritePhases.Preview, doc.GetProperty("phase").GetString());
@@ -187,24 +171,19 @@ public sealed class WriteConfirmationPipelineTests
         Assert.Equal(1, _domain.MutationCount);
     }
 
-    [Fact]
-    public async Task HardBlock_NeverPromptsOrMutates()
+    [Theory]
+    [InlineData(McpAccessMode.ReadWrite)]
+    [InlineData(McpAccessMode.Full)]
+    public async Task BlockGuard_NeverPrompts(McpAccessMode mode)
     {
+        _gate.AccessMode = mode;
+        _domain.ConfirmsEveryCall = true;
         var (result, doc) = await RunAsync(Confirmed(), guards: new[] { Ack, FakeWriteDomain.BlockGuard });
 
         AssertDenied(result, doc, WorkerFailureCategories.GuardBlocked);
         Assert.Empty(_prompts);
         Assert.Equal(0, _domain.MutationCount);
-    }
-
-    [Fact]
-    public async Task SwitchOff_AcknowledgesExactSet_AndAuditsAgentProvenance()
-    {
-        var result = await _execution.RunAsync(_domain, Call(acknowledge: new[] { Ack }),
-            new WriteConfirmationContext(new UserConfirmationOptions(false)));
-
-        Assert.False(result.IsError == true);
-        Assert.Equal(GuardSatisfactions.Agent, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+        Assert.Equal(new WriteAuditConfirmation("none", "not_requested"), Assert.Single(_audit.Records).Confirmation);
     }
 
     [Theory]
@@ -264,7 +243,7 @@ public sealed class WriteConfirmationPipelineTests
         var confirmation = new UserConfirmation(true, (_, _) => ValueTask.FromResult(Confirmed()), TimeSpan.FromSeconds(1));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => _execution.RunAsync(
-            _domain, Call(), new WriteConfirmationContext(new UserConfirmationOptions(), confirmation)));
+            _domain, Call(), new WriteConfirmationContext(confirmation)));
 
         Assert.Equal(GuardSatisfactions.User, Assert.Single(Assert.Single(_audit.Records).Guards).SatisfiedBy);
         Assert.True(Assert.Single(_audit.LeaseActiveAtAppend));
@@ -276,9 +255,9 @@ public sealed class WriteConfirmationPipelineTests
     {
         var confirmation = new UserConfirmation(true, (_, _) => ValueTask.FromResult(Confirmed()), TimeSpan.FromSeconds(1));
         var call = new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath,
-            new[] { new FakeWriteItem("a", Guards: new[] { Ack }), new FakeWriteItem("b", DependsOn: "a", LateGuards: new[] { Ack }) }, false, null);
+            new[] { new FakeWriteItem("a", Guards: new[] { Ack }), new FakeWriteItem("b", DependsOn: "a", LateGuards: new[] { Ack }) }, false);
 
-        var result = await _execution.RunAsync(_domain, call, new WriteConfirmationContext(new UserConfirmationOptions(), confirmation));
+        var result = await _execution.RunAsync(_domain, call, new WriteConfirmationContext(confirmation));
         var doc = Document(result);
 
         Assert.False(result.IsError == true);
@@ -304,7 +283,6 @@ public sealed class WriteConfirmationPipelineTests
 
     private async Task<(CallToolResult Result, JsonElement Document)> RunAsync(
         ElicitResult reply,
-        IReadOnlyList<string>? acknowledge = null,
         IReadOnlyList<string>? guards = null,
         bool dryRun = false,
         bool supported = true,
@@ -317,8 +295,8 @@ public sealed class WriteConfirmationPipelineTests
             duringPrompt?.Invoke();
             return ValueTask.FromResult(reply);
         }, TimeSpan.FromSeconds(1));
-        var result = await _execution.RunAsync(_domain, Call(acknowledge, guards, dryRun),
-            new WriteConfirmationContext(new UserConfirmationOptions(), confirmation));
+        var result = await _execution.RunAsync(_domain, Call(guards, dryRun),
+            new WriteConfirmationContext(confirmation));
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         Assert.Equal(text, Assert.IsType<JsonElement>(result.StructuredContent).GetRawText());
         var record = Assert.Single(_audit.Records);
@@ -327,8 +305,8 @@ public sealed class WriteConfirmationPipelineTests
         return (result, Document(result));
     }
 
-    private static WriteCall<FakeWriteItem> Call(IReadOnlyList<string>? acknowledge = null, IReadOnlyList<string>? guards = null, bool dryRun = false)
-        => new(FakeWriteBindingGate.ProjectPath, new[] { new FakeWriteItem("a", Guards: guards ?? new[] { Ack }) }, dryRun, acknowledge);
+    private static WriteCall<FakeWriteItem> Call(IReadOnlyList<string>? guards = null, bool dryRun = false)
+        => new(FakeWriteBindingGate.ProjectPath, new[] { new FakeWriteItem("a", Guards: guards ?? new[] { Ack }) }, dryRun);
 
     private static ElicitResult Confirmed() => Reply("accept", true);
 

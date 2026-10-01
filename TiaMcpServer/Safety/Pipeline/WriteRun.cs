@@ -35,6 +35,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private bool _applyStarted;
     private bool _audited;
     private bool _userAccepted;
+    private WriteAuditConfirmation _auditConfirmation = new("none", "not_requested");
     private int _current = -1;
     private long _itemStart;
 
@@ -70,9 +71,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
     private IReadOnlyList<TItem> Items => _call.Items ?? Array.Empty<TItem>();
 
-    private bool ConfirmWithUser => _confirmation?.Options.ConfirmWithUser == true;
-
-    private IReadOnlyList<string>? AgentAcknowledgement => ConfirmWithUser ? null : _call.Acknowledge;
+    private ConfirmationMode ConfirmationMode => WriteConfirmationPolicy.For(_gate.AccessMode);
 
     /// <summary>
     /// Validation, gate, pin, and lease failures are reported and audited outside the lease;
@@ -188,8 +187,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             return validation.Error ?? Validation("The write request is invalid.");
         }
 
-        var acknowledge = GuardDecisions.ValidateAcknowledgeList(AgentAcknowledgement, _catalog);
-        return acknowledge is null ? null : Validation(acknowledge);
+        return null;
     }
 
     /// <summary>
@@ -229,16 +227,13 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         var fired = _domain.EvaluateGuards(Items, plan.Items);
         var decision = GuardDecisions.Decide(
             fired,
-            AgentAcknowledgement,
+            ConfirmationMode,
             _catalog,
             _call.DryRun);
         _guards.AddRange(decision.Guards);
         switch (decision.Kind)
         {
-            case GuardDecisionKind.Invalid:
-                return Failure(WritePhases.Error, Validation(decision.Message!));
-            case GuardDecisionKind.Blocked when !ConfirmWithUser ||
-                decision.Guards.Any(guard => guard.Severity == WriteGuardSeverities.Block):
+            case GuardDecisionKind.Blocked:
                 return Failure(WritePhases.Blocked, new WriteToolError(
                     WorkerFailureCategories.GuardBlocked, decision.Message!));
         }
@@ -248,13 +243,19 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             return Report(WritePhases.Preview, success: true, error: null);
         }
 
-        if (ConfirmWithUser && decision.Guards.Any(guard => guard.Severity == WriteGuardSeverities.Acknowledge))
+        if (ConfirmationMode == ConfirmationMode.AskUser
+            && (_domain.ConfirmsEveryCall || decision.Kind == GuardDecisionKind.NeedsUser))
         {
             var refusal = await ConfirmAndRecheckAsync(plan, fired).ConfigureAwait(false);
             if (refusal is not null)
             {
                 return Failure(WritePhases.Blocked, refusal);
             }
+        }
+
+        else if (ConfirmationMode == ConfirmationMode.Policy)
+        {
+            _auditConfirmation = new("policy", "not_requested");
         }
 
         return await MutateAndVerifyAsync().ConfigureAwait(false);
@@ -266,12 +267,23 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         // Freeze before awaiting the client: a domain may hold mutable nested plan objects.
         var plannedDocument = CanonicalJson.Serialize(planned.Items);
         var guardDocument = CanonicalJson.Serialize(fired);
-        var message = $"Confirm '{_domain.ToolName}':\n" + string.Join("\n", _guards
+        var message = _domain.DescribeForConfirmation(Items, planned.Items) + "\n" + string.Join("\n", _guards
             .Where(guard => guard.Severity == WriteGuardSeverities.Acknowledge)
             .Select(guard => guard.Message));
-        var reply = _confirmation!.Confirmation is null
-            ? new UserConfirmationResult(UserConfirmationOutcomes.Unsupported)
-            : await _confirmation.Confirmation.AskAsync(message, _cancellationToken).ConfigureAwait(false);
+        _auditConfirmation = new("user", UserConfirmationOutcomes.Failed);
+        UserConfirmationResult reply;
+        try
+        {
+            reply = _confirmation?.Confirmation is null
+                ? new UserConfirmationResult(UserConfirmationOutcomes.Unsupported)
+                : await _confirmation.Confirmation.AskAsync(message, _cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            _auditConfirmation = new("user", UserConfirmationOutcomes.Cancelled);
+            throw;
+        }
+        _auditConfirmation = new("user", reply.Outcome);
         _cancellationToken.ThrowIfCancellationRequested();
         if (!reply.IsConfirmed)
         {
@@ -397,19 +409,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             $"'{_domain.ToolName}' re-planned '{item.OperationId}' successfully without a plan.");
         _plans[index] = plan;
         var decision = GuardDecisions.DecideLate(
-            _domain.EvaluateGuards(new[] { item }, new[] { plan }), AgentAcknowledgement, _catalog);
-        if (ConfirmWithUser)
-        {
-            // Approval for one target never acknowledges another target merely because the id matches.
-            var guards = decision.Guards.Select(guard => guard.Severity == WriteGuardSeverities.Acknowledge
-                ? guard with { Acknowledged = _userAccepted && _guards.Any(accepted =>
-                    accepted.Acknowledged == true && accepted.Id == guard.Id &&
-                    accepted.OperationId == guard.OperationId && accepted.Message == guard.Message) }
-                : guard).ToArray();
-            var blocked = guards.Any(guard => guard.Severity == WriteGuardSeverities.Block || guard.Acknowledged == false);
-            decision = new GuardDecision(blocked ? GuardDecisionKind.Blocked : GuardDecisionKind.Proceed, guards,
-                blocked ? "The re-resolved operation requires acknowledgement for consequences that were not confirmed." : null);
-        }
+            _domain.EvaluateGuards(new[] { item }, new[] { plan }), ConfirmationMode, _catalog);
         _guards.AddRange(decision.Guards);
         return decision.Kind == GuardDecisionKind.Blocked
             ? new WriteToolError(WorkerFailureCategories.GuardBlocked, decision.Message!)
@@ -523,6 +523,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             _domain.ToolName,
             _domain.ContractVersion,
             WriteAuditRecord.ModeName(_gate.AccessMode),
+            _auditConfirmation,
             _call.ProjectPath,
             WriteAuditBinding.From(_binding),
             CanonicalJson.ToElement(Items),
@@ -542,7 +543,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             guard.Message,
             guard.Acknowledged,
             guard.Acknowledged == true
-                ? _userAccepted ? GuardSatisfactions.User : _applyStarted ? GuardSatisfactions.Agent : null
+                ? _userAccepted ? GuardSatisfactions.User : _auditConfirmation.By == "policy" ? GuardSatisfactions.Policy : null
                 : null);
 
     /// <summary>One audit item; an operation that never ran is recorded as skipped with no duration.</summary>

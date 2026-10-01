@@ -74,7 +74,7 @@ public class WriteToolMcpAnnotationProtocolTests
         {
             var properties = byName[name].ProtocolTool.InputSchema.GetProperty("properties");
             Assert.True(properties.TryGetProperty("dryRun", out _));
-            Assert.True(properties.TryGetProperty("acknowledge", out _));
+            Assert.False(properties.TryGetProperty("acknowledge", out _));
             Assert.False(properties.TryGetProperty("confirm", out _));
             Assert.False(properties.TryGetProperty("safetyToken", out _));
             Assert.False(properties.TryGetProperty("server", out _));

@@ -22,7 +22,7 @@ public sealed class ProjectWriteToolsBehaviorTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var result = await ProjectWriteTools.SaveProjectAs(client,
-            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false),
+            LifecycleTestCalls.Execution(client, audit),
             targetDirectory: @"C:\Target", targetName: "Copy", rebind: false, dryRun: dryRun);
 
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
@@ -40,7 +40,7 @@ public sealed class ProjectWriteToolsBehaviorTests
         Directory.CreateDirectory(audit.Path);
 
         var result = await ProjectWriteTools.SaveProjectAs(client,
-            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false),
+            LifecycleTestCalls.Execution(client, audit),
             targetDirectory: audit.Path, targetName: "Copy");
         var document = LifecycleTestCalls.Document(result);
 

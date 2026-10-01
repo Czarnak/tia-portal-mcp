@@ -190,7 +190,7 @@ public sealed class LifecycleBindingStrategyTests
         ProjectName = operation == "create_project" ? Path.GetFileNameWithoutExtension(target) : null
     };
 
-    private static WriteCall<LifecycleWriteItem> Call(LifecycleWriteItem item) => new(item.ProjectPath, new[] { item }, false, null);
+    private static WriteCall<LifecycleWriteItem> Call(LifecycleWriteItem item) => new(item.ProjectPath, new[] { item }, false);
 
     private static string Source(string name = "Source") => FixturePath(name);
 

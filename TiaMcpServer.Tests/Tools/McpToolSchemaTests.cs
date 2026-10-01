@@ -133,7 +133,7 @@ public class McpToolSchemaTests
     [InlineData(nameof(ProjectWriteTools.SaveProjectAs))]
     [InlineData(nameof(ProjectWriteTools.ArchiveProject))]
     [InlineData(nameof(ProjectWriteTools.CloseProject))]
-    public void ProjectWriteTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
+    public void LifecycleSchemas_HaveNoAcknowledge(string methodName)
     {
         var properties = SchemaPropertyNames(typeof(ProjectWriteTools), methodName);
 
@@ -145,7 +145,7 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("confirm", properties);
         Assert.DoesNotContain("safetyToken", properties);
         Assert.Contains("dryRun", properties);
-        Assert.Contains("acknowledge", properties);
+        Assert.DoesNotContain("acknowledge", properties);
     }
 
     /// <summary>
@@ -227,7 +227,7 @@ public class McpToolSchemaTests
 
         Assert.Contains("projectPath", properties);
         Assert.Contains("dryRun", properties);
-        Assert.Contains("acknowledge", properties);
+        Assert.DoesNotContain("acknowledge", properties);
         Assert.DoesNotContain("confirm", properties);
         Assert.DoesNotContain("safetyToken", properties);
     }
@@ -239,7 +239,7 @@ public class McpToolSchemaTests
 
         Assert.Contains("projectPath", properties);
         Assert.Contains("dryRun", properties);
-        Assert.Contains("acknowledge", properties);
+        Assert.DoesNotContain("acknowledge", properties);
         Assert.DoesNotContain("confirm", properties);
         Assert.DoesNotContain("safetyToken", properties);
     }

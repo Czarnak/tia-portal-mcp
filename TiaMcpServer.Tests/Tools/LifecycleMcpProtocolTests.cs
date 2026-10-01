@@ -13,10 +13,10 @@ public sealed class LifecycleMcpProtocolTests
 {
     [Theory]
     [InlineData("accept", true, true)]
-    [InlineData("accept", false, false)]
-    [InlineData("decline", true, false)]
-    [InlineData("cancel", true, false)]
-    public async Task ModifiedClose_RequiresExplicitHumanConfirmation_AndAuditsActualProvenance(
+    [InlineData("accept", false, true)]
+    [InlineData("decline", true, true)]
+    [InlineData("cancel", true, true)]
+    public async Task Full_ModifiedClose_NeverPrompts_AndAuditsPolicy(
         string action, bool confirm, bool applied)
     {
         using var audit = new TempAuditDirectory();
@@ -38,12 +38,10 @@ public sealed class LifecycleMcpProtocolTests
 
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
         {
-            ["saveBeforeClose"] = false,
-            // Confirmation-on ignores even malformed agent lists.
-            ["acknowledge"] = new[] { "unknown", "", "unknown" }
+            ["saveBeforeClose"] = false
         });
 
-        Assert.Single(prompts);
+        Assert.Empty(prompts);
         var document = Document(result);
         Assert.Equal(applied, document.GetProperty("success").GetBoolean());
         Assert.Equal(!applied, result.IsError == true);
@@ -52,11 +50,11 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal(applied ? ProjectBindingSnapshot.UnboundState : ProjectBindingSnapshot.VerifiedState,
             harness.WorkerClient.BindingSnapshot.State);
         Assert.Empty(StructuredContractInspector.FindViolations(result));
-        AssertAudit(audit.Path, result, applied ? "user" : null);
+        AssertAudit(audit.Path, result, "policy");
     }
 
     [Fact]
-    public async Task ModifiedClose_UnsupportedClient_CannotUseAgentAcknowledgement()
+    public async Task Full_ModifiedClose_UnsupportedClient_UsesPolicy()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
@@ -64,17 +62,17 @@ public sealed class LifecycleMcpProtocolTests
             McpAccessMode.Full, audit.Path, fixture.SourcePath);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
         {
-            ["saveBeforeClose"] = false, ["acknowledge"] = new[] { "discards_unsaved_changes" }
+            ["saveBeforeClose"] = false
         });
 
-        Assert.True(result.IsError);
-        Assert.Equal("access_denied", Document(result).GetProperty("error").GetProperty("category").GetString());
-        Assert.True(harness.WorkerClient.BindingSnapshot.IsVerified);
-        AssertAudit(audit.Path, result, null);
+        Assert.False(result.IsError == true);
+        Assert.True(Document(result).GetProperty("success").GetBoolean());
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, harness.WorkerClient.BindingSnapshot.State);
+        AssertAudit(audit.Path, result, "policy");
     }
 
     [Fact]
-    public async Task ModifiedClose_UrlOnlyCapability_DeniesWithoutSendingAForm()
+    public async Task Full_ModifiedClose_UrlOnlyCapability_UsesPolicyWithoutSendingAForm()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
@@ -105,14 +103,14 @@ public sealed class LifecycleMcpProtocolTests
             ["saveBeforeClose"] = false
         });
         Assert.Equal(0, prompts);
-        Assert.True(result.IsError);
-        Assert.Equal("access_denied", Document(result).GetProperty("error").GetProperty("category").GetString());
-        Assert.True(harness.WorkerClient.BindingSnapshot.IsVerified);
-        AssertAudit(audit.Path, result, null);
+        Assert.False(result.IsError == true);
+        Assert.True(Document(result).GetProperty("success").GetBoolean());
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, harness.WorkerClient.BindingSnapshot.State);
+        AssertAudit(audit.Path, result, "policy");
     }
 
     [Fact]
-    public async Task DryRun_ReportsUnacknowledgedGuard_WithoutPromptOrClose()
+    public async Task Full_DryRun_ReportsPolicyGuard_WithoutPromptOrClose()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
@@ -126,8 +124,7 @@ public sealed class LifecycleMcpProtocolTests
             McpAccessMode.Full, audit.Path, fixture.SourcePath, clientOptions: options);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
         {
-            ["saveBeforeClose"] = false, ["dryRun"] = true,
-            ["acknowledge"] = new[] { "discards_unsaved_changes" }
+            ["saveBeforeClose"] = false, ["dryRun"] = true
         });
 
         var document = Document(result);
@@ -135,7 +132,7 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal("preview", document.GetProperty("phase").GetString());
         Assert.True(document.GetProperty("success").GetBoolean());
         var guard = Assert.Single(document.GetProperty("guards").EnumerateArray());
-        Assert.False(guard.GetProperty("acknowledged").GetBoolean());
+        Assert.True(guard.GetProperty("acknowledged").GetBoolean());
         Assert.Equal(JsonValueKind.Null, document.GetProperty("result").ValueKind);
         Assert.Equal(JsonValueKind.Null, document.GetProperty("verification").ValueKind);
         Assert.True(harness.WorkerClient.BindingSnapshot.IsVerified);
@@ -143,7 +140,7 @@ public sealed class LifecycleMcpProtocolTests
     }
 
     [Fact]
-    public async Task ConfirmationOff_ExactAcknowledgement_RecordsAgent()
+    public async Task Full_StartupConfirmationOption_DoesNotChangePolicy()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
@@ -151,11 +148,11 @@ public sealed class LifecycleMcpProtocolTests
             McpAccessMode.Full, audit.Path, fixture.SourcePath, confirmWithUser: false);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
         {
-            ["saveBeforeClose"] = false, ["acknowledge"] = new[] { "discards_unsaved_changes" }
+            ["saveBeforeClose"] = false
         });
         Assert.False(result.IsError == true);
         Assert.True(Document(result).GetProperty("success").GetBoolean());
-        AssertAudit(audit.Path, result, "agent");
+        AssertAudit(audit.Path, result, "policy");
     }
 
     [Theory]
@@ -245,6 +242,10 @@ public sealed class LifecycleMcpProtocolTests
         var text = Assert.Single(result.Content.OfType<TextContentBlock>()).Text;
         Assert.Equal(text, record.RootElement.GetProperty("responseText").GetString());
         Assert.Equal("sha256:" + ContentHashes.Sha256Hex(text), record.RootElement.GetProperty("responseHash").GetString());
+        Assert.Equal(2, record.RootElement.GetProperty("recordVersion").GetInt32());
+        var confirmation = record.RootElement.GetProperty("confirmation");
+        Assert.Equal(Document(result).GetProperty("phase").GetString() == "preview" ? "none" : "policy", confirmation.GetProperty("by").GetString());
+        Assert.Equal("not_requested", confirmation.GetProperty("outcome").GetString());
         if (checkGuard)
         {
             var guard = Assert.Single(record.RootElement.GetProperty("guards").EnumerateArray());

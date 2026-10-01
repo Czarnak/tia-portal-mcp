@@ -49,7 +49,8 @@ public sealed class WriteExecution
     /// <summary>
     /// Runs <paramref name="call"/> through the pipeline. <c>isError</c> is true only for the
     /// <c>error</c> and <c>blocked</c> phases; a write that ran and failed reports
-    /// <c>success: false</c> without it.
+    /// <c>success: false</c> without it. The binding gate's access mode determines confirmation;
+    /// <paramref name="confirmation"/> supplies only the current client's elicitation adapter.
     /// </summary>
     public Task<CallToolResult> RunAsync<TItem, TEffect, TVerification, TResponse>(
         IWriteDomain<TItem, TEffect, TVerification, TResponse> domain,

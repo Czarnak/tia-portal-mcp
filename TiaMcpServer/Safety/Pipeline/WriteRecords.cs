@@ -10,13 +10,12 @@ public sealed record WriteEffect<TEffect>(string OperationId, TEffect Effect);
 
 /// <summary>
 /// One guarded write call as the tool received it: the project, the ordered items, whether this is
-/// a dry run, and the guard ids the caller acknowledged (null when the caller sent none).
+/// a dry run.
 /// </summary>
 public sealed record WriteCall<TItem>(
     string? ProjectPath,
     IReadOnlyList<TItem> Items,
-    bool DryRun,
-    IReadOnlyList<string>? Acknowledge)
+    bool DryRun)
     where TItem : IOperationBatchItem;
 
 /// <summary>The domain's input validation verdict, produced before any worker call.</summary>

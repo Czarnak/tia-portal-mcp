@@ -236,15 +236,14 @@ public class OpennessWorkerClientIntegrationTests
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
         using var fixture = new LifecycleProtocolFixture();
         var path = fixture.DestinationPath;
 
-        var preview = await ProjectWriteTools.OpenProject(client, execution, options, path, dryRun: true);
+        var preview = await ProjectWriteTools.OpenProject(client, execution, path, dryRun: true);
         LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
         Assert.False(binding.IsVerified);
 
-        var applied = await ProjectWriteTools.OpenProject(client, execution, options, path);
+        var applied = await ProjectWriteTools.OpenProject(client, execution, path);
         var document = LifecycleTestCalls.Document(applied);
         Assert.Equal("open_project", document.GetProperty("tool").GetString());
         LifecycleTestCalls.Succeeded(document);
@@ -261,7 +260,7 @@ public class OpennessWorkerClientIntegrationTests
         var path = Path.Combine(audit.Path, "worker-error-with-category.ap21");
         File.WriteAllText(path, "scripted fixture");
         var applied = await ProjectWriteTools.OpenProject(client,
-            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false), path);
+            LifecycleTestCalls.Execution(client, audit), path);
         var document = LifecycleTestCalls.Document(applied);
 
         Assert.False(applied.IsError);
@@ -1076,13 +1075,12 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
         Directory.CreateDirectory(audit.Path);
 
-        var preview = await ProjectWriteTools.SaveProject(client, execution, options, dryRun: true);
+        var preview = await ProjectWriteTools.SaveProject(client, execution, dryRun: true);
         LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-        var applied = await ProjectWriteTools.SaveProject(client, execution, options);
+        var applied = await ProjectWriteTools.SaveProject(client, execution);
         LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
         Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
     }
@@ -1096,9 +1094,8 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
 
-        var applied = await ProjectWriteTools.SaveProject(client, execution, options);
+        var applied = await ProjectWriteTools.SaveProject(client, execution);
         var document = LifecycleTestCalls.Document(applied);
         LifecycleTestCalls.Succeeded(document);
 
@@ -1121,13 +1118,12 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
 
-        var preview = await ProjectWriteTools.SaveProjectAs(client, execution, options,
+        var preview = await ProjectWriteTools.SaveProjectAs(client, execution,
             targetDirectory: Directory.CreateDirectory(audit.Path).FullName, targetName: "Copy", dryRun: true);
         LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-        var applied = await ProjectWriteTools.SaveProjectAs(client, execution, options,
+        var applied = await ProjectWriteTools.SaveProjectAs(client, execution,
             targetDirectory: audit.Path, targetName: "Copy");
         LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
         Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
@@ -1257,16 +1253,15 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
 
         var archiveDirectory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
-            var preview = await ProjectWriteTools.ArchiveProject(client, execution, options,
+            var preview = await ProjectWriteTools.ArchiveProject(client, execution,
                 archiveDirectory, "Backup", dryRun: true);
             LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-            var applied = await ProjectWriteTools.ArchiveProject(client, execution, options,
+            var applied = await ProjectWriteTools.ArchiveProject(client, execution,
                 archiveDirectory, "Backup");
             LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
         }
@@ -1285,7 +1280,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(Directory.Exists(archiveDirectory));
 
         var result = await ProjectWriteTools.ArchiveProject(client,
-            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false),
+            LifecycleTestCalls.Execution(client, audit),
             archiveDirectory, "Backup", mode: "Compressed", projectPath: projectPath, dryRun: true);
 
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
@@ -1304,12 +1299,11 @@ public class OpennessWorkerClientIntegrationTests
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
 
-        var preview = await ProjectWriteTools.CloseProject(client, execution, options, dryRun: true);
+        var preview = await ProjectWriteTools.CloseProject(client, execution, dryRun: true);
         LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
 
-        var applied = await ProjectWriteTools.CloseProject(client, execution, options);
+        var applied = await ProjectWriteTools.CloseProject(client, execution);
         var document = LifecycleTestCalls.Document(applied);
         LifecycleTestCalls.Succeeded(document);
         Assert.False(document.GetProperty("verification").GetProperty("value").GetProperty("isOpen").GetBoolean());

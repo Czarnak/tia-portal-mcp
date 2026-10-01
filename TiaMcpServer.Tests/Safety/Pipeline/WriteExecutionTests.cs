@@ -17,7 +17,7 @@ public sealed class WriteExecutionTests
     private static readonly string[] ApplyA =
         { "validate", "plan", "guards", "mutate:a", "project:a", "verify", "compose" };
 
-    private readonly FakeWriteBindingGate _gate = new();
+    private readonly FakeWriteBindingGate _gate = new() { AccessMode = McpAccessMode.Full };
     private readonly FakeWriteDomain _domain;
     private readonly RecordingAuditSink _audit;
     private readonly WriteExecution _execution;
@@ -77,16 +77,6 @@ public sealed class WriteExecutionTests
 
         AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.AccessDenied);
         Assert.Equal("Read-only session.", ErrorMessage(doc));
-        Assert.Equal(0, _gate.GateCalls);
-        Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
-    }
-
-    [Fact]
-    public async Task MalformedAcknowledge_IsRejectedBeforeTheGate()
-    {
-        var (result, doc) = await RunAsync(new[] { Item("a") }, acknowledge: new[] { Info });
-
-        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
         Assert.Equal(0, _gate.GateCalls);
         Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
     }
@@ -195,6 +185,7 @@ public sealed class WriteExecutionTests
     [Fact]
     public async Task DryRun_ReportsEffectsAndGuards_AndMutatesNothing()
     {
+        _gate.AccessMode = McpAccessMode.ReadWrite;
         var (result, doc) = await RunAsync(
             new[] { Item("a", guards: new[] { Ack, Info }), Item("b") }, dryRun: true);
 
@@ -212,63 +203,37 @@ public sealed class WriteExecutionTests
     [Fact]
     public async Task UnacknowledgedGuard_IsBlocked()
     {
+        _gate.AccessMode = McpAccessMode.ReadWrite;
         var (result, doc) = await RunAsync(new[] { Item("a", guards: new[] { Ack }) });
 
-        AssertOutcome(result, doc, WritePhases.Blocked, isError: true, WorkerFailureCategories.GuardBlocked);
+        AssertOutcome(result, doc, WritePhases.Blocked, isError: true, WorkerFailureCategories.AccessDenied);
         Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
         Assert.False(GuardById(doc, Ack).GetProperty("acknowledged").GetBoolean());
         Assert.Null(Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
 
     [Fact]
-    public async Task AcknowledgedGuard_IsApplied_AndAuditedAsSatisfiedByAgent()
+    public async Task AcknowledgedGuard_IsApplied_AndAuditedAsSatisfiedByPolicy()
     {
-        var (result, doc) = await RunAsync(new[] { Item("a", guards: new[] { Ack }) }, acknowledge: new[] { Ack });
+        var (result, doc) = await RunAsync(new[] { Item("a", guards: new[] { Ack }) });
 
         AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         Assert.True(doc.GetProperty("success").GetBoolean());
         Assert.Equal(ApplyA, _domain.Calls);
         Assert.True(GuardById(doc, Ack).GetProperty("acknowledged").GetBoolean());
-        Assert.Equal(GuardSatisfactions.Agent, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+        Assert.Equal(GuardSatisfactions.Policy, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
 
     [Fact]
     public async Task BlockGuard_RefusesDespiteAcknowledgements()
     {
         var (result, doc) = await RunAsync(
-            new[] { Item("a", guards: new[] { Ack, Block }) }, acknowledge: new[] { Ack });
+            new[] { Item("a", guards: new[] { Ack, Block }) });
 
         AssertOutcome(result, doc, WritePhases.Blocked, isError: true, WorkerFailureCategories.GuardBlocked);
         Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
         Assert.Equal(0, _domain.MutationCount);
         Assert.Contains(Block, ErrorMessage(doc));
-    }
-
-    [Fact]
-    public async Task AcknowledgementForGuardThatDidNotFire_WithoutDependentItems_IsValidationError()
-    {
-        var (result, doc) = await RunAsync(new[] { Item("a"), Item("b") }, acknowledge: new[] { Ack });
-
-        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
-        Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task AcknowledgementAbsentFromInitialGuards_WithDependentItems_IsValidationError(
-        bool dryRun, bool wouldFireLate)
-    {
-        var (result, doc) = await RunAsync(
-            new[] { Item("a"), Item("b", dependsOn: "a", lateGuards: wouldFireLate ? new[] { Ack } : null) },
-            dryRun, acknowledge: new[] { Ack });
-
-        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
-        Assert.Equal(0, _domain.MutationCount);
-        Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
-        Assert.All(Assert.Single(_audit.Records).Items, item => Assert.Equal(OperationBatchStatus.Skipped, item.Status));
     }
 
     [Fact]
@@ -335,11 +300,10 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
-    public async Task InitiallyAcknowledgedGuard_CoversItsLateFiring_AndTheDependentItemIsApplied()
+    public async Task PolicyGuard_CoversItsLateFiring_AndTheDependentItemIsApplied()
     {
         var (result, doc) = await RunAsync(
-            new[] { Item("a", guards: new[] { Ack }), Item("b", dependsOn: "a", lateGuards: new[] { Ack }) },
-            acknowledge: new[] { Ack });
+            new[] { Item("a", guards: new[] { Ack }), Item("b", dependsOn: "a", lateGuards: new[] { Ack }) });
 
         AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
         Assert.True(doc.GetProperty("success").GetBoolean());
@@ -358,12 +322,13 @@ public sealed class WriteExecutionTests
             Assert.True(guard.GetProperty("acknowledged").GetBoolean());
         });
         Assert.All(Assert.Single(_audit.Records).Guards,
-            guard => Assert.Equal(GuardSatisfactions.Agent, guard.SatisfiedBy));
+            guard => Assert.Equal(GuardSatisfactions.Policy, guard.SatisfiedBy));
     }
 
     [Fact]
     public async Task LateUnacknowledgedGuard_FailsTheDependentItem_WithGuardBlocked()
     {
+        _gate.AccessMode = McpAccessMode.ReadWrite;
         var (result, doc) = await RunAsync(new[]
         {
             Item("a"), Item("b", dependsOn: "a", lateGuards: new[] { Ack }), Item("c")
@@ -460,7 +425,7 @@ public sealed class WriteExecutionTests
         Assert.Equal(SteppingTimeProvider.Start, record.Timestamp);
         Assert.Equal("fake_write_tool", record.Tool);
         Assert.Equal("fake/1", record.ContractVersion);
-        Assert.Equal("read-write", record.AccessMode);
+        Assert.Equal("full", record.AccessMode);
         Assert.Equal(FakeWriteBindingGate.ProjectPath, record.ProjectPath);
         Assert.Equal("binding-1", record.Binding!.BindingId);
         Assert.Equal(WritePhases.Applied, record.Phase);
@@ -509,16 +474,15 @@ public sealed class WriteExecutionTests
         => new(id, DependsOn: dependsOn, Guards: guards, LateGuards: lateGuards, FailWith: failWith);
 
     private static WriteCall<FakeWriteItem> Call(
-        IReadOnlyList<FakeWriteItem> items, bool dryRun = false, IReadOnlyList<string>? acknowledge = null)
-        => new(FakeWriteBindingGate.ProjectPath, items, dryRun, acknowledge);
+        IReadOnlyList<FakeWriteItem> items, bool dryRun = false)
+        => new(FakeWriteBindingGate.ProjectPath, items, dryRun);
 
     private async Task<(CallToolResult Result, JsonElement Document)> RunAsync(
         IReadOnlyList<FakeWriteItem> items,
-        bool dryRun = false,
-        IReadOnlyList<string>? acknowledge = null)
+        bool dryRun = false)
     {
         var recordsBefore = _audit.Records.Count;
-        var result = await _execution.RunAsync(_domain, Call(items, dryRun, acknowledge));
+        var result = await _execution.RunAsync(_domain, Call(items, dryRun));
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         var structured = Assert.IsType<JsonElement>(result.StructuredContent);
         Assert.Equal(text, structured.GetRawText());

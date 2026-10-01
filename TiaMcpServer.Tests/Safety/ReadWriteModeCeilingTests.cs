@@ -87,15 +87,14 @@ public class ReadWriteModeCeilingTests
         var before = binding.CaptureSnapshot();
         using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
         var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
         {
-            () => ProjectWriteTools.OpenProject(client, execution, options, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
-            () => ProjectWriteTools.CreateProject(client, execution, options, audit.Path, "Fixture", dryRun: dryRun),
-            () => ProjectWriteTools.SaveProject(client, execution, options, dryRun: dryRun),
-            () => ProjectWriteTools.SaveProjectAs(client, execution, options, audit.Path, "Copy", dryRun: dryRun),
-            () => ProjectWriteTools.ArchiveProject(client, execution, options, audit.Path, "Archive", dryRun: dryRun),
-            () => ProjectWriteTools.CloseProject(client, execution, options, dryRun: dryRun)
+            () => ProjectWriteTools.OpenProject(client, execution, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
+            () => ProjectWriteTools.CreateProject(client, execution, audit.Path, "Fixture", dryRun: dryRun),
+            () => ProjectWriteTools.SaveProject(client, execution, dryRun: dryRun),
+            () => ProjectWriteTools.SaveProjectAs(client, execution, audit.Path, "Copy", dryRun: dryRun),
+            () => ProjectWriteTools.ArchiveProject(client, execution, audit.Path, "Archive", dryRun: dryRun),
+            () => ProjectWriteTools.CloseProject(client, execution, dryRun: dryRun)
         };
         foreach (var call in calls)
         {

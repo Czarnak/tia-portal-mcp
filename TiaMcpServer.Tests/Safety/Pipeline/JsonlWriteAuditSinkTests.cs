@@ -17,14 +17,15 @@ public sealed class JsonlWriteAuditSinkTests
             at ?? Now,
             tool,
             "1",
-            WriteAuditRecord.ModeName(McpAccessMode.ReadWrite),
+            WriteAuditRecord.ModeName(McpAccessMode.Full),
+            new WriteAuditConfirmation("policy", "not_requested"),
             @"C:\p\demo.ap21",
             new WriteAuditBinding("verified", "b1", 3, @"C:\p\demo.ap21", "w1", 2, 100, null),
             JsonDocument.Parse("""[{"operationId":"a"}]""").RootElement.Clone(),
             WritePhases.Applied,
             "{\"phase\":\"applied\"}",
             "sha256:abc",
-            [new WriteAuditGuard("g1", "acknowledge", "a", "msg", true, GuardSatisfactions.Agent)],
+            [new WriteAuditGuard("g1", "acknowledge", "a", "msg", true, GuardSatisfactions.Policy)],
             [new WriteAuditItem(
                 "a",
                 "add_network",
@@ -58,13 +59,15 @@ public sealed class JsonlWriteAuditSinkTests
         {
             using var doc = JsonDocument.Parse(line);
             Assert.Equal("write", doc.RootElement.GetProperty("recordKind").GetString());
-            Assert.Equal(1, doc.RootElement.GetProperty("recordVersion").GetInt32());
+            Assert.Equal(2, doc.RootElement.GetProperty("recordVersion").GetInt32());
         }
         using var first = JsonDocument.Parse(lines[0]);
         Assert.Equal("one", first.RootElement.GetProperty("tool").GetString());
+        Assert.Equal("policy", first.RootElement.GetProperty("confirmation").GetProperty("by").GetString());
+        Assert.Equal("not_requested", first.RootElement.GetProperty("confirmation").GetProperty("outcome").GetString());
         var item = first.RootElement.GetProperty("items")[0];
         Assert.Equal(12, item.GetProperty("durationMs").GetInt64());
-        Assert.Equal("agent", first.RootElement.GetProperty("guards")[0].GetProperty("satisfiedBy").GetString());
+        Assert.Equal("policy", first.RootElement.GetProperty("guards")[0].GetProperty("satisfiedBy").GetString());
         Assert.Equal("b1", first.RootElement.GetProperty("binding").GetProperty("bindingId").GetString());
         Assert.Equal(34, first.RootElement.GetProperty("durationMs").GetInt64());
         Assert.Equal("w", item.GetProperty("warnings")[0].GetString());

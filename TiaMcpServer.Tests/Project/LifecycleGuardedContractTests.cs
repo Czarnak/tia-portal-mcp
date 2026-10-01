@@ -23,7 +23,8 @@ public sealed class LifecycleGuardedContractTests
         Assert.Equal(typeof(Task<CallToolResult>), method.ReturnType);
         var inputs = method.GetParameters().Select(parameter => parameter.Name).ToArray();
         Assert.Contains("dryRun", inputs);
-        Assert.Contains("acknowledge", inputs);
+        Assert.DoesNotContain("acknowledge", inputs);
+        Assert.DoesNotContain("options", inputs);
         Assert.DoesNotContain("confirm", inputs);
         Assert.DoesNotContain("safetyToken", inputs);
     }

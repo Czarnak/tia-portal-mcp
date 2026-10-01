@@ -25,7 +25,6 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         internal readonly ProjectSessionBinding Binding;
         internal readonly OpennessWorkerClient Client;
         internal readonly WriteExecution Execution;
-        internal readonly UserConfirmationOptions Options = new(false);
 
         internal Fixture(string? configured = null, string? worker = null)
         {
@@ -54,7 +53,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
 
         internal Task<CallToolResult> Open(string destination = DestinationPath,
             bool forceRebind = true, bool dryRun = true)
-            => ProjectWriteTools.OpenProject(Client, Execution, Options, Physical(destination),
+            => ProjectWriteTools.OpenProject(Client, Execution, Physical(destination),
                 forceRebind: forceRebind, dryRun: dryRun);
 
         public void Dispose()
@@ -76,12 +75,12 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         {
             var calls = new[]
             {
-                await ProjectWriteTools.SaveProject(fixture.Client, fixture.Execution, fixture.Options, dryRun: true),
-                await ProjectWriteTools.SaveProjectAs(fixture.Client, fixture.Execution, fixture.Options,
+                await ProjectWriteTools.SaveProject(fixture.Client, fixture.Execution, dryRun: true),
+                await ProjectWriteTools.SaveProjectAs(fixture.Client, fixture.Execution,
                     fixture.Root, "Copy", dryRun: true),
-                await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+                await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
                     directory, "Backup", dryRun: true),
-                await ProjectWriteTools.CloseProject(fixture.Client, fixture.Execution, fixture.Options, dryRun: true)
+                await ProjectWriteTools.CloseProject(fixture.Client, fixture.Execution, dryRun: true)
             };
             foreach (var call in calls)
             {
@@ -94,7 +93,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
             Assert.True(LifecycleTestCalls.Document(calls[3]).GetProperty("effects").GetProperty("savesSource").GetBoolean());
             Assert.Equal(4, LifecycleTestCalls.AuditCount(fixture.Audit));
 
-            var applied = await ProjectWriteTools.SaveProject(fixture.Client, fixture.Execution, fixture.Options);
+            var applied = await ProjectWriteTools.SaveProject(fixture.Client, fixture.Execution);
             LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true); }
@@ -132,9 +131,9 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var directory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
-            var archive = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+            var archive = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
                 directory, "Backup", saveBeforeArchive: false, projectPath: fixture.Source, dryRun: true);
-            var close = await ProjectWriteTools.CloseProject(fixture.Client, fixture.Execution, fixture.Options,
+            var close = await ProjectWriteTools.CloseProject(fixture.Client, fixture.Execution,
                 projectPath: fixture.Source, saveBeforeClose: false, dryRun: true);
             foreach (var call in new[] { archive, close })
             {
@@ -174,11 +173,11 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var directory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
-            var preview = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+            var preview = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
                 directory, "Backup", projectPath: fixture.Source, dryRun: true);
             LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
             Directory.Delete(directory);
-            var result = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+            var result = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
                 directory, "Backup", projectPath: fixture.Source);
             LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
             Assert.False(Directory.Exists(directory));
@@ -194,7 +193,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         await fixture.Bind("lifecycle-probe-only");
         var directory = Path.Combine(Path.GetTempPath(), "tia-archive-missing-" + Guid.NewGuid().ToString("N"));
 
-        var result = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution, fixture.Options,
+        var result = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
             directory, "Backup", dryRun: true);
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
         Assert.False(Directory.Exists(directory));
@@ -319,17 +318,16 @@ public sealed class ProjectLifecyclePreviewSafetyTests
 
 
     [Fact]
-    public async Task OpenProject_ModifiedWorkerOwnedSource_HardBlockCannotBeAcknowledged()
+    public async Task OpenProject_ModifiedWorkerOwnedSource_PolicyCannotBypassHardBlock()
     {
         using var fixture = new Fixture();
         await fixture.Bind();
 
-        var result = await ProjectWriteTools.OpenProject(fixture.Client, fixture.Execution, fixture.Options,
-            fixture.Physical(@"C:\Lifecycle\B-modified.ap21"), forceRebind: true,
-            acknowledge: new[] { "discards_unsaved_source_changes" });
+        var result = await ProjectWriteTools.OpenProject(fixture.Client, fixture.Execution,
+            fixture.Physical(@"C:\Lifecycle\B-modified.ap21"), forceRebind: true);
 
-        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
-        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(result), "error");
+        LifecycleTestCalls.Rejected(result, WorkerFailureCategories.GuardBlocked);
+        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(result), "blocked");
         await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
