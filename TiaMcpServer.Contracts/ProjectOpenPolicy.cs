@@ -38,10 +38,13 @@ public static class ProjectOpenPolicy
             : ProjectOpenDecision.Refuse;
     }
 
-    public static string RefusalMessage(string currentPath, string requestedPath)
+    public static string RefusalMessage(string currentPath, string requestedPath, McpAccessMode mode)
         => $"TIA Portal currently has project '{currentPath}' open, but this request targets "
             + $"'{requestedPath}'. Read operations never switch projects. Omit projectPath to use "
-            + "the open project, or call open_project to switch.";
+            + "the open project."
+            + (OperationPolicyCatalog.IsAllowed(mode, "open_project")
+                ? " You can call open_project to switch."
+                : " Open the intended project in TIA Portal before retrying.");
 
     public static string NotOpenMessage(string requestedPath, McpAccessMode mode)
     {

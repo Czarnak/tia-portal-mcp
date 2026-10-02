@@ -1199,7 +1199,7 @@ internal static class Program
     {
         return WithSession(request, session =>
         {
-            var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath);
+            var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath, _accessMode);
             return Success(new ProjectStatusResultInfo
             {
                 Operation = "get_project_status",
@@ -1221,7 +1221,7 @@ internal static class Program
     {
         return ProjectLifecycle(request, session =>
         {
-            var status = ProjectLifecycleService.GetBasicStatusReadOnly(session, request.ProjectPath);
+            var status = ProjectLifecycleService.GetBasicStatusReadOnly(session, request.ProjectPath, _accessMode);
             return new ProjectLifecycleResultInfo
             {
                 Operation = "get_project_status",
@@ -1409,7 +1409,7 @@ internal static class Program
             case ProjectOpenDecision.Refuse:
                 return Failure(
                     WorkerFailureCategories.BindingConflict,
-                    ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
+                    ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, _accessMode));
             default:
                 if (currentPath is not null)
                     return null;

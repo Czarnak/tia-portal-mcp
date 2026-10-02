@@ -121,21 +121,30 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal(2, prompts);
     }
 
-    [Fact]
-    public async Task ReadWrite_ReadWithUnopenedPath_DeniedAndNoOpenRequest()
+    [Theory]
+    [InlineData("read-only")]
+    [InlineData("read-write")]
+    [InlineData("full")]
+    public async Task ReadWithUnopenedNormalPath_DeniedWithoutOpeningOrChangingState(string mode)
     {
         using var fixture = new LifecycleProtocolFixture();
         using var requests = new LifecycleRequestLog(fixture.Root);
-        using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5));
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
+        using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5),
+            workerArgs: "--access-mode " + mode);
 
         var response = await transport.SendAsync(new WorkerRequest
         {
             Method = "read_hardware_config",
-            ProjectPath = "unopened-project"
+            ProjectPath = "ok"
         });
 
         Assert.False(response.Success);
         Assert.Equal(WorkerFailureCategories.AccessDenied, response.FailureCategory);
+        Assert.Null(response.SessionIdentity?.ProjectPath);
+        var after = await transport.SendAsync(new WorkerRequest { Method = "get_basic_project_status" });
+        Assert.True(after.Success, after.Error);
+        Assert.Null(after.SessionIdentity?.ProjectPath);
         var methods = requests.Methods();
         Assert.Contains("hello", methods);
         Assert.Contains("read_hardware_config", methods);

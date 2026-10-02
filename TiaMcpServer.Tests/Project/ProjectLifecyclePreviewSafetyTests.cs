@@ -29,6 +29,8 @@ public sealed class ProjectLifecyclePreviewSafetyTests
 
         internal Fixture(string? configured = null, string? worker = null)
         {
+            if (configured is not null)
+                _uiOpen = new FakeWorkerUiOpenProject(configured);
             Binding = new ProjectSessionBinding(configured);
             Client = new OpennessWorkerClient(Binding, workerExecutablePath: worker ?? FakeWorkerLocator.Locate(),
                 accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));

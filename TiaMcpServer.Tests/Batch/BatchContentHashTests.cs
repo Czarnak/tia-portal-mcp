@@ -10,6 +10,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public class BatchContentHashTests
 {
     private const string Text = "<Document/>";

@@ -5,11 +5,13 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class ProjectTreeWorkerProtocolTests
 {
     [Fact]
     public async Task BrowseProjectTreeV3Snapshot_SendsTypedSelectorAndReturnsTypedTreeResult()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("project-tree-v3-snapshot");
         using var client = new OpennessWorkerClient(
             new ProjectSessionBinding(null),
             logger: null,

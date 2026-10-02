@@ -15,6 +15,7 @@ namespace TiaMcpServer.Tests.Safety.Pipeline;
 /// <c>network-subnet-lifecycle</c> FakeWorker scenario (two subnets, each connected to a node).
 /// Each test owns its client and therefore a fresh FakeWorker process and state.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class WriteExecutionFakeWorkerTests
 {
     private const string Scenario = "network-subnet-lifecycle";

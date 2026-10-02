@@ -15,6 +15,7 @@ namespace TiaMcpServer.Tests.Network;
 /// <see cref="NetworkWorkerInvoker.InvokeWriteAsync"/> -&gt; <see cref="OpennessWorkerClient"/> ->
 /// echo FakeWorker path — never mocks of the invoker itself.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class NetworkSubnetLifecycleForwardingTests
 {
     private static readonly string EchoProjectPath = ProjectPathNormalization.Canonicalize("echo")!;

@@ -4,6 +4,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class ProjectTreeSafetyIdentityEnforcementTests
 {
     [Theory]
@@ -12,6 +13,7 @@ public sealed class ProjectTreeSafetyIdentityEnforcementTests
     [InlineData("read_delete_block_group_safety_snapshot")]
     public async Task InternalTreeSafetyRead_RejectsMissingExpectedSessionIdentity(string method)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("tree-safety-request-echo");
         using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5));
         var observed = await transport.SendAsync(new WorkerRequest
         {

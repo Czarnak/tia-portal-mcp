@@ -15,6 +15,7 @@ namespace TiaMcpServer.Tests.Batch;
 /// through execute_read_batch, and the safety-token preview/apply/single-use round trip works
 /// for update_type_content exactly like it does for the other write operations.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class TypeOperationFakeWorkerTests
 {
     private const string TypePath = "PLC_1/Types/AnalogInputSettings";
@@ -121,6 +122,7 @@ public class TypeOperationFakeWorkerTests
     [Fact]
     public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundExplicitPathMatchesBlockContent()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateReadOnlyClient(binding);
 
@@ -136,6 +138,7 @@ public class TypeOperationFakeWorkerTests
     [Fact]
     public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundConfiguredPathMatchesBlockContent()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject("echo");
         foreach (var operation in new[] { "get_block_content", "get_type_content" })
         {
             var binding = new ProjectSessionBinding("echo");
@@ -155,6 +158,7 @@ public class TypeOperationFakeWorkerTests
         async Task<(string Status, string? Category, string Result, int DispatchCount)> RunAsync(
             string operation)
         {
+            using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
             var binding = new ProjectSessionBinding(null);
             using var client = CreateReadOnlyClient(binding);
             var result = await ExecuteSingleReadAsync(client, operation, null);

@@ -11,6 +11,7 @@ namespace TiaMcpServer.Tests.Network;
 /// End-to-end evidence for the public hardware-page sequence.  The real host coordinator and
 /// executor run here; only the net48 worker boundary is replaced with the scripted FakeWorker.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class HardwarePaginationFakeWorkerTests
 {
     private const string Scenario = "hardware-pagination";
@@ -224,6 +225,8 @@ public sealed class HardwarePaginationFakeWorkerTests
         bool? includeIoDetails = null,
         bool paged = true)
     {
+        using var uiOpen = projectPath is null
+            ? null : FakeWorkerUiOpenProject.ForWorkerRelativePath(projectPath);
         var result = await NetworkReadTools.NetworkRead(
             client,
             new[]

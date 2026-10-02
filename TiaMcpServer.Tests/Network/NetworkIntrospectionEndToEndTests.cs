@@ -15,6 +15,7 @@ public class NetworkIntrospectionEndToEndTests
     [Fact]
     public async Task PagedListResults_StayWholeAndUnderThePerItemBudget()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-large");
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
         var result = await CallReadAsync(
             harness,
@@ -57,6 +58,7 @@ public class NetworkIntrospectionEndToEndTests
     [Fact]
     public async Task CursorFromEarlierFakeWorkerSnapshot_IsRejectedAfterSnapshotChanges()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-state-seq");
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
         var before = await ReadStateMarkerAsync(harness);
         var after = await ReadStateMarkerAsync(harness);

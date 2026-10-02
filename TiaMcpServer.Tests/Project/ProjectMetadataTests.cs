@@ -12,6 +12,7 @@ namespace TiaMcpServer.Tests.Project;
 /// metadata round trip over the real IPC pipe via the
 /// FakeWorker's <c>status-with-metadata</c> scenario.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class ProjectMetadataTests
 {
     private static readonly JsonSerializerOptions JsonOptions = WorkerJson.PayloadOptionsFor(typeof(ProjectLifecycleResultInfo));
@@ -159,6 +160,7 @@ public class ProjectMetadataTests
     [Fact]
     public async Task GetProjectStatus_FullMetadata_RoundTripsOverTheRealIpcPipe()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-with-metadata");
         using var client = CreateClient(FakeWorkerLocator.Locate());
 
         var response = await ProjectReadTools.GetProjectStatus(client, "status-with-metadata");

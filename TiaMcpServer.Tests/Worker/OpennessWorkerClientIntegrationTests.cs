@@ -79,6 +79,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task ReadHardwarePageCandidatesAsync_ForwardsTheDedicatedInternalRequest()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
         using var client = CreateClient();
 
         var call = await client.ReadHardwarePageCandidatesAsync(
@@ -213,6 +214,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task ReadWriteStartupProject_FirstTypedBrowseAutoVerifiesWithStatusThenReads()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject("ok");
         // The "ok" FakeWorker scenario reports a monotonically increasing sequence number.
         // browse_project_tree_v3_snapshot must therefore return seq=2: seq=1 was the automatic read-only
         // get_project_status call that promoted the configured startup path to Verified.
@@ -315,6 +317,7 @@ public class OpennessWorkerClientIntegrationTests
         string source,
         string expectedCategory)
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(source);
         binding.Invalidate("Simulated stale binding");
         var invalidated = binding.CaptureSnapshot();
@@ -381,6 +384,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task Success_ReturnsStructuredPayload()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var client = CreateClient();
         var result = await client.GetProjectStatusAsync("ok");
 
@@ -393,6 +397,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task PersistentWorker_ReusesOneProcessAcrossRequests()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var client = CreateClient();
 
         var first = await client.GetProjectStatusAsync("ok");
@@ -406,9 +411,11 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task HangingSafeRead_ReturnsWorkerTimeout_AndIsIssuedOnce()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
 
-        var timedOut = await client.GetProjectStatusAsync("hang");
+        var timedOut = await InvokeRawAsync(client,
+            new WorkerRequest { Method = "get_project_status", ProjectDirectory = "hang" });
         // SendAsync issues exactly one write+read per call (no internal retry loop); the fresh
         // process below restarting at seq=1 is the observable evidence that the timed-out
         // request was never reissued against a still-alive worker.
@@ -430,9 +437,11 @@ public class OpennessWorkerClientIntegrationTests
     [InlineData("null-response")]
     public async Task UncertainSafeRead_IssuesFailedRequestOnce_ThenRestartedWorkerServesTheNextRequests(string scenario)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
 
-        var failed = await client.GetProjectStatusAsync(scenario);
+        var failed = await InvokeRawAsync(client,
+            new WorkerRequest { Method = "get_project_status", ProjectDirectory = scenario });
         Assert.False(failed.Success);
         Assert.Contains(
             failed.FailureCategory,
@@ -461,9 +470,11 @@ public class OpennessWorkerClientIntegrationTests
     [InlineData("null-response")]
     public async Task LostSafeRead_ReturnsWorkerCrashed_AndIsIssuedOnce(string scenario)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var client = CreateClient();
 
-        var lost = await client.GetProjectStatusAsync(scenario);
+        var lost = await InvokeRawAsync(client,
+            new WorkerRequest { Method = "get_project_status", ProjectDirectory = scenario });
         var recovered = await client.GetProjectStatusAsync("ok");
 
         Assert.False(lost.Success);
@@ -478,6 +489,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task ExistingSafeReadTimeout_UsesSafeGuidance_InvalidatesBinding_AndDoesNotRetry()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
         await BindVerifiedAsync(client, binding);
@@ -496,6 +508,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task V3SnapshotCrash_UsesSafeGuidance_InvalidatesBinding_AndDoesNotRetry()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         await BindVerifiedAsync(client, binding);
@@ -518,6 +531,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task StateAffectingTimeout_UsesUncertainStateGuidance_InvalidatesBinding_AndDoesNotRetry()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
         await BindVerifiedAsync(client, binding);
@@ -540,6 +554,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task StateAffectingCrash_UsesUncertainStateGuidance_InvalidatesBinding_AndDoesNotRetry()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         await BindVerifiedAsync(client, binding);
@@ -562,6 +577,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task UnknownMethodAtTimeout_UsesUncertainStateGuidance_InvalidatesBinding_AndDoesNotRetry()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
         await BindVerifiedAsync(client, binding);
@@ -590,6 +606,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task ResponseWarnings_SurfaceOnTheResult()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok-with-warnings");
         using var client = CreateClient();
         var result = await client.GetProjectStatusAsync("ok-with-warnings");
 
@@ -748,6 +765,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task PayloadStartingWithErrorPrefix_IsNotMisclassified()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("error-prefix-payload");
         using var client = CreateClient();
         var result = await client.GetProjectStatusAsync("error-prefix-payload");
 
@@ -758,6 +776,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task WorkerReportedError_IsStructuredFailure()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("worker-error");
         using var client = CreateClient();
         var result = await client.GetProjectStatusAsync("worker-error");
 
@@ -771,6 +790,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task WorkerReportedTargetNotFoundCategory_PreservesIt()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("worker-error-with-target-not-found-category");
         using var client = CreateClient();
         var result = await client.GetProjectStatusAsync("worker-error-with-target-not-found-category");
 
@@ -782,9 +802,11 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task FailedFirstWorkerResponse_DoesNotBindTheSession()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var client = CreateClient();
 
-        var failed = await client.GetProjectStatusAsync("worker-error");
+        var failed = await InvokeRawAsync(client,
+            new WorkerRequest { Method = "get_project_status", ProjectDirectory = "worker-error" });
         var recovered = await client.GetProjectStatusAsync("ok");
 
         Assert.False(failed.Success);
@@ -793,13 +815,11 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task UnboundSession_UnrelatedReadSuccess_DoesNotBindSession()
+    public async Task UnboundSession_UnrelatedReadSuccess_DoesNotBindOrSwitchProject()
     {
-        // Phase 5 Plan 2 Task 3 behavior change: an unrelated data read (here
-        // ReadHardwareConfigAsync) is BindingTransition.None. A successful such read no longer
-        // binds an unbound session as a side effect - only open/create/save-as(rebind) bind. A
-        // subsequent read of a DIFFERENT project is therefore still accepted, not rejected as an
-        // already-bound conflict (which is exactly what the old bind-on-success behavior caused).
+        // An unrelated data read does not bind the host session. The worker still rejects a
+        // different project because that project was never opened in the simulated UI.
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok-with-resolved-path");
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,
@@ -812,10 +832,8 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.True(succeeded.Success);
         Assert.NotNull(succeeded.SessionIdentity);
-        // "ok" would be an already-bound binding_conflict if the first read had bound the session
-        // to "C:\\resolved\\Ground.ap21"; it succeeds, proving the session stayed unbound.
-        Assert.True(differentProject.Success);
-        Assert.NotNull(differentProject.SessionIdentity);
+        Assert.False(differentProject.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, differentProject.FailureCategory);
 
         var snapshot = binding.CaptureSnapshot();
         Assert.Equal(ProjectBindingSnapshot.UnboundState, snapshot.State);
@@ -845,6 +863,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task FailedCall_LeavesTheSessionUnbound()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("worker-error");
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,
@@ -875,6 +894,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task ConfiguredSession_FailsClosedWhenWorkerReportsADifferentProject()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(@"C:\actual\Other.ap21");
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
         using var client = new OpennessWorkerClient(
@@ -888,7 +908,7 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.BindingState);
         Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
         Assert.Contains("C:\\bound\\Session.ap21", result.Error);
         Assert.Contains("C:\\actual\\Other.ap21", result.Error);
@@ -897,6 +917,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task AlreadyBoundSession_NoSpuriousWarningWhenTheWorkerReportsTheSameProject()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(@"C:\stable\Project.ap21");
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\stable\\Project.ap21", forceRebind: false, out _));
         using var client = new OpennessWorkerClient(
@@ -917,6 +938,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task AlreadyBoundSession_NoSpuriousWarningWhenTheWorkerReportsAnEquivalentlySpelledPath()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(@"C:\equivalent\Project.ap21");
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\equivalent\\Project.ap21", forceRebind: false, out _));
         using var client = new OpennessWorkerClient(
@@ -1020,6 +1042,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task GetProjectStatusAsync_SendsGetProjectStatusOperationOnly()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
         using var client = CreateClient();
 
         var result = await client.GetProjectStatusAsync("echo");

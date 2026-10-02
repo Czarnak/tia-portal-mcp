@@ -19,6 +19,7 @@ namespace TiaMcpServer.Tests.Safety;
 /// Comprehensive tests for the read-only safety mode: configuration, policy catalog,
 /// host-side enforcement, worker-side authorization, tool discovery, and batch behavior.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class ReadOnlyModeTests
 {
     #region Configuration Tests

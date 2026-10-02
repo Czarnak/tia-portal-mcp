@@ -7,6 +7,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class StandaloneStatusToolTests
 {
     internal static JsonElement Document(object response)
@@ -39,6 +40,7 @@ public sealed class StandaloneStatusToolTests
     [Fact]
     public async Task StatusOversize_IsWholeValueOmission()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-oversized");
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
             workerExecutablePath: FakeWorkerLocator.Locate());
         var response = await ProjectReadTools.GetProjectStatus(client, "status-oversized");

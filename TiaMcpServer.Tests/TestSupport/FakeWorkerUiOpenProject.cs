@@ -15,5 +15,15 @@ internal sealed class FakeWorkerUiOpenProject : IDisposable
     public FakeWorkerUiOpenProject(string? projectPath)
         => Environment.SetEnvironmentVariable(Variable, ProjectPathNormalization.Canonicalize(projectPath));
 
+    /// <summary>
+    /// Unbound transport and MCP protocol tests send scenario keywords relative to the
+    /// FakeWorker executable's working directory. Resolve the UI-open fixture from that same
+    /// directory so the source and requested path represent the same project.
+    /// </summary>
+    public static FakeWorkerUiOpenProject ForWorkerRelativePath(string requestedPath)
+        => new(Path.IsPathFullyQualified(requestedPath)
+            ? requestedPath
+            : Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, requestedPath));
+
     public void Dispose() => Environment.SetEnvironmentVariable(Variable, _previous);
 }

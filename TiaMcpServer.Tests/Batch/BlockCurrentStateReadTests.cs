@@ -23,6 +23,7 @@ namespace TiaMcpServer.Tests.Batch;
 /// write item at all. These assert on the format VALUE that reached the worker, so a regression to
 /// a default cannot pass.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class BlockCurrentStateReadTests
 {
     private const string BlockPath = "PLC_1/Blocks/Recipe_DB";

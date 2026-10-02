@@ -8,6 +8,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class StandaloneCompileToolTests
 {
     [Theory]
@@ -18,6 +19,7 @@ public sealed class StandaloneCompileToolTests
     [InlineData("compile-unknown", false, "Cancelled")]
     public async Task CompilationOutcome_RetainsTheTypedReport(string scenario, bool passed, string plcState)
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
         using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
@@ -40,6 +42,7 @@ public sealed class StandaloneCompileToolTests
     [InlineData("compile-oversized", "omitted", null)]
     public async Task AttemptedFailuresAndOmission_AreNotToolRejections(string scenario, string status, string? category)
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
         using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
@@ -74,6 +77,7 @@ public sealed class StandaloneCompileToolTests
     public async Task IdentityFailureAfterCompilation_IsAnAttemptedFailure()
     {
         const string scenario = "compile-identity-drift";
+        using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
         using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);

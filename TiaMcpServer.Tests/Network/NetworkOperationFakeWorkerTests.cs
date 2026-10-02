@@ -13,6 +13,7 @@ namespace TiaMcpServer.Tests.Network;
 /// each preview/apply attempt, bind tokens to the exact ordered request, and — for the migrated
 /// <c>network_read</c> — return each worker payload as declared JSON rather than a nested string.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class NetworkOperationFakeWorkerTests
 {
     private const string Scenario = "network-roundtrip";
@@ -71,6 +72,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_HardwareAndCatalogSucceedInRequestedOrderWithDeclaredJsonResults()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
         using var client = CreateClient();
 
         var result = await NetworkReadTools.NetworkRead(
@@ -102,6 +104,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_MultiHomedPcStationExposesBothNodesWithDistinctNodeIds()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
         using var client = CreateClient();
 
         var result = await NetworkReadTools.NetworkRead(client, new[] { ReadHardware("hardware") });
@@ -291,6 +294,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task ListNetworkObjects_RoundTripReturnsSixItemsWithCommunicationConnectionUnselectable()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-success");
         using var client = CreateClient();
 
         var result = await NetworkReadTools.NetworkRead(
@@ -333,6 +337,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task InspectNetworkObject_RoundTripReturnsNineAttributesAndEvidence()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("inspect-network-object-success");
         using var client = CreateClient();
 
         var result = await NetworkReadTools.NetworkRead(
@@ -395,6 +400,7 @@ public class NetworkOperationFakeWorkerTests
         string operationName,
         string scenario)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
         using var client = CreateClient();
         var target = operationName == "inspect_network_object"
             ? new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" }
@@ -427,6 +433,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task ListNetworkObjects_LargeListScenarioReturnsCursorWithTwentyItems()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-large");
         using var client = CreateClient();
 
         var result = await NetworkReadTools.NetworkRead(

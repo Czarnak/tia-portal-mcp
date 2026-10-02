@@ -8,6 +8,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public class TagUpdateCurrentStateFakeWorkerTests
 {
     private const string TableName = "Default tag table";

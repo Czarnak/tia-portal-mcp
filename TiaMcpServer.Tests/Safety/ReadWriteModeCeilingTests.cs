@@ -141,9 +141,10 @@ public class ReadWriteModeCeilingTests
         const string project = "ok";
         // startupPath exercises the host's --project assertion against a UI-open project.
         using var uiOpen = new FakeWorkerUiOpenProject(project);
+        var openPath = ProjectPathNormalization.Canonicalize(project)!;
         var binding = new ProjectSessionBinding(startupPath ? project : null);
         using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
-        var observed = await client.GetProjectStatusAsync(project);
+        var observed = await client.GetProjectStatusAsync(openPath);
         Assert.True(observed.Success, observed.Error);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, project);
         Assert.True(binding.IsVerified);
@@ -151,14 +152,29 @@ public class ReadWriteModeCeilingTests
         var refused = await client.GetProjectStatusAsync(@"C:\Fixture\Other.ap21");
         Assert.Equal(WorkerFailureCategories.BindingConflict, refused.FailureCategory);
         Assert.True(before.SameBinding(binding.CaptureSnapshot()));
-        var next = await client.GetProjectStatusAsync(project);
+        var next = await client.GetProjectStatusAsync(openPath);
         Assert.True(next.Success, next.Error);
         Assert.Equal("{\"seq\":3}", next.Payload);
     }
 
     [Fact]
+    public async Task ConfiguredProjectCannotBePromotedFromUnopenedCannedStatus()
+    {
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
+        var binding = new ProjectSessionBinding("ok");
+        using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
+
+        var observed = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(observed.Success);
+        Assert.False(binding.IsVerified);
+        Assert.Null(observed.SessionIdentity?.ProjectPath);
+    }
+
+    [Fact]
     public async Task WorkerLaunch_PropagatesFullAcrossRestart()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var audit = new TempAuditDirectory();
         var log = Path.Combine(audit.Path, "launches.jsonl");
         Directory.CreateDirectory(audit.Path);

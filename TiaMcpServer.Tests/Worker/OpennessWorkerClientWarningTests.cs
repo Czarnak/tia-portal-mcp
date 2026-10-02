@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public class OpennessWorkerClientWarningTests
 {
     [Fact]
@@ -69,6 +70,7 @@ public class OpennessWorkerClientWarningTests
         // session. It must never be reduced to a warning after the worker has already run.
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
+        using var uiOpen = new FakeWorkerUiOpenProject(@"C:\actual\Other.ap21");
         using var client = new OpennessWorkerClient(
             binding,
             logger: null,
@@ -78,7 +80,7 @@ public class OpennessWorkerClientWarningTests
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.BindingState);
         Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
         Assert.Contains("C:\\bound\\Session.ap21", result.Error);
         Assert.Contains("C:\\actual\\Other.ap21", result.Error);

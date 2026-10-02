@@ -4,6 +4,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class TagOperationSafetyIdentityEnforcementTests
 {
     [Theory]
@@ -17,6 +18,7 @@ public sealed class TagOperationSafetyIdentityEnforcementTests
     [InlineData("read_delete_user_constant_safety_snapshot")]
     public async Task EveryTagSafetyReader_RejectsMissingExpectedSessionIdentity(string method)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
         using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5));
         var observed = await transport.SendAsync(new WorkerRequest { Method = "read_hardware_config", ProjectPath = "echo" });
         Assert.True(observed.Success, observed.Error);

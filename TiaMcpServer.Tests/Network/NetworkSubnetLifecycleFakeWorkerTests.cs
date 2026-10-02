@@ -22,6 +22,7 @@ namespace TiaMcpServer.Tests.Network;
 /// to prove the mutation (or lack of one) actually happened — never against a static fixture.
 /// </para>
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class NetworkSubnetLifecycleFakeWorkerTests
 {
     private const string Scenario = "network-subnet-lifecycle";

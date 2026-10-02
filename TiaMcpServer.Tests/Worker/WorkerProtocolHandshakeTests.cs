@@ -25,6 +25,7 @@ public sealed class WorkerProtocolHandshakeTests
     [Fact]
     public async Task CurrentFakeWorker_CompletesHelloBeforeFirstEngineeringRequest()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var transport = new PersistentWorkerTransport(
             FakeWorkerLocator.Locate(),
             requestTimeout: TimeSpan.FromSeconds(5));

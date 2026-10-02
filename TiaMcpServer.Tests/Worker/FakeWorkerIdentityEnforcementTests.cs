@@ -5,8 +5,53 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class FakeWorkerIdentityEnforcementTests
 {
+    [Fact]
+    public async Task CannedStatusWithoutUiOpenProject_ReportsClosedWithoutRequestDerivedIdentity()
+    {
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
+        using var transport = CreateTransport();
+
+        var response = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "get_project_status", ProjectPath = "ok"
+        });
+
+        Assert.True(response.Success, response.Error);
+        using var payload = JsonDocument.Parse(response.Payload!);
+        Assert.False(payload.RootElement.GetProperty("project").GetProperty("isOpen").GetBoolean());
+        Assert.Null(response.SessionIdentity?.ProjectPath);
+    }
+
+    [Fact]
+    public async Task ProtectedCannedRead_RejectsForgedProjectIdentityWhenNothingIsOpen()
+    {
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
+        using var transport = CreateTransport();
+        var requestedPath = Path.GetFullPath("ok");
+        var status = await transport.SendAsync(new WorkerRequest { Method = "get_basic_project_status" });
+        Assert.True(status.Success, status.Error);
+        var empty = Assert.IsType<WorkerSessionIdentity>(status.SessionIdentity);
+
+        var response = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "read_hardware_config", ProjectPath = requestedPath,
+            ExpectedSessionIdentity = new WorkerSessionIdentity
+            {
+                WorkerSessionId = empty.WorkerSessionId,
+                SessionGeneration = empty.SessionGeneration,
+                PortalProcessId = empty.PortalProcessId,
+                ProjectPath = requestedPath
+            }
+        });
+
+        Assert.False(response.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+        Assert.Null(response.SessionIdentity?.ProjectPath);
+    }
+
     [Fact]
     public async Task RebindProbe_WithNoOpenSource_ReturnsEmptySourceState()
     {
@@ -167,6 +212,7 @@ public sealed class FakeWorkerIdentityEnforcementTests
     private static async Task<WorkerSessionIdentity> PrimeAsync(
         PersistentWorkerTransport transport)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
         var response = await transport.SendAsync(new WorkerRequest
         {
             Method = "read_hardware_config",

@@ -15,10 +15,14 @@ namespace TiaMcpServer.Tests.Network;
 /// one canonical document, a malformed ioDetails payload becomes <c>protocol_error</c>, the read
 /// stays permitted in read-only mode, and the internal network-write snapshot stays lightweight.
 /// </summary>
-public class NetworkIoMapFakeWorkerTests
+[Collection(RealWorkerProcessCollection.Name)]
+public class NetworkIoMapFakeWorkerTests : IDisposable
 {
     private const string Scenario = "network-io-map";
     private const string ProjectCompletenessScenario = "project-enumeration-completeness";
+    private readonly FakeWorkerUiOpenProject _uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
+
+    public void Dispose() => _uiOpen.Dispose();
 
     private static OpennessWorkerClient CreateClient(McpAccessMode mode = McpAccessMode.ReadWrite)
         => new(
@@ -47,6 +51,7 @@ public class NetworkIoMapFakeWorkerTests
     [Fact]
     public async Task NetworkRead_ProjectCompletenessFixtureReturnsGroupedDeviceAsOrdinaryHardware()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(ProjectCompletenessScenario);
         using var client = CreateClient();
 
         var result = await NetworkReadTools.NetworkRead(
@@ -276,6 +281,7 @@ public class NetworkIoMapFakeWorkerTests
     [Fact]
     public async Task NetworkRead_MalformedIoDetailsPayloadBecomesProtocolErrorWithoutEchoingIt()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-io-map-malformed");
         using var client = CreateClient();
 
         var result = await NetworkReadTools.NetworkRead(

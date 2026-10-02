@@ -110,6 +110,7 @@ public sealed class BlockUpdateDispatchProvenanceTests
     public async Task ConfiguredProjectVerificationFailure_IsNotSentRelativeToUpdate()
     {
         const string scenario = "block-outcome-status-failure";
+        using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
         using var client = CreateClient(binding);
 
@@ -128,6 +129,7 @@ public sealed class BlockUpdateDispatchProvenanceTests
     public async Task ConfiguredProjectVerificationFailure_DiscardsStaleCompletedOutcomeBeforeValidation()
     {
         const string scenario = "block-outcome-status-failure-with-stale-outcome";
+        using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
         using var client = CreateClient(binding);
 

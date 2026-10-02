@@ -11,6 +11,7 @@ namespace TiaMcpServer.Tests.Safety.Pipeline;
 /// The binding gate over the real pinned project-binding lease, driven by the stateful
 /// <c>network-subnet-lifecycle</c> FakeWorker scenario.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class OpennessWriteBindingGateTests
 {
     private const string Scenario = "network-subnet-lifecycle";

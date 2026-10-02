@@ -13,8 +13,13 @@ namespace TiaMcpServer.Tests.Network;
 /// <c>includeIoDetails</c>, <c>includeTagMatches</c> — forward exactly once through the echo
 /// scenario, and that the internal snapshot default forwards none of them.
 /// </summary>
-public class IoMapFieldForwardingTests
+[Collection(RealWorkerProcessCollection.Name)]
+public class IoMapFieldForwardingTests : IDisposable
 {
+    private readonly FakeWorkerUiOpenProject _uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
+
+    public void Dispose() => _uiOpen.Dispose();
+
     private static OpennessWorkerClient CreateClient()
         => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
 

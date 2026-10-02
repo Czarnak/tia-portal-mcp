@@ -9,6 +9,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class ProjectWriteToolsBehaviorTests
 {
     [Theory]

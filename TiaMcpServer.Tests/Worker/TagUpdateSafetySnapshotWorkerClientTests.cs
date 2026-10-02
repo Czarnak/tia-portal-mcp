@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class TagUpdateSafetySnapshotWorkerClientTests
 {
     [Fact]
