@@ -28,6 +28,24 @@ structured results. Normal `tia-mcp` users do not install that NuGet package: th
 global tool uses the supported .NET 10 runtime, while the separate self-contained `win-x64` archive
 includes the host runtime.
 
+### Startup subprocess tests
+
+`RemovedOptionTests` launches the host with `dotnet run --no-build --no-restore` in the
+test assembly's configuration. Build the solution from the current checkout before running
+these tests, including filtered runs. Building only `TiaMcpServer.Tests` links host source
+into the test assembly but does not build the host executable; an isolated test run can
+otherwise launch a stale binary or fail because it is missing.
+
+For an offline Debug run with Siemens reference stubs:
+
+```powershell
+dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true
+dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --no-restore --filter FullyQualifiedName~RemovedOptionTests
+```
+
+For Release tests, pass `--configuration Release` to both commands. Use the same
+solution-build prerequisite before the full suite and coverage runs below.
+
 ### Coverage
 
 CI collects coverage, then enforces an 80% scoped line-coverage threshold locally (before the Codecov upload, which stays reporting-only). Run the same scoped collection and threshold check locally:

@@ -1,6 +1,7 @@
 using System.Reflection;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -62,12 +63,10 @@ public class OpennessWorkerClientWarningTests
     }
 
     [Fact]
-    public async Task DirectStatusDivergence_FailsClosedAndInvalidatesBinding()
+    public async Task DirectStatus_WorkerRefusesDifferentOpenProject_LeavesBindingUnverified()
     {
-        // Bound to A ("C:\\bound\\Session.ap21"); the FakeWorker scenario keyed by that path
-        // reports it actually operated on B ("C:\\actual\\Other.ap21"). A direct status read is
-        // BindingTransition.None: the mismatch is a hard binding_conflict and invalidates the
-        // session. It must never be reduced to a warning after the worker has already run.
+        // Actual UI-open source B differs from configured A. The worker refuses before
+        // returning a successful identity; configured_unverified therefore remains intact.
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
         using var uiOpen = new FakeWorkerUiOpenProject(@"C:\actual\Other.ap21");
@@ -84,5 +83,46 @@ public class OpennessWorkerClientWarningTests
         Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
         Assert.Contains("C:\\bound\\Session.ap21", result.Error);
         Assert.Contains("C:\\actual\\Other.ap21", result.Error);
+    }
+
+    [Fact]
+    public async Task DirectStatus_SuccessfulIdentityDivergence_InvalidatesRatherThanWarningAndRecoversExplicitly()
+    {
+        const string source = @"C:\bound\Session.ap21";
+        const string divergent = @"C:\actual\Other.ap21";
+        var binding = new ProjectSessionBinding(source);
+        using var client = new OpennessWorkerClient(binding);
+        using var transport = new ScriptedStatusTransport(client,
+            ScriptedStatusTransport.Success(source),
+            ScriptedStatusTransport.Success(divergent, "worker diagnostic"),
+            ScriptedStatusTransport.Success(source));
+        var initial = await client.GetProjectStatusAsync(null);
+        Assert.True(initial.Success, initial.Error + transport.Diagnostics);
+        Assert.True(binding.IsVerified);
+
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
+        Assert.True(result.IsPostOperationFailure);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+        Assert.Equal(divergent, result.SessionIdentity!.ProjectPath);
+        Assert.Equal(new[] { "worker diagnostic" }, result.Warnings);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(source, binding.BoundProjectPath);
+
+        var blocked = await client.GetProjectStatusAsync(null);
+        Assert.False(blocked.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, blocked.FailureCategory);
+        Assert.Equal(WorkerDispatchState.NotSent, blocked.DispatchState);
+        Assert.Equal(new[] { "hello", "get_project_status", "get_project_status" }, transport.Requests);
+
+        Assert.True(binding.Bind(source, forceRebind: true, out var error), error);
+        var recovered = await client.GetProjectStatusAsync(null);
+        Assert.True(recovered.Success, recovered.Error);
+        Assert.Empty(recovered.Warnings);
+        Assert.True(binding.IsVerified);
+        Assert.Equal(source, binding.BoundProjectPath);
+        Assert.Equal(new[] { "hello", "get_project_status", "get_project_status", "get_project_status" }, transport.Requests);
     }
 }

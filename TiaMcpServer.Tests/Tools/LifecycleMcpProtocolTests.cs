@@ -236,6 +236,57 @@ public sealed class LifecycleMcpProtocolTests
     }
 
     [Fact]
+    public async Task ReadWrite_ModifiedClose_UrlOnlyCapability_DeniesWithoutFormOrMutation()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = new LifecycleProtocolFixture("-modified");
+        using var requests = new LifecycleRequestLog(fixture.Root);
+        var prompts = 0;
+        var options = new McpClientOptions
+        {
+            Capabilities = new ClientCapabilities
+            {
+                Elicitation = new ElicitationCapability { Url = new UrlElicitationCapability() }
+            },
+            Handlers = new McpClientHandlers
+            {
+                ElicitationHandler = (_, _) =>
+                {
+                    prompts++;
+                    return ValueTask.FromResult(new ElicitResult
+                    {
+                        Action = "accept",
+                        Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
+                    });
+                }
+            }
+        };
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.ReadWrite, audit.Path, fixture.SourcePath, clientOptions: options);
+        var before = harness.WorkerClient.BindingSnapshot;
+
+        var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
+        {
+            ["saveBeforeClose"] = false
+        });
+
+        var document = Document(result);
+        Assert.Equal(0, prompts);
+        Assert.True(result.IsError == true);
+        Assert.False(document.GetProperty("success").GetBoolean());
+        Assert.Equal("blocked", document.GetProperty("phase").GetString());
+        Assert.Equal("access_denied", document.GetProperty("error").GetProperty("category").GetString());
+        Assert.True(before.SameBinding(harness.WorkerClient.BindingSnapshot));
+        var status = await harness.WorkerClient.GetProjectStatusAsync(null);
+        Assert.True(status.Success, status.Error);
+        Assert.Equal(fixture.SourcePath, status.SessionIdentity!.ProjectPath);
+        Assert.DoesNotContain(requests.Methods(), IsLifecycleMutation);
+        Assert.Empty(StructuredContractInspector.FindViolations(result));
+        AssertAudit(audit.Path, result, null, confirmationBy: "user", confirmationOutcome: "failed");
+    }
+
+    [Fact]
     public async Task Full_ModifiedClose_UrlOnlyCapability_UsesPolicyWithoutSendingAForm()
     {
         using var audit = new TempAuditDirectory();

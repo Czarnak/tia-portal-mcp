@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -892,7 +893,7 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task ConfiguredSession_FailsClosedWhenWorkerReportsADifferentProject()
+    public async Task ConfiguredSession_WorkerRefusesDifferentOpenProject_LeavesBindingUnverified()
     {
         using var uiOpen = new FakeWorkerUiOpenProject(@"C:\actual\Other.ap21");
         var binding = new ProjectSessionBinding(null);
@@ -902,8 +903,8 @@ public class OpennessWorkerClientIntegrationTests
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
-        // No explicit projectPath: TryResolve forwards the bound path itself, so the FakeWorker
-        // scenario key IS the bound path (see the "C:\\bound\\Session.ap21" case).
+        // The worker rejects the configured path against its actual UI-open source before
+        // returning any successful identity, so the host has no identity to invalidate.
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.False(result.Success);
@@ -912,6 +913,41 @@ public class OpennessWorkerClientIntegrationTests
         Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
         Assert.Contains("C:\\bound\\Session.ap21", result.Error);
         Assert.Contains("C:\\actual\\Other.ap21", result.Error);
+    }
+
+    [Fact]
+    public async Task ConfiguredSession_SuccessfulMismatchedIdentity_InvalidatesAndRequiresExplicitRecovery()
+    {
+        const string source = @"C:\bound\Session.ap21";
+        const string divergent = @"C:\actual\Other.ap21";
+        var binding = new ProjectSessionBinding(source);
+        using var client = CreateClient(binding: binding);
+        using var transport = new ScriptedStatusTransport(client,
+            ScriptedStatusTransport.Success(divergent), ScriptedStatusTransport.Success(source));
+
+        // Deliberately malformed success bypasses the worker's normal early source guard.
+        var result = await client.GetProjectStatusAsync(null);
+
+        Assert.False(result.Success);
+        Assert.True(result.IsPostOperationFailure, result.Error + transport.Diagnostics);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+        Assert.Equal(divergent, result.SessionIdentity!.ProjectPath);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(source, binding.BoundProjectPath);
+
+        var blocked = await client.GetProjectStatusAsync(null);
+        Assert.False(blocked.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, blocked.FailureCategory);
+        Assert.Equal(WorkerDispatchState.NotSent, blocked.DispatchState);
+        Assert.Equal(new[] { "hello", "get_project_status" }, transport.Requests);
+
+        Assert.True(binding.Bind(source, forceRebind: true, out var error), error);
+        var recovered = await client.GetProjectStatusAsync(null);
+        Assert.True(recovered.Success, recovered.Error);
+        Assert.True(binding.IsVerified);
+        Assert.Equal(source, binding.BoundProjectPath);
+        Assert.Equal(new[] { "hello", "get_project_status", "get_project_status" }, transport.Requests);
     }
 
     [Fact]

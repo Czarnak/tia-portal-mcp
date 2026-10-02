@@ -57,6 +57,8 @@ public class RemovedOptionTests
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        // Requires a current solution build in this configuration (see docs/development/building.md).
+        // Building only this linked-source test project does not build the host launched below.
         foreach (var arg in new[] { "run", "--no-build", "--no-restore", "--project", "TiaMcpServer", "--configuration", configuration, "--" }.Concat(args))
         {
             startInfo.ArgumentList.Add(arg);
