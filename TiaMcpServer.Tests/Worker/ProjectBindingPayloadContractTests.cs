@@ -29,10 +29,22 @@ public sealed class ProjectBindingPayloadContractTests
     }
 
     [Fact]
-    public void DecodeSelection_PreviousVerifiedState_RequiresModifiedFlag()
+    public void DecodeSelection_PreviousVerifiedState_AcceptsExplicitUnknownModifiedState()
     {
         var before = ProjectBindingDecisionTests.Snapshot(ProjectBindingSnapshot.VerifiedState);
         var selection = new PortalProjectSelectionInfo { PreviousProcessId = 42, PreviousProjectPath = before.ProjectPath };
-        Assert.Throws<JsonException>(() => ProjectBindingPayloadContract.DecodeSelection(WorkerJson.SerializePayload(selection), before));
+        var decoded = ProjectBindingPayloadContract.DecodeSelection(WorkerJson.SerializePayload(selection), before);
+        Assert.Null(decoded.PreviousProjectIsModified);
+        Assert.Equal(before.ProjectPath, decoded.PreviousProjectPath);
+    }
+
+    [Fact]
+    public void DecodeSelection_MissingModifiedMember_Rejects()
+    {
+        var before = ProjectBindingDecisionTests.Snapshot(ProjectBindingSnapshot.VerifiedState);
+        var selection = new PortalProjectSelectionInfo { PreviousProcessId = 42, PreviousProjectPath = before.ProjectPath };
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(WorkerJson.SerializePayload(selection))!.AsObject();
+        Assert.True(payload.Remove("previousProjectIsModified"));
+        Assert.Throws<JsonException>(() => ProjectBindingPayloadContract.DecodeSelection(payload.ToJsonString(), before));
     }
 }

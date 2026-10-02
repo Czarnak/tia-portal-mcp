@@ -1310,12 +1310,12 @@ void SelectPortalProject(string? requestedPath)
     var target = advertisers[0];
     var previous = AttachedPortal();
     var reattached = fakePortalProcessId != target.ProcessId;
-    if (reattached && previous is { HasUserInterface: false, OtherClients: 0, Modified: true })
+    if (reattached && previous is { HasUserInterface: false, OtherClients: 0, Modified: not false })
     {
         Respond(JsonSerializer.Serialize(new WorkerResponse
         {
             Success = false, FailureCategory = WorkerFailureCategories.GuardBlocked,
-            Error = "Cannot detach the sole client of a headless Portal with a modified project."
+            Error = "Cannot detach the sole client of a headless Portal with a modified or unknown-state project."
         }, WorkerJson.Envelope));
         return;
     }
@@ -3691,7 +3691,7 @@ sealed class FakePortalState
     public string? ProjectPath { get; set; }
     public bool HasUserInterface { get; init; }
     public int OtherClients { get; init; }
-    public bool Modified { get; set; }
+    public bool? Modified { get; set; }
     public bool WorkerOpened { get; set; }
 
     public static FakePortalState Parse(string declaration)
@@ -3705,7 +3705,7 @@ sealed class FakePortalState
             ProjectPath = ProjectPathNormalization.Canonicalize(fields[1]),
             HasUserInterface = fields[2] == "ui",
             OtherClients = int.Parse(fields[3], System.Globalization.CultureInfo.InvariantCulture),
-            Modified = bool.Parse(fields[4])
+            Modified = fields[4] == "unknown" ? null : bool.Parse(fields[4])
         };
     }
 }

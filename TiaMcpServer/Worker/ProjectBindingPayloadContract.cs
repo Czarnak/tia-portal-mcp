@@ -25,7 +25,7 @@ internal static class ProjectBindingPayloadContract
         var previousPath = ProjectPathNormalization.Canonicalize(selection.PreviousProjectPath);
         if (selection.PreviousProcessId <= 0
             || (previousPath is null && (selection.PreviousProjectWasWorkerOpened || selection.PreviousProjectIsModified is not null))
-            || (previousPath is not null && (selection.PreviousProcessId is null || selection.PreviousProjectIsModified is null))
+            || (previousPath is not null && selection.PreviousProcessId is null)
             || (before.IsVerified && (selection.PreviousProcessId != before.PortalProcessId
                 || !string.Equals(previousPath, ProjectPathNormalization.Canonicalize(before.ProjectPath), StringComparison.OrdinalIgnoreCase))))
             throw new JsonException("The Portal selection does not describe the previous binding.");

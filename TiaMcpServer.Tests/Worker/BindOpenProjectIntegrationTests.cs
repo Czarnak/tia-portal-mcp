@@ -158,6 +158,40 @@ public sealed class BindOpenProjectIntegrationTests
         Success(result, ProjectBindingTransitions.Switched); Assert.True(result.After.Revision > result.Before.Revision);
         Assert.Equal(43, result.After.PortalProcessId);
     }
+
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task Verified_UnknownPreviousModifiedState_SwitchesAndVerifies(bool ui, int otherClients)
+    {
+        using var f = new Fixture(mode: McpAccessMode.ReadOnly, entries: new[]
+        {
+            new FakeWorkerPortals.Entry(42, A, ui, otherClients, Modified: null),
+            new FakeWorkerPortals.Entry(43, B)
+        });
+        await f.Verify();
+        var result = await f.Client.BindOpenProjectAsync(B, true);
+        Success(result, ProjectBindingTransitions.Switched);
+        Assert.Equal(43, result.After.PortalProcessId);
+        Assert.Equal(ProjectPathNormalization.Canonicalize(B), result.After.ProjectPath);
+        Assert.Equal(new[] { "get_project_status", "select_portal_project", "get_project_status" }, f.Methods());
+    }
+
+    [Fact]
+    public async Task Verified_UnknownPreviousModifiedState_HeadlessSoleClientRefusesBeforeDetach()
+    {
+        using var f = new Fixture(mode: McpAccessMode.ReadOnly, entries: new[]
+        {
+            new FakeWorkerPortals.Entry(42, A, HasUserInterface: false, Modified: null),
+            new FakeWorkerPortals.Entry(43, B)
+        });
+        await f.Verify();
+        var before = f.Binding.CaptureSnapshot();
+        var result = await f.Client.BindOpenProjectAsync(B, true);
+        Failure(result, WorkerFailureCategories.BindingConflict, ProjectBindingSnapshot.VerifiedState, true);
+        Assert.True(before.SameBinding(result.After));
+        Assert.Equal(new[] { "get_project_status", "select_portal_project" }, f.Methods());
+    }
     [Fact]
     public async Task Switch_TargetNotAdvertised_KeepsPrevious()
     {

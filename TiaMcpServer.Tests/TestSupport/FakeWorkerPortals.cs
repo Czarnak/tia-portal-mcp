@@ -14,14 +14,14 @@ internal sealed class FakeWorkerPortals : IDisposable
     private readonly string? _previous = Environment.GetEnvironmentVariable(Variable);
 
     internal sealed record Entry(int ProcessId, string? ProjectPath, bool HasUserInterface = true,
-        int OtherClients = 0, bool Modified = false);
+        int OtherClients = 0, bool? Modified = false);
 
     public FakeWorkerPortals(params Entry[] entries)
         => Environment.SetEnvironmentVariable(Variable, string.Join(";", entries.Select(entry =>
             string.Join("|", entry.ProcessId.ToString(CultureInfo.InvariantCulture),
                 ProjectPathNormalization.Canonicalize(entry.ProjectPath) ?? "",
                 entry.HasUserInterface ? "ui" : "headless",
-                entry.OtherClients.ToString(CultureInfo.InvariantCulture), entry.Modified ? "true" : "false"))));
+                entry.OtherClients.ToString(CultureInfo.InvariantCulture), entry.Modified switch { true => "true", false => "false", null => "unknown" }))));
 
     public void Dispose() => Environment.SetEnvironmentVariable(Variable, _previous);
 }
