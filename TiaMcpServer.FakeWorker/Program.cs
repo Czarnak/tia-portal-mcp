@@ -4,7 +4,8 @@ using TiaMcpServer.Contracts;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
-// stdin closes. The test encodes the scenario in the request's projectPath field.
+// stdin closes. Scenarios use projectPath file names; UI-open and Portal-inventory environment
+// fixtures declare source state independently, so ordinary reads cannot select or open a project.
 var launchLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_LAUNCH_LOG");
 if (!string.IsNullOrWhiteSpace(launchLog))
     File.AppendAllText(launchLog, JsonSerializer.Serialize(new { processId = Environment.ProcessId, args }) + Environment.NewLine);
@@ -16,12 +17,22 @@ var accessMode = modeIndex < 0 ? McpAccessMode.ReadWrite
     : modeIndex + 1 < args.Length && McpAccessModeNames.TryParse(args[modeIndex + 1], out var parsedMode)
         ? parsedMode : McpAccessMode.ReadOnly;
 var workerSessionId = Guid.NewGuid().ToString("N");
-const int FakePortalProcessId = 4242;
 var fakeSessionGeneration = 1L;
 // Tests may model a project that was already opened in the TIA Portal UI before the worker
 // starts. Ordinary requests never establish this mutable session state.
 string? fakeProjectPath = ProjectPathNormalization.Canonicalize(
     Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_UI_OPEN_PROJECT"));
+var portalInventoryDeclaration = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_PORTALS");
+var portalInventoryDeclared = portalInventoryDeclaration is not null;
+var fakePortals = portalInventoryDeclared
+    ? portalInventoryDeclaration!.Split(';', StringSplitOptions.RemoveEmptyEntries)
+        .Select(FakePortalState.Parse).ToList()
+    : new List<FakePortalState> { new() { ProcessId = 4242, ProjectPath = fakeProjectPath, HasUserInterface = true } };
+int? fakePortalProcessId = portalInventoryDeclared
+    ? fakePortals.FirstOrDefault(portal => fakeProjectPath is not null &&
+        string.Equals(portal.ProjectPath, fakeProjectPath, StringComparison.OrdinalIgnoreCase))?.ProcessId
+    : 4242;
+if (fakePortalProcessId is null) fakeProjectPath = null;
 string? currentProjectPath = null;
 string? currentMethod = null;
 string? currentRequestLine = null;
@@ -175,6 +186,27 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
+    if (currentMethod == "list_tia_portal_processes")
+    {
+        Respond(Success(WorkerJson.SerializePayload(new TiaPortalProcessListInfo
+        {
+            AttachedProcessId = fakePortalProcessId,
+            Processes = fakePortals.OrderBy(portal => portal.ProcessId).Select(portal => new TiaPortalProcessInfo
+            {
+                ProcessId = portal.ProcessId, ProjectPath = portal.ProjectPath,
+                HasUserInterface = portal.HasUserInterface,
+                AttachedByThisWorker = portal.ProcessId == fakePortalProcessId
+            }).ToList()
+        })));
+        continue;
+    }
+
+    if (currentMethod == "select_portal_project")
+    {
+        SelectPortalProject(currentProjectPath);
+        continue;
+    }
+
     var establishesProject = currentMethod is "open_project" or "create_project";
     var statusRead = currentMethod is "get_project_status" or "get_basic_project_status"
         or "probe_project_status_for_lifecycle";
@@ -231,6 +263,19 @@ while ((line = Console.In.ReadLine()) is not null)
             }, WorkerJson.Envelope));
             continue;
         }
+    }
+
+    if (portalInventoryDeclared && currentMethod == "get_project_status")
+    {
+        var attached = AttachedPortal();
+        Respond(Success(DirectStatusPayload(new ProjectStatusInfo
+        {
+            IsOpen = fakeProjectPath is not null, Path = fakeProjectPath,
+            Name = fakeProjectPath is null ? null : Path.GetFileNameWithoutExtension(fakeProjectPath),
+            IsModified = fakeProjectPath is null ? null : attached?.Modified,
+            Version = fakeProjectPath is null ? null : "V21"
+        })));
+        continue;
     }
 
     if (currentProjectPath?.Contains("guarded-lifecycle", StringComparison.OrdinalIgnoreCase) == true)
@@ -1243,6 +1288,77 @@ while ((line = Console.In.ReadLine()) is not null)
     }
 }
 
+FakePortalState? AttachedPortal()
+    => fakePortals.FirstOrDefault(portal => portal.ProcessId == fakePortalProcessId);
+
+void SelectPortalProject(string? requestedPath)
+{
+    var targetPath = ProjectPathNormalization.Canonicalize(requestedPath);
+    var advertisers = fakePortals.Where(portal => targetPath is not null &&
+        string.Equals(portal.ProjectPath, targetPath, StringComparison.OrdinalIgnoreCase)).ToList();
+    // These three refusals precede every session mutation, matching the real worker's E2 boundary.
+    if (advertisers.Count != 1)
+    {
+        Respond(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = false,
+            FailureCategory = advertisers.Count == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous,
+            Error = advertisers.Count == 0 ? "No Portal advertises the requested project." : "Multiple Portals advertise the requested project."
+        }, WorkerJson.Envelope));
+        return;
+    }
+    var target = advertisers[0];
+    var previous = AttachedPortal();
+    var reattached = fakePortalProcessId != target.ProcessId;
+    if (reattached && previous is { HasUserInterface: false, OtherClients: 0, Modified: true })
+    {
+        Respond(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = false, FailureCategory = WorkerFailureCategories.GuardBlocked,
+            Error = "Cannot detach the sole client of a headless Portal with a modified project."
+        }, WorkerJson.Envelope));
+        return;
+    }
+    var result = new PortalProjectSelectionInfo
+    {
+        PreviousProcessId = fakePortalProcessId, PreviousProjectPath = fakeProjectPath,
+        PreviousProjectIsModified = fakeProjectPath is null ? null : previous?.Modified,
+        PreviousProjectWasWorkerOpened = previous?.WorkerOpened == true,
+        Reattached = reattached
+    };
+    if (reattached)
+    {
+        if (previous is not null) previous.WorkerOpened = false;
+        fakePortalProcessId = null;
+        fakeProjectPath = null;
+        fakeSessionGeneration++;
+    }
+    switch (ScenarioKey(targetPath))
+    {
+        case "portal-switch-fails-after-detach":
+            Respond(JsonSerializer.Serialize(new WorkerResponse
+            {
+                Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed,
+                Error = "Scripted Portal attach failure after detach."
+            }, WorkerJson.Envelope));
+            return;
+        case "portal-switch-hang":
+            Thread.Sleep(Timeout.Infinite);
+            return;
+        case "portal-switch-crash":
+            Environment.Exit(17);
+            return;
+    }
+    fakePortalProcessId = target.ProcessId;
+    fakeProjectPath = target.ProjectPath;
+    // Adoption, including a same-Portal selection, does not inherit worker ownership.
+    target.WorkerOpened = false;
+    fakeSessionGeneration++;
+    Respond(Success(ScenarioKey(targetPath) == "portal-selection-malformed"
+        ? "{\"untrustedMarker\":true}"
+        : WorkerJson.SerializePayload(result)));
+}
+
 void Respond(string json, bool includeSessionIdentity = true)
 {
     // Add the same structural identity contract as the real worker. Centralizing it here keeps
@@ -1271,26 +1387,50 @@ void Respond(string json, bool includeSessionIdentity = true)
                 }
 
                 fakeProjectPath = null;
+                var closedPortal = AttachedPortal();
+                if (closedPortal is not null)
+                {
+                    closedPortal.ProjectPath = null;
+                    closedPortal.WorkerOpened = false;
+                    closedPortal.Modified = false;
+                }
                 response["resolvedProjectPath"] = null;
             }
             else if (successful && projectPath is not null)
             {
                 if (isAuthorizedPathTransition &&
-                    fakeProjectPath is not null &&
                     !string.Equals(fakeProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
                 {
                     fakeSessionGeneration++;
                 }
 
                 if (isAuthorizedPathTransition)
+                {
+                    if (fakePortalProcessId is null)
+                    {
+                        fakePortalProcessId = fakePortals.FirstOrDefault()?.ProcessId ?? 4242;
+                        if (fakePortals.Count == 0)
+                            fakePortals.Add(new FakePortalState { ProcessId = fakePortalProcessId.Value, HasUserInterface = true });
+                        fakeSessionGeneration++;
+                    }
+                    var portal = AttachedPortal()!;
+                    if (currentMethod is "open_project" or "create_project" &&
+                        !string.Equals(fakeProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
+                        portal.WorkerOpened = true;
+                    portal.ProjectPath = projectPath;
+                    if (currentMethod is "create_project" or "save_project_as") portal.Modified = false;
                     fakeProjectPath = projectPath;
+                }
             }
+
+            if (successful && currentMethod == "save_project" && AttachedPortal() is { } savedPortal)
+                savedPortal.Modified = false;
 
             response["sessionIdentity"] = JsonSerializer.SerializeToNode(new WorkerSessionIdentity
             {
                 WorkerSessionId = hardwarePaginationIdentityDrift ? "drifted-worker-session" : workerSessionId,
                 SessionGeneration = fakeSessionGeneration,
-                PortalProcessId = FakePortalProcessId,
+                PortalProcessId = fakePortalProcessId,
                 ProjectPath = projectPath
             });
             json = response.ToJsonString();
@@ -1439,13 +1579,14 @@ WorkerResponse? ValidateExpectedSessionIdentity(
             workerSessionId,
             StringComparison.Ordinal) ||
         expected.SessionGeneration != fakeSessionGeneration ||
-        expected.PortalProcessId != FakePortalProcessId)
+        expected.PortalProcessId != fakePortalProcessId)
     {
         return BindingConflict(
             "The expected worker/Portal/project session identity does not match the FakeWorker session.");
     }
 
-    var establishesProject = method is "open_project" or "create_project";
+    var establishesProject = method is "open_project" or "create_project" or "select_portal_project"
+        or "list_tia_portal_processes";
     var permitsNoSource = method is "get_project_status" or "get_basic_project_status"
         or "probe_project_status_for_lifecycle" or "probe_open_project_rebind";
     var requestedPath =
@@ -1481,6 +1622,8 @@ string? ScenarioKey(string? path)
     if (path is not null && path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
     {
         var name = Path.GetFileNameWithoutExtension(path);
+        if (name is "portal-switch-fails-after-detach" or "portal-switch-hang" or "portal-switch-crash"
+            or "portal-selection-malformed") return name;
         if (name.StartsWith("lifecycle-rebind-probe", StringComparison.Ordinal)) return @"C:\FakeWorker\" + name + ".ap21";
         if (name is "lifecycle-probe-only" or "worker-error-with-category" or "save-as-uncertain-state") return name;
         if (path.EndsWith(@"\open\Line.ap21", StringComparison.OrdinalIgnoreCase)) return @"C:\open\Line.ap21";
@@ -3532,3 +3675,28 @@ sealed record HardwarePageFixtureDevice(
 sealed record HardwarePageFixtureSubnet(
     SubnetInfo Subnet,
     IReadOnlyList<string> Messages) : HardwarePageFixtureCandidate(Messages);
+
+sealed class FakePortalState
+{
+    public int ProcessId { get; init; }
+    public string? ProjectPath { get; set; }
+    public bool HasUserInterface { get; init; }
+    public int OtherClients { get; init; }
+    public bool Modified { get; set; }
+    public bool WorkerOpened { get; set; }
+
+    public static FakePortalState Parse(string declaration)
+    {
+        var fields = declaration.Split('|');
+        if (fields.Length != 5 || fields[2] is not ("ui" or "headless"))
+            throw new FormatException("Portal inventory entries require pid|path|ui-or-headless|otherClients|modified.");
+        return new FakePortalState
+        {
+            ProcessId = int.Parse(fields[0], System.Globalization.CultureInfo.InvariantCulture),
+            ProjectPath = ProjectPathNormalization.Canonicalize(fields[1]),
+            HasUserInterface = fields[2] == "ui",
+            OtherClients = int.Parse(fields[3], System.Globalization.CultureInfo.InvariantCulture),
+            Modified = bool.Parse(fields[4])
+        };
+    }
+}

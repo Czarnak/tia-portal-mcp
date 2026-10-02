@@ -46,7 +46,7 @@ public sealed class LifecycleMcpProtocolTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture();
-        using var requests = new LifecycleRequestLog(fixture.Root);
+        using var requests = new FakeWorkerRequestLog(fixture.Root);
         var prompts = 0;
         var options = action is null ? null : ClientOptions((request, _) =>
         {
@@ -128,7 +128,7 @@ public sealed class LifecycleMcpProtocolTests
     public async Task ReadWithUnopenedNormalPath_DeniedWithoutOpeningOrChangingState(string mode)
     {
         using var fixture = new LifecycleProtocolFixture();
-        using var requests = new LifecycleRequestLog(fixture.Root);
+        using var requests = new FakeWorkerRequestLog(fixture.Root);
         using var uiOpen = new FakeWorkerUiOpenProject(null);
         using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5),
             workerArgs: "--access-mode " + mode);
@@ -153,24 +153,6 @@ public sealed class LifecycleMcpProtocolTests
 
     private static bool IsLifecycleMutation(string method)
         => method is "open_project" or "create_project" or "save_project" or "save_project_as" or "archive_project" or "close_project";
-
-    // This class runs in the exclusive MCP protocol collection, so the child-process
-    // environment cannot overlap other tests. Only method names are recorded.
-    private sealed class LifecycleRequestLog : IDisposable
-    {
-        private const string Variable = "TIA_MCP_FAKE_WORKER_REQUEST_LOG";
-        private readonly string? _previous = Environment.GetEnvironmentVariable(Variable);
-        private readonly string _path;
-
-        public LifecycleRequestLog(string directory)
-        {
-            _path = Path.Combine(directory, "requests.log");
-            Environment.SetEnvironmentVariable(Variable, _path);
-        }
-
-        public string[] Methods() => File.Exists(_path) ? File.ReadAllLines(_path) : Array.Empty<string>();
-        public void Dispose() => Environment.SetEnvironmentVariable(Variable, _previous);
-    }
 
     [Theory]
     [InlineData("accept", true, true)]
@@ -240,7 +222,7 @@ public sealed class LifecycleMcpProtocolTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
-        using var requests = new LifecycleRequestLog(fixture.Root);
+        using var requests = new FakeWorkerRequestLog(fixture.Root);
         var prompts = 0;
         var options = new McpClientOptions
         {
