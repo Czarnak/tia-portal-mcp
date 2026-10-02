@@ -1416,7 +1416,13 @@ void Respond(string json, bool includeSessionIdentity = true)
                     var portal = AttachedPortal()!;
                     if (currentMethod is "open_project" or "create_project" &&
                         !string.Equals(fakeProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
+                    {
                         portal.WorkerOpened = true;
+                        if (currentMethod == "open_project")
+                            portal.Modified = JsonSerializer.Deserialize<ProjectLifecycleResultInfo>(
+                                response["payload"]?.GetValue<string>() ?? "{}", WorkerJson.Envelope)
+                                ?.Project?.IsModified == true;
+                    }
                     portal.ProjectPath = projectPath;
                     if (currentMethod is "create_project" or "save_project_as") portal.Modified = false;
                     fakeProjectPath = projectPath;

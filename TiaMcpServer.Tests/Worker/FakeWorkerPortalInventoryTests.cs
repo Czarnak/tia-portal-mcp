@@ -170,6 +170,57 @@ public sealed class FakeWorkerPortalInventoryTests
         Assert.False(Payload<PortalProjectSelectionInfo>(await Select(transport, Target)).PreviousProjectWasWorkerOpened);
     }
 
+    [Theory]
+    [InlineData(true, "guarded-lifecycle-opened.ap21", false)]
+    [InlineData(false, "guarded-lifecycle-opened-modified.ap21", true)]
+    public async Task OpenReplacement_UsesOpenedProjectModifiedStateForStatusAndDetach(
+        bool sourceModified, string openedFile, bool openedModified)
+    {
+        var opened = Path.Combine(@"C:\Fixture", openedFile);
+        using var ui = new FakeWorkerUiOpenProject(Source);
+        using var portals = new FakeWorkerPortals(new(200, Source, false, Modified: sourceModified), new(900, Target));
+        using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(),
+            TimeSpan.FromSeconds(5), workerArgs: "--access-mode read-write");
+        var before = Identity(await List(transport));
+        var open = await transport.SendAsync(new WorkerRequest { Method = "open_project", ProjectPath = opened });
+        Assert.Equal(openedModified, Payload<ProjectLifecycleResultInfo>(open).Project!.IsModified);
+        Assert.Equal(opened, Identity(open).ProjectPath);
+        Assert.True(Identity(open).SessionGeneration > before.SessionGeneration);
+        var status = await transport.SendAsync(new WorkerRequest { Method = "get_project_status" });
+        Assert.Equal(openedModified, Payload<ProjectStatusResultInfo>(status).Project!.IsModified);
+        var selection = await Select(transport, Target);
+        if (openedModified)
+        {
+            Assert.False(selection.Success);
+            Assert.Equal(WorkerFailureCategories.GuardBlocked, selection.FailureCategory);
+            AssertSame(Identity(open), Identity(await List(transport)));
+        }
+        else
+        {
+            var previous = Payload<PortalProjectSelectionInfo>(selection);
+            Assert.False(previous.PreviousProjectIsModified);
+            Assert.True(previous.PreviousProjectWasWorkerOpened);
+            Assert.Equal(900, Identity(selection).PortalProcessId);
+        }
+    }
+
+    [Fact]
+    public async Task OpenAlreadyOpenProject_PreservesModifiedStateAndDetachGuard()
+    {
+        using var ui = new FakeWorkerUiOpenProject(Source);
+        using var portals = new FakeWorkerPortals(new(200, Source, false, Modified: true), new(900, Target));
+        using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(),
+            TimeSpan.FromSeconds(5), workerArgs: "--access-mode read-write");
+        var before = Identity(await List(transport));
+        var open = await transport.SendAsync(new WorkerRequest { Method = "open_project", ProjectPath = Source });
+        Assert.True(open.Success, open.Error);
+        var status = await transport.SendAsync(new WorkerRequest { Method = "get_project_status" });
+        Assert.True(Payload<ProjectStatusResultInfo>(status).Project!.IsModified);
+        var selection = await Select(transport, Target);
+        Assert.Equal(WorkerFailureCategories.GuardBlocked, selection.FailureCategory);
+        AssertSame(before, Identity(await List(transport)));
+    }
+
     [Fact]
     public async Task EmptyInventory_ReportsNoPortalsAndStartsUnattached()
     {
