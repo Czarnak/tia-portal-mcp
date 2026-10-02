@@ -100,8 +100,8 @@ internal sealed class ProjectTreeCursorCodec
     {
         if (!binding.IsBound)
         {
-            return binding.BindingId is null
-                && binding.Revision is null
+            return !string.IsNullOrWhiteSpace(binding.BindingId)
+                && binding.Revision is >= 0
                 && binding.NormalizedProjectPath is null;
         }
 

@@ -44,9 +44,41 @@ public class ProjectTreeCursorCodecTests
             new ProjectTreeCursorCodec(protector).Decode(cursor));
     }
 
+    [Fact]
+    public void EncodeDecode_UnboundEpoch_RoundTrips()
+    {
+        using var protector = new AuthenticatedCursorProtector(TestKey, "process-a");
+        var codec = new ProjectTreeCursorCodec(protector);
+        var state = State("snapshot-1", QueryHash, 1);
+        Assert.Equal(state, codec.Decode(codec.Encode(state)));
+    }
+
+    [Theory]
+    [InlineData("bindingId")]
+    [InlineData("revision")]
+    public void Decode_RejectsSignedUnboundBindingWithMissingEpochMember(string missing)
+    {
+        using var protector = new AuthenticatedCursorProtector(TestKey, "process-a");
+        var binding = new Dictionary<string, object?>
+        {
+            ["isBound"] = false, ["bindingId"] = "epoch-a", ["revision"] = 0,
+            ["normalizedProjectPath"] = null
+        };
+        binding.Remove(missing);
+        var cursor = protector.Protect("project-tree", new
+        {
+            SnapshotId = "snapshot-1", QueryHash, Offset = 0, HostBinding = binding
+        });
+        AssertCategory(WorkerFailureCategories.InvalidCursor, () => new ProjectTreeCursorCodec(protector).Decode(cursor));
+    }
+
     public static IEnumerable<object?[]> InconsistentBindings()
     {
         yield return new object?[] { null };
+        yield return new object?[] { new ProjectBindingCursorState(false, null, null, null) };
+        yield return new object?[] { new ProjectBindingCursorState(false, "", 0, null) };
+        yield return new object?[] { new ProjectBindingCursorState(false, "binding-a", -1, null) };
+        yield return new object?[] { new ProjectBindingCursorState(false, "binding-a", 0, @"C:\Projects\Tree.ap21") };
         yield return new object?[] { new ProjectBindingCursorState(false, "binding-a", null, null) };
         yield return new object?[] { new ProjectBindingCursorState(false, null, 0, null) };
         yield return new object?[] { new ProjectBindingCursorState(false, null, null, @"C:\Projects\Tree.ap21") };
@@ -166,7 +198,7 @@ public class ProjectTreeCursorCodecTests
     }
 
     private static ProjectTreeCursorState State(string snapshotId, string queryHash, int offset)
-        => new(snapshotId, queryHash, offset, new ProjectBindingCursorState(false, null, null, null));
+        => new(snapshotId, queryHash, offset, new ProjectBindingCursorState(false, "unbound-a", 0, null));
 
     private static string ChangeByte(string value)
         => (value[0] == 'A' ? "B" : "A") + value[1..];

@@ -14,6 +14,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
 {
     private static readonly DateTimeOffset Instant = new(2026, 9, 8, 8, 0, 0, TimeSpan.Zero);
     private static readonly string ProjectPath = ProjectPathNormalization.Canonicalize(@"C:\Projects\Tree.ap21")!;
+    private static readonly ProjectBindingSnapshot DefaultUnbound = new ProjectSessionBinding(null).CaptureSnapshot();
 
     [Theory]
     [InlineData("id")]
@@ -76,16 +77,59 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task Cursor_Unbound_Continues()
     {
+        var binding = new ProjectSessionBinding(null);
         using var fixture = Fixture((path, selector, depth) =>
-            Task.FromResult(Success(path, selector, depth, 3)), captureBinding: Unbound);
+            Task.FromResult(Success(path, selector, depth, 3)), captureBinding: binding.CaptureSnapshot);
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
 
         var next = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
 
         Assert.True(next.IsSuccess, next.CanonicalText);
         Assert.Equal(new[] { 1, 2 }, Sequences(next));
-        Assert.Equal(new ProjectBindingCursorState(false, null, null, null),
+        Assert.Equal(new ProjectBindingCursorState(false, binding.CaptureSnapshot().BindingId, binding.CaptureSnapshot().Revision, null),
             fixture.Codec.Decode(NextCursor(first)).HostBinding);
+    }
+
+    [Fact]
+    public async Task Cursor_UnboundThenBoundAndCleared_RejectsBeforeStoreAccessOrRenewal()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var before = binding.CaptureSnapshot();
+        var clock = new ManualTimeProvider(Instant);
+        var calls = 0;
+        using var fixture = Fixture((path, selector, depth) =>
+        {
+            calls++;
+            return Task.FromResult(Success(path, selector, depth, 3));
+        }, clock, captureBinding: binding.CaptureSnapshot);
+        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+        var cursor = NextCursor(first);
+        var snapshotId = first.Response.Result!.Snapshot.SnapshotId;
+        Assert.True(binding.BindVerified(new WorkerSessionIdentity
+        {
+            WorkerSessionId = "worker-b", PortalProcessId = 43, SessionGeneration = 1,
+            ProjectPath = @"C:\Projects\B.ap21"
+        }, false, out var error), error);
+        Assert.True(binding.Clear(@"C:\Projects\B.ap21", out error), error);
+        var after = binding.CaptureSnapshot();
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, after.State);
+        Assert.NotEqual(before.BindingId, after.BindingId);
+        Assert.True(after.Revision > before.Revision);
+        clock.Advance(TimeSpan.FromMinutes(9));
+
+        AssertFailure(await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor)),
+            WorkerFailureCategories.CursorBindingMismatch);
+        Assert.True(fixture.Store.Access(snapshotId, _ => true, _ => false).Found);
+        Assert.Equal(1, calls);
+        clock.Advance(TimeSpan.FromMinutes(2));
+        AssertFailure(await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor)),
+            WorkerFailureCategories.CursorBindingMismatch);
+        // Expiry at the original ten-minute deadline proves the rejected replay did not renew TTL.
+        Assert.False(fixture.Store.Access(snapshotId, _ => true, _ => false).Found);
+        // A disposed store throws on Access, so this proves the mismatch bypasses lookup entirely.
+        fixture.Store.Dispose();
+        AssertFailure(await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor)),
+            WorkerFailureCategories.CursorBindingMismatch);
     }
 
     [Fact]
@@ -211,7 +255,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var outOfRange = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            Offset: 999, ProjectBindingCursorState.FromSnapshot(Unbound())));
+            Offset: 999, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
 
         var mismatch = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
             Depth: 3,
@@ -230,7 +274,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var syntheticOneCursor = fixture.Codec.Encode(new ProjectTreeCursorState(
             oneResult.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(oneResult.Query),
-            Offset: 0, ProjectBindingCursorState.FromSnapshot(Unbound())));
+            Offset: 0, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: syntheticOneCursor)),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -259,7 +303,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var foreign = Codec(0x80).Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            1, ProjectBindingCursorState.FromSnapshot(Unbound())));
+            1, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: foreign)),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -267,7 +311,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var mismatched = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             new string('a', 64),
-            1, ProjectBindingCursorState.FromSnapshot(Unbound())));
+            1, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: mismatched)),
             WorkerFailureCategories.CursorFilterMismatch);
@@ -275,7 +319,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var outOfRange = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            99, ProjectBindingCursorState.FromSnapshot(Unbound())));
+            99, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: outOfRange)),
             WorkerFailureCategories.CursorOutOfRange);
@@ -522,7 +566,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         => response.Response.Result!.Pagination.NextCursor!;
 
     private static ProjectBindingSnapshot Unbound()
-        => new ProjectSessionBinding(null).CaptureSnapshot();
+        => DefaultUnbound;
 
     private static ProjectBindingSnapshot Bound(string id = "binding-a", long revision = 1, string? path = null)
         => new(ProjectBindingSnapshot.VerifiedState, id, revision, path ?? ProjectPath, "worker-a", 1, 123, null);
