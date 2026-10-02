@@ -44,19 +44,16 @@ public sealed class ProjectBindingCheck : IDiagnosticCheck
         if (configuredPath is null)
         {
             var writable = _accessMode is McpAccessMode.ReadWrite or McpAccessMode.Full;
-            var status = writable
-                ? DiagnosticStatus.Failed
-                : DiagnosticStatus.Warning;
             var message = writable
-                ? $"{(_accessMode == McpAccessMode.Full ? "Full" : "Read-write")} mode has no explicit project binding. This configuration is not safe to report as ready."
+                ? $"{(_accessMode == McpAccessMode.Full ? "Full" : "Read-write")} mode has no explicit project binding. Bind an already-open project before using project tools."
                 : "No project binding is configured. Read-only calls would rely on an unverified project currently open in TIA Portal.";
 
             return new DiagnosticCheckResult(
                 Id,
                 Name,
-                status,
+                DiagnosticStatus.Warning,
                 message,
-                $"Set {ProjectArg} to the absolute path of the intended .ap21 project, or set {ProjectEnvVar}.",
+                $"Call bind_project with the intended already-open project's absolute projectPath, or set {ProjectArg} to its path, or set {ProjectEnvVar}.",
                 evidence);
         }
 
@@ -121,7 +118,7 @@ public sealed class ProjectBindingCheck : IDiagnosticCheck
             DiagnosticStatus.Warning,
             $"Project binding configured via {bindingSource} points to an existing .ap21 file: {fullPath}. "
                 + "Doctor did not attach to TIA Portal or verify which process has it open.",
-            "Before using project tools, open this exact project in one TIA Portal process and run get_project_status to establish a verified runtime binding.",
+            "Before using project tools, call bind_project with this exact project's path after opening it in one TIA Portal process. A configured --project path can also be verified by the host.",
             evidence);
     }
 

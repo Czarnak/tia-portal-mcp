@@ -158,7 +158,8 @@ internal static class TiaPortalTargetSelector
         => new(
             WorkerFailureCategories.TargetAmbiguous,
             reason + " No process was attached. Candidates: " + FormatProcessCandidates(candidates)
-            + ". Specify an exact project path or close the unrelated TIA Portal instance.");
+            + ". Call bind_project with the exact projectPath, or configure --project, "
+            + "or close the unrelated TIA Portal instance.");
 
     private static string FormatProcessCandidates(IReadOnlyList<TiaPortalProcessCandidate> candidates)
         => string.Join(

@@ -71,12 +71,13 @@ public class TiaPortalProcessCheckTests
 
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains("3 process", result.Message);
+        Assert.Contains("bind_project", result.Remediation);
     }
 
     [Theory]
     [InlineData(McpAccessMode.ReadWrite)]
     [InlineData(McpAccessMode.Full)]
-    public void MultipleTiaProcesses_UnboundWritableMode_ReturnsFailed(McpAccessMode mode)
+    public void Doctor_MultipleProcessesUnbound_Warning(McpAccessMode mode)
     {
         var processes = new FakeProcessEnumerationService
         {
@@ -95,10 +96,14 @@ public class TiaPortalProcessCheckTests
 
         var result = check.Run();
 
-        Assert.Equal(DiagnosticStatus.Failed, result.Status);
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains(McpAccessModeNames.ToName(mode), result.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(McpAccessModeNames.ToName(mode), result.Evidence!["accessMode"]);
         Assert.Contains("no explicit project binding", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("bind_project", result.Remediation);
+        Assert.Contains("--project", result.Remediation);
+        Assert.True(result.Remediation!.IndexOf("bind_project", StringComparison.Ordinal)
+            < result.Remediation.IndexOf("--project", StringComparison.Ordinal));
     }
 
     [Fact]

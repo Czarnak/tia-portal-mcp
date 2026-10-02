@@ -1424,7 +1424,7 @@ internal static class Program
             {
                 return Failure(
                     WorkerFailureCategories.WorkerOperationFailed,
-                    "No project is open. Provide a projectPath argument or open a project in TIA Portal.");
+                    ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
             }
 
             return body(session.Project);
@@ -1454,7 +1454,7 @@ internal static class Program
                     return null;
                 return Failure(
                     WorkerFailureCategories.WorkerOperationFailed,
-                    "No project is open in TIA Portal. Open the intended project manually and retry.");
+                    ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
         }
     }
 

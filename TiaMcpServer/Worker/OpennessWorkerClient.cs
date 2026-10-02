@@ -273,7 +273,7 @@ public class OpennessWorkerClient : IDisposable
     /// <summary>
     /// Fail-closed gate for every project-mutating preview/apply path. A startup --project value is
     /// first grounded by one read-only status request; an ordinary unbound session is never
-    /// adopted implicitly and must use open_project.
+    /// adopted implicitly and must use bind_project, or open_project in read-write/full mode.
     /// </summary>
     public async Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
     {
@@ -320,7 +320,8 @@ public class OpennessWorkerClient : IDisposable
             {
                 return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
                     WorkerFailureCategories.BindingConflict,
-                    "An invalidated source can be re-grounded only by open_project with forceRebind=true."));
+                    "An invalidated source can be re-grounded by bind_project with forceRebind=true, "
+                    + "or by open_project with forceRebind=true in read-write/full mode."));
             }
 
             var source = ProjectPathNormalization.Canonicalize(invalidated.ProjectPath);

@@ -40,8 +40,8 @@ public static class ProjectOpenPolicy
 
     public static string RefusalMessage(string currentPath, string requestedPath, McpAccessMode mode)
         => $"TIA Portal currently has project '{currentPath}' open, but this request targets "
-            + $"'{requestedPath}'. Read operations never switch projects. Omit projectPath to use "
-            + "the open project."
+            + $"'{requestedPath}'. Read operations never switch projects. Call bind_project with "
+            + "the intended projectPath and forceRebind=true to select an already-open project."
             + (OperationPolicyCatalog.IsAllowed(mode, "open_project")
                 ? " You can call open_project to switch."
                 : " Open the intended project in TIA Portal before retrying.");
@@ -49,7 +49,16 @@ public static class ProjectOpenPolicy
     public static string NotOpenMessage(string requestedPath, McpAccessMode mode)
     {
         var message = $"Requested project '{requestedPath}' is not open in TIA Portal. "
-            + "Open the intended project in TIA Portal and retry.";
+            + "Open the intended project in TIA Portal, then call bind_project with its projectPath.";
+        return OperationPolicyCatalog.IsAllowed(mode, "open_project")
+            ? message + " You can also call open_project."
+            : message;
+    }
+
+    public static string NoProjectOpenMessage(McpAccessMode mode)
+    {
+        var message = "No project is open in TIA Portal. Open the intended project manually, "
+            + "then call bind_project with its projectPath.";
         return OperationPolicyCatalog.IsAllowed(mode, "open_project")
             ? message + " You can also call open_project."
             : message;

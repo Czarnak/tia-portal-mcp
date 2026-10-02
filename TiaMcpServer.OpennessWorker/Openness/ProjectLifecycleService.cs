@@ -333,14 +333,14 @@ public static class ProjectLifecycleService
         {
             case ProjectOpenDecision.RequestedNotOpen:
                 throw new WorkerOperationException(WorkerFailureCategories.AccessDenied,
-                    $"Requested project '{projectPath}' is not open. Use open_project or open it in TIA Portal.");
+                    ProjectOpenPolicy.NotOpenMessage(projectPath!, McpAccessMode.ReadWrite));
             case ProjectOpenDecision.Refuse:
                 throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
-                    $"A different project is attached. Select or open requested project '{projectPath}' before this operation.");
+                    ProjectOpenPolicy.RefusalMessage(session.CurrentProjectPath!, projectPath!, McpAccessMode.ReadWrite));
         }
 
         return session.Project ??
-            throw new InvalidOperationException("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
+            throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(McpAccessMode.ReadWrite));
     }
 
     private static void ValidateExpectedImmediatelyBeforeMutation(

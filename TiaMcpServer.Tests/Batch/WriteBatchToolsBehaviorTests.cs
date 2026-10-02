@@ -108,7 +108,7 @@ public sealed class WriteBatchToolsBehaviorTests
         Assert.False(doc.RootElement.GetProperty("success").GetBoolean());
         Assert.Equal(
             "A worker-verified project binding is required before previewing or executing a write. "
-            + "Configure --project and verify it, or call open_project explicitly first.",
+            + "Call bind_project first, or configure --project and verify it. In read-write/full mode, you can also call open_project explicitly.",
             doc.RootElement.GetProperty("error").GetString());
         Assert.Equal(3, doc.RootElement.EnumerateObject().Count());
         Assert.False(doc.RootElement.TryGetProperty("safetyToken", out _));

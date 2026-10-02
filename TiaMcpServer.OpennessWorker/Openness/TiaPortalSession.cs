@@ -68,8 +68,9 @@ public class TiaPortalSession : IDisposable
 
             throw new WorkerOperationException(
                 WorkerFailureCategories.BindingConflict,
-                "This operation requires a verified project binding. Use open_project or "
-                + "create_project, or configure --project and let the host verify it before this operation.");
+                "This operation requires a verified project binding. Use bind_project first, or "
+                + "configure --project and let the host verify it before this operation. In read-write/full mode, "
+                + "you can also use open_project or create_project.");
         }
 
         var current = useCachedIdentity ? GetCachedSessionIdentity() : GetSessionIdentity();

@@ -259,7 +259,7 @@ while ((line = Console.In.ReadLine()) is not null)
                     ? WorkerFailureCategories.AccessDenied : WorkerFailureCategories.WorkerOperationFailed,
                 Error = decision == ProjectOpenDecision.RequestedNotOpen
                     ? ProjectOpenPolicy.NotOpenMessage(currentProjectPath!, accessMode)
-                    : "No project is open in TIA Portal. Open the intended project manually and retry."
+                    : ProjectOpenPolicy.NoProjectOpenMessage(accessMode)
             }, WorkerJson.Envelope));
             continue;
         }

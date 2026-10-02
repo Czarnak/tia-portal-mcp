@@ -5,6 +5,29 @@ namespace TiaMcpServer.Tests.Project;
 
 public class ProjectOpenPolicyTests
 {
+    [Theory]
+    [InlineData(McpAccessMode.ReadOnly, false)]
+    [InlineData(McpAccessMode.ReadWrite, true)]
+    [InlineData(McpAccessMode.Full, true)]
+    public void RefusalAndNotOpenMessages_NameBindProjectInEveryMode(McpAccessMode mode, bool canOpen)
+    {
+        var messages = new[]
+        {
+            ProjectOpenPolicy.RefusalMessage(@"C:\Projects\A.ap21", @"C:\Projects\B.ap21", mode),
+            ProjectOpenPolicy.NotOpenMessage(@"C:\Projects\B.ap21", mode),
+            ProjectOpenPolicy.NoProjectOpenMessage(mode)
+        };
+
+        foreach (var message in messages)
+        {
+            Assert.Contains("bind_project", message);
+            Assert.Equal(canOpen, message.Contains("open_project", StringComparison.Ordinal));
+            if (canOpen)
+                Assert.True(message.IndexOf("bind_project", StringComparison.Ordinal)
+                    < message.IndexOf("open_project", StringComparison.Ordinal));
+        }
+    }
+
     [Fact]
     public void NothingAttached_NoRequest_UsesAttached()
         => Assert.Equal(ProjectOpenDecision.UseAttached, ProjectOpenPolicy.Decide(null, null));

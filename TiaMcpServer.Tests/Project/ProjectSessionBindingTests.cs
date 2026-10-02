@@ -5,6 +5,26 @@ namespace TiaMcpServer.Tests.Project;
 
 public class ProjectSessionBindingTests
 {
+    [Fact]
+    public void BindingRequiredMessage_NamesBindProjectFirst()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.False(binding.TryGetVerified(null, out _, out var error));
+
+        Assert.Contains("bind_project", error);
+        Assert.True(error!.IndexOf("bind_project", StringComparison.Ordinal)
+            < error.IndexOf("open_project", StringComparison.Ordinal));
+        Assert.Contains("read-write/full", error);
+
+        var configured = new ProjectSessionBinding(@"C:\Projects\A.ap21");
+        Assert.False(configured.TryResolve(@"C:\Projects\B.ap21", out _, out var conflict));
+        Assert.Contains("bind_project with forceRebind=true", conflict);
+        Assert.True(conflict!.IndexOf("bind_project", StringComparison.Ordinal)
+            < conflict.IndexOf("open_project", StringComparison.Ordinal));
+        Assert.Contains("read-write/full", conflict);
+    }
+
     private static WorkerSessionIdentity SelectionIdentity(string path = @"C:\Projects\P.ap21")
         => new()
         {

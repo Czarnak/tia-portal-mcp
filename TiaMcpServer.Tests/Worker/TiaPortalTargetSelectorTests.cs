@@ -8,6 +8,21 @@ namespace TiaMcpServer.Tests.Worker;
 public class TiaPortalTargetSelectorTests
 {
     [Fact]
+    public void AmbiguousProcessSelection_NamesBindProjectWithPath()
+    {
+        var error = Assert.Throws<WorkerOperationException>(() =>
+            TiaPortalTargetSelector.SelectProcessId(new[]
+            {
+                new TiaPortalProcessCandidate(4100, @"C:\Projects\A.ap21"),
+                new TiaPortalProcessCandidate(9200, @"C:\Projects\B.ap21")
+            }, null));
+
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, error.FailureCategory);
+        Assert.Contains("bind_project", error.Message);
+        Assert.Contains("projectPath", error.Message);
+    }
+
+    [Fact]
     public void SelectExactProcessId_ExactMatch_ReturnsPid()
         => Assert.Equal(4100, SelectExact(new[]
         {
