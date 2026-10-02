@@ -1437,7 +1437,9 @@ void Respond(string json, bool includeSessionIdentity = true)
                 WorkerSessionId = hardwarePaginationIdentityDrift ? "drifted-worker-session" : workerSessionId,
                 SessionGeneration = fakeSessionGeneration,
                 PortalProcessId = fakePortalProcessId,
-                ProjectPath = projectPath
+                ProjectPath = successful && currentMethod == "select_portal_project"
+                    && ScenarioKey(currentProjectPath) == "portal-selection-other-path"
+                    ? ProjectPathNormalization.Canonicalize("C:/Projects/Wrong.ap21") : projectPath
             });
             json = response.ToJsonString();
         }
@@ -1629,9 +1631,10 @@ string? ScenarioKey(string? path)
     {
         var name = Path.GetFileNameWithoutExtension(path);
         if (name is "portal-switch-fails-after-detach" or "portal-switch-hang" or "portal-switch-crash"
-            or "portal-selection-malformed") return name;
+            or "portal-selection-malformed" or "portal-selection-other-path") return name;
         if (name.StartsWith("lifecycle-rebind-probe", StringComparison.Ordinal)) return @"C:\FakeWorker\" + name + ".ap21";
         if (name is "lifecycle-probe-only" or "worker-error-with-category" or "save-as-uncertain-state") return name;
+        if (name == "network-roundtrip") return name;
         if (path.EndsWith(@"\open\Line.ap21", StringComparison.OrdinalIgnoreCase)) return @"C:\open\Line.ap21";
         if (name == "B-ui-owned") return @"C:\Lifecycle\B-ui-owned.ap21";
     }
