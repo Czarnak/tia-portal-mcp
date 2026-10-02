@@ -8,7 +8,8 @@ namespace TiaMcpServer.Contracts;
 /// </summary>
 public enum McpAccessMode
 {
-    /// <summary>Only observation operations are allowed. Write tools are not exposed and
+    /// <summary>Observation and selection of already-open projects are allowed. This mode
+    /// never opens, creates, saves or closes a project. Write tools are not exposed and
     /// prohibited operations are rejected before reaching the worker.</summary>
     ReadOnly,
 

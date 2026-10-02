@@ -29,5 +29,8 @@ public enum OperationCapability
     ProjectMutation,
 
     /// <summary>Controls PLC runtime state: start, stop.</summary>
-    OnlineControl
+    OnlineControl,
+
+    /// <summary>Selects an already-open Portal project without opening, saving, or closing it.</summary>
+    SessionSelection
 }

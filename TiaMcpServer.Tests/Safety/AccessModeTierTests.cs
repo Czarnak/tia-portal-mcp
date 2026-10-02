@@ -38,7 +38,8 @@ public class AccessModeTierTests
         {
             var capability = OperationPolicyCatalog.GetCapability(operation);
             var readOnly = capability is OperationCapability.Observe
-                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead;
+                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.SessionSelection;
             var readWrite = readOnly || capability is OperationCapability.Compile
                 or OperationCapability.ProjectMutation or OperationCapability.ProjectLifecycle;
             Assert.Equal(readOnly, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
@@ -82,6 +83,28 @@ public class AccessModeTierTests
         }
         Assert.False(OperationPolicyCatalog.IsAllowed((McpAccessMode)999, "update_tag"));
         Assert.False(OperationPolicyCatalog.IsAllowed((McpAccessMode)999, "get_project_status"));
+    }
+
+    [Fact]
+    public void SessionSelection_NoExpectedIdentity()
+    {
+        Assert.Equal(OperationCapability.Observe,
+            OperationPolicyCatalog.GetCapability("list_tia_portal_processes"));
+        Assert.Equal(OperationCapability.SessionSelection,
+            OperationPolicyCatalog.GetCapability("select_portal_project"));
+        Assert.False(OperationPolicyCatalog.RequiresExpectedSessionIdentity("list_tia_portal_processes"));
+        Assert.False(OperationPolicyCatalog.RequiresExpectedSessionIdentity("select_portal_project"));
+    }
+
+    [Theory]
+    [InlineData(McpAccessMode.ReadOnly)]
+    [InlineData(McpAccessMode.ReadWrite)]
+    [InlineData(McpAccessMode.Full)]
+    public void Presets_SessionSelectionInEveryMode(McpAccessMode mode)
+    {
+        Assert.True(OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.SessionSelection));
+        Assert.True(OperationPolicyCatalog.IsAllowed(mode, "select_portal_project"));
+        Assert.True(OperationPolicyCatalog.IsAllowed(mode, "list_tia_portal_processes"));
     }
 
     [Fact]

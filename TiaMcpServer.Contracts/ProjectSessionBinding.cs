@@ -202,6 +202,36 @@ public sealed class ProjectSessionBinding
         }
     }
 
+    /// <summary>Adopts a complete worker identity against the expected binding revision.</summary>
+    public bool TryAdoptVerified(
+        ProjectBindingSnapshot expected,
+        WorkerSessionIdentity? identity,
+        out string? error)
+    {
+        lock (_gate)
+        {
+            if (!TryValidateCompleteIdentity(identity, out var canonicalPath, out error))
+            {
+                return false;
+            }
+
+            if (_state == ProjectBindingSnapshot.VerifiedState && _verifiedIdentity is not null &&
+                SameIdentity(_verifiedIdentity, identity!, canonicalPath!))
+            {
+                return true;
+            }
+
+            if (!expected.SameBinding(SnapshotNoLock()))
+            {
+                error = "The project binding changed before the selected worker identity could be adopted.";
+                return false;
+            }
+
+            SetVerified(identity!, canonicalPath!);
+            return true;
+        }
+    }
+
     /// <summary>Binds atomically to worker-reported ground truth after open/create/save-as.</summary>
     public bool BindVerified(WorkerSessionIdentity? identity, bool forceRebind, out string? error)
     {

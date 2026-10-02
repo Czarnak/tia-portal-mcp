@@ -164,6 +164,8 @@ public class ReadOnlyModeTests
 
     [Theory]
     [InlineData("read_hardware_config", false)]
+    [InlineData("list_tia_portal_processes", false)]
+    [InlineData("select_portal_project", false)]
     [InlineData("get_block_content", false)]
     [InlineData("get_type_content", false)]
     [InlineData("open_project", false)]
@@ -188,6 +190,8 @@ public class ReadOnlyModeTests
 
     [Theory]
     [InlineData("get_project_status")]
+    [InlineData("list_tia_portal_processes")]
+    [InlineData("select_portal_project")]
     [InlineData("browse_project_tree_v3_snapshot")]
     [InlineData("read_hardware_config")]
     [InlineData("search_equipment_catalog")]
