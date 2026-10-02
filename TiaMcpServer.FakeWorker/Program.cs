@@ -10,6 +10,7 @@ if (!string.IsNullOrWhiteSpace(launchLog))
     File.AppendAllText(launchLog, JsonSerializer.Serialize(new { processId = Environment.ProcessId, args }) + Environment.NewLine);
 
 var seq = 0;
+var requestLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG");
 var workerSessionId = Guid.NewGuid().ToString("N");
 const int FakePortalProcessId = 4242;
 var fakeSessionGeneration = 1L;
@@ -95,6 +96,8 @@ const int SubnetLifecycleDeviceCount = 2;
 string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {
+    if (!string.IsNullOrWhiteSpace(requestLog))
+        File.AppendAllText(requestLog, (ReadMethod(line) ?? "unknown") + Environment.NewLine);
     currentRequestLine = line;
     seq++;
     string? scenario = null;

@@ -36,7 +36,8 @@ public static class OperationPolicyCatalog
                 or OperationCapability.TemporaryExport or OperationCapability.SafetyRead,
             McpAccessMode.ReadWrite => capability is OperationCapability.Observe
                 or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
-                or OperationCapability.Compile or OperationCapability.ProjectMutation,
+                or OperationCapability.Compile or OperationCapability.ProjectMutation
+                or OperationCapability.ProjectLifecycle,
             McpAccessMode.Full => capability is OperationCapability.Observe
                 or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
                 or OperationCapability.Compile or OperationCapability.ProjectMutation
@@ -57,7 +58,7 @@ public static class OperationPolicyCatalog
 
         if (string.Equals(operation, "open_project", StringComparison.Ordinal) ||
             string.Equals(operation, "create_project", StringComparison.Ordinal) ||
-            // The full-only non-opening read verifies the empty state after close cleared the
+            // The lifecycle-only non-opening read verifies the empty state after close cleared the
             // project binding. A supplied identity is still checked by worker dispatch.
             string.Equals(operation, "get_basic_project_status", StringComparison.Ordinal))
         {
@@ -149,7 +150,7 @@ public static class OperationPolicyCatalog
             ["start_plc"] = OperationCapability.OnlineControl,
             ["stop_plc"] = OperationCapability.OnlineControl,
 
-            // Internal non-opening lifecycle probes and verification reads stay full-only.
+            // Internal non-opening lifecycle probes and verification reads require a writable mode.
             ["probe_project_status_for_lifecycle"] = OperationCapability.ProjectLifecycle,
             ["probe_open_project_rebind"] = OperationCapability.ProjectLifecycle,
             ["get_basic_project_status"] = OperationCapability.ProjectLifecycle,

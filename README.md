@@ -16,10 +16,10 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server exposes 4 tools in `read-only`, 8 in `read-write` (the startup default), and 14 in `full`.
-`read-write` permits in-project edits and compilation; saving, creating, opening, archiving,
-closing projects and PLC runtime control require `full`. Lifecycle uses guarded single-call writes;
-Network and legacy batch writes retain their token flow.
+The server exposes 4 tools in `read-only`, 14 in `read-write` (the startup default), and 14 in `full`.
+`read-write` permits in-project edits, compilation and project lifecycle calls with user confirmation.
+`full` adds PLC runtime control and runs lifecycle calls directly. Lifecycle uses guarded single-call
+writes; Network and legacy batch writes retain their token flow.
 
 ### Batch operations
 

@@ -13,12 +13,14 @@ namespace TiaMcpServer.Tests.Project;
 public sealed class LifecycleBindingStrategyTests
 {
     [Theory]
-    [InlineData("open_project")]
-    [InlineData("create_project")]
-    public async Task UnboundOpenAndCreate_PrepareTheExactUnboundSource(string operation)
+    [InlineData(McpAccessMode.ReadWrite, "open_project")]
+    [InlineData(McpAccessMode.ReadWrite, "create_project")]
+    [InlineData(McpAccessMode.Full, "open_project")]
+    [InlineData(McpAccessMode.Full, "create_project")]
+    public async Task UnboundOpenAndCreate_PrepareTheExactUnboundSource(McpAccessMode mode, string operation)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = Client(binding, mode);
         var before = client.BindingSnapshot;
 
         var prepared = await new LifecycleBindingStrategy(client).PrepareAsync(Call(Item(operation, Destination())));
@@ -163,9 +165,7 @@ public sealed class LifecycleBindingStrategyTests
     [Theory]
     [InlineData(McpAccessMode.ReadOnly, "open_project")]
     [InlineData(McpAccessMode.ReadOnly, "create_project")]
-    [InlineData(McpAccessMode.ReadWrite, "open_project")]
-    [InlineData(McpAccessMode.ReadWrite, "create_project")]
-    public async Task NonFullAccess_CannotPrepareLifecycleOrGroundAConfiguredSource(McpAccessMode mode, string operation)
+    public async Task ReadOnly_CannotPrepareLifecycleOrGroundAConfiguredSource(McpAccessMode mode, string operation)
     {
         var binding = new ProjectSessionBinding(Source());
         using var client = Client(binding, mode);

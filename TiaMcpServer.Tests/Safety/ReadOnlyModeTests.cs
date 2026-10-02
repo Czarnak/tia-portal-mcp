@@ -291,12 +291,18 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void OperationAccessPolicy_ReadWrite_AllowsEditsAndCompile()
+    public void OperationAccessPolicy_ReadWrite_AllowsEditsCompileAndLifecycle()
     {
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         Assert.Null(policy.Authorize("update_block_logic"));
         Assert.Null(policy.Authorize("compile_check"));
         Assert.Null(policy.Authorize("get_project_status"));
+        Assert.Null(policy.Authorize("open_project"));
+        Assert.Null(policy.Authorize("create_project"));
+        Assert.Null(policy.Authorize("save_project"));
+        Assert.Null(policy.Authorize("save_project_as"));
+        Assert.Null(policy.Authorize("archive_project"));
+        Assert.Null(policy.Authorize("close_project"));
         Assert.Equal(WorkerFailureCategories.AccessDenied, policy.Authorize("start_plc")!.FailureCategory);
     }
 

@@ -7,12 +7,12 @@ using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tools;
 
-/// <summary>Full-mode single-call lifecycle writes through the guarded pipeline.</summary>
+/// <summary>Writable-mode single-call lifecycle writes through the guarded pipeline.</summary>
 [McpServerToolType]
 public class ProjectWriteTools
 {
     private const string Flow = " Set dryRun=true to inspect effects and guards without changing the project. "
-        + "Read-write asks for form confirmation once per lifecycle call; full proceeds by policy without prompting. "
+        + "Read-write asks the user to confirm each call; full runs it directly. "
         + "Block guards stop the call in every mode.";
 
     [McpServerTool(Name = "open_project", ReadOnly = false, Destructive = true, OpenWorld = false,

@@ -53,8 +53,8 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
 
     public WriteValidation Validate(IReadOnlyList<LifecycleWriteItem> items, McpAccessMode accessMode)
     {
-        if (accessMode != McpAccessMode.Full)
-            return WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, "Lifecycle writes require full access mode.");
+        if (accessMode == McpAccessMode.ReadOnly)
+            return WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, "Lifecycle writes require read-write or full access mode.");
         if (items.Count != 1 || items[0].Operation != ToolName)
             return Invalid("Exactly one host-supplied lifecycle operation is required.");
         try

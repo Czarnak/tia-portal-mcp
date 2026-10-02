@@ -11,12 +11,139 @@ namespace TiaMcpServer.Tests.Tools;
 [Collection("Mcp protocol serial")]
 public sealed class LifecycleMcpProtocolTests
 {
+    public static IEnumerable<object[]> LifecycleTools => new[]
+    {
+        "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project"
+    }.Select(tool => new object[] { tool });
+
+    [Theory]
+    [MemberData(nameof(LifecycleTools))]
+    public Task ReadWrite_LifecycleAccept_Mutates(string tool)
+        => LifecycleConfirmationAsync(tool, McpAccessMode.ReadWrite, "accept", true);
+
+    [Theory]
+    [MemberData(nameof(LifecycleTools))]
+    public Task ReadWrite_LifecycleDecline_NoMutation(string tool)
+        => LifecycleConfirmationAsync(tool, McpAccessMode.ReadWrite, "decline", false);
+
+    [Theory]
+    [MemberData(nameof(LifecycleTools))]
+    public Task ReadWrite_LifecycleCancel_NoMutation(string tool)
+        => LifecycleConfirmationAsync(tool, McpAccessMode.ReadWrite, "cancel", false);
+
+    [Theory]
+    [MemberData(nameof(LifecycleTools))]
+    public Task ReadWrite_NoElicitationCapability_AccessDenied(string tool)
+        => LifecycleConfirmationAsync(tool, McpAccessMode.ReadWrite, null, false);
+
+    [Theory]
+    [MemberData(nameof(LifecycleTools))]
+    public Task Full_Lifecycle_SendsNoElicitation(string tool)
+        => LifecycleConfirmationAsync(tool, McpAccessMode.Full, "decline", true);
+
+    private static async Task LifecycleConfirmationAsync(string tool, McpAccessMode mode, string? action, bool applies)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = new LifecycleProtocolFixture();
+        using var requests = new LifecycleRequestLog(fixture.Root);
+        var prompts = 0;
+        var options = action is null ? null : ClientOptions((request, _) =>
+        {
+            prompts++;
+            Assert.Contains(tool, request.Message);
+            Assert.Contains("confirm", request.RequestedSchema!.Required!);
+            return ValueTask.FromResult(new ElicitResult
+            {
+                Action = action,
+                Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
+            });
+        });
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            mode, audit.Path, tool is "open_project" or "create_project" ? null : fixture.SourcePath, clientOptions: options);
+        var before = harness.WorkerClient.BindingSnapshot;
+        var result = await harness.Client.CallToolAsync(tool, fixture.Arguments(tool));
+        var document = Document(result);
+        Assert.Equal(mode == McpAccessMode.ReadWrite && action is not null ? 1 : 0, prompts);
+        Assert.Equal(applies, document.GetProperty("success").GetBoolean());
+        Assert.Equal(!applies, result.IsError == true);
+        Assert.Equal(applies ? "applied" : "blocked", document.GetProperty("phase").GetString());
+        Assert.Empty(StructuredContractInspector.FindViolations(result));
+        await harness.WorkerClient.GetBasicProjectStatusAsync(null);
+        var methods = requests.Methods();
+        Assert.Contains("hello", methods); // Prove recording is active before trusting absence.
+        Assert.Contains("get_basic_project_status", methods);
+        Assert.Equal(applies ? new[] { tool } : Array.Empty<string>(), methods.Where(IsLifecycleMutation));
+        if (applies)
+        {
+            Assert.Equal("succeeded", document.GetProperty("result").GetProperty("status").GetString());
+            Assert.Equal("succeeded", document.GetProperty("verification").GetProperty("status").GetString());
+        }
+        else
+        {
+            Assert.Equal("access_denied", document.GetProperty("error").GetProperty("category").GetString());
+            Assert.Equal(JsonValueKind.Null, document.GetProperty("result").ValueKind);
+            Assert.True(before.SameBinding(harness.WorkerClient.BindingSnapshot));
+            Assert.False(Directory.Exists(Path.Combine(fixture.Root, "Created")));
+            Assert.False(Directory.Exists(Path.Combine(fixture.Root, "Copy")));
+            Assert.Empty(Directory.EnumerateFileSystemEntries(fixture.ArchiveDirectory));
+        }
+    }
+
+    [Fact]
+    public async Task ReadWrite_OpenProject_BindsAndUnblocksWrites()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = new LifecycleProtocolFixture();
+        var prompts = 0;
+        var options = ClientOptions((_, _) =>
+        {
+            prompts++;
+            return ValueTask.FromResult(new ElicitResult
+            {
+                Action = "accept",
+                Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
+            });
+        });
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.ReadWrite, audit.Path, clientOptions: options);
+        var before = await harness.Client.CallToolAsync("compile_check", new Dictionary<string, object?>());
+        Assert.Equal("binding_conflict", before.StructuredContent!.Value.GetProperty("error").GetProperty("category").GetString());
+        var opened = await harness.Client.CallToolAsync("open_project", fixture.Arguments("open_project"));
+        Assert.True(Document(opened).GetProperty("success").GetBoolean());
+        Assert.True(harness.WorkerClient.BindingSnapshot.IsVerified);
+        Assert.Equal(fixture.DestinationPath, harness.WorkerClient.BindingSnapshot.ProjectPath);
+        var saved = await harness.Client.CallToolAsync("save_project", fixture.Arguments("save_project"));
+        Assert.True(Document(saved).GetProperty("success").GetBoolean());
+        Assert.Equal(2, prompts);
+    }
+
+    private static bool IsLifecycleMutation(string method)
+        => method is "open_project" or "create_project" or "save_project" or "save_project_as" or "archive_project" or "close_project";
+
+    // This class runs in the exclusive MCP protocol collection, so the child-process
+    // environment cannot overlap other tests. Only method names are recorded.
+    private sealed class LifecycleRequestLog : IDisposable
+    {
+        private const string Variable = "TIA_MCP_FAKE_WORKER_REQUEST_LOG";
+        private readonly string? _previous = Environment.GetEnvironmentVariable(Variable);
+        private readonly string _path;
+
+        public LifecycleRequestLog(string directory)
+        {
+            _path = Path.Combine(directory, "requests.log");
+            Environment.SetEnvironmentVariable(Variable, _path);
+        }
+
+        public string[] Methods() => File.Exists(_path) ? File.ReadAllLines(_path) : Array.Empty<string>();
+        public void Dispose() => Environment.SetEnvironmentVariable(Variable, _previous);
+    }
+
     [Theory]
     [InlineData("accept", true, true)]
-    [InlineData("accept", false, true)]
-    [InlineData("decline", true, true)]
-    [InlineData("cancel", true, true)]
-    public async Task Full_ModifiedClose_NeverPrompts_AndAuditsPolicy(
+    [InlineData("accept", false, false)]
+    [InlineData("decline", true, false)]
+    [InlineData("cancel", true, false)]
+    public async Task ReadWrite_ModifiedClose_ConfirmsAndAuditsOutcome(
         string action, bool confirm, bool applied)
     {
         using var audit = new TempAuditDirectory();
@@ -34,14 +161,14 @@ public sealed class LifecycleMcpProtocolTests
             });
         });
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
-            McpAccessMode.Full, audit.Path, fixture.SourcePath, clientOptions: options);
+            McpAccessMode.ReadWrite, audit.Path, fixture.SourcePath, clientOptions: options);
 
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
         {
             ["saveBeforeClose"] = false
         });
 
-        Assert.Empty(prompts);
+        Assert.Single(prompts);
         var document = Document(result);
         Assert.Equal(applied, document.GetProperty("success").GetBoolean());
         Assert.Equal(!applied, result.IsError == true);
@@ -50,7 +177,8 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal(applied ? ProjectBindingSnapshot.UnboundState : ProjectBindingSnapshot.VerifiedState,
             harness.WorkerClient.BindingSnapshot.State);
         Assert.Empty(StructuredContractInspector.FindViolations(result));
-        AssertAudit(audit.Path, result, "policy");
+        AssertAudit(audit.Path, result, applied ? "user" : null, confirmationBy: "user",
+            confirmationOutcome: applied ? "confirmed" : action == "cancel" ? "cancelled" : "declined");
     }
 
     [Fact]
@@ -140,7 +268,7 @@ public sealed class LifecycleMcpProtocolTests
     }
 
     [Fact]
-    public async Task Full_ModifiedClose_UsesModePolicy()
+    public async Task Full_CloseWithoutSaveModified_ExecutesWithPolicyGuard()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
@@ -234,7 +362,8 @@ public sealed class LifecycleMcpProtocolTests
         return document.RootElement.Clone();
     }
 
-    private static void AssertAudit(string directory, CallToolResult result, string? satisfaction, bool checkGuard = true)
+    private static void AssertAudit(string directory, CallToolResult result, string? satisfaction, bool checkGuard = true,
+        string? confirmationBy = null, string? confirmationOutcome = null)
     {
         var lines = Directory.GetFiles(directory, "writes-*.jsonl").SelectMany(File.ReadLines).ToArray();
         var line = Assert.Single(lines);
@@ -244,8 +373,8 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal("sha256:" + ContentHashes.Sha256Hex(text), record.RootElement.GetProperty("responseHash").GetString());
         Assert.Equal(2, record.RootElement.GetProperty("recordVersion").GetInt32());
         var confirmation = record.RootElement.GetProperty("confirmation");
-        Assert.Equal(Document(result).GetProperty("phase").GetString() == "preview" ? "none" : "policy", confirmation.GetProperty("by").GetString());
-        Assert.Equal("not_requested", confirmation.GetProperty("outcome").GetString());
+        Assert.Equal(confirmationBy ?? (Document(result).GetProperty("phase").GetString() == "preview" ? "none" : "policy"), confirmation.GetProperty("by").GetString());
+        Assert.Equal(confirmationOutcome ?? "not_requested", confirmation.GetProperty("outcome").GetString());
         if (checkGuard)
         {
             var guard = Assert.Single(record.RootElement.GetProperty("guards").EnumerateArray());

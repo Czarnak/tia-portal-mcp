@@ -17,8 +17,7 @@ public class ReadWriteModeCeilingTests
 {
     public static IEnumerable<object[]> RestrictedOperations => new[]
     {
-        "open_project", "create_project", "save_project", "save_project_as", "archive_project",
-        "close_project", "probe_project_status_for_lifecycle", "probe_open_project_rebind", "get_basic_project_status", "start_plc", "stop_plc"
+        "start_plc", "stop_plc"
     }.Select(operation => new object[] { operation });
 
     private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding, string path, McpAccessMode mode)
@@ -34,7 +33,7 @@ public class ReadWriteModeCeilingTests
 
     [Theory]
     [MemberData(nameof(RestrictedOperations))]
-    public async Task ReadWrite_DeniesLifecycleAndOnlineControlBeforeTransport(string operation)
+    public async Task ReadWrite_DeniesOnlineControlBeforeTransport(string operation)
     {
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
@@ -79,13 +78,13 @@ public class ReadWriteModeCeilingTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task LifecycleSingleCall_ReadWriteCannotBootstrapOrRebind(bool invalidated, bool dryRun)
+    public async Task LifecycleSingleCall_ReadOnlyCannotBootstrapOrRebind(bool invalidated, bool dryRun)
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(@"C:\Fixture\Line.ap21");
         if (invalidated) binding.Invalidate("test invalidation");
         var before = binding.CaptureSnapshot();
-        using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
+        using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadOnly);
         var execution = LifecycleTestCalls.Execution(client, audit);
         var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
         {
