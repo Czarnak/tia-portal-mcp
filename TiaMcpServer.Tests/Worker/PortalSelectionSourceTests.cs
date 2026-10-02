@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using TiaMcpServer.Contracts;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -25,6 +27,24 @@ public sealed class PortalSelectionSourceTests
     }
 
     private static string Selection => Method(Read("Openness/TiaPortalSession.cs"), "public PortalProjectSelectionInfo SelectPortalProject(");
+
+    [Fact]
+    public void ListingRequestMatchesCatalogAndBothWorkerDispatches()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var host = File.ReadAllText(Path.Combine(root, "TiaMcpServer/Worker/OpennessWorkerClient.cs"));
+        var list = Method(host, "async Task<WorkerCallResult?> List()");
+        var request = Regex.Match(list, "Method = \"([^\"]+)\"");
+        Assert.True(request.Success);
+        var operation = request.Groups[1].Value;
+        Assert.Equal("list_tia_portal_processes", operation);
+        Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
+        var workerDispatch = Regex.Match(Read("Program.cs"), "\"([^\"]+)\" => ListPortalProcesses\\(request\\)");
+        Assert.True(workerDispatch.Success);
+        Assert.Equal(operation, workerDispatch.Groups[1].Value);
+        var fake = File.ReadAllText(Path.Combine(root, "TiaMcpServer.FakeWorker/Program.cs"));
+        Assert.Contains($"if (currentMethod == \"{operation}\")", fake);
+    }
 
     [Fact]
     public void ListingBypassesWithSession()

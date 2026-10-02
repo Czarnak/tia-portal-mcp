@@ -141,7 +141,7 @@ internal static class Program
 
             return request.Method switch
             {
-                "list_portal_processes" => ListPortalProcesses(request),
+                "list_tia_portal_processes" => ListPortalProcesses(request),
                 "select_portal_project" => SelectPortalProject(request),
                 "browse_project_tree_v3_snapshot" => BrowseProjectTreeV3Snapshot(request),
                 "read_create_block_safety_snapshot" => ReadCreateBlockSafetySnapshot(request),
