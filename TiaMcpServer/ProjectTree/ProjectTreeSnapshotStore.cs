@@ -1,3 +1,5 @@
+using TiaMcpServer.Contracts;
+
 namespace TiaMcpServer.ProjectTree;
 
 internal sealed record ProjectTreeSnapshotContent(
@@ -10,7 +12,8 @@ internal sealed record ProjectTreeSnapshotCandidate(
     string QueryHash,
     ProjectTreeSnapshotContent Content,
     IReadOnlyList<string> Warnings,
-    int SerializedChars);
+    int SerializedChars,
+    ProjectBindingSnapshot HostBinding);
 
 internal sealed record ProjectTreeSnapshotAccess<T>(bool Found, T? Value);
 
@@ -21,7 +24,8 @@ internal sealed record ProjectTreeSnapshotView(
     string QueryHash,
     ProjectTreeSnapshotContent Content,
     IReadOnlyList<string> Warnings,
-    int SerializedChars);
+    int SerializedChars,
+    ProjectBindingSnapshot HostBinding);
 
 internal sealed class ProjectTreeSnapshotStore : IDisposable
 {
@@ -205,6 +209,7 @@ internal sealed class ProjectTreeSnapshotStore : IDisposable
             || candidate.Content.Query is null
             || candidate.Content.Nodes is null
             || candidate.Warnings is null
+            || candidate.HostBinding is null
             || candidate.SerializedChars < 0)
         {
             throw new ArgumentException("The project-tree snapshot candidate is internally inconsistent.", nameof(candidate));
@@ -227,6 +232,7 @@ internal sealed class ProjectTreeSnapshotStore : IDisposable
             Content = candidate.Content;
             Warnings = candidate.Warnings;
             SerializedChars = candidate.SerializedChars;
+            HostBinding = candidate.HostBinding;
             IdleExpiresAt = idleExpiresAt;
             LastSuccessfulAccess = candidate.CreatedAt;
         }
@@ -237,6 +243,7 @@ internal sealed class ProjectTreeSnapshotStore : IDisposable
         internal ProjectTreeSnapshotContent Content { get; }
         internal IReadOnlyList<string> Warnings { get; }
         internal int SerializedChars { get; }
+        internal ProjectBindingSnapshot HostBinding { get; }
         internal DateTimeOffset IdleExpiresAt { get; private set; }
         internal DateTimeOffset LastSuccessfulAccess { get; private set; }
 
@@ -251,7 +258,8 @@ internal sealed class ProjectTreeSnapshotStore : IDisposable
                 QueryHash,
                 Content,
                 Warnings,
-                SerializedChars);
+                SerializedChars,
+                HostBinding);
 
         internal void MarkSuccessfulAccess(DateTimeOffset now, DateTimeOffset idleExpiresAt)
         {

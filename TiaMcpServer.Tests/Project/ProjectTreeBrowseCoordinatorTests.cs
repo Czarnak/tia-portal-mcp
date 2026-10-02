@@ -1,7 +1,9 @@
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
+using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -12,6 +14,105 @@ public sealed class ProjectTreeBrowseCoordinatorTests
 {
     private static readonly DateTimeOffset Instant = new(2026, 9, 8, 8, 0, 0, TimeSpan.Zero);
     private static readonly string ProjectPath = ProjectPathNormalization.Canonicalize(@"C:\Projects\Tree.ap21")!;
+
+    [Theory]
+    [InlineData("id")]
+    [InlineData("revision")]
+    [InlineData("path")]
+    [InlineData("unbind")]
+    public async Task Cursor_AfterBindingChange_BindingMismatch(string change)
+    {
+        var binding = Bound();
+        var clock = new ManualTimeProvider(Instant);
+        var calls = 0;
+        using var fixture = Fixture((path, selector, depth) =>
+        {
+            calls++;
+            return Task.FromResult(Success(path, selector, depth, 3));
+        }, clock, captureBinding: () => binding);
+        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+        var cursor = NextCursor(first);
+        var original = binding;
+        clock.Advance(TimeSpan.FromMinutes(9));
+        binding = change switch
+        {
+            "id" => Bound(id: "binding-b"),
+            "revision" => Bound(revision: 2),
+            "path" => Bound(path: @"C:\Projects\Other.ap21"),
+            _ => Unbound(),
+        };
+
+        var failed = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor));
+
+        AssertFailure(failed, WorkerFailureCategories.CursorBindingMismatch);
+        Assert.Equal("The project binding changed after this project-tree cursor was issued; start again without a cursor.",
+            failed.Response.Failure!.Message);
+        Assert.Equal(1, calls);
+        clock.Advance(TimeSpan.FromMinutes(2));
+        // Binding mismatch wins even after the snapshot expires; it is checked before lookup.
+        AssertFailure(await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor)),
+            WorkerFailureCategories.CursorBindingMismatch);
+        binding = original;
+        AssertFailure(await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor)),
+            WorkerFailureCategories.SnapshotUnavailable);
+    }
+
+    [Fact]
+    public async Task Cursor_SameBinding_Continues()
+    {
+        var binding = Bound();
+        using var fixture = Fixture((path, selector, depth) =>
+            Task.FromResult(Success(path, selector, depth, 3)), captureBinding: () => binding);
+        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+        binding = Bound(path: ProjectPath.ToLowerInvariant());
+
+        var next = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
+
+        Assert.True(next.IsSuccess, next.CanonicalText);
+        Assert.Equal(new[] { 1, 2 }, Sequences(next));
+        Assert.True(fixture.Codec.Decode(NextCursor(first)).HostBinding.Matches(binding));
+    }
+
+    [Fact]
+    public async Task Cursor_Unbound_Continues()
+    {
+        using var fixture = Fixture((path, selector, depth) =>
+            Task.FromResult(Success(path, selector, depth, 3)), captureBinding: Unbound);
+        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+
+        var next = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
+
+        Assert.True(next.IsSuccess, next.CanonicalText);
+        Assert.Equal(new[] { 1, 2 }, Sequences(next));
+        Assert.Equal(new ProjectBindingCursorState(false, null, null, null),
+            fixture.Codec.Decode(NextCursor(first)).HostBinding);
+    }
+
+    [Fact]
+    public async Task Cursor_ConfiguredBindingPromotedByInitialBrowse_Continues()
+    {
+        const string scenario = "project-tree-v3-small";
+        var path = Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, scenario);
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, path));
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
+        var binding = new ProjectSessionBinding(path);
+        using var worker = new OpennessWorkerClient(binding, logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        using var fixture = Fixture(worker, scenario);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.BindingState);
+
+        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+
+        Assert.True(first.IsSuccess, first.CanonicalText);
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
+        Assert.True(fixture.Codec.Decode(NextCursor(first)).HostBinding.Matches(binding.CaptureSnapshot()));
+        var next = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
+        Assert.True(next.IsSuccess, next.CanonicalText);
+        Assert.Equal(new[] { 1, 2, 3 }, Sequences(next));
+        Assert.DoesNotContain("hostBinding", first.CanonicalText);
+        Assert.DoesNotContain("workerResult", first.CanonicalText);
+    }
 
     [Fact]
     public async Task InitialRequestObservesOnceAndAllContinuationPagesUseTheCachedSnapshot()
@@ -110,7 +211,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var outOfRange = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            Offset: 999));
+            Offset: 999, ProjectBindingCursorState.FromSnapshot(Unbound())));
 
         var mismatch = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
             Depth: 3,
@@ -129,7 +230,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var syntheticOneCursor = fixture.Codec.Encode(new ProjectTreeCursorState(
             oneResult.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(oneResult.Query),
-            Offset: 0));
+            Offset: 0, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: syntheticOneCursor)),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -158,7 +259,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var foreign = Codec(0x80).Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            1));
+            1, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: foreign)),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -166,7 +267,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var mismatched = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             new string('a', 64),
-            1));
+            1, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: mismatched)),
             WorkerFailureCategories.CursorFilterMismatch);
@@ -174,7 +275,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var outOfRange = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            99));
+            99, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: outOfRange)),
             WorkerFailureCategories.CursorOutOfRange);
@@ -279,7 +380,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
                 depth,
                 1,
                 new Dictionary<string, string> { ["large"] = new string('x', 2_000) })),
-            projectorMaxResponseChars: 800);
+            projectorMaxResponseChars: 1_100);
         AssertFailure(
             await itemFixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest()),
             WorkerFailureCategories.ResultItemTooLarge);
@@ -348,14 +449,18 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<WorkerCallResult>> read,
         ManualTimeProvider? clock = null,
         ProjectTreeSnapshotStore? store = null,
-        int projectorMaxResponseChars = ProjectTreeContract.MaximumResponseChars)
+        int projectorMaxResponseChars = ProjectTreeContract.MaximumResponseChars,
+        Func<ProjectBindingSnapshot>? captureBinding = null)
     {
         clock ??= new ManualTimeProvider(Instant);
         var codec = Codec();
         store ??= new ProjectTreeSnapshotStore(clock);
         var projector = new ProjectTreePageProjector(codec, projectorMaxResponseChars);
+        captureBinding ??= Unbound;
         return new CoordinatorFixture(
-            new ProjectTreeBrowseCoordinator(codec, store, projector, clock, read),
+            new ProjectTreeBrowseCoordinator(codec, store, projector, clock,
+                async (path, selector, depth) => new ProjectTreeSnapshotCallResult(
+                    await read(path, selector, depth), captureBinding()), captureBinding),
             codec,
             store,
             ownsStore: true);
@@ -415,6 +520,12 @@ public sealed class ProjectTreeBrowseCoordinatorTests
 
     private static string NextCursor(ProjectTreeRenderedResponse response)
         => response.Response.Result!.Pagination.NextCursor!;
+
+    private static ProjectBindingSnapshot Unbound()
+        => new ProjectSessionBinding(null).CaptureSnapshot();
+
+    private static ProjectBindingSnapshot Bound(string id = "binding-a", long revision = 1, string? path = null)
+        => new(ProjectBindingSnapshot.VerifiedState, id, revision, path ?? ProjectPath, "worker-a", 1, 123, null);
 
     private static int[] Sequences(ProjectTreeRenderedResponse response)
         => response.Response.Result!.Nodes.Select(node => node.Sequence).ToArray();

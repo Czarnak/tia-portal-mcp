@@ -428,21 +428,26 @@ public class OpennessWorkerClient : IDisposable
         => SendBoundProjectRequestAsync("read_delete_block_group_safety_snapshot", projectPath,
             request => request.BlockPath = blockPath, "{}");
 
-    public Task<WorkerCallResult> BrowseProjectTreeV3SnapshotAsync(
+    public Task<ProjectTreeSnapshotCallResult> BrowseProjectTreeV3SnapshotAsync(
         string? projectPath = null,
         IReadOnlyList<ProjectTreeSelectorSegment>? startSelector = null,
         int? depth = null)
     {
         ProjectTreeNodeTypes.Validate(startSelector);
-        return SendBoundProjectRequestAsync(
-            "browse_project_tree_v3_snapshot",
-            projectPath,
-            request =>
-            {
-                request.StartSelector = startSelector?.ToList();
-                request.Depth = depth;
-            },
-            "{}");
+        return ExecuteSerializedBindingOperationAsync(async () =>
+        {
+            var result = await SendBoundProjectRequestCoreAsync(
+                "browse_project_tree_v3_snapshot",
+                projectPath,
+                request =>
+                {
+                    request.StartSelector = startSelector?.ToList();
+                    request.Depth = depth;
+                },
+                "{}",
+                BindingTransition.None).ConfigureAwait(false);
+            return new ProjectTreeSnapshotCallResult(result, _projectSessionBinding.CaptureSnapshot());
+        });
     }
 
     /// <summary>

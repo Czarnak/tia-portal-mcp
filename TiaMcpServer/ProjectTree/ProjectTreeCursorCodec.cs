@@ -2,13 +2,15 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
+using TiaMcpServer.Network;
 
 namespace TiaMcpServer.ProjectTree;
 
 internal sealed record ProjectTreeCursorState(
     string SnapshotId,
     string QueryHash,
-    int Offset);
+    int Offset,
+    ProjectBindingCursorState HostBinding);
 
 internal sealed class ProjectTreeCursorException : Exception
 {
@@ -86,9 +88,27 @@ internal sealed class ProjectTreeCursorCodec
         if (state is null
             || !IsValidSnapshotId(state.SnapshotId)
             || !IsValidQueryHash(state.QueryHash)
-            || state.Offset < 0)
+            || state.Offset < 0
+            || state.HostBinding is null
+            || !IsValidHostBinding(state.HostBinding))
         {
             throw new JsonException("Project-tree cursor payload values are invalid.");
         }
+    }
+
+    private static bool IsValidHostBinding(ProjectBindingCursorState binding)
+    {
+        if (!binding.IsBound)
+        {
+            return binding.BindingId is null
+                && binding.Revision is null
+                && binding.NormalizedProjectPath is null;
+        }
+
+        var path = ProjectPathNormalization.Canonicalize(binding.NormalizedProjectPath);
+        return !string.IsNullOrWhiteSpace(binding.BindingId)
+            && binding.Revision is >= 0
+            && path is not null
+            && string.Equals(binding.NormalizedProjectPath, path, StringComparison.OrdinalIgnoreCase);
     }
 }

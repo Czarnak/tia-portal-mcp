@@ -77,6 +77,8 @@
       Link="Host\BlockImportOutcomeSynthesizer.cs" />
     <Compile Include="..\TiaMcpServer\Worker\HardwarePageWorkerCallResult.cs"
       Link="Host\HardwarePageWorkerCallResult.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\ProjectTreeSnapshotCallResult.cs"
+      Link="Host\ProjectTreeSnapshotCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectRebindStatePayloadContract.cs"
       Link="Host\ProjectRebindStatePayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectBindingDecision.cs"
