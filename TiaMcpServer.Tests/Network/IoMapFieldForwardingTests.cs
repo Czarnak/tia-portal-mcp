@@ -44,10 +44,10 @@ public class IoMapFieldForwardingTests : IDisposable
         using var document = JsonDocument.Parse(result.Payload);
         var root = document.RootElement;
 
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("deviceName")));
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("plcName")));
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("includeIoDetails")));
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("includeTagMatches")));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("deviceName"));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("plcName"));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("includeIoDetails"));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("includeTagMatches"));
 
         Assert.Equal("ET 200SP station_1", root.GetProperty("deviceName").GetString());
         Assert.Equal("PLC_1", root.GetProperty("plcName").GetString());
