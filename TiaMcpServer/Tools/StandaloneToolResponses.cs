@@ -28,3 +28,24 @@ public sealed record CompileCheckResponse(
 {
     public string Tool => "compile_check";
 }
+
+public sealed record BindProjectResponse(
+    string ContractVersion,
+    bool Success,
+    StructuredOperationFailure? Error,
+    IReadOnlyList<string> Warnings,
+    StandaloneToolOutcome<ProjectBindingResult>? Result)
+{
+    public string Tool => "bind_project";
+}
+
+public sealed record ProjectBindingResult(
+    string Transition,
+    ProjectBindingInfo Binding,
+    ProjectBindingInfo PreviousBinding,
+    ProjectStatusInfo? Project,
+    IReadOnlyList<PortalProcessInfo> Portals);
+
+public sealed record ProjectBindingInfo(string State, string? ProjectPath, int? PortalProcessId);
+
+public sealed record PortalProcessInfo(int ProcessId, string? ProjectPath, bool HasUserInterface, bool IsBound);

@@ -8,6 +8,7 @@ public class WriteToolMcpAnnotationProtocolTests
 {
     private static readonly string[] ReadOnlyToolNames =
     {
+        "bind_project",
         "browse_project_tree",
         "execute_read_batch",
         "get_project_status",
@@ -18,6 +19,7 @@ public class WriteToolMcpAnnotationProtocolTests
     {
         "apply_write_batch",
         "archive_project",
+        "bind_project",
         "browse_project_tree",
         "close_project",
         "compile_check",
@@ -32,16 +34,17 @@ public class WriteToolMcpAnnotationProtocolTests
         "save_project_as",
     };
 
-    private static readonly (string Name, bool ReadOnly, bool Destructive, bool OpenWorld)[] ExpectedWriteToolAnnotations =
+    private static readonly (string Name, bool ReadOnly, bool Destructive, bool? Idempotent, bool OpenWorld)[] ExpectedWriteToolAnnotations =
     {
-        ("preview_write_batch", true, false, false),
-        ("apply_write_batch", false, true, false),
-        ("open_project", false, true, false),
-        ("create_project", false, true, false),
-        ("save_project", false, true, false),
-        ("save_project_as", false, true, false),
-        ("archive_project", false, true, false),
-        ("close_project", false, true, false),
+        ("bind_project", false, false, true, false),
+        ("preview_write_batch", true, false, null, false),
+        ("apply_write_batch", false, true, null, false),
+        ("open_project", false, true, null, false),
+        ("create_project", false, true, null, false),
+        ("save_project", false, true, null, false),
+        ("save_project_as", false, true, null, false),
+        ("archive_project", false, true, null, false),
+        ("close_project", false, true, null, false),
     };
 
     [Fact]
@@ -52,7 +55,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
         Assert.Equal(FullToolNames, tools.Select(tool => tool.Name));
-        Assert.Equal(14, tools.Length);
+        Assert.Equal(15, tools.Length);
         Assert.All(
             tools,
             tool => Assert.Equal(
@@ -65,6 +68,7 @@ public class WriteToolMcpAnnotationProtocolTests
             Assert.NotNull(annotations);
             Assert.Equal(expected.ReadOnly, annotations!.ReadOnlyHint);
             Assert.Equal(expected.Destructive, annotations.DestructiveHint);
+            Assert.Equal(expected.Idempotent, annotations.IdempotentHint);
             Assert.Equal(expected.OpenWorld, annotations.OpenWorldHint);
         }
 
@@ -92,7 +96,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var toolNames = tools.Select(tool => tool.Name).ToArray();
 
         Assert.Equal(ReadOnlyToolNames, toolNames);
-        Assert.Equal(4, tools.Length);
+        Assert.Equal(5, tools.Length);
 
         foreach (var writeToolName in FullToolNames.Except(ReadOnlyToolNames, StringComparer.Ordinal))
         {

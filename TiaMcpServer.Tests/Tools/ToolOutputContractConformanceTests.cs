@@ -34,6 +34,10 @@ public sealed class ToolOutputContractConformanceTests
 
     private static readonly IReadOnlyDictionary<string, ToolProbe> StructuredToolProbes = new[]
     {
+        new ToolProbe("bind_project", "succeeded", false, null, new()),
+        new ToolProbe("bind_project", "rejected", true, null,
+            new Dictionary<string, object?> { ["projectPath"] = "relative.ap21" }),
+        new ToolProbe("bind_project", "ambiguous", false, null, new()),
         new ToolProbe("open_project", "applied", false, null, new()),
         new ToolProbe("open_project", "rejected", true, null, new()),
         new ToolProbe("create_project", "applied", false, null, new()),
@@ -222,12 +226,22 @@ public sealed class ToolOutputContractConformanceTests
             or "save_project_as" or "archive_project" or "close_project";
         var sourcePath = probe.Name switch
         {
+            "bind_project/succeeded" => "C:/Projects/Binding.ap21",
+            "bind_project/rejected" => null,
+            "bind_project/ambiguous" => "C:/Projects/Binding.ap21",
             "get_project_status/malformed" => "status-malformed",
             "get_project_status/omitted" => "status-oversized",
             "network_read/succeeded" => "network-roundtrip",
             "browse_project_tree/succeeded" => "project-tree-v3-small",
             _ => probe.StartupProjectPath == "guarded-lifecycle"
                 ? fixture.SourcePath : probe.StartupProjectPath
+        };
+        using var portals = probe.Name switch
+        {
+            "bind_project/succeeded" => new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, sourcePath)),
+            "bind_project/rejected" => new FakeWorkerPortals(),
+            "bind_project/ambiguous" => new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, sourcePath), new FakeWorkerPortals.Entry(43, "C:/Projects/Other.ap21")),
+            _ => null
         };
         using var uiOpen = probe.Name is "get_project_status/malformed" or
             "get_project_status/omitted" or "network_read/succeeded" or
@@ -247,6 +261,22 @@ public sealed class ToolOutputContractConformanceTests
         Assert.True(
             probe.ExpectIsError == (result.IsError == true),
             $"Expected isError={probe.ExpectIsError}. Response: {TextOf(result)}");
+        if (probe.Tool == "bind_project")
+        {
+            var document = result.StructuredContent!.Value;
+            if (probe.ExpectIsError)
+            {
+                Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("result").ValueKind);
+                Assert.Equal("validation_error", document.GetProperty("error").GetProperty("category").GetString());
+            }
+            else
+            {
+                Assert.Equal(probe.Case == "succeeded", document.GetProperty("success").GetBoolean());
+                Assert.Equal(probe.Case == "succeeded" ? "succeeded" : "failed", document.GetProperty("result").GetProperty("status").GetString());
+                if (probe.Case == "ambiguous")
+                    Assert.Equal(2, document.GetProperty("result").GetProperty("value").GetProperty("portals").GetArrayLength());
+            }
+        }
         if (probe.Name == "network_read/succeeded")
         {
             var document = result.StructuredContent!.Value;

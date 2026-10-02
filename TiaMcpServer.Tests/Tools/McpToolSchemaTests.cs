@@ -153,12 +153,12 @@ public class McpToolSchemaTests
     /// ProjectWriteTools lives in - which, for TiaMcpServer.Tests, is the test assembly
     /// itself, since the host's tool source files are compiled directly into it (see
     /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
-    /// carrying [McpServerTool] and asserts the exact approved surface: 14 tools total, and the
+    /// carrying [McpServerTool] and asserts the exact approved surface: 15 tools total, and the
     /// internal lifecycle probe (probe_project_status_for_lifecycle, never [McpServerTool]-decorated)
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlyFourteenApprovedTools()
+    public void McpToolSurface_ExposesExactlyFifteenApprovedTools()
     {
         var toolTypes = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -174,6 +174,7 @@ public class McpToolSchemaTests
 
         var expected = new[]
         {
+            "bind_project",
             "get_project_status",
             "browse_project_tree",
             "execute_read_batch",
@@ -195,10 +196,11 @@ public class McpToolSchemaTests
     }
 
     [Fact]
-    public void McpReadOnlySurface_RemainsExactlyFourApprovedTools()
+    public void McpReadOnlySurface_RemainsExactlyFiveApprovedTools()
     {
         var toolNames = new[]
         {
+            typeof(ProjectBindingTools),
             typeof(ProjectReadTools),
             typeof(ReadBatchTools),
             RequiredNetworkToolType("NetworkReadTools"),
@@ -211,7 +213,7 @@ public class McpToolSchemaTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "browse_project_tree", "execute_read_batch", "get_project_status", "network_read" },
+            new[] { "bind_project", "browse_project_tree", "execute_read_batch", "get_project_status", "network_read" },
             toolNames);
         Assert.DoesNotContain("probe_network_object_attributes", toolNames);
     }
