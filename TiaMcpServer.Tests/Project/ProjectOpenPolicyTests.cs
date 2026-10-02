@@ -78,6 +78,7 @@ public class ProjectOpenPolicyTests
 
         Assert.Contains("C:\\a.ap21", message);
         Assert.Contains("C:\\b.ap21", message);
+        Assert.Contains("This operation does not switch projects implicitly.", message);
         Assert.Equal(canOpen, message.Contains("open_project", StringComparison.Ordinal));
     }
 }

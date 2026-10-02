@@ -40,7 +40,7 @@ public static class ProjectOpenPolicy
 
     public static string RefusalMessage(string currentPath, string requestedPath, McpAccessMode mode)
         => $"TIA Portal currently has project '{currentPath}' open, but this request targets "
-            + $"'{requestedPath}'. Read operations never switch projects. Call bind_project with "
+            + $"'{requestedPath}'. This operation does not switch projects implicitly. Call bind_project with "
             + "the intended projectPath and forceRebind=true to select an already-open project."
             + (OperationPolicyCatalog.IsAllowed(mode, "open_project")
                 ? " You can call open_project to switch."
