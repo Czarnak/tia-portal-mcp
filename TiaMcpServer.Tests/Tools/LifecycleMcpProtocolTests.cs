@@ -281,7 +281,10 @@ public sealed class LifecycleMcpProtocolTests
         var status = await harness.WorkerClient.GetProjectStatusAsync(null);
         Assert.True(status.Success, status.Error);
         Assert.Equal(fixture.SourcePath, status.SessionIdentity!.ProjectPath);
-        Assert.DoesNotContain(requests.Methods(), IsLifecycleMutation);
+        var methods = requests.Methods();
+        Assert.Contains("hello", methods); // Prove recording is active before trusting absence.
+        Assert.Contains("get_project_status", methods);
+        Assert.DoesNotContain(methods, IsLifecycleMutation);
         Assert.Empty(StructuredContractInspector.FindViolations(result));
         AssertAudit(audit.Path, result, null, confirmationBy: "user", confirmationOutcome: "failed");
     }
