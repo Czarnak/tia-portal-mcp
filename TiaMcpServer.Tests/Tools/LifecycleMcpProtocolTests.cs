@@ -4,6 +4,7 @@ using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Tools;
@@ -58,6 +59,8 @@ public sealed class LifecycleMcpProtocolTests
                 Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
             });
         });
+        using var uiOpen = new FakeWorkerUiOpenProject(
+            tool is "open_project" or "create_project" ? null : fixture.SourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             mode, audit.Path, tool is "open_project" or "create_project" ? null : fixture.SourcePath, clientOptions: options);
         var before = harness.WorkerClient.BindingSnapshot;
@@ -104,6 +107,7 @@ public sealed class LifecycleMcpProtocolTests
                 Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
             });
         });
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.ReadWrite, audit.Path, clientOptions: options);
         var before = await harness.Client.CallToolAsync("compile_check", new Dictionary<string, object?>());
@@ -115,6 +119,27 @@ public sealed class LifecycleMcpProtocolTests
         var saved = await harness.Client.CallToolAsync("save_project", fixture.Arguments("save_project"));
         Assert.True(Document(saved).GetProperty("success").GetBoolean());
         Assert.Equal(2, prompts);
+    }
+
+    [Fact]
+    public async Task ReadWrite_ReadWithUnopenedPath_DeniedAndNoOpenRequest()
+    {
+        using var fixture = new LifecycleProtocolFixture();
+        using var requests = new LifecycleRequestLog(fixture.Root);
+        using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5));
+
+        var response = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "read_hardware_config",
+            ProjectPath = "unopened-project"
+        });
+
+        Assert.False(response.Success);
+        Assert.Equal(WorkerFailureCategories.AccessDenied, response.FailureCategory);
+        var methods = requests.Methods();
+        Assert.Contains("hello", methods);
+        Assert.Contains("read_hardware_config", methods);
+        Assert.DoesNotContain("open_project", methods);
     }
 
     private static bool IsLifecycleMutation(string method)
@@ -160,6 +185,7 @@ public sealed class LifecycleMcpProtocolTests
                 Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(confirm) }
             });
         });
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.ReadWrite, audit.Path, fixture.SourcePath, clientOptions: options);
 
@@ -186,6 +212,7 @@ public sealed class LifecycleMcpProtocolTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full, audit.Path, fixture.SourcePath);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
@@ -224,6 +251,7 @@ public sealed class LifecycleMcpProtocolTests
                 }
             }
         };
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full, audit.Path, fixture.SourcePath, clientOptions: options);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
@@ -248,6 +276,7 @@ public sealed class LifecycleMcpProtocolTests
             prompts++;
             return ValueTask.FromResult(new ElicitResult { Action = "accept" });
         });
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full, audit.Path, fixture.SourcePath, clientOptions: options);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
@@ -272,6 +301,7 @@ public sealed class LifecycleMcpProtocolTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full, audit.Path, fixture.SourcePath);
         var result = await harness.Client.CallToolAsync("close_project", new Dictionary<string, object?>
@@ -292,6 +322,7 @@ public sealed class LifecycleMcpProtocolTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture(scenario);
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full, audit.Path, fixture.SourcePath);
         var result = await harness.Client.CallToolAsync("save_project", fixture.Arguments("save_project"));
@@ -323,6 +354,7 @@ public sealed class LifecycleMcpProtocolTests
         using var fixture = new LifecycleProtocolFixture();
         // Exercise create from an unbound session and the other tools from a verified source.
         var source = tool == "create_project" ? null : fixture.SourcePath;
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full, audit.Path, source);
         var before = harness.WorkerClient.BindingSnapshot;

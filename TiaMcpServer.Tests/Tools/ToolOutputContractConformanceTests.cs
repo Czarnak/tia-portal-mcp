@@ -220,6 +220,8 @@ public sealed class ToolOutputContractConformanceTests
         using var fixture = new LifecycleProtocolFixture();
         var lifecycle = probe.Tool is "open_project" or "create_project" or "save_project"
             or "save_project_as" or "archive_project" or "close_project";
+        using var uiOpen = new FakeWorkerUiOpenProject(
+            probe.StartupProjectPath == "guarded-lifecycle" ? fixture.SourcePath : null);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full,
             audit.Path,

@@ -11,10 +11,17 @@ if (!string.IsNullOrWhiteSpace(launchLog))
 
 var seq = 0;
 var requestLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG");
+var modeIndex = Array.FindIndex(args, arg => string.Equals(arg, "--access-mode", StringComparison.OrdinalIgnoreCase));
+var accessMode = modeIndex < 0 ? McpAccessMode.ReadWrite
+    : modeIndex + 1 < args.Length && McpAccessModeNames.TryParse(args[modeIndex + 1], out var parsedMode)
+        ? parsedMode : McpAccessMode.ReadOnly;
 var workerSessionId = Guid.NewGuid().ToString("N");
 const int FakePortalProcessId = 4242;
 var fakeSessionGeneration = 1L;
-string? fakeProjectPath = null;
+// Tests may model a project that was already opened in the TIA Portal UI before the worker
+// starts. Ordinary requests never establish this mutable session state.
+string? fakeProjectPath = ProjectPathNormalization.Canonicalize(
+    Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_UI_OPEN_PROJECT"));
 string? currentProjectPath = null;
 string? currentMethod = null;
 string? currentRequestLine = null;
@@ -161,6 +168,19 @@ while ((line = Console.In.ReadLine()) is not null)
     if (identityFailure is not null)
     {
         Respond(JsonSerializer.Serialize(identityFailure), includeSessionIdentity: false);
+        continue;
+    }
+
+    if (string.Equals(scenario, "unopened-project", StringComparison.Ordinal) &&
+        !string.Equals(currentMethod, "open_project", StringComparison.Ordinal) &&
+        !string.Equals(currentMethod, "create_project", StringComparison.Ordinal))
+    {
+        Respond(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = false,
+            FailureCategory = WorkerFailureCategories.AccessDenied,
+            Error = ProjectOpenPolicy.NotOpenMessage(currentProjectPath!, accessMode)
+        }, WorkerJson.Envelope));
         continue;
     }
 
@@ -1209,7 +1229,8 @@ void Respond(string json, bool includeSessionIdentity = true)
                     fakeSessionGeneration++;
                 }
 
-                fakeProjectPath = projectPath;
+                if (isAuthorizedPathTransition)
+                    fakeProjectPath = projectPath;
             }
 
             response["sessionIdentity"] = JsonSerializer.SerializeToNode(new WorkerSessionIdentity
@@ -1269,8 +1290,9 @@ string GuardedLifecycleResponse(string requestLine, string fixture)
     var path = ProjectPathNormalization.Canonicalize(currentProjectPath ?? fakeProjectPath);
     if (method == "probe_open_project_rebind")
         return Success(WorkerJson.SerializePayload(ProjectRebindStateInfo.Create(fakeProjectPath,
-            ReadField(requestLine, "rebindDestinationProjectPath")!, guardedLifecycleModified,
-            fixture.Contains("-ui-owned", StringComparison.OrdinalIgnoreCase) != true)));
+            ReadField(requestLine, "rebindDestinationProjectPath")!,
+            fakeProjectPath is null ? null : guardedLifecycleModified,
+            fakeProjectPath is not null && fixture.Contains("-ui-owned", StringComparison.OrdinalIgnoreCase) != true)));
     if (method == "create_project")
     {
         var directory = Path.Combine(ReadField(requestLine, "projectDirectory")!, ReadField(requestLine, "projectName")!);
@@ -1352,8 +1374,9 @@ WorkerResponse? ValidateExpectedSessionIdentity(
 
     var expectedPath =
         ProjectPathNormalization.Canonicalize(expected.ProjectPath);
-    var activePath =
-        ProjectPathNormalization.Canonicalize(fakeProjectPath);
+    // Existing canned scenarios represent a UI-open project in their response snapshot. Use
+    // that request's fixture path for identity comparison without mutating the process state.
+    var activePath = ProjectPathNormalization.Canonicalize(fakeProjectPath ?? requestedProjectPath);
 
     if (string.IsNullOrWhiteSpace(expected.WorkerSessionId) ||
         expected.SessionGeneration < 0 ||

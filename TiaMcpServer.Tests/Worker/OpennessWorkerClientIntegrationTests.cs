@@ -964,6 +964,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task SaveProjectAsWithRebind_NoDivergenceWarningWhenTheWorkerReportsTheCopiedProjectPath()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,
@@ -1070,6 +1071,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task SaveProject_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
+        using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
@@ -1089,6 +1091,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task PostWriteVerification_UsesTypedBasicStatusWithoutExtendedMetadata()
     {
         using var audit = new TempAuditDirectory();
+        using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
@@ -1113,6 +1116,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task SaveProjectAs_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
+        using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
@@ -1161,6 +1165,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task SaveProjectAs_RebindTrue_BindsOnlyWorkerCopiedPath()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject("ok-with-resolved-path");
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,
@@ -1248,6 +1253,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task ArchiveProject_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
+        using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
@@ -1294,6 +1300,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task CloseProject_DryRunAndApply_UseLifecycleProbeNotDirectStatus()
     {
         using var audit = new TempAuditDirectory();
+        using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         const string projectPath = "lifecycle-probe-only";
@@ -1412,6 +1419,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task CloseSuccess_ClearsBinding()
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(@"C:\stable\Project.ap21");
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding,

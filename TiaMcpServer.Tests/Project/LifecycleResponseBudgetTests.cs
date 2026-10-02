@@ -99,6 +99,7 @@ public sealed class LifecycleResponseBudgetTests
         File.WriteAllText(path, "fixture");
         try
         {
+            using var uiOpen = new FakeWorkerUiOpenProject(path);
             using var client = new OpennessWorkerClient(new ProjectSessionBinding(path), logger: null,
                 workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.Full));
             var audit = new Audit();

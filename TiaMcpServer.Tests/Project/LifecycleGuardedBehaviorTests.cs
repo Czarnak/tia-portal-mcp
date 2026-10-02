@@ -147,6 +147,7 @@ public sealed class LifecycleGuardedBehaviorTests
         private readonly string _root;
         private readonly string _source;
         private readonly string _destination;
+        private readonly FakeWorkerUiOpenProject _uiOpen;
         public OpennessWorkerClient Client { get; }
         public WriteExecution Execution { get; }
         public Audit Audit { get; } = new();
@@ -160,6 +161,7 @@ public sealed class LifecycleGuardedBehaviorTests
             _destination = Path.Combine(_root, "Destination.ap21");
             File.WriteAllText(_source, "fixture");
             File.WriteAllText(_destination, "fixture");
+            _uiOpen = new FakeWorkerUiOpenProject(configured ? _source : null);
             Client = new(new ProjectSessionBinding(configured ? _source : null), logger: null,
                 workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.Full));
             Execution = new(new OpennessWriteBindingGate(Client), Audit, LifecycleWriteDomain.Catalog, TimeProvider.System);
@@ -175,6 +177,7 @@ public sealed class LifecycleGuardedBehaviorTests
         public void Dispose()
         {
             Client.Dispose();
+            _uiOpen.Dispose();
             Directory.Delete(_root, recursive: true);
         }
     }

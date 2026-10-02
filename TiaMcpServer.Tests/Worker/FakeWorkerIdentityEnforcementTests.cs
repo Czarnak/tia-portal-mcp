@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -6,6 +7,36 @@ namespace TiaMcpServer.Tests.Worker;
 
 public sealed class FakeWorkerIdentityEnforcementTests
 {
+    [Fact]
+    public async Task RebindProbe_WithNoOpenSource_ReturnsEmptySourceState()
+    {
+        const string source = "guarded-lifecycle-no-source";
+        const string destination = "C:\\Fixture\\Destination.ap21";
+        using var transport = CreateTransport();
+        var status = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "get_basic_project_status", ProjectPath = source
+        });
+        Assert.True(status.Success);
+        Assert.NotNull(status.SessionIdentity);
+
+        var probe = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "probe_open_project_rebind",
+            ProjectPath = source,
+            RebindDestinationProjectPath = destination,
+            ExpectedSessionIdentity = status.SessionIdentity
+        });
+
+        Assert.True(probe.Success, probe.Error);
+        using var document = JsonDocument.Parse(probe.Payload!);
+        var state = document.RootElement;
+        Assert.Equal(JsonValueKind.Null, state.GetProperty("sourceProjectPath").ValueKind);
+        Assert.Equal(JsonValueKind.Null, state.GetProperty("sourceIsModified").ValueKind);
+        Assert.False(state.GetProperty("sourceOpenedByWorker").GetBoolean());
+        Assert.False(state.GetProperty("willCloseSource").GetBoolean());
+    }
+
     [Fact]
     public async Task ProtectedRequestWithoutExpectedIdentityFailsBeforeScenarioDispatch()
     {

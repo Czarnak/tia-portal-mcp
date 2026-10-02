@@ -25,6 +25,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         internal readonly ProjectSessionBinding Binding;
         internal readonly OpennessWorkerClient Client;
         internal readonly WriteExecution Execution;
+        private FakeWorkerUiOpenProject? _uiOpen;
 
         internal Fixture(string? configured = null, string? worker = null)
         {
@@ -37,6 +38,8 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         internal async Task Bind(string source = SourcePath)
         {
             Source = Physical(source);
+            _uiOpen?.Dispose();
+            _uiOpen = new FakeWorkerUiOpenProject(Source);
             await FakeWorkerBinding.BindVerifiedAsync(Client, Binding, Source);
         }
 
@@ -59,6 +62,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         public void Dispose()
         {
             Client.Dispose();
+            _uiOpen?.Dispose();
             Audit.Dispose();
             if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true);
         }

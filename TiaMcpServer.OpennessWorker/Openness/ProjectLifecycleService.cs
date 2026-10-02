@@ -14,9 +14,8 @@ public static class ProjectLifecycleService
     /// </summary>
     public static ProjectStatusInfo GetStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)
     {
-        // ProjectOpenDecision.OpenRequested (nothing attached, a path was requested) is
-        // deliberately NOT acted on here, unlike EnsureRequestedProjectOpen: a read must report
-        // IsOpen=false rather than open the requested project as a side effect.
+        // A status read reports IsOpen=false when the requested project is not open. Other
+        // non-lifecycle operations reject that request through EnsureRequestedProjectOpen.
         var project = ResolveProjectForRead(session, requestedProjectPath);
         return project is null
             ? new ProjectStatusInfo { IsOpen = false }

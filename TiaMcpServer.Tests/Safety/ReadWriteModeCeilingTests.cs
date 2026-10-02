@@ -136,9 +136,11 @@ public class ReadWriteModeCeilingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReadWrite_InitialAttachmentStillWorks_AndReadCannotSwitchAttachedProject(bool startupPath)
+    public async Task ReadWrite_InitialAttachmentStillWorks_FromStartupOrUiOpen(bool startupPath)
     {
         const string project = "ok";
+        // startupPath exercises the host's --project assertion against a UI-open project.
+        using var uiOpen = new FakeWorkerUiOpenProject(project);
         var binding = new ProjectSessionBinding(startupPath ? project : null);
         using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
         var observed = await client.GetProjectStatusAsync(project);

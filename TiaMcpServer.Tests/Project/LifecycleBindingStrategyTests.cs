@@ -10,6 +10,7 @@ using Xunit;
 namespace TiaMcpServer.Tests.Project;
 
 /// <summary>Concrete lifecycle preparation over the existing worker-client source and lease rules.</summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class LifecycleBindingStrategyTests
 {
     [Theory]
@@ -36,6 +37,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task VerifiedSameProjectOpen_PreparesTheOriginalRevision()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -52,6 +54,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task ConfiguredSource_IsGroundedAsSource_WithoutAdoptingDestination()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var destination = Destination();
         var binding = new ProjectSessionBinding(source);
         using var client = Client(binding);
@@ -69,6 +72,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task InvalidatedSourceRecovery_PinsItsFreshVerifiedRevision()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -88,6 +92,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task DestinationSwitchWithoutForce_IsRefusedBeforeAnyRebinding()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -106,6 +111,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task SourcePreparation_PreservesBothWorkerOwnedAndExternallyOwnedProjects(bool externallyOwned)
     {
         var source = Source(externallyOwned ? "Source-ui-owned" : "Source");
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var destination = Destination();
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
@@ -127,6 +133,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task CreateWithActiveSource_PreparesSource_WithoutOpeningDestination()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -143,6 +150,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task PreparedRevisionBecomesStale_LeaseRefusesBeforeDispatch()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
