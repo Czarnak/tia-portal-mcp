@@ -13,7 +13,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
             "TiaMcpServer.OpennessWorker", "Openness", "TiaPortalSession.cs"));
         var methodStart = source.IndexOf("public void ValidateExpectedSessionIdentity(", StringComparison.Ordinal);
         Assert.True(methodStart >= 0, "ValidateExpectedSessionIdentity method was not found.");
-        var missingIdentityEnd = source.IndexOf("var current = GetSessionIdentity();", methodStart, StringComparison.Ordinal);
+        var missingIdentityEnd = source.IndexOf("var current =", methodStart, StringComparison.Ordinal);
         Assert.True(missingIdentityEnd > methodStart, "Missing-identity branch was not found.");
         var guidance = source.Substring(methodStart, missingIdentityEnd - methodStart);
 

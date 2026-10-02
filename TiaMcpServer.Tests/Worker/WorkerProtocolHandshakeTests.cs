@@ -10,6 +10,13 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class WorkerProtocolHandshakeTests
 {
     [Fact]
+    public void ProtocolRequiresPortalSelectionCapabilities()
+    {
+        Assert.Contains("portal-process-listing-v1", WorkerProtocol.RequiredCapabilities);
+        Assert.Contains("portal-project-selection-v1", WorkerProtocol.RequiredCapabilities);
+    }
+
+    [Fact]
     public void ProtocolRequiresTypedProjectTreeCapability()
     {
         Assert.Equal("project-tree-v3", WorkerProtocol.Version);
@@ -47,6 +54,7 @@ public sealed class WorkerProtocolHandshakeTests
     [InlineData("missing-hello-contract")]
     [InlineData("wrong-protocol-version")]
     [InlineData("missing-block-import-outcome-capability")]
+    [InlineData("missing-portal-selection-capabilities")]
     public async Task LegacyWorker_HandshakeFailsBeforeOriginalEngineeringMethodIsSent(string legacyMode)
     {
         var tempDirectory = Path.Combine(
@@ -81,6 +89,16 @@ public sealed class WorkerProtocolHandshakeTests
                     protocolVersion = WorkerProtocol.Version,
                     capabilities = WorkerProtocol.RequiredCapabilities
                         .Where(capability => capability != "typed-block-import-outcome-v1")
+                        .ToArray()
+                }),
+                "missing-portal-selection-capabilities" => JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    payload = "{}",
+                    protocolVersion = WorkerProtocol.Version,
+                    capabilities = WorkerProtocol.RequiredCapabilities
+                        .Where(capability => capability != "portal-process-listing-v1"
+                            && capability != "portal-project-selection-v1")
                         .ToArray()
                 }),
                 _ => throw new InvalidOperationException($"Unknown legacy mode '{legacyMode}'.")

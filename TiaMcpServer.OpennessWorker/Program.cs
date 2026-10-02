@@ -27,12 +27,19 @@ internal static class Program
 
         Console.Error.WriteLine($"TIA Openness worker access mode: {McpAccessModeNames.ToName(_accessMode).ToUpperInvariant()}");
 
-        string? line;
-        while ((line = Console.In.ReadLine()) is not null)
+        try
         {
-            var response = HandleLineWithCapturedStderr(line);
-            Console.Out.WriteLine(JsonSerializer.Serialize(response, WorkerJson.Envelope));
-            Console.Out.Flush();
+            string? line;
+            while ((line = Console.In.ReadLine()) is not null)
+            {
+                var response = HandleLineWithCapturedStderr(line);
+                Console.Out.WriteLine(JsonSerializer.Serialize(response, WorkerJson.Envelope));
+                Console.Out.Flush();
+            }
+        }
+        finally
+        {
+            _sharedSession.Dispose();
         }
     }
 
@@ -134,6 +141,8 @@ internal static class Program
 
             return request.Method switch
             {
+                "list_portal_processes" => ListPortalProcesses(request),
+                "select_portal_project" => SelectPortalProject(request),
                 "browse_project_tree_v3_snapshot" => BrowseProjectTreeV3Snapshot(request),
                 "read_create_block_safety_snapshot" => ReadCreateBlockSafetySnapshot(request),
                 "read_create_block_group_safety_snapshot" => ReadCreateBlockGroupSafetySnapshot(request),
@@ -214,6 +223,36 @@ internal static class Program
             Console.Error.WriteLine($"Unhandled worker exception: {ex.GetType().Name}: {ex.Message}");
             return Failure(WorkerFailureCategories.WorkerOperationFailed, $"{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    private static WorkerResponse ListPortalProcesses(WorkerRequest request)
+    {
+        return Execute(() =>
+        {
+            var inventory = TiaPortalProcessInventory.Read();
+            return Success(new TiaPortalProcessListInfo
+            {
+                AttachedProcessId = _sharedSession.CurrentProcessId,
+                Processes = TiaPortalTargetSelector.ToProcessInfos(
+                    inventory.Select(entry => entry.Candidate).ToList(), _sharedSession.CurrentProcessId)
+            });
+        });
+    }
+
+    private static WorkerResponse SelectPortalProject(WorkerRequest request)
+    {
+        return Execute(() =>
+        {
+            if (string.IsNullOrWhiteSpace(request.ProjectPath))
+            {
+                throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                    "select_portal_project requires projectPath.");
+            }
+
+            ValidateExpectedSessionIdentityForRequest(_sharedSession, request,
+                allowMissingExpectedIdentity: true, useCachedIdentity: true);
+            return Success(_sharedSession.SelectPortalProject(request.ProjectPath!));
+        });
     }
 
     private static WorkerResponse ReadCreateBlockSafetySnapshot(WorkerRequest request)
@@ -1447,13 +1486,15 @@ internal static class Program
     private static void ValidateExpectedSessionIdentityForRequest(
         WorkerTiaPortalSession session,
         WorkerRequest request,
-        bool allowMissingExpectedIdentity)
+        bool allowMissingExpectedIdentity,
+        bool useCachedIdentity = false)
     {
         try
         {
             session.ValidateExpectedSessionIdentity(
                 request.ExpectedSessionIdentity,
-                allowMissingExpectedIdentity);
+                allowMissingExpectedIdentity,
+                useCachedIdentity);
         }
         catch (WorkerOperationException exception) when (
             request.HardwarePageContinuation is not null

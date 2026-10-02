@@ -8,6 +8,48 @@ namespace TiaMcpServer.Tests.Worker;
 public class TiaPortalTargetSelectorTests
 {
     [Fact]
+    public void SelectExactProcessId_ExactMatch_ReturnsPid()
+        => Assert.Equal(4100, SelectExact(new[]
+        {
+            new TiaPortalProcessCandidate(9200, @"C:\Projects\B.ap21"),
+            new TiaPortalProcessCandidate(4100, @"C:\Projects\A.ap21")
+        }, @"C:\Projects\Other\..\A.ap21"));
+
+    [Fact]
+    public void SelectExactProcessId_NoSoleFallback()
+        => Assert.Equal(WorkerFailureCategories.TargetNotFound, Assert.Throws<WorkerOperationException>(() =>
+            SelectExact(new[] { new TiaPortalProcessCandidate(4100, @"C:\Projects\B.ap21") },
+                @"C:\Projects\A.ap21")).FailureCategory);
+
+    [Fact]
+    public void SelectExactProcessId_NoPortals_TargetNotFound()
+        => Assert.Equal(WorkerFailureCategories.TargetNotFound, Assert.Throws<WorkerOperationException>(() =>
+            SelectExact(Array.Empty<TiaPortalProcessCandidate>(), @"C:\Projects\A.ap21")).FailureCategory);
+
+    [Fact]
+    public void SelectExactProcessId_DuplicateAdvertisers_Ambiguous()
+        => Assert.Equal(WorkerFailureCategories.TargetAmbiguous, Assert.Throws<WorkerOperationException>(() =>
+            SelectExact(new[]
+            {
+                new TiaPortalProcessCandidate(4100, @"C:\Projects\A.ap21"),
+                new TiaPortalProcessCandidate(9200, @"C:\Projects\A.ap21")
+            }, @"C:\Projects\A.ap21")).FailureCategory);
+
+    [Fact]
+    public void ToProcessInfos_SortedMarksAttached()
+    {
+        var infos = TiaPortalTargetSelector.ToProcessInfos(
+            new[] { new TiaPortalProcessCandidate(9200, null), new TiaPortalProcessCandidate(4100, @"C:\Projects\A.ap21", true) },
+            4100);
+        Assert.Collection(infos,
+            first => { Assert.Equal(4100, first.ProcessId); Assert.True(first.AttachedByThisWorker); Assert.Equal(@"C:\Projects\A.ap21", first.ProjectPath); Assert.True(first.HasUserInterface); },
+            second => { Assert.Equal(9200, second.ProcessId); Assert.False(second.AttachedByThisWorker); Assert.Null(second.ProjectPath); Assert.False(second.HasUserInterface); });
+    }
+
+    private static int SelectExact(IReadOnlyList<TiaPortalProcessCandidate> candidates, string path)
+        => TiaPortalTargetSelector.SelectExactProcessId(candidates, path);
+
+    [Fact]
     public void SelectProcessId_NoRunningPortal_FailsWithoutSelecting()
     {
         var error = Assert.Throws<WorkerOperationException>(() =>

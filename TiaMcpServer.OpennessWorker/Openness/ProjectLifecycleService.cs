@@ -329,9 +329,14 @@ public static class ProjectLifecycleService
     {
         session.EnsureConnected(projectPath);
 
-        if (!string.IsNullOrWhiteSpace(projectPath))
+        switch (ProjectOpenPolicy.Decide(session.CurrentProjectPath, projectPath))
         {
-            session.OpenProject(projectPath!);
+            case ProjectOpenDecision.RequestedNotOpen:
+                throw new WorkerOperationException(WorkerFailureCategories.AccessDenied,
+                    $"Requested project '{projectPath}' is not open. Use open_project or open it in TIA Portal.");
+            case ProjectOpenDecision.Refuse:
+                throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                    $"A different project is attached. Select or open requested project '{projectPath}' before this operation.");
         }
 
         return session.Project ??
