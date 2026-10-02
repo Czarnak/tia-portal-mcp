@@ -51,6 +51,7 @@ current documentation — see its index for what is there and how to read it.
 
 Latest process entries: the [lifecycle in read-write, mode-derived confirmation, and runtime project binding design](superpowers/specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md)
 (amends the redesign's §4.6 and §4.11) and its [implementation plan](superpowers/plans/2026-10-02-lifecycle-tiers-and-project-binding.md),
+with [full-mode live validation (read-write/read-only acceptance pending)](superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md),
 the [write-safety redesign design (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md)
 and its [Phase 1 foundation plan](superpowers/plans/2026-09-29-write-safety-phase1-foundation.md)
 and [Phase 1b access-mode implementation plan](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md),

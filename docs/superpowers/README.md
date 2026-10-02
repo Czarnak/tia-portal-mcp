@@ -102,6 +102,11 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-03 | [Lifecycle tiers and runtime binding — full-mode live PASS; read-write/read-only pending](acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md) |
+| 2026-10-01 | [JSON contract Phase 3 — guarded lifecycle live validation](acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md) |
+| 2026-10-01 | [JSON contract Phase 3 — offline validation](acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md) |
+| 2026-10-01 | [JSON contract Phase 2 — bounded live verification; producer gate remains open](acceptance/reports/2026-10-01-json-contract-phase2-live-verification.md) |
+| 2026-09-30 | [JSON contract Phase 2 — offline validation](acceptance/reports/2026-09-30-json-contract-phase2-offline-validation.md) |
 | 2026-09-26 | [Network Phase 5 PR 2 — bounded worker-only V21 qualification](acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md) |
 | 2026-09-24 | [Network Phase 4 PR 1 — bounded current-revision live PASS; 2026-09-23 failed attempt retained](acceptance/reports/2026-09-21-network-phase4-current-revision-live.md) |
 | 2026-09-12 | [Issue #32 — project-tree browsing v3 — accepted read-only PASS with explicit live ambiguity waiver](acceptance/reports/2026-09-06-issue-32-project-tree-v3-live.md) |
