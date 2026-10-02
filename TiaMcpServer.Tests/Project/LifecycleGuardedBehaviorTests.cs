@@ -14,6 +14,30 @@ namespace TiaMcpServer.Tests.Project;
 [Collection(RealWorkerProcessCollection.Name)]
 public sealed class LifecycleGuardedBehaviorTests
 {
+    [Fact]
+    public void LifecycleDomain_ConfirmsEveryCall()
+        => Assert.True(new LifecycleWriteDomain(null!, new("save_project")).ConfirmsEveryCall);
+
+    [Theory]
+    [InlineData("open_project", "Destination", true)]
+    [InlineData("create_project", "Created", true)]
+    [InlineData("save_project", "Source", true)]
+    [InlineData("save_project_as", "Copy", true)]
+    [InlineData("archive_project", "Archive.zap21", true)]
+    [InlineData("close_project", "Source", true)]
+    [InlineData("close_project", "Source", false)]
+    public void DescribeForConfirmation_NamesOperationAndTarget(string operation, string target, bool save)
+    {
+        var item = new LifecycleWriteItem(operation) { SaveBeforeClose = save };
+        var effect = new LifecycleEffects("Source", "Destination", operation == "create_project" ? "Created" : "Copy",
+            null, null, operation == "open_project", save, false, false, null, "Archive.zap21");
+        var message = new LifecycleWriteDomain(null!, item).DescribeForConfirmation([item], [ItemPlan<LifecycleEffects>.Resolved(effect)]);
+        Assert.Contains(operation, message);
+        Assert.Contains(target, message);
+        if (operation == "open_project") Assert.Contains("Close source project 'Source'", message);
+        if (operation == "close_project") Assert.Contains(save ? "save" : "discard", message);
+    }
+
     public static IEnumerable<object[]> BehaviorMatrix()
         => from operation in new[] { "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project" }
            from behavior in new[] { "rejected", "dryRun", "success", "worker-failure", "malformed", "verification-failure" }
@@ -28,7 +52,7 @@ public sealed class LifecycleGuardedBehaviorTests
         if (behavior == "rejected") item = item with { ProjectPath = "relative-path" };
         var dryRun = behavior == "dryRun";
         var result = await ProjectWriteTools.ExecuteAsync(fixture.Client, fixture.Execution, item,
-            new(new UserConfirmationOptions(false)), dryRun);
+            new(null), dryRun);
         using var document = JsonDocument.Parse(Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
         var root = document.RootElement;
         Assert.Equal(operation, root.GetProperty("tool").GetString());
@@ -106,7 +130,7 @@ public sealed class LifecycleGuardedBehaviorTests
         foreach (var operation in new[] { "open_project", "create_project" })
         {
             var result = await ProjectWriteTools.ExecuteAsync(fixture.Client, fixture.Execution, fixture.Item(operation),
-                new(new UserConfirmationOptions()), dryRun: true);
+                new(null), dryRun: true);
             Assert.False(result.IsError == true);
             Assert.Equal(ProjectBindingSnapshot.UnboundState, fixture.Client.BindingSnapshot.State);
         }
@@ -123,6 +147,7 @@ public sealed class LifecycleGuardedBehaviorTests
         private readonly string _root;
         private readonly string _source;
         private readonly string _destination;
+        private readonly FakeWorkerUiOpenProject _uiOpen;
         public OpennessWorkerClient Client { get; }
         public WriteExecution Execution { get; }
         public Audit Audit { get; } = new();
@@ -136,6 +161,7 @@ public sealed class LifecycleGuardedBehaviorTests
             _destination = Path.Combine(_root, "Destination.ap21");
             File.WriteAllText(_source, "fixture");
             File.WriteAllText(_destination, "fixture");
+            _uiOpen = new FakeWorkerUiOpenProject(configured ? _source : null);
             Client = new(new ProjectSessionBinding(configured ? _source : null), logger: null,
                 workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.Full));
             Execution = new(new OpennessWriteBindingGate(Client), Audit, LifecycleWriteDomain.Catalog, TimeProvider.System);
@@ -151,6 +177,7 @@ public sealed class LifecycleGuardedBehaviorTests
         public void Dispose()
         {
             Client.Dispose();
+            _uiOpen.Dispose();
             Directory.Delete(_root, recursive: true);
         }
     }

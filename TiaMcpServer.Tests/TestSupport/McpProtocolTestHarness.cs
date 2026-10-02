@@ -115,14 +115,12 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         McpAccessMode accessMode,
         string? auditDirectory = null,
         string? startupProjectPath = null,
-        bool confirmWithUser = true,
         McpClientOptions? clientOptions = null)
         => StartCoreAsync(
             accessMode,
             builder => builder.WithAccessModeTools(accessMode),
             auditDirectory,
             startupProjectPath,
-            confirmWithUser,
             clientOptions);
 
     private static IMcpServerBuilder RegisterToolType<TTools>(IMcpServerBuilder builder)
@@ -136,7 +134,6 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         Action<IMcpServerBuilder> registerTools,
         string? auditDirectory,
         string? startupProjectPath,
-        bool confirmWithUser = true,
         McpClientOptions? clientOptions = null)
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
@@ -159,7 +156,6 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(binding);
         collection.AddSingleton(accessPolicy);
         collection.AddSingleton(workerClient);
-        collection.AddSingleton(new UserConfirmationOptions(confirmWithUser));
         collection.AddSingleton(sp => new WriteExecution(
             new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
             new JsonlWriteAuditSink(auditDirectory), LifecycleWriteDomain.Catalog, TimeProvider.System));

@@ -66,6 +66,12 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public string ContractVersion => "fake/1";
 
+    public bool ConfirmsEveryCall { get; set; }
+
+    public string DescribeForConfirmation(IReadOnlyList<FakeWriteItem> items, IReadOnlyList<ItemPlan<FakeEffect>> plans)
+        => $"Confirm '{ToolName}': " + string.Join(", ", plans.Where(plan => plan.Effect is not null)
+            .Select(plan => $"{plan.Effect!.Change} {plan.Effect.Target}"));
+
     public List<string> Calls { get; } = new();
 
     public WriteValidation Validation { get; set; } = WriteValidation.Valid();
@@ -225,7 +231,7 @@ public sealed class FakeWriteBindingGate : IWriteBindingGate
 {
     public const string ProjectPath = @"C:\Projects\Fake\Fake.ap21";
 
-    public McpAccessMode AccessMode { get; set; } = McpAccessMode.ReadWrite;
+    public McpAccessMode AccessMode { get; set; }
 
     public ProjectBindingSnapshot CurrentBinding { get; set; } = Snapshot(
         ProjectBindingSnapshot.VerifiedState, "binding-1", 3, ProjectPath);

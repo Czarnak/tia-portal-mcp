@@ -22,7 +22,7 @@ public static class WriteGuardSeverities
     /// <summary>Reported as a warning; never stops the call.</summary>
     public const string Info = "info";
 
-    /// <summary>Stops the call unless the caller lists the guard id in <c>acknowledge</c>.</summary>
+    /// <summary>Requires user confirmation or satisfaction by the access-mode policy.</summary>
     public const string Acknowledge = "acknowledge";
 
     /// <summary>Always stops the call.</summary>
@@ -36,8 +36,8 @@ public static class WriteGuardSeverities
 /// <summary>Who may satisfy an acknowledge guard.</summary>
 public static class GuardSatisfactions
 {
-    /// <summary>The calling agent satisfies the guard through <c>acknowledge</c>.</summary>
-    public const string Agent = "agent";
+    /// <summary>The access-mode policy satisfies the guard.</summary>
+    public const string Policy = "policy";
 
     /// <summary>Only the human user may satisfy the guard.</summary>
     public const string User = "user";

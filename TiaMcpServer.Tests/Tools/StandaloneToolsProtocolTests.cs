@@ -16,6 +16,7 @@ public sealed class StandaloneToolsProtocolTests
     [InlineData("status-oversized", "omitted")]
     public async Task StatusDecodePrecedesBudgetProjection_ThroughActualSdk(string scenario, string status)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full);
         var response = await harness.Client.CallToolAsync("get_project_status", new Dictionary<string, object?> { ["projectPath"] = scenario });
         Assert.Empty(StructuredContractInspector.FindViolations(response));
@@ -65,6 +66,7 @@ public sealed class StandaloneToolsProtocolTests
     {
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);
         var tools = await harness.Client.ListToolsAsync();
+        Assert.Equal(mode == McpAccessMode.ReadOnly ? 4 : 14, tools.Count);
         var statusTool = Assert.Single(tools, tool => tool.Name == "get_project_status");
         var statusSchema = statusTool.ProtocolTool.OutputSchema!.Value;
         Assert.Equal(new[] { "contractVersion", "error", "result", "success", "tool", "warnings" },

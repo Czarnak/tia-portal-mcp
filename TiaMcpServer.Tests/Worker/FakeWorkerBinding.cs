@@ -21,6 +21,9 @@ internal static class FakeWorkerBinding
     {
         var canonicalProjectPath = ProjectPathNormalization.Canonicalize(projectPath)
             ?? throw new InvalidOperationException("A project path is required for FakeWorker binding.");
+        // This helper is used only by source-present fixtures. Declare that source before the
+        // child worker launches; a status request must not create open state on its own.
+        using var uiOpen = new FakeWorkerUiOpenProject(canonicalProjectPath);
         var observed = await identityOptionalRead(canonicalProjectPath);
         if (!observed.Success || observed.SessionIdentity is null)
         {

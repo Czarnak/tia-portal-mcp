@@ -99,7 +99,7 @@ public sealed class TagOperationSafetyReaderTests
         var snapshot = (UpdateUserConstantSafetySnapshotInfo)fixture.Read();
         Assert.Equal(new[] { "block-name", "tag-name", "user-constant-name" },
             snapshot.NameCollisions.Select(x => x.Kind).OrderBy(x => x, StringComparer.Ordinal));
-        var target = Assert.Single(snapshot.NameCollisions.Where(x => x.IsTarget));
+        var target = Assert.Single(snapshot.NameCollisions, x => x.IsTarget);
         Assert.Equal("user-constant-name", target.Kind);
 
         var tagFixture = new Fixture("create_tag");

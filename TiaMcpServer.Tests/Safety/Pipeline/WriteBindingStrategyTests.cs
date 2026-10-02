@@ -8,7 +8,7 @@ namespace TiaMcpServer.Tests.Safety.Pipeline;
 
 public sealed class WriteBindingStrategyTests
 {
-    private readonly FakeWriteBindingGate _gate = new();
+    private readonly FakeWriteBindingGate _gate = new() { AccessMode = McpAccessMode.Full };
     private readonly FakeWriteDomain _domain;
     private readonly RecordingAuditSink _audit;
     private readonly WriteExecution _execution;
@@ -98,7 +98,7 @@ public sealed class WriteBindingStrategyTests
         Assert.Equal(0, _domain.MutationCount);
     }
 
-    private static WriteCall<FakeWriteItem> Call() => new(null, new[] { new FakeWriteItem("a") }, false, null);
+    private static WriteCall<FakeWriteItem> Call() => new(null, new[] { new FakeWriteItem("a") }, false);
 
     private sealed class PreparedStrategy(ProjectBindingSnapshot binding) : IWriteBindingStrategy<FakeWriteItem>
     {

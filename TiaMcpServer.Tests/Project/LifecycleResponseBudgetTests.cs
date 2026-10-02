@@ -37,7 +37,7 @@ public sealed class LifecycleResponseBudgetTests
             null, false, false, false, false, item.Mode, archive);
         Assert.True(CanonicalJson.Serialize(effect.SourceStatus).Length < StructuredOperationBatchPayloadBudget.MaxItemChars);
         var guards = GuardDecisions.Decide(domain.EvaluateGuards(new[] { item },
-            new[] { ItemPlan<LifecycleEffects>.Resolved(effect) }), null, LifecycleWriteDomain.Catalog, dryRun).Guards;
+            new[] { ItemPlan<LifecycleEffects>.Resolved(effect) }), ConfirmationMode.Policy, LifecycleWriteDomain.Catalog, dryRun).Guards;
         Assert.Equal(3, guards.Count);
         var error = dryRun ? null : new WriteToolError(WorkerFailureCategories.GuardBlocked, "The archive destination is blocked.");
         var report = new WriteReport<LifecycleEffects, StandaloneToolOutcome<ProjectStatusInfo>>(
@@ -99,13 +99,14 @@ public sealed class LifecycleResponseBudgetTests
         File.WriteAllText(path, "fixture");
         try
         {
+            using var uiOpen = new FakeWorkerUiOpenProject(path);
             using var client = new OpennessWorkerClient(new ProjectSessionBinding(path), logger: null,
                 workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.Full));
             var audit = new Audit();
             var execution = new WriteExecution(new OpennessWriteBindingGate(client), audit,
                 LifecycleWriteDomain.Catalog, TimeProvider.System);
             var result = await ProjectWriteTools.ExecuteAsync(client, execution,
-                new("save_project") { ProjectPath = path }, new(new UserConfirmationOptions(false)));
+                new("save_project") { ProjectPath = path }, new(null));
             var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
             using var document = JsonDocument.Parse(text);
             var root = document.RootElement;

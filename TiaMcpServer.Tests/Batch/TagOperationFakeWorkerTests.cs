@@ -8,6 +8,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class TagOperationFakeWorkerTests
 {
     [Fact]

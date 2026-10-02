@@ -220,6 +220,20 @@ public sealed class ToolOutputContractConformanceTests
         using var fixture = new LifecycleProtocolFixture();
         var lifecycle = probe.Tool is "open_project" or "create_project" or "save_project"
             or "save_project_as" or "archive_project" or "close_project";
+        var sourcePath = probe.Name switch
+        {
+            "get_project_status/malformed" => "status-malformed",
+            "get_project_status/omitted" => "status-oversized",
+            "network_read/succeeded" => "network-roundtrip",
+            "browse_project_tree/succeeded" => "project-tree-v3-small",
+            _ => probe.StartupProjectPath == "guarded-lifecycle"
+                ? fixture.SourcePath : probe.StartupProjectPath
+        };
+        using var uiOpen = probe.Name is "get_project_status/malformed" or
+            "get_project_status/omitted" or "network_read/succeeded" or
+            "browse_project_tree/succeeded"
+            ? FakeWorkerUiOpenProject.ForWorkerRelativePath(sourcePath!)
+            : new FakeWorkerUiOpenProject(sourcePath);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full,
             audit.Path,
@@ -233,6 +247,12 @@ public sealed class ToolOutputContractConformanceTests
         Assert.True(
             probe.ExpectIsError == (result.IsError == true),
             $"Expected isError={probe.ExpectIsError}. Response: {TextOf(result)}");
+        if (probe.Name == "network_read/succeeded")
+        {
+            var document = result.StructuredContent!.Value;
+            Assert.Equal(1, document.GetProperty("batch").GetProperty("counts")
+                .GetProperty("succeeded").GetInt32());
+        }
         if (lifecycle && !probe.ExpectIsError)
         {
             using var document = System.Text.Json.JsonDocument.Parse(TextOf(result));

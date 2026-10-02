@@ -10,15 +10,18 @@ using Xunit;
 namespace TiaMcpServer.Tests.Project;
 
 /// <summary>Concrete lifecycle preparation over the existing worker-client source and lease rules.</summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class LifecycleBindingStrategyTests
 {
     [Theory]
-    [InlineData("open_project")]
-    [InlineData("create_project")]
-    public async Task UnboundOpenAndCreate_PrepareTheExactUnboundSource(string operation)
+    [InlineData(McpAccessMode.ReadWrite, "open_project")]
+    [InlineData(McpAccessMode.ReadWrite, "create_project")]
+    [InlineData(McpAccessMode.Full, "open_project")]
+    [InlineData(McpAccessMode.Full, "create_project")]
+    public async Task UnboundOpenAndCreate_PrepareTheExactUnboundSource(McpAccessMode mode, string operation)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = Client(binding, mode);
         var before = client.BindingSnapshot;
 
         var prepared = await new LifecycleBindingStrategy(client).PrepareAsync(Call(Item(operation, Destination())));
@@ -34,6 +37,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task VerifiedSameProjectOpen_PreparesTheOriginalRevision()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -50,6 +54,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task ConfiguredSource_IsGroundedAsSource_WithoutAdoptingDestination()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var destination = Destination();
         var binding = new ProjectSessionBinding(source);
         using var client = Client(binding);
@@ -67,6 +72,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task InvalidatedSourceRecovery_PinsItsFreshVerifiedRevision()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -86,6 +92,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task DestinationSwitchWithoutForce_IsRefusedBeforeAnyRebinding()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -104,6 +111,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task SourcePreparation_PreservesBothWorkerOwnedAndExternallyOwnedProjects(bool externallyOwned)
     {
         var source = Source(externallyOwned ? "Source-ui-owned" : "Source");
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var destination = Destination();
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
@@ -125,6 +133,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task CreateWithActiveSource_PreparesSource_WithoutOpeningDestination()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -141,6 +150,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task PreparedRevisionBecomesStale_LeaseRefusesBeforeDispatch()
     {
         var source = Source();
+        using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
         using var client = Client(binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
@@ -163,9 +173,7 @@ public sealed class LifecycleBindingStrategyTests
     [Theory]
     [InlineData(McpAccessMode.ReadOnly, "open_project")]
     [InlineData(McpAccessMode.ReadOnly, "create_project")]
-    [InlineData(McpAccessMode.ReadWrite, "open_project")]
-    [InlineData(McpAccessMode.ReadWrite, "create_project")]
-    public async Task NonFullAccess_CannotPrepareLifecycleOrGroundAConfiguredSource(McpAccessMode mode, string operation)
+    public async Task ReadOnly_CannotPrepareLifecycleOrGroundAConfiguredSource(McpAccessMode mode, string operation)
     {
         var binding = new ProjectSessionBinding(Source());
         using var client = Client(binding, mode);
@@ -190,7 +198,7 @@ public sealed class LifecycleBindingStrategyTests
         ProjectName = operation == "create_project" ? Path.GetFileNameWithoutExtension(target) : null
     };
 
-    private static WriteCall<LifecycleWriteItem> Call(LifecycleWriteItem item) => new(item.ProjectPath, new[] { item }, false, null);
+    private static WriteCall<LifecycleWriteItem> Call(LifecycleWriteItem item) => new(item.ProjectPath, new[] { item }, false);
 
     private static string Source(string name = "Source") => FixturePath(name);
 

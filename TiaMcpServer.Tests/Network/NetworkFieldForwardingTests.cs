@@ -8,6 +8,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public class NetworkFieldForwardingTests
 {
     private static async Task<OpennessWorkerClient> CreateClientAsync()

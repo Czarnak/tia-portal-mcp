@@ -15,6 +15,7 @@ namespace TiaMcpServer.Tests.Batch;
 /// nothing checks the catalog-to-worker boundary. Asserts by VALUE, not
 /// by property name, so renaming either side of the boundary cannot make this pass vacuously.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class BatchFieldForwardingTests
 {
     private static string LocateFakeWorker()

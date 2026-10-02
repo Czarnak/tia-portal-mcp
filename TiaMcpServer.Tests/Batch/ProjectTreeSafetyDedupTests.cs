@@ -8,6 +8,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class ProjectTreeSafetyDedupTests
 {
     private const string ProjectPath = "tree-safety-dedup";

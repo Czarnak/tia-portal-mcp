@@ -16,6 +16,10 @@ public interface IWriteDomain<TItem, TEffect, TVerification, TResponse>
 
     string ContractVersion { get; }
 
+    bool ConfirmsEveryCall => false;
+
+    string DescribeForConfirmation(IReadOnlyList<TItem> items, IReadOnlyList<ItemPlan<TEffect>> plans) => ToolName;
+
     /// <summary>Validates the items and the access mode before any worker call.</summary>
     WriteValidation Validate(IReadOnlyList<TItem> items, McpAccessMode accessMode);
 

@@ -7,6 +7,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Batch;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class ProjectTreeCurrentStateReadTests
 {
     [Theory]

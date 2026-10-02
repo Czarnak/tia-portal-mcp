@@ -9,6 +9,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public class ProjectStandaloneToolTests
 {
     private static OpennessWorkerClient CreateClient(
@@ -24,6 +25,7 @@ public class ProjectStandaloneToolTests
         ProjectSessionBinding binding,
         string projectPath)
     {
+        using var uiOpen = new FakeWorkerUiOpenProject(projectPath);
         var result = await client.GetProjectStatusAsync(projectPath);
         Assert.True(result.Success, result.Error);
         Assert.True(binding.IsVerified);

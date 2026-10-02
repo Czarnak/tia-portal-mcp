@@ -23,7 +23,8 @@ public sealed class LifecycleGuardedContractTests
         Assert.Equal(typeof(Task<CallToolResult>), method.ReturnType);
         var inputs = method.GetParameters().Select(parameter => parameter.Name).ToArray();
         Assert.Contains("dryRun", inputs);
-        Assert.Contains("acknowledge", inputs);
+        Assert.DoesNotContain("acknowledge", inputs);
+        Assert.DoesNotContain("options", inputs);
         Assert.DoesNotContain("confirm", inputs);
         Assert.DoesNotContain("safetyToken", inputs);
     }
@@ -41,11 +42,12 @@ public sealed class LifecycleGuardedContractTests
     }
 
     [Fact]
-    public void NoProjectVerification_IsFullOnly_WithoutRequiringAProjectIdentity()
+    public void NoProjectVerification_RequiresWritableMode_WithoutRequiringAProjectIdentity()
     {
         Assert.False(OperationPolicyCatalog.RequiresExpectedSessionIdentity("get_basic_project_status"));
         Assert.Equal(WorkerFailureCategories.AccessDenied,
-            new OperationAccessPolicy(McpAccessMode.ReadWrite).Authorize("get_basic_project_status")!.FailureCategory);
+            new OperationAccessPolicy(McpAccessMode.ReadOnly).Authorize("get_basic_project_status")!.FailureCategory);
+        Assert.Null(new OperationAccessPolicy(McpAccessMode.ReadWrite).Authorize("get_basic_project_status"));
         Assert.Null(new OperationAccessPolicy(McpAccessMode.Full).Authorize("get_basic_project_status"));
         foreach (var mutation in new[] { "save_project", "save_project_as", "archive_project", "close_project" })
             Assert.True(OperationPolicyCatalog.RequiresExpectedSessionIdentity(mutation));

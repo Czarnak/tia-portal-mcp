@@ -1199,7 +1199,7 @@ internal static class Program
     {
         return WithSession(request, session =>
         {
-            var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath);
+            var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath, _accessMode);
             return Success(new ProjectStatusResultInfo
             {
                 Operation = "get_project_status",
@@ -1221,7 +1221,7 @@ internal static class Program
     {
         return ProjectLifecycle(request, session =>
         {
-            var status = ProjectLifecycleService.GetBasicStatusReadOnly(session, request.ProjectPath);
+            var status = ProjectLifecycleService.GetBasicStatusReadOnly(session, request.ProjectPath, _accessMode);
             return new ProjectLifecycleResultInfo
             {
                 Operation = "get_project_status",
@@ -1393,69 +1393,35 @@ internal static class Program
     }
 
     /// <summary>
-    /// Applies <see cref="ProjectOpenPolicy"/> before any non-lifecycle operation may open a
-    /// project. Returns null to continue, or the failure response to return to the host.
-    /// In read-only mode, opening a project is never permitted — only the currently open
-    /// project may be used.
+    /// Applies <see cref="ProjectOpenPolicy"/> before a non-lifecycle operation uses the
+    /// already-open project. Returns null to continue, or a failure response to the host.
     /// </summary>
     private static WorkerResponse? EnsureRequestedProjectOpen(WorkerTiaPortalSession session, string? requestedProjectPath)
     {
         var currentPath = session.CurrentProjectPath;
 
-        if (_accessMode == McpAccessMode.ReadOnly)
-        {
-            // Read-only mode: never open a project. Only use what is already open.
-            if (currentPath is null)
-            {
-                var requested = ProjectPathNormalization.Canonicalize(requestedProjectPath);
-                if (requested is not null)
-                {
-                    // A path was supplied but nothing is open — do NOT open it; treat it as an assertion failure.
-                    return Failure(
-                        WorkerFailureCategories.AccessDenied,
-                        "Read-only mode operates only on the project already open in TIA Portal. "
-                        + "Open the intended project manually and retry.");
-                }
-
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    "No project is open in TIA Portal. Open the intended project manually and retry.");
-            }
-
-            if (requestedProjectPath is not null)
-            {
-                var requested = ProjectPathNormalization.Canonicalize(requestedProjectPath);
-                if (requested is not null && !string.Equals(currentPath, requested, StringComparison.OrdinalIgnoreCase))
-                {
-                    return Failure(
-                        WorkerFailureCategories.BindingConflict,
-                        $"Read-only mode is bound to '{currentPath}' but the request targets '{requested}'. "
-                        + "Read-only mode does not switch projects. Omit projectPath to use the open project.");
-                }
-            }
-
-            return null;
-        }
-
-        // Read-write mode: existing behavior.
         switch (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath))
         {
-            case ProjectOpenDecision.OpenRequested:
-                session.OpenProject(requestedProjectPath!);
-                return null;
+            case ProjectOpenDecision.RequestedNotOpen:
+                return Failure(
+                    WorkerFailureCategories.AccessDenied,
+                    ProjectOpenPolicy.NotOpenMessage(requestedProjectPath!, _accessMode));
             case ProjectOpenDecision.Refuse:
                 return Failure(
                     WorkerFailureCategories.BindingConflict,
-                    ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
+                    ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, _accessMode));
             default:
-                return null;
+                if (currentPath is not null)
+                    return null;
+                return Failure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "No project is open in TIA Portal. Open the intended project manually and retry.");
         }
     }
 
     /// <summary>
-    /// EnsureRequestedProjectOpen may legitimately open or switch a handle in read-write mode.
-    /// Re-check the caller's identity afterwards so no operation body can run on a generation that
-    /// was established only after the original precondition check.
+    /// Re-check the caller's identity after resolving the already-open project so no operation
+    /// body can run on a generation that changed after the original precondition check.
     /// </summary>
     private static void ValidateExpectedAfterProjectResolution(
         WorkerTiaPortalSession session,

@@ -58,9 +58,9 @@ public class Phase1bCliModeTests
     [InlineData("--confirm-with-user")]
     [InlineData("--confirm-with-user=false")]
     [InlineData("--confirm-with-user=TRUE")]
-    public void ConfirmationArguments_AreRemovedBeforeGenericHostParsing(string flag)
+    public void RemovedConfirmationArguments_AreNotSilentlyFiltered(string flag)
     {
         var args = new[] { flag, "--project", "Line.ap21", "--Logging:LogLevel:Default=Debug" };
-        Assert.Equal(new[] { "--project", "Line.ap21", "--Logging:LogLevel:Default=Debug" }, HostArgumentFilter.RemoveAccessModeArguments(args));
+        Assert.Equal(args, HostArgumentFilter.RemoveAccessModeArguments(args));
     }
 }

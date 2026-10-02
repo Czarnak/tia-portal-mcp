@@ -17,8 +17,7 @@ public class ReadWriteModeCeilingTests
 {
     public static IEnumerable<object[]> RestrictedOperations => new[]
     {
-        "open_project", "create_project", "save_project", "save_project_as", "archive_project",
-        "close_project", "probe_project_status_for_lifecycle", "probe_open_project_rebind", "get_basic_project_status", "start_plc", "stop_plc"
+        "start_plc", "stop_plc"
     }.Select(operation => new object[] { operation });
 
     private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding, string path, McpAccessMode mode)
@@ -34,7 +33,7 @@ public class ReadWriteModeCeilingTests
 
     [Theory]
     [MemberData(nameof(RestrictedOperations))]
-    public async Task ReadWrite_DeniesLifecycleAndOnlineControlBeforeTransport(string operation)
+    public async Task ReadWrite_DeniesOnlineControlBeforeTransport(string operation)
     {
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
@@ -79,23 +78,22 @@ public class ReadWriteModeCeilingTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task LifecycleSingleCall_ReadWriteCannotBootstrapOrRebind(bool invalidated, bool dryRun)
+    public async Task LifecycleSingleCall_ReadOnlyCannotBootstrapOrRebind(bool invalidated, bool dryRun)
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(@"C:\Fixture\Line.ap21");
         if (invalidated) binding.Invalidate("test invalidation");
         var before = binding.CaptureSnapshot();
-        using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
+        using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadOnly);
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
         var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
         {
-            () => ProjectWriteTools.OpenProject(client, execution, options, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
-            () => ProjectWriteTools.CreateProject(client, execution, options, audit.Path, "Fixture", dryRun: dryRun),
-            () => ProjectWriteTools.SaveProject(client, execution, options, dryRun: dryRun),
-            () => ProjectWriteTools.SaveProjectAs(client, execution, options, audit.Path, "Copy", dryRun: dryRun),
-            () => ProjectWriteTools.ArchiveProject(client, execution, options, audit.Path, "Archive", dryRun: dryRun),
-            () => ProjectWriteTools.CloseProject(client, execution, options, dryRun: dryRun)
+            () => ProjectWriteTools.OpenProject(client, execution, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
+            () => ProjectWriteTools.CreateProject(client, execution, audit.Path, "Fixture", dryRun: dryRun),
+            () => ProjectWriteTools.SaveProject(client, execution, dryRun: dryRun),
+            () => ProjectWriteTools.SaveProjectAs(client, execution, audit.Path, "Copy", dryRun: dryRun),
+            () => ProjectWriteTools.ArchiveProject(client, execution, audit.Path, "Archive", dryRun: dryRun),
+            () => ProjectWriteTools.CloseProject(client, execution, dryRun: dryRun)
         };
         foreach (var call in calls)
         {
@@ -138,12 +136,15 @@ public class ReadWriteModeCeilingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReadWrite_InitialAttachmentStillWorks_AndReadCannotSwitchAttachedProject(bool startupPath)
+    public async Task ReadWrite_InitialAttachmentStillWorks_FromStartupOrUiOpen(bool startupPath)
     {
         const string project = "ok";
+        // startupPath exercises the host's --project assertion against a UI-open project.
+        using var uiOpen = new FakeWorkerUiOpenProject(project);
+        var openPath = ProjectPathNormalization.Canonicalize(project)!;
         var binding = new ProjectSessionBinding(startupPath ? project : null);
         using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
-        var observed = await client.GetProjectStatusAsync(project);
+        var observed = await client.GetProjectStatusAsync(openPath);
         Assert.True(observed.Success, observed.Error);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, project);
         Assert.True(binding.IsVerified);
@@ -151,14 +152,29 @@ public class ReadWriteModeCeilingTests
         var refused = await client.GetProjectStatusAsync(@"C:\Fixture\Other.ap21");
         Assert.Equal(WorkerFailureCategories.BindingConflict, refused.FailureCategory);
         Assert.True(before.SameBinding(binding.CaptureSnapshot()));
-        var next = await client.GetProjectStatusAsync(project);
+        var next = await client.GetProjectStatusAsync(openPath);
         Assert.True(next.Success, next.Error);
         Assert.Equal("{\"seq\":3}", next.Payload);
     }
 
     [Fact]
+    public async Task ConfiguredProjectCannotBePromotedFromUnopenedCannedStatus()
+    {
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
+        var binding = new ProjectSessionBinding("ok");
+        using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
+
+        var observed = await client.GetProjectStatusAsync("ok");
+
+        Assert.False(observed.Success);
+        Assert.False(binding.IsVerified);
+        Assert.Null(observed.SessionIdentity?.ProjectPath);
+    }
+
+    [Fact]
     public async Task WorkerLaunch_PropagatesFullAcrossRestart()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         using var audit = new TempAuditDirectory();
         var log = Path.Combine(audit.Path, "launches.jsonl");
         Directory.CreateDirectory(audit.Path);

@@ -19,6 +19,7 @@ namespace TiaMcpServer.Tests.Safety;
 /// Comprehensive tests for the read-only safety mode: configuration, policy catalog,
 /// host-side enforcement, worker-side authorization, tool discovery, and batch behavior.
 /// </summary>
+[Collection(RealWorkerProcessCollection.Name)]
 public class ReadOnlyModeTests
 {
     #region Configuration Tests
@@ -291,12 +292,18 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void OperationAccessPolicy_ReadWrite_AllowsEditsAndCompile()
+    public void OperationAccessPolicy_ReadWrite_AllowsEditsCompileAndLifecycle()
     {
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         Assert.Null(policy.Authorize("update_block_logic"));
         Assert.Null(policy.Authorize("compile_check"));
         Assert.Null(policy.Authorize("get_project_status"));
+        Assert.Null(policy.Authorize("open_project"));
+        Assert.Null(policy.Authorize("create_project"));
+        Assert.Null(policy.Authorize("save_project"));
+        Assert.Null(policy.Authorize("save_project_as"));
+        Assert.Null(policy.Authorize("archive_project"));
+        Assert.Null(policy.Authorize("close_project"));
         Assert.Equal(WorkerFailureCategories.AccessDenied, policy.Authorize("start_plc")!.FailureCategory);
     }
 
@@ -757,15 +764,14 @@ public class ReadOnlyModeTests
         using var client = new OpennessWorkerClient(binding, workerExecutablePath: "worker-must-not-start.exe",
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
         var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
         {
-            () => ProjectWriteTools.OpenProject(client, execution, options, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
-            () => ProjectWriteTools.CreateProject(client, execution, options, audit.Path, "Fixture", dryRun: dryRun),
-            () => ProjectWriteTools.SaveProject(client, execution, options, dryRun: dryRun),
-            () => ProjectWriteTools.SaveProjectAs(client, execution, options, audit.Path, "Copy", dryRun: dryRun),
-            () => ProjectWriteTools.ArchiveProject(client, execution, options, audit.Path, "Archive", dryRun: dryRun),
-            () => ProjectWriteTools.CloseProject(client, execution, options, dryRun: dryRun)
+            () => ProjectWriteTools.OpenProject(client, execution, @"C:\Fixture\Other.ap21", forceRebind: true, dryRun: dryRun),
+            () => ProjectWriteTools.CreateProject(client, execution, audit.Path, "Fixture", dryRun: dryRun),
+            () => ProjectWriteTools.SaveProject(client, execution, dryRun: dryRun),
+            () => ProjectWriteTools.SaveProjectAs(client, execution, audit.Path, "Copy", dryRun: dryRun),
+            () => ProjectWriteTools.ArchiveProject(client, execution, audit.Path, "Archive", dryRun: dryRun),
+            () => ProjectWriteTools.CloseProject(client, execution, dryRun: dryRun)
         };
         foreach (var call in calls)
         {

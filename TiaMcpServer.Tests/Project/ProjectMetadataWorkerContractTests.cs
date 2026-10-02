@@ -159,7 +159,7 @@ public class ProjectMetadataWorkerContractTests
         // gate as GetStatusReadOnly but returning plain ReadStatus, so a write never enumerates
         // history, queries the V21 settings providers, or surfaces metadata warnings.
         Assert.Contains("GetBasicStatusReadOnly", source, StringComparison.Ordinal);
-        Assert.Contains("public static ProjectStatusInfo GetBasicStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)", source, StringComparison.Ordinal);
+        Assert.Contains("public static ProjectStatusInfo GetBasicStatusReadOnly(TiaPortalSession session, string? requestedProjectPath,", source, StringComparison.Ordinal);
 
         // The metadata reader is invoked in exactly one place (ReadStatusWithMetadata, reachable
         // only from GetStatusReadOnly): the basic-status read and the lifecycle probe cannot

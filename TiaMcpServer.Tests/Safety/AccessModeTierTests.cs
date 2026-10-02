@@ -32,17 +32,20 @@ public class AccessModeTierTests
     }
 
     [Fact]
-    public void Presets_EnforceEveryKnownCapability()
+    public void Presets_ReadWriteAllowsLifecycle_FullAddsOnlyOnlineControl()
     {
         foreach (var operation in OperationPolicyCatalog.AllOperationNames)
         {
             var capability = OperationPolicyCatalog.GetCapability(operation);
             var readOnly = capability is OperationCapability.Observe
                 or OperationCapability.TemporaryExport or OperationCapability.SafetyRead;
-            var readWrite = readOnly || capability is OperationCapability.Compile or OperationCapability.ProjectMutation;
+            var readWrite = readOnly || capability is OperationCapability.Compile
+                or OperationCapability.ProjectMutation or OperationCapability.ProjectLifecycle;
             Assert.Equal(readOnly, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
             Assert.Equal(readWrite, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, operation));
             Assert.True(OperationPolicyCatalog.IsAllowed(Full, operation), operation);
+            Assert.Equal(capability == OperationCapability.OnlineControl,
+                OperationPolicyCatalog.IsAllowed(Full, operation) && !readWrite);
         }
     }
 
@@ -50,18 +53,18 @@ public class AccessModeTierTests
     [InlineData("compile_check", true)]
     [InlineData("update_tag", true)]
     [InlineData("update_type_content", true)]
-    [InlineData("open_project", false)]
-    [InlineData("create_project", false)]
-    [InlineData("save_project", false)]
-    [InlineData("save_project_as", false)]
-    [InlineData("archive_project", false)]
-    [InlineData("close_project", false)]
+    [InlineData("open_project", true)]
+    [InlineData("create_project", true)]
+    [InlineData("save_project", true)]
+    [InlineData("save_project_as", true)]
+    [InlineData("archive_project", true)]
+    [InlineData("close_project", true)]
     [InlineData("start_plc", false)]
     [InlineData("stop_plc", false)]
-    [InlineData("probe_project_status_for_lifecycle", false)]
-    [InlineData("probe_open_project_rebind", false)]
-    [InlineData("get_basic_project_status", false)]
-    public void ReadWrite_CeilingProtectsPersistenceAndRuntime(string operation, bool allowed)
+    [InlineData("probe_project_status_for_lifecycle", true)]
+    [InlineData("probe_open_project_rebind", true)]
+    [InlineData("get_basic_project_status", true)]
+    public void ReadWrite_CeilingProtectsOnlineControl(string operation, bool allowed)
     {
         Assert.Equal(allowed, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, operation));
         Assert.True(OperationPolicyCatalog.IsAllowed(Full, operation));

@@ -123,7 +123,7 @@ public sealed class HardwarePageWorkerClientTests
             different.WorkerResult.FailureCategory);
 
         var nextRequest = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: "ok",
+            projectPath: ProjectPath,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -133,7 +133,7 @@ public sealed class HardwarePageWorkerClientTests
             requiredHostBinding: null,
             expectedSessionIdentity: null);
         Assert.True(nextRequest.WorkerResult.Success, nextRequest.WorkerResult.Error);
-        Assert.Equal("{\"seq\":3}", nextRequest.WorkerResult.Payload);
+        Assert.Equal(ProjectPath, nextRequest.WorkerResult.SessionIdentity?.ProjectPath);
     }
 
     [Theory]
@@ -279,10 +279,12 @@ public sealed class HardwarePageWorkerClientTests
             workerExecutablePath: FakeWorkerLocator.Locate(),
             requestTimeout: TimeSpan.FromSeconds(5));
 
-    private static Task<HardwarePageWorkerCallResult> FirstPageAsync(
+    private static async Task<HardwarePageWorkerCallResult> FirstPageAsync(
         OpennessWorkerClient client,
         string projectPath)
-        => client.ReadHardwarePageCandidatesAsync(
+    {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(projectPath);
+        return await client.ReadHardwarePageCandidatesAsync(
             projectPath,
             deviceName: null,
             plcName: null,
@@ -292,6 +294,7 @@ public sealed class HardwarePageWorkerClientTests
             continuation: null,
             requiredHostBinding: null,
             expectedSessionIdentity: null);
+    }
 
     private static HardwarePageContinuationInfo Continuation()
         => new(

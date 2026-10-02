@@ -27,14 +27,13 @@ public class AuditIsolationTests
         using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         var execution = LifecycleTestCalls.Execution(client, audit);
-        var options = new UserConfirmationOptions(false);
         using var fixture = new LifecycleProtocolFixture();
         var path = fixture.DestinationPath;
 
-        var preview = await ProjectWriteTools.OpenProject(client, execution, options, path, dryRun: true);
+        var preview = await ProjectWriteTools.OpenProject(client, execution, path, dryRun: true);
         Assert.Equal("preview", LifecycleTestCalls.Document(preview).GetProperty("phase").GetString());
         Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
-        var applied = await ProjectWriteTools.OpenProject(client, execution, options, path);
+        var applied = await ProjectWriteTools.OpenProject(client, execution, path);
         Assert.True(LifecycleTestCalls.Document(applied).GetProperty("success").GetBoolean());
 
         Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
@@ -51,7 +50,7 @@ public class AuditIsolationTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var result = await ProjectWriteTools.SaveProject(client,
-            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false));
+            LifecycleTestCalls.Execution(client, audit));
 
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.BindingConflict);
         Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
@@ -68,7 +67,7 @@ public class AuditIsolationTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
 
         var result = await ProjectWriteTools.SaveProjectAs(client,
-            LifecycleTestCalls.Execution(client, audit), new UserConfirmationOptions(false),
+            LifecycleTestCalls.Execution(client, audit),
             targetDirectory: @"C:\Target", targetName: "Copy", rebind: false);
 
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);

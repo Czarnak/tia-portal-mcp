@@ -10,8 +10,20 @@ public class ProjectOpenPolicyTests
         => Assert.Equal(ProjectOpenDecision.UseAttached, ProjectOpenPolicy.Decide(null, null));
 
     [Fact]
-    public void NothingAttached_WithRequest_OpensIt()
-        => Assert.Equal(ProjectOpenDecision.OpenRequested, ProjectOpenPolicy.Decide(null, "C:\\a.ap21"));
+    public void Decide_NothingOpenWithPath_RequestedNotOpen()
+        => Assert.Equal(ProjectOpenDecision.RequestedNotOpen, ProjectOpenPolicy.Decide(null, "C:\\a.ap21"));
+
+    [Theory]
+    [InlineData(McpAccessMode.ReadOnly, false)]
+    [InlineData(McpAccessMode.ReadWrite, true)]
+    [InlineData(McpAccessMode.Full, true)]
+    public void NotOpenMessage_NamesOpenProjectOnlyWhenRegistered(McpAccessMode mode, bool registered)
+    {
+        var message = ProjectOpenPolicy.NotOpenMessage("C:\\a.ap21", mode);
+
+        Assert.Contains("C:\\a.ap21", message);
+        Assert.Equal(registered, message.Contains("open_project", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void Attached_NoRequest_UsesAttached()
@@ -33,13 +45,16 @@ public class ProjectOpenPolicyTests
     public void Attached_WhitespaceRequest_UsesAttached()
         => Assert.Equal(ProjectOpenDecision.UseAttached, ProjectOpenPolicy.Decide("C:\\a.ap21", "   "));
 
-    [Fact]
-    public void RefusalMessage_NamesBothProjectsAndTheEscapeHatch()
+    [Theory]
+    [InlineData(McpAccessMode.ReadOnly, false)]
+    [InlineData(McpAccessMode.ReadWrite, true)]
+    [InlineData(McpAccessMode.Full, true)]
+    public void RefusalMessage_OffersOnlyAvailableSwitchGuidance(McpAccessMode mode, bool canOpen)
     {
-        var message = ProjectOpenPolicy.RefusalMessage("C:\\a.ap21", "C:\\b.ap21");
+        var message = ProjectOpenPolicy.RefusalMessage("C:\\a.ap21", "C:\\b.ap21", mode);
 
         Assert.Contains("C:\\a.ap21", message);
         Assert.Contains("C:\\b.ap21", message);
-        Assert.Contains("open_project", message);
+        Assert.Equal(canOpen, message.Contains("open_project", StringComparison.Ordinal));
     }
 }

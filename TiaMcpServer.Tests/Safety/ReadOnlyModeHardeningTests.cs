@@ -104,6 +104,24 @@ public class ReadOnlyModeHardeningTests
         Assert.True(WorkerOperationAuthorization.AllowsTiaConfirmations(McpAccessMode.ReadWrite));
     }
 
+    [Theory]
+    [InlineData("open_project")]
+    [InlineData("create_project")]
+    [InlineData("save_project")]
+    [InlineData("save_project_as")]
+    [InlineData("archive_project")]
+    [InlineData("close_project")]
+    [InlineData("probe_project_status_for_lifecycle")]
+    [InlineData("probe_open_project_rebind")]
+    [InlineData("get_basic_project_status")]
+    public void WorkerAuthorization_LifecycleRequiresWritableMode(string operation)
+    {
+        Assert.Equal(WorkerFailureCategories.AccessDenied,
+            WorkerOperationAuthorization.Authorize(McpAccessMode.ReadOnly, operation)!.FailureCategory);
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, operation));
+        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, operation));
+    }
+
     /// <summary>
     /// The worker is the final defense layer even if a raw request bypasses the host's own
     /// pre-snapshot access check (see NetworkOperationCatalog.ValidateAccessMode /

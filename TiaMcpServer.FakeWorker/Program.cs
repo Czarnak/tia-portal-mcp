@@ -10,10 +10,18 @@ if (!string.IsNullOrWhiteSpace(launchLog))
     File.AppendAllText(launchLog, JsonSerializer.Serialize(new { processId = Environment.ProcessId, args }) + Environment.NewLine);
 
 var seq = 0;
+var requestLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG");
+var modeIndex = Array.FindIndex(args, arg => string.Equals(arg, "--access-mode", StringComparison.OrdinalIgnoreCase));
+var accessMode = modeIndex < 0 ? McpAccessMode.ReadWrite
+    : modeIndex + 1 < args.Length && McpAccessModeNames.TryParse(args[modeIndex + 1], out var parsedMode)
+        ? parsedMode : McpAccessMode.ReadOnly;
 var workerSessionId = Guid.NewGuid().ToString("N");
 const int FakePortalProcessId = 4242;
 var fakeSessionGeneration = 1L;
-string? fakeProjectPath = null;
+// Tests may model a project that was already opened in the TIA Portal UI before the worker
+// starts. Ordinary requests never establish this mutable session state.
+string? fakeProjectPath = ProjectPathNormalization.Canonicalize(
+    Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_UI_OPEN_PROJECT"));
 string? currentProjectPath = null;
 string? currentMethod = null;
 string? currentRequestLine = null;
@@ -95,6 +103,8 @@ const int SubnetLifecycleDeviceCount = 2;
 string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {
+    if (!string.IsNullOrWhiteSpace(requestLog))
+        File.AppendAllText(requestLog, (ReadMethod(line) ?? "unknown") + Environment.NewLine);
     currentRequestLine = line;
     seq++;
     string? scenario = null;
@@ -104,22 +114,22 @@ while ((line = Console.In.ReadLine()) is not null)
     try
     {
         using var doc = JsonDocument.Parse(line);
+        currentMethod = doc.RootElement.TryGetProperty("method", out var method) && method.ValueKind == JsonValueKind.String
+            ? method.GetString()
+            : null;
         if (doc.RootElement.TryGetProperty("projectPath", out var p) && p.ValueKind == JsonValueKind.String)
         {
             currentProjectPath = p.GetString();
             scenario = ScenarioKey(currentProjectPath);
         }
-        else if (doc.RootElement.TryGetProperty("projectDirectory", out var d) && d.ValueKind == JsonValueKind.String)
+        if (doc.RootElement.TryGetProperty("projectDirectory", out var d) && d.ValueKind == JsonValueKind.String)
         {
-            // create_project carries no projectPath; its scenario key is the target directory so
-            // create-specific IPC tests can drive the fake worker just like path-keyed scenarios.
-            currentProjectPath = d.GetString();
-            scenario = ScenarioKey(currentProjectPath);
+            // create_project's target directory is not an existing source project. Other tests
+            // use this field as a script selector for raw requests; it must never become the
+            // active or requested source path for an ordinary read.
+            if (currentMethod == "create_project") currentProjectPath = d.GetString();
+            scenario = ScenarioKey(d.GetString());
         }
-
-        currentMethod = doc.RootElement.TryGetProperty("method", out var method) && method.ValueKind == JsonValueKind.String
-            ? method.GetString()
-            : null;
 
         if (doc.RootElement.TryGetProperty(
                 "expectedSessionIdentity",
@@ -134,6 +144,10 @@ while ((line = Console.In.ReadLine()) is not null)
     {
         scenario = "malformed-request";
     }
+
+    // An omitted projectPath targets the project already open in the simulated UI.
+    if (scenario is null && currentProjectPath is null && fakeProjectPath is not null)
+        scenario = ScenarioKey(fakeProjectPath);
 
     if (string.Equals(currentMethod, "hello", StringComparison.Ordinal))
     {
@@ -161,6 +175,64 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
+    var establishesProject = currentMethod is "open_project" or "create_project";
+    var statusRead = currentMethod is "get_project_status" or "get_basic_project_status"
+        or "probe_project_status_for_lifecycle";
+    var rebindProbe = currentMethod == "probe_open_project_rebind";
+    if (!establishesProject && !rebindProbe)
+    {
+        var decision = ProjectOpenPolicy.Decide(fakeProjectPath, currentProjectPath);
+        if (decision == ProjectOpenDecision.Refuse)
+        {
+            Respond(JsonSerializer.Serialize(new WorkerResponse
+            {
+                Success = false,
+                FailureCategory = WorkerFailureCategories.BindingConflict,
+                Error = ProjectOpenPolicy.RefusalMessage(fakeProjectPath!, currentProjectPath!, accessMode)
+            }, WorkerJson.Envelope));
+            continue;
+        }
+
+        if (fakeProjectPath is null && currentMethod == "get_basic_project_status" &&
+            guardedLifecycleScenario?.Contains("-verification-failure", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // The scripted close verification fails decoding after the source has actually
+            // closed. Keep the closed state while exercising the verifier's failure path.
+            Respond(Success("{\"untrustedMarker\":true}"));
+            continue;
+        }
+
+        if (fakeProjectPath is null && statusRead)
+        {
+            var closed = new ProjectStatusInfo { IsOpen = false };
+            Respond(Success(currentMethod == "get_project_status"
+                ? WorkerJson.SerializePayload(new ProjectStatusResultInfo
+                {
+                    Operation = "get_project_status", Project = closed
+                })
+                : WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+                {
+                    Operation = currentMethod == "get_basic_project_status"
+                        ? "get_project_status" : currentMethod!, Project = closed
+                })));
+            continue;
+        }
+
+        if (decision == ProjectOpenDecision.RequestedNotOpen || fakeProjectPath is null)
+        {
+            Respond(JsonSerializer.Serialize(new WorkerResponse
+            {
+                Success = false,
+                FailureCategory = decision == ProjectOpenDecision.RequestedNotOpen
+                    ? WorkerFailureCategories.AccessDenied : WorkerFailureCategories.WorkerOperationFailed,
+                Error = decision == ProjectOpenDecision.RequestedNotOpen
+                    ? ProjectOpenPolicy.NotOpenMessage(currentProjectPath!, accessMode)
+                    : "No project is open in TIA Portal. Open the intended project manually and retry."
+            }, WorkerJson.Envelope));
+            continue;
+        }
+    }
+
     if (currentProjectPath?.Contains("guarded-lifecycle", StringComparison.OrdinalIgnoreCase) == true)
     {
         if (!string.Equals(guardedLifecycleScenario, currentProjectPath, StringComparison.OrdinalIgnoreCase))
@@ -171,15 +243,6 @@ while ((line = Console.In.ReadLine()) is not null)
         || currentProjectPath is null && currentMethod == "get_basic_project_status"))
     {
         Respond(GuardedLifecycleResponse(line, guardedLifecycleScenario));
-        continue;
-    }
-
-    if (currentMethod == "get_basic_project_status" && currentProjectPath is null && fakeProjectPath is null)
-    {
-        Respond(Success(WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
-        {
-            Operation = "get_project_status", Project = new ProjectStatusInfo { IsOpen = false }
-        })));
         continue;
     }
 
@@ -658,12 +721,25 @@ while ((line = Console.In.ReadLine()) is not null)
                 // observable end to end.
                 "read_hardware_config" => Success(HardwareConfigPayload()),
                 "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"articleNumber\":null,\"version\":null,\"typeIdentifier\":\"OrderNumber:TEST\",\"typeIdentifierNormalized\":null,\"catalogPath\":null,\"description\":null}]"}""",
+                "list_network_objects" => Success(ToCamelCaseJson(ListNetworkObjectsFixture())),
+                "inspect_network_object" => Success(ToCamelCaseJson(InspectNetworkObjectFixture())),
                 // The write payloads must satisfy AddDeviceResultInfo / ConfigureNetworkDeviceResultInfo
                 // too. Their free-text members carry seq so request ordering stays observable
                 // without smuggling an unmapped member past the declared contract.
                 "add_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"rootItemName\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"warnings\":[\"seq:{{seq}}\"]}"}""",
                 "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"ipAddress\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "network-mixed-results":
+            // One explicitly open project can return distinct outcomes for a batch without
+            // pretending that each item switched the Portal to a different project.
+            Respond(ReadField(line, "deviceName") switch
+            {
+                "worker-failure" => """{"success":false,"error":"boom"}""",
+                "contract-failure" => $$"""{"success":true,"payload":"{\"seq\":{{seq}}}"}""",
+                "good" => Success(HardwareConfigPayload()),
+                _ => """{"success":false,"error":"unexpected mixed-result device"}"""
             });
             break;
         case "network-binding-mismatch":
@@ -1179,9 +1255,13 @@ void Respond(string json, bool includeSessionIdentity = true)
             UpgradeLegacyLifecycleFixture(response);
             var resolvedPath = response["resolvedProjectPath"]?.GetValue<string>();
             var successful = response["success"]?.GetValue<bool>() == true;
+            var isAuthorizedPathTransition = successful && currentMethod is
+                "open_project" or "create_project" or "save_project_as";
             var projectPath = successful && string.Equals(currentMethod, "close_project", StringComparison.Ordinal)
                 ? null
-                : ProjectPathNormalization.Canonicalize(resolvedPath ?? currentProjectPath ?? fakeProjectPath);
+                : isAuthorizedPathTransition
+                    ? ProjectPathNormalization.Canonicalize(resolvedPath ?? currentProjectPath ?? fakeProjectPath)
+                    : fakeProjectPath;
 
             if (successful && string.Equals(currentMethod, "close_project", StringComparison.Ordinal))
             {
@@ -1195,10 +1275,6 @@ void Respond(string json, bool includeSessionIdentity = true)
             }
             else if (successful && projectPath is not null)
             {
-                var isAuthorizedPathTransition =
-                    string.Equals(currentMethod, "open_project", StringComparison.Ordinal) ||
-                    string.Equals(currentMethod, "create_project", StringComparison.Ordinal) ||
-                    string.Equals(currentMethod, "save_project_as", StringComparison.Ordinal);
                 if (isAuthorizedPathTransition &&
                     fakeProjectPath is not null &&
                     !string.Equals(fakeProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
@@ -1206,7 +1282,8 @@ void Respond(string json, bool includeSessionIdentity = true)
                     fakeSessionGeneration++;
                 }
 
-                fakeProjectPath = projectPath;
+                if (isAuthorizedPathTransition)
+                    fakeProjectPath = projectPath;
             }
 
             response["sessionIdentity"] = JsonSerializer.SerializeToNode(new WorkerSessionIdentity
@@ -1266,8 +1343,9 @@ string GuardedLifecycleResponse(string requestLine, string fixture)
     var path = ProjectPathNormalization.Canonicalize(currentProjectPath ?? fakeProjectPath);
     if (method == "probe_open_project_rebind")
         return Success(WorkerJson.SerializePayload(ProjectRebindStateInfo.Create(fakeProjectPath,
-            ReadField(requestLine, "rebindDestinationProjectPath")!, guardedLifecycleModified,
-            fixture.Contains("-ui-owned", StringComparison.OrdinalIgnoreCase) != true)));
+            ReadField(requestLine, "rebindDestinationProjectPath")!,
+            fakeProjectPath is null ? null : guardedLifecycleModified,
+            fakeProjectPath is not null && fixture.Contains("-ui-owned", StringComparison.OrdinalIgnoreCase) != true)));
     if (method == "create_project")
     {
         var directory = Path.Combine(ReadField(requestLine, "projectDirectory")!, ReadField(requestLine, "projectName")!);
@@ -1349,34 +1427,31 @@ WorkerResponse? ValidateExpectedSessionIdentity(
 
     var expectedPath =
         ProjectPathNormalization.Canonicalize(expected.ProjectPath);
-    var activePath =
-        ProjectPathNormalization.Canonicalize(fakeProjectPath);
+    var activePath = ProjectPathNormalization.Canonicalize(fakeProjectPath);
 
     if (string.IsNullOrWhiteSpace(expected.WorkerSessionId) ||
         expected.SessionGeneration < 0 ||
         expected.PortalProcessId is null ||
         expected.PortalProcessId <= 0 ||
-        expectedPath is null ||
-        activePath is null ||
+        !string.Equals(expectedPath, activePath, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(
             expected.WorkerSessionId,
             workerSessionId,
             StringComparison.Ordinal) ||
         expected.SessionGeneration != fakeSessionGeneration ||
-        expected.PortalProcessId != FakePortalProcessId ||
-        !string.Equals(expectedPath, activePath, StringComparison.OrdinalIgnoreCase))
+        expected.PortalProcessId != FakePortalProcessId)
     {
         return BindingConflict(
             "The expected worker/Portal/project session identity does not match the FakeWorker session.");
     }
 
-    var establishesProject =
-        string.Equals(method, "open_project", StringComparison.Ordinal) ||
-        string.Equals(method, "create_project", StringComparison.Ordinal);
+    var establishesProject = method is "open_project" or "create_project";
+    var permitsNoSource = method is "get_project_status" or "get_basic_project_status"
+        or "probe_project_status_for_lifecycle" or "probe_open_project_rebind";
     var requestedPath =
         ProjectPathNormalization.Canonicalize(requestedProjectPath);
 
-    if (!establishesProject &&
+    if (!establishesProject && !(permitsNoSource && activePath is null) &&
         requestedPath is not null &&
         !string.Equals(
             expectedPath,

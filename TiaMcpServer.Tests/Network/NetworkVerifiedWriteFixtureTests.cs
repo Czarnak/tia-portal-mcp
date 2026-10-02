@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class NetworkVerifiedWriteFixtureTests
 {
     [Fact]

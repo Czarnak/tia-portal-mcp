@@ -10,7 +10,7 @@ namespace TiaMcpServer.Tests.Safety.Pipeline;
 public sealed class WriteExecutionFailureAuditTests
 {
     private const string Ack = FakeWriteDomain.AcknowledgeGuard;
-    private readonly FakeWriteBindingGate _gate = new();
+    private readonly FakeWriteBindingGate _gate = new() { AccessMode = McpAccessMode.Full };
     private readonly FakeWriteDomain _domain;
     private readonly RecordingAuditSink _audit;
     private readonly WriteExecution _execution;
@@ -50,7 +50,7 @@ public sealed class WriteExecutionFailureAuditTests
         var acknowledged = record.Guards.Where(guard => guard.Id == Ack).ToArray();
         Assert.Equal(mutationAttempted ? 2 : 1, acknowledged.Length);
         Assert.All(acknowledged,
-            guard => Assert.Equal("agent", guard.SatisfiedBy));
+            guard => Assert.Equal("policy", guard.SatisfiedBy));
         Assert.True(record.Items[0].DurationMs > 0);
         Assert.True(record.Items[1].DurationMs > 0);
         Assert.Null(record.Items[2].DurationMs);
@@ -78,7 +78,7 @@ public sealed class WriteExecutionFailureAuditTests
 
         Assert.Equal(itemFailed ? new[] { "succeeded", "failed", "skipped" }
             : new[] { "succeeded", "succeeded", "succeeded" }, record.Items.Select(item => item.Status));
-        Assert.Equal("agent", Assert.Single(record.Guards, guard => guard.Id == Ack).SatisfiedBy);
+        Assert.Equal("policy", Assert.Single(record.Guards, guard => guard.Id == Ack).SatisfiedBy);
         if (itemFailed)
         {
             Assert.Single(record.Guards, guard => guard.Id == "partial_write_no_rollback");
@@ -107,7 +107,7 @@ public sealed class WriteExecutionFailureAuditTests
 
         Assert.Equal("failed", record.Items[0].Status);
         Assert.All(record.Items.Skip(1), item => Assert.Equal("skipped", item.Status));
-        Assert.Equal("agent", Assert.Single(record.Guards, guard => guard.Id == Ack).SatisfiedBy);
+        Assert.Equal("policy", Assert.Single(record.Guards, guard => guard.Id == Ack).SatisfiedBy);
         if (itemCount == 1)
         {
             Assert.DoesNotContain(record.Guards, guard => guard.Id == "partial_write_no_rollback");
@@ -143,7 +143,7 @@ public sealed class WriteExecutionFailureAuditTests
     private async Task<WriteAuditRecord> RunThrowsAsync(IReadOnlyList<FakeWriteItem> items, bool dryRun = false)
     {
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => _execution.RunAsync(
-            _domain, new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, items, dryRun, new[] { Ack })));
+            _domain, new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, items, dryRun)));
 
         Assert.Same(_domain.ScriptedException, thrown);
         var record = Assert.Single(_audit.Records);

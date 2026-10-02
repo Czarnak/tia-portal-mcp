@@ -13,8 +13,13 @@ namespace TiaMcpServer.Tests.Network;
 /// <c>includeIoDetails</c>, <c>includeTagMatches</c> — forward exactly once through the echo
 /// scenario, and that the internal snapshot default forwards none of them.
 /// </summary>
-public class IoMapFieldForwardingTests
+[Collection(RealWorkerProcessCollection.Name)]
+public class IoMapFieldForwardingTests : IDisposable
 {
+    private readonly FakeWorkerUiOpenProject _uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
+
+    public void Dispose() => _uiOpen.Dispose();
+
     private static OpennessWorkerClient CreateClient()
         => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
 
@@ -39,10 +44,10 @@ public class IoMapFieldForwardingTests
         using var document = JsonDocument.Parse(result.Payload);
         var root = document.RootElement;
 
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("deviceName")));
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("plcName")));
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("includeIoDetails")));
-        Assert.Single(root.EnumerateObject().Where(property => property.NameEquals("includeTagMatches")));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("deviceName"));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("plcName"));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("includeIoDetails"));
+        Assert.Single(root.EnumerateObject(), property => property.NameEquals("includeTagMatches"));
 
         Assert.Equal("ET 200SP station_1", root.GetProperty("deviceName").GetString());
         Assert.Equal("PLC_1", root.GetProperty("plcName").GetString());

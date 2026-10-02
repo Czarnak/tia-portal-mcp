@@ -5,19 +5,17 @@ public enum ProjectOpenDecision
     /// <summary>Operate on whatever is already attached.</summary>
     UseAttached,
 
-    /// <summary>Nothing is attached; opening the requested project cannot clobber anything.</summary>
-    OpenRequested,
+    /// <summary>Nothing is attached and the requested project is not open.</summary>
+    RequestedNotOpen,
 
     /// <summary>A different project is attached; refuse rather than open one alongside it.</summary>
     Refuse
 }
 
 /// <summary>
-/// Decides whether a non-lifecycle operation may cause TIA Portal to open a project. Read
-/// operations must never open a second project alongside one the user already has open — live
-/// testing against V21 showed a read tool doing exactly that, stopped only by TIA Portal's own
-/// refusal. Pure so the net10.0 test project can cover it; the worker is net48 and references
-/// Siemens assemblies the tests cannot load.
+/// Decides whether a non-lifecycle operation may use TIA Portal's already-open project. Pure so
+/// the net10.0 test project can cover it; the worker is net48 and references Siemens assemblies
+/// the tests cannot load.
 /// </summary>
 public static class ProjectOpenPolicy
 {
@@ -32,7 +30,7 @@ public static class ProjectOpenPolicy
         var current = ProjectPathNormalization.Canonicalize(currentPath);
         if (current is null)
         {
-            return ProjectOpenDecision.OpenRequested;
+            return ProjectOpenDecision.RequestedNotOpen;
         }
 
         return string.Equals(current, requested, StringComparison.OrdinalIgnoreCase)
@@ -40,8 +38,20 @@ public static class ProjectOpenPolicy
             : ProjectOpenDecision.Refuse;
     }
 
-    public static string RefusalMessage(string currentPath, string requestedPath)
+    public static string RefusalMessage(string currentPath, string requestedPath, McpAccessMode mode)
         => $"TIA Portal currently has project '{currentPath}' open, but this request targets "
             + $"'{requestedPath}'. Read operations never switch projects. Omit projectPath to use "
-            + "the open project, or call open_project to switch.";
+            + "the open project."
+            + (OperationPolicyCatalog.IsAllowed(mode, "open_project")
+                ? " You can call open_project to switch."
+                : " Open the intended project in TIA Portal before retrying.");
+
+    public static string NotOpenMessage(string requestedPath, McpAccessMode mode)
+    {
+        var message = $"Requested project '{requestedPath}' is not open in TIA Portal. "
+            + "Open the intended project in TIA Portal and retry.";
+        return OperationPolicyCatalog.IsAllowed(mode, "open_project")
+            ? message + " You can also call open_project."
+            : message;
+    }
 }

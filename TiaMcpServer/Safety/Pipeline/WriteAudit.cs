@@ -51,6 +51,9 @@ public sealed record WriteAuditBinding(
         snapshot.InvalidatedReason);
 }
 
+/// <summary>Call-level confirmation provenance, including calls that never requested confirmation.</summary>
+public sealed record WriteAuditConfirmation(string By, string Outcome);
+
 /// <summary>The one canonical audit record a guarded write call produces, whatever its phase.</summary>
 public sealed record WriteAuditRecord(
     string RecordKind,
@@ -59,6 +62,7 @@ public sealed record WriteAuditRecord(
     string Tool,
     string ContractVersion,
     string AccessMode,
+    WriteAuditConfirmation Confirmation,
     string? ProjectPath,
     WriteAuditBinding? Binding,
     JsonElement? RequestedOperations,
@@ -73,7 +77,7 @@ public sealed record WriteAuditRecord(
     public const string Kind = "write";
 
     /// <summary>Value of <see cref="RecordVersion"/> this build writes.</summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     /// <summary>Spells the access mode the way the rest of the server does.</summary>
     public static string ModeName(McpAccessMode mode)

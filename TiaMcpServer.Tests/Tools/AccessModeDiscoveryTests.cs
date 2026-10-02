@@ -15,7 +15,7 @@ public class AccessModeDiscoveryTests
 
     [Theory]
     [InlineData(McpAccessMode.ReadOnly, 4)]
-    [InlineData(McpAccessMode.ReadWrite, 8)]
+    [InlineData(McpAccessMode.ReadWrite, 14)]
     [InlineData(McpAccessMode.Full, 14)]
     public async Task ToolsList_AdvertisesOnlyTheModeSurface(McpAccessMode mode, int count)
     {
@@ -24,7 +24,7 @@ public class AccessModeDiscoveryTests
         var expected = mode switch
         {
             McpAccessMode.ReadOnly => Reads,
-            McpAccessMode.ReadWrite => Reads.Concat(Edits),
+            McpAccessMode.ReadWrite => Reads.Concat(Edits).Concat(Lifecycle),
             McpAccessMode.Full => Reads.Concat(Edits).Concat(Lifecycle),
             _ => throw new ArgumentOutOfRangeException(nameof(mode))
         };
@@ -34,7 +34,6 @@ public class AccessModeDiscoveryTests
 
     [Theory]
     [InlineData(McpAccessMode.ReadOnly)]
-    [InlineData(McpAccessMode.ReadWrite)]
     public async Task ToolsCall_CannotReachHiddenLifecycleTools(McpAccessMode mode)
     {
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);

@@ -12,12 +12,11 @@ public static class ProjectLifecycleService
     /// never silently attach a different project" is enforced identically everywhere instead of
     /// this method re-deriving its own rule.
     /// </summary>
-    public static ProjectStatusInfo GetStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)
+    public static ProjectStatusInfo GetStatusReadOnly(TiaPortalSession session, string? requestedProjectPath, McpAccessMode mode)
     {
-        // ProjectOpenDecision.OpenRequested (nothing attached, a path was requested) is
-        // deliberately NOT acted on here, unlike EnsureRequestedProjectOpen: a read must report
-        // IsOpen=false rather than open the requested project as a side effect.
-        var project = ResolveProjectForRead(session, requestedProjectPath);
+        // A status read reports IsOpen=false when the requested project is not open. Other
+        // non-lifecycle operations reject that request through EnsureRequestedProjectOpen.
+        var project = ResolveProjectForRead(session, requestedProjectPath, mode);
         return project is null
             ? new ProjectStatusInfo { IsOpen = false }
             : ReadStatusWithMetadata(project);
@@ -30,9 +29,10 @@ public static class ProjectLifecycleService
     /// must never enumerate history or query the V21 settings providers, so lifecycle writes stay
     /// on the same payloads they produced before the metadata surface existed.
     /// </summary>
-    public static ProjectStatusInfo GetBasicStatusReadOnly(TiaPortalSession session, string? requestedProjectPath)
+    public static ProjectStatusInfo GetBasicStatusReadOnly(TiaPortalSession session, string? requestedProjectPath,
+        McpAccessMode mode = McpAccessMode.Full)
     {
-        var project = ResolveProjectForRead(session, requestedProjectPath);
+        var project = ResolveProjectForRead(session, requestedProjectPath, mode);
         return project is null
             ? new ProjectStatusInfo { IsOpen = false }
             : ReadStatus(project);
@@ -43,7 +43,7 @@ public static class ProjectLifecycleService
     /// other read-only worker operation, but never opens a project. Returns the currently open
     /// project, or <c>null</c> when none is open.
     /// </summary>
-    private static Project? ResolveProjectForRead(TiaPortalSession session, string? requestedProjectPath)
+    private static Project? ResolveProjectForRead(TiaPortalSession session, string? requestedProjectPath, McpAccessMode mode)
     {
         session.EnsureConnected(requestedProjectPath);
 
@@ -52,7 +52,7 @@ public static class ProjectLifecycleService
         {
             throw new WorkerOperationException(
                 WorkerFailureCategories.BindingConflict,
-                ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!));
+                ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, mode));
         }
 
         return session.Project;

@@ -352,8 +352,8 @@ public class HardwareConfigInfoTests
         Assert.Equal(new[] { "0", "1" }, nodes.Select(node => node.NodeId));
         Assert.Equal(2, nodes.Select(node => node.NodeId).Distinct().Count());
 
-        var plcFacing = Assert.Single(nodes.Where(node => node.NodeId == "0"));
-        var clientDatabaseFacing = Assert.Single(nodes.Where(node => node.NodeId == "1"));
+        var plcFacing = Assert.Single(nodes, node => node.NodeId == "0");
+        var clientDatabaseFacing = Assert.Single(nodes, node => node.NodeId == "1");
 
         Assert.Equal("192.168.0.20", plcFacing.IpAddress);
         Assert.Equal("PN/IE_1", plcFacing.SubnetName);

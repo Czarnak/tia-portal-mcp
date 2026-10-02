@@ -65,6 +65,9 @@ internal sealed class NetworkVerifiedWriteFixture : IDisposable
                 "The FakeWorker target-project read requires a canonical project path.");
         }
 
+        // Write fixtures require an already-open target. Keep the declaration scoped to the
+        // first worker launch; later reads do not establish or change the worker's open state.
+        using var uiOpen = new FakeWorkerUiOpenProject(requestedPath);
         var probe = await client
             .ReadHardwareConfigAsync(requestedPath)
             .ConfigureAwait(false);
@@ -77,7 +80,10 @@ internal sealed class NetworkVerifiedWriteFixture : IDisposable
 
         var reportedPath = ProjectPathNormalization.Canonicalize(
             probe.SessionIdentity.ProjectPath);
+        var resolvedPath = ProjectPathNormalization.Canonicalize(probe.ResolvedProjectPath);
         if (reportedPath is null ||
+            resolvedPath is not null && !string.Equals(
+                requestedPath, resolvedPath, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(
                 requestedPath,
                 reportedPath,

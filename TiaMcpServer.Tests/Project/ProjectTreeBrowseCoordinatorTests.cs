@@ -7,6 +7,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class ProjectTreeBrowseCoordinatorTests
 {
     private static readonly DateTimeOffset Instant = new(2026, 9, 8, 8, 0, 0, TimeSpan.Zero);
@@ -295,6 +296,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task ContinuationUsesCachedSnapshotAfterPersistentWorkerIsDisposed()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("project-tree-v3-one-shot");
         using var worker = new OpennessWorkerClient(
             new ProjectSessionBinding(null),
             logger: null,

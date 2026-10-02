@@ -1,11 +1,87 @@
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public sealed class FakeWorkerIdentityEnforcementTests
 {
+    [Fact]
+    public async Task CannedStatusWithoutUiOpenProject_ReportsClosedWithoutRequestDerivedIdentity()
+    {
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
+        using var transport = CreateTransport();
+
+        var response = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "get_project_status", ProjectPath = "ok"
+        });
+
+        Assert.True(response.Success, response.Error);
+        using var payload = JsonDocument.Parse(response.Payload!);
+        Assert.False(payload.RootElement.GetProperty("project").GetProperty("isOpen").GetBoolean());
+        Assert.Null(response.SessionIdentity?.ProjectPath);
+    }
+
+    [Fact]
+    public async Task ProtectedCannedRead_RejectsForgedProjectIdentityWhenNothingIsOpen()
+    {
+        using var uiOpen = new FakeWorkerUiOpenProject(null);
+        using var transport = CreateTransport();
+        var requestedPath = Path.GetFullPath("ok");
+        var status = await transport.SendAsync(new WorkerRequest { Method = "get_basic_project_status" });
+        Assert.True(status.Success, status.Error);
+        var empty = Assert.IsType<WorkerSessionIdentity>(status.SessionIdentity);
+
+        var response = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "read_hardware_config", ProjectPath = requestedPath,
+            ExpectedSessionIdentity = new WorkerSessionIdentity
+            {
+                WorkerSessionId = empty.WorkerSessionId,
+                SessionGeneration = empty.SessionGeneration,
+                PortalProcessId = empty.PortalProcessId,
+                ProjectPath = requestedPath
+            }
+        });
+
+        Assert.False(response.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+        Assert.Null(response.SessionIdentity?.ProjectPath);
+    }
+
+    [Fact]
+    public async Task RebindProbe_WithNoOpenSource_ReturnsEmptySourceState()
+    {
+        const string source = "guarded-lifecycle-no-source";
+        const string destination = "C:\\Fixture\\Destination.ap21";
+        using var transport = CreateTransport();
+        var status = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "get_basic_project_status", ProjectPath = source
+        });
+        Assert.True(status.Success);
+        Assert.NotNull(status.SessionIdentity);
+
+        var probe = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "probe_open_project_rebind",
+            ProjectPath = source,
+            RebindDestinationProjectPath = destination,
+            ExpectedSessionIdentity = status.SessionIdentity
+        });
+
+        Assert.True(probe.Success, probe.Error);
+        using var document = JsonDocument.Parse(probe.Payload!);
+        var state = document.RootElement;
+        Assert.Equal(JsonValueKind.Null, state.GetProperty("sourceProjectPath").ValueKind);
+        Assert.Equal(JsonValueKind.Null, state.GetProperty("sourceIsModified").ValueKind);
+        Assert.False(state.GetProperty("sourceOpenedByWorker").GetBoolean());
+        Assert.False(state.GetProperty("willCloseSource").GetBoolean());
+    }
+
     [Fact]
     public async Task ProtectedRequestWithoutExpectedIdentityFailsBeforeScenarioDispatch()
     {
@@ -136,6 +212,7 @@ public sealed class FakeWorkerIdentityEnforcementTests
     private static async Task<WorkerSessionIdentity> PrimeAsync(
         PersistentWorkerTransport transport)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
         var response = await transport.SendAsync(new WorkerRequest
         {
             Method = "read_hardware_config",

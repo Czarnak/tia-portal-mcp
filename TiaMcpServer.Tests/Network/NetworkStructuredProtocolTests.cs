@@ -20,6 +20,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task NetworkRead_AdvertisesAndReturnsSingleLayerStructuredContract()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
 
         var tool = Assert.Single(
@@ -53,6 +54,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task NetworkRead_MixesPhase2AndPhase3ReadsInRequestOrder()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
 
         var result = await harness.Client.CallToolAsync(
@@ -71,7 +73,7 @@ public class NetworkStructuredProtocolTests
                     {
                         operationId = "phase3-list",
                         operation = "list_network_objects",
-                        projectPath = "list-network-objects-success",
+                        projectPath = "network-roundtrip",
                         objectKinds = new[] { "node" },
                         pageSize = 20,
                     },
@@ -79,7 +81,7 @@ public class NetworkStructuredProtocolTests
                     {
                         operationId = "phase3-inspect",
                         operation = "inspect_network_object",
-                        projectPath = "inspect-network-object-success",
+                        projectPath = "network-roundtrip",
                         target = new { kind = "node", deviceName = "PLC_1", nodeId = "node-1" },
                         attributeNames = new[] { "stringAttribute" },
                     },
@@ -271,6 +273,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task NetworkRead_InvalidSuccessPayloadBecomesProtocolErrorAndLaterOperationsStillRun()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("invalid-network-success-payload");
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
 
         var result = await harness.Client.CallToolAsync(

@@ -12,6 +12,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
 
+[Collection(RealWorkerProcessCollection.Name)]
 public class NetworkToolsTests
 {
     private const int ExpectedMaxOperationIdLength = 256;
@@ -85,11 +86,12 @@ public class NetworkToolsTests
         return client;
     }
 
-    private static NetworkOperationRequest ReadHardware(string id, string projectPath) => new()
+    private static NetworkOperationRequest ReadHardware(string id, string projectPath, string? deviceName = null) => new()
     {
         OperationId = id,
         Operation = "read_hardware_config",
         ProjectPath = projectPath,
+        DeviceName = deviceName,
     };
 
     private static NetworkOperationRequest AddDevice(
@@ -212,6 +214,7 @@ public class NetworkToolsTests
     [Fact]
     public async Task NetworkRead_ReturnsDeclaredJsonResultAndCopiesWarnings()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-read-warnings");
         using var client = CreateClient();
 
         var result = await NetworkRead(client, new[] { ReadHardware("r1", "network-read-warnings") });
@@ -226,15 +229,16 @@ public class NetworkToolsTests
     [Fact]
     public async Task NetworkRead_ContinuesAfterWorkerFailureAndAfterPayloadContractFailure()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-mixed-results");
         using var client = CreateClient();
         var operations = new[]
         {
-            ReadHardware("worker-failure", "worker-error"),
+            ReadHardware("worker-failure", "network-mixed-results", "worker-failure"),
 
             // The worker reports success, but its payload is not a HardwareConfigInfo: a
             // contract violation must fail the item instead of publishing unusable data.
-            ReadHardware("contract-failure", "ok"),
-            ReadHardware("good", "network-roundtrip"),
+            ReadHardware("contract-failure", "network-mixed-results", "contract-failure"),
+            ReadHardware("good", "network-mixed-results", "good"),
         };
 
         var result = await NetworkRead(client, operations);
