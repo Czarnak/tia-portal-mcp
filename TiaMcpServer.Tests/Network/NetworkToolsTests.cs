@@ -187,6 +187,10 @@ public class NetworkToolsTests
 
         Assert.True(result.IsError);
         Assert.Contains("at least one", ReadText(result));
+        var root = ReadStructured(result);
+        Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
+        Assert.Equal(JsonValueKind.Array, root.GetProperty("warnings").ValueKind);
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("batch").ValueKind);
     }
 
     [Fact]
@@ -219,7 +223,11 @@ public class NetworkToolsTests
 
         var result = await NetworkRead(client, new[] { ReadHardware("r1", "network-read-warnings") });
 
-        var operation = ReadStructured(result).GetProperty("batch").GetProperty("operations")[0];
+        var root = ReadStructured(result);
+        Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
+        Assert.Equal(JsonValueKind.Array, root.GetProperty("warnings").ValueKind);
+        Assert.Empty(root.GetProperty("warnings").EnumerateArray());
+        var operation = root.GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", operation.GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Object, operation.GetProperty("result").ValueKind);
         Assert.Equal(0, operation.GetProperty("result").GetProperty("devices").GetArrayLength());

@@ -18,7 +18,7 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkStructuredProtocolTests
 {
     [Fact]
-    public async Task NetworkRead_AdvertisesAndReturnsSingleLayerStructuredContract()
+    public async Task ReadEnvelope_IsVersionedAndCanonical()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
@@ -44,11 +44,37 @@ public class NetworkStructuredProtocolTests
             });
 
         var structured = AssertOneCanonicalDocument(result);
+        Assert.False(result.IsError);
+        Assert.Equal("1.0", structured.GetProperty("contractVersion").GetString());
+        Assert.Equal(JsonValueKind.Array, structured.GetProperty("warnings").ValueKind);
+        Assert.Equal(JsonValueKind.Null, structured.GetProperty("error").ValueKind);
+        var textDocument = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+        var structuredDocument = CanonicalJson.Serialize(structured);
+        Assert.Equal(textDocument, structuredDocument);
         Assert.Equal(
             JsonValueKind.Object,
             structured.GetProperty("batch")
                 .GetProperty("operations")[0]
                 .GetProperty("result").ValueKind);
+    }
+
+    [Fact]
+    public async Task ReadRejection_HasExplicitNullBatch()
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+
+        var result = await harness.Client.CallToolAsync(
+            "network_read",
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() });
+
+        var rejected = AssertOneCanonicalDocument(result);
+        var rejectedIsError = result.IsError == true;
+        Assert.True(rejectedIsError);
+        Assert.Equal(JsonValueKind.Null, rejected.GetProperty("batch").ValueKind);
+        Assert.Equal("1.0", rejected.GetProperty("contractVersion").GetString());
+        Assert.Equal(JsonValueKind.Array, rejected.GetProperty("warnings").ValueKind);
+        Assert.Equal(WorkerFailureCategories.ValidationError,
+            rejected.GetProperty("error").GetProperty("category").GetString());
     }
 
     [Fact]
