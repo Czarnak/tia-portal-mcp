@@ -30,6 +30,7 @@
 - Retire Network-only token code after checking callers; keep legacy batch `WriteSafetyService`, `WriteSafetyTooling`, and `SafetyRead` behavior. Add no snapshot worker operation or token-bound write surface.
 - Siemens calls stay in the worker; do not commit or package Siemens assemblies. Undo, new operations, output-reference syntax, persistence, compile/download, and PLC control are outside this PR.
 - Local implementation/fix steps each receive a focused commit after diff review and relevant validation. Use serial builds/tests; final scoped coverage must meet 80% and report coverage of materially changed host/contracts logic.
+- Network and Multiuser test runs must never overlap, including focused, RED, coverage, review, and fix runs. The coordinator grants one test slot; agents release it only after the test process fully exits.
 - No live TIA/PLC actions or remote writes are authorized by this plan. Freeze and inspect the candidate before requesting exact-target live authorization; record live acceptance status separately from offline evidence.
 
 ## Review Focus
@@ -55,6 +56,8 @@ dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-restore --filter '
 Restore once when required; build with `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`. The [xUnit VSTest setting](https://xunit.net/docs/config-runsettings) is singular `ParallelizeAssembly`; this corrects the draft's spelling without changing the serial-test requirement. A RED result must be the named assertion or missing new interface, not an environment failure. Record and commit RED tests separately, then validate and commit each implementation/fix step; stage only that step's files. Expected intermediate RED commits do not justify claiming a green candidate. Each task ends with its focused suite green and diff review; independent task review applies to the selected subagent execution. Reserve the complete qualification suite for Task 9.
 
 New contracts live in `TiaMcpServer.Contracts`; worker capture/checks in `TiaMcpServer.OpennessWorker/Openness`; host planning/composition in `TiaMcpServer/Network`; registration in `TiaMcpServer/Tools`. Host/tests must not reference Siemens through new production code. New test helpers belong in the existing Network test directory. The test project links host directories automatically; explicitly link only new Siemens-free worker comparison code needed for executable tests.
+
+The user added cross-worktree test serialization after plan approval. In addition to coordinator ownership, every test command holds an exclusive `FileStream` on `C:/Users/LCZ/AppData/Local/Temp/tia-mcp-01a102eb-32fb-7f62-89bb-7f1c848d0998-tests.lock` using `FileMode.OpenOrCreate`, `FileAccess.ReadWrite`, and `FileShare.None` for the entire test process lifetime, disposing it in `finally` after exit. If the file is locked, do not start tests; request the slot and do independent work. Multiuser owns the initial slot through its final qualification. A yielded process still owns the slot. This coordination file is temporary execution state, outside Git and production code.
 
 ### Task 1: Version the active read envelope
 

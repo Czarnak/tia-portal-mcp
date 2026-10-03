@@ -171,6 +171,8 @@ Update Network examples and live harnesses to `dryRun` and execution without ser
 
 Implementation uses TDD for behavior changes and focused checks after each step/fix. Record a local commit for each Network implementation/fix step once Network execution is separately authorized. Builds use `-m:1`; test invocations disable collection and assembly parallelism with one xUnit thread and one VSTest CPU. Run the final full offline suite, stub build, installed-reference build, and package checks against one frozen candidate; measure meaningful coverage of changed production logic against the repository threshold.
 
+The user additionally requires Network and Multiuser test runs to be serialized across their worktrees. A coordinator-owned slot and an exclusive execution lock prevent overlap; the slot remains held until the test process fully exits, including yielded runs.
+
 Required automated cases include:
 
 - Registered input/output schemas, legacy-argument rejection, text/structured equality, explicit-null/conditional-member rules, strict typed decode, and no rejected-payload echo.
