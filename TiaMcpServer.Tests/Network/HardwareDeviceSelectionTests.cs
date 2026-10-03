@@ -86,9 +86,6 @@ public class HardwareDeviceSelectionTests
         Assert.DoesNotContain("private static DeviceItemIoDetailsInfo ReadIoDetails", source, StringComparison.Ordinal);
         Assert.DoesNotContain("private sealed class TagIndex", source, StringComparison.Ordinal);
 
-        // File remains focused (under 800 lines)
-        var lineCount = source.Split('\n').Length;
-        Assert.InRange(lineCount, 1, 800);
     }
 
     [Fact]

@@ -1,7 +1,13 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 public class SubnetInfo
 {
+    /// <summary>Present on new ordinary reads; older/legacy payloads may omit relationship evidence.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NetworkSubnetConnectionsInfo? ConnectionEvidence { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     /// <summary>

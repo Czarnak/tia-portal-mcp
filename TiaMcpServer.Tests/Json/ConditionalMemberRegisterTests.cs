@@ -19,7 +19,12 @@ public sealed class ConditionalMemberRegisterTests
     {
         "DeviceItemInfo.IoDetails",
         "HardwareConfigInfo.Pagination",
+        // New ordinary reads report the root collection count; older/paged reads may omit it.
+        "HardwareConfigInfo.RootDeviceCount",
         "HardwarePaginationInfo.NextCursor",
+        // New ordinary reads report relationship evidence; older/legacy reads may omit it.
+        "NodeInfo.ConnectionEvidence",
+        "SubnetInfo.ConnectionEvidence",
         "WorkerResponse.BlockImportOutcome",
     };
 

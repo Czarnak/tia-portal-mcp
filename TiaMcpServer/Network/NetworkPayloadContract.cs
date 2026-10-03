@@ -144,6 +144,7 @@ public static class NetworkPayloadContract
 
     private static void ValidateHardwareConfig(HardwareConfigInfo value, bool? includeIoDetails)
     {
+        if (value.RootDeviceCount < 0) throw new JsonException("'rootDeviceCount' must not be negative.");
         foreach (var device in value.Devices)
         {
             RequireNotNull(device, "devices[]");
@@ -156,6 +157,16 @@ public static class NetworkPayloadContract
         foreach (var subnet in value.Subnets)
         {
             RequireNotNull(subnet, "subnets[]");
+            if (subnet.ConnectionEvidence is { } connections)
+            {
+                ValidateConnectionMessages(connections.Complete, connections.Messages);
+                foreach (var identity in connections.Nodes)
+                {
+                    RequireNotNull(identity, "connectionEvidence.nodes[]");
+                    if (string.IsNullOrWhiteSpace(identity.DeviceName) || string.IsNullOrWhiteSpace(identity.NodeId))
+                        throw new JsonException("Connected nodes require exact deviceName and nodeId identities.");
+                }
+            }
             ValidateHardwareSelector(
                 subnet.Selectable,
                 subnet.Selector,
@@ -234,6 +245,15 @@ public static class NetworkPayloadContract
             foreach (var node in networkInterface.Nodes)
             {
                 RequireNotNull(node, $"{path}.networkInterfaces[].nodes[]");
+                if (node!.ConnectionEvidence is { } connection)
+                {
+                    ValidateConnectionMessages(connection.Complete, connection.Messages);
+                    if (connection.SubnetId is not null && string.IsNullOrWhiteSpace(connection.SubnetId)
+                        || connection.IoSystemSubnetId is not null && string.IsNullOrWhiteSpace(connection.IoSystemSubnetId)
+                        || connection.IoSystemNumber < 0
+                        || (connection.IoSystemSubnetId is null) != (connection.IoSystemNumber is null))
+                        throw new JsonException("Node connection identities must be complete or explicitly null.");
+                }
                 ValidateHardwareSelector(
                     node!.Selectable,
                     node.Selector,
@@ -247,6 +267,12 @@ public static class NetworkPayloadContract
         {
             ValidateDeviceItem(child, $"{path}.items[]", includeIoDetails);
         }
+    }
+
+    private static void ValidateConnectionMessages(bool complete, List<string> messages)
+    {
+        if (messages.Any(string.IsNullOrWhiteSpace) || !complete && messages.Count == 0)
+            throw new JsonException("Incomplete connection evidence requires nonblank diagnostics.");
     }
 
     /// <summary>

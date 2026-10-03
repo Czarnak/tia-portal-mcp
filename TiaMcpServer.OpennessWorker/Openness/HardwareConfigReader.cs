@@ -8,9 +8,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 public static class HardwareConfigReader
 {
     /// <summary>
-    /// Lightweight default read used by the internal network-write state snapshot and the subnet
-    /// mutation probe: no device filter and no I/O map, so the snapshot stays byte-identical to
-    /// earlier versions and the safety-token hashes never change.
+    /// Ordinary unfiltered hardware read, including exact relationship evidence, without I/O maps.
     /// </summary>
     public static HardwareConfigInfo Read(Project project)
         => Read(project, deviceName: null, plcName: null, includeIoDetails: false, includeTagMatches: false);
@@ -23,6 +21,11 @@ public static class HardwareConfigReader
         bool includeTagMatches)
     {
         var result = new HardwareConfigInfo();
+        try { result.RootDeviceCount = project.Devices.Count; }
+        catch (Exception exception)
+        {
+            result.Messages.Add($"Could not read root device count: {exception.Message}");
+        }
 
         IoTagIndex? tagIndex = null;
         if (includeTagMatches)
@@ -420,9 +423,18 @@ public static class HardwareConfigReader
                 messages),
             SubnetName = ReadConnectedSubnetName(node, nodeDescription, messages),
             IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, messages),
+            ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureNode(
+                () => node.ConnectedSubnet is { } subnet ? RequireSubnetIdentity(subnet) : null,
+                () => ReadIoSystemIdentity(networkInterface)),
             Selectable = selectorDiagnostics.Count == 0,
             SelectorDiagnostics = selectorDiagnostics,
         };
+        if (!nodeId.IsUsable || !deviceName.IsUsable)
+        {
+            nodeInfo.ConnectionEvidence.Complete = false;
+            nodeInfo.ConnectionEvidence.Messages.Add("Node identity or device owner identity was unreadable.");
+        }
+        messages.AddRange(nodeInfo.ConnectionEvidence.Messages);
         if (nodeInfo.Selectable)
         {
             nodeInfo.Selector = NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value);
@@ -483,17 +495,22 @@ public static class HardwareConfigReader
             subnetInfo.Selector = NetworkSelectorFactory.Subnet(subnetId.Value);
         }
 
-        foreach (Node node in subnet.Nodes)
-        {
-            var connectedNodeName = ReadOptionalString(
-                () => node.Name,
-                $"subnet '{subnetDescription}' connected node name",
-                messages);
-            if (!string.IsNullOrWhiteSpace(connectedNodeName))
+        subnetInfo.ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureSubnet(
+            () => subnet.Nodes.Cast<Node>(),
+            node =>
             {
-                subnetInfo.ConnectedNodeNames.Add(connectedNodeName!);
-            }
+                var connectedNodeName = ReadOptionalString(() => node.Name,
+                    $"subnet '{subnetDescription}' connected node name", messages);
+                if (!string.IsNullOrWhiteSpace(connectedNodeName))
+                    subnetInfo.ConnectedNodeNames.Add(connectedNodeName!);
+                return ReadConnectedNodeIdentity(node);
+            });
+        if (!subnetId.IsUsable)
+        {
+            subnetInfo.ConnectionEvidence.Complete = false;
+            subnetInfo.ConnectionEvidence.Messages.Add(subnetId.Diagnostic);
         }
+        messages.AddRange(subnetInfo.ConnectionEvidence.Messages);
 
         foreach (IoSystem ioSystem in subnet.IoSystems)
         {
@@ -514,6 +531,55 @@ public static class HardwareConfigReader
             .ThenBy(ioSystem => ioSystem.Name, StringComparer.Ordinal)
             .ToList();
         return subnetInfo;
+    }
+
+    private static string RequireSubnetIdentity(Subnet subnet)
+    {
+        var identity = ReadExactStringIdentityAttribute(subnet, "SubnetId", "Connected subnet identity");
+        if (!identity.IsUsable) throw new InvalidOperationException(identity.Diagnostic);
+        return identity.Value;
+    }
+
+    private static NetworkNodeIdentityInfo ReadConnectedNodeIdentity(Node node)
+    {
+        var nodeId = ReadTypedIdentityString(() => node.NodeId, "Connected node identity");
+        if (!nodeId.IsUsable) throw new InvalidOperationException(nodeId.Diagnostic);
+        IEngineeringObject? current = node;
+        Device? owner = null;
+        while (current is not null)
+        {
+            if (current is Device device) owner = device;
+            if (current is Project project && owner is not null)
+            {
+                var name = ReadTypedIdentityString(() => owner.Name, "Connected node owner name");
+                if (!name.IsUsable) throw new InvalidOperationException(name.Diagnostic);
+                var unreadableOwner = false;
+                var matches = ProjectDeviceNameMatcher.FindMatches(project, name.Value, _ => unreadableOwner = true);
+                if (unreadableOwner || matches.Count != 1)
+                    throw new InvalidOperationException("Connected node owner could not be resolved uniquely across all device scopes.");
+                return new NetworkNodeIdentityInfo { DeviceName = matches[0].Name, NodeId = nodeId.Value };
+            }
+            current = current.Parent;
+        }
+        throw new InvalidOperationException("Connected node owner or project was unavailable.");
+    }
+
+    private static (string? SubnetId, int? Number) ReadIoSystemIdentity(NetworkInterface networkInterface)
+    {
+        var systems = new List<IoSystem>();
+        foreach (IoController controller in networkInterface.IoControllers)
+            if (controller.IoSystem is { } system) systems.Add(system);
+        foreach (IoConnector connector in networkInterface.IoConnectors)
+            if (connector.ConnectedToIoSystem is { } system) systems.Add(system);
+        (string? SubnetId, int? Number) identity = (null, null);
+        foreach (var system in systems)
+        {
+            var candidate = (SubnetId: RequireSubnetIdentity(system.Subnet), Number: (int?)system.Number);
+            if (candidate.Number < 0 || identity.Number is not null && identity != candidate)
+                throw new InvalidOperationException("IO system relationship was ambiguous or invalid.");
+            identity = candidate;
+        }
+        return identity;
     }
 
     private static IoSystemInfo ReadIoSystem(

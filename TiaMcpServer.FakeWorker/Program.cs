@@ -817,6 +817,14 @@ while ((line = Console.In.ReadLine()) is not null)
                     @"C:\FakeWorker\Different.ap21")
                 : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
             break;
+        case "network-connection-evidence":
+        case "network-connection-evidence-degraded":
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(ConnectionEvidenceHardwareConfig(
+                    currentProjectPath?.Contains("degraded", StringComparison.Ordinal) == true)))
+                : """{"success":false,"error":"expected ordinary hardware read"}""");
+            break;
+
         case "network-state-seq":
             // A contract-valid HardwareConfigInfo that reports the request sequence in its own
             // messages array, so a test can count how many worker requests a preview issued
@@ -2717,6 +2725,7 @@ HardwareConfigInfo SingleNodeHardwareConfig(
     string nodeId,
     IEnumerable<string>? messages = null) => new()
 {
+    RootDeviceCount = 1,
     Devices = new List<DeviceInfo>
     {
         new()
@@ -3260,6 +3269,7 @@ List<DeviceInfo> SubnetLifecycleDevices() => new()
 /// </summary>
 HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState> subnets) => new()
 {
+    RootDeviceCount = SubnetLifecycleDeviceCount,
     Devices = SubnetLifecycleDevices(),
     Subnets = subnets
         .Select(subnet => SelectableSubnet(
@@ -3272,6 +3282,28 @@ HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState
         .ToList(),
     Messages = new List<string>(),
 };
+
+// An ordinary-read fixture with explicit all-scope identities and a distinct root count.
+// Older/page scenarios intentionally keep their conditional omissions.
+HardwareConfigInfo ConnectionEvidenceHardwareConfig(bool degraded)
+{
+    var result = SingleNodeHardwareConfig("PLC_Grouped", "Interface", "Interface", "Same display name", "node-2");
+    result.RootDeviceCount = 2;
+    result.Devices.Add(new DeviceInfo { Name = "PLC_Ungrouped" });
+    var node = result.Devices[0].Items[0].NetworkInterfaces[0].Nodes[0];
+    node.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true };
+    var subnet = SelectableSubnet("Network", "subnet-1", "Ethernet", "Ethernet",
+        Array.Empty<IoSystemInfo>(), new[] { "Same display name", "Same display name" });
+    subnet.ConnectionEvidence = new NetworkSubnetConnectionsInfo
+    {
+        Complete = !degraded,
+        Nodes = new() { new() { DeviceName = "PLC_Grouped", NodeId = "node-2" },
+            new() { DeviceName = "PLC_Ungrouped", NodeId = "node-3" } },
+        Messages = degraded ? new() { "Fixture connected-node enumeration was incomplete." } : new()
+    };
+    result.Subnets.Add(subnet);
+    return result;
+}
 
 /// <summary>
 /// Dedicated fixture for the "network-subnet-lifecycle-state-drift" scenario: reports the SAME one
