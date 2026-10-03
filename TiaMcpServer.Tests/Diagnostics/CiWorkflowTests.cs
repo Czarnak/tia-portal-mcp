@@ -46,15 +46,15 @@ public class CiWorkflowTests
             .Select(command => command.Trim())
             .ToArray();
 
-        var mainRestore = Assert.Single(commands.Where(command =>
-            command.StartsWith("dotnet restore TiaMcpServer.slnx", StringComparison.Ordinal)));
-        var referenceRestore = Assert.Single(commands.Where(command =>
-            command.StartsWith("dotnet restore reference-stubs/TiaMcpServer.ReferenceStubs.sln", StringComparison.Ordinal)));
-        var verifier = Assert.Single(commands.Where(command =>
-            command.Contains("scripts/verify-reference-stubs.ps1", StringComparison.Ordinal)));
-        var releaseBuild = Assert.Single(commands.Where(command =>
+        var mainRestore = Assert.Single(commands, command =>
+            command.StartsWith("dotnet restore TiaMcpServer.slnx", StringComparison.Ordinal));
+        var referenceRestore = Assert.Single(commands, command =>
+            command.StartsWith("dotnet restore reference-stubs/TiaMcpServer.ReferenceStubs.sln", StringComparison.Ordinal));
+        var verifier = Assert.Single(commands, command =>
+            command.Contains("scripts/verify-reference-stubs.ps1", StringComparison.Ordinal));
+        var releaseBuild = Assert.Single(commands, command =>
             command.StartsWith("dotnet build TiaMcpServer.slnx", StringComparison.Ordinal) &&
-            command.Contains("--configuration Release", StringComparison.Ordinal)));
+            command.Contains("--configuration Release", StringComparison.Ordinal));
 
         Assert.Matches(SingleNodeBuildFlagPattern, mainRestore);
         Assert.Matches(SingleNodeBuildFlagPattern, referenceRestore);
@@ -70,6 +70,7 @@ public class CiWorkflowTests
         Assert.True(Array.IndexOf(commands, verifier) < Array.IndexOf(commands, releaseBuild),
             "Expected reference-stub verification to precede the Release solution build.");
     }
+
     [Theory]
     [InlineData("dotnet build TiaMcpServer.slnx -m:1", true)]
     [InlineData("dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true", true)]
@@ -170,9 +171,9 @@ public class CiWorkflowTests
         Assert.True(File.Exists(ciWorkflowPath), $"Expected CI workflow to exist at {ciWorkflowPath}");
 
         var workflowText = File.ReadAllText(ciWorkflowPath);
-        var coverageCommand = Assert.Single(ReadRunCommandBlocks(ciWorkflowPath).Where(command =>
+        var coverageCommand = Assert.Single(ReadRunCommandBlocks(ciWorkflowPath), command =>
             command.Contains("dotnet test", StringComparison.Ordinal) &&
-            command.Contains("--collect:\"XPlat Code Coverage\"", StringComparison.Ordinal)));
+            command.Contains("--collect:\"XPlat Code Coverage\"", StringComparison.Ordinal));
         Assert.Contains("-- xUnit.ParallelizeTestCollections=false xUnit.ParallelizeAssembly=false xUnit.MaxParallelThreads=1 RunConfiguration.MaxCpuCount=1",
             coverageCommand, StringComparison.Ordinal);
 
