@@ -63,9 +63,10 @@ public class ReferenceStubArtifactTests
     // Canonical framing: UTF-8 slash-relative path, LF, decimal byte length, LF, exact bytes, LF.
     internal static string[] SourceFiles(string root) => new[] { "Directory.Build.props", "reference-stubs/Directory.Build.props", "reference-stubs/Siemens.Engineering.PublicKey.snk" }
         .Concat(new[] { "Siemens.Engineering.Base", "Siemens.Engineering.Step7" }.SelectMany(name =>
-            Directory.EnumerateFiles(Path.Combine(root, "reference-stubs", name), "*", SearchOption.TopDirectoryOnly)
+            Directory.EnumerateFiles(Path.Combine(root, "reference-stubs", name), "*", SearchOption.AllDirectories)
                 .Where(p => p.EndsWith(".cs", StringComparison.Ordinal) || p.EndsWith(".csproj", StringComparison.Ordinal))
-                .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/'))))
+                .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/'))
+                .Where(p => !p.Split('/').Any(segment => segment is "bin" or "obj" or "artifacts"))))
         .Order(StringComparer.Ordinal).ToArray();
 
     internal static string SourceHash(string root)

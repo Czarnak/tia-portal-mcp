@@ -39,17 +39,24 @@ function Assert-ChildPath([string]$Path, [string]$Boundary) {
     Assert-NoReparsePoint $Path
 }
 
+function Add-SourceFiles([string]$Directory, [string]$RepositoryRoot, [Collections.Generic.List[string]]$Paths) {
+    foreach ($entry in Get-ChildItem -LiteralPath $Directory -Force) {
+        if ($entry.PSIsContainer -and $entry.Name -in @('bin', 'obj', 'artifacts')) { continue }
+        Assert-ChildPath $entry.FullName $RepositoryRoot
+        if ($entry.PSIsContainer) { Add-SourceFiles $entry.FullName $RepositoryRoot $Paths }
+        elseif ($entry.Extension -ceq '.cs' -or $entry.Extension -ceq '.csproj') {
+            $Paths.Add([IO.Path]::GetRelativePath($RepositoryRoot, $entry.FullName).Replace('\', '/'))
+        }
+    }
+}
+
 function Get-SourceHash([string]$RepositoryRoot) {
     $paths = [Collections.Generic.List[string]]::new()
     foreach ($relative in @('Directory.Build.props', 'reference-stubs/Directory.Build.props', 'reference-stubs/Siemens.Engineering.PublicKey.snk')) { $paths.Add($relative) }
     foreach ($project in @('Siemens.Engineering.Base', 'Siemens.Engineering.Step7')) {
         $directory = Resolve-Directory (Join-Path $RepositoryRoot "reference-stubs/$project")
         Assert-ChildPath $directory $RepositoryRoot
-        foreach ($file in Get-ChildItem -LiteralPath $directory -File) {
-            if ($file.Extension -ceq '.cs' -or $file.Extension -ceq '.csproj') {
-                $paths.Add([IO.Path]::GetRelativePath($RepositoryRoot, $file.FullName).Replace('\', '/'))
-            }
-        }
+        Add-SourceFiles $directory $RepositoryRoot $paths
     }
     $paths.Sort([StringComparer]::Ordinal)
     $hash = [Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
