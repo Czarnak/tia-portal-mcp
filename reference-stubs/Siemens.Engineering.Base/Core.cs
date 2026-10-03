@@ -218,7 +218,7 @@ namespace Siemens.Engineering
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Project> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
-    public abstract class TiaPortal : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.IEngineeringServiceProvider, global::System.IDisposable
+    public abstract partial class TiaPortal : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.IEngineeringServiceProvider, global::System.IDisposable
     {
         public global::Siemens.Engineering.HW.HardwareCatalog.HardwareCatalog HardwareCatalog { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.ProjectComposition Projects { get => throw new global::System.NotSupportedException(); }
