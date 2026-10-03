@@ -3289,9 +3289,17 @@ HardwareConfigInfo ConnectionEvidenceHardwareConfig(bool degraded)
 {
     var result = SingleNodeHardwareConfig("PLC_Grouped", "Interface", "Interface", "Same display name", "node-2");
     result.RootDeviceCount = 2;
-    result.Devices.Add(new DeviceInfo { Name = "PLC_Ungrouped" });
+    var ungrouped = SingleNodeHardwareConfig("PLC_Ungrouped", "Interface", "Interface", "Same display name", "node-3");
+    result.Devices.Add(ungrouped.Devices[0]);
     var node = result.Devices[0].Items[0].NetworkInterfaces[0].Nodes[0];
-    node.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true };
+    node.SubnetName = "Network";
+    node.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true, SubnetId = "subnet-1" };
+    var ungroupedNode = result.Devices[1].Items[0].NetworkInterfaces[0].Nodes[0];
+    ungroupedNode.SubnetName = "Network";
+    ungroupedNode.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true, SubnetId = "subnet-1" };
+    var disconnected = SelectableNode("PLC_Grouped", "Disconnected port", "node-disconnected", "Ethernet");
+    disconnected.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true };
+    result.Devices[0].Items[0].NetworkInterfaces[0].Nodes.Add(disconnected);
     var subnet = SelectableSubnet("Network", "subnet-1", "Ethernet", "Ethernet",
         Array.Empty<IoSystemInfo>(), new[] { "Same display name", "Same display name" });
     subnet.ConnectionEvidence = new NetworkSubnetConnectionsInfo
