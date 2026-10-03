@@ -53,7 +53,7 @@ public sealed class NetworkGuardedWriteDomainTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded", McpAccessMode.ReadOnly);
-        fixture.Binding.Detach();
+        fixture.Binding.Clear(null, out _);
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.Equal("access_denied", response.Error!.Category);
     }
@@ -65,7 +65,7 @@ public sealed class NetworkGuardedWriteDomainTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
-        fixture.Binding.Detach();
+        fixture.Binding.Clear(null, out _);
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.Equal("binding_conflict", response.Error!.Category);
         Assert.Null(response.Batch);

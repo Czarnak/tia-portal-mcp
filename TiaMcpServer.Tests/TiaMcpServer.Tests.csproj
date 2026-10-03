@@ -162,6 +162,10 @@
     <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationRequest.cs"
       Link="Host\Network\NetworkOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkGuardedWriteModels.cs" Link="Host\Network\NetworkGuardedWriteModels.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkGuardDefinitions.cs" Link="Host\Network\NetworkGuardDefinitions.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWritePlanner.cs" Link="Host\Network\NetworkWritePlanner.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWriteDomain.cs" Link="Host\Network\NetworkWriteDomain.cs" />
     <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorState.cs"
       Link="Host\Network\HardwarePageCursorState.cs" />
     <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorCodec.cs"

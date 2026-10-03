@@ -45,6 +45,8 @@ var requestJsonOptions = WorkerJson.Envelope;
 // read round trip, not just a static fixture.
 var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-plc", IpAddress = "192.168.0.20" };
 var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
+HardwareConfigInfo? guardedNetworkState = null;
+var guardedNetworkWrites = 0;
 
 // Process-local, mutable subnet state shared by every "network-subnet-lifecycle*" scenario key
 // (Task 6, Phase 4): two devices that never change, and two subnets - one Ethernet, one PROFIBUS -
@@ -1216,6 +1218,22 @@ while ((line = Console.In.ReadLine()) is not null)
         // ---------------------------------------------------------------------------
         // Phase 4: subnet lifecycle fixtures (Task 6)
         // ---------------------------------------------------------------------------
+
+        case "network-guarded":
+        case "network-guarded-incomplete":
+        case "network-guarded-disconnected":
+        case "network-guarded-late-block":
+        case "network-guarded-partial":
+        case "network-guarded-lost-node":
+        case "network-guarded-postread-failure":
+            guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario == "network-guarded-incomplete");
+            if (scenario == "network-guarded-disconnected" && guardedNetworkWrites == 0)
+            {
+                foreach (var node in GuardedNodes(guardedNetworkState)) node.ConnectionEvidence = new() { Complete = true };
+                guardedNetworkState.Subnets[0].ConnectionEvidence!.Nodes.Clear();
+            }
+            Respond(HandleGuardedNetwork(line, guardedNetworkState, scenario));
+            break;
 
         case "network-subnet-lifecycle":
             // The main stateful scenario: normal create/update/delete round trips, canonical
@@ -3358,6 +3376,78 @@ string DispatchSubnetLifecycleWrite(string requestLine, List<SubnetLifecycleSubn
 /// <summary>
 /// Scripted verification for deterministic FakeWorker outcomes, not live Siemens read-back.
 /// </summary>
+IEnumerable<NodeInfo> GuardedNodes(HardwareConfigInfo state) => state.Devices.SelectMany(d => d.Items)
+    .SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes);
+
+string HandleGuardedNetwork(string request, HardwareConfigInfo state, string scenario)
+{
+    var method = ReadMethod(request);
+    if (method == "read_hardware_config")
+    {
+        if (scenario == "network-guarded-postread-failure" && guardedNetworkWrites > 0)
+            return "{\"success\":false,\"error\":\"postread unavailable\"}";
+        if (scenario == "network-guarded-late-block" && guardedNetworkWrites > 0 && state.Subnets.Count > 0)
+            state.Subnets[0].ConnectionEvidence = new() { Complete = false, Messages = new() { "late inventory failure" } };
+        return Success(ToCamelCaseJson(state));
+    }
+    guardedNetworkWrites++;
+    if (method == "configure_network_device")
+    {
+        var node = GuardedNodes(state).Single(n => n.NodeId == ReadField(request, "nodeId"));
+        var applied = new Dictionary<string, string>();
+        var skipped = new Dictionary<string, string>();
+        if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied["Address"] = address; }
+        if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied["SubnetMask"] = mask; }
+        if (ReadField(request, "pnDeviceName") is { } pn) { node.PnDeviceName = pn; applied["PnDeviceName"] = pn; }
+        if (ReadField(request, "subnetId") is { } id)
+        {
+            node.ConnectionEvidence = new() { Complete = true, SubnetId = id };
+            applied["Subnet"] = id;
+            var subnet = state.Subnets.Single(s => s.SubnetId == id);
+            subnet.ConnectionEvidence!.Nodes.Add(new() { DeviceName = "PLC_Grouped", NodeId = node.NodeId });
+        }
+        if (ReadIntField(request, "ioSystemNumber") is not null) skipped["IoSystem"] = "No IO connector available";
+        return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
+        {
+            DeviceName = "PLC_Grouped", AppliedSettings = applied, SkippedSettings = skipped,
+            Verification = FakeConfigurationVerification(request, "PLC_Grouped", applied)
+        }));
+    }
+    if (method == "add_network_device")
+    {
+        var name = ReadField(request, "deviceName")!;
+        var itemName = ReadField(request, "deviceItemName")!;
+        var type = ReadField(request, "typeIdentifier")!;
+        state.RootDeviceCount++;
+        state.Devices.Add(new() { Name = name, TypeIdentifier = type, Items = new() { new() { Name = itemName, TypeIdentifier = type } } });
+        return Success(ToCamelCaseJson(new AddDeviceResultInfo
+        {
+            DeviceName = name, RootItemName = itemName, TypeIdentifier = type,
+            Verification = FakePassedVerification(new() { ["deviceName"] = name }, new()
+            { ["deviceName"] = name, ["deviceItemName"] = itemName, ["typeIdentifier"] = type })
+        }));
+    }
+    if (method == "delete_subnet")
+    {
+        var id = ReadField(request, "subnetId")!;
+        var subnet = state.Subnets.Single(s => s.SubnetId == id);
+        state.Subnets.Remove(subnet);
+        foreach (var node in GuardedNodes(state))
+            if (node.ConnectionEvidence?.SubnetId == id) node.ConnectionEvidence = new() { Complete = true };
+        if (scenario == "network-guarded-lost-node") state.Devices.RemoveAt(1);
+        return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+        {
+            SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount!.Value, NetworkDeviceCountUnchanged = true,
+            Verification = FakePassedVerification(new() { ["subnetId"] = id }, new()
+            {
+                ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true",
+                ["networkDeviceCountUnchanged"] = state.RootDeviceCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            })
+        }));
+    }
+    return "{\"success\":false,\"error\":\"unsupported guarded fixture operation\"}";
+}
+
 NetworkMutationVerificationInfo FakePassedVerification(Dictionary<string, string> identity, Dictionary<string, string> values) => new()
 {
     Identity = identity,
