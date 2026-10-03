@@ -28,13 +28,17 @@ public sealed record NetworkToolError(string Category, string Message);
 /// when validation or access control rejected the call before any worker ran, otherwise
 /// <see cref="Batch"/>. <see cref="Success"/> describes the whole call — a batch that ran but
 /// contains failed items reports <c>false</c> here while remaining a successful MCP result.
+/// Root <see cref="Warnings"/> contains call-level diagnostics; per-operation warnings remain
+/// on the items in <see cref="Batch"/>.
 /// </para>
 /// </summary>
 public sealed record NetworkReadResponse(
     string Tool,
+    string ContractVersion,
     bool Success,
-    StructuredOperationBatch? Batch,
-    NetworkToolError? Error);
+    NetworkToolError? Error,
+    IReadOnlyList<string> Warnings,
+    StructuredOperationBatch? Batch);
 
 /// <summary>
 /// What one previewed network write operation will act on.

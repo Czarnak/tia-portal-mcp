@@ -113,7 +113,8 @@ public class StructuredOperationBatchPayloadBudgetTests
         var bounded = NetworkReadTools.ApplyBudget(projectedPages);
 
         var networkDocumentChars = CanonicalJson.Serialize(
-            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null)).Length;
+            new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                Error: null, Warnings: Array.Empty<string>(), Batch: bounded)).Length;
         Assert.True(networkDocumentChars <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
         Assert.True(bounded.Counts.Omitted > 0);
         Assert.NotNull(bounded.Truncation);
@@ -147,7 +148,8 @@ public class StructuredOperationBatchPayloadBudgetTests
         Assert.Equal(HardwarePageProjector.RetryGuidance, item.Omission.Guidance);
         Assert.True(
             CanonicalJson.Serialize(
-                new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null)).Length
+                new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                    Error: null, Warnings: Array.Empty<string>(), Batch: bounded)).Length
                 <= DocumentLimit);
     }
 
@@ -455,7 +457,8 @@ public class StructuredOperationBatchPayloadBudgetTests
         Assert.Contains("fewer attributeNames", item.Omission.Guidance, StringComparison.Ordinal);
 
         var toolResult = StructuredToolResult.Create(
-            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null),
+            new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                Error: null, Warnings: Array.Empty<string>(), Batch: bounded),
             isError: false);
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content)).Text;
         using var parsed = JsonDocument.Parse(text);
@@ -472,7 +475,8 @@ public class StructuredOperationBatchPayloadBudgetTests
 
         var bounded = NetworkReadTools.ApplyBudget(batch);
         var presented = CanonicalJson.Serialize(
-            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null));
+            new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                Error: null, Warnings: Array.Empty<string>(), Batch: bounded));
 
         Assert.Equal(180_000, StructuredOperationBatchPayloadBudget.MaxDocumentChars);
         Assert.True(presented.Length <= 180_000, $"The bounded document was {presented.Length} characters.");
@@ -497,7 +501,8 @@ public class StructuredOperationBatchPayloadBudgetTests
 
         static int Chars(StructuredOperationBatch value)
             => CanonicalJson.Serialize(
-                new NetworkReadResponse("network_read", value.IsFullySuccessful, value, Error: null)).Length;
+                new NetworkReadResponse("network_read", NetworkContractVersion.Current, value.IsFullySuccessful,
+                    Error: null, Warnings: Array.Empty<string>(), Batch: value)).Length;
 
         var sizes = Enumerable.Repeat(Probe, Count).ToArray();
         var delta = target - Chars(Build(sizes));

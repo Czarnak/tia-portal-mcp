@@ -182,6 +182,8 @@
       Link="Host\Network\NetworkPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkToolResponses.cs"
       Link="Host\Network\NetworkToolResponses.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkContractVersion.cs"
+      Link="Host\Network\NetworkContractVersion.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkReadTools.cs"
       Link="Host\Network\NetworkReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWriteTools.cs"
