@@ -1,20 +1,20 @@
-# Lifecycle tiers and project binding: full and read-write live validation
+# Lifecycle tiers and project binding: live validation
 
 **Run date:** 2026-10-03 (Europe/Warsaw; full-mode raw UTC captures fall on 2026-10-02).
-**Status:** Full-mode and read-write groups PASS. Task 13 remains open for read-only acceptance.
+**Status:** Full-mode, read-write, and read-only functional cases PASS. Task 13 awaits the human read-only Openness dialog observation. Task 14 remains pending.
 
-This report records the full-mode and read-write groups of [Task 13](../../plans/2026-10-02-lifecycle-tiers-and-project-binding.md). The maintainer requested grouping by access mode and explicitly authorized each group on two running disposable projects. Read-only execution and Task 14 documentation changes remain deferred.
+This report records the three access-mode groups of [Task 13](../../plans/2026-10-02-lifecycle-tiers-and-project-binding.md). The maintainer requested grouping by access mode and explicitly authorized each group on two running disposable projects. Each group's evidence is identified separately below. Task 14 documentation changes remain deferred.
 
 ## Candidate and provenance
 
 - Branch/source candidate: `feat/bind-project`, `3bb504b4647cdd57677323eb44aac3305a33aafd`.
 - Installed version: `3.0.1-local.143.g3bb504b`.
-- The native host and worker command lines specified `--access-mode full` for the first group and `--access-mode read-write` after the maintainer restarted the native session for the second group.
+- The native host and worker command lines specified `--access-mode full` for the first group, `--access-mode read-write` for the second, and `--access-mode read-only` for the final group, after the maintainer restarted the native session for each mode.
 - Installed host SHA256: `A527934E4562C0A07BAE921593C762BDAE918E0C0CF2418EE3ADD58562DAB2E8`.
 - Installed worker SHA256: `5E87EB50D2530DA3EB1BF7F77C1F32A8EC1C2053C1603BBC01A85B76EAFD021E`.
 - Both installed hashes matched the corresponding local Release binaries.
 - Full-mode live discovery returned 15 tools. All six lifecycle tools advertised structured outputs and `dryRun`, without public `acknowledge`, `confirm`, or `safetyToken`.
-- Source files were unchanged throughout both groups; installed and local Release binary hashes matched again for read-write.
+- Source files were unchanged throughout the groups; the read-write and read-only provenance captures again matched the installed host and worker hashes to the local Release binaries.
 
 Exact paths, project/tag contents, raw client captures, audit records, and hashes remain in ignored local evidence:
 `.superpowers/sdd/2026-10-02-lifecycle-tiers-and-project-binding/live-2026-10-03-full/`.
@@ -245,9 +245,62 @@ exited with code 0 within **57.51–84.40 ms**, below the two-second grace; host
 were absent, both original Portals remained responsive, and the native read-write session
 remained running. No forced termination was needed.
 
+## Read-only binding, tree, and host exit
+
+Read-only captures, runtime provenance, restoration comparisons, and the verifier result remain in
+ignored local evidence:
+`.superpowers/sdd/2026-10-02-lifecycle-tiers-and-project-binding/live-2026-10-03-readonly/`.
+The principal records are `contract-restoration-summary.json`, `runtime-provenance.json`,
+`runtime-final-observation.json`, `13-client-summary.json`, and the numbered tool captures.
+The retained evidence verifier completed with exit code 0. This group used the same frozen source
+candidate, installed version, and matching installed/Release host and worker hashes listed above.
+The native host PID 15008 and worker PID 28428 both ran with `--access-mode read-only`.
+
+The fresh native session was initially unbound. A no-path `bind_project` returned typed
+`target_ambiguous` and listed both original UI Portals with their primary project paths:
+Fixture A in PID 21600 and Fixture B in PID 29956. Those advertised paths matched verified
+project status and the original TIA window titles. Binding A by its advertised path succeeded;
+`browse_project_tree` returned a page of A's 134-node snapshot and a `nextCursor`.
+
+| Read-only case | Observed result |
+| --- | --- |
+| Bind B while bound to A, without force | Top-level `binding_conflict` and null result |
+| Force-bind B, then return to A | Both transitions succeeded with verified project identities |
+| Reuse cursors across the two binding changes | Three stale-cursor attempts were rejected; returning to a project did not revive its old cursor |
+| Read B's tree while bound to A | `binding_conflict`; the exact A status was preserved before and after the refusal |
+| Controlled client bound to B | B tree and before/after status reads succeeded; B's exact project status was preserved |
+
+Controlled-client discovery returned exactly five tools: `bind_project`, `browse_project_tree`,
+`execute_read_batch`, `get_project_status`, and `network_read`. Its host PID 37868 and worker
+PID 19520 ran in read-only mode. It observed zero elicitation requests. Across the read-only
+group, all 22 captured canonical documents (18 native, four controlled-client) had matching
+decoded text and structured content. The group made no lifecycle calls and added no lifecycle
+audit matrix; the 27 full-mode and 42 read-write audit matches above qualify their respective
+groups only. The read-only bind and tree captures support the explicit-binding behavior, while
+the foreign-tree refusal and preserved A status show that an ordinary read did not switch this
+session to B.
+
+The controlled client sent EOF to its owned host stdin. Its worker exited with code 0 within
+**91.43 ms**, below the two-second grace, and its host exited with code 0 within **109.59 ms**.
+No forced termination was needed. A fresh process observation found both auxiliary PIDs absent,
+the native read-only host and worker still running, and both original Portal windows responsive
+with their original project titles. Fresh project status showed A and B open and unmodified;
+their complete captured status documents were unchanged across the read-only checks, including
+the eight baseline fields retained from the restored read-write group: path, name, open/modified
+flags, last modification time and user, author, and size. The final native session was verified
+bound to A in PID 21600.
+
+After the first successful A tree capture, the test driver expected `status:success`; the live
+canonical tree returned `status:succeeded` with a valid cursor. The assertion stopped before the
+B bind. The driver resumed from that cursor without replaying the read. This was a driver
+assertion correction, recorded in `test-driver-corrections.md`, with no production change or
+mutation. A human observation of whether a TIA Openness dialog appeared in this read-only group
+has not been recorded; zero controlled-client elicitation requests do not establish that no
+Openness dialog appeared.
+
 ## Remaining acceptance
 
-Neither completed group identified a production fix requirement. Each evidence directory retains
+No group identified a production fix requirement. Each evidence directory retains
 `test-driver-corrections.md` and the original captures. Read-write corrections covered capture-helper
 evaluation scope without an extra live call, the valid no-project status response, and a legacy
 batch preview with a valid token but no `success` member. The preview assertion stopped before
@@ -255,8 +308,9 @@ mutation; the unchanged operation list was then applied once with that token. Ex
 Siemens failures were inspected before continuation. These are driver corrections, not production
 defects or plan gaps.
 
-Task 13 is not complete. Read-only binding/discovery, tree browsing, and its host-exit observation
-remain pending. Task 14 current documentation/spec updates remain deferred.
+Task 13's tool, state, and host-exit cases are complete on the frozen candidate. The maintainer's
+read-only Openness dialog observation remains pending and is not inferred from client or server captures.
+Task 14 current documentation/spec updates remain deferred.
 
 This run does not qualify headless detach guards, secondary-project or Multiuser behavior,
 forced crash/timeout/disconnect, archive retrieval, PLC compile/download/runtime control,
