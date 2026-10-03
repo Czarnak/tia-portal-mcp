@@ -143,8 +143,10 @@ public sealed class NetworkConnectionEvidenceTests
         Assert.Equal("PLC_Grouped", evidence.GetProperty("nodes")[0].GetProperty("deviceName").GetString());
         Assert.Equal("node-2", evidence.GetProperty("nodes")[0].GetProperty("nodeId").GetString());
         Assert.Equal("PLC_Ungrouped", evidence.GetProperty("nodes")[1].GetProperty("deviceName").GetString());
-        var disconnected = read.GetProperty("devices")[0].GetProperty("items")[0]
-            .GetProperty("networkInterfaces")[0].GetProperty("nodes")[0].GetProperty("connectionEvidence");
+        var nodes = read.GetProperty("devices")[0].GetProperty("items")[0]
+            .GetProperty("networkInterfaces")[0].GetProperty("nodes");
+        Assert.Equal("subnet-1", nodes[0].GetProperty("connectionEvidence").GetProperty("subnetId").GetString());
+        var disconnected = nodes[1].GetProperty("connectionEvidence");
         Assert.True(disconnected.GetProperty("complete").GetBoolean());
         Assert.Equal(JsonValueKind.Null, disconnected.GetProperty("subnetId").ValueKind);
     }
