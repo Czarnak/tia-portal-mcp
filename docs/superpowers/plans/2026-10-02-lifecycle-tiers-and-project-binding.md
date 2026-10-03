@@ -151,7 +151,7 @@ Tasks 1–4 shipped as planned in `e977e8c`. These are the facts Phase B relies 
   2. Already verified with `SameIdentity`: return true with no transition.
   3. `!expected.SameBinding(current)`: fail and leave the binding unchanged.
   4. `SetVerified`: new binding ID and revision + 1.
-  
+
   It applies no path or `forceRebind` policy and does not call `CanBind`; Task 8 owns that policy.
 - `WorkerProtocol` is unchanged here. Task 6 adds the capabilities together with the handlers.
 
