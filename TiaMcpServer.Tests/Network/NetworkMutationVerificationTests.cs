@@ -10,6 +10,18 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkMutationVerificationTests
 {
     [Theory]
+    [InlineData(0, true, "worker_operation_failed")]
+    [InlineData(2, true, "worker_operation_failed")]
+    [InlineData(1, false, "worker_operation_failed")]
+    [InlineData(1, true, null)]
+    public void PreflightDependency_UsesPremutationFailureCategory(int count, bool complete, string? expected)
+    {
+        var classify = typeof(NetworkPostconditionChecks).GetMethod("ClassifyDependencySelection");
+        Assert.NotNull(classify);
+        Assert.Equal(expected, classify.Invoke(null, new object[] { count, complete }));
+    }
+
+    [Theory]
     [InlineData(true, false, false, "Requested subnet was not connected, so IO system lookup was skipped.")]
     [InlineData(true, false, true, "Requested subnet was not connected, so IO system lookup was skipped.")]
     [InlineData(false, false, false, "The network interface does not expose an IO connector.")]
