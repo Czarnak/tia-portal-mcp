@@ -23,6 +23,7 @@ internal sealed class NetworkGuardedWriteFixture : IDisposable
     }
     public static async Task<NetworkGuardedWriteFixture> CreateAsync(TempAuditDirectory audit, string projectPath, McpAccessMode mode = McpAccessMode.ReadWrite)
     {
+        Directory.CreateDirectory(audit.Path);
         var binding = new ProjectSessionBinding(null);
         var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(mode));
         try

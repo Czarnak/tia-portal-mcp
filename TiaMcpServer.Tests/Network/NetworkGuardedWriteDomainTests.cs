@@ -12,6 +12,7 @@ public sealed class NetworkGuardedWriteDomainTests
     public async Task DryRun_ReportsBlocksWithoutMutation()
     {
         using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-incomplete");
         var response = await fixture.RunAsync(true, NetworkGuardedWriteFixture.Delete());
         Assert.Equal("preview", response.Phase);
@@ -20,6 +21,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.Null(response.Batch);
         var state = await NetworkSafetySnapshot.ReadCurrentStateAsync(fixture.Client, "network-guarded-incomplete");
         Assert.Single(state.State!.Subnets);
+        Assert.DoesNotContain("delete_subnet", requests.Methods());
     }
     [Theory]
     [InlineData(McpAccessMode.ReadWrite)]
@@ -52,10 +54,13 @@ public sealed class NetworkGuardedWriteDomainTests
     public async Task Readonly_DeniesBeforeGate()
     {
         using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded", McpAccessMode.ReadOnly);
+        var before = requests.Methods().Length;
         fixture.Binding.Clear(null, out _);
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.Equal("access_denied", response.Error!.Category);
+        Assert.Equal(before, requests.Methods().Length);
     }
     [Fact]
     public void NetworkAcknowledgeRegistration_IsRejected() => Assert.Throws<ArgumentException>(() =>
@@ -69,5 +74,33 @@ public sealed class NetworkGuardedWriteDomainTests
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.Equal("binding_conflict", response.Error!.Category);
         Assert.Null(response.Batch);
+    }
+
+    [Fact]
+    public async Task DomainValidation_RejectsMixedProjectsAndOversizedCallsBeforeWorker()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
+        var before = requests.Methods().Length;
+        var left = NetworkGuardedWriteFixture.Delete("left"); left.ProjectPath = "C:/one.ap21";
+        var right = NetworkGuardedWriteFixture.Delete("right"); right.ProjectPath = "C:/two.ap21";
+        Assert.Equal("validation_error", (await fixture.RunAsync(false, left, right)).Error!.Category);
+        Assert.Equal("validation_error", (await fixture.RunAsync(false, Enumerable.Range(0, 51).Select(i => NetworkGuardedWriteFixture.Delete(i.ToString())).ToArray())).Error!.Category);
+        Assert.Equal(before, requests.Methods().Length);
+    }
+    [Theory]
+    [InlineData("device")]
+    [InlineData("node")]
+    [InlineData("subnet")]
+    [InlineData("diagnostic")]
+    public void PartialDiscoveryCannotEstablishUniqueness(string degraded)
+    {
+        var state = new HardwareConfigInfo { RootDeviceCount = 1, Devices = new() { new() { Name = "known" } }, Subnets = new() { new() { SubnetId = "known" } } };
+        if (degraded == "device") state.Devices.Add(new());
+        if (degraded == "subnet") state.Subnets.Add(new());
+        if (degraded == "node") state.Devices[0].Items.Add(new() { NetworkInterfaces = new() { new() { Nodes = new() { new() } } } });
+        if (degraded == "diagnostic") state.Messages.Add("Some device groups could not be enumerated.");
+        Assert.False(NetworkWritePlanner.DiscoveryComplete(state));
     }
 }

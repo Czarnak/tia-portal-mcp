@@ -47,6 +47,7 @@ var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-p
 var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
 HardwareConfigInfo? guardedNetworkState = null;
 var guardedNetworkWrites = 0;
+var guardedSubnetAttributes = new Dictionary<(string SubnetId, string Name), string>();
 
 // Process-local, mutable subnet state shared by every "network-subnet-lifecycle*" scenario key
 // (Task 6, Phase 4): two devices that never change, and two subnets - one Ethernet, one PROFIBUS -
@@ -1226,7 +1227,18 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-guarded-partial":
         case "network-guarded-lost-node":
         case "network-guarded-postread-failure":
+        case "network-guarded-unknown-result":
+        case "network-guarded-io-move":
+        case "network-guarded-root-drift":
             guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario == "network-guarded-incomplete");
+            if (scenario is "network-guarded-partial" or "network-guarded-io-move" && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
+                guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
+            if (scenario == "network-guarded-io-move" && guardedNetworkState.Subnets.Count == 1)
+            {
+                var other = SelectableSubnet("Other", "subnet-2", "Ethernet", "System:Subnet.Ethernet", Array.Empty<IoSystemInfo>(), Array.Empty<string>());
+                other.ConnectionEvidence = new() { Complete = true };
+                guardedNetworkState.Subnets.Add(other);
+            }
             if (scenario == "network-guarded-disconnected" && guardedNetworkWrites == 0)
             {
                 foreach (var node in GuardedNodes(guardedNetworkState)) node.ConnectionEvidence = new() { Complete = true };
@@ -3379,11 +3391,35 @@ string DispatchSubnetLifecycleWrite(string requestLine, List<SubnetLifecycleSubn
 IEnumerable<NodeInfo> GuardedNodes(HardwareConfigInfo state) => state.Devices.SelectMany(d => d.Items)
     .SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes);
 
+DeviceItemInfo GuardedItem(string device, int index, string name, string type, params DeviceItemPathSegmentInfo[] parents) => new()
+{
+    Name = name, TypeIdentifier = type, PositionNumber = index, Selectable = true,
+    Selector = new() { Kind = "deviceItem", DeviceName = device, ItemPath = parents.Concat(new[]
+        { new DeviceItemPathSegmentInfo { Index = index, Name = name, PositionNumber = index, TypeIdentifier = type } }).ToList() }
+};
+
 string HandleGuardedNetwork(string request, HardwareConfigInfo state, string scenario)
 {
     var method = ReadMethod(request);
+    if (method == "inspect_network_object")
+    {
+        var decoded = JsonSerializer.Deserialize<WorkerRequest>(request, requestJsonOptions)!;
+        var id = decoded.NetworkObjectTarget!.SubnetId!;
+        return Success(ToCamelCaseJson(new NetworkObjectInspectionInfo
+        {
+            Target = decoded.NetworkObjectTarget,
+            Attributes = decoded.NetworkAttributeNames!.Select(name => new NetworkAttributeInfo
+            {
+                Name = name, Source = "dynamic", Access = "readWrite", Availability = "available",
+                Value = name == "TransmissionSpeed"
+                    ? new() { Kind = "enum", Value = new NetworkEnumValueInfo { TypeName = "Fixture.Speed", Symbol = guardedSubnetAttributes[(id, name)], NumericValue = 1 } }
+                    : new() { Kind = "integer", Value = int.Parse(guardedSubnetAttributes[(id, name)], System.Globalization.CultureInfo.InvariantCulture) }
+            }).ToList()
+        }));
+    }
     if (method == "read_hardware_config")
     {
+        if (scenario == "network-guarded-root-drift" && guardedNetworkWrites > 0) state.RootDeviceCount = 1;
         if (scenario == "network-guarded-postread-failure" && guardedNetworkWrites > 0)
             return "{\"success\":false,\"error\":\"postread unavailable\"}";
         if (scenario == "network-guarded-late-block" && guardedNetworkWrites > 0 && state.Subnets.Count > 0)
@@ -3391,6 +3427,26 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         return Success(ToCamelCaseJson(state));
     }
     guardedNetworkWrites++;
+    if (method is "create_subnet" or "update_subnet")
+    {
+        var id = method == "create_subnet" ? "subnet-created-" + guardedNetworkWrites : ReadField(request, "subnetId")!;
+        var subnet = method == "create_subnet"
+            ? SelectableSubnet(ReadField(request, "subnetName")!, id, ReadField(request, "subnetNetworkType")!, "System:Subnet." + ReadField(request, "subnetNetworkType"), Array.Empty<IoSystemInfo>(), Array.Empty<string>())
+            : state.Subnets.Single(s => s.SubnetId == id);
+        if (method == "create_subnet")
+        {
+            subnet.ConnectionEvidence = new() { Complete = true };
+            state.Subnets.Add(subnet);
+        }
+        if (ReadField(request, "subnetName") is { } name) subnet.Name = name;
+        if (ReadIntField(request, "subnetHighestAddress") is { } address) guardedSubnetAttributes[(id, "HighestAddress")] = address.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (ReadField(request, "subnetTransmissionSpeed") is { } speed) guardedSubnetAttributes[(id, "TransmissionSpeed")] = speed;
+        var verification = FakeSubnetVerification(request, id);
+        var countCheck = verification.Checks.Single(c => c.Name == "networkDeviceCountUnchanged");
+        countCheck.Expected = countCheck.Observed = state.RootDeviceCount!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+        { SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount.Value, NetworkDeviceCountUnchanged = true, Verification = verification }));
+    }
     if (method == "configure_network_device")
     {
         var node = GuardedNodes(state).Single(n => n.NodeId == ReadField(request, "nodeId"));
@@ -3403,10 +3459,21 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         {
             node.ConnectionEvidence = new() { Complete = true, SubnetId = id };
             applied["Subnet"] = id;
+            foreach (var previous in state.Subnets) previous.ConnectionEvidence?.Nodes.RemoveAll(n => n.DeviceName == "PLC_Grouped" && n.NodeId == node.NodeId);
             var subnet = state.Subnets.Single(s => s.SubnetId == id);
             subnet.ConnectionEvidence!.Nodes.Add(new() { DeviceName = "PLC_Grouped", NodeId = node.NodeId });
         }
-        if (ReadIntField(request, "ioSystemNumber") is not null) skipped["IoSystem"] = "No IO connector available";
+        if (ReadIntField(request, "ioSystemNumber") is { } ioNumber)
+        {
+            if (scenario == "network-guarded-io-move")
+            {
+                node.ConnectionEvidence!.IoSystemSubnetId = ReadField(request, "ioSystemSubnetId");
+                node.ConnectionEvidence.IoSystemNumber = ioNumber;
+                applied["IoSystem"] = ioNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else skipped["IoSystem"] = "No IO connector available";
+        }
+        if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"outcome unavailable after mutation\"}";
         return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
         {
             DeviceName = "PLC_Grouped", AppliedSettings = applied, SkippedSettings = skipped,
@@ -3419,11 +3486,16 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         var itemName = ReadField(request, "deviceItemName")!;
         var type = ReadField(request, "typeIdentifier")!;
         state.RootDeviceCount++;
-        state.Devices.Add(new() { Name = name, TypeIdentifier = type, Items = new() { new() { Name = itemName, TypeIdentifier = type } } });
+        var rack = GuardedItem(name, 0, "Rack", "Rack:TEST");
+        rack.Items.Add(GuardedItem(name, 0, itemName, type, rack.Selector!.ItemPath!.ToArray()));
+        state.Devices.Add(new() { Name = name, TypeIdentifier = "Device:Station", Items = new()
+        {
+            rack, GuardedItem(name, 1, "PowerSupply", "Supply:TEST")
+        } });
         return Success(ToCamelCaseJson(new AddDeviceResultInfo
         {
             DeviceName = name, RootItemName = itemName, TypeIdentifier = type,
-            Verification = FakePassedVerification(new() { ["deviceName"] = name }, new()
+            Verification = FakePassedVerification(new() { ["deviceName"] = name, ["deviceItemName"] = itemName }, new()
             { ["deviceName"] = name, ["deviceItemName"] = itemName, ["typeIdentifier"] = type })
         }));
     }
