@@ -32,6 +32,13 @@ public sealed class NetworkWriteVerifier
         foreach (var item in batch.Operations.Where(i => i.Status != OperationBatchStatus.Skipped))
         {
             verifyRootCount |= item.Operation is "create_subnet" or "update_subnet" or "delete_subnet";
+            _current.TryGetValue(item.OperationId, out var effect);
+            _initial.TryGetValue(item.OperationId, out var initial);
+            // Preservation is an invariant of an attempted write, even when its outcome is
+            // unknown. Known identities do not prove that the requested mutation was applied.
+            foreach (var node in (initial?.AffectedNodes ?? Array.Empty<NetworkNodeIdentityInfo>())
+                .Concat(effect?.AffectedNodes ?? Array.Empty<NetworkNodeIdentityInfo>()))
+                expected[new("node", node.DeviceName, node.NodeId, "exists")] = "true";
             if (!immediate.TryGetValue(item.OperationId, out var evidence))
             {
                 if (item.Operation == "add_network_device") rootUncertain = true;
@@ -40,8 +47,6 @@ public sealed class NetworkWriteVerifier
                 continue;
             }
             operations.Add(new(item.OperationId, item.Operation, evidence.Status, evidence, null));
-            _current.TryGetValue(item.OperationId, out var effect);
-            _initial.TryGetValue(item.OperationId, out var initial);
             if (item.Operation == "add_network_device")
             {
                 if (item.Status == OperationBatchStatus.Succeeded && evidence.Status == "passed")
@@ -73,9 +78,6 @@ public sealed class NetworkWriteVerifier
                         checks.Add(Check(item.OperationId + "/affectedInventory", "complete", null, false));
                     else
                     {
-                        // Both inventories retain exact identities; aggregates cannot recover these.
-                        foreach (var node in initial.AffectedNodes.Concat(effect.AffectedNodes))
-                            expected[new("node", node.DeviceName, node.NodeId, "exists")] = "true";
                         foreach (var node in effect.AffectedNodes)
                         {
                             expected[new("node", node.DeviceName, node.NodeId, "removedSubnet:" + subnet)] = "true";
