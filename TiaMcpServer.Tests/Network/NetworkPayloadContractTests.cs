@@ -20,6 +20,20 @@ public partial class NetworkPayloadContractTests
 {
     private const string LeakToken = "payload-leak-canary";
 
+    [Theory]
+    [InlineData("""{"deviceName":"PLC_1","skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""")]
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{"Address":"192.168.0.10"},"messages":[]}""")]
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":null,"skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""")]
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":null,"messages":[]}""")]
+    public void MissingRequiredMap_IsProtocolError(string payload)
+    {
+        var missingMap = Project("configure_network_device", payload);
+
+        Assert.Equal("failed", missingMap.Status);
+        Assert.Equal("protocol_error", missingMap.Failure!.Category);
+        Assert.Null(missingMap.Result);
+    }
+
     private static StructuredOperationItem Project(string operation, string payload)
         => NetworkPayloadContract.Project(
             new NetworkOperationRequest { OperationId = "op-1", Operation = operation },

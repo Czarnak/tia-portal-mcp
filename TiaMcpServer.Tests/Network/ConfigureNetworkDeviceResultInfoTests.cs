@@ -32,12 +32,12 @@ public class ConfigureNetworkDeviceResultInfoTests
             DeviceName = "ET200SP_1",
             AppliedSettings =
             {
-                ["ipAddress"] = "192.168.0.20",
-                ["subnetMask"] = "255.255.255.0"
+                ["Address"] = "192.168.0.20",
+                ["SubnetMask"] = "255.255.255.0"
             },
             SkippedSettings =
             {
-                ["ioSystemName"] = "IO system not found."
+                ["IoSystem"] = "IO system not found."
             },
             Messages = { "Configured network node.", "Skipped unavailable IO system." }
         };
@@ -45,9 +45,9 @@ public class ConfigureNetworkDeviceResultInfoTests
         var roundTripped = RoundTrip(result);
 
         Assert.Equal("ET200SP_1", roundTripped.DeviceName);
-        Assert.Equal("192.168.0.20", roundTripped.AppliedSettings["ipAddress"]);
-        Assert.Equal("255.255.255.0", roundTripped.AppliedSettings["subnetMask"]);
-        Assert.Equal("IO system not found.", roundTripped.SkippedSettings["ioSystemName"]);
+        Assert.Equal("192.168.0.20", roundTripped.AppliedSettings["Address"]);
+        Assert.Equal("255.255.255.0", roundTripped.AppliedSettings["SubnetMask"]);
+        Assert.Equal("IO system not found.", roundTripped.SkippedSettings["IoSystem"]);
         Assert.Equal(new[] { "Configured network node.", "Skipped unavailable IO system." }, roundTripped.Messages);
     }
 
