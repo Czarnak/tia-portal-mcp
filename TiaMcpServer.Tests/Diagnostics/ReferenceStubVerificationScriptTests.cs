@@ -93,6 +93,18 @@ public class ReferenceStubVerificationScriptTests
         Assert.Equal(before, fixture.Snapshot());
     }
 
+    [Fact]
+    public void NestedSourceChangesInvalidateArtifacts()
+    {
+        using var fixture = new Fixture();
+        fixture.AddNestedSource();
+        var before = fixture.Snapshot();
+        var result = fixture.Run();
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("StubSourceHash", result.Output);
+        Assert.Equal(before, fixture.Snapshot());
+    }
+
     private sealed class Fixture : IDisposable
     {
         internal static readonly string[] Names = ["Siemens.Engineering.Base.dll", "Siemens.Engineering.Step7.dll"];
@@ -126,6 +138,12 @@ public class ReferenceStubVerificationScriptTests
         }
         internal string[] Snapshot() => Directory.GetFiles(Target).Order(StringComparer.Ordinal)
             .Select(p => Path.GetFileName(p) + ":" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p)))).ToArray();
+        internal void AddNestedSource()
+        {
+            var nested = Path.Combine(root, "reference-stubs", "Siemens.Engineering.Base", "Nested");
+            Directory.CreateDirectory(nested);
+            File.WriteAllText(Path.Combine(nested, "Additional.cs"), "// source hash regression input");
+        }
         internal void MakeHashStale(string path)
         {
             var bytes = File.ReadAllBytes(path);
