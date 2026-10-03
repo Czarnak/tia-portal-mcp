@@ -1,9 +1,9 @@
 # Lifecycle tiers and project binding: live validation
 
 **Run date:** 2026-10-03 (Europe/Warsaw; full-mode raw UTC captures fall on 2026-10-02).
-**Status:** Full-mode, read-write, and read-only functional cases PASS. Task 13 awaits the human read-only Openness dialog observation. Task 14 remains pending.
+**Status:** Task 13 live-accepted 2026-10-03: full-mode, read-write, and read-only functional cases PASS, with the maintainer's read-only Openness dialog observation recorded. Task 14 documentation/spec updates are complete.
 
-This report records the three access-mode groups of [Task 13](../../plans/2026-10-02-lifecycle-tiers-and-project-binding.md). The maintainer requested grouping by access mode and explicitly authorized each group on two running disposable projects. Each group's evidence is identified separately below. Task 14 documentation changes remain deferred.
+This report records the three access-mode groups of [Task 13](../../plans/2026-10-02-lifecycle-tiers-and-project-binding.md). The maintainer requested grouping by access mode and explicitly authorized each group on two running disposable projects. Each group's evidence is identified separately below. Task 14 documentation/spec updates are complete.
 
 ## Candidate and provenance
 
@@ -21,6 +21,11 @@ Exact paths, project/tag contents, raw client captures, audit records, and hashe
 Created projects and the archive remain under ignored `artifacts/lifecycle-bind/full-20261003-3bb504b/`.
 The principal records are `provenance-restoration.json`, `contract-audit-artifact-summary.json`,
 `audit-matched-records.json`, `host-exit-probe.json`, and the numbered tool captures.
+
+After final SDD cleanup, raw paths under this plan's source directory identify entries retained
+in the ignored sibling evidence archive
+`.superpowers/sdd/2026-10-02-lifecycle-tiers-and-project-binding.evidence.zip`.
+The original source directory can be restored by extracting the archive to its original location.
 
 ## Full-mode binding and Portal selection
 
@@ -294,9 +299,17 @@ After the first successful A tree capture, the test driver expected `status:succ
 canonical tree returned `status:succeeded` with a valid cursor. The assertion stopped before the
 B bind. The driver resumed from that cursor without replaying the read. This was a driver
 assertion correction, recorded in `test-driver-corrections.md`, with no production change or
-mutation. A human observation of whether a TIA Openness dialog appeared in this read-only group
-has not been recorded; zero controlled-client elicitation requests do not establish that no
-Openness dialog appeared.
+mutation.
+
+The maintainer subsequently supplied this human observation on 2026-10-03:
+
+> There was no new TIA dialog in read-only mode. Conclusion - TIA dialog appears only once when Worker process is unchanged.
+
+The absence of a new dialog is the maintainer's observation for this read-only group, separate
+from the controlled client's zero elicitation requests. The worker-lifetime statement is the
+maintainer's conclusion. Recorded native worker PIDs changed from 25148 in read-write to 28428
+in read-only, so these mode runs do not establish a general guarantee that an Openness dialog
+appears only once for an unchanged worker process.
 
 ## Remaining acceptance
 
@@ -308,9 +321,11 @@ mutation; the unchanged operation list was then applied once with that token. Ex
 Siemens failures were inspected before continuation. These are driver corrections, not production
 defects or plan gaps.
 
-Task 13's tool, state, and host-exit cases are complete on the frozen candidate. The maintainer's
-read-only Openness dialog observation remains pending and is not inferred from client or server captures.
-Task 14 current documentation/spec updates remain deferred.
+Task 13's tool, state, and host-exit cases are complete on the frozen candidate and live-accepted
+2026-10-03, including the separately recorded maintainer read-only Openness dialog observation.
+That human observation is not inferred from client or server captures; the worker-lifetime
+conclusion remains bounded as described above.
+Task 14 current documentation/spec updates are complete.
 
 This run does not qualify headless detach guards, secondary-project or Multiuser behavior,
 forced crash/timeout/disconnect, archive retrieval, PLC compile/download/runtime control,

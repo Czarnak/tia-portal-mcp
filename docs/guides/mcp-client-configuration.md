@@ -30,27 +30,36 @@ Configure your MCP client to launch the tool command:
 }
 ```
 
-Without explicit access arguments the server starts in `read-write`: edits and compilation,
-with eight tools. Set `"args": ["--access-mode", "full"]` on an installed `tia-mcp` launch for
-the fourteen-tool surface, including save/close and other lifecycle operations and PLC runtime
-control. Existing read-write clients needing those operations must migrate to full.
-`tia-mcp install` has a separate read-only default (four tools).
+Without explicit access arguments the server starts in `read-write` with fifteen tools: edits,
+compilation, and all six lifecycle tools. Each actual lifecycle call asks once through form
+elicitation `accept` with boolean `confirm:true`, even with no guards or only info guards. A client
+without that capability receives `access_denied`; decline, cancel, timeout, or transport failure
+also denies. Set `"args": ["--access-mode", "full"]` for the same fifteen tools with lifecycle
+policy confirmation and no server elicitation, plus OnlineControl (PLC run/stop).
+`tia-mcp install` defaults separately to read-only with five tools, including `bind_project`.
+Block guards stop the call in every mode. See [Installation](installation.md#access-modes).
 
-User-confirmation configuration defaults to on. Add `"--confirm-with-user=false"` to server
-arguments to disable it, or `"--confirm-with-user"` to explicitly enable it. Lifecycle tools apply
-this setting when acknowledge guards fire: default-on requires client form elicitation `accept`
-with boolean `confirm:true`, ignoring agent acknowledgements. A client that lacks elicitation is
-refused with `access_denied` for those calls, with no fallback to agent input. The off path requires
-exactly the fired acknowledge IDs in `acknowledge`. No guard can bypass full-mode access or a hard
-block. See [Installation](installation.md#access-modes) for the complete modes.
+Remove the old startup confirmation switch; it is rejected with:
 
-Lifecycle inputs use `dryRun` and `acknowledge`; remove old `confirm` and `safetyToken` arguments and
-read the structured `result` and `verification` outcomes. A dry run never elicits, although a client
+```text
+--confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.
+```
+
+Lifecycle inputs use `dryRun`; remove former agent confirmation arrays and old public `confirm`
+and `safetyToken` arguments. Read the structured `result` and `verification` outcomes and audit v2
+confirmation by `user`, `policy`, or `none`. A dry run never elicits, although a client
 may still show its destructive-tool permission prompt. Token workflows remain active for Network
 and generic batch writes. Keep destructive tools out of client auto-approve lists if you require a
 permission prompt on every call; the server cannot establish whether a human saw an accepted
 elicitation dialog. The [lifecycle reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
 documents requests, guards, typed failures, and recovery.
+
+Use `bind_project` to adopt or switch to an already-open project in any mode; switching to a
+different configured or previously bound path requires `forceRebind:true`. Omit the path to select
+the sole open project or list candidates. Reattachment may require a human response to TIA's
+Openness access dialog. Worker ownership is lost on detach. Only `open_project` and `create_project`
+open projects; ordinary reads never open, bind or switch. Read-only never opens, creates, saves or
+closes. A project-tree cursor is invalid after a binding change; restart browsing without it.
 
 For local development without installing the tool, point the client at `dotnet`:
 

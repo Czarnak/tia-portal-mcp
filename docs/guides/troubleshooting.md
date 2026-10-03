@@ -57,17 +57,14 @@ worker-reported copied project path; verify it with a subsequent status or read 
 
 ## Guarded lifecycle failures
 
-- `access_denied` naming elicitation: default-on confirmation requires a client with form
-  elicitation when an acknowledge guard fires. Acceptance also needs boolean `confirm:true`.
-  Decline, cancel, timeout, or request failure blocks mutation. Connect with a supporting client
-  or explicitly select `--confirm-with-user=false` and use exact guard acknowledgements.
-- `guard_blocked`: inspect `guards`. A modified no-save close requires
-  `discards_unsaved_changes`; with confirmation on the server elicits, while the off path needs
-  the exact ID. A hard block such as an existing create/save-as destination, archive inside the
-  project folder, or forced close of a modified worker-owned source cannot be acknowledged away.
-- `validation_error` for `acknowledge`: in off mode remove duplicate, blank, unknown, info/block,
-  or non-fired IDs. Run `dryRun:true` to inspect the fired guards; that preview provides no token
-  and does not authorize a later write.
+- `access_denied` naming elicitation: every actual lifecycle call in read-write requires one form
+  acceptance with boolean `confirm:true`, even with no guards or only info guards. Decline, cancel,
+  timeout, unsupported capability, or transport failure blocks mutation. Use a supporting client;
+  full runs lifecycle under policy without server elicitation.
+- `guard_blocked`: inspect `guards`. An existing create/save-as destination, archive inside the
+  project folder, or forced close of a modified worker-owned source blocks in every mode. A dirty
+  no-save close fires the acknowledge-severity `discards_unsaved_changes` guard, satisfied by client
+  acceptance in read-write or policy in full. A dry run shows the guard without mutation or prompting.
 - `binding_conflict` or changed-state refusal after a prompt: the target or prepared revision
   changed. Inspect current project identity/state and submit a new intentional call.
 - `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
@@ -76,6 +73,24 @@ worker-reported copied project path; verify it with a subsequent status or read 
   the project and destination artifacts before retrying. Lifecycle writes are never replayed
   automatically.
 
-The old lifecycle public `confirm`/`safetyToken` inputs are removed. Network and legacy batch tools
-still use their token workflows. These lifecycle changes are staged for the final redesign major
-release; offline/FakeWorker checks do not establish live V21 behavior.
+The former lifecycle agent confirmation array and public `confirm`/`safetyToken` inputs are removed.
+Network and legacy batch tools still use tokens. The removed startup switch fails with:
+
+```text
+--confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.
+```
+
+Use `bind_project` to adopt or switch to an already-open project; a different configured or
+previously bound path requires `forceRebind:true`. No request implicitly opens a project: only
+`open_project` and `create_project` can open one. TIA's Openness access dialog may appear on
+reattachment and requires a human answer; it is separate from lifecycle elicitation. Worker
+ownership is lost across detach. Read-only never opens, creates, saves or closes, but explicit
+binding can switch its session. Doctor's unbound-session Warning names `bind_project` as remediation.
+Project-tree `cursor_binding_mismatch` means the binding ID/revision changed; start a cursor-free
+browse, including after returning to the original path.
+
+The [2026-10-03 live report](../superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md)
+replaces the valid older 2026-10-01 lifecycle evidence for this candidate. All three functional
+groups passed, including read-write confirmation refusals and full policy audit provenance. The
+maintainer reported no new TIA dialog in read-only, completing the separate human observation. Offline/FakeWorker checks
+and programmatic acceptance do not prove that a human saw a dialog or establish hardware acceptance.

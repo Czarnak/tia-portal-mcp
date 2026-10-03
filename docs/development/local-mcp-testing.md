@@ -31,7 +31,8 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net10.0\T
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify 8 tools in read-write mode, 14 in full, or 4 observation tools in read-only. Select `--access-mode full` when testing lifecycle or PLC control.
+- Click `List Tools` and verify 15 tools in read-write/full or 5 in read-only. Full is required for OnlineControl (PLC run/stop); lifecycle works in both writable modes.
+- Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open.
 - Start with the standalone `get_project_status` and `browse_project_tree` tools.
 - In read-write or full mode, call standalone `compile_check` for PLC or block compilation.
 - Then call `execute_read_batch` with an `operations` array whose items use retained operations such as `list_tag_tables`, `read_cross_references`, or `get_block_content`.
@@ -186,7 +187,7 @@ A tag write is the same flow with a one-item batch, e.g. `preview_write_batch` t
 }
 ```
 
-Project lifecycle writes are single-call and full-only. Inspect `open_project` without mutation
+Project lifecycle writes are single-call in read-write and full. Inspect `open_project` without mutation
 or elicitation by setting `dryRun:true`:
 
 ```json
@@ -207,12 +208,12 @@ the dry run creates no token and provides no continuing acknowledgement:
 
 Use archive mode values `None`, `DiscardRestorableData`, `Compressed`, or `DiscardRestorableDataAndCompressed`.
 
-Default-on `--confirm-with-user` elicits only for fired acknowledge guards, requiring `accept` plus
-boolean `confirm:true`; unsupported clients, decline/cancel, timeout, or request failure deny
-mutation. The tool's `acknowledge` array is ignored while on. With the switch off it must equal
-exactly the fired acknowledge guard IDs. Info guards and hard blocks never elicit, and hard blocks
-cannot be overridden. Confirm that all six tools expose `dryRun`/`acknowledge`, structured outputs,
-and no public `confirm`/`safetyToken`; the latter remain on Network and batch tools.
+Read-write elicits once for every actual lifecycle call, including info-only calls and calls without
+guards, requiring `accept` plus boolean `confirm:true`. Unsupported clients, decline/cancel,
+timeout, or transport failure deny mutation. Full applies under policy without server elicitation.
+Block guards stop mutation in every mode, and dry runs never prompt. Confirm that all six tools
+expose `dryRun` and structured outputs with no agent confirmation array or public `confirm`/
+`safetyToken`; token inputs remain on Network/batch. Audit v2 records `user`, `policy`, or `none`.
 
 Read the lifecycle `result` and `verification` as typed outcomes. A mutation or verification
 attempt that fails has `success:false`, `error:null`, and `isError:false`, with failure evidence
@@ -236,6 +237,6 @@ The maintained [project-tree v3 harness](../../scripts/live-test-project-tree-v3
 pwsh -NoProfile -File .\scripts\live-test-project-tree-v3.ps1 -ProjectPath C:\Projects\Sandbox\Line.ap21
 ```
 
-The harness starts the Release executable with `--read-only --project <exact path>`, verifies the four-tool observation surface, and writes JSON/local protocol evidence under `artifacts/issue-32-live/`. It times three cursor-free calls for each full-project, depth-limited, and selected-device mode; walks the final snapshot for every mode; verifies canonical text/structured equality, sequence and parent ordering, limits, selector reconstruction, and categorized missing/ambiguous/invalid selector behavior; and always stops the host in `finally`.
+The harness starts the Release executable with `--read-only --project <exact path>` and writes JSON/local protocol evidence under `artifacts/issue-32-live/`. Its historical four-tool discovery assertion predates the five-tool surface including `bind_project`; update and review that harness assertion before a future authorized run. It times three cursor-free calls for each full-project, depth-limited, and selected-device mode; walks the final snapshot for every mode; verifies canonical text/structured equality, sequence and parent ordering, limits, selector reconstruction, and categorized missing/ambiguous/invalid selector behavior; and always stops the host in `finally`.
 
 An ambiguous-selector pass requires a naturally ambiguous direct-child `(nodeType, name)` pair in the observed project. If the fixture has none, the harness fails that check explicitly. Do not alter a project to manufacture the case; obtain authorization for a different read-only fixture. A parser pass and the static `ProjectTreeLiveHarnessContractTests` prove only the harness source boundary, not live TIA behavior. Create a live acceptance report only after an authorized run has produced and reviewed the evidence.

@@ -33,15 +33,17 @@ $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
 ```
 
-After the first successful call, the session binds to the worker-reported active project. A later
-project-scoped call that names a different `projectPath` is rejected; call `open_project` with `forceRebind=true` to
-rebind the session, or start a new MCP session for a different customer project. Project-scoped read
-operations also refuse to switch projects: `TIA Portal currently has project 'A' open, but this
-request targets 'B'. Read operations never switch projects. Omit projectPath to use the open project,
-or call open_project to switch.` `get_project_status(projectPath)` is read-only and non-binding: it never opens or switches projects, even
-when `projectPath` names a project that is not the one currently open. It is the human-approved Round 5
-deferral from the read-side switching policy because it shares a lifecycle RPC with guarded write-state probes; do not use it to switch
-projects. Use `open_project` for deliberate session switching.
+`--project` creates a configured-unverified assertion. Ordinary reads never bind, switch, or open
+projects. Use `bind_project` to adopt an already-open project, and `forceRebind:true` to select a
+different configured or previously bound path. Use `open_project` only when opening is intended.
+The current writable-mode mismatch refusal is: `TIA Portal currently has project 'A' open, but
+this request targets 'B'. This operation does not switch projects implicitly. Call bind_project with
+the intended projectPath and forceRebind=true to select an already-open project. You can call
+open_project to switch.` Read-only instead ends with `Open the intended project in TIA Portal
+before retrying.`
+`get_project_status(projectPath)` is read-only and non-binding: do not use it to switch projects.
+Reattachment may show TIA's human-answerable Openness access dialog; worker ownership does not
+survive detach. Project-tree cursors reject any binding change, including switching away and back.
 
 
 ## Installing a local branch build as the `tia-mcp` global tool
@@ -135,7 +137,7 @@ is running unless you pass `-AllowDirty` or `-StopRunningServer`:
 8. **Reconnect the MCP client.** Killing the old process in step 5 disconnects any
    live MCP session using it. Reconnect/restart the `tia-portal` server in your
    client (e.g. Claude Code's `/mcp` reconnect, or restart the client) to pick up
-   the new binary, then re-run `open_project` — the previous project binding is gone.
+   the new binary, then use `bind_project` for an already-open project — the previous binding is gone.
 
 ### Reverting to the published version
 

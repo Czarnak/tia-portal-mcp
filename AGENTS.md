@@ -1,6 +1,6 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 4 tools in read-only, 8 in read-write (startup default), and 14 in full mode. Read-write permits in-project edits and compile; project lifecycle and PLC runtime control require full. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 5 tools in read-only, 15 in read-write (startup default), and 15 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual call. Full runs lifecycle without server elicitation and adds OnlineControl (PLC run/stop). The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
 
 ## Two-process architecture (critical to understand)
 
@@ -47,12 +47,13 @@ dotnet build TiaMcpServer.slnx -m:1 /p:TiaPortalV21Dir="C:\Program Files\Siemens
 
 Access tiers are capability presets in the shared `OperationPolicyCatalog`, enforced at discovery,
 host dispatch before worker activity, and worker dispatch before Siemens calls. Unknown operations
-are denied in every mode. Initial project attachment remains available in read-write, but a read
-cannot switch or close an attached project. `--confirm-with-user` defaults to on; `=false` turns it
-off. Lifecycle writes enforce this immutable setting through form elicitation; Network and legacy
-batch tools retain their existing token flows.
+are denied in every mode. `SessionSelection` is permitted in every mode: `bind_project` adopts or
+switches to an already-open project without opening, creating, saving or closing. Ordinary reads
+never bind or switch. Only `open_project` and `create_project` open a project; there are no implicit
+opens. Worker ownership does not survive detach. Read-only never opens, creates, saves or closes.
+Lifecycle confirmation follows access mode; Network and legacy batch tools retain their token flows.
 
-The six lifecycle tools use the guarded single-call pipeline with `dryRun` and `acknowledge`.
+The six lifecycle tools use the guarded single-call pipeline with `dryRun` and mode-derived confirmation.
 Network and legacy batch writes keep preview-then-apply until their phases of the
 [write-safety redesign](docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md).
 Their safety token is a **server-side consistency check**: it proves the apply carries
@@ -64,12 +65,14 @@ documentation.
 
 - **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
 - **Network writes**: call `network_write` with `confirm=false` and no token to preview, then call the same tool with `confirm=true`, the unchanged ordered operation list, and the returned token
-- **Project lifecycle writes** (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`): one call applies by default; `dryRun=true` resolves targets, effects, and guards without mutation or elicitation. Public `confirm` and `safetyToken` are removed. With confirmation on, agent `acknowledge` is ignored; fired acknowledge guards require form elicitation `accept` plus boolean `confirm:true`. Missing capability, decline, cancel, timeout, or transport failure denies with `access_denied`. With confirmation off, `acknowledge` must equal exactly the fired acknowledge guard IDs; hard blocks cannot be acknowledged away.
+- **Project lifecycle writes** (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`): available in read-write and full. `dryRun=true` resolves targets, effects, and guards without mutation or elicitation. Every actual read-write call requires one form elicitation `accept` plus boolean `confirm:true`, even with only info guards or none. Missing capability, decline, cancel, timeout, or transport failure denies with `access_denied`. Full runs without server elicitation and satisfies acknowledge guards by policy. Block guards stop the call in every mode. Public confirmation arguments and safety tokens are absent.
 - Safety tokens are single-use, expire in 10 minutes, and are bound to the exact tool name + host binding revision + requested input + current project state; project-scoped writes additionally require the complete verified project identity
 - Reordering, changing input, or project state changes invalidate the token
 - Token apply-time state read, token consumption, mutation, verification, and audit run under one pinned project-binding lease. Lifecycle uses explicit preparation and the same lease, re-resolving state after elicitation so an accepted consequence cannot silently change.
 - Lifecycle returns one canonical document with typed `result` and `verification`; rejection has top-level `error` and `isError:true`, while attempted mutation/verification failure has `success:false`, `error:null`, and `isError:false`. Inspect possible mutation before retrying.
-- Lifecycle calls append one guarded-write audit record, including dry runs and blocked calls, under `%LOCALAPPDATA%\TiaMcpServer\audit`; accepted elicitation records `user`, opt-out acknowledgement records `agent`. Legacy writes retain their existing audit stream. Client-returned acceptance does not prove a human saw a prompt.
+- Lifecycle calls append one audit v2 record, including dry runs and blocked calls, under `%LOCALAPPDATA%\TiaMcpServer\audit`; confirmation records `user`, `policy`, or `none`, and guard satisfaction is `user`, `policy`, or null. Legacy writes retain their audit stream. Client-returned acceptance does not prove a human saw a prompt.
+- The removed startup switch is rejected with: `--confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.`
+- Doctor reports Warning for an unbound writable session with remediation naming `bind_project`. Project-tree cursors reject binding ID/revision changes as `cursor_binding_mismatch`.
 - **No new token-bound write surfaces.** The redesign retires tokens in favor of one guarded
   single-call pipeline (validate, verified binding, resolve targets, guards, `dryRun`, mutate,
   verify, audit). Do not add a new snapshot reader, `SafetyRead` catalog entry, or token-bound

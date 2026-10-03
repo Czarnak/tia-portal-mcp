@@ -4,7 +4,7 @@
 
 | Entry point | Operation | Inputs | Behavior |
 |---|---|---|---|
-| `browse_project_tree` | `browse_project_tree` | Optional `projectPath`, `depth`, `startPath` | Locates PLC software, blocks, groups, types, and other project objects. |
+| `browse_project_tree` | `browse_project_tree` | Optional `projectPath`, `depth`, `startSelector`, `pageSize`; continuation `cursor` | Locates PLC software, blocks, groups, types, and other project objects; cursors reject binding changes. |
 | `execute_read_batch` | `get_block_content` | Required `blockPath`; optional `format` | Reads an existing block as XML/SimaticML or an eligible external source. See [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md). |
 | `execute_read_batch` | `get_type_content` | Required `typePath`; optional `format` | Reads an existing PLC type as `.udt` source or XML/SimaticML. |
 | `execute_read_batch` | `list_tag_tables` | Optional `plcName` | Lists PLC tag tables and the exposed tag and constant information. |
@@ -15,6 +15,12 @@ Tree browsing and compilation are standalone tools. `compile_check` is available
 and full modes and does not use a safety token. In-project PLC edits also work in both writable
 modes. Legacy batch `start_plc` and `stop_plc` require full; a read-write batch containing either
 is rejected before binding, snapshots, token handling, or worker activity.
+
+Use `bind_project` in any mode to adopt or switch to an already-open project; a different binding
+requires `forceRebind:true`. Ordinary PLC reads never bind, switch or open. Only `open_project` and
+`create_project` open projects. Lifecycle runs in read-write with one confirmation form per actual
+call, or in full without server elicitation; block guards stop the call in every mode. The complete
+tool counts are 5/15/15. Read-only never opens, creates, saves or closes a project.
 
 `get_block_content` and `get_type_content` items also carry `contentHash`: `<format>:sha256:<lower-case hex>` over the exact served `result` text, where `<format>` is the served (normalized) format, `xml` or `source`. It is omitted when `withDependencies` is true, when the read failed, and when the result was truncated or omitted for size.
 

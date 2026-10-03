@@ -24,15 +24,16 @@ In `execute_read_batch` and `apply_write_batch` responses, each `operations[]` i
 
 `execute_read_batch` supports:
 
-`read_hardware_config`, `search_equipment_catalog`, `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+`read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+Hardware/catalog reads use `network_read`.
 
-Project status, project-tree browsing, and compilation are separate tools: `get_project_status`, `browse_project_tree`, and `compile_check`. The first two are available in all three access modes; `compile_check` is available in read-write and full modes. Lifecycle and PLC control require full. See [Installation](../guides/installation.md#access-modes) for the 4/8/14 surfaces and migration.
+Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. OnlineControl (PLC run/stop) requires full. See [Installation](../guides/installation.md#access-modes) for the 5/15/15 surfaces and confirmation policy.
 
 #### Write operations
 
 `preview_write_batch` and `apply_write_batch` support:
 
-`update_block_logic`, `update_type_content`, `create_block`, `delete_block`, `create_block_group`, `delete_block_group`, `create_tag_table`, `delete_tag_table`, `create_tag`, `update_tag`, `delete_tag`, `create_user_constant`, `update_user_constant`, `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc`, and `stop_plc`.
+`update_block_logic`, `update_type_content`, `create_block`, `delete_block`, `create_block_group`, `delete_block_group`, `create_tag_table`, `delete_tag_table`, `create_tag`, `update_tag`, `delete_tag`, `create_user_constant`, `update_user_constant`, `delete_user_constant`, `start_plc`, and `stop_plc`. PLC run/stop requires full. Network provisioning/configuration uses `network_write`.
 
 ### Project lifecycle tools
 
@@ -55,11 +56,11 @@ Lifecycle uses guarded single-call writes. Network and legacy batch retain previ
 consistency tokens; those tokens do not establish user consent.
 
 - Data writes receive a batch-level token from `preview_write_batch` and require the unchanged operation list, `confirm=true`, and that token in `apply_write_batch`.
-- Lifecycle tools use guarded single-call writes with `dryRun` and `acknowledge`; they no longer accept public `confirm` or `safetyToken`. Default-on confirmation uses form elicitation for fired acknowledge guards; the off path requires their exact IDs. Dry runs do not mutate or elicit. See the [lifecycle reference](PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations) for all guards, typed outcomes, and recovery.
+- Lifecycle uses `dryRun` with operation inputs and no public confirmation array or token. Every actual read-write call asks once through form elicitation; full runs under policy without server elicitation. Block guards refuse in every mode; dry runs do not mutate or elicit. See the [lifecycle reference](PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations).
 - Network previews with `network_write` using `confirm:false` and no token; apply with the unchanged list, `confirm:true`, and its token.
 - Network/batch tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
 - A write batch is sequential rather than transactional. Application stops at the first failure; completed items remain applied and later items are marked `skipped`.
-- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle records every call, including previews and refusals, in its guarded-write stream; legacy writes retain their existing audit behavior.
+- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle audit v2 records every call, including previews and refusals, with confirmation by `user`, `policy`, or `none`; legacy writes retain their audit behavior.
 
 Read responses may include `warnings` for partial or degraded data. Hardware reads also provide payload-level `messages` for unreadable members. Callers should treat these fields as part of the result contract rather than filling missing values locally.
 

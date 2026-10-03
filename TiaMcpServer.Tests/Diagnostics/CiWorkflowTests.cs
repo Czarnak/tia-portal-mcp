@@ -201,12 +201,13 @@ public class CiWorkflowTests
 
     /// <summary>
     /// Pins that <c>get_project_status</c> is documented as read-only/non-binding and that
-    /// deliberate project switching is documented exclusively through <c>open_project</c> - never
+    /// adopting/switching an already-open project uses <c>bind_project</c>, while opening uses
+    /// <c>open_project</c> - never
     /// as something achievable by calling <c>get_project_status</c> with a different path. Guards
     /// against the installation guide regressing to instructing side-effecting status-based switching.
     /// </summary>
     [Fact]
-    public void InstallationDoc_DescribesGetProjectStatusAsReadOnlyNonBindingAndSwitchingThroughOpenProject()
+    public void InstallationDoc_DescribesNonBindingStatusAndExplicitBindVersusOpen()
     {
         var readmePath = Path.Combine(GetRepositoryRoot(), "docs", "guides", "installation.md");
         Assert.True(File.Exists(readmePath), $"Expected installation.md to exist at {readmePath}");
@@ -221,7 +222,9 @@ public class CiWorkflowTests
             normalizedReadmeText,
             StringComparison.Ordinal);
         Assert.Contains("do not use it to switch projects", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Use `open_project` for deliberate session switching", normalizedReadmeText, StringComparison.Ordinal);
+        Assert.Contains("Use `bind_project` for adopting or switching to an already-open project", normalizedReadmeText, StringComparison.Ordinal);
+        Assert.Contains("use `open_project` only for opening one", normalizedReadmeText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Use `open_project` for deliberate session switching", normalizedReadmeText, StringComparison.Ordinal);
     }
 
     [Fact]

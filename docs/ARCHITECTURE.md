@@ -54,42 +54,44 @@ falling back to another mode.
 
 ### Read-write mode
 
-Read-write mode exposes eight tools: the four observation tools plus `compile_check`,
-`preview_write_batch`, `apply_write_batch`, and `network_write`. It permits `Observe`,
-`TemporaryExport`, transitional `SafetyRead`, `Compile`, and `ProjectMutation` capabilities.
-It preserves the preview-then-apply safety-token model. Legacy batch PLC control is denied
-before binding, snapshots, or dispatch. Initial startup/read attachment is allowed, but reads
-cannot switch or close an attached project.
+Read-write exposes fifteen tools: four observation tools, `bind_project`, `compile_check`, the
+batch write pair, `network_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
+transitional `SafetyRead`, `SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`.
+Network/batch retain tokens. Every actual lifecycle call asks once through client form elicitation.
+Legacy batch PLC control is denied before binding, snapshots, or dispatch. Reads never bind,
+switch, or open; `bind_project` selects an already-open project.
 
 ### Full mode
 
-Full exposes all fourteen tools and adds `ProjectLifecycle` and `OnlineControl` capabilities.
-Explicit open/create/save/save-as/archive/close and PLC start/stop require this mode. Existing
-read-write clients that need persistence or lifecycle must select `--access-mode full`.
+Full exposes the same fifteen tools and adds `OnlineControl` (PLC run/stop). Lifecycle runs
+under policy without server elicitation. Block guards stop the call in every mode.
 
 ### Confirmation configuration
 
-`--confirm-with-user` defaults to on. Bare `--confirm-with-user` and `=true` enable it;
-`--confirm-with-user=false` disables it. Malformed values and contradictory repeats fail startup.
-The host removes these arguments before generic-host parsing and registers one immutable
-`UserConfirmationOptions` singleton. Lifecycle calls pass that setting and the current MCP client's
-form-elicitation adapter into the guarded pipeline. With confirmation on, agent acknowledgements
-are ignored and fired acknowledge guards require `accept` plus `confirm:true`; missing capability
-or any refusal/failure denies with `access_denied`. With confirmation off, the exact fired guard
-set must be acknowledged by arguments. Dry runs, info-only calls, and hard blocks do not elicit.
-Network/batch token tools retain their behavior, and the switch never relaxes access permissions.
+Confirmation derives from the binding gate's access mode. Read-write asks once for every actual
+lifecycle call, even with no guards or only info guards; form acceptance needs `accept` and boolean
+`confirm:true`. Unsupported capability, decline, cancel, timeout, or transport failure denies with
+`access_denied`. Full uses policy satisfaction without server elicitation. Dry runs and block guards
+never elicit. Lifecycle has no agent confirmation list; Network/batch token tools retain their flows.
+The removed startup switch is rejected by `RemovedCliOptions` with:
+
+```text
+--confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.
+```
 
 ### Read-only mode
 
-Read-only mode exposes observation tools only. It never opens, creates, saves,
-archives, switches, or closes a project; never compiles; never controls a PLC;
+Read-only mode exposes observation tools and explicit session selection (`SessionSelection`).
+It never opens, creates, saves,
+archives, or closes a project; never compiles; never controls a PLC;
 and never performs project-data mutations. It operates only on a project that
 is already open in the attached TIA Portal instance.
 
-The read-only surface contains exactly four tools.
+The read-only surface contains five tools: four observations and `bind_project` for explicit
+session selection. Binding can switch the selected Portal/project without project mutation.
 
-A supplied `projectPath` in read-only mode is an assertion. It must identify the
-currently open project; it is never used to open or switch projects.
+A supplied `projectPath` on ordinary observation/read tools in read-only mode is an assertion.
+It must identify the currently open project; those tools never use it to open or switch projects.
 
 ## 3. Explicit MCP tool registration
 
@@ -98,6 +100,7 @@ Tool registration is explicit and mode-dependent. The host always registers:
 - `ProjectReadTools`
 - `ReadBatchTools`
 - `NetworkReadTools`
+- `ProjectBindingTools`
 
 The shared `McpToolRegistration.WithAccessModeTools` helper registers these in read-write and full:
 
@@ -105,9 +108,9 @@ The shared `McpToolRegistration.WithAccessModeTools` helper registers these in r
 - `WriteBatchTools`
 - `NetworkWriteTools`
 
-`ProjectWriteTools` is registered only when the mode permits `ProjectLifecycle` (full).
+`ProjectWriteTools` is registered when the mode permits `ProjectLifecycle` (read-write and full).
 
-This prevents write tools from appearing in MCP discovery when the server is
+This prevents project mutation and lifecycle tools from appearing in MCP discovery when the server is
 read-only. Decorated tool classes that are not explicitly registered are not
 part of the active tool surface.
 
@@ -122,6 +125,7 @@ preview-only live V21 evidence are recorded in the
 
 | Tool | Purpose |
 |---|---|
+| `bind_project` | Adopt or switch to an already-open project without opening, creating, saving or closing. |
 | `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
 | `browse_project_tree` | Return a canonical, paged v3 point-in-time snapshot using optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`, or continue it with `cursor`. |
 | `execute_read_batch` | Execute up to 50 validated observation operations. |
@@ -168,7 +172,7 @@ cursor continuation
 
 The net48 worker resolves the selector's Device before PLC discovery, walks that device scope, and applies the remaining subtree selector and depth filter to its materialized DTO tree. The host validates the typed payload and flattens it in deterministic pre-order, then stores the immutable flat snapshot before returning a complete-node page. Each initial request makes one tree-observation worker call; configured read-write startup may first make a `get_project_status` call to verify the project binding. A continuation never re-enters Siemens Openness: it authenticates the HMAC-protected cursor, retrieves the same snapshot under the store lock, validates query hash and range, and projects the next canonical page without worker IPC.
 
-The store retains at most four snapshots, 4,000,000 canonical characters per snapshot, and 16,000,000 aggregate characters with a ten-minute sliding idle lifetime. Every public response, including failures and warnings, is capped at 60,000 canonical characters. Oversized diagnostics return a bounded `result_metadata_too_large` failure without echoing them. Cache expiry, eviction, or a cursor from a previous host process returns `snapshot_unavailable`. Malformed or unauthenticated current-process cursors return `invalid_cursor`, repeated query differences return `cursor_filter_mismatch`, and authenticated out-of-range offsets return `cursor_out_of_range`. Cached project-tree continuations are independent of worker-session and host-binding changes.
+The store retains at most four snapshots, 4,000,000 canonical characters per snapshot, and 16,000,000 aggregate characters with a ten-minute sliding idle lifetime. Every public response, including failures and warnings, is capped at 60,000 canonical characters. Oversized diagnostics return a bounded `result_metadata_too_large` failure without echoing them. Cache expiry, eviction, or a cursor from a previous host process returns `snapshot_unavailable`. Malformed or unauthenticated current-process cursors return `invalid_cursor`, repeated query differences return `cursor_filter_mismatch`, and authenticated out-of-range offsets return `cursor_out_of_range`. Cached continuations validate the captured binding ID/revision and return `cursor_binding_mismatch` after a binding change, including a switch away and back. They still serve an immutable snapshot with zero worker calls.
 
 A deeper direct-Openness selector resolver and depth-pruned traversal remains a measured follow-up, not shipped v3 behavior. It must not replace the current seam until live measurements show material benefit and the typed payload, deterministic ordering, selector ambiguity, warning, and pagination contracts remain unchanged.
 
@@ -181,7 +185,7 @@ A deeper direct-Openness selector resolver and depth-pruned traversal remains a 
 | `apply_write_batch` | Redeem the token and execute writes sequentially. |
 | `network_write` | Preview or apply an ordered dedicated-network write request. |
 
-### Additional full-mode tools
+### Lifecycle tools in read-write and full
 
 | Tool | Purpose |
 |---|---|
@@ -208,8 +212,8 @@ started or a request is written. The shared `OperationPolicyCatalog` classifies
 all known worker operations as observation, temporary export, compilation,
 project lifecycle, project mutation, or online control.
 
-Read-only mode allows only observation and temporary-export capabilities.
-Read-write adds compilation and project mutation; full adds lifecycle and online control.
+Read-only allows observation, temporary export, transitional SafetyRead, and session selection.
+Read-write adds compilation, project mutation and lifecycle; full adds online control.
 Transitional `SafetyRead` supports the remaining token tools. Unknown operations are denied
 in every mode, including full.
 
@@ -241,6 +245,7 @@ only to that complete worker identity, never to caller input alone.
 
 - open, create, and rebinding save-as bind to worker-reported ground truth;
 - close clears the binding;
+- explicit `bind_project` adopts an already-open project's verified identity in every mode;
 - ordinary reads and writes do not implicitly bind an unbound session;
 - a configured path is promoted only after a matching status response;
 - timeout, crash, worker restart, PID/path/generation drift, or a missing
@@ -254,6 +259,25 @@ is followed by a PID postcondition check. Every bound request carries
 `ExpectedSessionIdentity`; the worker checks it both before refreshing live
 handles and immediately before the operation body. In read-only mode it reuses
 only the uniquely identified project discovered during attachment.
+
+Only `open_project` and `create_project` open projects; no request implicitly opens one.
+`bind_project(projectPath?, forceRebind=false)` selects an exact advertised open `.ap21` path.
+Without a path an unbound session lists Portals, adopts the sole open project, or reports typed
+`target_not_found`/`target_ambiguous`. Verified same-path/no-path calls reverify through Observe
+`get_project_status`; binding result status has `metadata:null`. A different configured or last-bound
+path requires force. Selection and adoption run under one serialized binding gate.
+
+During switching, pre-detach `target_not_found`, `target_ambiguous`, and wire `guard_blocked`
+preserve the previous verified binding. The host maps headless `guard_blocked` to rejected
+`binding_conflict`; this refusal follows one worker selection round trip. Other failures invalidate
+the binding. Failed outcomes show binding state after the call and transition `none`; binding and
+previous binding are never null (an unbound session has state `unbound`). Candidate lists come
+only from a listing performed in that call.
+
+Switching detaches without closing/saving the previous UI project. A modified headless project
+with this worker as its only Openness client blocks detach to avoid loss. Worker ownership does
+not survive detach; a reattached project is treated as UI-owned. Reattachment may show TIA's
+Openness access dialog, requiring a human answer. This is separate from lifecycle elicitation.
 
 ## 6. Worker transport and execution
 
@@ -386,7 +410,8 @@ lifecycle requests remain dedicated tools, without caller-supplied batch items o
 reader and rejects incorrect operations, identities, or incomplete evidence as `protocol_error`.
 `ProjectLifecycleResultInfo` writes explicit nulls; worker and FakeWorker producers share that
 policy. Verification reads basic status only, including no-project status after close.
-`get_basic_project_status` remains an internal full-mode lifecycle observation. Observing no project
+`get_basic_project_status` remains an internal read-write/full lifecycle observation. Binding uses
+Observe `get_project_status`, which also works in read-only. Observing no project
 after close does not require an expected identity; a supplied expected identity is still checked.
 This does not weaken ordinary project-write binding or make a status read reopen a project.
 
@@ -677,8 +702,8 @@ write: an agent can read the token out of a preview response and apply it in the
 MCP gives a server no way to require a human in between. Consent belongs to the client, which
 decides whether to prompt before a call. The
 [write-safety redesign](superpowers/specs/2026-09-29-write-safety-redesign-design.md) replaces the
-token flow with guarded single-call writes (`dryRun`, guards, default-on elicitation, and an exact
-agent acknowledgement set when confirmation is switched off), delivered in phases. The token
+token flow with guarded single-call writes (`dryRun`, guards, and mode-derived confirmation),
+delivered in phases. Lifecycle read-write asks once per actual call; full applies under policy. The token
 description below applies to Network and legacy batch tools. Client-returned elicitation acceptance
 also does not prove that a person saw a dialog.
 
@@ -843,16 +868,15 @@ session while a preview is assembled.
 
 `TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaces the token flow.
 The six registered lifecycle tools use it; Network and batch migrate in later phases.
-The pipeline is a consistency and safety mechanism. A client-returned elicitation response is
-recorded distinctly from an argument the agent sets, but neither establishes that a person saw
-the consequence.
+The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
+are recorded separately; client acceptance does not prove that a person saw the consequence.
 
 `WriteExecution.RunAsync(domain, call)` owns the order and the safety rules. An
 `IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
 evaluation, the mutation, verification, and the response shape. Stages, in order:
 
 1. **Validate** before any worker call: at least one operation, non-blank unique `operationId`s,
-   the domain's own validation, and (when confirmation is off) a well-formed `acknowledge` list.
+   and the domain's own validation. There is no agent confirmation list.
    Failure is `phase: error`.
 2. **Bind.** The default strategy retains `RequireVerifiedWriteBindingAsync` and verifies promotion
    of the same project. An explicit lifecycle strategy prepares the exact source revision or permits
@@ -865,8 +889,8 @@ evaluation, the mutation, verification, and the response shape. Stages, in order
    A count mismatch is a programming error and throws.
 5. **Guards and confirmation.** `EvaluateGuards` is pure. A `dryRun` stops as `phase: preview`
    without mutation or elicitation and reports guards even when they would block an actual call.
-   Hard blocks refuse without prompting. Default-on confirmation elicits for acknowledge guards;
-   the off-mode path enforces the exact fired set. After an accepted prompt, re-plan and re-evaluate
+   Block guards refuse without prompting. Read-write lifecycle asks once for every actual call;
+   full uses policy without server elicitation. After an accepted prompt, re-plan and re-evaluate
    under the same binding lease before dispatch: the TIA UI can edit while the prompt is visible.
 6. **Mutate** sequentially. The first item that does not succeed stops the call; later items are
    `skipped`. A dependent item is re-planned just before its own mutation.
@@ -876,31 +900,25 @@ evaluation, the mutation, verification, and the response shape. Stages, in order
 
 #### Guards and acknowledgement
 
-A domain fires guards from a closed `WriteGuardCatalog`; the severity comes from the catalog, never
-from the firing site. `info` guards become top-level `warnings` and never stop a call. `acknowledge`
-guards require explicit client form acceptance with boolean `confirm:true` by default. The agent's
-list is ignored in this mode, including malformed/supplied IDs. Unsupported capability, decline,
-cancel, timeout, transport failure, or incomplete acceptance returns `access_denied`. Info-only
-calls, dry runs, and hard blocks never prompt; hard blocks always stop a mutation.
+A domain fires guards from the closed `WriteGuardCatalog`; severity comes from the catalog.
+`info` guards become warnings. `acknowledge` guards are satisfied by accepted client elicitation in
+read-write or mode policy in full. Every actual read-write lifecycle call asks once, including
+info-only calls and calls without guards. Missing capability, decline, cancel, timeout, transport
+failure, or acceptance without boolean `confirm:true` denies with `access_denied`. Block guards
+stop mutation in every mode; dry runs report guards without mutation or prompting.
 
-With confirmation off, acknowledge IDs must equal exactly the fired set; one id covers every
-firing of that guard. A stopped call is `phase: blocked` with category `guard_blocked`.
-A malformed list (blank, duplicate, unknown id, an `info` or `block` id)
-is `validation_error` before any worker call. After planning, an acknowledged id that did not fire
-is also `validation_error`, including when the call contains dependent items or is a dry run.
-Only ids fired during initial planning can be acknowledged. A dry run reports
-`acknowledged: true|false` for acknowledge guards (false with confirmation on) and null for info/block
-guards. The seven lifecycle guards are catalogued in the [project operations reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#guards-and-confirmation).
+A dry run reports `acknowledged:false` for acknowledge guards in read-write and `true` in full,
+while guard audit satisfaction remains null and confirmation is `none/not_requested`. Info/block
+guard acknowledgement is null. See the [seven lifecycle guards](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#guards-and-confirmation).
 
 #### Dependent items
 
 Every item is planned and every guard evaluated before the first mutation. An item planned with
 `DependsOn` is re-planned just before its own mutation, against state the earlier items changed.
-`DecideLate` judges only the guards that re-plan fires: any `block` guard, or an `acknowledge`
-guard not in the list, fails that item with `guard_blocked` and stops the call. Acknowledged ids
-that do not fire on a re-plan are ignored, since they passed the initial call-wide check and may
-belong to another item. An initially acknowledged id covers later firings of the same guard;
-a newly discovered acknowledge-severity id stops the dependent item.
+`DecideLate` judges re-planned guards: any `block` guard stops the item with `guard_blocked`.
+In read-write a newly discovered acknowledge-severity guard not covered by initial client
+acceptance also stops the item; full satisfies that severity by policy. Registered lifecycle
+calls are single-item; this dependency mechanism supports future domain batches.
 
 #### Partial writes
 
@@ -914,14 +932,14 @@ failure before mutation add neither.
 
 Every call, in every phase, appends exactly one record to `writes-yyyy-MM-dd.jsonl` (UTC date,
 UTF-8 without a BOM) beside the legacy audit files, which it never touches. The record has
-`recordKind: "write"` and `recordVersion: 1`, and holds the tool, contract version, access mode,
+`recordKind: "write"` and `recordVersion: 2`, and holds the tool, contract version, access mode,
 project path, the pinned binding, the requested operations, the phase, the response text and its
 `sha256:` hash, every fired guard, and per item the target, checked preconditions, status, failure,
-warnings, and duration. An accepted elicitation guard records `satisfiedBy: "user"`, including when
-the fresh post-acceptance check then refuses stale state before mutation. The explicit switch-off
-path records `satisfiedBy: "agent"` only once apply starts, including when a later stage throws.
-Dry runs and calls without accepted elicitation or admitted agent acknowledgement record no
-satisfaction. Validation and binding rejections are audited
+warnings, and duration. Call-level `confirmation.by` is `user`, `policy`, or `none`; outcomes include
+`confirmed`, `declined`, `cancelled`, `unsupported`, `timed_out`, `failed`, and `not_requested`.
+Accepted elicitation guard satisfaction is `user`, including when a fresh check then refuses stale
+state; full apply satisfaction is `policy`. Dry runs and blocks before confirmation record
+`none/not_requested` and null guard satisfaction. Validation and binding rejections are audited
 outside the lease.
 
 An exception after the lease starts is audited as an `error` record and then rethrown unchanged.
@@ -954,9 +972,8 @@ Doctor never attaches to TIA Portal or opens a project. Its project-binding chec
 validates an absolute, existing `.ap21` file but reports a warning because no live
 project match was inspected. Its process check uses the Windows process list:
 one detected process can pass that process-only check, while multiple processes
-produce a warning, or a failure for an unbound read-write or full configuration. An
-unbound project check is a warning in read-only mode and a failure in read-write or full
-mode. These diagnostics prevent an absent path or ambiguous process set from
+produce a Warning. An unbound project check is a Warning in every mode with remediation naming
+`bind_project`. Invalid paths remain failures. These diagnostics prevent an absent path or ambiguous process set from
 being reported as fully ready without turning Doctor into an Openness client.
 
 ## 10. Testing
@@ -983,8 +1000,8 @@ The read-only test suite covers:
 - doctor output and CLI parity;
 - the output contract of every registered tool (§7a).
 
-Full-mode lifecycle regressions additionally cover explicit binding preparation and stale-revision
-refusal, all seven guards, default-on/off acknowledgement, client elicitation outcomes, post-prompt
+Lifecycle regressions cover read-write/full binding preparation and stale-revision
+refusal, all seven guards, mode-derived guard satisfaction, client elicitation outcomes, post-prompt
 state changes, typed attempted failures and verification, canonical audit provenance, and removal
 of public token inputs. Production-surface protocol tests distinguish actual applied lifecycle
 calls from dry-run previews and keep legacy Network/batch tokens active.

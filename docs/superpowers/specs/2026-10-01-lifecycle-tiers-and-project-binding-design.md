@@ -1,8 +1,11 @@
 # Lifecycle in Read-Write, Mode-Derived Confirmation, and Runtime Project Binding
 
 **Date:** 2026-10-01
-**Status:** Design accepted 2026-10-01 with the maintainer. Every decision in §2 was taken in that
-session. Implementation not started.
+**Status:** Implemented; Task13 live-accepted 2026-10-03 on `3bb504b` in full/read-write/read-only,
+including the separately recorded human read-only Openness dialog observation. Task14 current
+documentation/spec updates are complete. See the
+[live report](../acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md) for
+bounded runtime, client, artifact/restoration evidence and unqualified scenarios.
 **Amends:** [write-safety redesign (2026-09-29)](2026-09-29-write-safety-redesign-design.md)
 §4.6 (asking the human), §4.11 (access-mode tiers), and §9 questions 1 and 9. Those sections stay
 as the historical record; this document is the current rule where they disagree.
@@ -126,7 +129,7 @@ when nothing is attached" route is withdrawn.
 `WriteAuditRecord` moves to `recordVersion: 2` with a call-level member:
 
 ```text
-confirmation: { by: "user" | "policy" | "none", outcome: "accepted" | "declined" | "cancelled" | "unsupported" | "timeout" | "failed" | "not_requested" }
+confirmation: { by: "user" | "policy" | "none", outcome: "confirmed" | "declined" | "cancelled" | "unsupported" | "timed_out" | "failed" | "not_requested" }
 ```
 
 Guard entries keep `satisfiedBy`, now `"user"`, `"policy"`, or null. Dry-run and blocked calls
@@ -161,19 +164,19 @@ binding gate.
 | --- | --- | --- | --- |
 | unbound | no path | list Portals; exactly one with an open project → select and adopt it; none → failed `target_not_found`; several → failed `target_ambiguous` | `bound` / `none` |
 | unbound | path P | select P and adopt it | `bound` |
-| configured or invalidated (path C) | no path, or C | select C and adopt it | `bound` |
-| configured or invalidated (path C) | P ≠ C | rejected `binding_conflict` unless `forceRebind`; then select P and adopt it | `bound` |
+| configured_unverified or invalidated (path C) | no path, or C | select C and adopt it | `bound` |
+| configured_unverified or invalidated (path C) | P ≠ C | rejected `binding_conflict` unless `forceRebind`; then select P and adopt it | `bound` |
 | verified A | no path, or A | re-verify through the existing status read; a mismatch invalidates as today | `unchanged` |
 | verified A | B ≠ A | rejected `binding_conflict`, nothing sent, unless `forceRebind`; then select B and adopt it | `switched` |
 
 "Select" is the worker operation `select_portal_project` (§5.2); "adopt" is
-`ProjectSessionBinding.TryAdoptVerified` (§5.1). A rejection sends nothing to the worker. A failed
-switch fails closed: when `select_portal_project` fails during a switch, the previous binding is
-invalidated, because the worker may already have detached from it. The exception is a refusal the
-worker makes before changing anything: it runs the exact-match lookup and the headless guard of
-§4.4 before detaching and reports them as `target_not_found` and `binding_conflict`. Those two
-leave the previous binding verified; any other failure, including a timeout or crash, invalidates
-it.
+`ProjectSessionBinding.TryAdoptVerified` (§5.1). Host validation or unforced foreign-path rejection
+sends nothing to the worker. **Errata E1/E2:** the headless refusal instead follows one selection
+round trip: wire `guard_blocked` maps to rejected `binding_conflict` at the host. Pre-detach
+`target_not_found`, `target_ambiguous`, and `guard_blocked` occur before any handle/path/generation
+change and preserve the previous verified binding. Every other switch failure invalidates it,
+including worker `binding_conflict`, timeout, crash, `protocol_error`, or postcondition failure.
+**E4:** state names are the `ProjectBindingSnapshot` constants, including `configured_unverified`.
 
 ### 4.3 Response document
 
@@ -183,16 +186,20 @@ The standalone envelope (`tool`, `contractVersion: "1.0"`, `success`, `error`, `
 ```text
 ProjectBindingResult {
   transition: "bound" | "unchanged" | "switched" | "none",
-  binding: ProjectBindingInfo | null,          // after the call
-  previousBinding: ProjectBindingInfo | null,  // before the call
-  project: ProjectStatusInfo | null,           // the status read that verified the binding
+  binding: ProjectBindingInfo,                 // after the call; never null
+  previousBinding: ProjectBindingInfo,         // before the call; never null
+  project: ProjectStatusInfo | null,           // verification status; Metadata = null
   portals: PortalProcessInfo[]                 // always present, possibly empty
 }
 ProjectBindingInfo { state, projectPath, portalProcessId }
 PortalProcessInfo { processId, projectPath | null, hasUserInterface, isBound }
 ```
 
-Every member is always written; there are no conditional members.
+Every member is always written; there are no conditional members. **E3:** an unbound session
+projects as state `unbound`, not null. Failed values report binding state after the call, which can
+be `invalidated`, with transition `none` on every non-success. **E5:** `portals` comes only from a
+listing sent in this call. A failed path selection with `target_not_found` or `target_ambiguous`
+sends one subsequent listing; same-path verified rechecks do not invent candidate inventory.
 
 Outcome mapping, consistent with the JSON contract roadmap:
 
@@ -200,7 +207,7 @@ Outcome mapping, consistent with the JSON contract roadmap:
   `binding_conflict` (a different project without `forceRebind`, or the headless guard of §4.4).
 - **Ran but did not bind** (`isError: false`, `success: false`, `result.status: "failed"` with
   `failure` set): `target_not_found`, `target_ambiguous`, worker or postcondition failures. `value`
-  is still present with `transition: "none"`, the unchanged `binding`, and `portals` filled, so the
+  is still present with `transition: "none"`, the after-call `binding`, and any in-call `portals`, so the
   agent can retry with a path.
 - **Succeeded:** `result.status: "succeeded"` with `value` filled.
 
@@ -210,8 +217,9 @@ Outcome mapping, consistent with the JSON contract roadmap:
   unsaved changes included. If the previous project was opened by the worker and is modified, the
   result warns that it remains open with unsaved changes and must be saved or discarded in TIA.
 - **Headless guard.** If the previous Portal has no user interface, the worker is its only Openness
-  client, and its project is modified, the switch is refused (`binding_conflict`) before anything
-  detaches, because disconnecting could close that instance and lose the changes.
+  client, and its project is modified, the switch is refused before anything detaches, because
+  disconnecting could close that instance and lose changes. **E1:** the worker emits `guard_blocked`
+  on the wire; the host maps it to rejected `binding_conflict` after that selection round trip.
 - **Openness dialog.** When a re-attach happened the result warns that TIA may have asked to allow
   access, and that "Yes to all" stops the prompt for this worker binary.
 - **Ownership is not carried across a detach.** A project the worker opened becomes, after a
@@ -258,6 +266,9 @@ project's snapshot after a switch; they gain the binding ID and revision and rej
   continuity check rejects a new Portal process by design.
 - The worker protocol's required capabilities gain the two new operations, so an older worker
   binary is refused at handshake.
+- **E5:** post-adopt verification and Reverify use `get_project_status` (Observe), so they work in
+  read-only. `get_basic_project_status` belongs to ProjectLifecycle. Binding's `project` retains
+  status with `Metadata = null`; candidate inventory is only from an in-call listing (§4.3).
 
 ### 5.2 Worker (`TiaMcpServer.OpennessWorker`, net48)
 
@@ -305,6 +316,12 @@ invalidated, and the error tells the agent that TIA's Openness dialog needs an a
 ## 6. Delivery
 
 One branch, `feat/lifecycle-tiers-bind-project`, two phases, each green on its own:
+
+Phase A shipped separately at `85aec97` with offline qualification, before Phase B on
+`feat/bind-project`. The final source `3bb504b` passed 4,946 offline tests with 93.24% linked
+host/contracts line coverage and Task13 live acceptance on 2026-10-03, including the human
+read-only Openness dialog observation. Task14 current documentation/spec updates are complete;
+the live report bounds the worker-lifetime conclusion, and no release/tag is implied.
 
 - **Phase A, tiers and confirmation:** presets, lifecycle domain validation, confirmation policy,
   removal of the flag and `acknowledge`, audit v2, no implicit opens. After Phase A the existing

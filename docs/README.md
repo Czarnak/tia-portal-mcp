@@ -9,8 +9,8 @@ For the project overview, tool list, and quick start, see the [README](../README
 
 | Document | What you will find |
 | --- | --- |
-| [Installation](guides/installation.md) | Requirements, `dotnet tool install`, `doctor`, client registration, read-only / read-write / full modes, and confirmation configuration |
-| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, lifecycle elicitation/acknowledgement, and how block paths are addressed |
+| [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 5/15/15 modes, and mode-derived lifecycle confirmation |
+| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, and block paths |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
 
@@ -18,7 +18,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 
 | Document | What you will find |
 | --- | --- |
-| [Architecture](ARCHITECTURE.md) | Two-process topology, access-mode enforcement, worker transport, batch and network execution, the canonical JSON seam, write safety, and testing |
+| [Architecture](ARCHITECTURE.md) | Two-process topology, tier enforcement, explicit binding/cursor invalidation, transport, canonical JSON, mode-derived confirmation/audit v2, and testing |
 
 ## Building and contributing
 
@@ -51,7 +51,7 @@ current documentation — see its index for what is there and how to read it.
 
 Latest process entries: the [lifecycle in read-write, mode-derived confirmation, and runtime project binding design](superpowers/specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md)
 (amends the redesign's §4.6 and §4.11) and its [implementation plan](superpowers/plans/2026-10-02-lifecycle-tiers-and-project-binding.md),
-with [live validation in all three access modes](superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md),
+with [live acceptance in all three access modes; human read-only dialog observation recorded](superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md),
 the [write-safety redesign design (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md)
 and its [Phase 1 foundation plan](superpowers/plans/2026-09-29-write-safety-phase1-foundation.md)
 and [Phase 1b access-mode implementation plan](superpowers/plans/2026-09-30-write-safety-phase1b-access-modes.md),
