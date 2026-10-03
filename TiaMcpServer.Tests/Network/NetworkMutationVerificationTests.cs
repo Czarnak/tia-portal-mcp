@@ -9,6 +9,19 @@ namespace TiaMcpServer.Tests.Network;
 
 public class NetworkMutationVerificationTests
 {
+    [Theory]
+    [InlineData(1, false, "worker_operation_failed")]
+    [InlineData(0, false, "worker_operation_failed")]
+    [InlineData(1, true, null)]
+    [InlineData(0, true, "postcondition_failed")]
+    [InlineData(2, true, "postcondition_failed")]
+    public void SelectionCertainty_UnknownCandidateDeniesEvenWithOneVisibleMatch(int count, bool complete, string? expected)
+    {
+        var guard = typeof(NetworkPostconditionChecks).GetMethod("ClassifySelection");
+        Assert.NotNull(guard);
+        Assert.Equal(expected, guard.Invoke(null, new object[] { count, complete }));
+    }
+
     private static NetworkOperationRequest Configure(bool io = false) => new()
     {
         OperationId = "configure", Operation = "configure_network_device",

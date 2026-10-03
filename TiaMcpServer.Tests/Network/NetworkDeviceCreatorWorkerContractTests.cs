@@ -6,6 +6,19 @@ namespace TiaMcpServer.Tests.Network;
 public sealed class NetworkDeviceCreatorWorkerContractTests
 {
     [Fact]
+    public void SelectionCertainty_DeviceAndInterfaceDiscoveryCannotDropUnreadableCandidates()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");
+        Assert.Contains("NetworkPostconditionChecks.ClassifySelection(matches.Count, !unreadable)", source);
+        Assert.Contains("Network interface discovery was unreadable. No configuration was attempted.", source);
+        Assert.DoesNotContain("Skipping network interface lookup", source);
+        var subnet = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "SubnetLifecycleService.cs");
+        Assert.Contains("FindMatches(project, subnetId, out var unreadableCount)", subnet);
+        Assert.Contains("NetworkPostconditionChecks.ClassifySelection(matches.Count, unreadableCount == 0)", subnet);
+        Assert.Contains("string.IsNullOrWhiteSpace(candidateId)", subnet);
+    }
+
+    [Fact]
     public void Dispatch_AttachesImmediateChecksBeforeSerializingBothDeviceMutationResults()
     {
         var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.cs");
