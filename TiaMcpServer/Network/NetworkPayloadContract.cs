@@ -61,15 +61,24 @@ public static class NetworkPayloadContract
                 warnings);
         }
 
+        // A decoded configuration payload describes the completed attempt, including settings
+        // the worker could not apply. Retain that evidence while failing any requested skip.
+        var settingsSkipped = operation.Operation == "configure_network_device"
+            && result.GetProperty("skippedSettings").EnumerateObject().Any();
+
         return new StructuredOperationItem(
             operation.OperationId,
             operation.Operation,
-            OperationBatchStatus.Succeeded,
+            settingsSkipped ? OperationBatchStatus.Failed : OperationBatchStatus.Succeeded,
             result,
-            Failure: null,
+            Failure: settingsSkipped
+                ? new StructuredOperationFailure(
+                    WorkerFailureCategories.WorkerOperationFailed,
+                    "One or more requested network settings could not be applied.")
+                : null,
             Omission: null,
             SkipReason: null,
-        warnings);
+            warnings);
     }
 
     private static void TryWriteProtocolDiagnostic(

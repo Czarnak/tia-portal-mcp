@@ -11,7 +11,7 @@ public class NetworkSparseConfigurationTests
 {
     private const string PartialPayload = """{"deviceName":"PLC_1","appliedSettings":{"Address":"192.168.0.10"},"skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""";
 
-    private static NetworkOperationRequest Configure(string id) => new()
+    private static NetworkOperationRequest Configure(string id, bool includeIoSystem = true) => new()
     {
         OperationId = id,
         Operation = "configure_network_device",
@@ -19,7 +19,9 @@ public class NetworkSparseConfigurationTests
         Changes = new NetworkDeviceChanges
         {
             IpAddress = "192.168.0.10",
-            IoSystem = new NetworkIoSystemTarget { SubnetId = "subnet-1", Number = 100 },
+            IoSystem = includeIoSystem
+                ? new NetworkIoSystemTarget { SubnetId = "subnet-1", Number = 100 }
+                : null,
         },
     };
 
@@ -65,11 +67,11 @@ public class NetworkSparseConfigurationTests
     }
 
     [Theory]
-    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{"Address":"Read only.","IoSystem":"No IO connector."},"messages":[]}""")]
-    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{"Address":"Read only."},"messages":[]}""")]
-    public void AllSkipped_RetainsTypedResult(string payload)
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{"Address":"Read only.","IoSystem":"No IO connector."},"messages":[]}""", true)]
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{"Address":"Read only."},"messages":[]}""", false)]
+    public void AllSkipped_RetainsTypedResult(string payload, bool includeIoSystem)
     {
-        var item = NetworkPayloadContract.Project(Configure("all-skipped"), WorkerCallResult.Ok(payload));
+        var item = NetworkPayloadContract.Project(Configure("all-skipped", includeIoSystem), WorkerCallResult.Ok(payload));
 
         Assert.Equal("failed", item.Status);
         Assert.Equal("worker_operation_failed", item.Failure!.Category);
@@ -79,6 +81,9 @@ public class NetworkSparseConfigurationTests
         Assert.Equal("PLC_1", result.DeviceName);
         Assert.Empty(result.AppliedSettings);
         Assert.Equal("Read only.", result.SkippedSettings["Address"]);
+        Assert.Equal(
+            includeIoSystem ? new[] { "Address", "IoSystem" } : new[] { "Address" },
+            result.SkippedSettings.Keys);
         Assert.Empty(result.Messages);
     }
 }

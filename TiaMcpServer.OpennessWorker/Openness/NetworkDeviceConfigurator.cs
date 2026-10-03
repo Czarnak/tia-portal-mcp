@@ -75,24 +75,8 @@ public static class NetworkDeviceConfigurator
             result.Messages.Add("No network settings were provided.");
         }
 
-        return FinalizeResult(result, deviceName);
-    }
-
-    /// <summary>
-    /// A result where every requested setting was skipped is a failed operation, not a success
-    /// with fine print — throw so Program.Execute reports WorkerResponse.Success=false.
-    /// </summary>
-    private static ConfigureNetworkDeviceResultInfo FinalizeResult(
-        ConfigureNetworkDeviceResultInfo result,
-        string deviceName)
-    {
-        if (result.AppliedSettings.Count == 0 && result.SkippedSettings.Count > 0)
-        {
-            var reasons = string.Join(" ", result.SkippedSettings.Select(kv => $"{kv.Key}: {kv.Value}"));
-            throw new InvalidOperationException(
-                $"No requested settings could be applied to device '{deviceName}'. {reasons}");
-        }
-
+        // Return completed attempts even when every requested setting was skipped. The host
+        // classifies skips as failures while retaining these sparse maps for recovery.
         return result;
     }
 

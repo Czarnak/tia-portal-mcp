@@ -69,6 +69,62 @@ public class NetworkOperationFakeWorkerTests
         Changes = new NetworkDeviceChanges { IpAddress = ipAddress },
     };
 
+    [Theory]
+    [InlineData("network-config-partial", true)]
+    [InlineData("network-config-all-skipped", false)]
+    public async Task NetworkWrite_CompletedSparseConfigurationFailureRetainsResultAndSkipsLaterWrites(
+        string scenario,
+        bool addressApplied)
+    {
+        using var audit = new TempAuditDirectory();
+        using var client = CreateWriteClient(audit, out var safety, scenario);
+        var operations = new[]
+        {
+            new NetworkOperationRequest
+            {
+                OperationId = "configure",
+                Operation = "configure_network_device",
+                ProjectPath = scenario,
+                Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
+                Changes = new NetworkDeviceChanges
+                {
+                    IpAddress = "192.168.0.10",
+                    IoSystem = new NetworkIoSystemTarget { SubnetId = "subnet-1", Number = 100 },
+                },
+            },
+            new NetworkOperationRequest
+            {
+                OperationId = "later",
+                Operation = "add_network_device",
+                ProjectPath = scenario,
+                TypeIdentifier = "OrderNumber:TEST",
+                DeviceName = "LaterDevice",
+            },
+        };
+        var token = SafetyToken(await NetworkWriteTools.NetworkWrite(client, safety, operations));
+
+        var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, confirm: true, safetyToken: token);
+
+        Assert.False(applied.IsError);
+        var root = Structured(applied);
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        var items = root.GetProperty("batch").GetProperty("operations");
+        Assert.Equal("failed", items[0].GetProperty("status").GetString());
+        Assert.Equal("worker_operation_failed", items[0].GetProperty("failure").GetProperty("category").GetString());
+        var result = items[0].GetProperty("result");
+        Assert.Equal("PLC_1", result.GetProperty("deviceName").GetString());
+        Assert.Equal(
+            addressApplied ? new[] { "Address" } : Array.Empty<string>(),
+            result.GetProperty("appliedSettings").EnumerateObject().Select(property => property.Name));
+        Assert.Equal(
+            addressApplied ? new[] { "IoSystem" } : new[] { "Address", "IoSystem" },
+            result.GetProperty("skippedSettings").EnumerateObject().Select(property => property.Name));
+        Assert.Equal("seq:4", result.GetProperty("messages")[0].GetString());
+        Assert.Equal("skipped", items[1].GetProperty("status").GetString());
+        Assert.Equal("earlierOperationFailed", items[1].GetProperty("skipReason").GetString());
+    }
+
     [Fact]
     public async Task NetworkRead_HardwareAndCatalogSucceedInRequestedOrderWithDeclaredJsonResults()
     {

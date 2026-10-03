@@ -754,6 +754,29 @@ while ((line = Console.In.ReadLine()) is not null)
             // read path can be proven to copy warnings onto the item it decoded successfully.
             Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
             break;
+        case "network-config-partial":
+        case "network-config-all-skipped":
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(HardwareConfigPayload()),
+                "configure_network_device" => Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
+                {
+                    DeviceName = "PLC_1",
+                    AppliedSettings = scenario == "network-config-partial"
+                        ? new Dictionary<string, string> { ["Address"] = "192.168.0.10" }
+                        : new Dictionary<string, string>(),
+                    SkippedSettings = scenario == "network-config-partial"
+                        ? new Dictionary<string, string> { ["IoSystem"] = "No IO connector." }
+                        : new Dictionary<string, string>
+                        {
+                            ["Address"] = "Read only.",
+                            ["IoSystem"] = "No IO connector.",
+                        },
+                    Messages = new List<string> { $"seq:{seq}" },
+                })),
+                _ => """{"success":false,"error":"unexpected sparse configuration method"}""",
+            });
+            break;
         case "network-roundtrip":
             Respond(ReadMethod(line) switch
             {
@@ -772,7 +795,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 // too. Their free-text members carry seq so request ordering stays observable
                 // without smuggling an unmapped member past the declared contract.
                 "add_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"rootItemName\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"warnings\":[\"seq:{{seq}}\"]}"}""",
-                "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"ipAddress\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
+                "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"Address\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
