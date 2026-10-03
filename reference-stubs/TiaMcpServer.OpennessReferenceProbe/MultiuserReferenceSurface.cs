@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Siemens.Engineering;
 using Siemens.Engineering.Multiuser;
+using Siemens.Engineering.HW;
 
 namespace TiaMcpServer.OpennessReferenceProbe
 {
@@ -30,6 +31,12 @@ namespace TiaMcpServer.OpennessReferenceProbe
             Func<bool> isUptoDate = localSession.IsUptoDate;
             FileInfo projectFileInfo = sessionInfo.ProjectFileInfo;
             int sessionId = sessionInfo.SessionId;
+        }
+
+        // Compile-only compatibility check; never called.
+        private static void IoSystemSubnet(IoSystem ioSystem)
+        {
+            Subnet subnet = ioSystem.Subnet;
         }
     }
 }

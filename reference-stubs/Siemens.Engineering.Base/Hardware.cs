@@ -166,6 +166,7 @@ namespace Siemens.Engineering.HW
     {
         public global::Siemens.Engineering.IEngineeringObject Parent { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HW.IoConnectorAssociation ConnectedIoDevices { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.HW.Subnet Subnet { get => throw new global::System.NotSupportedException(); }
         public string Name { get => throw new global::System.NotSupportedException(); }
         public int Number { get => throw new global::System.NotSupportedException(); }
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
