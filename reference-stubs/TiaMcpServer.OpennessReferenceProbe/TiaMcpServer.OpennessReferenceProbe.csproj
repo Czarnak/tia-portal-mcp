@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <TiaOpennessStubReferenceDir>$(MSBuildProjectDirectory)\..\..\ref</TiaOpennessStubReferenceDir>
+    <UseTiaPortalReferenceStubs Condition="'$(UseTiaPortalReferenceStubs)' == '' and Exists('$(TiaPortalV21Dir)\Siemens.Engineering.Base.dll') and Exists('$(TiaPortalV21Dir)\Siemens.Engineering.Step7.dll')">false</UseTiaPortalReferenceStubs>
+    <UseTiaPortalReferenceStubs Condition="'$(UseTiaPortalReferenceStubs)' == ''">true</UseTiaPortalReferenceStubs>
+    <TiaOpennessReferenceDir Condition="'$(UseTiaPortalReferenceStubs)' == 'true'">$(TiaOpennessStubReferenceDir)</TiaOpennessReferenceDir>
+    <TiaOpennessReferenceDir Condition="'$(UseTiaPortalReferenceStubs)' != 'true'">$(TiaPortalV21Dir)</TiaOpennessReferenceDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Siemens.Engineering.Base">
+      <HintPath>$(TiaOpennessReferenceDir)\Siemens.Engineering.Base.dll</HintPath>
+      <Private>False</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </Reference>
+    <Reference Include="Siemens.Engineering.Step7">
+      <HintPath>$(TiaOpennessReferenceDir)\Siemens.Engineering.Step7.dll</HintPath>
+      <Private>False</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="ValidateTiaOpennessReferences" BeforeTargets="ResolveReferences">
+    <Message Importance="High"
+             Text="TIA Openness compile references: $(TiaOpennessReferenceDir) (UseTiaPortalReferenceStubs=$(UseTiaPortalReferenceStubs))" />
+    <Error Condition="!Exists('$(TiaOpennessReferenceDir)\Siemens.Engineering.Base.dll') or !Exists('$(TiaOpennessReferenceDir)\Siemens.Engineering.Step7.dll')"
+           Text="TIA Portal V21 Openness reference assemblies were not found in '$(TiaOpennessReferenceDir)'. Set TiaPortalV21Dir or build with /p:UseTiaPortalReferenceStubs=true." />
+  </Target>
+</Project>
