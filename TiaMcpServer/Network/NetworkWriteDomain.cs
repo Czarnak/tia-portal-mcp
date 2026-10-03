@@ -65,8 +65,9 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
             _immediate[item.OperationId] = CanonicalJson.Deserialize<NetworkMutationVerificationInfo>(verification.GetRawText());
         return projected;
     }
-    public Task<NetworkWriteVerification?> VerifyAsync(string? path, StructuredOperationBatch batch)
-        => Task.FromResult<NetworkWriteVerification?>(new(false, Array.Empty<NetworkOperationVerification>(), Array.Empty<NetworkVerificationCheckInfo>(), null));
+    public async Task<NetworkWriteVerification?> VerifyAsync(string? path, StructuredOperationBatch batch)
+        => await new NetworkWriteVerifier(client, _initial, _current).VerifyAsync(path,
+            StructuredOperationBatch.FromItems(batch.Operations.Where(item => _attempted.Contains(item.OperationId)).ToArray()), _immediate).ConfigureAwait(false);
     public bool VerificationSucceeded(NetworkWriteVerification? verification) => verification?.Success == true;
     public NetworkGuardedWriteResponse Compose(WriteReport<NetworkWriteEffect, NetworkWriteVerification> report) => new(
         ToolName, ContractVersion, report.Phase, report.Success, report.Error, report.Warnings, report.Guards,

@@ -4,6 +4,13 @@ using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Network;
 
+/// <summary>One strictly decoded ordinary hardware read, or its closed failure category.</summary>
+public sealed record NetworkStateSnapshot(bool Success, HardwareConfigInfo? State, string? FailureCategory, string? Error)
+{
+    public static NetworkStateSnapshot Ok(HardwareConfigInfo state) => new(true, state, null, null);
+    public static NetworkStateSnapshot Fail(string failureCategory, string error) => new(false, null, failureCategory, error);
+}
+
 public sealed record NetworkWriteEffect(string Operation, NetworkWriteTargetEvidence Target,
     IReadOnlyDictionary<string, string> RequestedSettings, IReadOnlyDictionary<string, NetworkAttributeInfo> CurrentSettings,
     IReadOnlyList<NetworkNodeIdentityInfo> AffectedNodes, bool? ConnectionsComplete, int? RootDeviceCount);

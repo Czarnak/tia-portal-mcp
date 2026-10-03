@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Safety.Pipeline;
@@ -11,7 +12,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
 {
     public async Task<WritePlan<NetworkWriteEffect>> PlanAsync(string? projectPath, IReadOnlyList<NetworkOperationRequest> items)
     {
-        var snapshot = await NetworkSafetySnapshot.ReadCurrentStateAsync(client, projectPath).ConfigureAwait(false);
+        var snapshot = await ReadCurrentStateAsync(client, projectPath).ConfigureAwait(false);
         if (!snapshot.Success) return WritePlan<NetworkWriteEffect>.Fail(snapshot.FailureCategory!, snapshot.Error!);
         var plans = new List<ItemPlan<NetworkWriteEffect>>();
         foreach (var item in items)
@@ -27,7 +28,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
 
     public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(string? projectPath, NetworkOperationRequest item)
     {
-        var snapshot = await NetworkSafetySnapshot.ReadCurrentStateAsync(client, projectPath).ConfigureAwait(false);
+        var snapshot = await ReadCurrentStateAsync(client, projectPath).ConfigureAwait(false);
         return snapshot.Success ? await ResolveAsync(projectPath, item, snapshot.State!).ConfigureAwait(false)
             : ItemReplan<NetworkWriteEffect>.Fail(snapshot.FailureCategory!, snapshot.Error!);
     }
@@ -78,7 +79,11 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         return ItemReplan<NetworkWriteEffect>.Ok(ItemPlan<NetworkWriteEffect>.Resolved(new(
             item.Operation, target, requested, current,
             affected.OrderBy(n => n.DeviceName, StringComparer.Ordinal).ThenBy(n => n.NodeId, StringComparer.Ordinal).ToArray(),
-            complete, state.RootDeviceCount)));
+            complete, state.RootDeviceCount), new[]
+            {
+                new CheckedPrecondition("networkDiscoveryComplete", "true", "true", true),
+                new CheckedPrecondition("networkConsequencesReadable", "true", complete == true ? "true" : "false", complete == true)
+            }));
     }
 
     internal static bool DiscoveryComplete(HardwareConfigInfo state) => state.Messages.Count == 0
@@ -137,5 +142,18 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         var inspection = CanonicalJson.Deserialize<NetworkObjectInspectionInfo>(result.GetRawText());
         if (inspection.Target.SubnetId != subnetId || inspection.Messages.Count != 0) return new();
         return inspection.Attributes.GroupBy(a => a.Name, StringComparer.Ordinal).Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single(), StringComparer.Ordinal);
+    }
+
+    public static async Task<NetworkStateSnapshot> ReadCurrentStateAsync(OpennessWorkerClient client, string? projectPath)
+    {
+        var result = await client.ReadHardwareConfigAsync(projectPath).ConfigureAwait(false);
+        if (!result.Success) return NetworkStateSnapshot.Fail(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+            result.Error ?? "The hardware configuration could not be read.");
+        try { return NetworkStateSnapshot.Ok(NetworkPayloadContract.DecodeHardwareConfig(result.Payload)); }
+        catch (JsonException)
+        {
+            return NetworkStateSnapshot.Fail(WorkerFailureCategories.ProtocolError,
+                "The hardware configuration payload did not match its declared result contract and was rejected.");
+        }
     }
 }

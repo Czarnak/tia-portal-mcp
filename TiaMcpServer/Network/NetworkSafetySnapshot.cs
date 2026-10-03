@@ -1,25 +1,7 @@
-using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Network;
-
-/// <summary>
-/// Outcome of one hardware-state read. <see cref="State"/> is the decoded typed value on success;
-/// a failure carries a closed <see cref="WorkerFailureCategories"/> category so the caller can
-/// report it without inferring anything from message text.
-/// </summary>
-public sealed record NetworkStateSnapshot(
-    bool Success,
-    HardwareConfigInfo? State,
-    string? FailureCategory,
-    string? Error)
-{
-    public static NetworkStateSnapshot Ok(HardwareConfigInfo state) => new(true, state, null, null);
-
-    public static NetworkStateSnapshot Fail(string failureCategory, string error)
-        => new(false, null, failureCategory, error);
-}
 
 /// <summary>
 /// Outcome of resolving an entire ordered operation list into target evidence. A single operation's
@@ -110,28 +92,8 @@ public static class NetworkSafetySnapshot
     /// echoed back.
     /// </para>
     /// </summary>
-    public static async Task<NetworkStateSnapshot> ReadCurrentStateAsync(
+    public static Task<NetworkStateSnapshot> ReadCurrentStateAsync(
         OpennessWorkerClient client,
         string? projectPath)
-    {
-        var workerResult = await client.ReadHardwareConfigAsync(projectPath).ConfigureAwait(false);
-        if (!workerResult.Success)
-        {
-            return NetworkStateSnapshot.Fail(
-                workerResult.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
-                workerResult.Error ?? "The hardware configuration could not be read.");
-        }
-
-        try
-        {
-            return NetworkStateSnapshot.Ok(NetworkPayloadContract.DecodeHardwareConfig(workerResult.Payload));
-        }
-        catch (JsonException)
-        {
-            return NetworkStateSnapshot.Fail(
-                WorkerFailureCategories.ProtocolError,
-                "The hardware configuration payload did not match its declared result contract and "
-                    + "was rejected, so no safety token can be bound to the current project state.");
-        }
-    }
+        => NetworkWritePlanner.ReadCurrentStateAsync(client, projectPath);
 }
