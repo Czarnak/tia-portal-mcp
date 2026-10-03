@@ -102,7 +102,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-03 | [Lifecycle tiers and runtime binding — full-mode live PASS; read-write/read-only pending](acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md) |
+| 2026-10-03 | [Lifecycle tiers and runtime binding — full and read-write live PASS; read-only pending](acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md) |
 | 2026-10-01 | [JSON contract Phase 3 — guarded lifecycle live validation](acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md) |
 | 2026-10-01 | [JSON contract Phase 3 — offline validation](acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md) |
 | 2026-10-01 | [JSON contract Phase 2 — bounded live verification; producer gate remains open](acceptance/reports/2026-10-01-json-contract-phase2-live-verification.md) |
