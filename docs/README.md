@@ -49,7 +49,9 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: the [lifecycle in read-write, mode-derived confirmation, and runtime project binding design](superpowers/specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md)
+Latest process entries: the [approved Network JSON contract and guarded write design](superpowers/specs/2026-10-03-network-json-guarded-write-design.md)
+and its [approved implementation plan (subagent execution authorized)](superpowers/plans/2026-10-03-network-json-guarded-write.md),
+the [lifecycle in read-write, mode-derived confirmation, and runtime project binding design](superpowers/specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md)
 (amends the redesign's §4.6 and §4.11) and its [implementation plan](superpowers/plans/2026-10-02-lifecycle-tiers-and-project-binding.md),
 with [live acceptance in all three access modes; human read-only dialog observation recorded](superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md),
 the [write-safety redesign design (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md)
