@@ -82,7 +82,7 @@ public class OpennessReferenceProbeContractTests
         Assert.Contains("using Siemens.Engineering.HW;", code, StringComparison.Ordinal);
         Assert.Matches(@"private\s+static\s+void\s+IoSystemSubnet\s*\(\s*IoSystem\s+ioSystem\s*\)", code);
         Assert.Contains("Subnet subnet = ioSystem.Subnet;", code, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Matches(code, @"\bIoSystemSubnet\s*\(").Count);
+        Assert.Single(Regex.Matches(code, @"\bIoSystemSubnet\s*\("));
         Assert.DoesNotMatch(@"\.\s*\w+\s*\(", code);
         Assert.DoesNotMatch(@"\bnew\s+", code);
         Assert.DoesNotMatch(@"\bMain\b|\bstatic\s+MultiuserReferenceSurface\s*\(", code);
