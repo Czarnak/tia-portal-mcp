@@ -73,6 +73,20 @@ public class OpennessReferenceProbeContractTests
         Assert.DoesNotContain("TiaMcpServer.Contracts", code, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ProbeLocksUncalledTypedIoSystemSubnetCompatibilityCheck()
+    {
+        var source = File.ReadAllText(RepositoryPath(ProbeDirectory, "MultiuserReferenceSurface.cs"));
+        var code = Regex.Replace(source, @"/\*[\s\S]*?\*/|//[^\r\n]*", string.Empty);
+
+        Assert.Contains("using Siemens.Engineering.HW;", code, StringComparison.Ordinal);
+        Assert.Matches(@"private\s+static\s+void\s+IoSystemSubnet\s*\(\s*IoSystem\s+ioSystem\s*\)", code);
+        Assert.Contains("Subnet subnet = ioSystem.Subnet;", code, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Matches(code, @"\bIoSystemSubnet\s*\(").Count);
+        Assert.DoesNotMatch(@"\.\s*\w+\s*\(", code);
+        Assert.DoesNotMatch(@"\bnew\s+", code);
+        Assert.DoesNotMatch(@"\bMain\b|\bstatic\s+MultiuserReferenceSurface\s*\(", code);
+    }
     private static string RepositoryPath(params string[] segments)
     {
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));

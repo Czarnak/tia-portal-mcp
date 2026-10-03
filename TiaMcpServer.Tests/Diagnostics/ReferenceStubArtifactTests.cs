@@ -58,6 +58,44 @@ public class ReferenceStubArtifactTests
         }
     }
 
+    [Fact]
+    public void BaseReferenceExposesPublicInstanceReadOnlyIoSystemSubnet()
+    {
+        using var stream = File.OpenRead(Path.Combine(RepositoryRoot, "ref", "Siemens.Engineering.Base.dll"));
+        using var pe = new PEReader(stream);
+        var reader = pe.GetMetadataReader();
+        var typeHandle = Assert.Single(reader.TypeDefinitions,
+            h => FullName(reader, h) == "Siemens.Engineering.HW.IoSystem");
+        var type = reader.GetTypeDefinition(typeHandle);
+        var propertyHandle = Assert.Single(type.GetProperties(),
+            h => reader.GetString(reader.GetPropertyDefinition(h).Name) == "Subnet");
+        var property = reader.GetPropertyDefinition(propertyHandle);
+        var accessors = property.GetAccessors();
+        Assert.False(accessors.Getter.IsNil);
+        Assert.True(accessors.Setter.IsNil);
+        Assert.Empty(accessors.Others);
+
+        var getter = reader.GetMethodDefinition(accessors.Getter);
+        Assert.Equal("get_Subnet", reader.GetString(getter.Name));
+        Assert.Equal(MethodAttributes.Public, getter.Attributes & MethodAttributes.MemberAccessMask);
+        Assert.Equal((MethodAttributes)0, getter.Attributes & MethodAttributes.Static);
+        Assert.NotEqual((MethodAttributes)0, getter.Attributes & MethodAttributes.SpecialName);
+        AssertSubnetSignature(getter.Signature, SignatureKind.Method);
+        AssertSubnetSignature(property.Signature, SignatureKind.Property);
+
+        void AssertSubnetSignature(BlobHandle signature, SignatureKind kind)
+        {
+            var blob = reader.GetBlobReader(signature);
+            var header = blob.ReadSignatureHeader();
+            Assert.Equal(kind, header.Kind);
+            Assert.True(header.IsInstance);
+            Assert.False(header.IsGeneric);
+            Assert.Equal(0, blob.ReadCompressedInteger());
+            Assert.Equal(SignatureTypeCode.TypeHandle, blob.ReadSignatureTypeCode());
+            Assert.Equal("Siemens.Engineering.HW.Subnet", FullName(reader, blob.ReadTypeHandle()));
+            Assert.Equal(0, blob.RemainingBytes);
+        }
+    }
     internal static string RepositoryRoot => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 
     // Canonical framing: UTF-8 slash-relative path, LF, decimal byte length, LF, exact bytes, LF.
