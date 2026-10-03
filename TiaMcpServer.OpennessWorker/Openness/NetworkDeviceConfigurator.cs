@@ -76,7 +76,8 @@ public static class NetworkDeviceConfigurator
         }
 
         // Return completed attempts even when every requested setting was skipped. The host
-        // classifies skips as failures while retaining these sparse maps for recovery.
+        // classifies skips as failures while retaining these sparse maps for recovery. Program
+        // attaches immediate applied-setting verification before serializing this result.
         return result;
     }
 

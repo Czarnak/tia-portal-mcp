@@ -182,7 +182,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         // string match. The "after" re-read has no brief-mandated variable name, so it is asserted
         // as a pattern (re-reads Devices.Count and compares it to whatever the "before" value was
         // named) rather than pinned to the accidental identifier "deviceCountAfter".
-        Assert.Equal(3, CountOccurrences(source, "var deviceCountBefore = project.Devices.Count;"));
+        Assert.Equal(3, CountOccurrences(source, "deviceCountBefore = project.Devices.Count;"));
 
         foreach (var body in new[]
                  {
@@ -192,13 +192,17 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
                  })
         {
             // "before" capture, then a second, later read of project.Devices.Count for comparison.
-            Assert.Equal(2, CountOccurrences(body, "project.Devices.Count"));
-            Assert.Matches(new Regex(@"==\s*deviceCountBefore\b"), body);
+            Assert.Equal(1, CountOccurrences(body, "project.Devices.Count"));
+            Assert.Contains("NetworkMutationVerifier.VerifySubnet(", body);
+            Assert.Contains("result, deviceCountBefore,", body);
         }
+        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs"));
+        Assert.Contains("result.NetworkDeviceCount = project.Devices.Count;", verifier);
+        Assert.Contains("\"networkDeviceCountUnchanged\", Number(rootCountBefore)", verifier);
     }
 
     [Fact]
-    public void Service_ThrowsPostconditionFailedOnAnyMismatchForEveryOperation()
+    public void Service_RetainsTypedImmediateVerificationAfterCommitForEveryOperation()
     {
         var source = ServiceSource;
 
@@ -210,13 +214,30 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         var deleteBody = ExtractPublicMethodBody(source, "Delete");
         foreach (var body in new[] { createBody, updateBody, deleteBody })
         {
-            Assert.Contains("throw PostconditionFailed(", body, StringComparison.Ordinal);
+            var committed = body.IndexOf("transaction.CommitOnDispose();", StringComparison.Ordinal);
+            var verified = body.IndexOf("result.Verification = NetworkMutationVerifier.VerifySubnet(", StringComparison.Ordinal);
+            Assert.True(committed >= 0 && verified > committed);
+            Assert.Contains("return result;", body, StringComparison.Ordinal);
         }
 
         Assert.Contains(
             "WorkerFailureCategories.PostconditionFailed",
             source,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deletion_CapturesReliableInventoryBeforeMutation_AndVerifiesAllScopes()
+    {
+        var body = ExtractPublicMethodBody(ServiceSource, "Delete");
+        Assert.True(body.IndexOf("NetworkMutationVerifier.CaptureAffectedNodes(subnet)", StringComparison.Ordinal)
+            < body.IndexOf("subnet.Delete();", StringComparison.Ordinal));
+        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs"));
+        Assert.Contains("if (!evidence.Complete)", verifier);
+        Assert.Contains("ProjectDeviceNameMatcher.FindMatches(project, name", verifier);
+        Assert.Contains("HardwareConfigReader.ReadConnectedNodeIdentity", verifier);
+        Assert.Contains("ResolveNode(project, identity.DeviceName, identity.NodeId)", verifier);
+        Assert.Contains("HardwareConfigReader.RequireSubnetIdentity(candidate)", verifier);
     }
 
     private static string ExtractPublicMethodBody(string source, string methodName)
@@ -263,17 +284,11 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         // "gone" — this guards that specific asymmetry.
         var deleteBody = ExtractPublicMethodBody(ServiceSource, "Delete");
 
-        // Reads the post-transaction match, additionally reporting how many candidates' identity
-        // could not be read at all (distinct from "read fine but didn't match").
-        Assert.Matches(new Regex(@"out\s+var\s+\w*[Uu]nreadable\w*"), deleteBody);
-
-        var throwIndex = deleteBody.IndexOf("throw PostconditionFailed(", StringComparison.Ordinal);
-        Assert.True(throwIndex >= 0, "Expected a PostconditionFailed throw in Delete's body.");
-        var guardCondition = deleteBody[..throwIndex];
-
-        // The unreadable count must be checked as > 0 and OR'd into the same guard that already
-        // covers a nonzero match count and a changed device count — not read-and-ignored.
-        Assert.Matches(new Regex(@"[Uu]nreadable\w*\s*>\s*0"), guardCondition);
+        Assert.Contains("NetworkMutationVerifier.VerifySubnet(", deleteBody);
+        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs"));
+        Assert.Contains("HardwareConfigReader.RequireSubnetIdentity(candidate)", verifier);
+        Assert.Contains("if (deleting) return Boolean(matches.Count == 0);", verifier);
+        Assert.Contains("NetworkPostconditionChecks.Compare(name, expected, null, false)", verifier);
     }
 
     [Fact]
@@ -293,12 +308,13 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
     }
 
     [Fact]
-    public void Service_NeverTraversesConnectedNodesOrIoSystemsBeforeDeletingASubnet()
+    public void Service_UsesReliableVerifierInventoryBeforeDeletingASubnet()
     {
         var source = ServiceSource;
         Assert.DoesNotContain(".Nodes", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".IoSystems", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ConnectedNodeNames", source, StringComparison.Ordinal);
+        Assert.Contains("NetworkMutationVerifier.CaptureAffectedNodes(subnet)", source);
     }
 
     [Fact]

@@ -29,6 +29,8 @@
       Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkConnectionEvidenceCapture.cs"
       Link="Linked\Openness\NetworkConnectionEvidenceCapture.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkPostconditionChecks.cs"
+      Link="Linked\Openness\NetworkPostconditionChecks.cs" />
     <Compile Update="Batch\TagOperationPrerequisiteBaselineTests.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotBuilder.cs"
       Link="Linked\Openness\TagOperationSafetySnapshotBuilder.cs" />

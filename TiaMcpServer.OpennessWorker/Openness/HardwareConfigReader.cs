@@ -533,14 +533,14 @@ public static class HardwareConfigReader
         return subnetInfo;
     }
 
-    private static string RequireSubnetIdentity(Subnet subnet)
+    internal static string RequireSubnetIdentity(Subnet subnet)
     {
         var identity = ReadExactStringIdentityAttribute(subnet, "SubnetId", "Connected subnet identity");
         if (!identity.IsUsable) throw new InvalidOperationException(identity.Diagnostic);
         return identity.Value;
     }
 
-    private static NetworkNodeIdentityInfo ReadConnectedNodeIdentity(Node node)
+    internal static NetworkNodeIdentityInfo ReadConnectedNodeIdentity(Node node)
     {
         var nodeId = ReadTypedIdentityString(() => node.NodeId, "Connected node identity");
         if (!nodeId.IsUsable) throw new InvalidOperationException(nodeId.Diagnostic);
@@ -564,7 +564,7 @@ public static class HardwareConfigReader
         throw new InvalidOperationException("Connected node owner or project was unavailable.");
     }
 
-    private static (string? SubnetId, int? Number) ReadIoSystemIdentity(NetworkInterface networkInterface)
+    internal static (string? SubnetId, int? Number) ReadIoSystemIdentity(NetworkInterface networkInterface)
     {
         var systems = new List<IoSystem>();
         foreach (IoController controller in networkInterface.IoControllers)

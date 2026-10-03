@@ -2,6 +2,9 @@ namespace TiaMcpServer.Contracts;
 
 public class ConfigureNetworkDeviceResultInfo
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NetworkMutationVerificationInfo? Verification { get; set; }
+
     public string DeviceName { get; set; } = string.Empty;
 
     public Dictionary<string, string> AppliedSettings { get; set; } = new Dictionary<string, string>();

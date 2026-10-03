@@ -26,12 +26,19 @@ public static class NetworkPayloadContract
     public static StructuredOperationItem Project(
         NetworkOperationRequest operation,
         WorkerCallResult workerResult)
-        => Project(operation, workerResult, Console.Error.WriteLine);
+        => Project(operation, workerResult, false);
+
+    public static StructuredOperationItem Project(
+        NetworkOperationRequest operation,
+        WorkerCallResult workerResult,
+        bool requireVerification)
+        => Project(operation, workerResult, Console.Error.WriteLine, requireVerification);
 
     internal static StructuredOperationItem Project(
         NetworkOperationRequest operation,
         WorkerCallResult workerResult,
-        Action<string> writeProtocolDiagnostic)
+        Action<string> writeProtocolDiagnostic,
+        bool requireVerification = false)
     {
         ArgumentNullException.ThrowIfNull(writeProtocolDiagnostic);
         var warnings = workerResult.Warnings ?? Array.Empty<string>();
@@ -48,7 +55,7 @@ public static class NetworkPayloadContract
         JsonElement result;
         try
         {
-            result = Decode(operation, workerResult.Payload);
+            result = Decode(operation, workerResult.Payload, requireVerification);
         }
         catch (JsonException exception)
         {
@@ -65,17 +72,24 @@ public static class NetworkPayloadContract
         // the worker could not apply. Retain that evidence while failing any requested skip.
         var settingsSkipped = operation.Operation == "configure_network_device"
             && result.GetProperty("skippedSettings").EnumerateObject().Any();
+        var postconditionFailed = result.ValueKind == JsonValueKind.Object
+            && result.TryGetProperty("verification", out var evidence)
+            && evidence.ValueKind == JsonValueKind.Object
+            && evidence.GetProperty("status").GetString() is "failed" or "unverified";
 
         return new StructuredOperationItem(
             operation.OperationId,
             operation.Operation,
-            settingsSkipped ? OperationBatchStatus.Failed : OperationBatchStatus.Succeeded,
+            settingsSkipped || postconditionFailed ? OperationBatchStatus.Failed : OperationBatchStatus.Succeeded,
             result,
             Failure: settingsSkipped
                 ? new StructuredOperationFailure(
                     WorkerFailureCategories.WorkerOperationFailed,
                     "One or more requested network settings could not be applied.")
-                : null,
+                : postconditionFailed
+                    ? new StructuredOperationFailure(WorkerFailureCategories.PostconditionFailed,
+                        "Immediate network postconditions failed or could not be verified. Inspect current state before retrying.")
+                    : null,
             Omission: null,
             SkipReason: null,
             warnings);
@@ -120,23 +134,136 @@ public static class NetworkPayloadContract
             payload,
             cfg => ValidateHardwareConfig(cfg, includeIoDetails: null)).Value;
 
-    private static JsonElement Decode(NetworkOperationRequest operation, string payload) => operation.Operation switch
+    private static JsonElement Decode(NetworkOperationRequest operation, string payload, bool requireVerification) => operation.Operation switch
     {
         "read_hardware_config" => Decode<HardwareConfigInfo>(
             payload,
             cfg => ValidateHardwareConfig(cfg, operation.IncludeIoDetails ?? false)),
         "search_equipment_catalog" => Decode<CatalogEntryInfo[]>(payload, ValidateCatalogEntries),
-        "add_network_device" => Decode<AddDeviceResultInfo>(payload),
-        "configure_network_device" => Decode<ConfigureNetworkDeviceResultInfo>(payload),
+        "add_network_device" => Decode<AddDeviceResultInfo>(payload, value => ValidateAddedDevice(operation, value, requireVerification)),
+        "configure_network_device" => Decode<ConfigureNetworkDeviceResultInfo>(payload, value => ValidateConfiguration(operation, value, requireVerification)),
         "list_network_objects" => Decode<NetworkObjectListInfo>(payload, ValidateObjectList),
         "inspect_network_object" => Decode<NetworkObjectInspectionInfo>(payload, ValidateObjectInspection),
         "create_subnet" or "update_subnet" or "delete_subnet" =>
-            Decode<SubnetLifecycleResultInfo>(payload, ValidateSubnetLifecycleResult),
+            Decode<SubnetLifecycleResultInfo>(payload, value => ValidateSubnetMutation(operation, value, requireVerification)),
         _ => throw new JsonException($"No declared result contract for network operation '{operation.Operation}'."),
     };
 
     private static JsonElement Decode<T>(string payload, Action<T>? validate = null)
         => CanonicalJson.NormalizeWorkerPayload(payload, validate).Element;
+
+    private static string Number(int value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private static void ValidateAddedDevice(NetworkOperationRequest op, AddDeviceResultInfo value, bool required)
+    {
+        if (value.Verification is null && !required) return;
+        var itemName = op.DeviceItemName ?? op.DeviceName;
+        if (value.DeviceName != op.DeviceName || value.RootItemName != itemName || value.TypeIdentifier != op.TypeIdentifier)
+            throw new JsonException("Added device identity contradicts the request.");
+        ValidateVerification(value.Verification, new() { ["deviceName"] = value.DeviceName, ["deviceItemName"] = value.RootItemName },
+            new() { ["deviceName"] = op.DeviceName, ["deviceItemName"] = itemName, ["typeIdentifier"] = op.TypeIdentifier });
+    }
+
+    private static void ValidateConfiguration(NetworkOperationRequest op, ConfigureNetworkDeviceResultInfo value, bool required)
+    {
+        if (value.Verification is null && !required) return;
+        if (value.DeviceName != op.Target?.DeviceName || string.IsNullOrWhiteSpace(op.Target?.NodeId))
+            throw new JsonException("Configuration identity contradicts the request.");
+        var requested = new Dictionary<string, string>(StringComparer.Ordinal);
+        var changes = op.Changes;
+        if (changes?.IpAddress is { } address) requested.Add("Address", address);
+        if (changes?.SubnetMask is { } mask) requested.Add("SubnetMask", mask);
+        if (changes?.PnDeviceName is { } pn) requested.Add("PnDeviceName", pn);
+        if (changes?.Subnet is { } subnet) requested.Add("Subnet", subnet.SubnetId!);
+        if (changes?.IoSystem is { Number: { } number }) requested.Add("IoSystem", Number(number));
+        var accounted = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var setting in value.AppliedSettings)
+        {
+            if (!requested.TryGetValue(setting.Key, out var expected) || expected != setting.Value || !accounted.Add(setting.Key))
+                throw new JsonException("Applied settings contradict the request.");
+        }
+        foreach (var setting in value.SkippedSettings)
+        {
+            if (!requested.ContainsKey(setting.Key) || string.IsNullOrWhiteSpace(setting.Value) || !accounted.Add(setting.Key))
+                throw new JsonException("Skipped settings contradict the request.");
+        }
+        if (!accounted.SetEquals(requested.Keys)) throw new JsonException("Requested settings are unaccounted for.");
+        var checks = value.AppliedSettings.ToDictionary(pair => pair.Key, pair => (string?)pair.Value, StringComparer.Ordinal);
+        if (checks.ContainsKey("IoSystem"))
+        {
+            if (string.IsNullOrWhiteSpace(changes?.IoSystem?.SubnetId)) throw new JsonException("IO system subnet identity is required.");
+            checks["IoSystem"] = System.Text.Json.JsonSerializer.Serialize(new object[] { changes!.IoSystem!.SubnetId!, changes.IoSystem.Number!.Value });
+        }
+        ValidateVerification(value.Verification,
+            new() { ["deviceName"] = value.DeviceName, ["nodeId"] = op.Target!.NodeId! }, checks,
+            allowNotRequired: checks.Count == 0);
+    }
+
+    private static void ValidateSubnetMutation(NetworkOperationRequest op, SubnetLifecycleResultInfo value, bool required)
+    {
+        ValidateSubnetLifecycleResult(value);
+        if (value.Verification is null && !required) return;
+        if (op.Operation != "create_subnet" && value.SubnetId != op.Target?.SubnetId)
+            throw new JsonException("Subnet identity contradicts the request.");
+        var checks = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (op.Operation == "delete_subnet")
+        {
+            checks.Add("subnetAbsent", "true");
+            checks.Add("affectedNodesPreserved", "true");
+            checks.Add("affectedConnectionsRemoved", "true");
+        }
+        else
+        {
+            checks.Add("subnetIdentity", value.SubnetId);
+            var name = op.Operation == "create_subnet" ? op.Subnet?.Name : op.SubnetChanges?.Name;
+            if (name is not null) checks.Add("Name", name);
+            if (op.Operation == "create_subnet") checks.Add("TypeIdentifier", "System:Subnet." + op.Subnet?.NetworkType);
+            var address = op.Operation == "create_subnet" ? op.Subnet?.HighestAddress : op.SubnetChanges?.HighestAddress;
+            if (address is { } number) checks.Add("HighestAddress", Number(number));
+            var speed = op.Operation == "create_subnet" ? op.Subnet?.TransmissionSpeed : op.SubnetChanges?.TransmissionSpeed;
+            if (speed is not null) checks.Add("TransmissionSpeed", speed);
+        }
+        var countChecks = value.Verification?.Checks.Where(check => check?.Name == "networkDeviceCountUnchanged").ToList();
+        if (countChecks?.Count != 1) throw new JsonException("Exactly one root count check is required.");
+        var count = countChecks[0];
+        // The pre-mutation root count belongs to the worker observation. Validate its domain,
+        // post-read value and summary, without pretending the host observed the before count.
+        if (count is null || !int.TryParse(count.Expected, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var before) || before < 0)
+            throw new JsonException("Root device count evidence is required.");
+        if (count.Status != "unverified" && count.Observed != Number(value.NetworkDeviceCount)
+            || value.NetworkDeviceCountUnchanged != (count.Status == "passed"))
+            throw new JsonException("Root device count evidence contradicts the result.");
+        checks.Add("networkDeviceCountUnchanged", count.Expected);
+        ValidateVerification(value.Verification, new() { ["subnetId"] = value.SubnetId }, checks);
+    }
+
+    private static void ValidateVerification(NetworkMutationVerificationInfo? evidence,
+        Dictionary<string, string> identity, Dictionary<string, string?> expected, bool allowNotRequired = false)
+    {
+        if (evidence is null) throw new JsonException("Immediate mutation verification is required.");
+        if (identity.Any(pair => string.IsNullOrWhiteSpace(pair.Value)) || evidence.Identity.Count != identity.Count
+            || identity.Any(pair => !evidence.Identity.TryGetValue(pair.Key, out var actual) || actual != pair.Value))
+            throw new JsonException("Verification identity contradicts the result or request.");
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var check in evidence.Checks)
+        {
+            if (check is null || !seen.Add(check.Name) || !expected.TryGetValue(check.Name, out var target) || check.Expected != target)
+                throw new JsonException("Verification contains missing, duplicate, unexpected or contradictory checks.");
+            if (check.Status is not ("passed" or "failed" or "unverified")) throw new JsonException("Invalid check status.");
+            if (check.Status == "passed" && check.Expected != check.Observed
+                || check.Status == "failed" && check.Expected == check.Observed
+                || check.Status == "unverified" && check.Observed is not null
+                || check.Status != "passed" && string.IsNullOrWhiteSpace(check.Message))
+                throw new JsonException("Verification status contradicts its evidence.");
+        }
+        if (!seen.SetEquals(expected.Keys)) throw new JsonException("Required checks are missing.");
+        var status = evidence.Checks.Any(check => check.Status == "failed") ? "failed"
+            : evidence.Checks.Any(check => check.Status == "unverified") ? "unverified"
+            : evidence.Checks.Count == 0 && allowNotRequired ? "not_required" : "passed";
+        if (evidence.Status != status || evidence.Checks.Count == 0 && !allowNotRequired)
+            throw new JsonException("Verification summary contradicts its checks.");
+    }
 
     // The worker-payload reader rejects a missing member and an explicit null in any member the
     // contract types declare non-nullable. It cannot see a null element inside a collection, or a
@@ -387,7 +514,7 @@ public static class NetworkPayloadContract
             throw new JsonException("'networkDeviceCount' must not be negative.");
         }
 
-        if (!value.NetworkDeviceCountUnchanged)
+        if (!value.NetworkDeviceCountUnchanged && value.Verification is null)
         {
             throw new JsonException("'networkDeviceCountUnchanged' must be true.");
         }

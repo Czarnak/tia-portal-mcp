@@ -645,11 +645,13 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with adding a network device.");
         }
 
-        return WithProject(request, project => Success(NetworkDeviceCreator.Create(
-            project,
-            request.TypeIdentifier!,
-            request.DeviceName!,
-            string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!)));
+        return WithProject(request, project =>
+        {
+            var result = NetworkDeviceCreator.Create(project, request.TypeIdentifier!, request.DeviceName!,
+                string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!);
+            result.Verification = NetworkMutationVerifier.VerifyAddedDevice(project, request, result);
+            return Success(result);
+        });
     }
 
     private static WorkerResponse ConfigureNetworkDevice(WorkerRequest request)
@@ -671,16 +673,21 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with configuring a network device.");
         }
 
-        return WithProject(request, project => Success(NetworkDeviceConfigurator.Configure(
-            project,
-            request.DeviceName!,
-            request.NodeId!,
-            request.IpAddress,
-            request.SubnetMask,
-            request.PnDeviceName,
-            request.SubnetId,
-            request.IoSystemSubnetId,
-            request.IoSystemNumber)));
+        return WithProject(request, project =>
+        {
+            var result = NetworkDeviceConfigurator.Configure(
+                project,
+                request.DeviceName!,
+                request.NodeId!,
+                request.IpAddress,
+                request.SubnetMask,
+                request.PnDeviceName,
+                request.SubnetId,
+                request.IoSystemSubnetId,
+                request.IoSystemNumber);
+            result.Verification = NetworkMutationVerifier.VerifyConfiguration(project, request, result);
+            return Success(result);
+        });
     }
 
     private static WorkerResponse CreateSubnet(WorkerRequest request)

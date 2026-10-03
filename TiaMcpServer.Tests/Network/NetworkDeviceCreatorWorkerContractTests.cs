@@ -6,6 +6,18 @@ namespace TiaMcpServer.Tests.Network;
 public sealed class NetworkDeviceCreatorWorkerContractTests
 {
     [Fact]
+    public void Dispatch_AttachesImmediateChecksBeforeSerializingBothDeviceMutationResults()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.cs");
+        foreach (var method in new[] { "VerifyAddedDevice", "VerifyConfiguration" })
+        {
+            var check = source.IndexOf("result.Verification = NetworkMutationVerifier." + method, StringComparison.Ordinal);
+            Assert.True(check >= 0);
+            Assert.True(source.IndexOf("return Success(result);", check, StringComparison.Ordinal) > check);
+        }
+    }
+
+    [Fact]
     public void Create_UsesTypeItemNameThenDeviceNameForCreateWithItem()
     {
         var source = ReadRepositorySource(

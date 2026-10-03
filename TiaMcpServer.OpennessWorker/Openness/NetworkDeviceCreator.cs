@@ -34,12 +34,11 @@ public static class NetworkDeviceCreator
         }
 
         result.DeviceName = ReadString(() => device.Name, result.DeviceName, result.Warnings, "created device name");
-        result.TypeIdentifier = ReadString(() => device.TypeIdentifier, result.TypeIdentifier, result.Warnings, "created device type identifier");
-
-        var firstItem = GetFirstDeviceItem(device);
-        if (firstItem is not null)
+        var createdItem = GetCreatedDeviceItem(device, deviceItemName);
+        if (createdItem is not null)
         {
-            result.RootItemName = ReadString(() => firstItem.Name, result.RootItemName, result.Warnings, "created root device item name");
+            result.RootItemName = ReadString(() => createdItem.Name, result.RootItemName, result.Warnings, "created device item name");
+            result.TypeIdentifier = ReadString(() => createdItem.TypeIdentifier, result.TypeIdentifier, result.Warnings, "created device item type identifier");
         }
         else
         {
@@ -49,14 +48,13 @@ public static class NetworkDeviceCreator
         return result;
     }
 
-    private static DeviceItem? GetFirstDeviceItem(Device device)
+    private static DeviceItem? GetCreatedDeviceItem(Device device, string itemName)
     {
         try
         {
-            foreach (DeviceItem item in device.DeviceItems)
-            {
-                return item;
-            }
+            var matches = device.DeviceItems.Cast<DeviceItem>()
+                .Where(item => string.Equals(item.Name, itemName, StringComparison.Ordinal)).ToList();
+            return matches.Count == 1 ? matches[0] : null;
         }
         catch (EngineeringException ex)
         {

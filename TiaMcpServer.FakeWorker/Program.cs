@@ -773,6 +773,8 @@ while ((line = Console.In.ReadLine()) is not null)
                             ["IoSystem"] = "No IO connector.",
                         },
                     Messages = new List<string> { $"seq:{seq}" },
+                    Verification = FakeConfigurationVerification(line, "PLC_1", scenario == "network-config-partial"
+                        ? new Dictionary<string, string> { ["Address"] = "192.168.0.10" } : new()),
                 })),
                 _ => """{"success":false,"error":"unexpected sparse configuration method"}""",
             });
@@ -2939,21 +2941,21 @@ string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHome
     if (ipAddress is not null)
     {
         target.IpAddress = ipAddress;
-        applied["ipAddress"] = ipAddress;
+        applied["Address"] = ipAddress;
     }
 
     var subnetMask = ReadField(requestLine, "subnetMask");
     if (subnetMask is not null)
     {
         target.SubnetMask = subnetMask;
-        applied["subnetMask"] = subnetMask;
+        applied["SubnetMask"] = subnetMask;
     }
 
     var pnDeviceName = ReadField(requestLine, "pnDeviceName");
     if (pnDeviceName is not null)
     {
         target.PnDeviceName = pnDeviceName;
-        applied["pnDeviceName"] = pnDeviceName;
+        applied["PnDeviceName"] = pnDeviceName;
     }
 
     var result = new ConfigureNetworkDeviceResultInfo
@@ -2962,6 +2964,7 @@ string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHome
         AppliedSettings = applied,
         SkippedSettings = new Dictionary<string, string>(),
         Messages = new List<string> { $"configured nodeId '{nodeId}'" },
+        Verification = FakeConfigurationVerification(requestLine, "PC_1", applied),
     };
 
     return Success(ToCamelCaseJson(result));
@@ -3353,12 +3356,50 @@ string DispatchSubnetLifecycleWrite(string requestLine, List<SubnetLifecycleSubn
     };
 
 /// <summary>
-/// Assigns a deterministic, nonblank, never-reused subnet id and applies PROFIBUS-only attributes
-/// only when the requested network type is PROFIBUS - mirroring
-/// <c>SubnetLifecycleService.ApplyProfibusAttributes</c>'s Ethernet/PROFIBUS split. The new subnet
-/// starts with an EMPTY connectedNodeNames list: nothing connects it, so it is immediately
-/// deletable as an "empty subnet" without needing a third preset fixture.
+/// Scripted verification for deterministic FakeWorker outcomes, not live Siemens read-back.
 /// </summary>
+NetworkMutationVerificationInfo FakePassedVerification(Dictionary<string, string> identity, Dictionary<string, string> values) => new()
+{
+    Identity = identity,
+    Status = values.Count == 0 ? "not_required" : "passed",
+    Checks = values.Select(pair => new NetworkVerificationCheckInfo
+    {
+        Name = pair.Key, Status = "passed", Expected = pair.Value, Observed = pair.Value,
+    }).ToList(),
+};
+
+NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine, string deviceName, Dictionary<string, string> applied)
+{
+    var values = new Dictionary<string, string>(applied);
+    if (values.ContainsKey("IoSystem")) values["IoSystem"] = JsonSerializer.Serialize(new object?[]
+        { ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId"), ReadIntField(requestLine, "ioSystemNumber") });
+    return FakePassedVerification(new() { ["deviceName"] = deviceName, ["nodeId"] = ReadField(requestLine, "nodeId")! }, values);
+}
+
+NetworkMutationVerificationInfo FakeSubnetVerification(string requestLine, string subnetId)
+{
+    var method = ReadMethod(requestLine);
+    var values = new Dictionary<string, string>
+    {
+        ["networkDeviceCountUnchanged"] = SubnetLifecycleDeviceCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+    if (method == "delete_subnet")
+    {
+        values.Add("subnetAbsent", "true");
+        values.Add("affectedNodesPreserved", "true");
+        values.Add("affectedConnectionsRemoved", "true");
+    }
+    else
+    {
+        values.Add("subnetIdentity", subnetId);
+        if (ReadField(requestLine, "subnetName") is { } name) values.Add("Name", name);
+        if (method == "create_subnet") values.Add("TypeIdentifier", "System:Subnet." + ReadField(requestLine, "subnetNetworkType"));
+        if (ReadIntField(requestLine, "subnetHighestAddress") is { } address) values.Add("HighestAddress", address.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (ReadField(requestLine, "subnetTransmissionSpeed") is { } speed) values.Add("TransmissionSpeed", speed);
+    }
+    return FakePassedVerification(new() { ["subnetId"] = subnetId }, values);
+}
+
 string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
 {
     var name = ReadField(requestLine, "subnetName") ?? string.Empty;
@@ -3384,6 +3425,7 @@ string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
         Name = name,
         NetworkDeviceCount = SubnetLifecycleDeviceCount,
         NetworkDeviceCountUnchanged = true,
+        Verification = FakeSubnetVerification(requestLine, subnetId),
     }));
 }
 
@@ -3424,6 +3466,7 @@ string HandleUpdateSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
         Name = target.Name,
         NetworkDeviceCount = SubnetLifecycleDeviceCount,
         NetworkDeviceCountUnchanged = true,
+        Verification = FakeSubnetVerification(requestLine, target.SubnetId),
     }));
 }
 
@@ -3449,6 +3492,7 @@ string HandleDeleteSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
         Name = target.Name,
         NetworkDeviceCount = SubnetLifecycleDeviceCount,
         NetworkDeviceCountUnchanged = true,
+        Verification = FakeSubnetVerification(requestLine, target.SubnetId),
     }));
 }
 

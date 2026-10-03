@@ -183,4 +183,99 @@ public class NetworkMutationVerificationTests
         Assert.Null(item.Result);
         Assert.DoesNotContain("secret-canary", item.Failure.Message);
     }
+
+    [Theory]
+    [InlineData("duplicate")]
+    [InlineData("missing")]
+    [InlineData("unexpected")]
+    [InlineData("status")]
+    [InlineData("identity")]
+    [InlineData("expected")]
+    [InlineData("failed-equal")]
+    [InlineData("unverified-observed")]
+    [InlineData("unverified-diagnostic")]
+    public void MalformedEvidence_IsRejectedWithoutEcho(string corruption)
+    {
+        var evidence = Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true));
+        var check = evidence.Checks[0];
+        switch (corruption)
+        {
+            case "duplicate": evidence.Checks.Add(check); break;
+            case "missing": evidence.Checks.Clear(); break;
+            case "unexpected": check.Name = "secret-canary"; break;
+            case "status": check.Status = "secret-canary"; break;
+            case "identity": evidence.Identity["extra"] = "secret-canary"; break;
+            case "expected": check.Expected = "secret-canary"; break;
+            case "failed-equal": check.Status = "failed"; check.Message = "mismatch"; break;
+            case "unverified-observed": check.Status = "unverified"; check.Message = "unreadable"; break;
+            case "unverified-diagnostic": check.Status = "unverified"; check.Observed = null; break;
+        }
+        AssertProtocolError(Project(Configure(), ConfigResult(evidence)));
+    }
+
+    [Fact]
+    public void AddedDevice_RequiresExactReturnedIdentitiesAndType()
+    {
+        var op = new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device", DeviceName = "PLC", DeviceItemName = "CPU", TypeIdentifier = "OrderNumber:CPU" };
+        var result = new AddDeviceResultInfo
+        {
+            DeviceName = "PLC", RootItemName = "CPU", TypeIdentifier = "OrderNumber:CPU",
+            Verification = new()
+            {
+                Identity = new() { ["deviceName"] = "PLC", ["deviceItemName"] = "CPU" }, Status = "passed",
+                Checks = new()
+                {
+                    NetworkPostconditionChecks.Compare("deviceName", "PLC", "PLC", true),
+                    NetworkPostconditionChecks.Compare("deviceItemName", "CPU", "CPU", true),
+                    NetworkPostconditionChecks.Compare("typeIdentifier", "OrderNumber:CPU", "OrderNumber:CPU", true),
+                },
+            },
+        };
+        Assert.Equal("succeeded", Project(op, result).Status);
+        result.Verification.Checks[2] = NetworkPostconditionChecks.Compare("typeIdentifier", "OrderNumber:CPU", "wrong", true);
+        result.Verification.Status = "failed";
+        Assert.Equal("postcondition_failed", Project(op, result).Failure!.Category);
+        result.DeviceName = "other";
+        AssertProtocolError(Project(op, result));
+    }
+
+    [Theory]
+    [InlineData("create_subnet")]
+    [InlineData("update_subnet")]
+    public void Subnet_RequiresRequestedAttributesAndImmediateCount(string operation)
+    {
+        var op = new NetworkOperationRequest
+        {
+            OperationId = "subnet", Operation = operation, Target = new() { SubnetId = "subnet-1", Kind = "subnet" },
+            Subnet = new() { Name = "Bus", NetworkType = "Profibus", HighestAddress = 126, TransmissionSpeed = "Baud1500000" },
+            SubnetChanges = new() { Name = "Bus", HighestAddress = 126, TransmissionSpeed = "Baud1500000" },
+        };
+        var result = new SubnetLifecycleResultInfo
+        {
+            SubnetId = "subnet-1", Name = "Bus", NetworkDeviceCount = 2, NetworkDeviceCountUnchanged = true,
+            Verification = new()
+            {
+                Identity = new() { ["subnetId"] = "subnet-1" }, Status = "passed",
+                Checks = new()
+                {
+                    NetworkPostconditionChecks.Compare("subnetIdentity", "subnet-1", "subnet-1", true),
+                    NetworkPostconditionChecks.Compare("Name", "Bus", "Bus", true),
+                    NetworkPostconditionChecks.Compare("HighestAddress", "126", "126", true),
+                    NetworkPostconditionChecks.Compare("TransmissionSpeed", "Baud1500000", "Baud1500000", true),
+                    NetworkPostconditionChecks.Compare("networkDeviceCountUnchanged", "2", "2", true),
+                },
+            },
+        };
+        if (operation == "create_subnet") result.Verification.Checks.Add(NetworkPostconditionChecks.Compare("TypeIdentifier", "System:Subnet.Profibus", "System:Subnet.Profibus", true));
+        Assert.Equal("succeeded", Project(op, result).Status);
+        result.Verification.Checks[4] = NetworkPostconditionChecks.Compare("networkDeviceCountUnchanged", "2", "3", true);
+        result.NetworkDeviceCount = 3;
+        result.NetworkDeviceCountUnchanged = false;
+        result.Verification.Status = "failed";
+        var failed = Project(op, result);
+        Assert.Equal("postcondition_failed", failed.Failure!.Category);
+        Assert.NotNull(failed.Result);
+        result.Verification.Checks.Add(result.Verification.Checks[4]);
+        AssertProtocolError(Project(op, result));
+    }
 }

@@ -141,17 +141,21 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     private static JsonElement FirstOperationResult(CallToolResult applied)
         => Structured(applied).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
 
-    /// <summary>Asserts a successful subnet lifecycle result carries EXACTLY the four declared members.</summary>
-    private static void AssertMinimalFourMemberResult(JsonElement result, int expectedDeviceCount = 2)
+    /// <summary>Asserts the new subnet mutation result includes typed immediate verification.</summary>
+    private static void AssertVerifiedSubnetResult(JsonElement result, int expectedDeviceCount = 2)
     {
         var members = result.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray();
         Assert.Equal(
-            new[] { "name", "networkDeviceCount", "networkDeviceCountUnchanged", "subnetId" },
+            new[] { "name", "networkDeviceCount", "networkDeviceCountUnchanged", "subnetId", "verification" },
             members);
         Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("subnetId").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("name").GetString()));
         Assert.Equal(expectedDeviceCount, result.GetProperty("networkDeviceCount").GetInt32());
         Assert.True(result.GetProperty("networkDeviceCountUnchanged").GetBoolean());
+        var verification = result.GetProperty("verification");
+        Assert.Equal("passed", verification.GetProperty("status").GetString());
+        Assert.Equal(result.GetProperty("subnetId").GetString(), verification.GetProperty("identity").GetProperty("subnetId").GetString());
+        Assert.All(verification.GetProperty("checks").EnumerateArray(), check => Assert.Equal("passed", check.GetProperty("status").GetString()));
     }
 
     private static async Task<string> PreviewAndApply(
@@ -185,7 +189,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             var root = Structured(applied);
             Assert.True(root.GetProperty("success").GetBoolean());
             var result = FirstOperationResult(applied);
-            AssertMinimalFourMemberResult(result);
+            AssertVerifiedSubnetResult(result);
             Assert.Equal("NewEthernetSubnet", result.GetProperty("name").GetString());
             createdSubnetId = result.GetProperty("subnetId").GetString();
         });
@@ -223,7 +227,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             Assert.False(applied.IsError);
             Assert.True(Structured(applied).GetProperty("success").GetBoolean());
             var result = FirstOperationResult(applied);
-            AssertMinimalFourMemberResult(result);
+            AssertVerifiedSubnetResult(result);
             Assert.Equal("NewProfibusSubnet", result.GetProperty("name").GetString());
         });
     }
@@ -244,7 +248,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         {
             Assert.False(applied.IsError);
             var result = FirstOperationResult(applied);
-            AssertMinimalFourMemberResult(result);
+            AssertVerifiedSubnetResult(result);
             Assert.Equal("subnet-eth-1", result.GetProperty("subnetId").GetString());
             Assert.Equal("RenamedEthernet", result.GetProperty("name").GetString());
         });
@@ -282,7 +286,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         {
             Assert.False(applied.IsError);
             var result = FirstOperationResult(applied);
-            AssertMinimalFourMemberResult(result);
+            AssertVerifiedSubnetResult(result);
             Assert.Equal("subnet-pb-1", result.GetProperty("subnetId").GetString());
             Assert.Equal("RenamedProfibus", result.GetProperty("name").GetString());
         });
@@ -317,7 +321,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             {
                 Assert.False(applied.IsError);
                 var result = FirstOperationResult(applied);
-                AssertMinimalFourMemberResult(result);
+                AssertVerifiedSubnetResult(result);
                 Assert.Equal(createdSubnetId, result.GetProperty("subnetId").GetString());
             });
 
@@ -343,7 +347,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             {
                 Assert.False(applied.IsError);
                 var result = FirstOperationResult(applied);
-                AssertMinimalFourMemberResult(result);
+                AssertVerifiedSubnetResult(result);
                 Assert.Equal("subnet-eth-1", result.GetProperty("subnetId").GetString());
             });
 
@@ -369,7 +373,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             {
                 Assert.False(applied.IsError);
                 var result = FirstOperationResult(applied);
-                AssertMinimalFourMemberResult(result);
+                AssertVerifiedSubnetResult(result);
                 Assert.Equal("subnet-pb-1", result.GetProperty("subnetId").GetString());
             });
 
@@ -620,7 +624,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
 
         Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
         var firstResult = items[0].GetProperty("result");
-        AssertMinimalFourMemberResult(firstResult);
+        AssertVerifiedSubnetResult(firstResult);
         var createdSubnetId = firstResult.GetProperty("subnetId").GetString();
 
         Assert.Equal("failed", items[1].GetProperty("status").GetString());
@@ -671,7 +675,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             item =>
             {
                 Assert.Equal("succeeded", item.GetProperty("status").GetString());
-                AssertMinimalFourMemberResult(item.GetProperty("result"));
+                AssertVerifiedSubnetResult(item.GetProperty("result"));
             });
 
         // The canonical result data alone is sufficient to render the user-facing summary: one

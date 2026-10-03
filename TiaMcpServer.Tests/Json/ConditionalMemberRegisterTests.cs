@@ -17,6 +17,10 @@ public sealed class ConditionalMemberRegisterTests
 {
     private static readonly IReadOnlyList<string> Expected = new[]
     {
+        // Immediate checks appear on new Network mutation outcomes; historical workers may omit them.
+        "AddDeviceResultInfo.Verification",
+        "ConfigureNetworkDeviceResultInfo.Verification",
+        "SubnetLifecycleResultInfo.Verification",
         "DeviceItemInfo.IoDetails",
         "HardwareConfigInfo.Pagination",
         // New ordinary reads report the root collection count; older/paged reads may omit it.
