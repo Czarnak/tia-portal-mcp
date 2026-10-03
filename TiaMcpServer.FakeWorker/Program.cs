@@ -3507,6 +3507,7 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         foreach (var node in GuardedNodes(state))
             if (node.ConnectionEvidence?.SubnetId == id) node.ConnectionEvidence = new() { Complete = true };
         if (scenario == "network-guarded-lost-node") state.Devices.RemoveAt(1);
+        if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"delete outcome unavailable\"}";
         return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
         {
             SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount!.Value, NetworkDeviceCountUnchanged = true,

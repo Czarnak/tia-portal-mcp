@@ -200,4 +200,15 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal(1, response.Effects[1].Effect!.RootDeviceCount);
         Assert.Contains(response.Verification!.FinalChecks, c => c.Name == "networkDeviceCountUnchanged" && c.Expected == "2" && c.Observed == "1" && c.Status == "failed");
     }
+    [Fact]
+    public async Task UnknownDelete_StillInspectsExactPlannedNodes()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-unknown-result");
+        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
+        Assert.False(response.Success);
+        Assert.Equal("unverified", Assert.Single(response.Verification!.Operations).Status);
+        Assert.Contains(response.Verification.FinalChecks, c => c.Name == "node/PLC_Grouped/node-2/exists" && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Name == "node/PLC_Ungrouped/node-3/exists" && c.Status == "passed");
+    }
 }
