@@ -5,6 +5,19 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// <summary>Siemens-free comparison; unreadable state can never establish a postcondition.</summary>
 internal static class NetworkPostconditionChecks
 {
+    /// <summary>A partial discovery cannot prove either uniqueness or absence.</summary>
+    public static string? ClassifySelection(int matchCount, bool complete)
+        => !complete ? WorkerFailureCategories.WorkerOperationFailed
+            : matchCount == 1 ? null : WorkerFailureCategories.PostconditionFailed;
+
+    public static string? ClassifyDependencySelection(int matchCount, bool complete)
+        => complete && matchCount == 1 ? null : WorkerFailureCategories.WorkerOperationFailed;
+
+    public static string? IoSystemSkipReason(bool subnetRequested, bool subnetConnected, bool connectorAvailable)
+        => subnetRequested && !subnetConnected
+            ? "Requested subnet was not connected, so IO system attachment was skipped."
+            : !connectorAvailable ? "The network interface does not expose an IO connector." : null;
+
     public static NetworkVerificationCheckInfo Compare(string name, string? expected, string? observed, bool readable)
     {
         var status = !readable ? "unverified"

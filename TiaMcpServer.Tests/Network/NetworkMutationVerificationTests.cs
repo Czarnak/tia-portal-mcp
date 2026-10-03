@@ -16,23 +16,19 @@ public class NetworkMutationVerificationTests
     [InlineData(1, true, null)]
     public void PreflightDependency_UsesPremutationFailureCategory(int count, bool complete, string? expected)
     {
-        var classify = typeof(NetworkPostconditionChecks).GetMethod("ClassifyDependencySelection");
-        Assert.NotNull(classify);
-        Assert.Equal(expected, classify.Invoke(null, new object[] { count, complete }));
+        Assert.Equal(expected, NetworkPostconditionChecks.ClassifyDependencySelection(count, complete));
     }
 
     [Theory]
-    [InlineData(true, false, false, "Requested subnet was not connected, so IO system lookup was skipped.")]
-    [InlineData(true, false, true, "Requested subnet was not connected, so IO system lookup was skipped.")]
+    [InlineData(true, false, false, "Requested subnet was not connected, so IO system attachment was skipped.")]
+    [InlineData(true, false, true, "Requested subnet was not connected, so IO system attachment was skipped.")]
     [InlineData(false, false, false, "The network interface does not expose an IO connector.")]
     [InlineData(true, true, false, "The network interface does not expose an IO connector.")]
     [InlineData(false, false, true, null)]
     [InlineData(true, true, true, null)]
     public void Preflight_ExistingIoSkipPrecedence(bool requested, bool connected, bool connector, string? expected)
     {
-        var decision = typeof(NetworkPostconditionChecks).GetMethod("IoSystemSkipReason");
-        Assert.NotNull(decision);
-        Assert.Equal(expected, decision.Invoke(null, new object[] { requested, connected, connector }));
+        Assert.Equal(expected, NetworkPostconditionChecks.IoSystemSkipReason(requested, connected, connector));
     }
 
     [Theory]

@@ -245,7 +245,11 @@ internal static class SubnetLifecycleService
         string subnetId,
         string operationName)
     {
-        var matches = FindMatches(project, subnetId);
+        var matches = FindMatches(project, subnetId, out var unreadableCount);
+        var failure = NetworkPostconditionChecks.ClassifySelection(matches.Count, unreadableCount == 0);
+        if (failure == WorkerFailureCategories.WorkerOperationFailed)
+            throw new WorkerOperationException(failure,
+                "Subnet identity discovery was unreadable. No subnet mutation was attempted.");
 
         if (matches.Count == 0)
         {
@@ -264,14 +268,9 @@ internal static class SubnetLifecycleService
         return matches[0];
     }
 
-    private static List<Subnet> FindMatches(Project project, string subnetId)
-        => FindMatches(project, subnetId, out _);
-
     /// <summary>
-    /// Same ordinal exact-match scan as <see cref="FindMatches(Project, string)"/>, additionally
-    /// reporting how many candidates' <c>SubnetId</c> could not be read at all — distinct from "read
-    /// successfully but didn't match" — so a caller that treats zero matches as a meaningful outcome
-    /// (delete_subnet's postcondition) can tell the two apart instead of silently conflating them.
+    /// Reports unreadable candidates separately from known nonmatches so partial discovery
+    /// cannot authorize a mutation on an apparently unique visible match.
     /// </summary>
     private static List<Subnet> FindMatches(Project project, string subnetId, out int unreadableCount)
     {
@@ -280,7 +279,7 @@ internal static class SubnetLifecycleService
         foreach (Subnet candidate in project.Subnets)
         {
             var candidateId = ReadSubnetId(candidate);
-            if (candidateId is null)
+            if (string.IsNullOrWhiteSpace(candidateId))
             {
                 unreadable++;
                 continue;

@@ -15,10 +15,9 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// before anything is written. A device may expose several interfaces and nodes (a multi-homed PC
 /// station, for instance), so <paramref name="nodeId"/> is matched against every node under every
 /// interface under every nested device item, never just the first one found. Zero matches, more
-/// than one match, or a candidate whose own identity attribute could not be read all fail the same
-/// way — <see cref="WorkerOperationException"/> with
-/// <see cref="WorkerFailureCategories.PostconditionFailed"/> — because none of them name exactly
-/// one existing thing. There is no first-match or name-only fallback anywhere in this type.
+/// than one match, or unreadable candidate identity denies selection. Requested dependency
+/// preflight and incomplete discovery use worker_operation_failed before mutation; existing
+/// complete device/node mismatch categories remain unchanged. No selector uses a name-only fallback.
 /// </para>
 /// </summary>
 public static class NetworkDeviceConfigurator
@@ -42,31 +41,51 @@ public static class NetworkDeviceConfigurator
         var device = FindExactlyOneDevice(project, deviceName);
         var (networkInterface, node) = FindExactlyOneNode(device, deviceName, nodeId);
 
+        // Prove dependency selection before the first setter. An invalid IO selector is denied
+        // even if a later subnet connection might have failed and made that IO attach a skip.
+        var subnetRequested = !string.IsNullOrWhiteSpace(subnetId);
+        Subnet? connectedSubnet = null;
+        object? ioSystem = null;
+        IoConnector? ioConnector = null;
+        try
+        {
+            if (subnetRequested) connectedSubnet = FindExactlyOneSubnet(project, subnetId!);
+            if (ioSystemNumber.HasValue)
+            {
+                var ioSystemSubnet = connectedSubnet ?? FindExactlyOneSubnet(
+                    project, RequireIoSystemSubnetId(ioSystemSubnetId, deviceName));
+                ioSystem = FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value);
+                // Preserve selector-before-connector ordering. A normal empty collection is a
+                // supported skip; a failed collection read must not masquerade as that skip.
+                ioConnector = networkInterface.IoConnectors.Cast<IoConnector>().FirstOrDefault();
+            }
+        }
+        catch (EngineeringException)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
+                "Requested network dependency discovery was unreadable. No configuration was attempted.");
+        }
+
         ApplyNodeAttribute(node, "Address", ipAddress, result);
         ApplyNodeAttribute(node, "SubnetMask", subnetMask, result);
         ApplyNodeAttribute(node, "PnDeviceName", pnDeviceName, result);
 
-        var subnetRequested = !string.IsNullOrWhiteSpace(subnetId);
-        Subnet? connectedSubnet = null;
         var subnetConnected = false;
         if (subnetRequested)
         {
-            connectedSubnet = FindExactlyOneSubnet(project, subnetId!);
-            subnetConnected = ConnectSubnet(node, subnetId!, connectedSubnet, result);
+            subnetConnected = ConnectSubnet(node, subnetId!, connectedSubnet!, result);
         }
 
         if (ioSystemNumber.HasValue)
         {
-            if (subnetRequested && !subnetConnected)
+            var skip = NetworkPostconditionChecks.IoSystemSkipReason(subnetRequested, subnetConnected, ioConnector is not null);
+            if (skip is not null)
             {
-                result.SkippedSettings["IoSystem"] = "Requested subnet was not connected, so IO system lookup was skipped.";
+                result.SkippedSettings["IoSystem"] = skip;
             }
             else
             {
-                var ioSystemSubnet = connectedSubnet ?? FindExactlyOneSubnet(
-                    project,
-                    RequireIoSystemSubnetId(ioSystemSubnetId, deviceName));
-                ConnectIoSystem(networkInterface, ioSystemSubnet, ioSystemNumber.Value, result);
+                ConnectIoSystem(ioConnector!, ioSystem!, ioSystemNumber.Value, result);
             }
         }
 
@@ -86,7 +105,7 @@ public static class NetworkDeviceConfigurator
         if (string.IsNullOrWhiteSpace(ioSystemSubnetId))
         {
             throw new WorkerOperationException(
-                WorkerFailureCategories.PostconditionFailed,
+                WorkerFailureCategories.WorkerOperationFailed,
                 $"Device '{deviceName}': an IO-system number was requested without an IO-system subnetId, "
                     + "and no subnet was connected in this same call.");
         }
@@ -97,19 +116,21 @@ public static class NetworkDeviceConfigurator
     /// <summary>Matches exactly one device by name, case-insensitively. Zero or multiple matches fail closed.</summary>
     private static Device FindExactlyOneDevice(Project project, string deviceName)
     {
+        var unreadable = false;
         var matches = ProjectDeviceNameMatcher.FindMatches(
             project,
             deviceName,
-            exception => Console.Error.WriteLine(
-                $"Skipping a device while matching device name: {exception.Message}"));
-        if (matches.Count == 1)
+            _ => unreadable = true);
+        var failure = NetworkPostconditionChecks.ClassifySelection(matches.Count, !unreadable);
+        if (failure is null)
         {
             return matches[0].Device;
         }
 
         throw new WorkerOperationException(
-            WorkerFailureCategories.PostconditionFailed,
-            matches.Count > 1
+            failure,
+            unreadable ? "Device identity discovery was unreadable. No configuration was attempted."
+                : matches.Count > 1
                 ? $"Multiple devices are named '{deviceName}'; device names must be unique to select one exactly."
                 : $"No device named '{deviceName}' was found in the project.");
     }
@@ -125,10 +146,12 @@ public static class NetworkDeviceConfigurator
         NetworkInterface? matchedInterface = null;
         Node? matchedNode = null;
         var count = 0;
+        var unreadable = false;
 
         foreach (var (networkInterface, node) in EnumerateNodes(device))
         {
             var candidateId = OpennessReflection.ReadPropertyOrAttribute(node, "NodeId");
+            if (string.IsNullOrWhiteSpace(candidateId)) unreadable = true;
             if (!IdentitiesMatch(candidateId, nodeId))
             {
                 continue;
@@ -142,14 +165,16 @@ public static class NetworkDeviceConfigurator
             }
         }
 
-        if (count == 1)
+        var failure = NetworkPostconditionChecks.ClassifySelection(count, !unreadable);
+        if (failure is null)
         {
             return (matchedInterface!, matchedNode!);
         }
 
         throw new WorkerOperationException(
-            WorkerFailureCategories.PostconditionFailed,
-            count > 1
+            failure,
+            unreadable ? "Node identity discovery was unreadable. No configuration was attempted."
+                : count > 1
                 ? $"Device '{deviceName}': multiple nodes report nodeId '{nodeId}'; nodeId must select exactly one node."
                 : $"Device '{deviceName}': no node with nodeId '{nodeId}' was found.");
     }
@@ -191,10 +216,10 @@ public static class NetworkDeviceConfigurator
         {
             return ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
         }
-        catch (EngineeringException ex)
+        catch (EngineeringException)
         {
-            Console.Error.WriteLine($"Skipping network interface lookup for device item '{item.Name}': {ex.Message}");
-            return null;
+            throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
+                "Network interface discovery was unreadable. No configuration was attempted.");
         }
     }
 
@@ -261,9 +286,11 @@ public static class NetworkDeviceConfigurator
     {
         Subnet? match = null;
         var count = 0;
+        var unreadable = false;
         foreach (Subnet candidate in project.Subnets)
         {
             var candidateId = OpennessReflection.ReadPropertyOrAttribute(candidate, "SubnetId");
+            if (string.IsNullOrWhiteSpace(candidateId)) unreadable = true;
             if (!IdentitiesMatch(candidateId, subnetId))
             {
                 continue;
@@ -276,33 +303,26 @@ public static class NetworkDeviceConfigurator
             }
         }
 
-        if (count == 1)
+        var failure = NetworkPostconditionChecks.ClassifyDependencySelection(count, !unreadable);
+        if (failure is null)
         {
             return match!;
         }
 
         throw new WorkerOperationException(
-            WorkerFailureCategories.PostconditionFailed,
-            count > 1
+            failure,
+            unreadable ? "Subnet identity discovery was unreadable. No configuration was attempted."
+                : count > 1
                 ? $"Multiple subnets report subnetId '{subnetId}'; subnetId must select exactly one subnet."
                 : $"No subnet with subnetId '{subnetId}' was found.");
     }
 
     private static void ConnectIoSystem(
-        NetworkInterface networkInterface,
-        Subnet subnet,
+        IoConnector ioConnector,
+        object ioSystem,
         int ioSystemNumber,
         ConfigureNetworkDeviceResultInfo result)
     {
-        var ioSystem = FindExactlyOneIoSystem(subnet, ioSystemNumber);
-
-        var ioConnector = ReadEnumerableProperty(networkInterface, "IoConnectors").FirstOrDefault();
-        if (ioConnector is null)
-        {
-            result.SkippedSettings["IoSystem"] = "The network interface does not expose an IO connector.";
-            return;
-        }
-
         try
         {
             // UNVERIFIED SDK CALL: V21 IO connector attachment may be ConnectToIoSystem(IoSystem) or equivalent.
@@ -331,9 +351,11 @@ public static class NetworkDeviceConfigurator
     {
         object? match = null;
         var count = 0;
-        foreach (var candidate in ReadEnumerableProperty(subnet, "IoSystems"))
+        var unreadable = false;
+        foreach (IoSystem candidate in subnet.IoSystems)
         {
             var candidateNumber = ReadIntPropertyOrAttribute(candidate, "Number");
+            if (candidateNumber is null || candidateNumber < 0) unreadable = true;
             if (candidateNumber != number)
             {
                 continue;
@@ -346,14 +368,16 @@ public static class NetworkDeviceConfigurator
             }
         }
 
-        if (count == 1)
+        var failure = NetworkPostconditionChecks.ClassifyDependencySelection(count, !unreadable);
+        if (failure is null)
         {
             return match!;
         }
 
         throw new WorkerOperationException(
-            WorkerFailureCategories.PostconditionFailed,
-            count > 1
+            failure,
+            unreadable ? "IO system identity discovery was unreadable. No configuration was attempted."
+                : count > 1
                 ? $"Multiple IO systems report number {number} on the selected subnet; number must select exactly one IO system."
                 : $"No IO system with number {number} was found on the selected subnet.");
     }
@@ -409,8 +433,4 @@ public static class NetworkDeviceConfigurator
             $"No supported connection method was found on '{target.GetType().Name}'.");
     }
 
-    private static IEnumerable<object> ReadEnumerableProperty(object instance, string propertyName)
-    {
-        return OpennessReflection.ReadEnumerableProperty(instance, propertyName);
-    }
 }
