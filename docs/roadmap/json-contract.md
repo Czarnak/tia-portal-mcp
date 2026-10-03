@@ -7,7 +7,14 @@ records 4,513 passing tests, 93.94% line coverage, and two independent reviews w
 Phase 3 is implemented with offline qualification and an installed-V21 reference Rebuild; its
 [validation record](../superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md)
 records 4,640 passing tests and the passing 80% gate (Cobertura line rate `0.9386`). Separately
-authorized frozen lifecycle live acceptance remains pending.
+authorized [2026-10-01 lifecycle validation](../superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md)
+passed for its frozen source. The lifecycle-tier/confirmation/binding change invalidated that
+evidence for the new candidate; [Task13 on 2026-10-03](../superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md)
+replaced it on `3bb504b`. Full/read-write/read-only functional groups passed, and the maintainer
+reported no new read-only TIA dialog, completing Task13 live acceptance. Task14 current
+documentation/spec updates are complete. The report bounds the maintainer's worker-lifetime
+conclusion because the worker PID changed between read-write and read-only. Offline qualification at `3bb504b`
+passed 4,946 tests and 93.24% linked host/contracts line coverage; this is not Siemens coverage.
 Phase 4 is not started. On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
@@ -22,7 +29,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. Eleven tools now follow it. This roadmap moves the rest onto
+already describe that contract. Twelve tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
@@ -32,7 +39,8 @@ it without inventing a second mechanism.
 | `network_read`, `network_write` | Structured (canonical seam) | Phase 4: align envelope members |
 | `browse_project_tree` | Structured (canonical seam, v3 envelope) | Phase 4: align envelope members |
 | `get_project_status`, `compile_check` | Structured standalone envelope (`1.0`) | Phase 2 implemented; live acceptance pending |
-| `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Structured guarded lifecycle envelope (`1.0`) | Phase 3 implemented (write-safety redesign Phase 2); live acceptance pending |
+| `bind_project` | Structured standalone envelope (`1.0`) | Implemented; Task13 live-accepted 2026-10-03 in all three modes, with the separate human read-only dialog observation recorded |
+| `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Structured guarded lifecycle envelope (`1.0`) | Phase 3 implemented; current-candidate full/read-write live matrix passed 2026-10-03 |
 | `execute_read_batch`, `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 |
 
 The batch tools are excluded because a separate redesign splits them into domain read/write tools
@@ -81,7 +89,7 @@ Below the tool surface, the host and worker also disagree about JSON:
   rebind-state readers now go through `ProjectRebindStatePayloadContract`.
 - Legacy token audit files retain their existing shapes. Lifecycle uses one canonical guarded
   write record per call in the separate `writes-yyyy-MM-dd.jsonl` stream, with a record discriminator,
-  exact response/hash, and acknowledgement provenance; blocked calls and dry runs are included.
+  exact response/hash, and confirmation/guard satisfaction provenance; blocked calls and dry runs are included.
 
 ## Target Contract
 
@@ -244,19 +252,21 @@ earlier plan (typed preview through `CreateCanonicalPreview`, canonical token bi
 built lifecycle tokens only for the redesign to delete them.
 
 - The six lifecycle tools use the structured contract and the guarded write pipeline:
-  `dryRun` and `acknowledge` instead of `confirm` and `safetyToken`, all seven lifecycle guards, a
+  `dryRun` and mode-derived confirmation instead of public confirmation lists/tokens, all seven lifecycle guards, a
   typed result, and typed post-write verification instead of the `operationResult` and
   `verification.result` strings.
-- Default-on form elicitation requires explicit `accept` plus boolean `confirm:true` for fired
-  acknowledge guards, ignoring agent acknowledgements. Unsupported capability and any refusal or
-  request failure deny with `access_denied`; info-only calls, hard blocks, and dry runs never prompt.
-  The switch-off path enforces the exact fired set. Post-acceptance re-resolution refuses changed
+- Read-write requires one form elicitation per actual lifecycle call, even with only info guards
+  or none, with `accept` plus boolean `confirm:true`. Unsupported capability, decline, cancel,
+  timeout, or transport failure denies with `access_denied`. Full satisfies acknowledge guards by
+  policy without server elicitation. Block guards stop every mode; dry runs never prompt. The old
+  startup confirmation switch and agent confirmation list are removed. Post-acceptance re-resolution refuses changed
   identity or consequences instead of silently broadening approval.
 - Explicit lifecycle binding preparation permits genuinely unbound open/create and retains the
   exact source/destination revision, ownership, recovery, and save-as transition checks. Ordinary
   project writes keep the default verified-binding requirement.
 - One canonical audit record per call, through the pipeline's audit sink, including dry runs and
-  blocked calls; accepted elicitation records `user`, opt-out acknowledgement records `agent`.
+  blocked calls; audit v2 records confirmation by `user`, `policy`, or `none` and guard satisfaction
+  by `user`, `policy`, or null.
 - The decision reserved here earlier, where an attempted but failed operation reports its failure,
   is settled by redesign §4.7: `isError` is `true` only for rejection before anything ran
   (validation, access mode, binding, `blocked`); a write that ran and failed reports
@@ -268,12 +278,21 @@ built lifecycle tokens only for the redesign to delete them.
 - `ProjectLifecycleTools` and unused lifecycle token paths are retired here. Batch/Network token
   helpers, `SafetyRead`, and their legacy audit support remain until the designated phases.
 - The [implementation plan](../superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md) records
-  the delivery and gates. Frozen live acceptance must separately qualify all six operations, all
-  seven guards, accepted/declined/unsupported client behavior, dry runs, persisted artifacts, and
-  restoration on an exactly authorized disposable target. Offline/FakeWorker evidence is not live
-  acceptance; any code/base change invalidates prior frozen evidence.
+  the delivery and gates. The Oct1 run passed on its source; Task13's Oct3 replacement qualified
+  six operations, seven guards, accepted/declined/unsupported client behavior, dry runs, persisted
+  artifacts, and restoration on the new frozen candidate. The report keeps programmatic acceptance
+  separate from recorded human observations. Headless/Multiuser, crash/timeout, archive retrieval,
+  PLC and plant acceptance remain unqualified. Offline/FakeWorker evidence is not live acceptance.
 - Removed inputs and structured outputs are breaking changes staged for the redesign's final
   major release. No release/tag or completion of Network/batch migration is claimed here.
+
+`bind_project` adds explicit session selection in every mode with a typed standalone result,
+non-null before/after binding state and in-call Portal inventory. No request implicitly opens a
+project; ordinary reads never bind or switch. Project-tree cursors now reject binding changes as
+`cursor_binding_mismatch`. Mode counts are 5/15/15. The
+[engineering log](../IMPROVEMENT_LOG.md) records the completed human dialog observation and tracks the
+`totally-integrated-claude` plugin's `tia-portal-mcp` skill migration; installed plugin files were
+not changed by this documentation task.
 
 ### Phase 4: Align and Retire
 

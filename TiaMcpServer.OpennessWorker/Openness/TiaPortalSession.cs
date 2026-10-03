@@ -56,7 +56,8 @@ public class TiaPortalSession : IDisposable
 
     public void ValidateExpectedSessionIdentity(
         WorkerSessionIdentity? expected,
-        bool allowMissingExpectedIdentity)
+        bool allowMissingExpectedIdentity,
+        bool useCachedIdentity = false)
     {
         if (expected is null)
         {
@@ -67,11 +68,12 @@ public class TiaPortalSession : IDisposable
 
             throw new WorkerOperationException(
                 WorkerFailureCategories.BindingConflict,
-                "This operation requires a verified project binding. Use open_project or "
-                + "create_project, or configure --project and let the host verify it before this operation.");
+                "This operation requires a verified project binding. Use bind_project first, or "
+                + "configure --project and let the host verify it before this operation. In read-write/full mode, "
+                + "you can also use open_project or create_project.");
         }
 
-        var current = GetSessionIdentity();
+        var current = useCachedIdentity ? GetCachedSessionIdentity() : GetSessionIdentity();
         if (string.Equals(expected.WorkerSessionId, current.WorkerSessionId, StringComparison.Ordinal)
             && expected.SessionGeneration == current.SessionGeneration
             && expected.PortalProcessId == current.PortalProcessId
@@ -99,29 +101,12 @@ public class TiaPortalSession : IDisposable
             return;
         }
 
-        var processes = TiaPortal.GetProcesses().ToList();
-        var candidates = new List<TiaPortalProcessCandidate>(processes.Count);
-        foreach (var process in processes)
-        {
-            candidates.Add(new TiaPortalProcessCandidate(
-                process.Id,
-                TryReadAdvertisedProjectPath(process)));
-        }
-
+        var inventory = TiaPortalProcessInventory.Read();
+        var candidates = inventory.Select(entry => entry.Candidate).ToList();
         var selectedProcessId = TiaPortalTargetSelector.SelectProcessId(candidates, requestedProjectPath);
-        TiaPortalProcess? selectedProcess = null;
-        string? advertisedProjectPath = null;
-        for (var index = 0; index < processes.Count; index++)
-        {
-            if (processes[index].Id != selectedProcessId)
-            {
-                continue;
-            }
-
-            selectedProcess = processes[index];
-            advertisedProjectPath = candidates[index].ProjectPath;
-            break;
-        }
+        var entry = inventory.FirstOrDefault(item => item.Candidate.Id == selectedProcessId);
+        var selectedProcess = entry?.Process;
+        var advertisedProjectPath = entry?.Candidate.ProjectPath;
 
         if (selectedProcess is null)
         {
@@ -152,6 +137,145 @@ public class TiaPortalSession : IDisposable
         Console.Error.WriteLine(
             $"Connected to TIA Portal PID {_attachedProcessId}"
             + $" with project '{CurrentProjectPath ?? "(none)"}'.");
+    }
+
+    private WorkerSessionIdentity GetCachedSessionIdentity()
+        => new()
+        {
+            WorkerSessionId = _workerSessionId,
+            SessionGeneration = Interlocked.Read(ref _sessionGeneration),
+            PortalProcessId = _attachedProcessId,
+            ProjectPath = _selectedProjectPath
+        };
+
+    public PortalProjectSelectionInfo SelectPortalProject(string projectPath)
+    {
+        ThrowIfDisposed();
+
+        // Lookup precedes every session transition, including the first attach and same-PID selection.
+        var inventory = TiaPortalProcessInventory.Read();
+        var selectedProcessId = TiaPortalTargetSelector.SelectExactProcessId(
+            inventory.Select(entry => entry.Candidate).ToList(), projectPath);
+        var selectedProcess = inventory.First(entry => entry.Candidate.Id == selectedProcessId).Process;
+        var previous = new PortalProjectSelectionInfo
+        {
+            PreviousProcessId = _attachedProcessId,
+            PreviousProjectPath = _selectedProjectPath,
+            PreviousProjectWasWorkerOpened = _projectOpenedByWorker,
+            PreviousProjectIsModified = TryReadProjectIsModified()
+        };
+
+        if (IsConnected && _attachedProcessId == selectedProcessId)
+        {
+            var projects = _tiaPortal!.Projects.ToList();
+            var selectedIndex = TiaPortalTargetSelector.SelectProjectIndex(
+                projects.Select(TryReadProjectPathForSelection).ToList(), projectPath);
+            if (selectedIndex is null)
+            {
+                throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                    $"Requested project '{projectPath}' is no longer open in TIA Portal PID {selectedProcessId}. No project was selected.");
+            }
+
+            AdoptProject(projects[selectedIndex.Value], openedByWorker: false, projectPath);
+            return previous;
+        }
+
+        if (IsConnected)
+        {
+            var hasUserInterface = false;
+            var otherClientCount = 0;
+            try
+            {
+                var attachedProcess = _tiaPortal!.GetCurrentProcess();
+                hasUserInterface = TiaPortalProcessInventory.TryReadHasUserInterface(attachedProcess);
+                var workerProcessId = System.Diagnostics.Process.GetCurrentProcess().Id;
+                otherClientCount = attachedProcess.AttachedSessions
+                    .Count((Siemens.Engineering.TiaPortalSession session) => session.ProcessId != workerProcessId);
+            }
+            catch (Exception ex)
+            {
+                // An unreadable process/client state must not justify detaching the last headless client.
+                hasUserInterface = false;
+                otherClientCount = 0;
+                Console.Error.WriteLine($"Could not read attached Portal clients: {ex.Message}");
+            }
+
+            var refusal = PortalDetachGuard.EvaluateProjects(hasUserInterface, otherClientCount,
+                ReadAttachedProjectModifiedStates());
+            if (refusal is not null)
+            {
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, refusal);
+            }
+        }
+
+        // From this point a former binding cannot be retained on any failure, including Dispose/Attach.
+        try
+        {
+            if (IsConnected)
+            {
+                Disconnect();
+            }
+
+            var portal = selectedProcess.Attach();
+            try
+            {
+                var actualProcessId = portal.GetCurrentProcess().Id;
+                if (actualProcessId != selectedProcessId)
+                {
+                    throw new InvalidOperationException($"TIA Portal Attach() targeted PID {selectedProcessId} but returned PID {actualProcessId}.");
+                }
+
+                SetPortalHandle(portal, actualProcessId);
+                portal.Notification += OnNotification;
+                portal.Confirmation += OnConfirmation;
+                portal.Disposed += OnDisposed;
+            }
+            catch
+            {
+                portal.Dispose();
+                throw;
+            }
+
+            var projects = portal.Projects.ToList();
+            var selectedIndex = TiaPortalTargetSelector.SelectProjectIndex(
+                projects.Select(TryReadProjectPathForSelection).ToList(), projectPath);
+            if (selectedIndex is null)
+            {
+                throw new InvalidOperationException($"Requested project '{projectPath}' is no longer open in TIA Portal PID {selectedProcessId}.");
+            }
+
+            AdoptProject(projects[selectedIndex.Value], openedByWorker: false, projectPath);
+            previous.Reattached = true;
+            return previous;
+        }
+        catch (Exception ex)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
+                $"Could not select the requested Portal project: {ex.Message}");
+        }
+    }
+
+    private bool? TryReadProjectIsModified()
+        => TryReadProjectIsModified(_project);
+
+    private static bool? TryReadProjectIsModified(Project? project)
+    {
+        try { return project?.IsModified; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Could not read project modified state: {ex.Message}");
+            return null;
+        }
+    }
+
+    private IReadOnlyList<bool?>? ReadAttachedProjectModifiedStates()
+    {
+        try { return _tiaPortal!.Projects.Select(TryReadProjectIsModified).ToList(); }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Could not read attached Portal projects: {ex.Message}");
+            return null;
+        }
     }
 
     public void OpenProject(string projectPath)
@@ -452,20 +576,6 @@ public class TiaPortalSession : IDisposable
         }
     }
 
-    private static string? TryReadAdvertisedProjectPath(TiaPortalProcess process)
-    {
-        try
-        {
-            return process.ProjectPath?.FullName;
-        }
-        catch (EngineeringException ex)
-        {
-            Console.Error.WriteLine(
-                $"Could not read advertised project path for TIA Portal PID {process.Id}: {ex.Message}");
-            return null;
-        }
-    }
-
     private static string? TryReadProjectPathForSelection(Project project)
     {
         try
@@ -544,16 +654,9 @@ public class TiaPortalSession : IDisposable
         SetPortalHandle(null, null);
     }
 
-    private void Dispose(bool disposing)
+    public void Disconnect()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-
-        if (disposing && _tiaPortal != null)
+        if (_tiaPortal != null)
         {
             _tiaPortal.Notification -= OnNotification;
             _tiaPortal.Confirmation -= OnConfirmation;
@@ -570,7 +673,9 @@ public class TiaPortalSession : IDisposable
 
     public void Dispose()
     {
-        Dispose(true);
+        if (_disposed) return;
+        _disposed = true;
+        Disconnect();
         GC.SuppressFinalize(this);
     }
 

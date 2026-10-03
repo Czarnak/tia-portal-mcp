@@ -9,15 +9,18 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// </summary>
 internal sealed class TiaPortalProcessCandidate
 {
-    public TiaPortalProcessCandidate(int id, string? projectPath)
+    public TiaPortalProcessCandidate(int id, string? projectPath, bool hasUserInterface = false)
     {
         Id = id;
         ProjectPath = ProjectPathNormalization.Canonicalize(projectPath);
+        HasUserInterface = hasUserInterface;
     }
 
     public int Id { get; }
 
     public string? ProjectPath { get; }
+
+    public bool HasUserInterface { get; }
 }
 
 /// <summary>
@@ -26,6 +29,33 @@ internal sealed class TiaPortalProcessCandidate
 /// </summary>
 internal static class TiaPortalTargetSelector
 {
+    public static int SelectExactProcessId(IReadOnlyList<TiaPortalProcessCandidate> candidates, string projectPath)
+    {
+        var matches = candidates.Where(candidate => PathsEqual(candidate.ProjectPath, projectPath)).ToList();
+        if (matches.Count > 1)
+        {
+            throw AmbiguousProcessSelection($"Multiple TIA Portal processes expose requested project '{projectPath}'.", candidates);
+        }
+
+        if (matches.Count == 0)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
+                $"No running TIA Portal exposes requested project '{projectPath}'. No process was attached.");
+        }
+
+        return matches[0].Id;
+    }
+
+    public static List<TiaPortalProcessInfo> ToProcessInfos(IReadOnlyList<TiaPortalProcessCandidate> candidates, int? attachedPid)
+        => candidates.OrderBy(candidate => candidate.Id).Select(candidate => new TiaPortalProcessInfo
+        {
+            ProcessId = candidate.Id,
+            ProjectPath = candidate.ProjectPath,
+            HasUserInterface = candidate.HasUserInterface,
+            AttachedByThisWorker = candidate.Id == attachedPid
+        }).ToList();
+
     public static int SelectProcessId(
         IReadOnlyList<TiaPortalProcessCandidate> candidates,
         string? requestedProjectPath)
@@ -128,7 +158,8 @@ internal static class TiaPortalTargetSelector
         => new(
             WorkerFailureCategories.TargetAmbiguous,
             reason + " No process was attached. Candidates: " + FormatProcessCandidates(candidates)
-            + ". Specify an exact project path or close the unrelated TIA Portal instance.");
+            + ". Call bind_project with the exact projectPath, or configure --project, "
+            + "or close the unrelated TIA Portal instance.");
 
     private static string FormatProcessCandidates(IReadOnlyList<TiaPortalProcessCandidate> candidates)
         => string.Join(

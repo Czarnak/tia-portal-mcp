@@ -14,6 +14,8 @@ public static class WorkerProtocol
         "response-session-identity",
         "deterministic-project-selection",
         "typed-project-tree-selector",
-        "typed-block-import-outcome-v1"
+        "typed-block-import-outcome-v1",
+        "portal-process-listing-v1",
+        "portal-project-selection-v1"
     };
 }

@@ -16,6 +16,30 @@ public class HardwarePageCursorCodecTests
     private static readonly string ProjectPath = ProjectPathNormalization.Canonicalize(@"C:\Projects\Sample.ap21")!;
 
     [Fact]
+    public void UnboundNetworkCaptureAndCodec_RetainLegacyShape()
+    {
+        var first = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, "epoch-a", 0, null, null, null, null, null);
+        var later = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, "epoch-b", 2, null, null, null, null, null);
+        var captured = ProjectBindingCursorState.FromSnapshot(first);
+        Assert.Equal(new ProjectBindingCursorState(false, null, null, null), captured);
+        Assert.True(captured.Matches(later));
+        var codec = Codec(TestKey);
+        Assert.Equal(captured, codec.Decode(codec.Encode(State(binding: first))).HostBinding);
+    }
+
+    [Theory]
+    [InlineData("epoch-b", 0)]
+    [InlineData("epoch-a", 1)]
+    public void UnboundEpochComparison_RejectsEitherIdentityOrRevisionChange(string id, long revision)
+    {
+        var first = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, "epoch-a", 0, null, null, null, null, null);
+        var captured = ProjectBindingCursorState.FromSnapshot(first, preserveUnboundEpoch: true);
+        Assert.True(captured.Matches(first, preserveUnboundEpoch: true));
+        var later = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, id, revision, null, null, null, null, null);
+        Assert.False(captured.Matches(later, preserveUnboundEpoch: true));
+    }
+
+    [Fact]
     public void EncodeDecode_WithInjectedKey_IsDeterministicAndRoundTrips()
     {
         var codec = Codec(TestKey);

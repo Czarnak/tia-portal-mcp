@@ -67,16 +67,23 @@ tia-mcp
 `--project` starts as a configured-but-unverified assertion. Before any guarded write preview, the
 host performs a read-only status check and accepts the binding only when the worker reports a complete,
 matching identity: worker process, TIA Portal PID, project generation, and canonical project path.
-`open_project` and `create_project` can establish that identity explicitly. Ordinary unbound reads do
-not silently bind the session.
+`bind_project` explicitly adopts an already-open project; `open_project` opens one, and
+`create_project` creates one. Only open/create can open a project. Ordinary unbound reads do
+not silently bind the session, and no request implicitly opens a project.
 
 The worker never chooses the first running Portal or first open project. It selects an exact project
 path when one was supplied, or a sole candidate when there is genuinely only one. Multiple possible
 Portals/projects fail with `target_ambiguous` before Attach or mutation. A later path, PID, worker, or
 project-generation mismatch fails with `binding_conflict` and invalidates the binding; call
-`open_project` with `forceRebind=true`, or start a new MCP session. `get_project_status(projectPath)`
-is read-only and non-binding: do not use it to switch projects. Use `open_project` for deliberate
-session switching.
+`bind_project` with `forceRebind=true` for an already-open project, or start a new MCP session. `get_project_status(projectPath)`
+is read-only and non-binding: do not use it to switch projects. Use `bind_project` for adopting or
+switching to an already-open project; use `open_project` only for opening one.
+
+Call `bind_project` without a path to adopt the sole open project or receive the candidate list;
+with multiple open projects, supply an advertised absolute `.ap21` path. A different configured,
+verified, or last-bound path requires `forceRebind:true`. Reattachment may show TIA's Openness
+access dialog, which a human must answer. Worker ownership is not carried across a detach; after
+reattachment the project is treated as UI-owned. Binding itself never opens, creates, saves or closes.
 
 ### Version flag
 
@@ -103,10 +110,10 @@ Options:
 
 Project-selection diagnostics are access-mode aware:
 
-- no project binding is a warning in read-only mode and a failure in read-write or full mode;
+- no project binding is a Warning in every mode, with remediation naming `bind_project`;
 - an invalid, relative, non-`.ap21`, or missing project path is a failure;
 - multiple TIA Portal processes are a warning when an explicit binding is configured, because Doctor cannot verify the live match without attaching;
-- multiple TIA Portal processes with no binding are a warning in read-only mode and a failure in read-write or full mode.
+- multiple TIA Portal processes with no binding are a Warning in every mode; select the intended open project with `bind_project`.
 
 Even an existing local project path remains a Doctor warning because Doctor deliberately does not
 Attach and cannot prove which Portal has it open. Before using project tools, open the exact project
@@ -163,25 +170,25 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-only** - four observation tools; no compile, edits, lifecycle, or PLC control.
-- **read-write** (server startup default) - eight tools: the four reads plus `compile_check`,
-  `preview_write_batch`, `apply_write_batch`, and `network_write`. Permits in-project edits and
-  compilation with the existing preview-and-apply model. It does not save the project.
-- **full** - fourteen tools, adding `open_project`, `create_project`, `save_project`,
-  `save_project_as`, `archive_project`, and `close_project`, and permitting legacy batch PLC
-  `start_plc` / `stop_plc`. Unknown operations remain denied.
+- **read-only** - five tools: four observation tools plus `bind_project`; no compile, edits,
+  lifecycle, or PLC control.
+- **read-write** (server startup default) - fifteen tools: the read-only surface plus
+  `compile_check`, `preview_write_batch`, `apply_write_batch`, `network_write`, and all six lifecycle
+  tools. Every actual lifecycle call requires one confirmation form.
+- **full** - the same fifteen tools; lifecycle runs without server elicitation, and legacy batch
+  `start_plc` / `stop_plc` is permitted through OnlineControl. Unknown operations remain denied.
 
-**Migration:** existing read-write clients that need save, close, another lifecycle operation,
-or PLC runtime control must select `--access-mode full`. The install command still defaults
+**Migration:** read-write clients can save, close, and use all lifecycle tools with confirmation.
+Select `--access-mode full` for lifecycle without server elicitation or PLC runtime control.
+The install command still defaults
 to read-only. To preview registration without changing client configuration:
 
 ```powershell
 tia-mcp install codex --access-mode full --dry-run
 ```
 
-In read-write, `--project` startup, an initially unattached read's `projectPath`, and attachment
-to the project already open in TIA remain supported. A read cannot switch or close an attached
-project; that requires an explicit full-mode lifecycle call.
+`--project` configures an assertion; a read's `projectPath` never opens or switches projects in
+any mode. Bind an already-open project explicitly with `bind_project` before writable operations.
 
 Enable read-only mode:
 
@@ -196,8 +203,9 @@ Configuration precedence: CLI argument > environment variable > default (read-wr
 
 The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
 
-In read-only mode, the server exposes exactly four MCP tools:
+In read-only mode, the server exposes exactly five MCP tools:
 
+- `bind_project` — adopt or switch to an already-open project without project mutation.
 - `get_project_status` — read active project metadata without opening or switching projects.
 - `browse_project_tree` — browse a canonical paged v3 snapshot using `startSelector`, `depth`, and `pageSize`; continue with `cursor`.
 - `execute_read_batch` — run the four retained non-project generic reads in a batch.
@@ -210,11 +218,11 @@ The following operations are **not available** in read-only mode:
 - All data mutations (block, PLC type, tag, tag table, user constant, and network-device operations)
 - All PLC control operations (`start_plc`, `stop_plc`)
 
-In read-only mode, the server operates only on the project already open in TIA Portal. It never opens, creates, switches, or closes a project. A supplied `projectPath` is used only as an assertion that must match the currently open project.
+In read-only mode, the server operates only on an already-open project. It never opens, creates, saves or closes a project. Explicit `bind_project` can switch the selected session; ordinary reads cannot. A read's `projectPath` is an assertion that must match the open project. Project-tree cursors reject binding changes with `cursor_binding_mismatch`, even after switching back to the original path.
 
 Read-only mode is a security boundary enforced at three layers:
 
-1. Write tools are not registered in the MCP tool discovery response.
+1. Project mutation, engineering, and lifecycle tools are not registered in MCP discovery; session selection remains available.
 2. The host-side `OperationAccessPolicy` rejects prohibited operations before the worker process is started.
 3. The worker-side `WorkerOperationAuthorization` independently rejects prohibited operations even if a raw worker request bypasses the host.
 
@@ -233,20 +241,22 @@ MCP client configuration example:
 
 The `tia-mcp doctor` command reports the active access mode.
 
-### User-confirmation configuration
+### User confirmation by access mode
 
-The startup setting is independent of access mode and defaults to on. Bare
-`--confirm-with-user` or `--confirm-with-user=true` enables it; use
-`--confirm-with-user=false` to disable it. The separated form `--confirm-with-user false`,
-malformed values, and contradictory repeats are rejected. Equivalent repeats are accepted.
+The removed startup switch fails with this exact migration message:
 
-Lifecycle tools enforce this setting. With it on, a fired acknowledge guard requires form
-elicitation `accept` with boolean `confirm:true`; the tool's agent `acknowledge` array is ignored.
-Missing capability, decline, cancel, timeout, or request failure denies the write with
-`access_denied`. Info-only writes, hard blocks, and `dryRun:true` never elicit. After acceptance the
-server checks fresh target/state again before dispatch. With it off, `acknowledge` must name exactly
-the fired acknowledge guards; hard blocks remain blocked. Changing confirmation never grants
-additional capabilities. Network/batch token tools keep their current behavior.
+```text
+--confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.
+```
+
+Every actual lifecycle call in read-write requires one form elicitation `accept` with boolean
+`confirm:true`, including calls with no guards or only info guards. Missing capability, decline,
+cancel, timeout, or transport failure denies with `access_denied`. Full uses policy confirmation
+without server elicitation. Block guards stop a call in every mode, and `dryRun:true` never elicits.
+Lifecycle accepts `dryRun` with its operation inputs; the former agent confirmation array is removed.
+After accepted elicitation the server resolves fresh state under the same binding lease before
+dispatch. Audit v2 records confirmation by `user`, `policy`, or `none`; acknowledge guard satisfaction
+is `user`, `policy`, or null. Network/batch token tools keep their current behavior.
 
 An elicitation client's accepted response does not prove that a person saw a dialog. Keep
 destructive tools out of client auto-approve lists to require client permission prompts on every

@@ -223,13 +223,16 @@ public class OpennessWorkerClientIntegrationTests
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         using var client = CreateClient(binding: binding, accessPolicy: policy);
 
-        var result = await client.BrowseProjectTreeV3SnapshotAsync(projectPath: null);
+        var call = await client.BrowseProjectTreeV3SnapshotAsync(projectPath: null);
+        var result = call.WorkerResult;
 
         Assert.True(result.Success, result.Error);
         Assert.Equal("{\"seq\":2}", result.Payload);
         Assert.True(binding.IsVerified);
         Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
-        Assert.NotNull(binding.CaptureSnapshot().ToWorkerIdentity());
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, call.HostBinding.State);
+        Assert.NotNull(call.HostBinding.ToWorkerIdentity());
+        Assert.True(call.HostBinding.SameBinding(binding.CaptureSnapshot()));
     }
 
     [Fact]

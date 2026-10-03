@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
+using TiaMcpServer.Network;
 
 namespace TiaMcpServer.ProjectTree;
 
@@ -110,7 +111,8 @@ internal sealed class ProjectTreePageProjector
     {
         var end = checked(offset + take);
         var nextCursor = end < snapshot.Content.Nodes.Count
-            ? _cursorCodec.Encode(new ProjectTreeCursorState(snapshot.SnapshotId, snapshot.QueryHash, end))
+            ? _cursorCodec.Encode(new ProjectTreeCursorState(snapshot.SnapshotId, snapshot.QueryHash, end,
+                ProjectBindingCursorState.FromSnapshot(snapshot.HostBinding, preserveUnboundEpoch: true)))
             : null;
         var response = Success(
             snapshot,

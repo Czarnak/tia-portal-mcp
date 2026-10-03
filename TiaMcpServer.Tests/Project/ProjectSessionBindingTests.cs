@@ -6,6 +6,133 @@ namespace TiaMcpServer.Tests.Project;
 public class ProjectSessionBindingTests
 {
     [Fact]
+    public void BindingRequiredMessage_NamesBindProjectFirst()
+    {
+        var binding = new ProjectSessionBinding(null);
+
+        Assert.False(binding.TryGetVerified(null, out _, out var error));
+
+        Assert.Contains("bind_project", error);
+        Assert.True(error!.IndexOf("bind_project", StringComparison.Ordinal)
+            < error.IndexOf("open_project", StringComparison.Ordinal));
+        Assert.Contains("read-write/full", error);
+
+        var configured = new ProjectSessionBinding(@"C:\Projects\A.ap21");
+        Assert.False(configured.TryResolve(@"C:\Projects\B.ap21", out _, out var conflict));
+        Assert.Contains("bind_project with forceRebind=true", conflict);
+        Assert.True(conflict!.IndexOf("bind_project", StringComparison.Ordinal)
+            < conflict.IndexOf("open_project", StringComparison.Ordinal));
+        Assert.Contains("read-write/full", conflict);
+    }
+
+    private static WorkerSessionIdentity SelectionIdentity(string path = @"C:\Projects\P.ap21")
+        => new()
+        {
+            WorkerSessionId = "selection-worker",
+            SessionGeneration = 9,
+            PortalProcessId = 4242,
+            ProjectPath = path
+        };
+
+    [Theory]
+    [InlineData(ProjectBindingSnapshot.UnboundState)]
+    [InlineData(ProjectBindingSnapshot.ConfiguredUnverifiedState)]
+    [InlineData(ProjectBindingSnapshot.InvalidatedState)]
+    [InlineData(ProjectBindingSnapshot.VerifiedState)]
+    public void TryAdoptVerified_FromUnboundConfiguredInvalidatedAndOtherVerified_Verifies(string state)
+    {
+        var binding = new ProjectSessionBinding(
+            state == ProjectBindingSnapshot.UnboundState ? null : @"C:\Projects\C.ap21");
+        if (state is ProjectBindingSnapshot.VerifiedState or ProjectBindingSnapshot.InvalidatedState)
+            Assert.True(binding.BindVerified(SelectionIdentity(@"C:\Projects\C.ap21"), true, out _));
+        if (state == ProjectBindingSnapshot.InvalidatedState)
+            binding.Invalidate("worker restarted");
+        var before = binding.CaptureSnapshot();
+        Assert.Equal(state, before.State);
+
+        Assert.True(binding.TryAdoptVerified(before, SelectionIdentity("C:/Projects/P.ap21"), out var error));
+
+        Assert.Null(error);
+        var after = binding.CaptureSnapshot();
+        Assert.True(after.IsVerified);
+        Assert.NotEqual(before.BindingId, after.BindingId);
+        Assert.Equal(before.Revision + 1, after.Revision);
+        Assert.Equal(@"C:\Projects\P.ap21", after.ProjectPath);
+        Assert.Equal("selection-worker", after.WorkerSessionId);
+        Assert.Equal(9, after.SessionGeneration);
+        Assert.Equal(4242, after.PortalProcessId);
+        Assert.Null(after.InvalidatedReason);
+    }
+
+    [Fact]
+    public void TryAdoptVerified_SameIdentity_NoRevisionBump()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var stale = binding.CaptureSnapshot();
+        Assert.True(binding.BindVerified(SelectionIdentity(), false, out _));
+        var before = binding.CaptureSnapshot();
+
+        // An identical concurrent response is accepted even when its expected revision is stale.
+        Assert.True(binding.TryAdoptVerified(stale, SelectionIdentity("C:/Projects/P.ap21"), out var error));
+
+        Assert.Null(error);
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Fact]
+    public void TryAdoptVerified_StaleExpected_FailsUnchanged()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var stale = binding.CaptureSnapshot();
+        Assert.True(binding.BindVerified(SelectionIdentity(@"C:\Projects\C.ap21"), false, out _));
+        var before = binding.CaptureSnapshot();
+
+        Assert.False(binding.TryAdoptVerified(stale, SelectionIdentity(), out var error));
+
+        Assert.NotNull(error);
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Theory]
+    [InlineData(null, 9, 4242, @"C:\Projects\P.ap21")]
+    [InlineData("   ", 9, 4242, @"C:\Projects\P.ap21")]
+    [InlineData("selection-worker", -1, 4242, @"C:\Projects\P.ap21")]
+    [InlineData("selection-worker", 9, null, @"C:\Projects\P.ap21")]
+    [InlineData("selection-worker", 9, 0, @"C:\Projects\P.ap21")]
+    [InlineData("selection-worker", 9, -1, @"C:\Projects\P.ap21")]
+    [InlineData("selection-worker", 9, 4242, null)]
+    [InlineData("selection-worker", 9, 4242, "   ")]
+    public void TryAdoptVerified_IncompleteIdentity_Fails(string? worker, long generation, int? process, string? path)
+    {
+        var binding = new ProjectSessionBinding(@"C:\Projects\C.ap21");
+        var before = binding.CaptureSnapshot();
+        var identity = new WorkerSessionIdentity
+        {
+            WorkerSessionId = worker!,
+            SessionGeneration = generation,
+            PortalProcessId = process,
+            ProjectPath = path
+        };
+
+        Assert.False(binding.TryAdoptVerified(before, identity, out var error));
+
+        Assert.NotNull(error);
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Fact]
+    public void TryAdoptVerified_NullIdentity_Fails()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var before = binding.CaptureSnapshot();
+
+        Assert.False(binding.TryAdoptVerified(before, null, out var error));
+
+        Assert.NotNull(error);
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Fact]
     public void FirstExplicitProjectPathResolvesWithoutBindingTheSession()
     {
         var binding = new ProjectSessionBinding(null);

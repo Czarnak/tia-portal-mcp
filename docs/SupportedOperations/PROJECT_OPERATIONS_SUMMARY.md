@@ -4,9 +4,41 @@
 
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
-| `get_project_status` | `get_project_status` | Optional `projectPath`; reads status and metadata. Read-only asserts the open project; writable modes can establish the initial exact-path session. Reads never switch an attached project. |
+| `get_project_status` | `get_project_status` | Optional `projectPath` assertion; reads status and metadata without opening, binding, or switching in any mode. |
 | `browse_project_tree` | `browse_project_tree` | v3: optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`; use `cursor` to continue an immutable snapshot. |
 | `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, and `blockPath`; compiles the selected scope and returns compiler messages. Available in read-write and full modes. |
+
+### Explicit binding (`bind_project`)
+
+`bind_project(projectPath?:string, forceRebind:bool=false)` is available in all three modes.
+It changes server session selection without opening, creating, saving or closing a project.
+Only `open_project` and `create_project` open projects; no request implicitly opens one.
+Read-only never opens, creates, saves or closes, but explicit binding can switch its session.
+
+With an unbound session, omit the path to adopt the sole open project or receive typed
+`target_not_found`/`target_ambiguous` plus candidates. Supply an advertised absolute `.ap21` path
+to select exactly that project. A different configured, verified, or last-bound path requires
+`forceRebind:true`. A verified same-path/no-path call rechecks status without switching.
+Reattachment may show TIA's Openness access dialog, which a human must answer. Worker ownership
+does not survive detach; a reattached project is treated as UI-owned. Binding leaves UI projects
+open, including unsaved changes. A modified headless project with this worker as its sole
+Openness client blocks detach; that protection is implemented but unqualified by the Oct3 live run.
+
+The canonical standalone envelope (`tool`, `contractVersion:"1.0"`, `success`, `error`, `warnings`,
+`result`) uses `StandaloneToolOutcome<ProjectBindingResult>`. Its value contains `transition`
+(`bound`, `unchanged`, `switched`, or `none`), non-null `binding` and `previousBinding`, nullable
+`project` status with `metadata:null`, and always-present `portals`. Binding state is `unbound`,
+`configured_unverified`, `verified`, or `invalidated`; path and Portal PID can be null. Portal entries
+contain `processId`, nullable `projectPath`, `hasUserInterface`, and `isBound`.
+
+Bad input and unforced foreign-path requests reject with top-level error and null result before
+worker activity. The headless refusal follows one selection round trip, whose wire `guard_blocked`
+the host maps to rejected `binding_conflict`. Failed completed calls retain a value with transition
+`none` and binding state after the call. Pre-detach `target_not_found`, `target_ambiguous`, and
+`guard_blocked` preserve the old verified binding; other worker, timeout/crash, protocol or
+postcondition failures invalidate it. Candidates appear only from a listing in that call; a failed
+path selection with not-found/ambiguous adds one listing. Doctor reports Warning for an unbound
+writable session and names `bind_project` as remediation.
 
 ### `browse_project_tree` v3
 
@@ -111,7 +143,7 @@ When `pagination.nextCursor` is non-null, continue with a cursor-only request an
 { "cursor": "<pagination.nextCursor>" }
 ```
 
-Each initial request makes one tree-observation worker call; configured read-write startup may first call `get_project_status` to verify the project binding. The net48 worker applies the residual subtree selector and depth filter after walking the selected device. Each continuation authenticates the cursor and serves the same immutable point-in-time snapshot without another worker call. The snapshot does not incorporate later TIA edits. Cursors are process-local: host restart, expiry, or bounded-cache eviction returns `snapshot_unavailable`. Start a new cursor-free browse after that outcome. Supplying query fields with a cursor is allowed only when they match the captured query; a mismatch returns `cursor_filter_mismatch`.
+Each initial request makes one tree-observation worker call; configured read-write startup may first call `get_project_status` to verify the project binding. The net48 worker applies the residual subtree selector and depth filter after walking the selected device. Each continuation authenticates the cursor, checks binding ID/revision, and serves the same immutable point-in-time snapshot without another worker call. A binding change returns `cursor_binding_mismatch`, including after switching away and back to the original path. The snapshot does not incorporate later TIA edits. Cursors are process-local: host restart, expiry, or bounded-cache eviction returns `snapshot_unavailable`. Start a new cursor-free browse after either outcome. Supplying query fields with a cursor is allowed only when they match the captured query; a mismatch returns `cursor_filter_mismatch`.
 
 Nodes are parent-first, so a caller can reconstruct a selector without legacy path text: index nodes by `nodeId`, start at the desired node, follow `parentNodeId` to null, reverse the chain, and project every node to `{ "nodeType": node.nodeType, "name": node.name }`. That returned chain begins at the selected snapshot root, which may be below `Device`. To build the complete selector, prepend `result.query.startSelector` with its final segment removed, then append the reconstructed returned chain. When the initial `startSelector` was omitted, the prefix is empty. This avoids duplicating the selected root while preserving Device ancestry for snapshots rooted at `PlcSoftware`, `BlockFolder`, or deeper. Submit the combined array as `startSelector`. Do not persist `nodeId` across snapshots; it is snapshot-local.
 
@@ -193,10 +225,10 @@ the plain project status only — it never enumerates history or the extended me
 
 ## Lifecycle operations
 
-All six lifecycle tools require `full`; read-write permits edits and compilation but leaves
-persistence to the human. Its initial `--project` or unattached read `projectPath` can establish
-the session. Once attached, a read cannot switch or close the project. Read-only paths are
-assertions against the project already open and never open one.
+All six lifecycle tools are available in read-write and full; the complete mode counts are
+5/15/15. Read-write requires one confirmation form per actual call; full executes under policy
+without server elicitation. Block guards stop a call in every mode. Ordinary reads never bind,
+switch or open; use `bind_project` for already-open projects and open/create for deliberate opening.
 
 | Tool | Behavior | Main inputs |
 |---|---|---|
@@ -211,7 +243,7 @@ Supported archive modes are `None`, `DiscardRestorableData`, `Compressed`, and `
 
 ### Single-call writes and dry runs
 
-Every lifecycle tool accepts `dryRun:bool=false` and optional `acknowledge:string[]`. A normal call
+Every lifecycle tool accepts `dryRun:bool=false` with its operation inputs. A normal call
 applies once its guards pass. The public `confirm` and `safetyToken` inputs are removed.
 `dryRun:true` resolves the target and reports effects and every fired guard as `phase:preview`,
 without lifecycle mutation, elicitation, or a token. A hard guard is visible in that preview;
@@ -249,27 +281,18 @@ attempted-operation failures, so inspect state before a new call.
 | `archive_inside_project_folder` | Archive destination is the project folder or a descendant. | `block` |
 | `target_exists` | Create or save-as destination directory exists. | `block` |
 
-Info guards appear in warnings and never require confirmation; block guards cannot be overridden.
-With default-on `--confirm-with-user`, the server ignores the agent's `acknowledge` array and asks
-the client for form elicitation only when acknowledge guards fire. The reply must be `accept` with
-boolean `confirm:true`. Missing elicitation capability, decline, cancel, timeout, transport failure,
-or acceptance without that boolean refuses mutation with `access_denied`. Hard blocks and dry runs
-never prompt. After acceptance the server re-resolves the target and guard consequences before
-dispatch; changed state or identity cannot silently expand the accepted operation.
+Info guards appear in warnings; block guards cannot be overridden in any mode. Every actual
+read-write lifecycle call asks once, including info-only calls and calls with no guards. The reply
+must be `accept` with boolean `confirm:true`. Unsupported capability, decline, cancel, timeout,
+transport failure, or acceptance without that boolean denies with `access_denied`. Full satisfies
+acknowledge guards by policy and does not elicit. Block guards and dry runs never prompt. After
+acceptance the server re-resolves targets/effects/guards; changes cannot expand the accepted action.
 
-With `--confirm-with-user=false`, the array must equal exactly the fired acknowledge guard IDs.
-Blank, duplicate, unknown, info/block, or non-fired IDs are `validation_error`; a missing fired ID
-blocks with `guard_blocked`. A dry run reports guards and acknowledgement state without blocking.
-For a known modified project, an opt-out close that discards changes is:
-
-```json
-{"saveBeforeClose":false,"acknowledge":["discards_unsaved_changes"]}
-```
-
-Use this acknowledgement only after inspecting the actual consequence. If the guard does not fire,
-the supplied ID is invalid; a blanket list of all guards is never accepted. The server records
-whether satisfaction came from client elicitation (`user`) or opt-out arguments (`agent`), but
-a client-returned accepted answer does not prove that a person saw a dialog.
+For an intentional dirty discard, use `{"saveBeforeClose":false}`; confirmation follows the mode.
+The former agent confirmation array is removed. Dry runs report acknowledge guard
+`acknowledged:false` in read-write and `true` in full, with null guard audit satisfaction and
+`confirmation:none/not_requested`. Applied satisfaction is `user` or `policy`.
+Client-returned acceptance does not prove that a human saw a dialog.
 
 ### Structured lifecycle response
 
@@ -318,13 +341,22 @@ response's rejection-versus-attempted-failure classification remain intact.
 Each call appends one guarded-write audit record, including previews and refusals, to
 `%LOCALAPPDATA%\TiaMcpServer\audit\writes-yyyy-MM-dd.jsonl`. The record retains the exact returned
 canonical document/hash, requested operation, prepared binding, target, guards, and acknowledgement
-provenance. Lifecycle does not add or consume a safety token. Network and legacy batch tools retain
+provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. Lifecycle does not add or consume a safety token. Network and legacy batch tools retain
 their token and audit flows until their designated redesign phases.
 
 Migration is staged for the final major release: remove client preview/token/apply loops for these
-six tools, replace `confirm`/`safetyToken` with `dryRun`/`acknowledge`, and read typed outputs.
-The [authorized live validation](../superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md)
-records the installed-V21 lifecycle matrix and its runtime, client, artifact, and restoration limits.
+six tools, remove old public confirmation/token arguments and agent confirmation arrays, use
+`dryRun` as needed, and read typed outputs. The removed startup switch is rejected with:
+
+```text
+--confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.
+```
+
+The valid [2026-10-01 lifecycle matrix](../superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md)
+was invalidated for this candidate by the tier/confirmation/binding change and replaced by the
+[2026-10-03 live run](../superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md).
+All three functional groups passed; the maintainer reported no new TIA dialog in read-only,
+completing the separate human observation. The report preserves runtime/client/artifact/restoration limits and exclusions.
 
 ### MCP client hints
 
@@ -332,7 +364,7 @@ records the installed-V21 lifecycle matrix and its runtime, client, artifact, an
 `close_project` are advertised with conservative mutating MCP hints: `readOnlyHint: false`,
 `destructiveHint: true`, and `openWorldHint: false`. These are client-facing metadata only; they
 do not bypass the safety model. A client may still show its own permission prompt for a destructive
-tool, including a dry run. Server elicitation applies only to fired acknowledge guards.
+tool, including a dry run. Server elicitation asks once per actual read-write lifecycle call.
 
 ## Safety and session binding
 
@@ -341,7 +373,7 @@ tool, including a dry run. Server elicitation applies only to fired acknowledge 
 - `save_project_as` requires rebinding because Siemens `SaveAs` switches the active project to the copy.
 - Archive output is rejected when the archive directory is inside the project folder.
 - After a timeout or worker crash, inspect the current project state before deciding whether another call is safe; the server does not automatically retry lifecycle writes.
-- `get_project_status(projectPath)` is non-binding and never switches the active project. Use `open_project` for an intentional project switch.
+- `get_project_status(projectPath)` is non-binding and never switches. Use `bind_project` to select an already-open project, or `open_project` to open one deliberately.
 
 ## Current limits
 

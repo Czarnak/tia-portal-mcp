@@ -73,23 +73,20 @@ public sealed class TiaPortalProcessCheck : IDiagnosticCheck
                     evidence);
             }
 
-            var unsafeUnboundWritable =
+            var unboundWritable =
                 (_accessMode is McpAccessMode.ReadWrite or McpAccessMode.Full) && !_hasConfiguredProjectBinding;
-            var status = unsafeUnboundWritable
-                ? DiagnosticStatus.Failed
-                : DiagnosticStatus.Warning;
-            var message = unsafeUnboundWritable
+            var message = unboundWritable
                 ? $"Multiple TIA Portal processes were detected: {matches.Count} processes while {McpAccessModeNames.ToName(_accessMode)} mode has no explicit project binding."
                 : $"Multiple TIA Portal processes were detected: {matches.Count} processes. Doctor cannot determine which process has the intended project open without attaching.";
 
             return new DiagnosticCheckResult(
                 Id,
                 Name,
-                status,
+                DiagnosticStatus.Warning,
                 message,
                 _hasConfiguredProjectBinding
-                    ? "Before using project tools, confirm that the configured .ap21 project is open in exactly one TIA Portal process."
-                    : "Configure an explicit --project binding, or close the unintended TIA Portal instances before using project tools.",
+                    ? "Call bind_project with the configured .ap21 project's path after confirming it is open in exactly one TIA Portal process."
+                    : "Call bind_project with the intended already-open project's exact projectPath, or configure --project, before using project tools.",
                 evidence);
         }
 

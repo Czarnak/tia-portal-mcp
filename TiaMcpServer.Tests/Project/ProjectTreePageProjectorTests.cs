@@ -23,13 +23,13 @@ public sealed class ProjectTreePageProjectorTests
     [Fact]
     public void Project_TrimsOnlyTheTrailingSuffixAndAdvancesByReturnedCount()
     {
-        var projector = CreateProjector(maxResponseChars: 1_200);
+        var projector = CreateProjector(maxResponseChars: 1_350);
         var snapshot = SnapshotWithNodes(10, detailChars: 120);
 
         var page = projector.Project(snapshot, offset: 2, requestedPageSize: 5);
 
         Assert.True(page.IsSuccess);
-        Assert.InRange(page.CanonicalText.Length, 1, 1_200);
+        Assert.InRange(page.CanonicalText.Length, 1, 1_350);
         Assert.Equal(new[] { 2, 3 }, page.Response.Result!.Nodes.Select(node => node.Sequence));
         Assert.Equal(2, page.Response.Result.Pagination.ReturnedCount);
         Assert.Equal(4, Decode(page.Response.Result.Pagination.NextCursor!).Offset);
@@ -80,7 +80,7 @@ public sealed class ProjectTreePageProjectorTests
     [Fact]
     public void Project_CanSplitParentAndChildAcrossPagesWithoutSplittingEitherNode()
     {
-        var page = CreateProjector(maxResponseChars: 900)
+        var page = CreateProjector(maxResponseChars: 1_050)
             .Project(SnapshotWithParentAndChild(detailChars: 100), offset: 0, requestedPageSize: 2);
 
         Assert.True(page.IsSuccess);
@@ -116,14 +116,14 @@ public sealed class ProjectTreePageProjectorTests
     public void OversizedNextNode_ReturnsItemFailureWithoutEchoingTheNode()
     {
         var marker = new string('s', 2_000);
-        var projector = CreateProjector(maxResponseChars: 700);
+        var projector = CreateProjector(maxResponseChars: 850);
 
         var page = projector.Project(SnapshotWithSingleNode(marker), 0, 1);
 
         Assert.False(page.IsSuccess);
         Assert.Equal(WorkerFailureCategories.ResultItemTooLarge, page.Response.Failure!.Category);
         Assert.DoesNotContain(marker, page.CanonicalText, StringComparison.Ordinal);
-        Assert.True(page.CanonicalText.Length <= 700);
+        Assert.True(page.CanonicalText.Length <= 850);
     }
 
     [Fact]
@@ -236,5 +236,7 @@ public sealed class ProjectTreePageProjectorTests
                 new ProjectTreeQuery("p", StartSelector: null, Depth: null),
                 nodes),
             Warnings: warnings,
-            SerializedChars: 0);
+            SerializedChars: 0,
+            HostBinding: new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState,
+                "unbound", 0, null, null, null, null, null));
 }

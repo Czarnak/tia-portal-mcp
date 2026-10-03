@@ -77,8 +77,14 @@
       Link="Host\BlockImportOutcomeSynthesizer.cs" />
     <Compile Include="..\TiaMcpServer\Worker\HardwarePageWorkerCallResult.cs"
       Link="Host\HardwarePageWorkerCallResult.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\ProjectTreeSnapshotCallResult.cs"
+      Link="Host\ProjectTreeSnapshotCallResult.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectRebindStatePayloadContract.cs"
       Link="Host\ProjectRebindStatePayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\ProjectBindingDecision.cs"
+      Link="Host\ProjectBindingDecision.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\ProjectBindingPayloadContract.cs"
+      Link="Host\ProjectBindingPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
     <Compile Include="..\TiaMcpServer\Json\CanonicalJson.cs" Link="Host\Json\CanonicalJson.cs" />
     <Compile Include="..\TiaMcpServer\Cursors\*.cs" Link="Host\Cursors\%(Filename)%(Extension)" />
@@ -96,6 +102,8 @@
       Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
       Link="Host\ProjectReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectBindingTools.cs"
+      Link="Host\ProjectBindingTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectEngineeringTools.cs"
       Link="Host\ProjectEngineeringTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\McpToolRegistration.cs"
@@ -182,6 +190,8 @@
       Link="Worker\ProjectRebindCloseGuard.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalTargetSelector.cs"
       Link="Worker\TiaPortalTargetSelector.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PortalDetachGuard.cs"
+      Link="Worker\PortalDetachGuard.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\AssemblyResolver.cs"
       Link="Worker\AssemblyResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerWarningMerger.cs"

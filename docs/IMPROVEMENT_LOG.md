@@ -26,18 +26,14 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: JSON contract Phase 3 / write-safety Phase 2 frozen live acceptance
+## Open: totally-integrated-claude tia-portal-mcp skill migration
 
-Lifecycle implementation replaces public tokens with guarded single-call `dryRun`/`acknowledge`,
-default-on elicitation, typed outcomes/verification, and one audit record per call. Final offline
-qualification and independent review are recorded in the [validation record](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md).
-The code/test candidate `8f0e26f` passed the offline gates and installed-V21 reference Rebuild.
-Live acceptance remains pending: freeze the final candidate, obtain exact disposable-target
-authorization, then qualify all six operations, all seven guards,
-accepted/declined/unsupported client behavior, persisted artifacts, and restoration. Inspect unknown
-outcomes rather than replaying them. Any code/base change invalidates frozen evidence; offline and
-FakeWorker results are not live TIA acceptance. Network/batch tokens and the final major release
-remain separate delivery gates.
+Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
+5/15/15 tool counts, `bind_project` for already-open projects, no implicit opens, per-call
+read-write lifecycle confirmation, full policy confirmation, removed startup switch/agent
+confirmation arguments, audit v2, and binding-scoped tree cursors. Preserve the distinction between
+functional live evidence and human dialog observations. This repository task changes no installed
+plugin cache or user configuration.
 
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
@@ -767,18 +763,17 @@ uses the pipeline yet; Phases 2–4 move the tools onto it.
 
 ## Write-safety redesign Phase 1b access modes — offline acceptance completed (2026-09-30)
 
-The shared capability presets now distinguish read-only observation (4 tools), read-write
-in-project edits and compilation (8), and full lifecycle/PLC runtime control (14). Startup
-still defaults to read-write; installation still defaults to read-only. Existing read-write
-clients needing save, close, open, create, archive or PLC start/stop must select full.
+At that checkpoint the presets distinguished read-only observation (4 tools), read-write
+in-project edits/compilation (8), and full lifecycle/PLC runtime control (14). The Oct3 lifecycle-tier
+and binding delivery below supersedes those counts and lifecycle permissions; startup and installer
+defaults remain read-write and read-only respectively.
 
 - Discovery uses the same registration helper in production and protocol tests. Host denial
   precedes binding, snapshots, token handling and worker activity; worker authorization is
   independent. Tests cover hidden lifecycle calls, mixed PLC-control batches, direct previews,
   initial attachment without cross-project worker dispatch, and full-mode launch/restart.
-- `UserConfirmationOptions` is an immutable startup singleton with default-on configuration.
-  Bare `--confirm-with-user` and `=true` enable it; `=false` disables it. Invalid and conflicting
-  values fail startup. Elicitation enforcement belongs to Phase 2; legacy token behavior remains.
+- That checkpoint introduced an immutable default-on confirmation singleton and parser; the
+  subsequent mode-derived confirmation delivery removed both. Legacy Network/batch tokens remain.
 - Fresh Release stub solution build passed with 7 existing xUnit2031 analyzer warnings and no
   errors. The complete offline suite passed **4414/4414**, with no skips, using the current CI
   coverage settings and serialized collections. Scoped line coverage was **93.76%** (9833/10487),
@@ -822,10 +817,10 @@ publication is part of this migration step; Phase 3 remains a separate successor
 
 ## JSON contract Phase 3 / write-safety Phase 2 — offline qualification completed (2026-10-01)
 
-The six lifecycle tools now use guarded single-call `dryRun`/`acknowledge`, concrete structured
+At that checkpoint the six lifecycle tools gained guarded single-call writes, concrete structured
 schemas, typed mutation/verification outcomes, and one canonical audit record per call. All seven
-lifecycle guard IDs are covered. Default-on form elicitation ignores agent acknowledgements and
-requires explicit `accept` plus boolean `confirm:true`; the off path requires the exact fired set.
+lifecycle guard IDs were covered. That source used configurable elicitation and an agent
+confirmation-list fallback; the Oct3 delivery supersedes those confirmation semantics.
 Hard blocks and dry runs never elicit. Binding preparation preserves the exact source/destination,
 ownership, recovery and save-as transitions, with a fresh post-acceptance state check. Client-returned
 acceptance does not prove a human saw a dialog.
@@ -847,7 +842,36 @@ were command-only, without production-source or dependency-version changes.
 
 The [implementation record](superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md) and
 [validation report](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md)
-record the gates, diagnostic runs, and pending frozen live matrix. Live TIA lifecycle execution,
-actual client confirmation, persisted fixture artifacts/restoration, PLC download/runtime or plant
-acceptance remain unproved by these offline/reference gates. No package tag/release, push, merge,
-or whole-redesign completion is claimed.
+record the offline gates and diagnostic runs. The separately authorized
+[2026-10-01 live validation](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md)
+passed for that source; these offline/reference checks alone never proved live behavior. The
+later tier/confirmation/binding change invalidated that frozen evidence for its new candidate;
+Task13 replaced it as recorded below. The earlier passing evidence is retained as history.
+
+## Lifecycle tiers and bind_project — implemented, live acceptance completed (2026-10-03)
+
+The tool counts are 5/15/15. `bind_project` selects an already-open project in every mode, with
+force for a different configured or previous binding; reads never bind/switch, and only
+open/create can open projects. Worker ownership is lost on detach. Read-only never opens,
+creates, saves or closes. Doctor warns for unbound writable sessions; project-tree cursors reject
+binding changes, including switching away and back. Each actual read-write lifecycle call asks
+once through form elicitation; full uses policy without server elicitation. Block guards stop every
+mode and dry runs never mutate/prompt. Old startup confirmation switches and agent confirmation
+lists were removed. Audit v2 records confirmation by `user`, `policy`, or `none`.
+
+Phase A shipped separately at `85aec97`; the combined frozen source is
+`3bb504b4647cdd57677323eb44aac3305a33aafd`. Its offline checkpoint passed **4,946 tests** with
+**93.24%** linked host/contracts line coverage, above the 80% gate; this excludes live Siemens code.
+The [Oct3 report](superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md)
+replaces Oct1 acceptance for the new candidate: all three functional mode groups passed, six
+lifecycle operations and seven guards were exercised in each writable mode, 27 full and 42
+read-write audit v2 records matched canonical responses/hashes, and read-only returned five tools
+and preserved both project states through binding/cursor checks. Artifacts, restoration and
+graceful host/worker exit evidence are bounded by that report. The maintainer subsequently reported
+no new TIA dialog in read-only mode, completing Task13's separate human observation. Their
+conclusion that the dialog appears once for an unchanged worker is not a general runtime guarantee:
+the recorded native worker changed from PID25148 in read-write to PID28428 in read-only.
+Task14's current documentation/spec updates are complete. Programmatic acceptance remains distinct
+from recorded human observations; no functional production fix or live replay was required.
+No release/tag, Network/batch retirement, headless/Multiuser, crash/timeout, archive retrieval,
+PLC/plant acceptance, plugin update, or remote publication is claimed.

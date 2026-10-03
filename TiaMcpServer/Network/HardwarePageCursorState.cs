@@ -18,13 +18,17 @@ internal sealed record ProjectBindingCursorState(
     long? Revision,
     string? NormalizedProjectPath)
 {
-    internal static ProjectBindingCursorState FromSnapshot(ProjectBindingSnapshot snapshot)
+    // Project-tree cursors retain unbound epochs; existing Network cursors keep their wire shape.
+    internal static ProjectBindingCursorState FromSnapshot(ProjectBindingSnapshot snapshot, bool preserveUnboundEpoch = false)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
         if (string.Equals(snapshot.State, ProjectBindingSnapshot.UnboundState, StringComparison.Ordinal))
         {
-            return new ProjectBindingCursorState(false, null, null, null);
+            return new ProjectBindingCursorState(false,
+                preserveUnboundEpoch ? snapshot.BindingId : null,
+                preserveUnboundEpoch ? snapshot.Revision : null,
+                null);
         }
 
         return new ProjectBindingCursorState(
@@ -34,13 +38,15 @@ internal sealed record ProjectBindingCursorState(
             ProjectPathNormalization.Canonicalize(snapshot.ProjectPath));
     }
 
-    internal bool Matches(ProjectBindingSnapshot snapshot)
+    internal bool Matches(ProjectBindingSnapshot snapshot, bool preserveUnboundEpoch = false)
     {
-        var current = FromSnapshot(snapshot);
-        if (!IsBound || !current.IsBound)
+        var current = FromSnapshot(snapshot, preserveUnboundEpoch);
+        if (IsBound != current.IsBound)
         {
-            return !IsBound && !current.IsBound;
+            return false;
         }
+        if (!IsBound && !preserveUnboundEpoch)
+            return true;
 
         return string.Equals(BindingId, current.BindingId, StringComparison.Ordinal)
             && Revision == current.Revision

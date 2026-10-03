@@ -1,4 +1,5 @@
 using TiaMcpServer.ProjectTree;
+using TiaMcpServer.Contracts;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
@@ -184,7 +185,9 @@ public class ProjectTreeSnapshotStoreTests
                 new ProjectTreeQuery(@"C:\Projects\Sample.ap21", null, null),
                 Array.Empty<ProjectTreeFlatNode>()),
             Array.Empty<string>(),
-            chars);
+            chars,
+            new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState,
+                "unbound", 0, null, null, null, null, null));
 
     private sealed record Projection(bool IsSuccess, bool HasNextPage);
 

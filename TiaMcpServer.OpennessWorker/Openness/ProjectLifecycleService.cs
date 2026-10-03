@@ -329,13 +329,18 @@ public static class ProjectLifecycleService
     {
         session.EnsureConnected(projectPath);
 
-        if (!string.IsNullOrWhiteSpace(projectPath))
+        switch (ProjectOpenPolicy.Decide(session.CurrentProjectPath, projectPath))
         {
-            session.OpenProject(projectPath!);
+            case ProjectOpenDecision.RequestedNotOpen:
+                throw new WorkerOperationException(WorkerFailureCategories.AccessDenied,
+                    ProjectOpenPolicy.NotOpenMessage(projectPath!, McpAccessMode.ReadWrite));
+            case ProjectOpenDecision.Refuse:
+                throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                    ProjectOpenPolicy.RefusalMessage(session.CurrentProjectPath!, projectPath!, McpAccessMode.ReadWrite));
         }
 
         return session.Project ??
-            throw new InvalidOperationException("No project is open. Provide a projectPath argument or open a project in TIA Portal.");
+            throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(McpAccessMode.ReadWrite));
     }
 
     private static void ValidateExpectedImmediatelyBeforeMutation(

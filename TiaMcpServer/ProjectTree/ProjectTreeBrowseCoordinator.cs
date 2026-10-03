@@ -16,7 +16,8 @@ public sealed class ProjectTreeBrowseCoordinator
     private readonly ProjectTreeSnapshotStore _store;
     private readonly ProjectTreePageProjector _projector;
     private readonly TimeProvider _timeProvider;
-    private readonly Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<WorkerCallResult>> _browseSnapshot;
+    private readonly Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<ProjectTreeSnapshotCallResult>> _browseSnapshot;
+    private readonly Func<ProjectBindingSnapshot> _captureBinding;
 
     internal ProjectTreeBrowseCoordinator(
         OpennessWorkerClient workerClient,
@@ -32,7 +33,8 @@ public sealed class ProjectTreeBrowseCoordinator
             (projectPath, startSelector, depth) => workerClient.BrowseProjectTreeV3SnapshotAsync(
                 projectPath,
                 startSelector,
-                depth))
+                depth),
+            () => workerClient.BindingSnapshot)
     {
         ArgumentNullException.ThrowIfNull(workerClient);
     }
@@ -42,13 +44,15 @@ public sealed class ProjectTreeBrowseCoordinator
         ProjectTreeSnapshotStore store,
         ProjectTreePageProjector projector,
         TimeProvider timeProvider,
-        Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<WorkerCallResult>> browseSnapshot)
+        Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<ProjectTreeSnapshotCallResult>> browseSnapshot,
+        Func<ProjectBindingSnapshot> captureBinding)
     {
         _cursorCodec = cursorCodec ?? throw new ArgumentNullException(nameof(cursorCodec));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _projector = projector ?? throw new ArgumentNullException(nameof(projector));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _browseSnapshot = browseSnapshot ?? throw new ArgumentNullException(nameof(browseSnapshot));
+        _captureBinding = captureBinding ?? throw new ArgumentNullException(nameof(captureBinding));
     }
 
     internal async Task<ProjectTreeRenderedResponse> BrowseAsync(
@@ -93,10 +97,11 @@ public sealed class ProjectTreeBrowseCoordinator
         int pageSize)
     {
         ProjectTreeNodeTypes.Validate(request.StartSelector);
-        var worker = await _browseSnapshot(
+        var call = await _browseSnapshot(
             request.ProjectPath,
             request.StartSelector,
             request.Depth).ConfigureAwait(false);
+        var worker = call.WorkerResult;
         if (!worker.Success)
         {
             return Failure(
@@ -129,7 +134,8 @@ public sealed class ProjectTreeBrowseCoordinator
             ProjectTreeBrowseRequest.CreateQueryHash(query),
             content,
             observation.Warnings.ToArray(),
-            chars);
+            chars,
+            call.HostBinding);
         return _store.ProjectInitial(
             candidate,
             view => _projector.Project(view, 0, pageSize),
@@ -141,6 +147,13 @@ public sealed class ProjectTreeBrowseCoordinator
         int pageSize)
     {
         var state = _cursorCodec.Decode(request.Cursor!);
+        if (!state.HostBinding.Matches(_captureBinding(), preserveUnboundEpoch: true))
+        {
+            return Failure(
+                WorkerFailureCategories.CursorBindingMismatch,
+                "The project binding changed after this project-tree cursor was issued; start again without a cursor.");
+        }
+
         var access = _store.Access(
             state.SnapshotId,
             snapshot =>

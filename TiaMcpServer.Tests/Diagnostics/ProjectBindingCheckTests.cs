@@ -56,12 +56,13 @@ public class ProjectBindingCheckTests
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains("No project binding", result.Message, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(result.Remediation);
+        Assert.Contains("bind_project", result.Remediation);
     }
 
     [Theory]
     [InlineData(McpAccessMode.ReadWrite, "Read-write")]
     [InlineData(McpAccessMode.Full, "Full")]
-    public void NoBinding_WritableMode_ReturnsFailed(McpAccessMode mode, string label)
+    public void Doctor_WritableWithoutProject_Warning(McpAccessMode mode, string label)
     {
         var env = new FakeEnvironmentVariableService();
         var check = new ProjectBindingCheck(
@@ -72,8 +73,12 @@ public class ProjectBindingCheckTests
 
         var result = check.Run();
 
-        Assert.Equal(DiagnosticStatus.Failed, result.Status);
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains(label, result.Message);
+        Assert.Contains("bind_project", result.Remediation);
+        Assert.Contains("--project", result.Remediation);
+        Assert.True(result.Remediation!.IndexOf("bind_project", StringComparison.Ordinal)
+            < result.Remediation.IndexOf("--project", StringComparison.Ordinal));
     }
 
     [Fact]

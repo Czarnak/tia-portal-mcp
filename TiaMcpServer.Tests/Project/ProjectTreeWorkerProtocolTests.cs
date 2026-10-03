@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
@@ -15,9 +16,10 @@ public sealed class ProjectTreeWorkerProtocolTests
         using var client = new OpennessWorkerClient(
             new ProjectSessionBinding(null),
             logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
 
-        var result = await client.BrowseProjectTreeV3SnapshotAsync(
+        var call = await client.BrowseProjectTreeV3SnapshotAsync(
             projectPath: "project-tree-v3-snapshot",
             startSelector: new[]
             {
@@ -25,8 +27,12 @@ public sealed class ProjectTreeWorkerProtocolTests
             },
             depth: 1);
 
+        var result = call.WorkerResult;
         Assert.True(result.Success, result.Error);
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, call.HostBinding.State);
         using var response = JsonDocument.Parse(result.Payload);
+        Assert.False(response.RootElement.TryGetProperty("hostBinding", out _));
+        Assert.False(response.RootElement.TryGetProperty("workerResult", out _));
         Assert.Equal("Device", response.RootElement.GetProperty("startSelector")[0].GetProperty("nodeType").GetString());
         Assert.Equal("PLC_1", response.RootElement.GetProperty("roots")[0].GetProperty("name").GetString());
     }

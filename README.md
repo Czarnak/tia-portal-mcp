@@ -16,7 +16,7 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server exposes 4 tools in `read-only`, 14 in `read-write` (the startup default), and 14 in `full`.
+The server exposes 5 tools in `read-only`, 15 in `read-write` (the startup default), and 15 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls with user confirmation.
 `full` adds PLC runtime control and runs lifecycle calls directly. Lifecycle uses guarded single-call
 writes; Network and legacy batch writes retain their token flow.
@@ -55,14 +55,13 @@ Available write operations (for `preview_write_batch` / `apply_write_batch`): `u
 
 Large hardware reads can opt into cursor pagination with `pageSize` (`1..200`) or `cursor`. Pages count devices first and then subnets in one stable sequence while keeping the two public arrays separate; canonical size projection may return fewer complete entities than requested. Follow `pagination.nextCursor` until it is absent/null and keep the project, filters, and detail flags unchanged. Requests with neither field retain the byte-for-byte unpaged contract. Cursors are process-local and cannot survive a host restart. See the [Network operations reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#hardware-configuration-pagination) for recovery and omission semantics.
 
-Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`, `add_network_device`, `configure_network_device`, `start_plc` / `stop_plc`.
-
 ### Project tools
 
-- `get_project_status` — inspect active project metadata; writable modes may establish an initial exact-path session, while read-only asserts the currently open project. A read never switches an attached project.
+- `bind_project` — adopt an already-open project in any mode; omit the path to adopt the sole open project or list candidates. Use `forceRebind:true` to switch to a different already-open project. Reattachment may show TIA's Openness access dialog, which a human must answer.
+- `get_project_status` — inspect active project metadata without opening, binding, or switching projects; a supplied path is an assertion.
 - `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata in block-node `details` (default-on string fields: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName`), `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
 - `compile_check` — compile a PLC or selected block and return compiler messages; available in read-write and full modes.
-- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - guarded single-call lifecycle writes in full mode. Set `dryRun:true` to inspect effects and guards without mutation or elicitation. These tools advertise structured outputs and no longer accept public `confirm` or `safetyToken` inputs; they remain single-tool only.
+- `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - guarded single-call lifecycle writes in read-write and full. Read-write asks once per actual call; full proceeds without server elicitation. Set `dryRun:true` to inspect effects and guards without mutation or elicitation. These tools advertise structured outputs and accept no public confirmation list or safety token; they remain single-tool only.
 
 `get_project_status` and `compile_check` advertise structured output schemas with contract version `1.0`. Their text and `structuredContent` contain the same canonical document; read the typed payload at `result.value`. Compiler errors set `success:false` while retaining diagnostics, with MCP `isError:false`. Oversized values are omitted whole with retry guidance. See the [standalone response contract](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#standalone-status-and-compilation-contract) for migration details.
 
@@ -72,15 +71,16 @@ Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and ba
 
 Lifecycle tools validate input, prepare the exact binding, resolve targets, evaluate guards, mutate,
 verify, and audit in one call. `dryRun:true` returns `phase:preview` without mutation or a confirmation
-prompt and creates no token. With default-on `--confirm-with-user`, fired acknowledge guards require
-form elicitation with explicit acceptance and `confirm:true`; agent `acknowledge` cannot satisfy
-them. A client without elicitation support is refused with `access_denied` when such a guard fires.
-With `--confirm-with-user=false`, `acknowledge` must name exactly the fired acknowledge guard IDs.
-Hard block guards always refuse the write. See the [lifecycle reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
+prompt and creates no token. In read-write every actual lifecycle call requires one form elicitation
+with explicit acceptance and boolean `confirm:true`, including calls with only info guards or no
+guards. Unsupported clients, decline, cancel, timeout, or transport failure deny with `access_denied`.
+Full mode satisfies acknowledge guards by policy without server elicitation. Block guards stop the
+call in every mode. Confirmation follows the access mode; the old startup switch was removed.
+See the [lifecycle reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
 for guards, requests, responses, and recovery.
 
 **Consent depends on the MCP client.** Elicitation proves that the client returned an accepted
-answer, not that a person saw it. All write tools retain conservative destructive hints; keep them
+answer, not that a person saw it. Project mutation and lifecycle tools retain conservative destructive hints; keep them
 out of client auto-approve lists if you want permission prompts on every call. Network and generic
 batch safety tokens remain consistency checks, not user consent. Generic writes use
 `preview_write_batch` then `apply_write_batch`; Network uses `network_write` with `confirm:false`
@@ -90,13 +90,20 @@ Those tokens are single-use, expire after ten minutes, and bind input, state, to
 project identity/revision. Lifecycle uses pinned binding and transition checks without tokens;
 open/create can start unbound, save-as binds the resulting copy, and close clears the binding.
 Lifecycle audits every call, including dry runs and refusals, in `writes-yyyy-MM-dd.jsonl` under
-`%LOCALAPPDATA%\TiaMcpServer\audit`; Network and batch retain their existing audit files.
+`%LOCALAPPDATA%\TiaMcpServer\audit`; audit v2 records confirmation by `user`, `policy`, or `none`.
+Network and batch retain their existing audit files.
 
 The worker never attaches to the first enumerated TIA Portal or selects the first open project. It
 requires an exact path match or a genuinely sole candidate; multiple possible targets fail with
 `target_ambiguous` before Attach or mutation. A configured `--project` path becomes write-ready only
 after a matching worker identity is observed. Later identity drift returns `binding_conflict` and
 invalidates the session until an explicit rebind.
+
+There are no implicit opens: only `open_project` and `create_project` open a project. Use
+`bind_project` for an already-open project. Worker ownership is lost across a detach; a reattached
+project is treated as UI-owned. Read-only never opens, creates, saves or closes a project, while
+explicit binding may switch the selected session. Project-tree cursors reject binding changes,
+including a switch away and back to the same path.
 
 `preview_write_batch` issues one token for the whole batch, bound to the exact ordered operation list and the combined current state. Reordering items, changing any item's input, retargeting the project path, or a change in project state all invalidate the token. `apply_write_batch` re-reads the combined current state once before consuming the token, then applies items sequentially and stops on the first failure.
 
@@ -158,9 +165,9 @@ structured results. This custom-integration requirement is separate from the `br
 v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
-**read-only** mode by default; add `--access-mode read-write` for edits and compilation, or
-`--access-mode full` for project lifecycle and PLC control. Existing read-write configurations
-that need save or close must migrate to full.
+**read-only** mode by default (five tools); add `--access-mode read-write` for edits, compilation,
+and lifecycle with one prompt per actual call (fifteen tools). Select `--access-mode full` for
+lifecycle without server elicitation and PLC runtime control (fifteen tools).
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing

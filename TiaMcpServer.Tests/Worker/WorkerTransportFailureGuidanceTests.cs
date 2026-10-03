@@ -5,6 +5,15 @@ namespace TiaMcpServer.Tests.Worker;
 
 public sealed class WorkerTransportFailureGuidanceTests
 {
+    [Fact]
+    public void TimeoutGuidance_SessionSelection_NamesOpennessDialog()
+    {
+        var guidance = WorkerTransportFailureGuidance.TimeoutGuidance("select_portal_project");
+        Assert.Contains("Openness dialog", guidance);
+        Assert.Contains("invalidated", guidance);
+        Assert.Contains("bind_project", guidance);
+    }
+
     [Theory]
     [InlineData("browse_project_tree", false)]
     [InlineData("browse_project_tree_v3_snapshot", true)]

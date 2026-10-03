@@ -9,6 +9,27 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class FakeWorkerIdentityEnforcementTests
 {
     [Fact]
+    public async Task OrdinaryReadCannotSelectPortalProject()
+    {
+        const string source = @"C:\Fixture\guarded-lifecycle-source.ap21";
+        const string target = @"C:\Fixture\Target.ap21";
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var portals = new FakeWorkerPortals(new(200, source), new(900, target));
+        using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(),
+            TimeSpan.FromSeconds(5), workerArgs: "--access-mode read-only");
+        var before = await transport.SendAsync(new WorkerRequest { Method = "get_project_status" });
+        Assert.True(before.Success, before.Error);
+        var rejected = await transport.SendAsync(new WorkerRequest { Method = "get_project_status", ProjectPath = target });
+        Assert.False(rejected.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, rejected.FailureCategory);
+        var after = await transport.SendAsync(new WorkerRequest { Method = "get_project_status" });
+        Assert.True(after.Success, after.Error);
+        Assert.Equal(before.SessionIdentity!.SessionGeneration, after.SessionIdentity!.SessionGeneration);
+        Assert.Equal(200, after.SessionIdentity.PortalProcessId);
+        Assert.Equal(source, after.SessionIdentity.ProjectPath);
+    }
+
+    [Fact]
     public async Task CannedStatusWithoutUiOpenProject_ReportsClosedWithoutRequestDerivedIdentity()
     {
         using var uiOpen = new FakeWorkerUiOpenProject(null);

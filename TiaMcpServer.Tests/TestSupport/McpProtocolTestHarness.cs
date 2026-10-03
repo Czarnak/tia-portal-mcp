@@ -127,7 +127,9 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         where TTools : class
         => typeof(TTools) == typeof(ProjectReadTools)
             ? builder.WithProjectReadTools()
-            : builder.WithTools<TTools>();
+            : typeof(TTools) == typeof(ProjectBindingTools)
+                ? builder.WithProjectBindingTools()
+                : builder.WithTools<TTools>();
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,

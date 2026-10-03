@@ -20,7 +20,8 @@ public static class OperationPolicyCatalog
 
     /// <summary>
     /// True when <paramref name="operation"/> is allowed under the given access mode.
-    /// Read-only mode allows Observe, TemporaryExport, and side-effect-free SafetyRead.
+    /// Read-only mode allows Observe, TemporaryExport, side-effect-free SafetyRead,
+    /// and SessionSelection of already-open projects.
     /// </summary>
     public static bool IsAllowed(McpAccessMode mode, string? operation)
     {
@@ -33,13 +34,16 @@ public static class OperationPolicyCatalog
         => mode switch
         {
             McpAccessMode.ReadOnly => capability is OperationCapability.Observe
-                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead,
+                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.SessionSelection,
             McpAccessMode.ReadWrite => capability is OperationCapability.Observe
                 or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.SessionSelection
                 or OperationCapability.Compile or OperationCapability.ProjectMutation
                 or OperationCapability.ProjectLifecycle,
             McpAccessMode.Full => capability is OperationCapability.Observe
                 or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.SessionSelection
                 or OperationCapability.Compile or OperationCapability.ProjectMutation
                 or OperationCapability.ProjectLifecycle or OperationCapability.OnlineControl,
             _ => false
@@ -69,6 +73,7 @@ public static class OperationPolicyCatalog
         {
             OperationCapability.Observe => false,
             OperationCapability.TemporaryExport => false,
+            OperationCapability.SessionSelection => false,
             OperationCapability.SafetyRead => true,
             _ => true
         };
@@ -85,6 +90,7 @@ public static class OperationPolicyCatalog
         {
             // Observe (read-only safe)
             ["get_project_status"] = OperationCapability.Observe,
+            ["list_tia_portal_processes"] = OperationCapability.Observe,
             ["browse_project_tree_v3_snapshot"] = OperationCapability.Observe,
             ["read_hardware_config"] = OperationCapability.Observe,
             ["read_hardware_page_candidates"] = OperationCapability.Observe,
@@ -94,6 +100,9 @@ public static class OperationPolicyCatalog
             ["list_network_objects"] = OperationCapability.Observe,
             ["inspect_network_object"] = OperationCapability.Observe,
             ["probe_network_object_attributes"] = OperationCapability.Observe,
+
+            // SessionSelection (all presets, selects an already-open project)
+            ["select_portal_project"] = OperationCapability.SessionSelection,
 
             // SafetyRead (read-only safe, but requires a verified expected identity)
             ["read_create_block_safety_snapshot"] = OperationCapability.SafetyRead,

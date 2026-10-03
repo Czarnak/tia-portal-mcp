@@ -60,7 +60,8 @@ public sealed class ProjectSessionBinding
     }
 
     private const string RebindInstruction =
-        "Call open_project with forceRebind=true to rebind this session, or start a new MCP session for a different TIA project.";
+        "Call bind_project with forceRebind=true to rebind this session to an already-open project, "
+        + "or call open_project with forceRebind=true in read-write/full mode. You can also start a new MCP session for a different TIA project.";
 
     private static string AlreadyBoundError(string boundProjectPath, string requestedProjectPath)
         => $"This MCP session is already bound to project '{boundProjectPath}' and cannot use '{requestedProjectPath}'. {RebindInstruction}";
@@ -202,6 +203,36 @@ public sealed class ProjectSessionBinding
         }
     }
 
+    /// <summary>Adopts a complete worker identity against the expected binding revision.</summary>
+    public bool TryAdoptVerified(
+        ProjectBindingSnapshot expected,
+        WorkerSessionIdentity? identity,
+        out string? error)
+    {
+        lock (_gate)
+        {
+            if (!TryValidateCompleteIdentity(identity, out var canonicalPath, out error))
+            {
+                return false;
+            }
+
+            if (_state == ProjectBindingSnapshot.VerifiedState && _verifiedIdentity is not null &&
+                SameIdentity(_verifiedIdentity, identity!, canonicalPath!))
+            {
+                return true;
+            }
+
+            if (!expected.SameBinding(SnapshotNoLock()))
+            {
+                error = "The project binding changed before the selected worker identity could be adopted.";
+                return false;
+            }
+
+            SetVerified(identity!, canonicalPath!);
+            return true;
+        }
+    }
+
     /// <summary>Binds atomically to worker-reported ground truth after open/create/save-as.</summary>
     public bool BindVerified(WorkerSessionIdentity? identity, bool forceRebind, out string? error)
     {
@@ -292,7 +323,7 @@ public sealed class ProjectSessionBinding
             if (_state != ProjectBindingSnapshot.VerifiedState || _verifiedIdentity is null)
             {
                 error = "A worker-verified project binding is required before previewing or executing a write. "
-                    + "Configure --project and verify it, or call open_project explicitly first.";
+                    + "Call bind_project first, or configure --project and verify it. In read-write/full mode, you can also call open_project explicitly.";
                 return false;
             }
 

@@ -21,9 +21,12 @@ internal static class StructuredStandaloneResult
 
         var retainedWarnings = warnings.ToList();
         var valueChars = outcome?.Value is null ? 0 : CanonicalJson.Serialize(outcome.Value).Length;
-        var guidance = tool == "compile_check"
-            ? "Narrow the compile with plcName or blockPath. The complete report was omitted."
-            : "Extended metadata was too large to return. This tool has no metadata selector; retry after reducing project metadata or inspect it in TIA Portal.";
+        var guidance = tool switch
+        {
+            "compile_check" => "Narrow the compile with plcName or blockPath. The complete report was omitted.",
+            "bind_project" => "Retry bind_project with the absolute projectPath of one open project to narrow the candidates.",
+            _ => "Extended metadata was too large to return. This tool has no metadata selector; retry after reducing project metadata or inspect it in TIA Portal."
+        };
 
         void Omit(string reason, int limit)
         {
@@ -46,6 +49,9 @@ internal static class StructuredStandaloneResult
                 "compile_check" when typeof(TPayload) == typeof(CompileCheckReport) =>
                     new CompileCheckResponse(Version, success, rejection, retainedWarnings,
                         (StandaloneToolOutcome<CompileCheckReport>?)(object?)outcome),
+                "bind_project" when typeof(TPayload) == typeof(ProjectBindingResult) =>
+                    new BindProjectResponse(Version, success, rejection, retainedWarnings,
+                        (StandaloneToolOutcome<ProjectBindingResult>?)(object?)outcome),
                 _ => throw new ArgumentException("Unknown standalone tool/payload pair.")
             };
         }
