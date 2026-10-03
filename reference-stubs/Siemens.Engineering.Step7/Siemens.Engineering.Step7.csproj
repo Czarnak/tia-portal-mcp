@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><AssemblyName>Siemens.Engineering.Step7</AssemblyName></PropertyGroup><ItemGroup><ProjectReference Include="..\Siemens.Engineering.Base\Siemens.Engineering.Base.csproj" /></ItemGroup></Project>
