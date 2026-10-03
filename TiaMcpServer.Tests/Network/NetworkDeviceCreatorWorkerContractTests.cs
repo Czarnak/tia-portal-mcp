@@ -6,6 +6,18 @@ namespace TiaMcpServer.Tests.Network;
 public sealed class NetworkDeviceCreatorWorkerContractTests
 {
     [Fact]
+    public void Preflight_AllDependencySelectorsPrecedeFirstScalarSetter()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");
+        var firstSetter = source.IndexOf("ApplyNodeAttribute(node,", StringComparison.Ordinal);
+        var preflight = source[..firstSetter];
+        Assert.Contains("FindExactlyOneSubnet(project, subnetId!)", preflight);
+        Assert.Contains("FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value)", preflight);
+        Assert.Contains("networkInterface.IoConnectors", preflight);
+        Assert.Contains("NetworkPostconditionChecks.IoSystemSkipReason(", source);
+    }
+
+    [Fact]
     public void SelectionCertainty_DeviceAndInterfaceDiscoveryCannotDropUnreadableCandidates()
     {
         var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");

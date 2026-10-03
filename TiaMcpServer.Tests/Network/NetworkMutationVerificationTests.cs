@@ -10,6 +10,20 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkMutationVerificationTests
 {
     [Theory]
+    [InlineData(true, false, false, "Requested subnet was not connected, so IO system lookup was skipped.")]
+    [InlineData(true, false, true, "Requested subnet was not connected, so IO system lookup was skipped.")]
+    [InlineData(false, false, false, "The network interface does not expose an IO connector.")]
+    [InlineData(true, true, false, "The network interface does not expose an IO connector.")]
+    [InlineData(false, false, true, null)]
+    [InlineData(true, true, true, null)]
+    public void Preflight_ExistingIoSkipPrecedence(bool requested, bool connected, bool connector, string? expected)
+    {
+        var decision = typeof(NetworkPostconditionChecks).GetMethod("IoSystemSkipReason");
+        Assert.NotNull(decision);
+        Assert.Equal(expected, decision.Invoke(null, new object[] { requested, connected, connector }));
+    }
+
+    [Theory]
     [InlineData(1, false, "worker_operation_failed")]
     [InlineData(0, false, "worker_operation_failed")]
     [InlineData(1, true, null)]
@@ -17,9 +31,7 @@ public class NetworkMutationVerificationTests
     [InlineData(2, true, "postcondition_failed")]
     public void SelectionCertainty_UnknownCandidateDeniesEvenWithOneVisibleMatch(int count, bool complete, string? expected)
     {
-        var guard = typeof(NetworkPostconditionChecks).GetMethod("ClassifySelection");
-        Assert.NotNull(guard);
-        Assert.Equal(expected, guard.Invoke(null, new object[] { count, complete }));
+        Assert.Equal(expected, NetworkPostconditionChecks.ClassifySelection(count, complete));
     }
 
     private static NetworkOperationRequest Configure(bool io = false) => new()
