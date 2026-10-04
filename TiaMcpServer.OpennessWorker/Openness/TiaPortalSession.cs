@@ -8,9 +8,8 @@ public class TiaPortalSession : IDisposable
     private readonly bool _allowTiaConfirmations;
     private readonly string _workerSessionId = Guid.NewGuid().ToString("N");
     private TiaPortal? _tiaPortal;
-    private Project? _project;
+    private ActiveProjectContext? _activeContext;
     private bool _disposed;
-    private bool _projectOpenedByWorker;
     private int? _attachedProcessId;
     private string? _selectedProjectPath;
     private long _sessionGeneration;
@@ -26,11 +25,11 @@ public class TiaPortalSession : IDisposable
             WorkerOperationAuthorization.AllowsTiaConfirmations(accessMode);
     }
 
-    public Project? Project
-    {
-        get => _project;
-        internal set => SetProjectHandle(value);
-    }
+    internal ActiveProjectContext? ActiveContext => _activeContext;
+    internal ProjectBase? EngineeringRoot => _activeContext?.EngineeringRoot;
+
+    /// <summary>Standalone-only compatibility bridge for existing content services.</summary>
+    public Project? Project => (_activeContext?.Owner as StandaloneProjectOwner)?.Project;
 
     public TiaPortal? TiaPortal => _tiaPortal;
 
@@ -130,7 +129,6 @@ public class TiaPortalSession : IDisposable
         attachedPortal.Confirmation += OnConfirmation;
         attachedPortal.Disposed += OnDisposed;
         // Projects present when we attach belong to the TIA Portal UI, never this worker.
-        _projectOpenedByWorker = false;
         SelectOpenProject(
             ProjectPathNormalization.Canonicalize(requestedProjectPath) ?? advertisedProjectPath);
 
@@ -161,7 +159,7 @@ public class TiaPortalSession : IDisposable
         {
             PreviousProcessId = _attachedProcessId,
             PreviousProjectPath = _selectedProjectPath,
-            PreviousProjectWasWorkerOpened = _projectOpenedByWorker,
+            PreviousProjectWasWorkerOpened = _activeContext?.Owner.OpenedByWorker == true,
             PreviousProjectIsModified = TryReadProjectIsModified()
         };
 
@@ -256,9 +254,9 @@ public class TiaPortalSession : IDisposable
     }
 
     private bool? TryReadProjectIsModified()
-        => TryReadProjectIsModified(_project);
+        => TryReadProjectIsModified(EngineeringRoot);
 
-    private static bool? TryReadProjectIsModified(Project? project)
+    private static bool? TryReadProjectIsModified(ProjectBase? project)
     {
         try { return project?.IsModified; }
         catch (Exception ex)
@@ -303,7 +301,7 @@ public class TiaPortalSession : IDisposable
 
         if (Project is not null)
         {
-            if (_projectOpenedByWorker)
+            if (_activeContext?.Owner.OpenedByWorker == true)
             {
                 var currentProject = Project;
                 try
@@ -317,8 +315,7 @@ public class TiaPortalSession : IDisposable
                         },
                         () =>
                         {
-                            Project = null;
-                            _projectOpenedByWorker = false;
+                            SetActiveContext(null);
                             var openedProject = _tiaPortal!.Projects.Open(new FileInfo(requestedPath));
                             AdoptProject(openedProject, openedByWorker: true, requestedPath);
                         });
@@ -336,8 +333,7 @@ public class TiaPortalSession : IDisposable
                 Console.Error.WriteLine($"Leaving user-opened project '{currentPath ?? "(unknown)"}' open; opening '{requestedPath}' alongside it.");
             }
 
-            Project = null;
-            _projectOpenedByWorker = false;
+            SetActiveContext(null);
         }
 
         var project = _tiaPortal!.Projects.Open(new FileInfo(requestedPath));
@@ -383,7 +379,7 @@ public class TiaPortalSession : IDisposable
                 + "No project was opened or closed.");
         }
 
-        return ProjectRebindStateInfo.Create(source, destination, isModified, _projectOpenedByWorker);
+        return ProjectRebindStateInfo.Create(source, destination, isModified, _activeContext?.Owner.OpenedByWorker == true);
     }
 
     internal void TrackWorkerOpenedProject(Project project)
@@ -412,14 +408,14 @@ public class TiaPortalSession : IDisposable
 
     private string? TryReadCurrentProjectPath()
     {
-        if (Project is null)
+        if (EngineeringRoot is null)
         {
             return null;
         }
 
         try
         {
-            var currentPath = Project.Path?.FullName;
+            var currentPath = EngineeringRoot.Path?.FullName;
             if (!string.IsNullOrWhiteSpace(currentPath))
             {
                 return currentPath;
@@ -429,29 +425,26 @@ public class TiaPortalSession : IDisposable
             // identity. Treat a null/blank path exactly like a stale handle: clearing the handle
             // advances the generation, so the post-refresh ExpectedSessionIdentity check fails
             // before the operation body can touch an unidentified project.
-            Project = null;
-            _projectOpenedByWorker = false;
+            SetActiveContext(null);
             return null;
         }
         catch (EngineeringException)
         {
             // Stale handle: the project was closed in the TIA Portal UI since we opened it.
-            Project = null;
-            _projectOpenedByWorker = false;
+            SetActiveContext(null);
             return null;
         }
     }
 
     internal void MarkProjectClosed()
     {
-        var hadProjectHandle = Project is not null;
+        var hadProjectHandle = _activeContext is not null;
         var hadSelectedProject = _selectedProjectPath is not null;
-        Project = null;
-        _projectOpenedByWorker = false;
+        SetActiveContext(null);
         _selectedProjectPath = null;
         if (hadSelectedProject && !hadProjectHandle)
         {
-            // SetProjectHandle already advanced the generation when a live handle was cleared.
+            // SetActiveContext already advanced the generation when a live handle was cleared.
             // If the handle had already gone stale, clearing the retained identity is itself the
             // observable session transition that invalidates earlier safety evidence.
             IncrementGeneration();
@@ -480,7 +473,7 @@ public class TiaPortalSession : IDisposable
                 + $"to {actualProcessId}. No operation was performed.");
         }
 
-        if (Project is not null)
+        if (_activeContext is not null)
         {
             // The bound project may have been closed in the TIA Portal UI since we last read
             // it. Detect that now, in the same call, instead of leaving it for whichever call
@@ -503,7 +496,7 @@ public class TiaPortalSession : IDisposable
             }
         }
 
-        if (Project is null)
+        if (_activeContext is null)
         {
             // Nothing bound — either there never was a project, or the probe above just found
             // the previous handle stale. A project may have been opened in the TIA Portal UI —
@@ -532,8 +525,7 @@ public class TiaPortalSession : IDisposable
         var selectedIndex = TiaPortalTargetSelector.SelectProjectIndex(paths, expectedProjectPath);
         if (selectedIndex is null)
         {
-            Project = null;
-            _projectOpenedByWorker = false;
+            SetActiveContext(null);
             return;
         }
 
@@ -544,8 +536,13 @@ public class TiaPortalSession : IDisposable
     }
 
     private void AdoptProject(Project project, bool openedByWorker, string? expectedProjectPath)
+        => AdoptContext(ActiveProjectContext.ForStandalone(project, openedByWorker), expectedProjectPath);
+
+    internal void AdoptContext(ActiveProjectContext context, string? expectedProjectPath)
     {
-        var actualPath = ProjectPathNormalization.Canonicalize(TryReadProjectPathForSelection(project));
+        ThrowIfDisposed();
+        if (context is null) throw new ArgumentNullException(nameof(context));
+        var actualPath = ProjectPathNormalization.Canonicalize(TryReadProjectPathForSelection(context.EngineeringRoot));
         if (actualPath is null)
         {
             throw new WorkerOperationException(
@@ -562,9 +559,8 @@ public class TiaPortalSession : IDisposable
                 + "The returned handle was not selected; inspect the TIA Portal UI before retrying.");
         }
 
-        var handleChanged = !ReferenceEquals(Project, project);
-        Project = project;
-        _projectOpenedByWorker = openedByWorker;
+        var handleChanged = !ReferenceEquals(EngineeringRoot, context.EngineeringRoot);
+        SetActiveContext(context);
 
         if (!PathsEqual(_selectedProjectPath, actualPath))
         {
@@ -576,7 +572,7 @@ public class TiaPortalSession : IDisposable
         }
     }
 
-    private static string? TryReadProjectPathForSelection(Project project)
+    private static string? TryReadProjectPathForSelection(ProjectBase project)
     {
         try
         {
@@ -589,15 +585,14 @@ public class TiaPortalSession : IDisposable
         }
     }
 
-    private void SetProjectHandle(Project? project)
+    private void SetActiveContext(ActiveProjectContext? context)
     {
-        if (ReferenceEquals(_project, project))
+        var rootChanged = !ReferenceEquals(EngineeringRoot, context?.EngineeringRoot);
+        _activeContext = context;
+        if (rootChanged)
         {
-            return;
+            IncrementGeneration();
         }
-
-        _project = project;
-        IncrementGeneration();
     }
 
     private void SetPortalHandle(TiaPortal? portal, int? processId)
@@ -648,8 +643,7 @@ public class TiaPortalSession : IDisposable
         }
 
         Console.Error.WriteLine("Attached TIA Portal instance was disposed.");
-        Project = null;
-        _projectOpenedByWorker = false;
+        SetActiveContext(null);
         _selectedProjectPath = null;
         SetPortalHandle(null, null);
     }
@@ -663,8 +657,7 @@ public class TiaPortalSession : IDisposable
             _tiaPortal.Disposed -= OnDisposed;
         }
 
-        Project = null;
-        _projectOpenedByWorker = false;
+        SetActiveContext(null);
         _selectedProjectPath = null;
         var portal = _tiaPortal;
         SetPortalHandle(null, null);

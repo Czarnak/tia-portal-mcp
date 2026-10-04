@@ -102,7 +102,7 @@ public sealed class PortalSelectionSourceTests
         var body = Method(Read("Openness/TiaPortalSession.cs"), "public void Disconnect(");
         var release = body.IndexOf("portal?.Dispose()", StringComparison.Ordinal);
         Assert.True(release >= 0);
-        foreach (var before in new[] { "Notification -=", "Confirmation -=", "Disposed -=", "Project = null", "_projectOpenedByWorker = false", "_selectedProjectPath = null", "SetPortalHandle(null, null)" })
+        foreach (var before in new[] { "Notification -=", "Confirmation -=", "Disposed -=", "SetActiveContext(null)", "_selectedProjectPath = null", "SetPortalHandle(null, null)" })
             Assert.True(body.IndexOf(before, StringComparison.Ordinal) >= 0 && body.IndexOf(before, StringComparison.Ordinal) < release, before);
     }
 

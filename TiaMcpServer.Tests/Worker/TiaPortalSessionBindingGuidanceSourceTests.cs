@@ -7,7 +7,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
     [Fact]
     public void GuidanceStrings_NameBindProject()
     {
-        // Source-contract guard: the net48 session class is not linked into this net10 test assembly.
+        // Source guard for user guidance, alongside source-linked session behavior tests.
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot,
             "TiaMcpServer.OpennessWorker", "Openness", "TiaPortalSession.cs"));
