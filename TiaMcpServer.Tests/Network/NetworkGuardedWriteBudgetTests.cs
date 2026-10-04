@@ -527,7 +527,23 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             c => Assert.Equal(7000, c.Observed!.Length));
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
             new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
-        output.WriteLine($"Delivered phase={NetworkGuardedWriteMcpTests.Document(reply).GetProperty("phase").GetString()}; writes={requests.Methods().Count(m => m == "configure_network_device")}.");
+        var deliveredDocument = NetworkGuardedWriteMcpTests.Document(reply);
+        output.WriteLine($"Delivered phase={deliveredDocument.GetProperty("phase").GetString()}; writes={requests.Methods().Count(m => m == "configure_network_device")}.");
+        if (deliveredDocument.GetProperty("phase").GetString() == "applied")
+        {
+            // This witnesses the old implementation's actual post-mutation failure in RED.
+            var delivered = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(deliveredDocument.GetRawText());
+            Assert.Equal("failed", delivered.Batch!.Operations[0].Status);
+            Assert.All(delivered.Verification!.Operations[0].Evidence!.Checks, c => Assert.Equal(7000, c.Observed!.Length));
+            Assert.NotNull(delivered.Verification.Omission);
+            Assert.Empty(delivered.Verification.FinalChecks);
+            var after = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
+            var oldNode = after.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0];
+            Assert.Equal(7000, oldNode.IpAddress!.Length);
+            Assert.Equal(7000, oldNode.SubnetMask!.Length);
+            Assert.Equal(7000, oldNode.PnDeviceName!.Length);
+            output.WriteLine("Actual attempted item failed; all three known old values remain 7000 characters; required final checks were omitted after mutation.");
+        }
         Assert.DoesNotContain("configure_network_device", requests.Methods());
         Assert.True(reply.IsError);
         var document = NetworkGuardedWriteMcpTests.Document(reply);

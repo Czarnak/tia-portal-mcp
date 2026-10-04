@@ -3008,6 +3008,23 @@ string ConfigureQualifiedFixture(string line, HardwareConfigInfo state, string s
     // Preflight all dependency selectors before any scalar mutation.
     if (request.SubnetId is not null || request.IoSystemNumber is not null)
         return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Requested dependency was not found; no mutation." });
+    if (scenario == "network-qualified-budget-known-observations")
+    {
+        // Attempted assignments can leave known old values in failed postconditions.
+        guardedNetworkWrites++;
+        var attempted = new Dictionary<string, string>
+        { ["Address"] = request.IpAddress!, ["SubnetMask"] = request.SubnetMask!, ["PnDeviceName"] = request.PnDeviceName! };
+        var failedEvidence = FakeConfigurationVerification(line, request.DeviceName!, attempted);
+        failedEvidence.Status = "failed";
+        foreach (var check in failedEvidence.Checks)
+        {
+            check.Observed = check.Name switch { "Address" => node.Item!.IpAddress,
+                "SubnetMask" => node.Item!.SubnetMask, _ => node.Item!.PnDeviceName };
+            check.Status = "failed"; check.Message = "The attempted setting retained its known old value.";
+        }
+        return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
+        { DeviceName = request.DeviceName!, AppliedSettings = attempted, Verification = failedEvidence }));
+    }
     var applied = new Dictionary<string, string>();
     var skipped = new Dictionary<string, string>();
     guardedNetworkWrites++;
