@@ -694,6 +694,34 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         Assert.Equal("unknown-restoration-blocked", result.StandardOutput.Trim());
     }
 
+
+    // Supplemental self-review causal RED for read compatibility with legacy selectors.
+    [Fact]
+    public void LegacyInventory_PreservesDuplicateBareIdsAndExactConstraints()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            for($i=0;$i -lt 2;$i++) {
+                $selector=$originalSelectors[$i]
+                $selector.PSObject.Properties.Remove('interfacePath')
+                $selector.itemPath=@([pscustomobject]@{index=(1-$i);name=$selector.interfaceName;positionNumber=(33024-256*$i);typeIdentifier='LegacyPort'})
+            }
+            $nodes=@(Get-HardwareNodes $capture)
+            if($nodes.Count -ne 2){throw 'Duplicate bare IDs were treated as invalid hardware.'}
+            for($i=0;$i -lt 2;$i++) {
+                Assert-Subset $nodes[$i].selector ($originalSelectors[$i] | ConvertTo-Json -Depth 15 | ConvertFrom-Json -AsHashtable)
+            }
+            $expected=$originalSelectors[0] | ConvertTo-Json -Depth 15 | ConvertFrom-Json -AsHashtable
+            $expected.itemPath[0].index=99
+            $expectation=@{deviceName='PLC_1';nodeId='E1';interfaceName='X2';itemPath=$expected.itemPath;subnetId='original-X2';ioSystemSubnetId=$null;ioSystemNumber=$null}
+            $rejected=$false
+            try{$null=Assert-NodeExpectations $capture @($expectation)}catch{$rejected=$true}
+            if(-not $rejected){throw 'Legacy source-index constraint was ignored.'}
+            'legacy-inventory-constraints-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("legacy-inventory-constraints-ok", result.StandardOutput.Trim());
+    }
+
     private static string FindRepositoryFile(params string[] segments)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
