@@ -1220,6 +1220,10 @@ while ((line = Console.In.ReadLine()) is not null)
         // ---------------------------------------------------------------------------
 
         case "network-guarded":
+        case string traversalScenario when traversalScenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal):
+        case "network-guarded-late-traversal":
+        case "network-guarded-optional-metadata":
+        case "network-guarded-missing-discovery":
         case "network-guarded-incomplete":
         case "network-guarded-incomplete-node":
         case "network-guarded-incomplete-root":
@@ -1234,6 +1238,19 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-guarded-io-move":
         case "network-guarded-root-drift":
             guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario.StartsWith("network-guarded-incomplete", StringComparison.Ordinal));
+            if (scenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal))
+            {
+                var stage = scenario["network-guarded-traversal-".Length..];
+                guardedNetworkState.DiscoveryEvidence = new() { Scope = stage == "deviceSelection" ? "device" : "project", Complete = false,
+                    Failures = new() { new() { Stage = stage, Message = "Synthetic traversal failure: " + stage } } };
+            }
+            if (scenario == "network-guarded-missing-discovery") guardedNetworkState.DiscoveryEvidence = null;
+            if (scenario == "network-guarded-optional-metadata" && guardedNetworkState.Messages.Count == 0)
+            {
+                guardedNetworkState.Messages.Add("Optional TypeIdentifier metadata is unavailable.");
+                guardedNetworkState.Devices[0].Items[0].TypeIdentifier = null;
+                guardedNetworkState.Devices[0].Items[0].SelectorDiagnostics.Add("Optional TypeIdentifier metadata is unavailable.");
+            }
             if (scenario == "network-guarded-incomplete-node")
                 GuardedNodes(guardedNetworkState).First().ConnectionEvidence = new() { Complete = false,
                     Messages = new() { "Could not read connected subnet identity: unavailable", "Could not read node 'Same display name' IO system: unavailable" } };
@@ -3381,6 +3398,8 @@ HardwareConfigInfo RoundtripHardwareConfig()
 HardwareConfigInfo ConnectionEvidenceHardwareConfig(bool degraded)
 {
     var result = SingleNodeHardwareConfig("PLC_Grouped", "Interface", "Interface", "Same display name", "node-2");
+    // Explicit synthetic ordinary project traversal; relationship loss is modeled independently.
+    result.DiscoveryEvidence = new() { Scope = "project", Complete = true };
     result.RootDeviceCount = 2;
     var ungrouped = SingleNodeHardwareConfig("PLC_Ungrouped", "Interface", "Interface", "Same display name", "node-3");
     result.Devices.Add(ungrouped.Devices[0]);
@@ -3479,6 +3498,9 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
     }
     if (method == "read_hardware_config")
     {
+        if (scenario == "network-guarded-late-traversal" && guardedNetworkWrites > 0)
+            state.DiscoveryEvidence = new() { Scope = "project", Complete = false,
+                Failures = new() { new() { Stage = "deviceEnumeration", Message = "Synthetic late ungrouped-device traversal failure." } } };
         if (scenario == "network-guarded-root-drift" && guardedNetworkWrites > 0) state.RootDeviceCount = 1;
         if (scenario == "network-guarded-postread-failure" && guardedNetworkWrites > 0)
             return "{\"success\":false,\"error\":\"postread unavailable\"}";
