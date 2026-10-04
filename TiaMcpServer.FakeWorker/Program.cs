@@ -1205,6 +1205,7 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-qualified-late-device":
         case "network-qualified-late-owner":
         case "network-qualified-late-root":
+        case "network-qualified-final-missing-discovery":
             var qualifiedHardware = qualifiedNetworkState ??= QualifiedHardwareFixture();
             var qualifiedDevice = qualifiedHardware.Devices[0];
             if (scenario != "network-qualified-read" && scenario != "network-qualified-partial" && scenario != "network-qualified-owner-drift" && qualifiedHardware.Subnets.Count == 0 && guardedNetworkWrites == 0)
@@ -1231,6 +1232,7 @@ while ((line = Console.In.ReadLine()) is not null)
                     if (scenario == "network-qualified-late-device") qualifiedHardware.Devices.Add(new());
                     if (scenario == "network-qualified-late-owner") qualifiedDevice.Items[0].Items.Add(new() { PositionNumber = null });
                     if (scenario == "network-qualified-late-root") qualifiedHardware.RootDeviceCount = null;
+                    if (scenario == "network-qualified-final-missing-discovery") qualifiedHardware.DiscoveryEvidence = null;
                     NetworkNodeReadSelectorBuilder.ApplyInventory(qualifiedHardware);
                 }
                 Respond(Success(ToCamelCaseJson(qualifiedHardware)));
@@ -1304,6 +1306,8 @@ while ((line = Console.In.ReadLine()) is not null)
         case string identityScenario when identityScenario.StartsWith("network-guarded-identity-", StringComparison.Ordinal):
         case "network-guarded-late-traversal":
         case "network-guarded-late-unreadable-subnet":
+        case "network-guarded-late-unreadable-attribute":
+        case string lateIoScenario when lateIoScenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal):
         case "network-guarded-optional-metadata":
         case "network-guarded-missing-discovery":
         case "network-guarded-incomplete":
@@ -1369,7 +1373,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 guardedNetworkState.Subnets[0].SubnetId = string.Empty;
                 guardedNetworkState.Subnets[0].SelectorDiagnostics.Add("Subnet selector identity was ambiguous.");
             }
-            if (scenario is "network-guarded-partial" or "network-guarded-io-move" && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
+            if ((scenario is "network-guarded-partial" or "network-guarded-io-move" || scenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal)) && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
                 guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
             if (scenario == "network-guarded-io-move" && guardedNetworkState.Subnets.Count == 1)
             {
@@ -2963,6 +2967,7 @@ string ConfigureQualifiedFixture(string line, HardwareConfigInfo state, string s
         return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Requested dependency was not found; no mutation." });
     var applied = new Dictionary<string, string>();
     var skipped = new Dictionary<string, string>();
+    guardedNetworkWrites++;
     if (request.IpAddress is not null) { node.Item!.IpAddress = request.IpAddress; applied["Address"] = request.IpAddress; }
     if (request.SubnetMask is not null)
     {
@@ -3675,6 +3680,12 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
                 Failures = new() { new() { Stage = "deviceEnumeration", Message = "Synthetic late ungrouped-device traversal failure." } } };
         if (scenario == "network-guarded-late-unreadable-subnet" && guardedNetworkWrites > 0 && state.Subnets.Count == 0)
             state.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet ID" } });
+        if (scenario == "network-guarded-late-unreadable-attribute" && guardedNetworkWrites > 0)
+            state.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet ID" } });
+        if (scenario == "network-guarded-late-io-number" && guardedNetworkWrites > 0)
+            state.Subnets[0].IoSystems.Add(new() { Number = null, SelectorDiagnostics = new() { "Unreadable IO number" } });
+        if (scenario == "network-guarded-late-io-subnet" && guardedNetworkWrites > 0)
+            state.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet ID" } });
         if (scenario == "network-guarded-root-drift" && guardedNetworkWrites > 0) state.RootDeviceCount = 1;
         if (scenario == "network-guarded-postread-failure" && guardedNetworkWrites > 0)
             return "{\"success\":false,\"error\":\"postread unavailable\"}";
@@ -3724,7 +3735,7 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         }
         if (ReadIntField(request, "ioSystemNumber") is { } ioNumber)
         {
-            if (scenario == "network-guarded-io-move")
+            if (scenario == "network-guarded-io-move" || scenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal))
             {
                 node.ConnectionEvidence!.IoSystemSubnetId = ReadField(request, "ioSystemSubnetId");
                 node.ConnectionEvidence.IoSystemNumber = ioNumber;

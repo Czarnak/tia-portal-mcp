@@ -142,6 +142,52 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Single(log.Methods(), m => m == "delete_subnet");
     }
     [Fact]
+    public async Task LateUnreadableSubnet_AttributeReadCannotOverrideUnknownNamespace()
+    {
+        const string scenario = "network-guarded-late-unreadable-attribute";
+        using var audit = new TempAuditDirectory(); using var log = new FakeWorkerRequestLog(audit.Path);
+        using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var result = await f.RunAsync(false, new NetworkOperationRequest { OperationId = "create", Operation = "create_subnet",
+            Subnet = new() { Name = "PB", NetworkType = "Profibus", HighestAddress = 31, TransmissionSpeed = "Baud187500" } });
+        Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
+        Assert.Equal("passed", result.Verification!.Operations[0].Status);
+        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/HighestAddress") && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/TransmissionSpeed") && c.Status == "unverified");
+        Assert.Single(log.Methods(), m => m == "create_subnet");
+    }
+    [Theory][InlineData("number")][InlineData("subnet")]
+    public async Task LateUnreadableIoNamespace_CannotVerifyAppliedTuple(string kind)
+    {
+        var scenario = "network-guarded-late-io-" + kind;
+        using var audit = new TempAuditDirectory(); using var log = new FakeWorkerRequestLog(audit.Path);
+        using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = NetworkGuardedWriteFixture.Configure("connect", connect: true);
+        operation.Changes = new() { Subnet = new() { SubnetId = "subnet-1" }, IoSystem = new() { SubnetId = "subnet-1", Number = 1 } };
+        var result = await f.RunAsync(false, operation);
+        Assert.Equal("applied", result.Phase); Assert.False(result.Success);
+        Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
+        Assert.Equal("passed", result.Verification!.Operations[0].Status);
+        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/IoSystem") && c.Status == "unverified");
+        if (kind == "subnet") Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/Subnet") && c.Status == "unverified");
+        Assert.Single(log.Methods(), m => m == "configure_network_device");
+    }
+    [Fact]
+    public async Task QualifiedLateMissingDiscovery_RetainsAppliedAndSkipsWithoutReplay()
+    {
+        const string scenario = "network-qualified-final-missing-discovery";
+        using var audit = new TempAuditDirectory(); using var log = new FakeWorkerRequestLog(audit.Path);
+        using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var result = await f.RunAsync(false, Configure(32768, "192.168.12.7", "first"), Configure(33024, "192.168.13.8", "second"), Configure(32768, "192.168.12.9", "third"));
+        Assert.Equal("succeeded", result.Batch!.Operations[0].Status); Assert.False(result.Success);
+        Assert.Equal("skipped", result.Batch.Operations[2].Status);
+        Assert.Equal("passed", Assert.Single(result.Verification!.Operations).Status);
+        Assert.Contains(result.Verification.FinalChecks, c => c.Name == "finalHardwareState" && c.Status == "unverified");
+        Assert.Single(log.Methods(), m => m == "configure_network_device");
+        var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
+        var nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
+        Assert.Equal("192.168.12.7", nodes[0].IpAddress); Assert.Equal("192.168.13.20", nodes[1].IpAddress);
+    }
+    [Fact]
     public async Task FinalOptionalDiagnostic_DoesNotFailVerifiedWrite()
     {
         using var audit = new TempAuditDirectory(); using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
