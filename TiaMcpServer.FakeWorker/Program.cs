@@ -1221,6 +1221,10 @@ while ((line = Console.In.ReadLine()) is not null)
 
         case "network-guarded":
         case "network-guarded-incomplete":
+        case "network-guarded-incomplete-node":
+        case "network-guarded-incomplete-root":
+        case "network-guarded-incomplete-selector":
+        case "network-guarded-late-node-block":
         case "network-guarded-disconnected":
         case "network-guarded-late-block":
         case "network-guarded-partial":
@@ -1229,7 +1233,18 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-guarded-unknown-result":
         case "network-guarded-io-move":
         case "network-guarded-root-drift":
-            guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario == "network-guarded-incomplete");
+            guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario.StartsWith("network-guarded-incomplete", StringComparison.Ordinal));
+            if (scenario == "network-guarded-incomplete-node")
+                GuardedNodes(guardedNetworkState).First().ConnectionEvidence = new() { Complete = false,
+                    Messages = new() { "Could not read connected subnet identity: unavailable", "Could not read node 'Same display name' IO system: unavailable" } };
+            if (scenario == "network-guarded-incomplete-root" && guardedNetworkState.Messages.Count == 0)
+                guardedNetworkState.Messages.Add("Some device groups could not be enumerated.");
+            if (scenario == "network-guarded-incomplete-selector" && guardedNetworkState.Subnets[0].SelectorDiagnostics.Count == 0)
+            {
+                guardedNetworkState.Subnets[0].Selectable = false;
+                guardedNetworkState.Subnets[0].Selector = null;
+                guardedNetworkState.Subnets[0].SelectorDiagnostics.Add("Subnet selector identity was ambiguous.");
+            }
             if (scenario is "network-guarded-partial" or "network-guarded-io-move" && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
                 guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
             if (scenario == "network-guarded-io-move" && guardedNetworkState.Subnets.Count == 1)
@@ -3385,7 +3400,7 @@ HardwareConfigInfo ConnectionEvidenceHardwareConfig(bool degraded)
         Complete = !degraded,
         Nodes = new() { new() { DeviceName = "PLC_Grouped", NodeId = "node-2" },
             new() { DeviceName = "PLC_Ungrouped", NodeId = "node-3" } },
-        Messages = degraded ? new() { "Fixture connected-node enumeration was incomplete." } : new()
+        Messages = degraded ? new() { "Could not complete connected-node enumeration: unavailable" } : new()
     };
     result.Subnets.Add(subnet);
     return result;
@@ -3469,6 +3484,9 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
             return "{\"success\":false,\"error\":\"postread unavailable\"}";
         if (scenario == "network-guarded-late-block" && guardedNetworkWrites > 0 && state.Subnets.Count > 0)
             state.Subnets[0].ConnectionEvidence = new() { Complete = false, Messages = new() { "late inventory failure" } };
+        if (scenario == "network-guarded-late-node-block" && guardedNetworkWrites > 0)
+            GuardedNodes(state).First().ConnectionEvidence = new() { Complete = false,
+                Messages = new() { "Could not read connected subnet identity: unavailable", "Could not read node 'Same display name' IO system: unavailable" } };
         return Success(ToCamelCaseJson(state));
     }
     guardedNetworkWrites++;

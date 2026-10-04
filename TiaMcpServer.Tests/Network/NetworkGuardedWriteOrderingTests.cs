@@ -100,6 +100,37 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Contains(response.Verification.FinalChecks, c => c.Expected == "10.0.0.1" && c.Status == "passed");
     }
 
+    [Theory]
+    [InlineData(McpAccessMode.ReadWrite, false)]
+    [InlineData(McpAccessMode.Full, false)]
+    [InlineData(McpAccessMode.ReadWrite, true)]
+    [InlineData(McpAccessMode.Full, true)]
+    public async Task ProducerScopedLateBlock_RetainsEarlierMutationAndOneAudit(McpAccessMode mode, bool node)
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit,
+            node ? "network-guarded-late-node-block" : "network-guarded-late-block", mode);
+        var blocked = node ? NetworkGuardedWriteFixture.Configure("connect", connect: true) : NetworkGuardedWriteFixture.Delete();
+        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), blocked,
+            NetworkGuardedWriteFixture.Configure("last", "10.0.0.3"));
+        Assert.Equal("applied", response.Phase);
+        Assert.False(response.Success);
+        Assert.Null(response.Error);
+        Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
+        Assert.Equal("failed", response.Batch.Operations[1].Status);
+        Assert.Equal("earlierOperationFailed", response.Batch.Operations[2].SkipReason);
+        Assert.Contains(response.Guards, g => g.Id == "network_state_unverifiable" && g.Severity == "block");
+        Assert.Equal("first", Assert.Single(response.Verification!.Operations).OperationId);
+        Assert.Contains(response.Verification.FinalChecks, c => c.Expected == "10.0.0.1" && c.Status == "passed");
+        Assert.Single(requests.Methods(), method => method == "configure_network_device");
+        Assert.DoesNotContain("delete_subnet", requests.Methods());
+        using var record = System.Text.Json.JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        Assert.Equal(mode == McpAccessMode.Full ? "policy" : "none", record.RootElement.GetProperty("confirmation").GetProperty("by").GetString());
+        Assert.All(record.RootElement.GetProperty("guards").EnumerateArray(), guard =>
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, guard.GetProperty("satisfiedBy").ValueKind));
+    }
+
     [Fact]
     public async Task PartialConfiguration_VerifiesOnlyAppliedSubsetAndStops()
     {

@@ -421,20 +421,22 @@ public static class HardwareConfigReader
                 "PnDeviceName",
                 $"node '{nodeDescription}' PROFINET device name",
                 messages),
-            SubnetName = ReadConnectedSubnetName(node, nodeDescription, messages),
-            IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, messages),
-            ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureNode(
-                () => node.ConnectedSubnet is { } subnet ? RequireSubnetIdentity(subnet) : null,
-                () => ReadIoSystemIdentity(networkInterface)),
             Selectable = selectorDiagnostics.Count == 0,
             SelectorDiagnostics = selectorDiagnostics,
         };
+        nodeInfo.ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureNode(
+            () => node.ConnectedSubnet is { } subnet ? RequireSubnetIdentity(subnet) : null,
+            () => ReadIoSystemIdentity(networkInterface),
+            relationshipMessages =>
+            {
+                nodeInfo.SubnetName = ReadConnectedSubnetName(node, nodeDescription, relationshipMessages);
+                nodeInfo.IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, relationshipMessages);
+            });
         if (!nodeId.IsUsable || !deviceName.IsUsable)
         {
             nodeInfo.ConnectionEvidence.Complete = false;
             nodeInfo.ConnectionEvidence.Messages.Add("Node identity or device owner identity was unreadable.");
         }
-        messages.AddRange(nodeInfo.ConnectionEvidence.Messages);
         if (nodeInfo.Selectable)
         {
             nodeInfo.Selector = NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value);
@@ -497,20 +499,19 @@ public static class HardwareConfigReader
 
         subnetInfo.ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureSubnet(
             () => subnet.Nodes.Cast<Node>(),
-            node =>
+            node => ReadConnectedNodeIdentity(node),
+            (node, relationshipMessages) =>
             {
                 var connectedNodeName = ReadOptionalString(() => node.Name,
-                    $"subnet '{subnetDescription}' connected node name", messages);
+                    $"subnet '{subnetDescription}' connected node name", relationshipMessages);
                 if (!string.IsNullOrWhiteSpace(connectedNodeName))
                     subnetInfo.ConnectedNodeNames.Add(connectedNodeName!);
-                return ReadConnectedNodeIdentity(node);
             });
         if (!subnetId.IsUsable)
         {
             subnetInfo.ConnectionEvidence.Complete = false;
             subnetInfo.ConnectionEvidence.Messages.Add(subnetId.Diagnostic);
         }
-        messages.AddRange(subnetInfo.ConnectionEvidence.Messages);
 
         foreach (IoSystem ioSystem in subnet.IoSystems)
         {

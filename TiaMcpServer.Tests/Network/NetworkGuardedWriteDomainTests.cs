@@ -50,6 +50,44 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.Equal("blocked", response.Phase);
         Assert.Null(response.Batch);
     }
+    public static IEnumerable<object[]> RelationshipCases()
+    {
+        foreach (var mode in new[] { McpAccessMode.ReadWrite, McpAccessMode.Full })
+        foreach (var dryRun in new[] { false, true })
+        foreach (var kind in new[] { "subnet", "node", "root", "selector" })
+            yield return new object[] { mode, dryRun, kind };
+    }
+
+    [Theory]
+    [MemberData(nameof(RelationshipCases))]
+    public async Task ProducerScopedDegradation_PreservesGuardAndIndependentDiscoveryRefusal(McpAccessMode mode, bool dryRun, string kind)
+    {
+        var scenario = "network-guarded-incomplete" + (kind == "subnet" ? "" : "-" + kind);
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario, mode);
+        var operation = kind == "node" ? NetworkGuardedWriteFixture.Configure("connect", connect: true) : NetworkGuardedWriteFixture.Delete();
+        var response = await fixture.RunAsync(dryRun, operation);
+        var structural = kind is "root" or "selector";
+        Assert.Equal(structural ? "error" : dryRun ? "preview" : "blocked", response.Phase);
+        Assert.Null(response.Batch);
+        if (structural) Assert.Equal("worker_operation_failed", response.Error!.Category);
+        else
+        {
+            Assert.Contains(response.Guards, guard => guard.Id == "network_state_unverifiable" && guard.Severity == "block");
+            Assert.False(response.Effects[0].Effect!.ConnectionsComplete);
+        }
+        Assert.DoesNotContain("configure_network_device", requests.Methods());
+        Assert.DoesNotContain("delete_subnet", requests.Methods());
+        using var record = System.Text.Json.JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        Assert.Equal("none", record.RootElement.GetProperty("confirmation").GetProperty("by").GetString());
+        Assert.All(record.RootElement.GetProperty("guards").EnumerateArray(), guard =>
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, guard.GetProperty("satisfiedBy").ValueKind));
+        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
+        Assert.NotEmpty(read.State!.Subnets[0].ConnectionEvidence!.Messages);
+        Assert.Equal(kind == "root", read.State.Messages.Count != 0);
+    }
+
     [Fact]
     public async Task Readonly_DeniesBeforeGate()
     {

@@ -118,8 +118,46 @@ public sealed class NetworkConnectionEvidenceTests
         Assert.Contains("NetworkConnectionEvidenceCapture.CaptureNode(", source);
         Assert.Contains("NetworkConnectionEvidenceCapture.CaptureSubnet(", source);
         Assert.Contains("ProjectDeviceNameMatcher.FindMatches(project, name.Value", source);
-        Assert.Contains("return ReadConnectedNodeIdentity(node);", source);
+        Assert.Contains("node => ReadConnectedNodeIdentity(node)", source);
         Assert.Contains("RequireSubnetIdentity(system.Subnet)", source);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisplayDiagnostics_RetainExactRelationshipIdentityAndAttribution(bool throws)
+    {
+        const string diagnostic = "legacy display read unavailable";
+        void ReadDisplay(List<string> messages)
+        {
+            if (throws) throw new InvalidOperationException(diagnostic);
+            messages.Add(diagnostic);
+        }
+        var node = NetworkConnectionEvidenceCapture.CaptureNode(() => "subnet-1", () => ("subnet-1", 100), ReadDisplay);
+        var subnet = NetworkConnectionEvidenceCapture.CaptureSubnet(() => new[] { "node-1" }, IdentityFor,
+            (_, messages) => ReadDisplay(messages));
+        Assert.False(node.Complete);
+        Assert.False(subnet.Complete);
+        Assert.Contains(diagnostic, Assert.Single(node.Messages));
+        Assert.Contains(diagnostic, Assert.Single(subnet.Messages));
+        Assert.Equal("subnet-1", node.SubnetId);
+        Assert.Equal("subnet-1", node.IoSystemSubnetId);
+        Assert.Equal(100, node.IoSystemNumber);
+        Assert.Equal("node-1", Assert.Single(subnet.Nodes).NodeId);
+        var state = new HardwareConfigInfo { RootDeviceCount = 2, Subnets = new() { new()
+        {
+            SubnetId = "subnet-1", Selectable = true, Selector = new() { Kind = "subnet", SubnetId = "subnet-1" },
+            ConnectionEvidence = subnet
+        } } };
+        var decoded = NetworkPayloadContract.DecodeHardwareConfig(WorkerJson.SerializePayload(state));
+        Assert.Empty(decoded.Messages);
+        Assert.Equal(subnet.Messages, decoded.Subnets[0].ConnectionEvidence!.Messages);
+        Assert.True(NetworkWritePlanner.DiscoveryComplete(decoded));
+        decoded.Messages.Add(diagnostic); // Same text at a different producer scope is structural uncertainty.
+        Assert.False(NetworkWritePlanner.DiscoveryComplete(decoded));
+        decoded.Messages.Clear();
+        decoded.Subnets[0].SelectorDiagnostics.Add(diagnostic);
+        Assert.False(NetworkWritePlanner.DiscoveryComplete(decoded));
     }
 
     [Fact]
