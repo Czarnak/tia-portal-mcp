@@ -188,6 +188,8 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $Restore = $true
             $fixture = @{ BeforeRestore = 'before-restore'; BeforeRestoreNodes = 'before-nodes'; RestorationExpected = 'restored'; RestorationNodes = 'restored-nodes' }
             $script:Evidence = @{ hardware = 'initial'; inspections = 'initial' }
+            $FixturePath=$null; $fixtureSha256=$null
+            function Assert-NetworkFixtureHash { } # The separate callback-count regression exercises this gate.
             $script:trace = [System.Collections.Generic.List[string]]::new()
             function Invoke-Inventory { $script:trace.Add('fresh-inventory') }
             function Assert-Inspections($Observed, $Expected) { $script:trace.Add($Expected) }

@@ -294,12 +294,14 @@ function Invoke-Inventory {
     $script:Evidence['inspections'] = Read-FixtureIdentities
 }
 function Invoke-Preview {
+    Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     Invoke-Inventory
     Assert-Inspections $script:Evidence.inspections $fixture.BeforeExpected
     Assert-NodeExpectations $script:Evidence.hardware $fixture.BeforeNodes | Out-Null
     $script:Evidence['preview'] = Invoke-NetworkWritePreview
 }
 function Invoke-Apply {
+    Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     Invoke-Inventory
     if ($Restore) {
         # Fresh exact identity inspection and concrete restoration preconditions BEFORE preview.
@@ -328,6 +330,7 @@ $script:Evidence = [ordered]@{
     outcome = 'started'; failure = $null
 }
 try {
+    if ($Mode -in @('Preview','Apply')) { Assert-NetworkFixtureHash $FixturePath $fixtureSha256 }
     Connect-McpHost | Out-Null
     $script:Evidence['projectStatus'] = Get-ObservedProjectStatus
     switch ($Mode) {
