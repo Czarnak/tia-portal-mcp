@@ -609,15 +609,15 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             try {
                 '{}' | Set-Content -LiteralPath $FixturePath
                 $fixtureSha256=(Get-FileHash -LiteralPath $FixturePath -Algorithm SHA256).Hash
-                $operations=@(); $script:toolCalls=0
-                function Read-HardwareConfig { $capture }
+                $operations=@(); $script:toolCalls=0; $script:readCalls=0
+                function Read-HardwareConfig { $script:readCalls++; return $capture }
                 function Invoke-McpToolCall { param($Name,$Arguments) $script:toolCalls++; return @{} }
                 $null=Invoke-NetworkWriteApply
                 if($script:toolCalls -ne 1){throw 'Unchanged authorized fixture did not reach harmless callback.'}
                 '{"changed":true}' | Set-Content -LiteralPath $FixturePath
                 $rejected=$false
                 try { $null=Invoke-NetworkWriteApply } catch { $rejected=$true }
-                if (-not $rejected -or $script:toolCalls -ne 1) { throw 'Changed fixture reached tool callback.' }
+                if (-not $rejected -or $script:toolCalls -ne 1 -or $script:readCalls -ne 1) { throw 'Changed fixture reached tool callback.' }
             } finally { Remove-Item -LiteralPath $FixturePath -Force }
             'fixture-hash-blocked'
             """);
@@ -676,6 +676,22 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             """);
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
         Assert.Equal("ordinal-qualified-identity-ok", result.StandardOutput.Trim());
+    }
+
+
+    // Supplemental self-review causal RED: local restoration assertions need ordinary evidence too.
+    [Fact]
+    public void UnknownRestorationTraversal_IsRejected()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            $capture.discoveryEvidence=$null
+            $rejected=$false
+            try{$null=Assert-NodeExpectations $capture @()}catch{$rejected=$true}
+            if(-not $rejected){throw 'Unknown ordinary traversal accepted as restoration evidence.'}
+            'unknown-restoration-blocked'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("unknown-restoration-blocked", result.StandardOutput.Trim());
     }
 
     private static string FindRepositoryFile(params string[] segments)
