@@ -25,6 +25,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectLifecycleOwner.cs" Link="Linked\Openness\ProjectLifecycleOwner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\StandaloneProjectOwner.cs" Link="Linked\Openness\StandaloneProjectOwner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\LocalSessionOwner.cs" Link="Linked\Openness\LocalSessionOwner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ActiveProjectContext.cs" Link="Linked\Openness\ActiveProjectContext.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\IoSystemQualificationEvidence.cs"
       Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
     <Compile Update="Batch\TagOperationPrerequisiteBaselineTests.cs" />
