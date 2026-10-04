@@ -461,6 +461,147 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
         Assert.Equal("shared-helper-frozen-source-ok", result.StandardOutput.Trim());
     }
+
+    // Offline captures only: these tests extract function definitions and replace every transport.
+    private const string QualifiedHelperSetup = """
+        foreach ($definition in @($helperAst.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true))) {
+            Invoke-Expression $definition.Extent.Text
+        }
+        foreach ($definition in @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in @('Assert-NodeExpectations','Assert-Subset','Read-FixtureIdentities','Invoke-NetworkWriteApply') }, $true))) {
+            Invoke-Expression $definition.Extent.Text
+        }
+        $ProjectPath = 'C:/offline-fixture.ap21'
+        $capture = @'
+        {"discoveryEvidence":{"scope":"project","complete":true,"failures":[]},"rootDeviceCount":1,"messages":[],"subnets":[],"devices":[{"name":"PLC_1","items":[{"name":"CPU","networkInterfaces":[],"items":[
+          {"name":"X2","positionNumber":33024,"items":[],"networkInterfaces":[{"name":"X2","nodes":[{"nodeId":"E1","selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","itemPath":null,"interfacePath":[{"name":"CPU","positionNumber":1},{"name":"X2","positionNumber":33024}],"interfaceName":"X2","nodeId":"E1","nodeIndex":0},"connectionEvidence":{"complete":true,"subnetId":"original-X2","ioSystemSubnetId":null,"ioSystemNumber":null},"ipAddress":"192.0.2.2"}]}]},
+          {"name":"X1","positionNumber":32768,"items":[],"networkInterfaces":[{"name":"X1","nodes":[{"nodeId":"E1","selectable":true,"selector":{"kind":"node","deviceName":"PLC_1","itemPath":null,"interfacePath":[{"name":"CPU","positionNumber":1},{"name":"X1","positionNumber":32768}],"interfaceName":"X1","nodeId":"E1","nodeIndex":0},"connectionEvidence":{"complete":true,"subnetId":"original-X1","ioSystemSubnetId":null,"ioSystemNumber":null},"ipAddress":"192.0.2.1"}]}]}
+        ]}]}]}
+        '@ | ConvertFrom-Json -Depth 40
+        $originalSelectors = @($capture.devices[0].items[0].items | ForEach-Object { $_.networkInterfaces[0].nodes[0].selector })
+        $fixture = @{ MultiHomedDevices=@('plc_1'); Inspections=@(); RestoreOperations=@() }
+        """;
+
+    [Fact]
+    public void QualifiedInventory_KeepsBothE1Nodes()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            $nodes = @(Get-HardwareNodes $capture)
+            if ($nodes.Count -ne 2) { throw 'Both original E1 nodes must survive.' }
+            $ownerPaths = @($nodes | ForEach-Object { $_.selector.interfacePath | ConvertTo-Json -Depth 15 -Compress })
+            if ($ownerPaths[0] -ceq $ownerPaths[1]) { throw 'Owner paths collapsed.' }
+            for ($i=0; $i -lt 2; $i++) {
+                if (($nodes[$i].selector | ConvertTo-Json -Depth 15 -Compress) -cne ($originalSelectors[$i] | ConvertTo-Json -Depth 15 -Compress)) { throw 'Original public selector was changed or sorted indices inferred.' }
+            }
+            $capture.messages = @('Optional type identifier unavailable.')
+            if (@(Get-HardwareNodes $capture).Count -ne 2) { throw 'Optional diagnostics were treated as traversal loss.' }
+            'qualified-inventory-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("qualified-inventory-ok", result.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public void InspectionAndRestoration_UseOriginalOwnerSelectors()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            $expectations = @()
+            foreach ($selector in $originalSelectors) {
+                $target = $selector | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable
+                $fixture.Inspections += @{ id=$selector.interfaceName; target=$target }
+                $fixture.RestoreOperations += @{ operationId=$selector.interfaceName; operation='configure_network_device'; projectPath=$ProjectPath; target=$target; changes=@{subnet=@{subnetId="original-$($selector.interfaceName)"}} }
+                $expectations += @{ deviceName='plc_1'; nodeId='E1'; interfacePath=$target.interfacePath; interfaceName=$target.interfaceName; subnetId="original-$($selector.interfaceName)"; ioSystemSubnetId=$null; ioSystemNumber=$null }
+            }
+            $script:requests=@()
+            function Invoke-McpToolCall {
+                param($Name,$Arguments)
+                if ($Name -cne 'network_read') { throw 'Offline inspection only.' }
+                $script:requests += $Arguments.operations[0]
+                @{ success=$true; batch=@{operations=@(@{status='succeeded';omission=$null;result=@{target=$Arguments.operations[0].target}})} }
+            }
+            $null=Read-FixtureIdentities
+            $null=Assert-NodeExpectations $capture $expectations
+            for ($i=0;$i -lt 2;$i++) {
+                $original=$originalSelectors[$i] | ConvertTo-Json -Depth 20 -Compress
+                if (($script:requests[$i].target | ConvertTo-Json -Depth 20 -Compress) -cne ($fixture.RestoreOperations[$i].target | ConvertTo-Json -Depth 20 -Compress)) { throw 'Restoration changed owner selector.' }
+                Assert-Subset $script:requests[$i].target ($original | ConvertFrom-Json -AsHashtable)
+            }
+            $capture.devices[0].items[0].items[1].networkInterfaces[0].nodes[0].connectionEvidence.subnetId='wrong-restored'
+            $rejected=$false
+            try { $null=Assert-NodeExpectations $capture $expectations } catch { $rejected=$true }
+            if (-not $rejected) { throw 'Wrong restored X1 tuple accepted.' }
+            'original-selectors-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("original-selectors-ok", result.StandardOutput.Trim());
+    }
+
+    [Theory]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":\"32768\"}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":32768,\"positionNumber\":33024}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":32768,\"unknown\":1}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":-1}]")]
+    [InlineData("[]")]
+    public void MalformedQualifiedIdentity_IsRejected(string encodedPath)
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + $$"""
+            $capture.devices[0].items[0].items[0].networkInterfaces[0].nodes[0].selector.interfacePath = {{PowerShellLiteral(encodedPath)}}
+            $rejected=$false
+            try { $null=Get-HardwareNodes $capture } catch { $rejected=$true }
+            if (-not $rejected) { throw 'Malformed qualified identity accepted.' }
+            'malformed-qualified-rejected'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("malformed-qualified-rejected", result.StandardOutput.Trim());
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("incomplete")]
+    [InlineData("page")]
+    public void UnknownTraversalEvidence_BlocksApply(string variant)
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + $$"""
+            $operations=@($fixture.RestoreOperations)
+            $fixtureSha256=$null; $FixturePath=$null
+            $capture.discoveryEvidence = {{(variant == "unknown" ? "$null" : "[pscustomobject]@{scope='project';complete=$false;failures=@()}")}}
+            if ('{{variant}}' -eq 'page') {
+                $capture.discoveryEvidence=[pscustomobject]@{scope='project';complete=$true;failures=@()}
+                $capture | Add-Member pagination @{totalDevices=1;returnedDevices=1}
+            }
+            $script:toolCalls=0
+            function Read-HardwareConfig { $capture }
+            function Invoke-McpToolCall { param($Name,$Arguments) $script:toolCalls++; return @{} }
+            $rejected=$false
+            try { $null=Invoke-NetworkWriteApply } catch { $rejected=$true }
+            if (-not $rejected -or $script:toolCalls -ne 0) { throw 'Unknown/incomplete/paged evidence reached apply callback.' }
+            'unknown-traversal-blocked'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("unknown-traversal-blocked", result.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public void FixtureHashChange_StopsBeforeToolCall()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            $FixturePath=Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N')+'.json')
+            try {
+                '{}' | Set-Content -LiteralPath $FixturePath
+                $fixtureSha256=(Get-FileHash -LiteralPath $FixturePath -Algorithm SHA256).Hash
+                '{"changed":true}' | Set-Content -LiteralPath $FixturePath
+                $operations=@(); $script:toolCalls=0
+                function Read-HardwareConfig { $capture }
+                function Invoke-McpToolCall { param($Name,$Arguments) $script:toolCalls++; return @{} }
+                $rejected=$false
+                try { $null=Invoke-NetworkWriteApply } catch { $rejected=$true }
+                if (-not $rejected -or $script:toolCalls -ne 0) { throw 'Changed fixture reached tool callback.' }
+            } finally { Remove-Item -LiteralPath $FixturePath -Force }
+            'fixture-hash-blocked'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("fixture-hash-blocked", result.StandardOutput.Trim());
+    }
+
     private static string FindRepositoryFile(params string[] segments)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);

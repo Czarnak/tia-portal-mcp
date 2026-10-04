@@ -599,6 +599,40 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
         Assert.Equal("lifecycle-evidence-ok", result.StandardOutput.Trim());
     }
 
+
+    [Fact]
+    public void QualifiedAffectedNodes_RequireBothOriginalE1OwnerChecks()
+    {
+        var result = RunStaticAstAssertion("""
+            foreach ($definition in $helperAst.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$true)) { Invoke-Expression $definition.Extent.Text }
+            foreach ($definition in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in @('Assert-LifecycleEvidence','Assert-LifecycleChecks')},$true)) { Invoke-Expression $definition.Extent.Text }
+            function Check($name,$expected) { @{name=$name;expected=$expected;observed=$expected;status='passed';message=$null} }
+            $operations=@(@{operationId='delete';operation='delete_subnet';target=@{subnetId='s'}})
+            $affected=@'
+            [{"deviceName":"PLC_1","nodeId":"E1","interfacePath":[{"name":"CPU","positionNumber":1},{"name":"X1","positionNumber":32768}]},{"deviceName":"PLC_1","nodeId":"E1","interfacePath":[{"name":"CPU","positionNumber":1},{"name":"X2","positionNumber":33024}]}]
+            '@ | ConvertFrom-Json
+            $immediate=@{status='passed';identity=@{subnetId='s'};checks=@((Check 'networkDeviceCountUnchanged' '1'),(Check 'subnetAbsent' 'true'),(Check 'affectedNodesPreserved' 'true'),(Check 'affectedConnectionsRemoved' 'true'))}
+            $effects=@(@{operationId='delete';effect=@{operation='delete_subnet';target=@{subnetId='s'};affectedNodes=$affected;rootDeviceCount=1;connectionsComplete=$true};omission=$null})
+            $checks=@((Check 'networkDeviceCountUnchanged' '1'),(Check 'subnet/s///absent' 'true'))
+            foreach($node in $affected) {
+                $owner=$node.interfacePath | ConvertTo-Json -Depth 10 -Compress
+                $checks += Check "node/PLC_1/$owner/E1/exists" 'true'
+                $checks += Check "node/PLC_1/$owner/E1/removedSubnet:s" 'true'
+            }
+            $applied=@{success=$true;omission=$null;effects=$effects;batch=@{operations=@(@{operationId='delete';operation='delete_subnet';status='succeeded';failure=$null;omission=$null;result=@{subnetId='s';name='Before';verification=$immediate}})};verification=@{success=$true;omission=$null;operations=@(@{operationId='delete';operation='delete_subnet';status='passed';omission=$null;evidence=$immediate});finalChecks=$checks}}
+            $applied=$applied | ConvertTo-Json -Depth 40 | ConvertFrom-Json
+            $preview=@{effects=$effects} | ConvertTo-Json -Depth 40 | ConvertFrom-Json
+            $null=Assert-LifecycleEvidence $applied $operations $preview 1
+            $applied.verification.finalChecks=@($applied.verification.finalChecks | Select-Object -SkipLast 1)
+            $rejected=$false
+            try{$null=Assert-LifecycleEvidence $applied $operations $preview 1}catch{$rejected=$true}
+            if(-not $rejected){throw 'Missing second E1 removal check accepted.'}
+            'both-qualified-affected-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("both-qualified-affected-ok", result.StandardOutput.Trim());
+    }
+
     private static string FindRepositoryFile(params string[] segments)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
