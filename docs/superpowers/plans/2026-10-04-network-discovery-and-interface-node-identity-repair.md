@@ -10,7 +10,7 @@
 
 **Spec:** [Approved repair design](../specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md). Read it together with the [original Network design](../specs/2026-10-03-network-json-guarded-write-design.md).
 
-**Status (2026-10-04):** Written spec approved; this implementation plan awaits user review. No repair implementation or live acceptance has started. Starting documentation head: `1df1c621e102dc325bb2a75c58637e9ee93c64b3`; existing qualified code head: `b97b9ee9173905fa9c19649a73d4f8a29bd6c682`. Historical offline evidence and the failed live run do not qualify the repaired candidate.
+**Status (2026-10-05):** Implementation Tasks 1–7 and offline Task 8 are complete at code head 2c9a3f94ea85af82ad393b7924151329e930dd02 (tree 16d277dfde7ce49bc2646b65ea637019269ab2e2). Fresh offline qualification passed 5,201/5,201 tests and 93.8895% line coverage. Authorized live verification is PARTIAL PASS: qualified E1 writes/restoration, sparse outcomes and isolated subnet lifecycle pass; owner-evidence gap, positive connected deletion, connected-node movement and actual device addition remain unresolved or unverified. The human requested publication regardless of review outcome and fresh review on a fresh checkout. The [validation and handoff report](../acceptance/reports/2026-10-04-network-discovery-and-interface-node-identity-repair-validation.md) records the findings. Task 9 broader maintained documentation remains pending; neither historical nor new evidence claims full repair acceptance.
 
 ## Global Constraints
 

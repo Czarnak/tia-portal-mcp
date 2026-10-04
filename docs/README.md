@@ -50,8 +50,8 @@ acceptance reports produced while building features. It is historical process ma
 current documentation — see its index for what is there and how to read it.
 
 Latest process entries: the [approved Network discovery and interface-qualified node identity repair design](superpowers/specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md)
-and its [implementation plan awaiting review](superpowers/plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md)
-address the failed live Network write run; implementation and repaired-candidate acceptance are pending.
+and its [implemented/offline-qualified plan](superpowers/plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md)
+address the failed live Network write run. The [fresh validation and handoff report](superpowers/acceptance/reports/2026-10-04-network-discovery-and-interface-node-identity-repair-validation.md) records passing offline qualification and partial live verification; full acceptance remains pending owner-evidence and unverified-operation follow-ups.
 
 Earlier process entries: the [approved Network JSON contract and guarded write design](superpowers/specs/2026-10-03-network-json-guarded-write-design.md)
 and its [completed offline implementation plan (live acceptance pending)](superpowers/plans/2026-10-03-network-json-guarded-write.md),
