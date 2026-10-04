@@ -7,11 +7,12 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace TiaMcpServer.Tests.Network;
 
 [Collection("Mcp protocol serial")]
-public sealed class NetworkGuardedWriteBudgetTests
+public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
 {
     [Fact]
     public void AdmittedEscapedOperationIds_InfeasibleProtectedEnvelopeIsRejectedBeforePlanning()
@@ -44,6 +45,10 @@ public sealed class NetworkGuardedWriteBudgetTests
         var canonical = CanonicalJson.Serialize(response);
 
         Assert.True(canonical.Length > 180000);
+        // Preserve the original pre-field-addition witness exactly, including its measured size.
+        var originalShape = CanonicalJson.ToElement(response).EnumerateObject()
+            .Where(property => property.Name != "omission").ToDictionary(p => p.Name, p => p.Value);
+        Assert.Equal(245287, CanonicalJson.Serialize(originalShape).Length);
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null));
         var domainValidation = new NetworkWriteDomain(client).Validate(operations, McpAccessMode.ReadWrite);
         Assert.False(domainValidation.IsValid);
@@ -60,6 +65,121 @@ public sealed class NetworkGuardedWriteBudgetTests
         var operations = Enumerable.Range(0, 50).Select(i => NetworkGuardedWriteFixture.Delete(
             unicode ? "操作-" + i : new string('a', 253) + i.ToString("D3"))).ToArray();
         Assert.True(new NetworkWriteDomain(client).Validate(operations, McpAccessMode.ReadWrite).IsValid);
+        output.WriteLine($"Protected core ({(unicode ? "normal Unicode" : "ASCII 256")}, 50 items): {NetworkWritePayloadBudget.MeasureProtectedCore(operations)}");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InfeasibleIdentities_RejectBeforeBindingOrWorker_WithOneAudit(bool registered)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        var operations = Enumerable.Range(0, 50).Select(i => new NetworkOperationRequest
+        {
+            OperationId = new string('\u4e00', 255) + (char)('\u4e01' + i), Operation = "delete_subnet",
+            Target = new() { Kind = "subnet", SubnetId = "subnet-" + i }
+        }).ToArray();
+        CallToolResult reply;
+        if (registered)
+        {
+            await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
+            reply = await harness.Client.CallToolAsync("network_write", new Dictionary<string, object?> { ["operations"] = operations });
+        }
+        else
+        {
+            var binding = new ProjectSessionBinding(null);
+            using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+            var before = CanonicalJson.Serialize(binding.CaptureSnapshot());
+            reply = await NetworkGuardedWriteFixture.CreateRunner(client, audit.Path).RunAsync(new NetworkWriteDomain(client),
+                new WriteCall<NetworkOperationRequest>(null, operations, false));
+            Assert.Equal(before, CanonicalJson.Serialize(binding.CaptureSnapshot()));
+        }
+        Assert.Empty(requests.Methods());
+        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.True(reply.IsError);
+        Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
+        Assert.DoesNotContain(operations[0].OperationId, root.GetRawText());
+        Assert.Equal("error", root.GetProperty("phase").GetString());
+        var record = CanonicalJson.Deserialize<WriteAuditRecord>(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        Assert.Equal(Assert.Single(reply.Content.OfType<TextContentBlock>()).Text, record.ResponseText);
+        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(record.ResponseText), record.ResponseHash);
+    }
+
+    [Fact]
+    public void ProtectedCore_MeasuresEveryEncodedIdentityCopy_AndBoundsAdversarialFallback()
+    {
+        var operations = Enumerable.Range(0, 50).Select(i => NetworkGuardedWriteFixture.Delete(new string('a', 253) + i.ToString("D3"))).ToArray();
+        var emptyIds = operations.Select(o => NetworkGuardedWriteFixture.Delete("")).ToArray();
+        var overhead = NetworkWritePayloadBudget.MeasureProtectedCore(emptyIds);
+        var encodedIds = operations.Select(o => CanonicalJson.Serialize(o.OperationId).Length - 2).ToArray();
+        var reserve = NetworkWritePayloadBudget.MeasureProtectedCore(operations);
+        Assert.Equal(overhead + 6 * encodedIds.Sum() + encodedIds.Max(), reserve);
+        Assert.True(reserve <= 180000);
+        output.WriteLine($"Reserve proof: fixed model overhead={overhead}; six ID copies plus longest partial-guard ID={reserve - overhead}; total={reserve}.");
+
+        var seed = Report(new string('x', 70000));
+        var report = seed with
+        {
+            Effects = operations.Select(o => seed.Effects[0] with { OperationId = o.OperationId }).ToArray(),
+            Guards = operations.SelectMany(o => Enumerable.Repeat(new WriteGuardReport("network_delete_connected_subnet", "info",
+                o.OperationId, new string('g', 70000), null), 2)).Append(new("partial_write_no_rollback", "info", operations[0].OperationId, "Partial write.", null)).ToArray(),
+            Batch = StructuredOperationBatch.FromItems(operations.Select(o => seed.Batch!.Operations[0] with { OperationId = o.OperationId,
+                Operation = o.Operation, Result = CanonicalJson.ToElement(new { value = new string('r', 59000) }),
+                Failure = new("worker_operation_failed", new string('f', 70000)), Warnings = new[] { new string('w', 70000) } }).ToArray()),
+            Verification = seed.Verification! with { Operations = operations.Select(o => seed.Verification.Operations[0] with { OperationId = o.OperationId, Operation = o.Operation }).ToArray() }
+        };
+        var bounded = Compose(report);
+        var canonical = CanonicalJson.Serialize(bounded);
+        Assert.True(canonical.Length <= 180000);
+        Assert.False(bounded.Success);
+        Assert.Equal(operations.Select(o => o.OperationId), bounded.Effects.Select(e => e.OperationId));
+        Assert.Equal(operations.Select(o => o.OperationId), bounded.Batch!.Operations.Select(i => i.OperationId));
+        Assert.Equal(operations.Select(o => o.OperationId), bounded.Verification!.Operations.Select(i => i.OperationId));
+        Assert.All(bounded.Batch.Operations.Where(i => i.Result is not null), i => Assert.True(CanonicalJson.Serialize(i.Result).Length <= 60000));
+        Assert.Equal(canonical.Length, bounded.Batch.Truncation!.PresentedChars);
+        Assert.Equal(canonical, CanonicalJson.Serialize(Compose(report)));
+    }
+
+    [Theory]
+    [InlineData("worker_crashed")]
+    [InlineData("invalid_payload")]
+    public async Task CrashOrInvalidPayload_RemainsUnverified(string kind)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
+        var domain = new NetworkWriteDomain(fixture.Client);
+        var marker = "REJECTED_PAYLOAD_MARKER";
+        var result = kind == "invalid_payload" ? WorkerCallResult.Ok("{\"unexpected\":\"" + marker + "\"}")
+            : WorkerCallResult.Fail("worker_crashed", "Worker exited after dispatch; outcome unknown.");
+        var projected = domain.Project(NetworkGuardedWriteFixture.Delete(), result);
+        Assert.Equal("failed", projected.Status);
+        Assert.Null(projected.Result);
+        Assert.Equal(kind == "invalid_payload" ? "protocol_error" : "worker_crashed", projected.Failure!.Category);
+        var verification = await new NetworkWriteVerifier(fixture.Client).VerifyAsync("network-guarded",
+            StructuredOperationBatch.FromItems(new[] { projected }), new Dictionary<string, NetworkMutationVerificationInfo>());
+        Assert.False(verification.Success);
+        Assert.Equal("unverified", Assert.Single(verification.Operations).Status);
+        Assert.Contains(verification.FinalChecks, c => c.Status == "unverified");
+        Assert.DoesNotContain(marker, CanonicalJson.Serialize(projected));
+    }
+
+    [Fact]
+    public async Task PostReadFailure_RemainsUnverifiedAndDoesNotReplay()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-postread-failure");
+        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
+        Assert.False(response.Success);
+        Assert.Equal("applied", response.Phase);
+        Assert.Null(response.Error);
+        Assert.False(response.Verification!.Success);
+        Assert.Contains(response.Verification.FinalChecks, c => c.Status == "unverified");
+        Assert.Equal(1, requests.Methods().Count(m => m == "delete_subnet"));
+        Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
 
     [Fact]

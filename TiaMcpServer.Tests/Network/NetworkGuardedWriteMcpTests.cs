@@ -46,6 +46,7 @@ public sealed class NetworkGuardedWriteMcpTests
         Assert.Equal("boolean", tool.InputSchema.GetProperty("properties").GetProperty("dryRun").GetProperty("type").GetString());
         Assert.False(tool.InputSchema.GetProperty("properties").GetProperty("dryRun").GetProperty("default").GetBoolean());
         Assert.Contains("verification", tool.OutputSchema!.Value.GetProperty("properties").EnumerateObject().Select(p => p.Name));
+        Assert.Contains("omission", tool.OutputSchema.Value.GetProperty("properties").EnumerateObject().Select(p => p.Name));
     }
 
     [Theory]
@@ -69,6 +70,7 @@ public sealed class NetworkGuardedWriteMcpTests
         var root = Document(reply);
         Assert.False(reply.IsError == true);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("omission").ValueKind);
         Assert.Equal(dryRun == true ? "preview" : "applied", root.GetProperty("phase").GetString());
         Assert.Equal(0, prompts);
         Assert.Equal(dryRun != true, requests.Methods().Contains("delete_subnet"));
