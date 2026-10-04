@@ -1206,6 +1206,8 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-qualified-late-owner":
         case "network-qualified-late-root":
         case "network-qualified-final-missing-discovery":
+        case "network-qualified-final-binding-drift":
+        case "network-qualified-final-interface-drift":
             var qualifiedHardware = qualifiedNetworkState ??= QualifiedHardwareFixture();
             var qualifiedDevice = qualifiedHardware.Devices[0];
             if (scenario != "network-qualified-read" && scenario != "network-qualified-partial" && scenario != "network-qualified-owner-drift" && qualifiedHardware.Subnets.Count == 0 && guardedNetworkWrites == 0)
@@ -1233,6 +1235,8 @@ while ((line = Console.In.ReadLine()) is not null)
                     if (scenario == "network-qualified-late-owner") qualifiedDevice.Items[0].Items.Add(new() { PositionNumber = null });
                     if (scenario == "network-qualified-late-root") qualifiedHardware.RootDeviceCount = null;
                     if (scenario == "network-qualified-final-missing-discovery") qualifiedHardware.DiscoveryEvidence = null;
+                    if (scenario == "network-qualified-final-binding-drift") fakeSessionGeneration++;
+                    if (scenario == "network-qualified-final-interface-drift") qualifiedDevice.Items[0].Items[0].NetworkInterfaces[0].Name = "Changed service";
                     NetworkNodeReadSelectorBuilder.ApplyInventory(qualifiedHardware);
                 }
                 Respond(Success(ToCamelCaseJson(qualifiedHardware)));

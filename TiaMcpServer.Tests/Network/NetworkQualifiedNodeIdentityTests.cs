@@ -110,13 +110,17 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.All(final.State.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes), n =>
         { Assert.True(n.ConnectionEvidence!.Complete); Assert.Null(n.ConnectionEvidence.SubnetId); Assert.Null(n.ConnectionEvidence.IoSystemSubnetId); Assert.Null(n.ConnectionEvidence.IoSystemNumber); });
     }
-    [Fact]
-    public async Task LegacyAffectedIdentity_RequiresUniqueFreshUpgrade()
+    [Theory]
+    [InlineData(McpAccessMode.ReadWrite, false)][InlineData(McpAccessMode.Full, false)]
+    [InlineData(McpAccessMode.ReadWrite, true)][InlineData(McpAccessMode.Full, true)]
+    public async Task LegacyAffectedIdentity_RequiresUniqueFreshUpgrade(McpAccessMode mode, bool dryRun)
     {
         using var audit = new TempAuditDirectory(); using var log = new FakeWorkerRequestLog(audit.Path);
-        using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-legacy");
-        var result = await f.RunAsync(false, NetworkGuardedWriteFixture.Delete());
-        Assert.Equal("blocked", result.Phase); Assert.DoesNotContain("delete_subnet", log.Methods());
+        using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-legacy", mode);
+        var result = await f.RunAsync(dryRun, NetworkGuardedWriteFixture.Delete());
+        Assert.Equal(dryRun ? "preview" : "blocked", result.Phase);
+        Assert.Contains(result.Guards, guard => guard.Id == "network_state_unverifiable" && guard.Severity == "block");
+        Assert.DoesNotContain("delete_subnet", log.Methods());
     }
     [Theory][InlineData("subnet")][InlineData("node")][InlineData("device")][InlineData("owner")][InlineData("root")]
     public async Task LateUnreadableCandidate_CannotProveDeletion(string kind)
@@ -186,6 +190,40 @@ public sealed class NetworkQualifiedNodeIdentityTests
         var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
         var nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
         Assert.Equal("192.168.12.7", nodes[0].IpAddress); Assert.Equal("192.168.13.20", nodes[1].IpAddress);
+    }
+    [Theory][InlineData(false)][InlineData(true)]
+    public async Task EachGuardedStep_PreservesOtherE1(bool reverse)
+    {
+        const string scenario = "network-qualified-read";
+        using var audit = new TempAuditDirectory(); using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var x1 = Configure(32768, "192.168.12.7", "x1"); var x2 = Configure(33024, "192.168.13.8", "x2");
+        Assert.True((await f.RunAsync(false, reverse ? x2 : x1)).Success);
+        var first = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
+        var nodes = first.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
+        Assert.Equal(reverse ? "192.168.12.2" : "192.168.12.7", nodes[0].IpAddress);
+        Assert.Equal(reverse ? "192.168.13.8" : "192.168.13.20", nodes[1].IpAddress);
+        Assert.True((await f.RunAsync(false, reverse ? x1 : x2)).Success);
+        var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
+        nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
+        Assert.Equal("192.168.12.7", nodes[0].IpAddress); Assert.Equal("192.168.13.8", nodes[1].IpAddress);
+    }
+    [Theory][InlineData("binding")][InlineData("interface")]
+    public async Task QualifiedLateConstraintDegradation_RetainsAppliedEvidenceWithoutReplay(string kind)
+    {
+        var scenario = "network-qualified-final-" + kind + "-drift";
+        using var audit = new TempAuditDirectory(); using var log = new FakeWorkerRequestLog(audit.Path);
+        using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = Configure(32768, "192.168.12.7", "x1");
+        operation.Target!.InterfaceName = "PROFINET interface_1";
+        var result = await f.RunAsync(false, operation);
+        Assert.Equal("applied", result.Phase); Assert.False(result.Success);
+        Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
+        var immediate = Assert.Single(result.Verification!.Operations);
+        Assert.Equal("passed", immediate.Status);
+        Assert.Equal("PROFINET interface_1", immediate.Evidence!.Identity["interfaceName"]);
+        Assert.Contains(immediate.Evidence.Checks, check => check.Name == "Address" && check.Expected == "192.168.12.7" && check.Status == "passed");
+        Assert.Contains(result.Verification.FinalChecks, check => check.Status == "unverified");
+        Assert.Single(log.Methods(), m => m == "configure_network_device");
     }
     [Fact]
     public async Task FinalOptionalDiagnostic_DoesNotFailVerifiedWrite()
