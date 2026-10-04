@@ -2,6 +2,7 @@ using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
+using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
 
@@ -14,6 +15,9 @@ internal sealed class NetworkGuardedWriteFixture : IDisposable
     public ProjectSessionBinding Binding { get; }
     public WriteExecution Runner { get; }
     public JsonlWriteAuditSink Audit { get; }
+    internal static WriteExecution CreateRunner(OpennessWorkerClient client, string auditDirectory)
+        => new(new OpennessWriteBindingGate(client), new JsonlWriteAuditSink(auditDirectory),
+            new WriteGuardCatalog(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions)), TimeProvider.System);
     private NetworkGuardedWriteFixture(OpennessWorkerClient client, ProjectSessionBinding binding, TempAuditDirectory audit, string path)
     {
         Client = client; Binding = binding; _path = path;

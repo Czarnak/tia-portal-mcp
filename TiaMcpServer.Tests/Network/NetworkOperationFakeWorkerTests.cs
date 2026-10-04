@@ -3,6 +3,7 @@ using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -26,13 +27,13 @@ public class NetworkOperationFakeWorkerTests
 
     private static OpennessWorkerClient CreateWriteClient(
         TempAuditDirectory audit,
-        out WriteSafetyService safety,
+        out WriteExecution safety,
         string projectPath)
     {
         var binding = new ProjectSessionBinding(null);
         var client = CreateClient(binding);
         NetworkVerifiedWriteFixture.VerifyAsync(client, binding, projectPath).GetAwaiter().GetResult();
-        safety = audit.CreateSafety(projectSessionBinding: binding);
+        safety = NetworkGuardedWriteFixture.CreateRunner(client, audit.Path);
         return client;
     }
 
@@ -101,11 +102,10 @@ public class NetworkOperationFakeWorkerTests
                 DeviceName = "LaterDevice",
             },
         };
-        var token = SafetyToken(await NetworkWriteTools.NetworkWrite(client, safety, operations));
 
-        var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, confirm: true, safetyToken: token);
+        var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, dryRun: false);
 
-        Assert.False(applied.IsError);
+        Assert.False(applied.IsError, Text(applied));
         var root = Structured(applied);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
@@ -135,11 +135,11 @@ public class NetworkOperationFakeWorkerTests
             client,
             new[] { ReadHardware("hardware"), SearchCatalog("catalog") });
 
-        Assert.False(result.IsError);
+        Assert.False(result.IsError, Text(result));
         var root = Assert.IsType<JsonElement>(result.StructuredContent);
         var operations = root.GetProperty("batch").GetProperty("operations");
 
-        Assert.True(root.GetProperty("success").GetBoolean());
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.Equal("hardware", operations[0].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", operations[0].GetProperty("status").GetString());
         Assert.Equal(
@@ -165,7 +165,7 @@ public class NetworkOperationFakeWorkerTests
 
         var result = await NetworkReadTools.NetworkRead(client, new[] { ReadHardware("hardware") });
 
-        Assert.False(result.IsError);
+        Assert.False(result.IsError, Text(result));
         var hardware = Assert.IsType<JsonElement>(result.StructuredContent)
             .GetProperty("batch")
             .GetProperty("operations")[0]
@@ -192,18 +192,17 @@ public class NetworkOperationFakeWorkerTests
     }
 
     [Fact]
-    public async Task NetworkWrite_UsesOneSnapshotPerAttemptAndEnforcesTokenLifecycle()
+    public async Task NetworkWrite_ExecutesInCallerOrderWithTypedResults()
     {
         using var audit = new TempAuditDirectory();
         using var client = CreateWriteClient(audit, out var safety, Scenario);
         var operations = new[] { AddDevice("add"), ConfigureDevice("configure") };
 
-        var preview = await NetworkWriteTools.NetworkWrite(client, safety, operations);
-        var token = SafetyToken(preview);
+        var preview = await NetworkWriteTools.NetworkWrite(client, safety, operations, dryRun: true);
 
-        var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, confirm: true, safetyToken: token);
+        var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, dryRun: false);
         var results = Structured(applied).GetProperty("batch").GetProperty("operations");
-        Assert.True(Structured(applied).GetProperty("success").GetBoolean());
+        Assert.True(Structured(applied).GetProperty("success").GetBoolean(), Text(applied));
         Assert.Equal("add", results[0].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", results[0].GetProperty("status").GetString());
 
@@ -217,22 +216,7 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal(JsonValueKind.Object, results[1].GetProperty("result").ValueKind);
         Assert.Equal("seq:5", results[1].GetProperty("result").GetProperty("messages")[0].GetString());
 
-        var replay = await NetworkWriteTools.NetworkWrite(client, safety, operations, confirm: true, safetyToken: token);
-        Assert.True(replay.IsError);
-        Assert.Contains("Safety token", Text(replay));
 
-        var secondToken = SafetyToken(await NetworkWriteTools.NetworkWrite(client, safety, operations));
-
-        var changedInput = new[] { AddDevice("add"), ConfigureDevice("configure", ipAddress: "192.168.0.11") };
-        var changedApply = await NetworkWriteTools.NetworkWrite(
-            client,
-            safety,
-            changedInput,
-            confirm: true,
-            safetyToken: secondToken);
-
-        Assert.True(changedApply.IsError);
-        Assert.Contains("input does not match", Text(changedApply));
     }
 
     /// <summary>
@@ -243,34 +227,6 @@ public class NetworkOperationFakeWorkerTests
     /// different target, since the safety token binds exactly which node was matched, not merely
     /// that some node exists.
     /// </summary>
-    [Fact]
-    public async Task NetworkWrite_ChangedNodeIdBetweenPreviewAndApplyIsRejectedAsADifferentTarget()
-    {
-        using var audit = new TempAuditDirectory();
-        const string scenario = "multi-homed-network";
-        using var client = CreateWriteClient(audit, out var safety, scenario);
-
-        static NetworkOperationRequest[] Operations(string scenario, string nodeId) => new[]
-        {
-            new NetworkOperationRequest
-            {
-                OperationId = "configure",
-                Operation = "configure_network_device",
-                ProjectPath = scenario,
-                Target = new NetworkObjectTarget { DeviceName = "PC_1", NodeId = nodeId },
-                Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.55" },
-            },
-        };
-
-        var preview = await NetworkWriteTools.NetworkWrite(client, safety, Operations(scenario, "node-plc"));
-        var token = SafetyToken(preview);
-
-        var applied = await NetworkWriteTools.NetworkWrite(
-            client, safety, Operations(scenario, "node-db"), confirm: true, safetyToken: token);
-
-        Assert.True(applied.IsError);
-        Assert.Contains("different target", Text(applied));
-    }
 
     /// <summary>
     /// Two nodes on the SAME device reporting the SAME nodeId: NetworkIdentityResolver's
@@ -305,7 +261,6 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal(
             WorkerFailureCategories.PostconditionFailed,
             root.GetProperty("error").GetProperty("category").GetString());
-        Assert.Equal(0, safety.ActiveTokenCount);
     }
 
     /// <summary>
@@ -318,8 +273,8 @@ public class NetworkOperationFakeWorkerTests
     public async Task NetworkWrite_MismatchedSubnetAndIoSystemPairingIsRejectedBeforeAnyWorkerCall()
     {
         using var audit = new TempAuditDirectory();
-        var safety = audit.CreateSafety();
         using var client = CreateClient();
+        var safety = NetworkGuardedWriteFixture.CreateRunner(client, audit.Path);
 
         var result = await NetworkWriteTools.NetworkWrite(
             client,
@@ -342,7 +297,6 @@ public class NetworkOperationFakeWorkerTests
 
         Assert.True(result.IsError);
         Assert.Contains("must name the same subnet", Text(result));
-        Assert.Equal(0, safety.ActiveTokenCount);
     }
 
     // --- Phase 3 read round-trips -----------------------------------------------
@@ -366,7 +320,7 @@ public class NetworkOperationFakeWorkerTests
                 },
             });
 
-        Assert.False(result.IsError);
+        Assert.False(result.IsError, Text(result));
         var operation = Structured(result)
             .GetProperty("batch")
             .GetProperty("operations")[0];
@@ -409,7 +363,7 @@ public class NetworkOperationFakeWorkerTests
                 },
             });
 
-        Assert.False(result.IsError);
+        Assert.False(result.IsError, Text(result));
         var operation = Structured(result)
             .GetProperty("batch")
             .GetProperty("operations")[0];
@@ -480,7 +434,7 @@ public class NetworkOperationFakeWorkerTests
             });
 
         // The batch ran (tool call succeeded), but the item failed.
-        Assert.False(result.IsError);
+        Assert.False(result.IsError, Text(result));
         var operation = Structured(result).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("failed", operation.GetProperty("status").GetString());
         Assert.Equal("protocol_error", operation.GetProperty("failure").GetProperty("category").GetString());
@@ -506,7 +460,7 @@ public class NetworkOperationFakeWorkerTests
                 },
             });
 
-        Assert.False(result.IsError);
+        Assert.False(result.IsError, Text(result));
         var operation = Structured(result).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", operation.GetProperty("status").GetString());
 
@@ -522,10 +476,4 @@ public class NetworkOperationFakeWorkerTests
     private static string Text(CallToolResult result)
         => Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
 
-    private static string SafetyToken(CallToolResult preview)
-    {
-        var token = Structured(preview).GetProperty("preview").GetProperty("safetyToken").GetString();
-        Assert.False(string.IsNullOrWhiteSpace(token));
-        return token!;
-    }
 }

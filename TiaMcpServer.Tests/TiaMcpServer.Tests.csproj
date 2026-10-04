@@ -112,6 +112,8 @@
       Link="Host\ProjectEngineeringTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\McpToolRegistration.cs"
       Link="Host\McpToolRegistration.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\NetworkWriteArgumentValidatingTool.cs"
+      Link="Host\NetworkWriteArgumentValidatingTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResultFormatter.cs"
       Link="Host\StandaloneToolResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResponses.cs" Link="Host\StandaloneToolResponses.cs" />

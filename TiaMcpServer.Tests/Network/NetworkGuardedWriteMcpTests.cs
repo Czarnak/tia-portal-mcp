@@ -82,9 +82,11 @@ public sealed class NetworkGuardedWriteMcpTests
     public async Task LifecycleStillConfirms()
     {
         using var audit = new TempAuditDirectory();
+        using var fixture = new LifecycleProtocolFixture();
+        using var uiOpen = new FakeWorkerUiOpenProject(fixture.SourcePath);
         var prompts = 0;
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite,
-            audit.Path, "network-guarded", Options(() => prompts++, "accept"));
+            audit.Path, fixture.SourcePath, Options(() => prompts++, "accept"));
         var reply = await harness.Client.CallToolAsync("save_project", new Dictionary<string, object?>());
         Assert.False(reply.IsError == true);
         Assert.Equal(1, prompts);
