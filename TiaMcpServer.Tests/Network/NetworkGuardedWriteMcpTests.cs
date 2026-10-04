@@ -22,16 +22,17 @@ public sealed class NetworkGuardedWriteMcpTests
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
         using var requests = new FakeWorkerRequestLog(audit.Path);
-        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path,
+            "network-guarded");
+        var before = requests.Methods();
+        Assert.Contains("hello", before);
+        Assert.Contains("read_hardware_config", before);
         var args = Arguments();
         args[key] = JsonSerializer.Deserialize<JsonElement>(json);
         var reply = await harness.Client.CallToolAsync("network_write", args);
         Assert.True(reply.IsError);
-        Assert.Empty(requests.Methods());
+        Assert.Equal(before, requests.Methods());
         Assert.Empty(AuditLines(audit.Path));
-        await harness.WorkerClient.GetBasicProjectStatusAsync(null);
-        Assert.Contains("hello", requests.Methods());
-        Assert.Contains("get_basic_project_status", requests.Methods());
     }
 
     [Fact]

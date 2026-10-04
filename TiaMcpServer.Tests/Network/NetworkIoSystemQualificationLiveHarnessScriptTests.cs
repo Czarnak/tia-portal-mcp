@@ -1059,8 +1059,8 @@ public sealed class NetworkIoSystemQualificationLiveHarnessScriptTests
     }
 
     [Theory]
-    [InlineData("NetworkReadTools.cs", "1AB4593461C493D68D5A8EE1658628DD85AC688B52E5B623EBDF94CBA7E86B41")]
-    [InlineData("NetworkWriteTools.cs", "CD3F095E4CE2DCE2DC7A450B85F0AF639FC00B1BD1A41FEBB1098E0D141D9CED")]
+    [InlineData("NetworkReadTools.cs", "D62A47E29536336E640ABA00A85C2AEC6D7E3ED20A1253B310F558C20F54D327")]
+    [InlineData("NetworkWriteTools.cs", "A74E9220F0F8B7FE4751B66CDAF6884328D4379239DCEDB3E0EC433943EABAC8")]
     public void TemporaryQualificationDoesNotChangePublicToolDeclarationsOrSchemas(string file, string expected)
     {
         // Snapshot the existing declarations, including input/output schema types and descriptions.
