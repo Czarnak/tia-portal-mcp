@@ -277,9 +277,11 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     [InlineData("valid-effective-prefix")]
     [InlineData("valid-qualified-two-E1")]
     [InlineData("valid-not-required")]
+    [InlineData("valid-legacy-owner")]
+    [InlineData("wrong-legacy-owner")]
     public void Outcome_RequiresCompleteTypedVerificationCoverage(string scenario)
     {
-        var result = RunStaticAstAssertion($$"""
+        var result = RunStaticAstAssertion("""
             $definitions = @($ast.FindAll({ param($node)
                 $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('Assert-Outcome', 'Assert-Subset', 'Assert-VerificationCheck')
             }, $true))
@@ -303,8 +305,24 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                     @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
                     @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
             $response = $response | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
-            $scenario = '{{scenario}}'
-            switch ($scenario) {
+            $scenario = '__SCENARIO__'
+            $hardware=$null
+            if($scenario -in @('valid-legacy-owner','wrong-legacy-owner')) {
+                foreach($definition in $helperAst.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in @('Resolve-NetworkNodeSelectorEvidence','Get-HardwareNodes')},$true)){Invoke-Expression $definition.Extent.Text}
+                $hardware=@{discoveryEvidence=@{scope='project';complete=$true;failures=@()};devices=@(@{name='PC';items=@()})}
+                foreach($port in @(@('X1',1),@('X2',2))) {
+                    $path=@(@{name=$port[0];positionNumber=$port[1];typeIdentifier='Type'})
+                    $selector=@{kind='node';deviceName='PC';nodeId='node';interfacePath=$path}
+                    $hardware.devices[0].items+=@{name=$port[0];positionNumber=$port[1];typeIdentifier='Type';items=@();networkInterfaces=@(@{name=$port[0];nodes=@(@{nodeId='node';selectable=$true;selector=$selector;connectionEvidence=@{complete=$true} })})}
+                }
+                foreach($operation in $operations){$operation.target.itemPath=@(@{index=0;name='X1';positionNumber=1;typeIdentifier='Type'});$operation.target.nodeIndex=0}
+                $owner=if($scenario -eq 'wrong-legacy-owner'){'[{"name":"X2","positionNumber":2,"typeIdentifier":"Type"}]'}else{'[{"name":"X1","positionNumber":1,"typeIdentifier":"Type"}]'}
+                foreach($item in $response.verification.operations){$item.evidence.identity.interfacePath=$owner}
+                for($i=0;$i -lt 2;$i++){$response.batch.operations[$i].result.verification=$response.verification.operations[$i].evidence}
+                $response.verification.finalChecks[0].name="node/PC/$owner/node/exists"
+                $response.verification.finalChecks[1].name="node/PC/$owner/node/Address"
+                $hardware=$hardware | ConvertTo-Json -Depth 40 | ConvertFrom-Json
+            }            switch ($scenario) {
                 { $_ -in @('valid-io-tuple','wrong-io-subnet') } {
                     $operations = @($operations[0]); $operations[0].changes = @{ ioSystem = @{ subnetId = 'exact-subnet'; number = 1 } }
                     $response.batch.operations = @($response.batch.operations[0]); $response.verification.operations = @($response.verification.operations[0])
@@ -373,12 +391,12 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             if ($scenario -eq 'valid-not-required') { $statuses = @('failed'); $expectedSuccess = $false }
             else { $statuses = @($operations | ForEach-Object { 'succeeded' }); $expectedSuccess = $true }
             $rejected = $false
-            try { Assert-Outcome $response $statuses $expectedSuccess $true $expected } catch { $rejected = $true }
+            try { Assert-Outcome $response $statuses $expectedSuccess $true $expected $hardware } catch { $rejected = $true }
             if ($scenario -like 'valid-*') {
                 if ($rejected) { throw "Valid verification rejected: $scenario" }
             } elseif (-not $rejected) { throw "Incomplete or contradictory verification accepted: $scenario" }
             'verification-coverage-ok'
-            """);
+            """.Replace("__SCENARIO__", scenario, StringComparison.Ordinal));
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
         Assert.Equal("verification-coverage-ok", result.StandardOutput.Trim());
     }
