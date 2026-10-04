@@ -530,7 +530,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 $deleteEvidence=@{status='passed';identity=@{subnetId='s'};checks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnetAbsent' 'true'),(Check 'affectedNodesPreserved' 'true'),(Check 'affectedConnectionsRemoved' 'true'))}
                 $deleteItem=@{operationId='delete';operation='delete_subnet';status='succeeded';failure=$null;omission=$null;result=@{subnetId='s';name='After';networkDeviceCount=2;networkDeviceCountUnchanged=$true;verification=$deleteEvidence}}
                 $deleteVerification=@{operationId='delete';operation='delete_subnet';status='passed';evidence=$deleteEvidence;omission=$null}
-                $deleteEffect=@{operationId='delete';effect=@{operation='delete_subnet';target=@{subnetId='s'};affectedNodes=@(@{deviceName='a';nodeId='n'});rootDeviceCount=2;connectionsComplete=$true};omission=$null}
+                $deleteEffect=@{operationId='delete';effect=@{operation='delete_subnet';target=@{subnetId='s'};affectedNodes=@(@{deviceName='a';nodeId='n';interfacePath=@(@{name='X1';positionNumber=1})});rootDeviceCount=2;connectionsComplete=$true};omission=$null}
                 if ('__VARIANT__' -eq 'valid-update-delete') {
                     $operations += $delete; $script:applied.batch.operations += $deleteItem
                     $script:applied.verification.operations += $deleteVerification; $script:applied.effects += $deleteEffect
@@ -538,9 +538,9 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                     $operations=@($delete); $script:applied.batch.operations=@($deleteItem)
                     $script:applied.verification.operations=@($deleteVerification); $script:applied.effects=@($deleteEffect)
                 }
-                $script:applied.verification.finalChecks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnet/s///absent' 'true'),(Check 'node/a//n/exists' 'true'),(Check 'node/a//n/removedSubnet:s' 'true'))
+                $script:applied.verification.finalChecks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnet/s///absent' 'true'),(Check 'node/a/[{"name":"X1","positionNumber":1}]/n/exists' 'true'),(Check 'node/a/[{"name":"X1","positionNumber":1}]/n/removedSubnet:s' 'true'))
                 $script:post.subnets=@()
-                $script:postNodes=@(@{deviceName='a';identity=@{deviceName='a';nodeId='n'};node=@{nodeId='n';connectionEvidence=@{complete=$true;subnetId=$null;ioSystemSubnetId=$null}}})
+                $script:postNodes=@(@{deviceName='a';identity=@{deviceName='a';nodeId='n';interfacePath=@(@{name='X1';positionNumber=1})};node=@{nodeId='n';connectionEvidence=@{complete=$true;subnetId=$null;ioSystemSubnetId=$null}}})
             }
             $script:preview.effects=$script:applied.effects
             switch ('__VARIANT__') {
@@ -556,7 +556,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 'wrong-post-speed' { $script:attributeSpeed='Baud187500' }
                 'null-post-attribute' { $script:nullAttribute=$true }
                 'duplicate-post-attribute' { $script:duplicateAttribute=$true }
-                'missing-affected-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'node/a//n/exists') }
+                'missing-affected-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'node/a/[{"name":"X1","positionNumber":1}]/n/exists') }
                 'wrong-affected-post' { $script:postNodes[0].node.connectionEvidence.subnetId='s' }
                 'reordered-batch' { $script:applied.batch.operations=@($script:applied.batch.operations[1],$script:applied.batch.operations[0]) }
                 'empty-verification' { $script:applied.verification.operations=@(); $script:applied.verification.finalChecks=@() }

@@ -219,12 +219,12 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             }, $true))
             foreach ($function in $definition) { Invoke-Expression $function.Extent.Text }
             $operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; target = @{ deviceName = 'PC'; nodeId = 'node' }; changes = @{ ipAddress = '192.0.2.1'; pnDeviceName = 'requested' } }, @{ operationId = 'later' })
-            $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node' }; message = $null; checks = @(@{ name = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }) }
+            $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node'; interfacePath = '[{"name":"X1","positionNumber":1}]' }; message = $null; checks = @(@{ name = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }) }
             $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $false; omission = $null
                 batch = @{ operations = @(
                     @{ operationId = 'first'; operation = 'configure_network_device'; status = 'failed'; omission = $null; result = @{ deviceName = 'PC'; verification = $evidence; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } } },
                     @{ operationId = 'later'; status = 'skipped'; skipReason = 'earlierOperationFailed'; omission = $null }) }
-                verification = @{ success = $true; omission = $null; finalChecks = @(@{ name = 'node/PC//node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null }, @{ name = 'node/PC//node/Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }); operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; status = 'passed'; evidence = $evidence; omission = $null }) }
+                verification = @{ success = $true; omission = $null; finalChecks = @(@{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null }, @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }); operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; status = 'passed'; evidence = $evidence; omission = $null }) }
             } | ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20
             $expected = @(@{ operationId = 'first'; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } })
             Assert-Outcome $response @('failed', 'skipped') $false $true $expected
@@ -288,7 +288,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $items = @(); $verificationItems = @(); $expected = @()
             foreach ($operation in $operations) {
                 $settings = @{ Address = $operation.changes.ipAddress }
-                $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node' }; message = $null
+                $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node'; interfacePath = '[{"name":"X1","positionNumber":1}]' }; message = $null
                     checks = @(@{ name = 'Address'; status = 'passed'; expected = $settings.Address; observed = $settings.Address; message = $null }) }
                 $items += @{ operationId = $operation.operationId; operation = $operation.operation; status = 'succeeded'; omission = $null
                     result = @{ deviceName = 'PC'; appliedSettings = $settings; skippedSettings = @{}; verification = $evidence } }
@@ -298,8 +298,8 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $true; omission = $null
                 batch = @{ operations = $items }
                 verification = @{ success = $true; omission = $null; operations = $verificationItems; finalChecks = @(
-                    @{ name = 'node/PC//node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
-                    @{ name = 'node/PC//node/Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
+                    @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
+                    @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
             $response = $response | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
             $scenario = '{{scenario}}'
             switch ($scenario) {
@@ -309,7 +309,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                     $response.batch.operations[0].result.appliedSettings = [pscustomobject]@{ IoSystem = '1' }
                     $response.verification.operations[0].evidence.checks = @([pscustomobject]@{ name = 'IoSystem'; status = 'passed'; expected = '["exact-subnet",1]'; observed = '["exact-subnet",1]'; message = $null })
                     $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
-                    $response.verification.finalChecks[1].name = 'node/PC//node/IoSystem'; $response.verification.finalChecks[1].expected = '["exact-subnet",1]'; $response.verification.finalChecks[1].observed = '["exact-subnet",1]'
+                    $response.verification.finalChecks[1].name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/IoSystem'; $response.verification.finalChecks[1].expected = '["exact-subnet",1]'; $response.verification.finalChecks[1].observed = '["exact-subnet",1]'
                     $expected = @(@{ operationId = 'first'; appliedSettings = @{ IoSystem = '1' }; skippedSettings = @{} })
                     if ($scenario -eq 'wrong-io-subnet') { $response.verification.operations[0].evidence.checks[0].expected = '["other",1]'; $response.verification.operations[0].evidence.checks[0].observed = '["other",1]' }
                 }
@@ -351,7 +351,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 'empty-final' { $response.verification.finalChecks = @() }
                 'missing-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0]) }
                 'duplicate-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0], $response.verification.finalChecks[0]) }
-                'wrong-final-name' { $response.verification.finalChecks[1].name = 'node/PC//other/Address' }
+                'wrong-final-name' { $response.verification.finalChecks[1].name = 'node/PC/[{"name":"X1","positionNumber":1}]/other/Address' }
                 'wrong-final-expected' { $response.verification.finalChecks[1].expected = '192.0.2.1' }
                 'unreadable-final' { $response.verification.finalChecks[1].observed = $null }
                 'contradictory-final-status' { $response.verification.finalChecks[1].observed = 'wrong' }
@@ -721,6 +721,21 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             """);
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
         Assert.Equal("legacy-inventory-constraints-ok", result.StandardOutput.Trim());
+    }
+
+
+    // Supplemental causal RED: unqualified read rows must never become write map keys.
+    [Fact]
+    public void UnqualifiedWriteIdentity_HasNoMapKey()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            $rejected=$false
+            try{$null=Get-NetworkNodeKey @{deviceName='PLC_1';nodeId='E1'}}catch{$rejected=$true}
+            if(-not $rejected){throw 'Unqualified device/node identity became a write map key.'}
+            'unqualified-map-key-rejected'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("unqualified-map-key-rejected", result.StandardOutput.Trim());
     }
 
     private static string FindRepositoryFile(params string[] segments)
