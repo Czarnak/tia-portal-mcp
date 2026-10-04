@@ -132,6 +132,7 @@ public sealed class BindProjectToolProtocolTests
     [InlineData("relative.ap21")]
     [InlineData("C:A.ap21")]
     [InlineData("C:/Projects/A.txt")]
+    [InlineData("C:/Projects/A.als21")]
     [InlineData("C:/Projects/A.ap21/child")]
     public async Task BindProject_RejectsRelativeOrNonAp21Path(string path)
     {
