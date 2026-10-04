@@ -20,6 +20,43 @@ public class NetworkIdentityResolverTests
         Changes = new() { IpAddress = "192.168.12.99" }
     };
 
+    [Fact]
+    public void PreparedLegacyTarget_DoesNotSwitchInterfaces()
+    {
+        var state = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true });
+        state.Devices[0].Items[0].TypeIdentifier = "CPU";
+        state.Devices[0].Items[0].Items[0].TypeIdentifier = "X1Type";
+        var request = RepairRequest(); request.Target!.InterfacePath = null;
+        request.Target.ItemPath = new[] { new NetworkDeviceItemPathSegment { Index = 0, Name = "PLC_DP", PositionNumber = 1, TypeIdentifier = "CPU" },
+            new NetworkDeviceItemPathSegment { Index = 0, Name = "PROFINET interface_1", PositionNumber = 32768, TypeIdentifier = "X1Type" } };
+        request.Target.NodeIndex = 0; request.Target.InterfaceName = "PROFINET interface_1";
+        var initial = NetworkIdentityResolver.Resolve(request, state);
+        Assert.True(initial.Success, initial.Error);
+        var prepared = NetworkIdentityResolver.BindPreparedTarget(request, initial.Evidence!);
+        request.Target.ItemPath[1].Index = 1;
+        Assert.Equal(0, prepared.Target!.ItemPath![1].Index);
+        Assert.Null(prepared.Target.InterfacePath);
+        state.Devices[0].Items[0].Items.Reverse();
+        Assert.False(NetworkIdentityResolver.Resolve(prepared, state).Success);
+    }
+
+    [Fact]
+    public void PreparedBareTarget_FreezesOwnerAndDoesNotMutateCaller()
+    {
+        var state = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true });
+        state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].NodeId = "Other";
+        var request = RepairRequest(); request.Target!.InterfacePath = null;
+        var initial = NetworkIdentityResolver.Resolve(request, state);
+        Assert.True(initial.Success, initial.Error);
+        var prepared = NetworkIdentityResolver.BindPreparedTarget(request, initial.Evidence!);
+        Assert.Null(request.Target.InterfacePath);
+        Assert.Equal(32768, prepared.Target!.InterfacePath![1].PositionNumber);
+        state.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].NodeId = "Other";
+        state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].NodeId = "E1";
+        Assert.True(NetworkIdentityResolver.Resolve(request, state).Success);
+        Assert.False(NetworkIdentityResolver.Resolve(prepared, state).Success);
+    }
+
     [Theory]
     [InlineData(32768)]
     [InlineData(33024)]
@@ -179,6 +216,7 @@ public class NetworkIdentityResolverTests
     {
         Name = name,
         TypeIdentifier = "OrderNumber:TEST",
+        PositionNumber = 1,
         NetworkInterfaces = new List<NetworkInterfaceInfo> { networkInterface },
         Items = new List<DeviceItemInfo>(),
     };
@@ -187,6 +225,7 @@ public class NetworkIdentityResolverTests
     {
         Name = name,
         TypeIdentifier = "OrderNumber:TEST",
+        PositionNumber = 1,
         NetworkInterfaces = new List<NetworkInterfaceInfo>(),
         Items = children.ToList(),
     };

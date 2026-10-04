@@ -49,7 +49,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         bool? complete = true;
         if (item.Operation == "configure_network_device")
         {
-            var node = Nodes(state).Single(pair => NamesEqual(pair.DeviceName, target.DeviceName) && pair.Node.NodeId == target.NodeId).Node;
+            var node = NetworkIdentityResolver.PreparedNode(state, target);
             foreach (var key in requested.Keys) current[key] = Attribute(key, NodeValue(node, key),
                 key is "Subnet" or "IoSystem" ? node.ConnectionEvidence?.Complete == true : NodeValue(node, key) is not null);
             affected.Add(new() { DeviceName = target.DeviceName!, NodeId = target.NodeId! });

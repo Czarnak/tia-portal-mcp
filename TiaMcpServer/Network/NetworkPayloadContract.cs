@@ -194,8 +194,14 @@ public static class NetworkPayloadContract
             if (string.IsNullOrWhiteSpace(changes?.IoSystem?.SubnetId)) throw new JsonException("IO system subnet identity is required.");
             checks["IoSystem"] = System.Text.Json.JsonSerializer.Serialize(new object[] { changes!.IoSystem!.SubnetId!, changes.IoSystem.Number!.Value });
         }
+        var identity = new Dictionary<string, string> { ["deviceName"] = value.DeviceName, ["nodeId"] = op.Target!.NodeId! };
+        var path = op.Target.InterfacePath?.Select(x => new NetworkInterfacePathSegmentInfo
+            { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray()
+            ?? op.Target.ItemPath?.Select(x => new NetworkInterfacePathSegmentInfo
+            { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray();
+        if (path is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(path);
         ValidateVerification(value.Verification,
-            new() { ["deviceName"] = value.DeviceName, ["nodeId"] = op.Target!.NodeId! }, checks,
+            identity, checks,
             allowNotRequired: checks.Count == 0);
     }
 

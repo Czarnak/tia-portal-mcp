@@ -37,16 +37,23 @@ internal static class NetworkMutationVerifier
 
     public static NetworkMutationVerificationInfo VerifyConfiguration(Project project, WorkerRequest request, ConfigureNetworkDeviceResultInfo result)
     {
-        var evidence = new NetworkMutationVerificationInfo
-        {
-            Identity = new Dictionary<string, string> { ["deviceName"] = result.DeviceName, ["nodeId"] = request.NodeId! },
-        };
+        var selector = NetworkConfigurationTargetBinding.Resolve(request);
+        var identity = new Dictionary<string, string> { ["deviceName"] = result.DeviceName, ["nodeId"] = selector.NodeId! };
+        if (selector.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.InterfacePath);
+        else if (selector.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.ItemPath.Select(x =>
+            new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
+        var evidence = new NetworkMutationVerificationInfo { Identity = identity };
         // Resolve only when a setting was applied. A fully skipped request has no successful
         // setting to verify; the host still classifies the skipped request as a failure.
         (NetworkInterface Interface, Node Node)? target = null;
         if (result.AppliedSettings.Count > 0)
         {
-            try { target = ResolveNode(project, result.DeviceName, request.NodeId!); }
+            try
+            {
+                var selected = NetworkObjectSelectorResolver.ResolveNode(project, selector);
+                if (!selected.Success) throw new InvalidOperationException(selected.Error);
+                target = (selected.Resolved!.OwningInterface!, (Node)selected.Resolved.Value);
+            }
             catch (Exception) { /* Each applied check below explicitly becomes unverified. */ }
         }
         foreach (var setting in result.AppliedSettings)

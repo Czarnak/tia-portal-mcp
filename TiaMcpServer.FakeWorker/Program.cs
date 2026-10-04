@@ -46,6 +46,8 @@ var requestJsonOptions = WorkerJson.Envelope;
 // read round trip, not just a static fixture.
 var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-plc", IpAddress = "192.168.0.20" };
 var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
+HardwareConfigInfo? qualifiedNetworkState = null;
+var qualifiedHardwareReadCount = 0;
 HardwareConfigInfo? guardedNetworkState = null;
 HardwareConfigInfo? roundtripNetworkState = null;
 var guardedNetworkWrites = 0;
@@ -1193,13 +1195,20 @@ while ((line = Console.In.ReadLine()) is not null)
         // Phase 3: list_network_objects and inspect_network_object fixtures
         // ---------------------------------------------------------------------------
 
+        case "network-qualified-owner-drift":
+        case "network-qualified-partial":
         case "network-qualified-read":
-            var qualifiedHardware = QualifiedHardwareFixture();
+            var qualifiedHardware = qualifiedNetworkState ??= QualifiedHardwareFixture();
             var qualifiedDevice = qualifiedHardware.Devices[0];
             NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
             var qualifiedNodes = qualifiedDevice.Items[0].Items.SelectMany(item => item.NetworkInterfaces)
                 .SelectMany(networkInterface => networkInterface.Nodes).ToList();
-            if (ReadMethod(line) == "read_hardware_config") Respond(Success(ToCamelCaseJson(qualifiedHardware)));
+            if (ReadMethod(line) == "read_hardware_config")
+            {
+                if (scenario == "network-qualified-owner-drift" && ++qualifiedHardwareReadCount > 1)
+                    qualifiedDevice.Items[0].Items[0].Name = "Changed owner";
+                Respond(Success(ToCamelCaseJson(qualifiedHardware)));
+            }
             else if (ReadMethod(line) == "list_network_objects")
                 Respond(Success(ToCamelCaseJson(new NetworkObjectListInfo { TotalCount = 2, ReturnedCount = 2,
                     Items = qualifiedNodes.Select(node => new NetworkObjectSummaryInfo { Kind = NetworkObjectKinds.Node,
@@ -1222,6 +1231,8 @@ while ((line = Console.In.ReadLine()) is not null)
                     Evidence = new() { NodeName = selectedNode.Item.Name, Address = selectedNode.Item.IpAddress,
                         InterfaceName = selectedInterface.Name } })));
             }
+            else if (ReadMethod(line) == "configure_network_device")
+                Respond(ConfigureQualifiedFixture(line, qualifiedHardware, scenario));
             else Respond("""{"success":false,"error":"unsupported qualified-read fixture operation"}""");
             break;
 
@@ -2895,6 +2906,39 @@ HardwareConfigInfo AmbiguousNodeHardwareConfig() => new()
     },
 };
 
+string ConfigureQualifiedFixture(string line, HardwareConfigInfo state, string scenario)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(line, requestJsonOptions)!;
+    NetworkObjectSelectorInfo target;
+    try { target = NetworkConfigurationTargetBinding.Resolve(request); }
+    catch (WorkerOperationException ex) { return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message }); }
+    var device = state.Devices.Single();
+    if (!string.Equals(device.Name, target.DeviceName, StringComparison.OrdinalIgnoreCase))
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.TargetNotFound, Error = "Device not found." });
+    if (target.InterfacePath is null)
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.TargetAmbiguous, Error = "Use qualified interfacePath." });
+    var owner = NetworkInterfacePathMatcher.Match(device.Items, target.InterfacePath, x => x.Items, x => x.Name, x => x.PositionNumber, x => x.TypeIdentifier);
+    if (!owner.Success) return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = owner.FailureCategory, Error = owner.Error });
+    var networkInterface = owner.Item!.NetworkInterfaces.Single();
+    var node = NetworkNodeReadSelectorBuilder.MatchNode(networkInterface.Nodes, target.NodeId, target.NodeIndex, x => x.NodeId);
+    if (!node.Success || target.InterfaceName is not null && target.InterfaceName != networkInterface.Name)
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = node.FailureCategory ?? WorkerFailureCategories.TargetEvidenceMismatch, Error = node.Error ?? "Interface constraint mismatch." });
+    // Preflight all dependency selectors before any scalar mutation.
+    if (request.SubnetId is not null || request.IoSystemNumber is not null)
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Requested dependency was not found; no mutation." });
+    var applied = new Dictionary<string, string>();
+    var skipped = new Dictionary<string, string>();
+    if (request.IpAddress is not null) { node.Item!.IpAddress = request.IpAddress; applied["Address"] = request.IpAddress; }
+    if (request.SubnetMask is not null)
+    {
+        if (scenario == "network-qualified-partial") skipped["SubnetMask"] = "Read only";
+        else { node.Item!.SubnetMask = request.SubnetMask; applied["SubnetMask"] = request.SubnetMask; }
+    }
+    if (request.PnDeviceName is not null) { node.Item!.PnDeviceName = request.PnDeviceName; applied["PnDeviceName"] = request.PnDeviceName; }
+    return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo { DeviceName = request.DeviceName!, AppliedSettings = applied,
+        SkippedSettings = skipped, Verification = FakeConfigurationVerification(line, request.DeviceName!, applied) }));
+}
+
 HardwareConfigInfo QualifiedHardwareFixture() => new()
 {
     RootDeviceCount = 1,
@@ -3714,7 +3758,12 @@ NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine
     var values = new Dictionary<string, string>(applied);
     if (values.ContainsKey("IoSystem")) values["IoSystem"] = JsonSerializer.Serialize(new object?[]
         { ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId"), ReadIntField(requestLine, "ioSystemNumber") });
-    return FakePassedVerification(new() { ["deviceName"] = deviceName, ["nodeId"] = ReadField(requestLine, "nodeId")! }, values);
+    var identity = new Dictionary<string, string> { ["deviceName"] = deviceName, ["nodeId"] = ReadField(requestLine, "nodeId")! };
+    var target = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!.NetworkObjectTarget;
+    if (target?.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.InterfacePath);
+    else if (target?.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.ItemPath.Select(x =>
+        new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
+    return FakePassedVerification(identity, values);
 }
 
 NetworkMutationVerificationInfo FakeSubnetVerification(string requestLine, string subnetId)

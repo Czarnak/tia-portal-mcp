@@ -14,6 +14,7 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
     private readonly Dictionary<string, NetworkWriteEffect> _initial = new(StringComparer.Ordinal);
     private readonly Dictionary<string, NetworkWriteEffect> _current = new(StringComparer.Ordinal);
     private readonly Dictionary<string, NetworkMutationVerificationInfo> _immediate = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, NetworkOperationRequest> _prepared = new(StringComparer.Ordinal);
     private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
     public string ToolName => "network_write";
     public string ContractVersion => NetworkContractVersion.Current;
@@ -34,6 +35,7 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
         if (plan.Success) for (var i = 0; i < items.Count; i++)
         {
             var effect = plan.Items[i].Effect!;
+            _prepared.TryAdd(items[i].OperationId, NetworkIdentityResolver.BindPreparedTarget(items[i], effect.Target));
             _initial.TryAdd(items[i].OperationId, Copy(effect));
             _current[items[i].OperationId] = Copy(effect);
         }
@@ -55,15 +57,15 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
     }
     public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(string? path, NetworkOperationRequest item)
     {
-        var replan = await _planner.ReplanAsync(path, item).ConfigureAwait(false);
+        var replan = await _planner.ReplanAsync(path, _prepared.GetValueOrDefault(item.OperationId) ?? item).ConfigureAwait(false);
         if (replan.Success) _current[item.OperationId] = Copy(replan.Plan!.Effect!);
         return replan;
     }
     public Task<WorkerCallResult> MutateAsync(string? path, NetworkOperationRequest item)
-    { _attempted.Add(item.OperationId); return NetworkWorkerInvoker.InvokeWriteAsync(client, item, path); }
+    { _attempted.Add(item.OperationId); return NetworkWorkerInvoker.InvokeWriteAsync(client, _prepared.GetValueOrDefault(item.OperationId) ?? item, path); }
     public StructuredOperationItem Project(NetworkOperationRequest item, WorkerCallResult result)
     {
-        var projected = NetworkPayloadContract.Project(item, result, requireVerification: true);
+        var projected = NetworkPayloadContract.Project(_prepared.GetValueOrDefault(item.OperationId) ?? item, result, requireVerification: true);
         if (projected.Result is { } typed && typed.TryGetProperty("verification", out var verification))
             _immediate[item.OperationId] = CanonicalJson.Deserialize<NetworkMutationVerificationInfo>(verification.GetRawText());
         return projected;

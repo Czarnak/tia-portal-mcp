@@ -1,4 +1,6 @@
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Contracts;
+using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.Network;
 
@@ -57,4 +59,5 @@ public sealed record NetworkWriteTargetEvidence(
     string? SubnetName,
     string? SubnetId,
     string? IoSystemName,
-    int? IoSystemNumber);
+    int? IoSystemNumber,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<NetworkInterfacePathSegmentInfo>? InterfacePath = null);

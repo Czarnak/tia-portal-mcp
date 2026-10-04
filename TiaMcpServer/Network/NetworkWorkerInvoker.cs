@@ -94,8 +94,7 @@ public static class NetworkWorkerInvoker
                 operation.DeviceItemName ?? operation.DeviceName!,
                 projectPath),
             "configure_network_device" => client.ConfigureNetworkDeviceAsync(
-                operation.Target!.DeviceName!,
-                operation.Target!.NodeId!,
+                MapSelector(operation.Target!),
                 operation.Changes!.IpAddress,
                 operation.Changes!.SubnetMask,
                 operation.Changes!.PnDeviceName,

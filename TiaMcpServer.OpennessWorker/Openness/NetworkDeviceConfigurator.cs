@@ -7,19 +7,9 @@ using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 
-/// <summary>
-/// Applies a <c>configure_network_device</c> request against a live TIA project.
-///
-/// <para>
-/// Every selector — device, node, subnet, IO system — is resolved to exactly one matching object
-/// before anything is written. A device may expose several interfaces and nodes (a multi-homed PC
-/// station, for instance), so <paramref name="nodeId"/> is matched against every node under every
-/// interface under every nested device item, never just the first one found. Zero matches, more
-/// than one match, or unreadable candidate identity denies selection. Requested dependency
-/// preflight and incomplete discovery use worker_operation_failed before mutation; existing
-/// complete device/node mismatch categories remain unchanged. No selector uses a name-only fallback.
-/// </para>
-/// </summary>
+/// <summary>Resolves the complete node selector and all requested subnet/IO dependencies before
+/// the first scalar setter. Bare signatures forward to the same exact owner/node resolver.
+/// Completed attempts retain sparse applied and skipped maps for recovery.</summary>
 public static class NetworkDeviceConfigurator
 {
     public static ConfigureNetworkDeviceResultInfo Configure(
@@ -32,14 +22,19 @@ public static class NetworkDeviceConfigurator
         string? subnetId,
         string? ioSystemSubnetId,
         int? ioSystemNumber)
-    {
-        var result = new ConfigureNetworkDeviceResultInfo
-        {
-            DeviceName = deviceName
-        };
+        => Configure(project, new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
+            ipAddress, subnetMask, pnDeviceName, subnetId, ioSystemSubnetId, ioSystemNumber);
 
-        var device = FindExactlyOneDevice(project, deviceName);
-        var (networkInterface, node) = FindExactlyOneNode(device, deviceName, nodeId);
+    public static ConfigureNetworkDeviceResultInfo Configure(Project project, NetworkObjectSelectorInfo target,
+        string? ipAddress, string? subnetMask, string? pnDeviceName, string? subnetId, string? ioSystemSubnetId, int? ioSystemNumber)
+    {
+        var selection = NetworkObjectSelectorResolver.ResolveNode(project, target);
+        if (!selection.Success) throw new WorkerOperationException(selection.FailureCategory!, selection.Error!);
+        var resolved = selection.Resolved!;
+        var deviceName = target.DeviceName!;
+        var result = new ConfigureNetworkDeviceResultInfo { DeviceName = deviceName };
+        var networkInterface = resolved.OwningInterface!;
+        var node = (Node)resolved.Value;
 
         // Prove dependency selection before the first setter. An invalid IO selector is denied
         // even if a later subnet connection might have failed and made that IO attach a skip.
@@ -111,116 +106,6 @@ public static class NetworkDeviceConfigurator
         }
 
         return ioSystemSubnetId!;
-    }
-
-    /// <summary>Matches exactly one device by name, case-insensitively. Zero or multiple matches fail closed.</summary>
-    private static Device FindExactlyOneDevice(Project project, string deviceName)
-    {
-        var unreadable = false;
-        var matches = ProjectDeviceNameMatcher.FindMatches(
-            project,
-            deviceName,
-            _ => unreadable = true);
-        var failure = NetworkPostconditionChecks.ClassifySelection(matches.Count, !unreadable);
-        if (failure is null)
-        {
-            return matches[0].Device;
-        }
-
-        throw new WorkerOperationException(
-            failure,
-            unreadable ? "Device identity discovery was unreadable. No configuration was attempted."
-                : matches.Count > 1
-                ? $"Multiple devices are named '{deviceName}'; device names must be unique to select one exactly."
-                : $"No device named '{deviceName}' was found in the project.");
-    }
-
-    /// <summary>
-    /// Matches exactly one node by nodeId across every network interface under every nested device
-    /// item of <paramref name="device"/> — a device may expose several interfaces and nodes (for
-    /// example a multi-homed PC station), so every one of them is a candidate, never just the
-    /// first. Zero or multiple matches fail closed.
-    /// </summary>
-    private static (NetworkInterface Interface, Node Node) FindExactlyOneNode(Device device, string deviceName, string nodeId)
-    {
-        NetworkInterface? matchedInterface = null;
-        Node? matchedNode = null;
-        var count = 0;
-        var unreadable = false;
-
-        foreach (var (networkInterface, node) in EnumerateNodes(device))
-        {
-            var candidateId = OpennessReflection.ReadPropertyOrAttribute(node, "NodeId");
-            if (string.IsNullOrWhiteSpace(candidateId)) unreadable = true;
-            if (!IdentitiesMatch(candidateId, nodeId))
-            {
-                continue;
-            }
-
-            count++;
-            if (count == 1)
-            {
-                matchedInterface = networkInterface;
-                matchedNode = node;
-            }
-        }
-
-        var failure = NetworkPostconditionChecks.ClassifySelection(count, !unreadable);
-        if (failure is null)
-        {
-            return (matchedInterface!, matchedNode!);
-        }
-
-        throw new WorkerOperationException(
-            failure,
-            unreadable ? "Node identity discovery was unreadable. No configuration was attempted."
-                : count > 1
-                ? $"Device '{deviceName}': multiple nodes report nodeId '{nodeId}'; nodeId must select exactly one node."
-                : $"Device '{deviceName}': no node with nodeId '{nodeId}' was found.");
-    }
-
-    private static IEnumerable<(NetworkInterface Interface, Node Node)> EnumerateNodes(Device device)
-    {
-        foreach (DeviceItem item in device.DeviceItems)
-        {
-            foreach (var candidate in EnumerateItem(item))
-            {
-                yield return candidate;
-            }
-        }
-    }
-
-    private static IEnumerable<(NetworkInterface Interface, Node Node)> EnumerateItem(DeviceItem item)
-    {
-        var networkInterface = TryGetNetworkInterface(item);
-        if (networkInterface is not null)
-        {
-            foreach (Node node in networkInterface.Nodes)
-            {
-                yield return (networkInterface, node);
-            }
-        }
-
-        foreach (DeviceItem child in item.DeviceItems)
-        {
-            foreach (var candidate in EnumerateItem(child))
-            {
-                yield return candidate;
-            }
-        }
-    }
-
-    private static NetworkInterface? TryGetNetworkInterface(DeviceItem item)
-    {
-        try
-        {
-            return ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
-        }
-        catch (EngineeringException)
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
-                "Network interface discovery was unreadable. No configuration was attempted.");
-        }
     }
 
     private static void ApplyNodeAttribute(

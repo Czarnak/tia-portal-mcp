@@ -8,6 +8,59 @@ namespace TiaMcpServer.Tests.Network;
 [Collection(RealWorkerProcessCollection.Name)]
 public sealed class NetworkGuardedWriteOrderingTests
 {
+    [Theory]
+    [InlineData("bare")]
+    [InlineData("position")]
+    [InlineData("type")]
+    [InlineData("interface")]
+    [InlineData("index")]
+    public async Task WrongQualifiedOrBareConstraints_RefuseBeforeMutationDispatch(string constraint)
+    {
+        using var audit = new TempAuditDirectory();
+        var log = Path.Combine(audit.Path, "requests.log"); Directory.CreateDirectory(audit.Path);
+        var prior = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG");
+        Environment.SetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG", log);
+        try
+        {
+            using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+            var operation = new NetworkOperationRequest { OperationId = "write", Operation = "configure_network_device", Target = new()
+            { DeviceName = "S7-1500/ET200MP station_1", NodeId = "E1", InterfacePath = new[]
+                { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
+                  new NetworkInterfacePathSegment { Name = "PROFINET interface_1", PositionNumber = 32768 } } }, Changes = new() { IpAddress = "10.0.0.1" } };
+            if (constraint == "bare") operation.Target.InterfacePath = null;
+            if (constraint == "position") operation.Target.InterfacePath![1].PositionNumber = 33024;
+            if (constraint == "type") operation.Target.InterfacePath![1].TypeIdentifier = "Missing type";
+            if (constraint == "interface") operation.Target.InterfaceName = "PROFINET interface_2";
+            if (constraint == "index") operation.Target.NodeIndex = 1;
+            // Repeat the same refusal; neither call may dispatch a mutation or consume an owner guess.
+            Assert.False((await fixture.RunAsync(false, operation)).Success);
+            Assert.False((await fixture.RunAsync(false, operation)).Success);
+            Assert.DoesNotContain("configure_network_device", File.ReadAllLines(log));
+        }
+        finally { Environment.SetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG", prior); }
+    }
+
+    [Fact]
+    public async Task QualifiedLateOwnerChange_RefusesBeforeMutationDispatch()
+    {
+        using var audit = new TempAuditDirectory();
+        var log = Path.Combine(audit.Path, "requests.log"); Directory.CreateDirectory(audit.Path);
+        var prior = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG");
+        Environment.SetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG", log);
+        try
+        {
+            using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-owner-drift");
+            var operation = new NetworkOperationRequest { OperationId = "write", Operation = "configure_network_device", Target = new()
+            { DeviceName = "S7-1500/ET200MP station_1", NodeId = "E1", InterfacePath = new[]
+                { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
+                  new NetworkInterfacePathSegment { Name = "PROFINET interface_1", PositionNumber = 32768 } } }, Changes = new() { IpAddress = "10.0.0.1" } };
+            var response = await fixture.RunAsync(false, operation);
+            Assert.False(response.Success);
+            Assert.DoesNotContain("configure_network_device", File.ReadAllLines(log));
+        }
+        finally { Environment.SetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG", prior); }
+    }
+
     [Fact]
     public async Task DifferentDeviceCasing_RepeatedSettingsSupersedeWithoutChangingImmediateIdentity()
     {

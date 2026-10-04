@@ -800,14 +800,23 @@ public class OpennessWorkerClient : IDisposable
         string? ioSystemSubnetId,
         int? ioSystemNumber,
         string? projectPath)
+        => ConfigureNetworkDeviceAsync(new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
+            ipAddress, subnetMask, pnDeviceName, subnetId, ioSystemSubnetId, ioSystemNumber, projectPath);
+
+    public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(NetworkObjectSelectorInfo target,
+        string? ipAddress, string? subnetMask, string? pnDeviceName, string? subnetId,
+        string? ioSystemSubnetId, int? ioSystemNumber, string? projectPath)
     {
+        // Freeze before asynchronous binding/IPC work can yield to the caller.
+        var prepared = JsonSerializer.Deserialize<NetworkObjectSelectorInfo>(JsonSerializer.Serialize(target, WorkerJson.Envelope), WorkerJson.Envelope)!;
         return SendBoundProjectRequestAsync(
             "configure_network_device",
             projectPath,
             request =>
             {
-                request.DeviceName = deviceName;
-                request.NodeId = nodeId;
+                request.NetworkObjectTarget = prepared;
+                request.DeviceName = prepared.DeviceName;
+                request.NodeId = prepared.NodeId;
                 request.IpAddress = ipAddress;
                 request.SubnetMask = subnetMask;
                 request.PnDeviceName = pnDeviceName;

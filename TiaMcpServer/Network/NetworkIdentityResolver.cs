@@ -227,21 +227,9 @@ public static class NetworkIdentityResolver
         if (OrEmpty(state.Devices).Any(candidate => string.IsNullOrWhiteSpace(candidate.Name)))
             return UnreadableIdentity(operation.OperationId, "project device-name");
         var device = deviceMatch.Match!;
-        var nodeMatch = MatchExactlyOne(
-            EnumerateNodes(device),
-            candidate => IdentitiesMatch(candidate.Node.NodeId, target.NodeId));
-        if (!nodeMatch.IsResolved)
-        {
-            return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.PostconditionFailed,
-                nodeMatch.IsAmbiguous
-                    ? $"{prefix}: multiple nodes on device '{target.DeviceName}' report nodeId '{target.NodeId}'; nodeId must select exactly one node."
-                    : $"{prefix}: no node with nodeId '{target.NodeId}' was found on device '{target.DeviceName}'.");
-        }
-
-        if (EnumerateNodes(device).Any(candidate => string.IsNullOrWhiteSpace(candidate.Node.NodeId)))
-            return UnreadableIdentity(operation.OperationId, $"device '{device.Name}' node-ID");
-        var matchedNode = nodeMatch.Match!;
+        var selection = SelectNode(device, target);
+        if (selection.Error is not null) return NetworkIdentityResolution.Fail(selection.Category!, $"{prefix}: {selection.Error}");
+        var matchedNode = selection.Candidate!;
         var resolvedNode = matchedNode.Node;
         var deviceItemPath = matchedNode.Path;
         var networkInterfaceName = matchedNode.InterfaceName;
@@ -310,48 +298,101 @@ public static class NetworkIdentityResolver
             resolvedSubnet?.Name,
             resolvedSubnet?.SubnetId,
             resolvedIoSystem?.Name,
-            resolvedIoSystem?.Number));
+            resolvedIoSystem?.Number,
+            matchedNode.OwnerPath));
     }
 
     private static NetworkIdentityResolution UnreadableIdentity(string operationId, string identityNamespace)
         => NetworkIdentityResolution.Fail(WorkerFailureCategories.WorkerOperationFailed,
             $"Operation '{operationId}': required {identityNamespace} identities are unreadable; exact selection cannot be proved. Inspect the hardware configuration before retrying.");
 
-    /// <summary>
-    /// Walks every nested device item and every network interface under it, depth first, yielding
-    /// every node together with the device-item path and interface it was found under. Null nested
-    /// collections are treated as empty rather than dereferenced.
-    /// </summary>
-    private static IEnumerable<NodeCandidate> EnumerateNodes(DeviceInfo device)
+    /// <summary>Freezes the request and fills only an underspecified bare owner's path.</summary>
+    public static NetworkOperationRequest BindPreparedTarget(NetworkOperationRequest item, NetworkWriteTargetEvidence target)
     {
-        foreach (var item in OrEmpty(device.Items))
-        {
-            foreach (var candidate in EnumerateItem(item, Array.Empty<string>()))
-            {
-                yield return candidate;
-            }
-        }
+        var copy = TiaMcpServer.Json.CanonicalJson.Deserialize<NetworkOperationRequest>(TiaMcpServer.Json.CanonicalJson.Serialize(item));
+        if (copy.Operation == "configure_network_device" && copy.Target!.InterfacePath is null && copy.Target.ItemPath is null)
+            copy.Target.InterfacePath = target.InterfacePath?.Select(segment => new NetworkInterfacePathSegment
+            { Name = segment.Name, PositionNumber = segment.PositionNumber, TypeIdentifier = segment.TypeIdentifier }).ToArray()
+                ?? throw new InvalidOperationException("Prepared configuration target has no qualified owner identity.");
+        return copy;
     }
 
-    private static IEnumerable<NodeCandidate> EnumerateItem(DeviceItemInfo item, IReadOnlyList<string> parentPath)
+    internal static NodeInfo PreparedNode(HardwareConfigInfo state, NetworkWriteTargetEvidence target)
     {
-        var path = new List<string>(parentPath) { item.Name ?? string.Empty };
+        var device = state.Devices.Single(d => NamesMatch(d.Name, target.DeviceName));
+        var owner = NetworkInterfacePathMatcher.Match(device.Items, target.InterfacePath!, i => i.Items,
+            i => i.Name, i => i.PositionNumber, i => i.TypeIdentifier);
+        if (!owner.Success) throw new InvalidOperationException("Resolved owner evidence changed within the decoded snapshot.");
+        return owner.Item!.NetworkInterfaces.Single().Nodes.Single(n => IdentitiesMatch(n.NodeId, target.NodeId));
+    }
 
+    private static (NodeCandidate? Candidate, string? Category, string? Error) SelectNode(DeviceInfo device, NetworkObjectTarget target)
+    {
+        IReadOnlyList<NetworkInterfacePathSegmentInfo>? path = target.InterfacePath?.Select(x => new NetworkInterfacePathSegmentInfo
+        { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray();
+        if (target.InterfacePath is not null && target.ItemPath is not null)
+            return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Both owner path forms were supplied.");
+        if (target.ItemPath is not null)
+        {
+            if (target.NodeIndex is null) return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Legacy itemPath requires nodeIndex.");
+            var siblings = device.Items;
+            foreach (var segment in target.ItemPath)
+            {
+                if (segment.Index is not int index || index < 0 || index >= siblings.Count)
+                    return (null, WorkerFailureCategories.TargetNotFound, "Legacy itemPath index was not found.");
+                var item = siblings[index];
+                if (item.Name != segment.Name || item.PositionNumber != segment.PositionNumber || item.TypeIdentifier != segment.TypeIdentifier
+                    || string.IsNullOrWhiteSpace(segment.TypeIdentifier))
+                    return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Legacy itemPath evidence does not match.");
+                siblings = item.Items;
+            }
+            path = target.ItemPath.Select(x => new NetworkInterfacePathSegmentInfo
+            { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray();
+        }
+        if (path is not null)
+        {
+            var owner = NetworkInterfacePathMatcher.Match(device.Items, path, i => i.Items, i => i.Name, i => i.PositionNumber, i => i.TypeIdentifier);
+            if (!owner.Success) return (null, owner.FailureCategory, owner.Error);
+            if (owner.Item!.NetworkInterfaces.Count != 1)
+                return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Selected owner does not expose exactly one interface.");
+            var networkInterface = owner.Item.NetworkInterfaces[0];
+            if (target.InterfaceName is not null && target.InterfaceName != networkInterface.Name)
+                return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Selected interface name constraint does not match.");
+            if (networkInterface.Nodes.Any(n => string.IsNullOrWhiteSpace(n.NodeId)))
+                return (null, WorkerFailureCategories.WorkerOperationFailed, "Selected interface node identities are unreadable.");
+            var matches = networkInterface.Nodes.Where(n => IdentitiesMatch(n.NodeId, target.NodeId)).ToArray();
+            if (matches.Length != 1) return (null, matches.Length == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous,
+                "Node identity must be unique within the selected interface.");
+            if (target.NodeIndex is int index && (index < 0 || index >= networkInterface.Nodes.Count || !ReferenceEquals(networkInterface.Nodes[index], matches[0])))
+                return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Node index constraint does not match.");
+            return (new(path.Select(x => x.Name).ToArray(), path, networkInterface.Name, matches[0]), null, null);
+        }
+        if (target.NodeIndex is not null || target.InterfaceName is not null)
+            return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Node constraints require an owner path.");
+        if (string.IsNullOrWhiteSpace(target.NodeId))
+            return (null, WorkerFailureCategories.PostconditionFailed, "No node with nodeId was found.");
+        var candidates = EnumerateNodes(device).ToArray();
+        if (candidates.Any(x => string.IsNullOrWhiteSpace(x.Node.NodeId)))
+            return (null, WorkerFailureCategories.WorkerOperationFailed, "Device node identities are unreadable.");
+        var matched = candidates.Where(x => IdentitiesMatch(x.Node.NodeId, target.NodeId)).ToArray();
+        if (matched.Length != 1) return (null, WorkerFailureCategories.PostconditionFailed,
+            matched.Length == 0 ? "No node with nodeId was found." : "Multiple nodes match this bare nodeId. Use the interfacePath selector returned by read_hardware_config or list_network_objects.");
+        var proof = NetworkInterfacePathMatcher.Match(device.Items, matched[0].OwnerPath, i => i.Items, i => i.Name, i => i.PositionNumber, i => i.TypeIdentifier);
+        if (!proof.Success) return (null, proof.FailureCategory, proof.Error);
+        return SelectNode(device, new NetworkObjectTarget { DeviceName = target.DeviceName, NodeId = target.NodeId,
+            InterfacePath = matched[0].OwnerPath.Select(x => new NetworkInterfacePathSegment
+            { Name = x.Name, PositionNumber = x.PositionNumber }).ToArray() });
+    }
+
+    private static IEnumerable<NodeCandidate> EnumerateNodes(DeviceInfo device) => OrEmpty(device.Items).SelectMany(item => EnumerateItem(item, Array.Empty<NetworkInterfacePathSegmentInfo>()));
+    private static IEnumerable<NodeCandidate> EnumerateItem(DeviceItemInfo item, IReadOnlyList<NetworkInterfacePathSegmentInfo> parent)
+    {
+        var path = parent.Concat(new[] { new NetworkInterfacePathSegmentInfo { Name = item.Name ?? string.Empty, PositionNumber = item.PositionNumber ?? -1 } }).ToArray();
         foreach (var networkInterface in OrEmpty(item.NetworkInterfaces))
-        {
             foreach (var node in OrEmpty(networkInterface.Nodes))
-            {
-                yield return new NodeCandidate(path, networkInterface.Name, node);
-            }
-        }
-
+                yield return new(path.Select(x => x.Name).ToArray(), path, networkInterface.Name, node);
         foreach (var child in OrEmpty(item.Items))
-        {
-            foreach (var candidate in EnumerateItem(child, path))
-            {
-                yield return candidate;
-            }
-        }
+            foreach (var candidate in EnumerateItem(child, path)) yield return candidate;
     }
 
     /// <summary>Case-insensitive, matching the worker's existing device-name lookup.</summary>
@@ -401,7 +442,7 @@ public static class NetworkIdentityResolver
         return new MatchOutcome<T>(count, match);
     }
 
-    private sealed record NodeCandidate(IReadOnlyList<string> Path, string InterfaceName, NodeInfo Node);
+    private sealed record NodeCandidate(IReadOnlyList<string> Path, IReadOnlyList<NetworkInterfacePathSegmentInfo> OwnerPath, string InterfaceName, NodeInfo Node);
 
     /// <summary>
     /// Wraps a match count so a single ambiguity/absence rule can be applied uniformly at every

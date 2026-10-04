@@ -70,6 +70,83 @@ public class NetworkOperationFakeWorkerTests
         Changes = new NetworkDeviceChanges { IpAddress = ipAddress },
     };
 
+    private static NetworkOperationRequest QualifiedConfigure(string id, int position = 32768) => new()
+    {
+        OperationId = id, Operation = "configure_network_device", Target = new() { Kind = "node", DeviceName = "S7-1500/ET200MP station_1", NodeId = "E1",
+            InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
+                new NetworkInterfacePathSegment { Name = position == 32768 ? "PROFINET interface_1" : "PROFINET interface_2", PositionNumber = position } } },
+        Changes = new() { IpAddress = "192.168.12.99" }
+    };
+
+    [Fact]
+    public async Task PreparedDomainRequest_DetachesCallerOwnerBeforeReplanAndDispatch()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+        var operation = QualifiedConfigure("prepare");
+        var domain = new NetworkWriteDomain(fixture.Client);
+        Assert.True((await domain.PlanAsync("network-qualified-read", new[] { operation })).Success);
+        operation.Target!.InterfacePath![1].Name = "PROFINET interface_2";
+        operation.Target.InterfacePath[1].PositionNumber = 33024;
+        Assert.True((await domain.ReplanAsync("network-qualified-read", operation)).Success);
+        var result = await domain.MutateAsync("network-qualified-read", operation);
+        Assert.Equal("succeeded", domain.Project(operation, result).Status);
+        var state = (await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read")).State!;
+        Assert.Equal("192.168.12.99", state.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].IpAddress);
+        Assert.Equal("192.168.13.20", state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
+    }
+
+    [Fact]
+    public async Task ConfigureX1_DoesNotChangeX2()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+        var operation = QualifiedConfigure("X1");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, operation, "network-qualified-read");
+        Assert.True(result.Success, result.Error);
+        Assert.Equal("succeeded", NetworkPayloadContract.Project(operation, result, true).Status);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read");
+        Assert.True(snapshot.Success, snapshot.Error);
+        var owners = snapshot.State!.Devices[0].Items[0].Items;
+        Assert.Equal("192.168.12.99", owners[0].NetworkInterfaces[0].Nodes[0].IpAddress);
+        Assert.Equal("192.168.13.20", owners[1].NetworkInterfaces[0].Nodes[0].IpAddress);
+        var second = QualifiedConfigure("X2", 33024); second.Changes = new() { IpAddress = "192.168.13.99" };
+        Assert.True((await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, second, "network-qualified-read")).Success);
+        snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read");
+        owners = snapshot.State!.Devices[0].Items[0].Items;
+        Assert.Equal("192.168.12.99", owners[0].NetworkInterfaces[0].Nodes[0].IpAddress);
+        Assert.Equal("192.168.13.99", owners[1].NetworkInterfaces[0].Nodes[0].IpAddress);
+    }
+
+    [Fact]
+    public async Task QualifiedPartialSkip_RetainsAppliedIdentityAndStops()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
+        var first = QualifiedConfigure("partial"); first.Changes = new() { IpAddress = "192.168.12.99", SubnetMask = "255.255.255.0" };
+        var response = await fixture.RunAsync(false, first, QualifiedConfigure("later", 33024));
+        Assert.False(response.Success); Assert.Null(response.Error);
+        var result = response.Batch!.Operations[0].Result!.Value;
+        Assert.Equal("Address", Assert.Single(result.GetProperty("appliedSettings").EnumerateObject()).Name);
+        Assert.Equal("SubnetMask", Assert.Single(result.GetProperty("skippedSettings").EnumerateObject()).Name);
+        Assert.Contains("32768", result.GetProperty("verification").GetProperty("identity").GetProperty("interfacePath").GetString());
+        Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        Assert.Equal("192.168.13.20", snapshot.State!.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
+    }
+
+    [Fact]
+    public async Task QualifiedUnknownDependency_RefusesBeforeScalarSetter()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+        var operation = QualifiedConfigure("unknown"); operation.Changes = new() { IpAddress = "192.168.12.99", IoSystem = new() { SubnetId = "missing", Number = 1 } };
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, operation, "network-qualified-read");
+        Assert.False(result.Success);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read");
+        Assert.Equal("192.168.12.2", snapshot.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].IpAddress);
+    }
+
     [Theory]
     [InlineData("network-config-partial", true)]
     [InlineData("network-config-all-skipped", false)]
