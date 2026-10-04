@@ -62,7 +62,8 @@ and the implementation record for [JSON contract Phase 3 guarded lifecycle / wri
 and its [offline validation record](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md)
 and [authorized live lifecycle validation](superpowers/acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md),
 the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
-and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md),
+and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md)
+and [PR 2 active project context plan](superpowers/plans/2026-10-05-multiuser-pr2-active-project-context.md),
 the [JSON contract Phase 1b required-member enforcement design](superpowers/specs/2026-09-28-json-contract-phase1b-required-members-design.md)
 and its [implementation plan](superpowers/plans/2026-09-28-json-contract-phase1b-required-members.md),
 the [JSON contract Phase 1a worker-wire plan](superpowers/plans/2026-09-28-json-contract-phase1a-worker-wire.md),

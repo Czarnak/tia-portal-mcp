@@ -49,6 +49,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-05 | [Multiuser PR 2 — active project context](plans/2026-10-05-multiuser-pr2-active-project-context.md) |
 | 2026-10-02 | [Lifecycle in read-write and runtime project binding](plans/2026-10-02-lifecycle-tiers-and-project-binding.md) |
 | 2026-09-30 | [Write-safety redesign Phase 1b — access modes](plans/2026-09-30-write-safety-phase1b-access-modes.md) |
 | 2026-09-29 | [Write-safety redesign Phase 1 — foundation](plans/2026-09-29-write-safety-phase1-foundation.md) |
