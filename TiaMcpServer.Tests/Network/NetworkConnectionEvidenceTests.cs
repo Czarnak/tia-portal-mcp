@@ -122,6 +122,25 @@ public sealed class NetworkConnectionEvidenceTests
         Assert.Contains("RequireSubnetIdentity(system.Subnet)", source);
     }
 
+    [Fact]
+    public void ProductionRelationshipDiagnostics_AreOwnedByTypedEvidence()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName,
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"))) directory = directory.Parent;
+        Assert.NotNull(directory);
+        var source = File.ReadAllText(Path.Combine(directory.FullName,
+            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+        Assert.DoesNotContain("messages.AddRange(nodeInfo.ConnectionEvidence.Messages)", source);
+        Assert.DoesNotContain("messages.AddRange(subnetInfo.ConnectionEvidence.Messages)", source);
+        Assert.Contains("ReadConnectedSubnetName(node, nodeDescription, relationshipMessages)", source);
+        Assert.Contains("ReadIoSystemName(networkInterface, nodeDescription, relationshipMessages)", source);
+        Assert.Contains("connected node name\", relationshipMessages)", source);
+        // Identity failures must continue to reach independent discovery diagnostics.
+        Assert.Contains("AddReadMessage(messages, nodeId", source);
+        Assert.Contains("AddReadMessage(messages, subnetId", source);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

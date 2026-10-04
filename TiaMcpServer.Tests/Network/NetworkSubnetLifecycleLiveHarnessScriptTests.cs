@@ -452,6 +452,76 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
         Assert.DoesNotMatch(new Regex(@"device[^\r\n]*\.Delete\("), source);
     }
 
+    [Theory]
+    [InlineData("empty-verification")]
+    [InlineData("null-immediate")]
+    [InlineData("missing-batch")]
+    [InlineData("wrong-operation-id")]
+    [InlineData("wrong-operation")]
+    [InlineData("wrong-subnet")]
+    [InlineData("duplicate-final")]
+    [InlineData("missing-final")]
+    [InlineData("contradictory-final")]
+    [InlineData("wrong-attribute")]
+    [InlineData("wrong-post-name")]
+    [InlineData("valid")]
+    public void LifecycleGroup_RequiresCompleteTypedEvidenceAndRetainsCanonicalApply(string variant)
+    {
+        var result = RunStaticAstAssertion("""
+            # Load definitions only; never invoke a harness mode or real transport.
+            foreach ($definition in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+                Invoke-Expression $definition.Extent.Text
+            }
+            function Check($name, $value) { @{ name=$name; expected=$value; observed=$value; status='passed'; message=$null } }
+            $operations = @(@{ operationId='update'; operation='update_subnet'; target=@{ kind='subnet'; subnetId='s' }; subnetChanges=@{ name='After'; highestAddress=63; transmissionSpeed='Baud1500000' } })
+            $checks = @((Check 'subnetIdentity' 's'), (Check 'networkDeviceCountUnchanged' '2'), (Check 'Name' 'After'), (Check 'HighestAddress' '63'), (Check 'TransmissionSpeed' 'Baud1500000'))
+            $immediate = @{ status='passed'; identity=@{ subnetId='s' }; checks=$checks }
+            $script:applied = @{
+                contractVersion='1.0'; phase='applied'; success=$true; error=$null; omission=$null
+                effects=@(@{ operationId='update'; effect=@{ operation='update_subnet'; target=@{subnetId='s'}; affectedNodes=@(); rootDeviceCount=2 }; omission=$null })
+                batch=@{ operations=@(@{ operationId='update'; operation='update_subnet'; status='succeeded'; failure=$null; omission=$null; result=@{ subnetId='s'; name='After'; networkDeviceCount=2; networkDeviceCountUnchanged=$true; verification=$immediate } }) }
+                verification=@{ success=$true; omission=$null; operations=@(@{ operationId='update'; operation='update_subnet'; status='passed'; evidence=$immediate; omission=$null }); finalChecks=@((Check 'networkDeviceCountUnchanged' '2'), (Check 'subnet/s//exists' 'true'), (Check 'subnet/s//Name' 'After'), (Check 'subnet/s//HighestAddress' '63'), (Check 'subnet/s//TransmissionSpeed' 'Baud1500000')) }
+            }
+            $script:preview = @{ success=$true; effects=$script:applied.effects }
+            $script:post = @{ devices=@(@{name='a'},@{name='b'}); subnets=@(@{subnetId='s';name='After';typeIdentifier='System:Subnet.Profibus'}) }
+            switch ('__VARIANT__') {
+                'empty-verification' { $script:applied.verification.operations=@(); $script:applied.verification.finalChecks=@() }
+                'null-immediate' { $script:applied.batch.operations[0].result.verification=$null }
+                'missing-batch' { $script:applied.batch.operations=@() }
+                'wrong-operation-id' { $script:applied.batch.operations[0].operationId='other' }
+                'wrong-operation' { $script:applied.batch.operations[0].operation='delete_subnet' }
+                'wrong-subnet' { $script:applied.batch.operations[0].result.subnetId='other' }
+                'duplicate-final' { $script:applied.verification.finalChecks += $script:applied.verification.finalChecks[0] }
+                'missing-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'subnet/s//HighestAddress') }
+                'contradictory-final' { $script:applied.verification.finalChecks[1].observed='false' }
+                'wrong-attribute' { $checks[3].expected='31'; $checks[3].observed='31' }
+                'wrong-post-name' { $script:post.subnets[0].name='Before' }
+            }
+            # Roundtrip matches the public canonical response's PSCustomObject/array types.
+            $script:applied = $script:applied | ConvertTo-Json -Depth 50 | ConvertFrom-Json
+            $script:preview = $script:preview | ConvertTo-Json -Depth 50 | ConvertFrom-Json
+            $script:post = $script:post | ConvertTo-Json -Depth 50 | ConvertFrom-Json
+            function Invoke-NetworkWritePreview { param($Operations) $script:preview }
+            function Invoke-NetworkWriteApply { param($Operations) $script:applied }
+            function Read-HardwareConfig { $script:post }
+            function Get-HardwareNodes { param($Hardware) @() }
+            function Invoke-McpToolCall {
+                param($Name, $Arguments)
+                if ($Name -cne 'network_read') { throw 'No mutation transport permitted.' }
+                @{ success=$true; batch=@{operations=@(@{operationId='inspect';operation='inspect_network_object';status='succeeded';omission=$null;result=@{target=@{kind='subnet';subnetId='s'};messages=@();attributes=@(@{name='HighestAddress';availability='available';value=@{kind='integer';value=63}},@{name='TransmissionSpeed';availability='available';value=@{kind='enum';value=@{symbol='Baud1500000'}}})}})} }
+            }
+            $rootCount=$null; $rejected=$false; $record=$null
+            try { $record=Invoke-LifecycleGroupAndVerify 'synthetic' $operations 2 ([ref]$rootCount) } catch { $rejected=$true; $why=$_.Exception.Message }
+            if ('__VARIANT__' -eq 'valid') {
+                if ($rejected) { throw "Valid evidence rejected: $why" }
+                if (-not $record.Contains('applied') -or ($record.applied | ConvertTo-Json -Depth 50 -Compress) -cne ($script:applied | ConvertTo-Json -Depth 50 -Compress)) { throw 'Canonical applied evidence was not retained.' }
+            } elseif (-not $rejected) { throw 'Malformed verification accepted: __VARIANT__' }
+            'lifecycle-evidence-ok'
+            """.Replace("__VARIANT__", variant, StringComparison.Ordinal));
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("lifecycle-evidence-ok", result.StandardOutput.Trim());
+    }
+
     private static string FindRepositoryFile(params string[] segments)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
