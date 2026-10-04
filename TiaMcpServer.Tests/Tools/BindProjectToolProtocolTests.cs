@@ -321,7 +321,7 @@ public sealed class BindProjectToolProtocolTests
         const string source = "C:/Projects/network-roundtrip.ap21";
         using var fixture = new Fixture(new FakeWorkerPortals.Entry(42, source));
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, fixture.AuditPath);
-        var arguments = new Dictionary<string, object?> { ["operations"] = new[] { new
+        var arguments = new Dictionary<string, object?> { ["dryRun"] = true, ["operations"] = new[] { new
         {
             operationId = "add", operation = "add_network_device", projectPath = source,
             typeIdentifier = "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0", deviceName = "PLC_1"
@@ -333,6 +333,7 @@ public sealed class BindProjectToolProtocolTests
         Value(await Bind(harness, source), "bound");
         var preview = Document(await harness.Client.CallToolAsync("network_write", arguments));
         Assert.True(preview.GetProperty("success").GetBoolean(), preview.GetRawText());
-        Assert.Equal(JsonValueKind.String, preview.GetProperty("preview").GetProperty("safetyToken").ValueKind);
+        Assert.Equal("preview", preview.GetProperty("phase").GetString());
+        Assert.NotEmpty(preview.GetProperty("effects").EnumerateArray());
     }
 }

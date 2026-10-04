@@ -26,7 +26,7 @@ public sealed record SubnetProbeResponse(
 
 /// <summary>
 /// A test-only write domain over the existing network seams: <c>delete_subnet</c> planned from
-/// <see cref="NetworkSafetySnapshot.ReadCurrentStateAsync"/> by exact <c>subnetId</c>, mutated through
+/// <see cref="NetworkWritePlanner.ReadCurrentStateAsync"/> by exact <c>subnetId</c>, mutated through
 /// <see cref="NetworkWorkerInvoker.InvokeWriteAsync"/>, projected by
 /// <see cref="NetworkPayloadContract.Project(NetworkOperationRequest, WorkerCallResult)"/>, and
 /// verified by the subnet count. Deleting a connected subnet fires an acknowledge guard.
@@ -85,7 +85,7 @@ public sealed class SubnetProbeDomain
         string? projectPath,
         IReadOnlyList<NetworkOperationRequest> items)
     {
-        var snapshot = await NetworkSafetySnapshot.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
         if (!snapshot.Success)
         {
             return WritePlan<SubnetDeleteEffect>.Fail(snapshot.FailureCategory!, snapshot.Error!);
@@ -136,7 +136,7 @@ public sealed class SubnetProbeDomain
 
     public async Task<SubnetCountVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
     {
-        var snapshot = await NetworkSafetySnapshot.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
         return snapshot.Success && _subnetCountBefore is { } before
             ? new SubnetCountVerification(before, snapshot.State!.Subnets.Count)
             : null;

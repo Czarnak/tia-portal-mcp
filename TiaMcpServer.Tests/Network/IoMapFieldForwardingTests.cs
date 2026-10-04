@@ -77,10 +77,10 @@ public class IoMapFieldForwardingTests : IDisposable
     }
 
     /// <summary>
-    /// The internal network-write snapshot (NetworkSafetySnapshot.ReadCurrentStateAsync) calls
+    /// The internal network-write planner (NetworkWritePlanner.ReadCurrentStateAsync) calls
     /// <c>ReadHardwareConfigAsync(projectPath)</c> with the defaults. That call must forward the
-    /// I/O-map fields at their DEFAULT values (no narrowing, no details), so snapshots stay
-    /// lightweight and their canonical state hash stays byte-identical to the legacy shape. The
+    /// I/O-map fields at their DEFAULT values (no narrowing, no details), so planning reads stay
+    /// lightweight and cover the whole project. The
     /// flat WorkerRequest always serializes every field, so the guarantee is "defaults", not
     /// "absent".
     /// </summary>

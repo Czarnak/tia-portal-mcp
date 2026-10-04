@@ -104,6 +104,7 @@ public sealed class ToolOutputContractConformanceTests
             StartupProjectPath: "network-roundtrip",
             new Dictionary<string, object?>
             {
+                ["dryRun"] = true,
                 ["operations"] = new object[]
                 {
                     new

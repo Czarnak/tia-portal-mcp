@@ -19,7 +19,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.True(response.Success);
         Assert.Contains(response.Guards, g => g.Id == "network_state_unverifiable" && g.Severity == "block");
         Assert.Null(response.Batch);
-        var state = await NetworkSafetySnapshot.ReadCurrentStateAsync(fixture.Client, "network-guarded-incomplete");
+        var state = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-guarded-incomplete");
         Assert.Single(state.State!.Subnets);
         Assert.DoesNotContain("delete_subnet", requests.Methods());
     }

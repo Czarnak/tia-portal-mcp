@@ -1,21 +1,6 @@
-using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Network;
-
-/// <summary>Closed vocabulary of <see cref="NetworkWriteResponse.Phase"/> values.</summary>
-public static class NetworkWritePhases
-{
-    /// <summary>Nothing was changed; a safety token was issued.</summary>
-    public const string Preview = "preview";
-
-    /// <summary>The batch ran. Individual operations may still have failed.</summary>
-    public const string Apply = "apply";
-
-    /// <summary>The call was rejected before any operation ran.</summary>
-    public const string Error = "error";
-}
 
 /// <summary>A tool-level failure that prevented the batch from running at all.</summary>
 public sealed record NetworkToolError(string Category, string Message);
@@ -57,8 +42,7 @@ public sealed record NetworkReadResponse(
 /// are populated, resolved by exact ordinal <c>subnetId</c> match against
 /// <see cref="TiaMcpServer.Contracts.HardwareConfigInfo.Subnets"/>; <see cref="DeviceName"/> stays
 /// null because a subnet target never has a device identity. Presentation names here are evidence
-/// only; the safety token binds this whole record, so a caller cannot satisfy it by echoing back
-/// the names.
+/// only; current ordinary reads establish exact identity before mutation.
 /// </para>
 /// </summary>
 public sealed record NetworkWriteTargetEvidence(
@@ -74,39 +58,3 @@ public sealed record NetworkWriteTargetEvidence(
     string? SubnetId,
     string? IoSystemName,
     int? IoSystemNumber);
-
-/// <summary>
-/// A previewed network write. Nothing has been changed: <see cref="SafetyToken"/> is single-use,
-/// expires at <see cref="ExpiresAtUtc"/>, and is bound to this exact ordered request, this target
-/// list, and the hardware state the hashes describe.
-/// </summary>
-public sealed record NetworkWritePreview(
-    IReadOnlyList<NetworkWriteTargetEvidence> Target,
-    string Summary,
-    string CurrentStateHash,
-    string RequestedInputHash,
-    DateTimeOffset ExpiresAtUtc,
-    string SafetyToken,
-    ProjectBindingSnapshot ProjectBinding,
-    JsonElement? Diff,
-    string Instructions);
-
-/// <summary>
-/// Declared output schema of <c>network_write</c>: a discriminated envelope where
-/// <see cref="Phase"/> names which single member is populated — <c>preview</c> for
-/// <see cref="Preview"/>, <c>apply</c> for <see cref="Batch"/>, <c>error</c> for
-/// <see cref="Error"/>. The other two are always null.
-///
-/// <para>
-/// <see cref="Success"/> describes the whole call. An applied batch containing a failed operation
-/// reports <c>false</c> here while still being a successful MCP result: only the <c>error</c>
-/// phase — a call rejected before anything ran — sets the protocol's <c>isError</c>.
-/// </para>
-/// </summary>
-public sealed record NetworkWriteResponse(
-    string Tool,
-    string Phase,
-    bool Success,
-    NetworkWritePreview? Preview,
-    StructuredOperationBatch? Batch,
-    NetworkToolError? Error);

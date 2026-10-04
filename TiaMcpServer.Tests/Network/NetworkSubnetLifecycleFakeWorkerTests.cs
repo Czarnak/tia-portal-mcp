@@ -13,7 +13,7 @@ namespace TiaMcpServer.Tests.Network;
 /// <summary>
 /// End-to-end evidence that the Phase 4 subnet lifecycle operations (<c>create_subnet</c>,
 /// <c>update_subnet</c>, <c>delete_subnet</c>) run through the exact same public
-/// preview/apply/token/audit protocol as every other dedicated network write — proven against a
+/// guarded dry-run/actual/audit protocol as every other dedicated network write — proven against a
 /// stateful FakeWorker scenario rather than real TIA Portal.
 ///
 /// <para>
@@ -409,24 +409,15 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         Assert.Equal(CanonicalJson.Serialize(root), record.RootElement.GetProperty("responseText").GetString());
     }
 
-    // --- Token lifecycle and tampering ----------------------------------------------------------
-
-
-
-
-
+    // --- Explicit project binding --------------------------------------------------------------
     [Fact]
     public async Task NetworkWrite_SubnetLifecycleApply_DifferentProjectPathIsRejectedAsBindingConflict()
     {
         using var audit = new TempAuditDirectory();
         using var client = CreateWriteClient(audit, out var safety);
-        var previewOperations = new[] { DeleteSubnetOp("delete", "subnet-eth-1", Scenario) };
-
-        // Same exact operation, but bound at apply time to a DIFFERENT scenario key that reads the
-        // SAME shared subnet state (so the resolved target itself is identical) — only the project
-        // path differs, isolating the binding-conflict check from any target/state mismatch.
-        var tamperedOperations = new[] { DeleteSubnetOp("delete", "subnet-eth-1", AltPathScenario) };
-        var result = await NetworkWrite(client, safety, tamperedOperations, dryRun: false);
+        // The explicit project constraint differs from the already verified binding.
+        var operations = new[] { DeleteSubnetOp("delete", "subnet-eth-1", AltPathScenario) };
+        var result = await NetworkWrite(client, safety, operations, dryRun: false);
 
         Assert.True(result.IsError);
         Assert.Equal(

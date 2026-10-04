@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
 
@@ -24,11 +23,4 @@ public class NetworkWriteTools
                 operations?.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item?.ProjectPath))?.ProjectPath,
                 operations ?? [], dryRun), cancellationToken: cancellationToken);
 
-    // Transitional budget adapter retained until its Network-only test callers are migrated.
-    internal static StructuredOperationBatch ApplyBudget(StructuredOperationBatch batch,
-        int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
-        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
-        => StructuredOperationBatchPayloadBudget.Apply(batch,
-            b => new NetworkWriteResponse("network_write", NetworkWritePhases.Apply, b.IsFullySuccessful, null, b, null),
-            "network_read", _ => "The write was performed; do not re-run it. Read current hardware with network_read.", maxItemChars, maxDocumentChars);
 }

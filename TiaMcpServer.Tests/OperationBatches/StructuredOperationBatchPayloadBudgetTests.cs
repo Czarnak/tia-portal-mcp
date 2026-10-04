@@ -533,6 +533,12 @@ public class StructuredOperationBatchPayloadBudgetTests
             item.Omission!.Reason);
     }
 
+    private static StructuredOperationBatch ApplyNetworkBudget(StructuredOperationBatch batch)
+        => StructuredOperationBatchPayloadBudget.Apply(batch,
+            value => new NetworkGuardedWriteResponse("network_write", "1.0", "applied", value.IsFullySuccessful,
+                null, [], [], [], value, null), "network_read",
+            _ => "Read current hardware with network_read; do not replay the write.");
+
     // ------------------------------------------------------------------------------------------
     // Phase 4 subnet lifecycle: network_write budget behavior with the minimal
     // SubnetLifecycleResultInfo result contract. Neither budget constant is raised here.
@@ -554,7 +560,7 @@ public class StructuredOperationBatchPayloadBudgetTests
         var batch = StructuredOperationBatch.FromItems(new[] { item });
 
         // Default (real, un-lowered) budgets: MaxItemChars = 60,000 / MaxDocumentChars = 180,000.
-        var bounded = NetworkWriteTools.ApplyBudget(batch);
+        var bounded = ApplyNetworkBudget(batch);
 
         var boundedItem = Assert.Single(bounded.Operations);
         Assert.Equal(OperationBatchStatus.Succeeded, boundedItem.Status);
@@ -566,7 +572,7 @@ public class StructuredOperationBatchPayloadBudgetTests
     /// <summary>
     /// An oversized/unexpected worker payload never reaches the budgeting stage at all: the
     /// typed <see cref="SubnetLifecycleResultInfo"/> contract in <see cref="NetworkPayloadContract"/>
-    /// rejects any unmapped member as protocol_error before <see cref="NetworkWriteTools.ApplyBudget"/>
+    /// rejects any unmapped member as protocol_error before <see cref="ApplyNetworkBudget"/>
     /// ever runs, regardless of how large the offending payload is. This proves the rejection is a
     /// contract-shape decision, not a size decision the budget happened to make.
     /// </summary>
@@ -594,7 +600,7 @@ public class StructuredOperationBatchPayloadBudgetTests
         Assert.True(item.Failure.Message.Length < StructuredOperationBatchPayloadBudget.MaxItemChars);
 
         var batch = StructuredOperationBatch.FromItems(new[] { item });
-        var bounded = NetworkWriteTools.ApplyBudget(batch);
+        var bounded = ApplyNetworkBudget(batch);
 
         // Untouched by budgeting: still Failed (never Omitted), and no truncation metadata was
         // needed, because the contract already rejected the item as a whole.

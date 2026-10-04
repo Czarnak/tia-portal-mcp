@@ -925,7 +925,7 @@ public class NetworkIoMapPayloadContractTests
     [Fact]
     public void DecodeHardwareConfig_AcceptsAnIoDetailsPayloadForSnapshotConsumption()
     {
-        // NetworkSafetySnapshot decodes through this same registry; an ioDetails payload is a
+        // NetworkWritePlanner decodes through this same registry; an ioDetails payload is a
         // valid HardwareConfigInfo and must decode without throwing.
         var decoded = NetworkPayloadContract.DecodeHardwareConfig(ValidIoDetailsPayload);
 

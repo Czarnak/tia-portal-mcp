@@ -456,8 +456,7 @@ public class OpennessWorkerClient : IDisposable
     /// narrows to exactly one device, <paramref name="plcName"/> selects the PLC used for tag
     /// matching, and <paramref name="includeIoDetails"/>/<paramref name="includeTagMatches"/> opt
     /// into the structured I/O map. All four default to no-narrowing/no-details so internal
-    /// callers (notably <c>NetworkSafetySnapshot.ReadCurrentStateAsync</c>) stay lightweight and
-    /// hash-identical.
+    /// callers (notably <c>NetworkWritePlanner.ReadCurrentStateAsync</c>) stay lightweight.
     /// </summary>
     public Task<WorkerCallResult> ReadHardwareConfigAsync(
         string? projectPath,

@@ -314,7 +314,7 @@ public class McpToolSchemaTests
             "NetworkWrite");
 
         Assert.Equal(
-            new[] { "confirm", "operations", "safetyToken" },
+            new[] { "dryRun", "operations" },
             properties.OrderBy(name => name).ToArray());
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("safety", properties);
