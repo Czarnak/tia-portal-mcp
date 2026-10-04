@@ -590,10 +590,11 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 $capture | Add-Member pagination @{totalDevices=1;returnedDevices=1}
             }
             $script:toolCalls=0
+            function Assert-NetworkFixtureHash { } # This regression isolates traversal, not the independently tested file gate.
             function Read-HardwareConfig { $capture }
             function Invoke-McpToolCall { param($Name,$Arguments) $script:toolCalls++; return @{} }
             $rejected=$false
-            try { $null=Invoke-NetworkWriteApply } catch { $rejected=$true }
+            try { $null=Invoke-NetworkWriteApply } catch { $rejected=$_.Exception.Message -like '*ordinary project traversal*' }
             if (-not $rejected -or $script:toolCalls -ne 0) { throw 'Unknown/incomplete/paged evidence reached apply callback.' }
             'unknown-traversal-blocked'
             """);

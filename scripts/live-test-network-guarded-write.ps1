@@ -88,6 +88,7 @@ foreach ($operation in $operations) {
 
 function Assert-NodeExpectations {
     param($Hardware, [object[]] $Expected)
+    Assert-HardwareWriteEvidence $Hardware
     $nodes = @(Get-HardwareNodes $Hardware)
     foreach ($deviceName in @($fixture.MultiHomedDevices)) {
         if (@($nodes | Where-Object { [string]::Equals($_.deviceName, $deviceName, [System.StringComparison]::OrdinalIgnoreCase) }).Count -lt 2) {
@@ -263,6 +264,7 @@ function Assert-Outcome {
     if ($Response.verification.success -ne $verificationPassed) { throw 'Verification summary contradicts immediate/final evidence.' }
 }
 function Invoke-NetworkWritePreview {
+    Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     Assert-HardwareWriteEvidence (Read-HardwareConfig)
     Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     $preview = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $operations; dryRun = $true }
@@ -273,6 +275,7 @@ function Invoke-NetworkWritePreview {
     return $preview
 }
 function Invoke-NetworkWriteApply {
+    Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     Assert-HardwareWriteEvidence (Read-HardwareConfig)
     Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     return (Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $operations; dryRun = $false })
