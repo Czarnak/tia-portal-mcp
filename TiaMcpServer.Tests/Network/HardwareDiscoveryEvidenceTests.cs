@@ -121,6 +121,26 @@ public sealed class HardwareDiscoveryEvidenceTests
     }
 
     [Fact]
+    public async Task ReadableTarget_WithUnreadableCompetingIdentity_RefusesBeforeDispatch()
+    {
+        foreach (var kind in new[] { "device", "node", "subnet", "io", "subnet-name" })
+        {
+            using var audit = new TempAuditDirectory();
+            using var requests = new FakeWorkerRequestLog(audit.Path);
+            using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-identity-" + kind);
+            var operation = NetworkGuardedWriteFixture.Configure("configure", "10.0.0.1");
+            if (kind == "subnet") operation = NetworkGuardedWriteFixture.Delete();
+            if (kind == "io") operation.Changes = new() { IoSystem = new() { SubnetId = "subnet-1", Number = 1 } };
+            if (kind == "subnet-name") operation = new() { OperationId = "create", Operation = "create_subnet", Subnet = new() { Name = "new", NetworkType = "Ethernet" } };
+            var response = await fixture.RunAsync(false, operation);
+            Assert.Equal("error", response.Phase);
+            Assert.Equal("worker_operation_failed", response.Error!.Category);
+            Assert.Null(response.Batch);
+            Assert.DoesNotContain(requests.Methods(), method => method is "configure_network_device" or "delete_subnet" or "create_subnet");
+        }
+    }
+
+    [Fact]
     public async Task OptionalMetadata_PreparesAndVerifiesWithoutLosingDiagnostics()
     {
         using var audit = new TempAuditDirectory();

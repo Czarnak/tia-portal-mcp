@@ -1223,6 +1223,7 @@ while ((line = Console.In.ReadLine()) is not null)
 
         case "network-guarded":
         case string traversalScenario when traversalScenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal):
+        case string identityScenario when identityScenario.StartsWith("network-guarded-identity-", StringComparison.Ordinal):
         case "network-guarded-late-traversal":
         case "network-guarded-optional-metadata":
         case "network-guarded-missing-discovery":
@@ -1240,6 +1241,21 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-guarded-io-move":
         case "network-guarded-root-drift":
             guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario.StartsWith("network-guarded-incomplete", StringComparison.Ordinal));
+            if (scenario == "network-guarded-identity-device" && guardedNetworkState.Devices.Count == 2)
+                guardedNetworkState.Devices.Add(new() { Name = null });
+            if (scenario == "network-guarded-identity-node" && GuardedNodes(guardedNetworkState).All(node => node.NodeId.Length > 0))
+                guardedNetworkState.Devices[0].Items[0].NetworkInterfaces[0].Nodes.Add(new()
+                    { NodeId = "", SelectorDiagnostics = new() { "Node identity is unreadable." } });
+            if (scenario == "network-guarded-identity-subnet" && guardedNetworkState.Subnets.Count == 1)
+                guardedNetworkState.Subnets.Add(new() { Name = "Other", SubnetId = "", NetworkType = "Ethernet",
+                    SelectorDiagnostics = new() { "Subnet identity is unreadable." } });
+            if (scenario == "network-guarded-identity-subnet-name") guardedNetworkState.Subnets[0].Name = "";
+            if (scenario == "network-guarded-identity-io" && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
+            {
+                guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
+                guardedNetworkState.Subnets[0].IoSystems.Add(new() { Number = null,
+                    SelectorDiagnostics = new() { "IO system number is unreadable." } });
+            }
             if (scenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal))
             {
                 var stage = scenario["network-guarded-traversal-".Length..];

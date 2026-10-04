@@ -11,6 +11,81 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public class NetworkIdentityResolverTests
 {
+    [Theory]
+    [InlineData("device", null)]
+    [InlineData("device", "")]
+    [InlineData("device", " ")]
+    [InlineData("node", null)]
+    [InlineData("node", "")]
+    [InlineData("node", " ")]
+    [InlineData("subnet", null)]
+    [InlineData("subnet", "")]
+    [InlineData("subnet", " ")]
+    [InlineData("io", null)]
+    public void ReadableMatch_WithUnreadableCompetingIdentity_RefusesSelection(string kind, string? identity)
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("Subnet_A", "S-1", IoSystemFixture("IO", 1)) });
+        var operation = ConfigureRequest("op1", "PC_1", "N-PLC");
+        if (kind == "device") state.Devices.Add(new() { Name = identity });
+        if (kind == "node") state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].NodeId = identity!;
+        if (kind == "subnet")
+        {
+            state.Subnets.Add(Subnet("Other", identity!));
+            operation.Changes = new() { Subnet = new() { SubnetId = "S-1" } };
+        }
+        if (kind == "io")
+        {
+            state.Subnets[0].IoSystems.Add(IoSystemFixture("Unreadable", null));
+            operation.Changes = new() { IoSystem = new() { SubnetId = "S-1", Number = 1 } };
+        }
+        var resolution = NetworkIdentityResolver.Resolve(operation, state);
+        Assert.False(resolution.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, resolution.FailureCategory);
+        Assert.Null(resolution.Evidence);
+    }
+
+    [Theory]
+    [InlineData("delete_subnet")]
+    [InlineData("update_subnet")]
+    public void ExistingSubnet_WithUnreadableCompetingId_RefusesSelection(string operationName)
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("known", "S-1"), Subnet("unknown", "") });
+        var operation = new NetworkOperationRequest { OperationId = "op1", Operation = operationName,
+            Target = new() { Kind = "subnet", SubnetId = "S-1" }, SubnetChanges = operationName == "update_subnet" ? new() { Name = "changed" } : null };
+        var resolution = NetworkIdentityResolver.Resolve(operation, state);
+        Assert.False(resolution.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, resolution.FailureCategory);
+    }
+
+    [Theory]
+    [InlineData("device", null)]
+    [InlineData("device", "")]
+    [InlineData("device", " ")]
+    [InlineData("subnet", null)]
+    [InlineData("subnet", "")]
+    [InlineData("subnet", " ")]
+    public void Creation_WithUnreadableCompetingName_RefusesUniqueness(string kind, string? name)
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("known", "S-1") });
+        var operation = kind == "device" ? CreationRequest("op1", "new")
+            : new NetworkOperationRequest { OperationId = "op1", Operation = "create_subnet", Subnet = new() { Name = "new", NetworkType = "Ethernet" } };
+        if (kind == "device") state.Devices.Add(new() { Name = name });
+        else state.Subnets[0].Name = name!;
+        var resolution = NetworkIdentityResolver.Resolve(operation, state);
+        Assert.False(resolution.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, resolution.FailureCategory);
+    }
+
+    [Fact]
+    public void UnrelatedIdentityLoss_DoesNotBlockAddressConfiguration()
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("unreadable", "", IoSystemFixture("unreadable", null)) });
+        state.Devices.Add(Device("Other", Leaf("Other", NetworkInterface("Other", Node("unreadable", "")))));
+        var resolution = NetworkIdentityResolver.Resolve(ConfigureRequest("op1", "PC_1", "N-PLC"), state);
+        Assert.True(resolution.Success);
+        Assert.Equal("N-PLC", resolution.Evidence!.NodeId);
+    }
+
     // ---- Request builders --------------------------------------------------------------------
 
     private static NetworkOperationRequest ConfigureRequest(
