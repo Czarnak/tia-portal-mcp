@@ -185,15 +185,14 @@ public class BatchToolMetadataTests
     {
         var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
 
-        Assert.Contains("connected nodes is allowed", description);
-        Assert.Contains("does not delete any device", description);
+        Assert.Contains("Connected subnet deletion removes the listed connections", description);
+        Assert.Contains("preserving devices and nodes", description);
 
         // The claim must be scoped to what networkDeviceCountUnchanged actually checks (the root
         // device collection), not overstated as leaving every device untouched — nested device
         // user group members are outside that count.
         Assert.Contains("networkDeviceCountUnchanged", description);
         Assert.Contains("root device count", description);
-        Assert.Contains("device user groups", description);
     }
 
     [Fact]
@@ -201,7 +200,7 @@ public class BatchToolMetadataTests
     {
         var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
 
-        Assert.Contains("target.kind set exactly to 'subnet'", description);
+        Assert.Contains("target.kind='subnet'", description);
         Assert.Contains("target.subnetId", description);
     }
 
@@ -210,11 +209,9 @@ public class BatchToolMetadataTests
     {
         var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
 
-        Assert.Contains("No batch-wide rollback", description);
-        Assert.Contains("never saves the project or compiles it", description);
-        Assert.Contains("save_project", description);
-        Assert.Contains("compile_check", description);
-        Assert.Contains("separately", description);
+        Assert.Contains("no rollback or automatic replay", description);
+        Assert.Contains("never saves, compiles, downloads, or controls a PLC", description);
+        Assert.Contains("network_read before retrying", description);
     }
 
     [Fact]

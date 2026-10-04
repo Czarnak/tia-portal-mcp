@@ -104,6 +104,7 @@ public sealed class ToolOutputContractConformanceTests
             StartupProjectPath: "network-roundtrip",
             new Dictionary<string, object?>
             {
+                ["dryRun"] = true,
                 ["operations"] = new object[]
                 {
                     new
@@ -277,9 +278,25 @@ public sealed class ToolOutputContractConformanceTests
                     Assert.Equal(2, document.GetProperty("result").GetProperty("value").GetProperty("portals").GetArrayLength());
             }
         }
+        if (probe.Tool == "network_read")
+        {
+            var document = result.StructuredContent!.Value;
+            Assert.Equal("1.0", document.GetProperty("contractVersion").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
+            if (probe.ExpectIsError)
+            {
+                Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
+            }
+        }
         if (probe.Name == "network_read/succeeded")
         {
             var document = result.StructuredContent!.Value;
+            var evidence = document.GetProperty("batch").GetProperty("operations")[0]
+                .GetProperty("result").GetProperty("discoveryEvidence");
+            Assert.Equal("project", evidence.GetProperty("scope").GetString());
+            Assert.True(evidence.GetProperty("complete").GetBoolean());
+            Assert.Equal(System.Text.Json.JsonValueKind.Array, evidence.GetProperty("failures").ValueKind);
+            Assert.Empty(evidence.GetProperty("failures").EnumerateArray());
             Assert.Equal(1, document.GetProperty("batch").GetProperty("counts")
                 .GetProperty("succeeded").GetInt32());
         }

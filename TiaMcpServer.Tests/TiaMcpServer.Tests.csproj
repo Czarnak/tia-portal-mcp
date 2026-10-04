@@ -8,6 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkConfigurationTargetBinding.cs" Link="NetworkConfigurationTargetBinding.cs" />
+
+    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkNodeReadSelectorBuilder.cs" Link="Network\NetworkNodeReadSelectorBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\HardwareDiscoveryEvidenceCapture.cs"
+      Link="Linked\Openness\HardwareDiscoveryEvidenceCapture.cs" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
@@ -27,6 +32,10 @@
   <ItemGroup>
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\IoSystemQualificationEvidence.cs"
       Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkConnectionEvidenceCapture.cs"
+      Link="Linked\Openness\NetworkConnectionEvidenceCapture.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkPostconditionChecks.cs"
+      Link="Linked\Openness\NetworkPostconditionChecks.cs" />
     <Compile Update="Batch\TagOperationPrerequisiteBaselineTests.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotBuilder.cs"
       Link="Linked\Openness\TagOperationSafetySnapshotBuilder.cs" />
@@ -96,8 +105,6 @@
       Link="Host\StructuredToolResult.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs"
       Link="Host\WriteSafetyService.cs" />
-    <Compile Include="..\TiaMcpServer\Safety\CanonicalWriteSafety.cs"
-      Link="Host\CanonicalWriteSafety.cs" />
     <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs"
       Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
@@ -108,6 +115,8 @@
       Link="Host\ProjectEngineeringTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\McpToolRegistration.cs"
       Link="Host\McpToolRegistration.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\NetworkWriteArgumentValidatingTool.cs"
+      Link="Host\NetworkWriteArgumentValidatingTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResultFormatter.cs"
       Link="Host\StandaloneToolResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResponses.cs" Link="Host\StandaloneToolResponses.cs" />
@@ -158,6 +167,12 @@
     <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationRequest.cs"
       Link="Host\Network\NetworkOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkGuardedWriteModels.cs" Link="Host\Network\NetworkGuardedWriteModels.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkGuardDefinitions.cs" Link="Host\Network\NetworkGuardDefinitions.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWritePlanner.cs" Link="Host\Network\NetworkWritePlanner.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWriteDomain.cs" Link="Host\Network\NetworkWriteDomain.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWritePayloadBudget.cs" Link="Host\Network\NetworkWritePayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkWriteVerifier.cs" Link="Host\Network\NetworkWriteVerifier.cs" />
     <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorState.cs"
       Link="Host\Network\HardwarePageCursorState.cs" />
     <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorCodec.cs"
@@ -174,14 +189,14 @@
       Link="Host\Network\NetworkOperationCatalog.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWorkerInvoker.cs"
       Link="Host\Network\NetworkWorkerInvoker.cs" />
-    <Compile Include="..\TiaMcpServer\Network\NetworkSafetySnapshot.cs"
-      Link="Host\Network\NetworkSafetySnapshot.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkIdentityResolver.cs"
       Link="Host\Network\NetworkIdentityResolver.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkPayloadContract.cs"
       Link="Host\Network\NetworkPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkToolResponses.cs"
       Link="Host\Network\NetworkToolResponses.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkContractVersion.cs"
+      Link="Host\Network\NetworkContractVersion.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkReadTools.cs"
       Link="Host\Network\NetworkReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWriteTools.cs"

@@ -129,7 +129,9 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             ? builder.WithProjectReadTools()
             : typeof(TTools) == typeof(ProjectBindingTools)
                 ? builder.WithProjectBindingTools()
-                : builder.WithTools<TTools>();
+                : typeof(TTools) == typeof(NetworkWriteTools)
+                    ? builder.WithNetworkWriteTools()
+                    : builder.WithTools<TTools>();
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,
@@ -160,7 +162,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(workerClient);
         collection.AddSingleton(sp => new WriteExecution(
             new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
-            new JsonlWriteAuditSink(auditDirectory), LifecycleWriteDomain.Catalog, TimeProvider.System));
+            new JsonlWriteAuditSink(auditDirectory), new WriteGuardCatalog(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions)), TimeProvider.System));
         collection.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
         collection.AddSingleton(sp => new ProjectTreeCursorCodec(
             sp.GetRequiredService<AuthenticatedCursorProtector>()));

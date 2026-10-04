@@ -10,7 +10,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 5/15/15 modes, and mode-derived lifecycle confirmation |
-| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, and block paths |
+| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, guarded Network migration, and block paths |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
 
@@ -26,7 +26,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | --- | --- |
 | [Contributing](../CONTRIBUTING.md) | Contribution workflow, branch focus, commit message format, pull requests |
 | [Building from source](development/building.md) | Restore, build, test with coverage, and run the server locally |
-| [Local MCP sandbox testing](development/local-mcp-testing.md) | MCP Inspector loop, mixed write flows, and frozen lifecycle acceptance gates against disposable fixtures |
+| [Local MCP sandbox testing](development/local-mcp-testing.md) | MCP Inspector, actual-by-default Network inputs, frozen Network fixtures/restoration boundaries, and lifecycle gates |
 | [Packaging](development/packaging.md) | Build the NuGet package and install a local branch build as the `tia-mcp` global tool |
 | [Bug-fix wave orchestration](development/bug-fix-wave-orchestration.md) | Branch/worktree ownership, wave barriers, offline/live gates, PR creation, and merge protocol |
 | [Wave 2 I2/T2 orchestration handoff](development/bug-fix-wave2-i2-t2-orchestration.md) | Current-scope ownership, independent merge policy, I2 live gate, and future-session dispatch instructions |
@@ -49,7 +49,14 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: the [lifecycle in read-write, mode-derived confirmation, and runtime project binding design](superpowers/specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md)
+Latest process entries: the [approved Network discovery and interface-qualified node identity repair design](superpowers/specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md)
+and its [implemented/offline-qualified plan](superpowers/plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md)
+address the failed live Network write run. The [fresh validation and handoff report](superpowers/acceptance/reports/2026-10-04-network-discovery-and-interface-node-identity-repair-validation.md) records passing offline qualification and partial live verification; full acceptance remains pending owner-evidence and unverified-operation follow-ups.
+
+Earlier process entries: the [approved Network JSON contract and guarded write design](superpowers/specs/2026-10-03-network-json-guarded-write-design.md)
+and its [completed offline implementation plan (live acceptance pending)](superpowers/plans/2026-10-03-network-json-guarded-write.md),
+with [corrected-candidate offline validation, independent review, coverage and package provenance](superpowers/acceptance/reports/2026-10-03-network-json-guarded-write-offline-validation.md),
+the [lifecycle in read-write, mode-derived confirmation, and runtime project binding design](superpowers/specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md)
 (amends the redesign's §4.6 and §4.11) and its [implementation plan](superpowers/plans/2026-10-02-lifecycle-tiers-and-project-binding.md),
 with [live acceptance in all three access modes; human read-only dialog observation recorded](superpowers/acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md),
 the [write-safety redesign design (retiring preview→apply tokens)](superpowers/specs/2026-09-29-write-safety-redesign-design.md)

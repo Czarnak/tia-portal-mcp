@@ -29,6 +29,25 @@ public class OpennessWorkerClientIntegrationTests
             requestTimeout: requestTimeout,
             accessPolicy: accessPolicy ?? new OperationAccessPolicy(McpAccessMode.Full));
 
+    [Fact]
+    public async Task QualifiedConfiguration_FreezesSelectorBeforeAsynchronousIpc()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
+        var selector = new NetworkObjectSelectorInfo { Kind = "node", DeviceName = "Station", NodeId = "E1", InterfaceName = "X1", NodeIndex = 0,
+            InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768, TypeIdentifier = "type" } } };
+        var pending = client.ConfigureNetworkDeviceAsync(selector, "10.0.0.1", null, null, null, null, null, "echo");
+        selector.InterfacePath[0].PositionNumber = 33024; selector.NodeId = "Changed";
+        var result = await pending;
+        Assert.True(result.Success, result.Error);
+        var request = System.Text.Json.JsonSerializer.Deserialize<WorkerRequest>(result.Payload, WorkerJson.Envelope)!;
+        Assert.Equal(32768, request.NetworkObjectTarget!.InterfacePath![0].PositionNumber);
+        Assert.Equal("E1", request.NetworkObjectTarget.NodeId);
+        Assert.Equal("X1", request.NetworkObjectTarget.InterfaceName);
+        Assert.Equal(0, request.NetworkObjectTarget.NodeIndex);
+    }
+
     private const string SafeReadTimeout =
         "The TIA Openness worker did not complete the read before the timeout. No project or PLC runtime mutation was requested. The worker session was discarded; retrying the read is safe.";
 

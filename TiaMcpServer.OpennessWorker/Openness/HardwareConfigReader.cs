@@ -8,9 +8,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 public static class HardwareConfigReader
 {
     /// <summary>
-    /// Lightweight default read used by the internal network-write state snapshot and the subnet
-    /// mutation probe: no device filter and no I/O map, so the snapshot stays byte-identical to
-    /// earlier versions and the safety-token hashes never change.
+    /// Ordinary unfiltered hardware read, including exact relationship evidence, without I/O maps.
     /// </summary>
     public static HardwareConfigInfo Read(Project project)
         => Read(project, deviceName: null, plcName: null, includeIoDetails: false, includeTagMatches: false);
@@ -23,6 +21,13 @@ public static class HardwareConfigReader
         bool includeTagMatches)
     {
         var result = new HardwareConfigInfo();
+        var capture = new HardwareDiscoveryEvidenceCapture(deviceName is null ? "project" : "device", result.Messages.Add);
+        result.DiscoveryEvidence = capture.Evidence;
+        try { result.RootDeviceCount = project.Devices.Count; }
+        catch (Exception exception)
+        {
+            result.Messages.Add($"Could not read root device count: {exception.Message}");
+        }
 
         IoTagIndex? tagIndex = null;
         if (includeTagMatches)
@@ -30,33 +35,16 @@ public static class HardwareConfigReader
             tagIndex = ResolveTagIndex(project, plcName, result.Messages);
         }
 
-        var selectedDevices = SelectDevices(project, deviceName, result.Messages);
-
-        foreach (var (device, nameEvidence) in selectedDevices)
-        {
-            try
-            {
-                result.Devices.Add(ReadDevice(device, nameEvidence, result.Messages, includeIoDetails, tagIndex));
-            }
-            catch (EngineeringException exception)
-            {
-                result.Messages.Add(
-                    $"Skipped a device while reading hardware configuration: {exception.Message}");
-            }
-        }
-
-        foreach (Subnet subnet in project.Subnets)
-        {
-            try
-            {
-                result.Subnets.Add(ReadSubnet(subnet, result.Messages));
-            }
-            catch (EngineeringException exception)
-            {
-                result.Messages.Add(
-                    $"Skipped a subnet while reading hardware configuration: {exception.Message}");
-            }
-        }
+        var selectedDevices = SelectDevices(project, deviceName, result.Messages, capture, out var deviceNamespaceVerified);
+        capture.Traverse(() => selectedDevices,
+            selected => result.Devices.Add(ReadDevice(selected.Device, selected.NameEvidence,
+                result.Messages, includeIoDetails, tagIndex, capture)),
+            "deviceEnumeration", "deviceMaterialization");
+        capture.Traverse(() => project.Subnets.Cast<Subnet>(),
+            subnet => result.Subnets.Add(ReadSubnet(subnet, result.Messages, capture)),
+            "subnetEnumeration", "subnetMaterialization");
+        // Use final evidence: a later traversal failure must invalidate earlier certifications.
+        NetworkNodeReadSelectorBuilder.ApplyInventory(result, deviceNamespaceVerified);
 
         result.Devices = result.Devices
             .OrderBy(device => device.Name, StringComparer.Ordinal)
@@ -72,10 +60,14 @@ public static class HardwareConfigReader
         Device device,
         NetworkObjectDiscoveryEvidenceValue<string> nameEvidence,
         bool includeIoDetails,
-        IoTagIndex? tagIndex)
+        IoTagIndex? tagIndex,
+        bool deviceNamespaceVerified)
     {
         var messages = new List<string>();
-        var materialized = ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex);
+        // Page materialization keeps diagnostics but cannot emit ordinary project evidence.
+        var capture = new HardwareDiscoveryEvidenceCapture("device", messages.Add);
+        var materialized = ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex, capture);
+        NetworkNodeReadSelectorBuilder.ApplyPage(materialized, deviceNamespaceVerified, capture.Evidence.Complete);
         return HardwarePageCandidateMaterialization.ForDevice(materialized, messages);
     }
 
@@ -84,7 +76,8 @@ public static class HardwareConfigReader
         NetworkObjectDiscoveryEvidenceValue<string> subnetId)
     {
         var messages = new List<string>();
-        var materialized = ReadSubnet(subnet, subnetId, messages);
+        var materialized = ReadSubnet(subnet, subnetId, messages,
+            new HardwareDiscoveryEvidenceCapture("device", messages.Add));
         return HardwarePageCandidateMaterialization.ForSubnet(materialized, messages);
     }
 
@@ -115,14 +108,17 @@ public static class HardwareConfigReader
     private static IReadOnlyList<(Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)> SelectDevices(
         Project project,
         string? deviceName,
-        List<string> messages)
+        List<string> messages,
+        HardwareDiscoveryEvidenceCapture capture,
+        out bool deviceNamespaceVerified)
     {
         var candidates = new List<(Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)>();
-        foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
+        capture.Traverse(() => ProjectDeviceEnumerator.Enumerate(project), device =>
         {
             var nameEvidence = ReadTypedIdentityString(() => device.Name, "Device name");
             candidates.Add((device, nameEvidence));
-        }
+        }, "deviceEnumeration", "deviceMaterialization");
+        deviceNamespaceVerified = capture.Evidence.Complete && candidates.All(candidate => candidate.NameEvidence.IsUsable);
 
         if (deviceName is null)
         {
@@ -138,7 +134,7 @@ public static class HardwareConfigReader
             return matches;
         }
 
-        messages.Add(matches.Count == 0
+        capture.RecordFailure("deviceSelection", matches.Count == 0
             ? $"No device named '{deviceName}' was found; no devices are reported."
             : $"More than one device matches '{deviceName}'; no devices are reported because the device filter is ambiguous.");
         return Array.Empty<(Device, NetworkObjectDiscoveryEvidenceValue<string>)>();
@@ -149,9 +145,11 @@ public static class HardwareConfigReader
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         List<string> messages,
         bool includeIoDetails,
-        IoTagIndex? tagIndex)
+        IoTagIndex? tagIndex,
+        HardwareDiscoveryEvidenceCapture capture)
     {
         AddReadMessage(messages, deviceName, "device name");
+        var failuresBefore = capture.Evidence.Failures.Count;
         var deviceDescription = deviceName.IsUsable ? deviceName.Value : "(unnamed)";
         var typeIdentifier = ReadOptionalString(
             () => device.TypeIdentifier,
@@ -163,52 +161,48 @@ public static class HardwareConfigReader
             TypeIdentifier = typeIdentifier,
         };
         deviceInfo.Items = ReadDeviceItems(
-            device.DeviceItems,
+            () => device.DeviceItems.Cast<DeviceItem>(),
             $"device '{deviceDescription}'",
             messages,
             deviceName,
             Array.Empty<DeviceItemPathSegmentInfo>(),
             Array.Empty<string>(),
             includeIoDetails,
-            tagIndex);
+            tagIndex,
+            capture);
+        NetworkNodeReadSelectorBuilder.Apply(deviceInfo, capture.Evidence.Failures.Count == failuresBefore);
         return deviceInfo;
     }
 
     private static List<DeviceItemInfo> ReadDeviceItems(
-        DeviceItemComposition items,
+        Func<IEnumerable<DeviceItem>> enumerateItems,
         string ownerDescription,
         List<string> messages,
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> parentPath,
         IReadOnlyList<string> parentPathDiagnostics,
         bool includeIoDetails,
-        IoTagIndex? tagIndex)
+        IoTagIndex? tagIndex,
+        HardwareDiscoveryEvidenceCapture capture)
     {
         var result = new List<DeviceItemInfo>();
         var siblingIndex = 0;
 
-        foreach (DeviceItem item in items)
+        capture.Traverse(enumerateItems, item =>
         {
-            try
-            {
-                result.Add(ReadDeviceItem(
-                    item,
-                    messages,
-                    deviceName,
-                    parentPath,
-                    parentPathDiagnostics,
-                    siblingIndex,
-                    includeIoDetails,
-                    tagIndex));
-            }
-            catch (EngineeringException exception)
-            {
-                messages.Add(
-                    $"Skipped a device item while reading {ownerDescription}: {exception.Message}");
-            }
-
-            siblingIndex++;
-        }
+            // Preserve the source sibling index even when this candidate is skipped.
+            var currentIndex = siblingIndex++;
+            result.Add(ReadDeviceItem(
+                item,
+                messages,
+                deviceName,
+                parentPath,
+                parentPathDiagnostics,
+                currentIndex,
+                includeIoDetails,
+                tagIndex,
+                capture));
+        }, "deviceItemEnumeration", "deviceItemMaterialization");
 
         return result;
     }
@@ -221,7 +215,8 @@ public static class HardwareConfigReader
         IReadOnlyList<string> parentPathDiagnostics,
         int siblingIndex,
         bool includeIoDetails,
-        IoTagIndex? tagIndex)
+        IoTagIndex? tagIndex,
+        HardwareDiscoveryEvidenceCapture capture)
     {
         var itemName = ReadTypedIdentityString(() => item.Name, "Device item name");
         var itemDescription = itemName.IsUsable ? itemName.Value : "(unnamed)";
@@ -283,16 +278,18 @@ public static class HardwareConfigReader
             messages,
             deviceName,
             itemPath,
-            pathDiagnostics);
+            pathDiagnostics,
+            capture);
         itemInfo.Items = ReadDeviceItems(
-            item.DeviceItems,
+            () => item.DeviceItems.Cast<DeviceItem>(),
             $"device item '{itemDescription}'",
             messages,
             deviceName,
             itemPath,
             pathDiagnostics,
             includeIoDetails,
-            tagIndex);
+            tagIndex,
+            capture);
 
         return itemInfo;
     }
@@ -303,29 +300,22 @@ public static class HardwareConfigReader
         List<string> messages,
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> itemPath,
-        IReadOnlyList<string> itemPathDiagnostics)
+        IReadOnlyList<string> itemPathDiagnostics,
+        HardwareDiscoveryEvidenceCapture capture)
     {
         var result = new List<NetworkInterfaceInfo>();
 
-        try
+        capture.Traverse(() =>
         {
             var networkInterface = ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
-            if (networkInterface is not null)
-            {
-                result.Add(ReadNetworkInterface(
-                    networkInterface,
-                    messages,
-                    deviceName,
-                    itemPath,
-                    itemPathDiagnostics));
-            }
-        }
-        catch (EngineeringException exception)
-        {
-            messages.Add(
-                $"Could not read network interface while reading device item "
-                    + $"'{itemDescription}': {exception.Message}");
-        }
+            return networkInterface is null ? Array.Empty<NetworkInterface>() : new[] { networkInterface };
+        }, networkInterface => result.Add(ReadNetworkInterface(
+            networkInterface,
+            messages,
+            deviceName,
+            itemPath,
+            itemPathDiagnostics,
+            capture)), "interfaceDiscovery", "interfaceDiscovery");
 
         return result;
     }
@@ -335,7 +325,8 @@ public static class HardwareConfigReader
         List<string> messages,
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> itemPath,
-        IReadOnlyList<string> itemPathDiagnostics)
+        IReadOnlyList<string> itemPathDiagnostics,
+        HardwareDiscoveryEvidenceCapture capture)
     {
         var interfaceName = ReadExactStringAttribute(
             (IEngineeringObject)networkInterface,
@@ -359,23 +350,9 @@ public static class HardwareConfigReader
                 interfaceOperatingMode: null);
         }
 
-        foreach (Node node in networkInterface.Nodes)
-        {
-            try
-            {
-                interfaceInfo.Nodes.Add(ReadNode(node, networkInterface, messages, deviceName));
-            }
-            catch (EngineeringException exception)
-            {
-                messages.Add(
-                    $"Skipped a node while reading network interface "
-                        + $"'{interfaceInfo.Name}': {exception.Message}");
-            }
-        }
-
-        interfaceInfo.Nodes = interfaceInfo.Nodes
-            .OrderBy(node => node.NodeId, StringComparer.Ordinal)
-            .ToList();
+        interfaceInfo.Nodes = NetworkNodeReadSelectorBuilder.ReadNodes(
+            () => networkInterface.Nodes.Cast<Node>(),
+            node => ReadNode(node, networkInterface, messages, deviceName), capture);
         return interfaceInfo;
     }
 
@@ -418,11 +395,22 @@ public static class HardwareConfigReader
                 "PnDeviceName",
                 $"node '{nodeDescription}' PROFINET device name",
                 messages),
-            SubnetName = ReadConnectedSubnetName(node, nodeDescription, messages),
-            IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, messages),
             Selectable = selectorDiagnostics.Count == 0,
             SelectorDiagnostics = selectorDiagnostics,
         };
+        nodeInfo.ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureNode(
+            () => node.ConnectedSubnet is { } subnet ? RequireSubnetIdentity(subnet) : null,
+            () => ReadIoSystemIdentity(networkInterface),
+            relationshipMessages =>
+            {
+                nodeInfo.SubnetName = ReadConnectedSubnetName(node, nodeDescription, relationshipMessages);
+                nodeInfo.IoSystemName = ReadIoSystemName(networkInterface, nodeDescription, relationshipMessages);
+            });
+        if (!nodeId.IsUsable || !deviceName.IsUsable)
+        {
+            nodeInfo.ConnectionEvidence.Complete = false;
+            nodeInfo.ConnectionEvidence.Messages.Add("Node identity or device owner identity was unreadable.");
+        }
         if (nodeInfo.Selectable)
         {
             nodeInfo.Selector = NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value);
@@ -431,7 +419,7 @@ public static class HardwareConfigReader
         return nodeInfo;
     }
 
-    private static SubnetInfo ReadSubnet(Subnet subnet, List<string> messages)
+    private static SubnetInfo ReadSubnet(Subnet subnet, List<string> messages, HardwareDiscoveryEvidenceCapture capture)
     {
         var subnetName = ReadOptionalString(() => subnet.Name, "subnet name", messages);
         var subnetDescription = subnetName ?? "(unnamed)";
@@ -439,17 +427,18 @@ public static class HardwareConfigReader
             (IEngineeringObject)subnet,
             "SubnetId",
             $"Subnet '{subnetDescription}' identity");
-        return ReadSubnet(subnet, subnetName, subnetDescription, subnetId, messages);
+        return ReadSubnet(subnet, subnetName, subnetDescription, subnetId, messages, capture);
     }
 
     private static SubnetInfo ReadSubnet(
         Subnet subnet,
         NetworkObjectDiscoveryEvidenceValue<string> subnetId,
-        List<string> messages)
+        List<string> messages,
+        HardwareDiscoveryEvidenceCapture capture)
     {
         var subnetName = ReadOptionalString(() => subnet.Name, "subnet name", messages);
         var subnetDescription = subnetName ?? "(unnamed)";
-        return ReadSubnet(subnet, subnetName, subnetDescription, subnetId, messages);
+        return ReadSubnet(subnet, subnetName, subnetDescription, subnetId, messages, capture);
     }
 
     private static SubnetInfo ReadSubnet(
@@ -457,7 +446,8 @@ public static class HardwareConfigReader
         string? subnetName,
         string subnetDescription,
         NetworkObjectDiscoveryEvidenceValue<string> subnetId,
-        List<string> messages)
+        List<string> messages,
+        HardwareDiscoveryEvidenceCapture capture)
     {
         AddReadMessage(messages, subnetId, $"subnet '{subnetDescription}' identity");
         var selectorDiagnostics = CombineDiagnostics(
@@ -483,37 +473,89 @@ public static class HardwareConfigReader
             subnetInfo.Selector = NetworkSelectorFactory.Subnet(subnetId.Value);
         }
 
-        foreach (Node node in subnet.Nodes)
-        {
-            var connectedNodeName = ReadOptionalString(
-                () => node.Name,
-                $"subnet '{subnetDescription}' connected node name",
-                messages);
-            if (!string.IsNullOrWhiteSpace(connectedNodeName))
+        subnetInfo.ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureSubnet(
+            () => subnet.Nodes.Cast<Node>(),
+            node => ReadConnectedNodeIdentity(node),
+            (node, relationshipMessages) =>
             {
-                subnetInfo.ConnectedNodeNames.Add(connectedNodeName!);
-            }
+                var connectedNodeName = ReadOptionalString(() => node.Name,
+                    $"subnet '{subnetDescription}' connected node name", relationshipMessages);
+                if (!string.IsNullOrWhiteSpace(connectedNodeName))
+                    subnetInfo.ConnectedNodeNames.Add(connectedNodeName!);
+            });
+        if (!subnetId.IsUsable)
+        {
+            subnetInfo.ConnectionEvidence.Complete = false;
+            subnetInfo.ConnectionEvidence.Messages.Add(subnetId.Diagnostic);
         }
 
-        foreach (IoSystem ioSystem in subnet.IoSystems)
-        {
-            try
-            {
-                subnetInfo.IoSystems.Add(ReadIoSystem(ioSystem, subnetId, messages));
-            }
-            catch (EngineeringException exception)
-            {
-                messages.Add(
-                    $"Skipped an IO system while reading subnet "
-                        + $"'{subnetDescription}': {exception.Message}");
-            }
-        }
+        capture.Traverse(() => subnet.IoSystems.Cast<IoSystem>(),
+            ioSystem => subnetInfo.IoSystems.Add(ReadIoSystem(ioSystem, subnetId, messages)),
+            "ioSystemEnumeration", "ioSystemMaterialization");
 
         subnetInfo.IoSystems = subnetInfo.IoSystems
             .OrderBy(ioSystem => ioSystem.Number)
             .ThenBy(ioSystem => ioSystem.Name, StringComparer.Ordinal)
             .ToList();
         return subnetInfo;
+    }
+
+    internal static string RequireSubnetIdentity(Subnet subnet)
+    {
+        var identity = ReadExactStringIdentityAttribute(subnet, "SubnetId", "Connected subnet identity");
+        if (!identity.IsUsable) throw new InvalidOperationException(identity.Diagnostic);
+        return identity.Value;
+    }
+
+    internal static NetworkNodeIdentityInfo ReadConnectedNodeIdentity(Node node)
+    {
+        var nodeId = ReadTypedIdentityString(() => node.NodeId, "Connected node identity");
+        if (!nodeId.IsUsable) throw new InvalidOperationException(nodeId.Diagnostic);
+        IEngineeringObject? current = node;
+        var ancestors = new List<IEngineeringObject>();
+        Project? project = null;
+        while (current is not null)
+        {
+            if (ancestors.Any(value => ReferenceEquals(value, current))) throw new InvalidOperationException("Connected node hierarchy contains a cycle.");
+            ancestors.Add(current);
+            if (current is Project owningProject) { project = owningProject; break; }
+            current = current.Parent;
+        }
+        if (project is null) throw new InvalidOperationException("Connected node project was unavailable.");
+        return NetworkConnectionEvidenceCapture.CaptureOwner<IEngineeringObject>(node, nodeId.Value,
+            value => value.Parent,
+            value => value is DeviceItem item ? new NetworkInterfacePathSegmentInfo { Name = item.Name, PositionNumber = item.PositionNumber } : null,
+            value => value is Device device ? device.Name : null,
+            identity =>
+            {
+                var name = ReadTypedIdentityString(() => identity.DeviceName, "Connected node owner name");
+                if (!name.IsUsable) throw new InvalidOperationException(name.Diagnostic);
+                var unreadableOwner = false;
+                var matches = ProjectDeviceNameMatcher.FindMatches(project, name.Value, _ => unreadableOwner = true);
+                if (unreadableOwner || matches.Count != 1 || !ancestors.Any(value => ReferenceEquals(value, matches[0].Device)))
+                    throw new InvalidOperationException("Connected node owner could not be resolved uniquely across all device scopes.");
+                var resolved = NetworkObjectSelectorResolver.ResolveNode(project, NetworkSelectorFactory.QualifiedNode(identity.DeviceName, identity.NodeId, identity.InterfacePath!));
+                if (!resolved.Success) throw new InvalidOperationException(resolved.Error);
+                return (IEngineeringObject)resolved.Resolved!.Value;
+            });
+    }
+
+    internal static (string? SubnetId, int? Number) ReadIoSystemIdentity(NetworkInterface networkInterface)
+    {
+        var systems = new List<IoSystem>();
+        foreach (IoController controller in networkInterface.IoControllers)
+            if (controller.IoSystem is { } system) systems.Add(system);
+        foreach (IoConnector connector in networkInterface.IoConnectors)
+            if (connector.ConnectedToIoSystem is { } system) systems.Add(system);
+        (string? SubnetId, int? Number) identity = (null, null);
+        foreach (var system in systems)
+        {
+            var candidate = (SubnetId: RequireSubnetIdentity(system.Subnet), Number: (int?)system.Number);
+            if (candidate.Number < 0 || identity.Number is not null && identity != candidate)
+                throw new InvalidOperationException("IO system relationship was ambiguous or invalid.");
+            identity = candidate;
+        }
+        return identity;
     }
 
     private static IoSystemInfo ReadIoSystem(

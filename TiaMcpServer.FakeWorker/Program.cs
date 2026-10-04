@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.OpennessWorker;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
@@ -45,6 +46,12 @@ var requestJsonOptions = WorkerJson.Envelope;
 // read round trip, not just a static fixture.
 var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-plc", IpAddress = "192.168.0.20" };
 var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
+HardwareConfigInfo? qualifiedNetworkState = null;
+var qualifiedHardwareReadCount = 0;
+HardwareConfigInfo? guardedNetworkState = null;
+HardwareConfigInfo? roundtripNetworkState = null;
+var guardedNetworkWrites = 0;
+var guardedSubnetAttributes = new Dictionary<(string SubnetId, string Name), string>();
 
 // Process-local, mutable subnet state shared by every "network-subnet-lifecycle*" scenario key
 // (Task 6, Phase 4): two devices that never change, and two subnets - one Ethernet, one PROFIBUS -
@@ -754,7 +761,34 @@ while ((line = Console.In.ReadLine()) is not null)
             // read path can be proven to copy warnings onto the item it decoded successfully.
             Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}","warnings":["Skipping device 'X' while reading hardware configuration: access denied.","Skipping subnet 'Y' while reading hardware configuration: not supported."]}""");
             break;
+        case "network-config-partial":
+        case "network-config-all-skipped":
+            roundtripNetworkState ??= RoundtripHardwareConfig();
+            Respond(ReadMethod(line) switch
+            {
+                "read_hardware_config" => Success(ToCamelCaseJson(roundtripNetworkState)),
+                "configure_network_device" => Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
+                {
+                    DeviceName = "PLC_1",
+                    AppliedSettings = scenario == "network-config-partial"
+                        ? new Dictionary<string, string> { ["Address"] = "192.168.0.10" }
+                        : new Dictionary<string, string>(),
+                    SkippedSettings = scenario == "network-config-partial"
+                        ? new Dictionary<string, string> { ["IoSystem"] = "No IO connector." }
+                        : new Dictionary<string, string>
+                        {
+                            ["Address"] = "Read only.",
+                            ["IoSystem"] = "No IO connector.",
+                        },
+                    Messages = new List<string> { $"seq:{seq}" },
+                    Verification = FakeConfigurationVerification(line, "PLC_1", scenario == "network-config-partial"
+                        ? new Dictionary<string, string> { ["Address"] = "192.168.0.10" } : new()),
+                })),
+                _ => """{"success":false,"error":"unexpected sparse configuration method"}""",
+            });
+            break;
         case "network-roundtrip":
+            roundtripNetworkState ??= RoundtripHardwareConfig();
             Respond(ReadMethod(line) switch
             {
                 // The request still advances seq, but its safety-bound state must remain stable
@@ -764,15 +798,11 @@ while ((line = Console.In.ReadLine()) is not null)
                 // rejected as protocol_error instead of decoding. The hardware payload models a
                 // PLC plus a multi-homed PC station so node, subnet and IO-system identities are
                 // observable end to end.
-                "read_hardware_config" => Success(HardwareConfigPayload()),
+                "read_hardware_config" => Success(ToCamelCaseJson(roundtripNetworkState)),
                 "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"articleNumber\":null,\"version\":null,\"typeIdentifier\":\"OrderNumber:TEST\",\"typeIdentifierNormalized\":null,\"catalogPath\":null,\"description\":null}]"}""",
                 "list_network_objects" => Success(ToCamelCaseJson(ListNetworkObjectsFixture())),
                 "inspect_network_object" => Success(ToCamelCaseJson(InspectNetworkObjectFixture())),
-                // The write payloads must satisfy AddDeviceResultInfo / ConfigureNetworkDeviceResultInfo
-                // too. Their free-text members carry seq so request ordering stays observable
-                // without smuggling an unmapped member past the declared contract.
-                "add_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"rootItemName\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"warnings\":[\"seq:{{seq}}\"]}"}""",
-                "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"ipAddress\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
+                "add_network_device" or "configure_network_device" => HandleGuardedNetwork(line, roundtripNetworkState, scenario),
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
@@ -794,6 +824,14 @@ while ((line = Console.In.ReadLine()) is not null)
                     @"C:\FakeWorker\Different.ap21")
                 : $$"""{"success":false,"error":"expected read_hardware_config, got '{{ReadMethod(line)}}'"}""");
             break;
+        case "network-connection-evidence":
+        case "network-connection-evidence-degraded":
+            Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(ConnectionEvidenceHardwareConfig(
+                    currentProjectPath?.Contains("degraded", StringComparison.Ordinal) == true)))
+                : """{"success":false,"error":"expected ordinary hardware read"}""");
+            break;
+
         case "network-state-seq":
             // A contract-valid HardwareConfigInfo that reports the request sequence in its own
             // messages array, so a test can count how many worker requests a preview issued
@@ -919,7 +957,8 @@ while ((line = Console.In.ReadLine()) is not null)
             // A contract-valid, empty HardwareConfigInfo: no device can ever match a
             // configure_network_device target here, so a preview against this scenario proves
             // NetworkIdentityResolver's fail-closed path issues no safety token.
-            Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}"}""");
+            Respond(Success(ToCamelCaseJson(new HardwareConfigInfo
+                { DiscoveryEvidence = new() { Scope = "project", Complete = true } })));
             break;
         case "network-write-item-failure":
             // Stable hardware state (so preview/apply token binding holds) followed by a failing
@@ -964,7 +1003,8 @@ while ((line = Console.In.ReadLine()) is not null)
             // point is a DIFFERENT operation's payload being rejected as protocol_error.
             Respond(ReadMethod(line) switch
             {
-                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo())),
+                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo
+                    { DiscoveryEvidence = new() { Scope = "project", Complete = true } })),
                 "search_equipment_catalog" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
                 "add_network_device" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}' for invalid-network-success-payload"}"""
@@ -1155,6 +1195,126 @@ while ((line = Console.In.ReadLine()) is not null)
         // Phase 3: list_network_objects and inspect_network_object fixtures
         // ---------------------------------------------------------------------------
 
+        case "network-qualified-budget-known-observations":
+        case "network-qualified-budget-long":
+        case "network-qualified-budget-item":
+        case "network-qualified-budget-escaped":
+        case "network-qualified-budget-late-growth":
+        case "network-qualified-owner-drift":
+        case "network-qualified-partial":
+        case "network-qualified-read":
+        case "network-qualified-delete":
+        case "network-qualified-legacy":
+        case "network-qualified-late-subnet":
+        case "network-qualified-late-node":
+        case "network-qualified-late-device":
+        case "network-qualified-late-owner":
+        case "network-qualified-late-root":
+        case "network-qualified-final-missing-discovery":
+        case "network-qualified-final-binding-drift":
+        case "network-qualified-final-interface-drift":
+        case "network-qualified-final-repeat-interface-drift":
+            var qualifiedHardware = qualifiedNetworkState ??= QualifiedHardwareFixture();
+            var qualifiedDevice = qualifiedHardware.Devices[0];
+            if (scenario == "network-qualified-budget-known-observations")
+            {
+                qualifiedDevice.Items[0].Name = new string('o', 9800);
+                if (guardedNetworkWrites == 0)
+                {
+                    var oldNode = qualifiedDevice.Items[0].Items[0].NetworkInterfaces[0].Nodes[0];
+                    oldNode.IpAddress = new string('a', 7000);
+                    oldNode.SubnetMask = new string('m', 7000);
+                    oldNode.PnDeviceName = new string('p', 7000);
+                }
+            }
+            if (scenario == "network-qualified-budget-long")
+                qualifiedDevice.Items[0].Name = new string('\u4e00', 800);
+            if (scenario == "network-qualified-budget-item")
+                qualifiedDevice.Items[0].Name = new string('\u4e00', 12000);
+            if (scenario == "network-qualified-budget-escaped")
+                qualifiedDevice.Items[0].Name = string.Concat(Enumerable.Repeat("rack/\\\"\u4e00", 80));
+            if (scenario != "network-qualified-read" && scenario != "network-qualified-partial" && scenario != "network-qualified-owner-drift" && qualifiedHardware.Subnets.Count == 0 && guardedNetworkWrites == 0)
+            {
+                NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
+                var connected = qualifiedDevice.Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToList();
+                foreach (var n in connected) n.ConnectionEvidence = new() { Complete = true, SubnetId = "subnet-1", IoSystemSubnetId = "subnet-1", IoSystemNumber = 100 };
+                var subnet = SelectableSubnet("PN/IE", "subnet-1", "Ethernet", "System:Subnet.Ethernet", Array.Empty<IoSystemInfo>(), Array.Empty<string>());
+                subnet.ConnectionEvidence = new() { Complete = true, Nodes = connected.Select(n => new NetworkNodeIdentityInfo {
+                    DeviceName = qualifiedDevice.Name!, NodeId = n.NodeId, InterfacePath = scenario == "network-qualified-legacy" ? null : n.Selector!.InterfacePath }).ToList() };
+                qualifiedHardware.Subnets.Add(subnet);
+            }
+            NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
+            var qualifiedNodes = qualifiedDevice.Items[0].Items.SelectMany(item => item.NetworkInterfaces)
+                .SelectMany(networkInterface => networkInterface.Nodes).ToList();
+            if (ReadMethod(line) == "read_hardware_config")
+            {
+                if (scenario == "network-qualified-owner-drift" && ++qualifiedHardwareReadCount > 1)
+                    qualifiedDevice.Items[0].Items[0].Name = "Changed owner";
+                if (guardedNetworkWrites > 0)
+                {
+                    if (scenario == "network-qualified-budget-late-growth" && qualifiedDevice.Items[0].Items.Count == 2)
+                    {
+                        for (var budgetIndex = 0; budgetIndex < 30; budgetIndex++)
+                            qualifiedDevice.Items[0].Items.Add(new()
+                            {
+                                Name = new string('\u4e00', 900) + budgetIndex, PositionNumber = 40000 + budgetIndex,
+                                SelectorDiagnostics = new() { "Generic item type evidence is unavailable." },
+                                NetworkInterfaces = new() { new() { Name = "late", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." }, Nodes = new() { new()
+                                { NodeId = "E1", Name = "late", ConnectionEvidence = new() { Complete = true, SubnetId = "subnet-1" } } } } }
+                            });
+                        NetworkNodeReadSelectorBuilder.ApplyInventory(qualifiedHardware);
+                        qualifiedHardware.Subnets[0].ConnectionEvidence!.Nodes = qualifiedDevice.Items[0].Items
+                            .SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).Select(n => new NetworkNodeIdentityInfo
+                            { DeviceName = qualifiedDevice.Name!, NodeId = n.NodeId, InterfacePath = n.Selector!.InterfacePath }).ToList();
+                    }
+                    if (scenario == "network-qualified-late-subnet") qualifiedHardware.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet identity" } });
+                    if (scenario == "network-qualified-late-node") qualifiedNodes[0].NodeId = "";
+                    if (scenario == "network-qualified-late-device") qualifiedHardware.Devices.Add(new());
+                    if (scenario == "network-qualified-late-owner") qualifiedDevice.Items[0].Items.Add(new() { PositionNumber = null });
+                    if (scenario == "network-qualified-late-root") qualifiedHardware.RootDeviceCount = null;
+                    if (scenario == "network-qualified-final-missing-discovery") qualifiedHardware.DiscoveryEvidence = null;
+                    if (scenario == "network-qualified-final-binding-drift") fakeSessionGeneration++;
+                    if (scenario == "network-qualified-final-repeat-interface-drift" && guardedNetworkWrites > 1) qualifiedDevice.Items[0].Items[0].NetworkInterfaces[0].Name = "Changed service";
+                    if (scenario == "network-qualified-final-interface-drift") qualifiedDevice.Items[0].Items[0].NetworkInterfaces[0].Name = "Changed service";
+                    NetworkNodeReadSelectorBuilder.ApplyInventory(qualifiedHardware);
+                }
+                Respond(Success(ToCamelCaseJson(qualifiedHardware)));
+            }
+            else if (ReadMethod(line) == "list_network_objects")
+                Respond(Success(ToCamelCaseJson(new NetworkObjectListInfo { TotalCount = 2, ReturnedCount = 2,
+                    Items = qualifiedNodes.Select(node => new NetworkObjectSummaryInfo { Kind = NetworkObjectKinds.Node,
+                        Selectable = node.Selectable, Selector = node.Selector,
+                        Evidence = new() { NodeName = node.Name, Name = node.Name } }).ToList() })));
+            else if (ReadMethod(line) == "inspect_network_object")
+            {
+                var selectedTarget = JsonSerializer.Deserialize<WorkerRequest>(line, requestJsonOptions)!.NetworkObjectTarget!;
+                var selectedOwner = NetworkInterfacePathMatcher.Match(qualifiedDevice.Items, selectedTarget.InterfacePath!,
+                    item => item.Items, item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+                var selectedInterface = selectedOwner.Success ? selectedOwner.Item!.NetworkInterfaces.Single() : null;
+                var selectedNode = selectedInterface is null ? null : NetworkNodeReadSelectorBuilder.MatchNode(
+                    selectedInterface.Nodes, selectedTarget.NodeId, selectedTarget.NodeIndex, node => node.NodeId);
+                if (!string.Equals(selectedTarget.DeviceName, qualifiedDevice.Name, StringComparison.OrdinalIgnoreCase)
+                    || selectedInterface is null || selectedNode?.Success != true
+                    || (selectedTarget.InterfaceName is not null && !string.Equals(selectedTarget.InterfaceName, selectedInterface.Name, StringComparison.Ordinal)))
+                    Respond(ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.TargetEvidenceMismatch,
+                        Error = "Qualified fixture selector did not match." }));
+                else Respond(Success(ToCamelCaseJson(new NetworkObjectInspectionInfo { Target = selectedNode.Item!.Selector!,
+                    Evidence = new() { NodeName = selectedNode.Item.Name, Address = selectedNode.Item.IpAddress,
+                        InterfaceName = selectedInterface.Name } })));
+            }
+            else if (ReadMethod(line) == "configure_network_device")
+                Respond(ConfigureQualifiedFixture(line, qualifiedHardware, scenario));
+            else if (ReadMethod(line) == "delete_subnet")
+            {
+                guardedNetworkWrites++;
+                qualifiedHardware.Subnets.Clear();
+                foreach (var n in qualifiedNodes) n.ConnectionEvidence = new() { Complete = true };
+                Respond(Success(ToCamelCaseJson(new SubnetLifecycleResultInfo { SubnetId = "subnet-1", Name = "PN/IE", NetworkDeviceCount = 1, NetworkDeviceCountUnchanged = true,
+                    Verification = FakePassedVerification(new() { ["subnetId"] = "subnet-1" }, new() { ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true", ["networkDeviceCountUnchanged"] = "1" }) })));
+            }
+            else Respond("""{"success":false,"error":"unsupported qualified-read fixture operation"}""");
+            break;
+
         case "list-network-objects-success":
             // One object of every kind (6 total), including one unselectable summary (no selector).
             // Dispatches on method so both methods can share this project path if needed in future.
@@ -1184,6 +1344,94 @@ while ((line = Console.In.ReadLine()) is not null)
         // Phase 4: subnet lifecycle fixtures (Task 6)
         // ---------------------------------------------------------------------------
 
+        case "network-guarded":
+        case string traversalScenario when traversalScenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal):
+        case string identityScenario when identityScenario.StartsWith("network-guarded-identity-", StringComparison.Ordinal):
+        case "network-guarded-late-traversal":
+        case "network-guarded-late-unreadable-subnet":
+        case "network-guarded-late-unreadable-attribute":
+        case string lateIoScenario when lateIoScenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal):
+        case "network-guarded-optional-metadata":
+        case "network-guarded-missing-discovery":
+        case "network-guarded-incomplete":
+        case "network-guarded-incomplete-node":
+        case "network-guarded-incomplete-root":
+        case "network-guarded-incomplete-selector":
+        case "network-guarded-late-node-block":
+        case "network-guarded-disconnected":
+        case "network-guarded-late-block":
+        case "network-guarded-partial":
+        case "network-guarded-lost-node":
+        case "network-guarded-postread-failure":
+        case "network-guarded-unknown-result":
+        case "network-guarded-io-move":
+        case "network-guarded-root-drift":
+            guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario.StartsWith("network-guarded-incomplete", StringComparison.Ordinal));
+            if (scenario == "network-guarded-identity-device" && guardedNetworkState.Devices.Count == 2)
+                guardedNetworkState.Devices.Add(new() { Name = null });
+            if (scenario == "network-guarded-identity-node" && GuardedNodes(guardedNetworkState).All(node => node.NodeId.Length > 0))
+                guardedNetworkState.Devices[0].Items[0].NetworkInterfaces[0].Nodes.Add(new()
+                    { NodeId = "", SelectorDiagnostics = new() { "Node identity is unreadable." } });
+            if (scenario == "network-guarded-identity-subnet" && guardedNetworkState.Subnets.Count == 1)
+                guardedNetworkState.Subnets.Add(new() { Name = "Other", SubnetId = "", NetworkType = "Ethernet",
+                    SelectorDiagnostics = new() { "Subnet identity is unreadable." } });
+            if (scenario == "network-guarded-identity-subnet-name") guardedNetworkState.Subnets[0].Name = "";
+            if (scenario == "network-guarded-identity-io" && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
+            {
+                guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
+                guardedNetworkState.Subnets[0].IoSystems.Add(new() { Number = null,
+                    SelectorDiagnostics = new() { "IO system number is unreadable." } });
+            }
+            if (scenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal))
+            {
+                var stage = scenario["network-guarded-traversal-".Length..];
+                guardedNetworkState.DiscoveryEvidence = new() { Scope = stage == "deviceSelection" ? "device" : "project", Complete = false,
+                    Failures = new() { new() { Stage = stage, Message = "Synthetic traversal failure: " + stage } } };
+            }
+            if (scenario == "network-guarded-missing-discovery") guardedNetworkState.DiscoveryEvidence = null;
+            if (scenario == "network-guarded-optional-metadata" && guardedNetworkState.Messages.Count == 0)
+            {
+                guardedNetworkState.Messages.Add("Optional TypeIdentifier metadata is unavailable.");
+                guardedNetworkState.Devices[0].Items[0].TypeIdentifier = null;
+                guardedNetworkState.Devices[0].Items[0].Selectable = false;
+                guardedNetworkState.Devices[0].Items[0].Selector = null;
+                guardedNetworkState.Devices[0].Items[0].SelectorDiagnostics.Add("Optional TypeIdentifier metadata is unavailable.");
+                var optionalInterface = guardedNetworkState.Devices[0].Items[0].NetworkInterfaces[0];
+                optionalInterface.Selectable = false;
+                optionalInterface.Selector = null;
+                optionalInterface.SelectorDiagnostics.Add("Optional owner TypeIdentifier metadata is unavailable.");
+            }
+            if (scenario == "network-guarded-incomplete-node")
+                GuardedNodes(guardedNetworkState).First().ConnectionEvidence = new() { Complete = false,
+                    Messages = new() { "Could not read connected subnet identity: unavailable", "Could not read node 'Same display name' IO system: unavailable" } };
+            if (scenario == "network-guarded-incomplete-root" && guardedNetworkState.Messages.Count == 0)
+            {
+                guardedNetworkState.RootDeviceCount = null;
+                guardedNetworkState.Messages.Add("Could not read root device count: unavailable.");
+            }
+            if (scenario == "network-guarded-incomplete-selector" && guardedNetworkState.Subnets[0].SelectorDiagnostics.Count == 0)
+            {
+                guardedNetworkState.Subnets[0].Selectable = false;
+                guardedNetworkState.Subnets[0].Selector = null;
+                guardedNetworkState.Subnets[0].SubnetId = string.Empty;
+                guardedNetworkState.Subnets[0].SelectorDiagnostics.Add("Subnet selector identity was ambiguous.");
+            }
+            if ((scenario is "network-guarded-partial" or "network-guarded-io-move" || scenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal)) && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
+                guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
+            if (scenario == "network-guarded-io-move" && guardedNetworkState.Subnets.Count == 1)
+            {
+                var other = SelectableSubnet("Other", "subnet-2", "Ethernet", "System:Subnet.Ethernet", Array.Empty<IoSystemInfo>(), Array.Empty<string>());
+                other.ConnectionEvidence = new() { Complete = true };
+                guardedNetworkState.Subnets.Add(other);
+            }
+            if (scenario == "network-guarded-disconnected" && guardedNetworkWrites == 0)
+            {
+                foreach (var node in GuardedNodes(guardedNetworkState)) node.ConnectionEvidence = new() { Complete = true };
+                guardedNetworkState.Subnets[0].ConnectionEvidence!.Nodes.Clear();
+            }
+            Respond(HandleGuardedNetwork(line, guardedNetworkState, scenario));
+            break;
+
         case "network-subnet-lifecycle":
             // The main stateful scenario: normal create/update/delete round trips, canonical
             // text/structuredContent equality, minimal-result shape, audit, and every token
@@ -1191,6 +1439,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle"}"""
@@ -1205,6 +1454,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-alt-path"}"""
@@ -1221,6 +1471,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     $$"""{"success":true,"payload":"{\"subnetId\":\"subnet-malformed-1\",\"name\":\"Malformed\",\"networkDeviceCount\":{{SubnetLifecycleDeviceCount}},\"networkDeviceCountUnchanged\":true,\"relationshipSummary\":\"connected to 2 devices\"}"}""",
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-malformed-success"}"""
@@ -1235,6 +1486,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     $$"""{"success":false,"failureCategory":"postcondition_failed","error":"subnet lifecycle verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""",
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-postcondition-failed"}"""
@@ -1249,6 +1501,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     HandleSecondItemFailureWrite(line, subnetLifecycleState),
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-second-item-failure"}"""
@@ -2694,6 +2947,8 @@ HardwareConfigInfo SingleNodeHardwareConfig(
     string nodeId,
     IEnumerable<string>? messages = null) => new()
 {
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
+    RootDeviceCount = 1,
     Devices = new List<DeviceInfo>
     {
         new()
@@ -2713,6 +2968,7 @@ HardwareConfigInfo SingleNodeHardwareConfig(
 
 HardwareConfigInfo AmbiguousNodeHardwareConfig() => new()
 {
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
     Devices = new List<DeviceInfo>
     {
         new()
@@ -2730,6 +2986,79 @@ HardwareConfigInfo AmbiguousNodeHardwareConfig() => new()
             },
         },
     },
+};
+
+string ConfigureQualifiedFixture(string line, HardwareConfigInfo state, string scenario)
+{
+    var request = JsonSerializer.Deserialize<WorkerRequest>(line, requestJsonOptions)!;
+    NetworkObjectSelectorInfo target;
+    try { target = NetworkConfigurationTargetBinding.Resolve(request); }
+    catch (WorkerOperationException ex) { return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message }); }
+    var device = state.Devices.Single();
+    if (!string.Equals(device.Name, target.DeviceName, StringComparison.OrdinalIgnoreCase))
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.TargetNotFound, Error = "Device not found." });
+    if (target.InterfacePath is null)
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.TargetAmbiguous, Error = "Use qualified interfacePath." });
+    var owner = NetworkInterfacePathMatcher.Match(device.Items, target.InterfacePath, x => x.Items, x => x.Name, x => x.PositionNumber, x => x.TypeIdentifier);
+    if (!owner.Success) return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = owner.FailureCategory, Error = owner.Error });
+    var networkInterface = owner.Item!.NetworkInterfaces.Single();
+    var node = NetworkNodeReadSelectorBuilder.MatchNode(networkInterface.Nodes, target.NodeId, target.NodeIndex, x => x.NodeId);
+    if (!node.Success || target.InterfaceName is not null && target.InterfaceName != networkInterface.Name)
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = node.FailureCategory ?? WorkerFailureCategories.TargetEvidenceMismatch, Error = node.Error ?? "Interface constraint mismatch." });
+    // Preflight all dependency selectors before any scalar mutation.
+    if (request.SubnetId is not null || request.IoSystemNumber is not null)
+        return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Requested dependency was not found; no mutation." });
+    if (scenario == "network-qualified-budget-known-observations")
+    {
+        // Attempted assignments can leave known old values in failed postconditions.
+        guardedNetworkWrites++;
+        var attempted = new Dictionary<string, string>
+        { ["Address"] = request.IpAddress!, ["SubnetMask"] = request.SubnetMask!, ["PnDeviceName"] = request.PnDeviceName! };
+        var failedEvidence = FakeConfigurationVerification(line, request.DeviceName!, attempted);
+        failedEvidence.Status = "failed";
+        foreach (var check in failedEvidence.Checks)
+        {
+            check.Observed = check.Name switch { "Address" => node.Item!.IpAddress,
+                "SubnetMask" => node.Item!.SubnetMask, _ => node.Item!.PnDeviceName };
+            check.Status = "failed"; check.Message = "The attempted setting retained its known old value.";
+        }
+        return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
+        { DeviceName = request.DeviceName!, AppliedSettings = attempted, Verification = failedEvidence }));
+    }
+    var applied = new Dictionary<string, string>();
+    var skipped = new Dictionary<string, string>();
+    guardedNetworkWrites++;
+    if (request.IpAddress is not null) { node.Item!.IpAddress = request.IpAddress; applied["Address"] = request.IpAddress; }
+    if (request.SubnetMask is not null)
+    {
+        if (scenario == "network-qualified-partial") skipped["SubnetMask"] = "Read only";
+        else { node.Item!.SubnetMask = request.SubnetMask; applied["SubnetMask"] = request.SubnetMask; }
+    }
+    if (request.PnDeviceName is not null) { node.Item!.PnDeviceName = request.PnDeviceName; applied["PnDeviceName"] = request.PnDeviceName; }
+    return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo { DeviceName = request.DeviceName!, AppliedSettings = applied,
+        SkippedSettings = skipped, Verification = FakeConfigurationVerification(line, request.DeviceName!, applied) }));
+}
+
+HardwareConfigInfo QualifiedHardwareFixture() => new()
+{
+    RootDeviceCount = 1,
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
+    Devices = new() { new() { Name = "S7-1500/ET200MP station_1", Items = new() { new()
+    {
+        Name = "PLC_DP", PositionNumber = 1,
+        SelectorDiagnostics = new() { "Generic item type evidence is unavailable." },
+        Items = new()
+        {
+            new() { Name = "PROFINET interface_1", PositionNumber = 32768,
+                SelectorDiagnostics = new() { "Generic item type evidence is unavailable." }, NetworkInterfaces = new()
+                { new() { Name = "PROFINET interface_1", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." },
+                    Nodes = new() { new() { NodeId = "E1", Name = "X1", IpAddress = "192.168.12.2" } } } } },
+            new() { Name = "PROFINET interface_2", PositionNumber = 33024,
+                SelectorDiagnostics = new() { "Generic item type evidence is unavailable." }, NetworkInterfaces = new()
+                { new() { Name = "PROFINET interface_2", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." },
+                    Nodes = new() { new() { NodeId = "E1", Name = "X2", IpAddress = "192.168.13.20" } } } } },
+        },
+    } } } },
 };
 
 DeviceItemInfo SelectableDeviceItem(
@@ -2751,6 +3080,11 @@ DeviceItemInfo SelectableDeviceItem(
             TypeIdentifier = typeIdentifier,
         },
     };
+
+    foreach (var node in nodes)
+        node.Selector = NetworkSelectorFactory.QualifiedNode(deviceName, node.NodeId,
+            path.Select(segment => new NetworkInterfacePathSegmentInfo { Name = segment.Name,
+                PositionNumber = segment.PositionNumber, TypeIdentifier = segment.TypeIdentifier }).ToList(), interfaceName);
 
     return new DeviceItemInfo
     {
@@ -2847,6 +3181,7 @@ IoSystemInfo SelectableIoSystem(string subnetId, string name, int number, string
 // mutable node state, so a read after a configure_network_device call observes the mutation.
 HardwareConfigInfo MultiHomedHardwareConfig(MultiHomedNode plc, MultiHomedNode db) => new()
 {
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
     Devices = new List<DeviceInfo>
     {
         new()
@@ -2907,21 +3242,21 @@ string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHome
     if (ipAddress is not null)
     {
         target.IpAddress = ipAddress;
-        applied["ipAddress"] = ipAddress;
+        applied["Address"] = ipAddress;
     }
 
     var subnetMask = ReadField(requestLine, "subnetMask");
     if (subnetMask is not null)
     {
         target.SubnetMask = subnetMask;
-        applied["subnetMask"] = subnetMask;
+        applied["SubnetMask"] = subnetMask;
     }
 
     var pnDeviceName = ReadField(requestLine, "pnDeviceName");
     if (pnDeviceName is not null)
     {
         target.PnDeviceName = pnDeviceName;
-        applied["pnDeviceName"] = pnDeviceName;
+        applied["PnDeviceName"] = pnDeviceName;
     }
 
     var result = new ConfigureNetworkDeviceResultInfo
@@ -2930,6 +3265,7 @@ string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHome
         AppliedSettings = applied,
         SkippedSettings = new Dictionary<string, string>(),
         Messages = new List<string> { $"configured nodeId '{nodeId}'" },
+        Verification = FakeConfigurationVerification(requestLine, "PC_1", applied),
     };
 
     return Success(ToCamelCaseJson(result));
@@ -3224,31 +3560,107 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
 // Phase 4: subnet lifecycle fixtures (Task 6)
 // ---------------------------------------------------------------------------
 
+// Complete fixture inventory: both PLC ports survive subnet deletion and expose current membership.
 List<DeviceInfo> SubnetLifecycleDevices() => new()
 {
-    new() { Name = "PLC_1", TypeIdentifier = "OrderNumber:TEST", Items = new List<DeviceItemInfo>() },
-    new() { Name = "HMI_1", TypeIdentifier = "OrderNumber:HMI", Items = new List<DeviceItemInfo>() },
+    SingleNodeHardwareConfig("PLC_1", "Interface", "Interface", "X1", "eth-node").Devices[0],
+    new() { Name = "HMI_1", TypeIdentifier = "OrderNumber:HMI", Items = new() },
 };
 
-/// <summary>
-/// Renders the CURRENT mutable subnet list as a contract-valid <see cref="HardwareConfigInfo"/>.
-/// Devices are always the same two entries; only <paramref name="subnets"/> reflects whatever
-/// create_subnet/update_subnet/delete_subnet has done to the shared state so far.
-/// </summary>
-HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState> subnets) => new()
+HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState> subnets)
 {
-    Devices = SubnetLifecycleDevices(),
-    Subnets = subnets
-        .Select(subnet => SelectableSubnet(
-            subnet.Name,
-            subnet.SubnetId,
-            subnet.NetworkType,
-            subnet.NetworkType,
-            Array.Empty<IoSystemInfo>(),
-            subnet.ConnectedNodeNames))
-        .ToList(),
-    Messages = new List<string>(),
-};
+    var devices = SubnetLifecycleDevices();
+    var nodes = devices[0].Items[0].NetworkInterfaces[0].Nodes;
+    nodes.Add(SelectableNode("PLC_1", "MPI", "pb-node", "Profibus"));
+    foreach (var node in nodes)
+    {
+        var connected = subnets.SingleOrDefault(s => s.ConnectedNodeNames.Contains("PLC_1." + node.Name));
+        node.SubnetName = connected?.Name;
+        node.ConnectionEvidence = new() { Complete = true, SubnetId = connected?.SubnetId };
+    }
+    return new()
+    {
+        DiscoveryEvidence = new() { Scope = "project", Complete = true },
+        RootDeviceCount = SubnetLifecycleDeviceCount,
+        Devices = devices,
+        Subnets = subnets.Select(subnet =>
+        {
+            var info = SelectableSubnet(subnet.Name, subnet.SubnetId, subnet.NetworkType,
+                "System:Subnet." + subnet.NetworkType, Array.Empty<IoSystemInfo>(), subnet.ConnectedNodeNames);
+            info.ConnectionEvidence = new()
+            {
+                Complete = true,
+                Nodes = nodes.Where(n => n.ConnectionEvidence!.SubnetId == subnet.SubnetId)
+                    .Select(n => new NetworkNodeIdentityInfo { DeviceName = "PLC_1", NodeId = n.NodeId! }).ToList()
+            };
+            return info;
+        }).ToList()
+    };
+}
+
+string InspectSubnetLifecycle(string request, List<SubnetLifecycleSubnetState> subnets)
+{
+    var decoded = JsonSerializer.Deserialize<WorkerRequest>(request, requestJsonOptions)!;
+    var subnet = subnets.Single(s => s.SubnetId == decoded.NetworkObjectTarget!.SubnetId);
+    return Success(ToCamelCaseJson(new NetworkObjectInspectionInfo
+    {
+        Target = decoded.NetworkObjectTarget!,
+        Attributes = decoded.NetworkAttributeNames!.Select(name => new NetworkAttributeInfo
+        {
+            Name = name, Source = "dynamic", Access = "readWrite", Availability = "available",
+            Value = name == "HighestAddress" ? new() { Kind = "integer", Value = subnet.HighestAddress }
+                : new() { Kind = "enum", Value = new NetworkEnumValueInfo { TypeName = "Fixture.Speed", Symbol = subnet.TransmissionSpeed!, NumericValue = 1 } }
+        }).ToList()
+    }));
+}
+
+HardwareConfigInfo RoundtripHardwareConfig()
+{
+    var state = JsonSerializer.Deserialize<HardwareConfigInfo>(HardwareConfigPayload(), requestJsonOptions)!;
+    state.DiscoveryEvidence = new() { Scope = "project", Complete = true };
+    state.RootDeviceCount = state.Devices.Count;
+    foreach (var node in GuardedNodes(state))
+        node.ConnectionEvidence = new() { Complete = true,
+            SubnetId = state.Subnets.SingleOrDefault(s => s.Name == node.SubnetName)?.SubnetId };
+    foreach (var subnet in state.Subnets)
+        subnet.ConnectionEvidence = new() { Complete = true,
+            Nodes = state.Devices.SelectMany(d => d.Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes)
+                .Where(n => n.ConnectionEvidence!.SubnetId == subnet.SubnetId)
+                .Select(n => new NetworkNodeIdentityInfo { DeviceName = d.Name!, NodeId = n.NodeId! })).ToList() };
+    return state;
+}
+
+// An ordinary-read fixture with explicit all-scope identities and a distinct root count.
+// Older/page scenarios intentionally keep their conditional omissions.
+HardwareConfigInfo ConnectionEvidenceHardwareConfig(bool degraded)
+{
+    var result = SingleNodeHardwareConfig("PLC_Grouped", "Interface", "Interface", "Same display name", "node-2");
+    // Explicit synthetic ordinary project traversal; relationship loss is modeled independently.
+    result.DiscoveryEvidence = new() { Scope = "project", Complete = true };
+    result.RootDeviceCount = 2;
+    var ungrouped = SingleNodeHardwareConfig("PLC_Ungrouped", "Interface", "Interface", "Same display name", "node-3");
+    result.Devices.Add(ungrouped.Devices[0]);
+    var node = result.Devices[0].Items[0].NetworkInterfaces[0].Nodes[0];
+    node.SubnetName = "Network";
+    node.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true, SubnetId = "subnet-1" };
+    var ungroupedNode = result.Devices[1].Items[0].NetworkInterfaces[0].Nodes[0];
+    ungroupedNode.SubnetName = "Network";
+    ungroupedNode.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true, SubnetId = "subnet-1" };
+    var disconnected = SelectableNode("PLC_Grouped", "Disconnected port", "node-disconnected", "Ethernet");
+    disconnected.ConnectionEvidence = new NetworkNodeConnectionInfo { Complete = true };
+    result.Devices[0].Items[0].NetworkInterfaces[0].Nodes.Add(disconnected);
+    var subnet = SelectableSubnet("Network", "subnet-1", "Ethernet", "Ethernet",
+        Array.Empty<IoSystemInfo>(), new[] { "Same display name", "Same display name" });
+    subnet.ConnectionEvidence = new NetworkSubnetConnectionsInfo
+    {
+        Complete = !degraded,
+        Nodes = new() { new() { DeviceName = "PLC_Grouped", NodeId = "node-2" },
+            new() { DeviceName = "PLC_Ungrouped", NodeId = "node-3" } },
+        Messages = degraded ? new() { "Could not complete connected-node enumeration: unavailable" } : new()
+    };
+    result.Subnets.Add(subnet);
+    return result;
+}
 
 /// <summary>
 /// Dedicated fixture for the "network-subnet-lifecycle-state-drift" scenario: reports the SAME one
@@ -3290,12 +3702,203 @@ string DispatchSubnetLifecycleWrite(string requestLine, List<SubnetLifecycleSubn
     };
 
 /// <summary>
-/// Assigns a deterministic, nonblank, never-reused subnet id and applies PROFIBUS-only attributes
-/// only when the requested network type is PROFIBUS - mirroring
-/// <c>SubnetLifecycleService.ApplyProfibusAttributes</c>'s Ethernet/PROFIBUS split. The new subnet
-/// starts with an EMPTY connectedNodeNames list: nothing connects it, so it is immediately
-/// deletable as an "empty subnet" without needing a third preset fixture.
+/// Scripted verification for deterministic FakeWorker outcomes, not live Siemens read-back.
 /// </summary>
+IEnumerable<NodeInfo> GuardedNodes(HardwareConfigInfo state) => state.Devices.SelectMany(d => d.Items)
+    .SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes);
+
+DeviceItemInfo GuardedItem(string device, int index, string name, string type, params DeviceItemPathSegmentInfo[] parents) => new()
+{
+    Name = name, TypeIdentifier = type, PositionNumber = index, Selectable = true,
+    Selector = new() { Kind = "deviceItem", DeviceName = device, ItemPath = parents.Concat(new[]
+        { new DeviceItemPathSegmentInfo { Index = index, Name = name, PositionNumber = index, TypeIdentifier = type } }).ToList() }
+};
+
+string HandleGuardedNetwork(string request, HardwareConfigInfo state, string scenario)
+{
+    var method = ReadMethod(request);
+    if (method == "inspect_network_object")
+    {
+        var decoded = JsonSerializer.Deserialize<WorkerRequest>(request, requestJsonOptions)!;
+        var id = decoded.NetworkObjectTarget!.SubnetId!;
+        return Success(ToCamelCaseJson(new NetworkObjectInspectionInfo
+        {
+            Target = decoded.NetworkObjectTarget,
+            Attributes = decoded.NetworkAttributeNames!.Select(name => new NetworkAttributeInfo
+            {
+                Name = name, Source = "dynamic", Access = "readWrite", Availability = "available",
+                Value = name == "TransmissionSpeed"
+                    ? new() { Kind = "enum", Value = new NetworkEnumValueInfo { TypeName = "Fixture.Speed", Symbol = guardedSubnetAttributes[(id, name)], NumericValue = 1 } }
+                    : new() { Kind = "integer", Value = int.Parse(guardedSubnetAttributes[(id, name)], System.Globalization.CultureInfo.InvariantCulture) }
+            }).ToList()
+        }));
+    }
+    if (method == "read_hardware_config")
+    {
+        if (scenario == "network-guarded-late-traversal" && guardedNetworkWrites > 0)
+            state.DiscoveryEvidence = new() { Scope = "project", Complete = false,
+                Failures = new() { new() { Stage = "deviceEnumeration", Message = "Synthetic late ungrouped-device traversal failure." } } };
+        if (scenario == "network-guarded-late-unreadable-subnet" && guardedNetworkWrites > 0 && state.Subnets.Count == 0)
+            state.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet ID" } });
+        if (scenario == "network-guarded-late-unreadable-attribute" && guardedNetworkWrites > 0)
+            state.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet ID" } });
+        if (scenario == "network-guarded-late-io-number" && guardedNetworkWrites > 0)
+            state.Subnets[0].IoSystems.Add(new() { Number = null, SelectorDiagnostics = new() { "Unreadable IO number" } });
+        if (scenario == "network-guarded-late-io-subnet" && guardedNetworkWrites > 0)
+            state.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet ID" } });
+        if (scenario == "network-guarded-root-drift" && guardedNetworkWrites > 0) state.RootDeviceCount = 1;
+        if (scenario == "network-guarded-postread-failure" && guardedNetworkWrites > 0)
+            return "{\"success\":false,\"error\":\"postread unavailable\"}";
+        if (scenario == "network-guarded-late-block" && guardedNetworkWrites > 0 && state.Subnets.Count > 0)
+            state.Subnets[0].ConnectionEvidence = new() { Complete = false, Messages = new() { "late inventory failure" } };
+        if (scenario == "network-guarded-late-node-block" && guardedNetworkWrites > 0)
+            GuardedNodes(state).First().ConnectionEvidence = new() { Complete = false,
+                Messages = new() { "Could not read connected subnet identity: unavailable", "Could not read node 'Same display name' IO system: unavailable" } };
+        return Success(ToCamelCaseJson(state));
+    }
+    guardedNetworkWrites++;
+    if (method is "create_subnet" or "update_subnet")
+    {
+        var id = method == "create_subnet" ? "subnet-created-" + guardedNetworkWrites : ReadField(request, "subnetId")!;
+        var subnet = method == "create_subnet"
+            ? SelectableSubnet(ReadField(request, "subnetName")!, id, ReadField(request, "subnetNetworkType")!, "System:Subnet." + ReadField(request, "subnetNetworkType"), Array.Empty<IoSystemInfo>(), Array.Empty<string>())
+            : state.Subnets.Single(s => s.SubnetId == id);
+        if (method == "create_subnet")
+        {
+            subnet.ConnectionEvidence = new() { Complete = true };
+            state.Subnets.Add(subnet);
+        }
+        if (ReadField(request, "subnetName") is { } name) subnet.Name = name;
+        if (ReadIntField(request, "subnetHighestAddress") is { } address) guardedSubnetAttributes[(id, "HighestAddress")] = address.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (ReadField(request, "subnetTransmissionSpeed") is { } speed) guardedSubnetAttributes[(id, "TransmissionSpeed")] = speed;
+        var verification = FakeSubnetVerification(request, id);
+        var countCheck = verification.Checks.Single(c => c.Name == "networkDeviceCountUnchanged");
+        countCheck.Expected = countCheck.Observed = state.RootDeviceCount!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+        { SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount.Value, NetworkDeviceCountUnchanged = true, Verification = verification }));
+    }
+    if (method == "configure_network_device")
+    {
+        var node = GuardedNodes(state).Single(n => n.NodeId == ReadField(request, "nodeId"));
+        var applied = new Dictionary<string, string>();
+        var skipped = new Dictionary<string, string>();
+        if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied["Address"] = address; }
+        if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied["SubnetMask"] = mask; }
+        if (ReadField(request, "pnDeviceName") is { } pn) { node.PnDeviceName = pn; applied["PnDeviceName"] = pn; }
+        if (ReadField(request, "subnetId") is { } id)
+        {
+            node.ConnectionEvidence = new() { Complete = true, SubnetId = id };
+            applied["Subnet"] = id;
+            foreach (var previous in state.Subnets) previous.ConnectionEvidence?.Nodes.RemoveAll(n => n.DeviceName == "PLC_Grouped" && n.NodeId == node.NodeId);
+            var subnet = state.Subnets.Single(s => s.SubnetId == id);
+            subnet.ConnectionEvidence!.Nodes.Add(new() { DeviceName = "PLC_Grouped", NodeId = node.NodeId });
+        }
+        if (ReadIntField(request, "ioSystemNumber") is { } ioNumber)
+        {
+            if (scenario == "network-guarded-io-move" || scenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal))
+            {
+                node.ConnectionEvidence!.IoSystemSubnetId = ReadField(request, "ioSystemSubnetId");
+                node.ConnectionEvidence.IoSystemNumber = ioNumber;
+                applied["IoSystem"] = ioNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else skipped["IoSystem"] = "No IO connector available";
+        }
+        if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"outcome unavailable after mutation\"}";
+        return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
+        {
+            DeviceName = ReadField(request, "deviceName")!, AppliedSettings = applied, SkippedSettings = skipped,
+            Verification = FakeConfigurationVerification(request, ReadField(request, "deviceName")!, applied)
+        }));
+    }
+    if (method == "add_network_device")
+    {
+        var name = ReadField(request, "deviceName")!;
+        var itemName = ReadField(request, "deviceItemName") ?? name;
+        var type = ReadField(request, "typeIdentifier")!;
+        state.RootDeviceCount++;
+        var rack = GuardedItem(name, 0, "Rack", "Rack:TEST");
+        rack.Items.Add(GuardedItem(name, 0, itemName, type, rack.Selector!.ItemPath!.ToArray()));
+        state.Devices.Add(new() { Name = name, TypeIdentifier = "Device:Station", Items = new()
+        {
+            rack, GuardedItem(name, 1, "PowerSupply", "Supply:TEST")
+        } });
+        return Success(ToCamelCaseJson(new AddDeviceResultInfo
+        {
+            DeviceName = name, RootItemName = itemName, TypeIdentifier = type,
+            Verification = FakePassedVerification(new() { ["deviceName"] = name, ["deviceItemName"] = itemName }, new()
+            { ["deviceName"] = name, ["deviceItemName"] = itemName, ["typeIdentifier"] = type })
+        }));
+    }
+    if (method == "delete_subnet")
+    {
+        var id = ReadField(request, "subnetId")!;
+        var subnet = state.Subnets.Single(s => s.SubnetId == id);
+        state.Subnets.Remove(subnet);
+        foreach (var node in GuardedNodes(state))
+            if (node.ConnectionEvidence?.SubnetId == id) node.ConnectionEvidence = new() { Complete = true };
+        if (scenario == "network-guarded-lost-node") state.Devices.RemoveAt(1);
+        if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"delete outcome unavailable\"}";
+        return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
+        {
+            SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount!.Value, NetworkDeviceCountUnchanged = true,
+            Verification = FakePassedVerification(new() { ["subnetId"] = id }, new()
+            {
+                ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true",
+                ["networkDeviceCountUnchanged"] = state.RootDeviceCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            })
+        }));
+    }
+    return "{\"success\":false,\"error\":\"unsupported guarded fixture operation\"}";
+}
+
+NetworkMutationVerificationInfo FakePassedVerification(Dictionary<string, string> identity, Dictionary<string, string> values) => new()
+{
+    Identity = identity,
+    Status = values.Count == 0 ? "not_required" : "passed",
+    Checks = values.Select(pair => new NetworkVerificationCheckInfo
+    {
+        Name = pair.Key, Status = "passed", Expected = pair.Value, Observed = pair.Value,
+    }).ToList(),
+};
+
+NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine, string deviceName, Dictionary<string, string> applied)
+{
+    var values = new Dictionary<string, string>(applied);
+    if (values.ContainsKey("IoSystem")) values["IoSystem"] = JsonSerializer.Serialize(new object?[]
+        { ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId"), ReadIntField(requestLine, "ioSystemNumber") });
+    var identity = new Dictionary<string, string> { ["deviceName"] = deviceName, ["nodeId"] = ReadField(requestLine, "nodeId")! };
+    var target = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!.NetworkObjectTarget;
+    if (target?.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.InterfacePath);
+    else if (target?.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.ItemPath.Select(x =>
+        new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
+    if (target?.InterfaceName is not null) identity["interfaceName"] = target.InterfaceName;
+    return FakePassedVerification(identity, values);
+}
+
+NetworkMutationVerificationInfo FakeSubnetVerification(string requestLine, string subnetId)
+{
+    var method = ReadMethod(requestLine);
+    var values = new Dictionary<string, string>
+    {
+        ["networkDeviceCountUnchanged"] = SubnetLifecycleDeviceCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+    if (method == "delete_subnet")
+    {
+        values.Add("subnetAbsent", "true");
+        values.Add("affectedNodesPreserved", "true");
+        values.Add("affectedConnectionsRemoved", "true");
+    }
+    else
+    {
+        values.Add("subnetIdentity", subnetId);
+        if (ReadField(requestLine, "subnetName") is { } name) values.Add("Name", name);
+        if (method == "create_subnet") values.Add("TypeIdentifier", "System:Subnet." + ReadField(requestLine, "subnetNetworkType"));
+        if (ReadIntField(requestLine, "subnetHighestAddress") is { } address) values.Add("HighestAddress", address.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (ReadField(requestLine, "subnetTransmissionSpeed") is { } speed) values.Add("TransmissionSpeed", speed);
+    }
+    return FakePassedVerification(new() { ["subnetId"] = subnetId }, values);
+}
+
 string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
 {
     var name = ReadField(requestLine, "subnetName") ?? string.Empty;
@@ -3321,6 +3924,7 @@ string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
         Name = name,
         NetworkDeviceCount = SubnetLifecycleDeviceCount,
         NetworkDeviceCountUnchanged = true,
+        Verification = FakeSubnetVerification(requestLine, subnetId),
     }));
 }
 
@@ -3361,6 +3965,7 @@ string HandleUpdateSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
         Name = target.Name,
         NetworkDeviceCount = SubnetLifecycleDeviceCount,
         NetworkDeviceCountUnchanged = true,
+        Verification = FakeSubnetVerification(requestLine, target.SubnetId),
     }));
 }
 
@@ -3386,6 +3991,7 @@ string HandleDeleteSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
         Name = target.Name,
         NetworkDeviceCount = SubnetLifecycleDeviceCount,
         NetworkDeviceCountUnchanged = true,
+        Verification = FakeSubnetVerification(requestLine, target.SubnetId),
     }));
 }
 

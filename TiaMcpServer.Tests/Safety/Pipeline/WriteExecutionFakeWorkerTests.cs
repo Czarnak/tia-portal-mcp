@@ -144,7 +144,7 @@ public sealed class WriteExecutionFakeWorkerTests
 
     private static async Task<IReadOnlyList<string>> SubnetIdsAsync(OpennessWorkerClient client)
     {
-        var state = await NetworkSafetySnapshot.ReadCurrentStateAsync(client, Scenario);
+        var state = await NetworkWritePlanner.ReadCurrentStateAsync(client, Scenario);
         Assert.True(state.Success, state.Error);
         return state.State!.Subnets.Select(subnet => subnet.SubnetId).ToArray();
     }

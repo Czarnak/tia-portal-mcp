@@ -2,6 +2,9 @@ namespace TiaMcpServer.Contracts;
 
 public class AddDeviceResultInfo
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NetworkMutationVerificationInfo? Verification { get; set; }
+
     public string DeviceName { get; set; } = string.Empty;
 
     public string RootItemName { get; set; } = string.Empty;

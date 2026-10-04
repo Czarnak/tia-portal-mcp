@@ -66,7 +66,7 @@ falling back to another mode.
 Read-write exposes fifteen tools: four observation tools, `bind_project`, `compile_check`, the
 batch write pair, `network_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
 transitional `SafetyRead`, `SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`.
-Network/batch retain tokens. Every actual lifecycle call asks once through client form elicitation.
+Legacy batches retain tokens. Network never elicits; every actual lifecycle call asks once through client form elicitation.
 Legacy batch PLC control is denied before binding, snapshots, or dispatch. Reads never bind,
 switch, or open; `bind_project` selects an already-open project.
 
@@ -81,7 +81,7 @@ Confirmation derives from the binding gate's access mode. Read-write asks once f
 lifecycle call, even with no guards or only info guards; form acceptance needs `accept` and boolean
 `confirm:true`. Unsupported capability, decline, cancel, timeout, or transport failure denies with
 `access_denied`. Full uses policy satisfaction without server elicitation. Dry runs and block guards
-never elicit. Lifecycle has no agent confirmation list; Network/batch token tools retain their flows.
+never elicit. Lifecycle has no agent confirmation list; only generic batches retain tokens. Network uses guarded execution without server elicitation.
 The removed startup switch is rejected by `RemovedCliOptions` with:
 
 ```text
@@ -126,7 +126,7 @@ part of the active tool surface.
 `Program.cs` and production-surface protocol tests use the same registration helper.
 `BatchTools` remains an unregistered compatibility wrapper for internal callers and tests.
 The lifecycle migration removes `ProjectLifecycleTools` and its now-unused token paths; it does
-not retire batch/Network token support. The earlier registered-surface delegation and
+not retire generic-batch token support. Network-only token paths are now retired by the separate guarded Network migration. The earlier registered-surface delegation and
 preview-only live V21 evidence are recorded in the
 [PR 2 acceptance report](superpowers/acceptance/reports/2026-09-01-pr2-registered-tool-delegation-live.md).
 
@@ -344,10 +344,11 @@ remaining items from running.
 Write batches execute sequentially and stop on the first failure. Already
 completed writes are not rolled back.
 
-`network_write` is self-previewing. A call with `confirm:false` and no token snapshots the
-topology once and issues a token bound to the exact ordered request. A call with
-`confirm:true`, the unchanged operation list, and that token takes one fresh topology
-snapshot for validation, applies sequentially with no rollback, and appends an audit record.
+`network_write(operations, dryRun=false)` is a guarded single-call write. Explicit `dryRun:true`
+previews effects/guards; omitting `dryRun` executes. No Network server elicitation occurs in
+read-write/full or previews. Planning, sequential re-planning, mutation, immediate/final verification,
+composition and audit retain one pinned verified binding to the exact already-open project.
+Stops on the first failure, no rollback/replay; generic batches retain their token flow.
 
 `compile_check` is absent from read-only tool discovery. The underlying access
 policy also rejects internal compile requests in read-only mode before they are
@@ -376,21 +377,18 @@ and the batch tools' exclusion from it.
   omits nulls on the wire and cannot be read with required members. The reader does not check
   collection elements, dictionary values or generic arguments, so the typed validators keep their
   null-element checks alongside their semantic rules.
-- A member the worker legitimately omits is a *conditional member*, marked `WhenWritingNull` and
-  described by when it appears. Exactly four exist today (`DeviceItemInfo.IoDetails`,
-  `HardwareConfigInfo.Pagination`, `HardwarePaginationInfo.NextCursor`,
-  `WorkerResponse.BlockImportOutcome`), and `ConditionalMemberRegisterTests` pins that set.
+- A member the worker legitimately omits is conditional, marked `WhenWritingNull` and described
+  in `ConditionalMemberRegisterTests`. This includes optional I/O/pagination evidence and new
+  Network connection/root-count/immediate-verification evidence; the register is the authority.
 - `TiaMcpServer/Tools/StructuredToolResult.cs` renders one canonical JSON document and returns it
   as both the `content` text block and a detached `structuredContent` `JsonElement`, from a single
   `CanonicalJson.Serialize` call, so the two representations cannot drift apart.
 - `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs` provides the shared
   item/failure/omission/count/truncation batch model and a read/write execution engine whose
   stop decision covers `protocol_error` alongside ordinary worker failures.
-- `TiaMcpServer/Safety/CanonicalWriteSafety.cs` adds canonical, typed counterparts
-  (`CreateCanonicalPreview`, `ValidateCanonicalEnvelope`, `ValidateAndConsumeCanonical`,
-  `AppendCanonicalAudit`) to `WriteSafetyService`. Binding still happens through
-  `CanonicalJson.Serialize`, so a token survives pure JSON-property reordering while still
-  rejecting a changed value, type, or array order.
+- Network read/write use version `1.0`, warnings arrays and explicit nulls. Network-only
+  `CanonicalWriteSafety` and token preview DTOs are retired. Generic batch `WriteSafetyService`,
+  `WriteSafetyTooling`, `SafetyRead` and their audits remain in place.
 
 Any future tool that wants a single-layer structured JSON contract reuses this same seam rather
 than inventing a parallel one. `TiaMcpServer.Tests/Tools/ToolOutputContractConformanceTests.cs`
@@ -452,8 +450,8 @@ rejection-versus-attempted-failure classification.
 The six tools leave the output-conformance legacy register; only `execute_read_batch`,
 `preview_write_batch`, and `apply_write_batch` remain. Public `confirm`/`safetyToken` are removed
 from lifecycle schemas, while worker-internal confirmation fences remain. The [lifecycle reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
-describes guards and client migration. This is the lifecycle delivery unit, not Network/batch token
-retirement or a package-release gate.
+describes guards and client migration. This describes the lifecycle delivery unit; separate Network token
+retirement is now implemented, while generic-batch retirement and package release remain later gates.
 
 ### Typed Network payload registry
 
@@ -531,14 +529,36 @@ budget then runs independently with pagination-safe retry guidance.
 
 ### Canonical safety flow (network writes)
 
-`network_write` is self-previewing and binds three canonical representations through
-`CanonicalWriteSafety`: the resolved `NetworkWriteTargetEvidence[]` (what will be acted on), the
-caller's `NetworkOperationRequest[]` (what was asked), and the `HardwareConfigInfo` current state
-(what exists right now). Preview issues a token bound to all three; apply re-reads state, re-resolves
-targets against that fresh read, and only then validates and consumes the token — so a state change
-between preview and apply (a rename, a deletion, a newly ambiguous selector) invalidates it. The
-audit record appended by `AppendCanonicalAudit` stores the exact response document the caller
-received as structured JSON, not a re-rendering of it.
+`NetworkWriteDomain` implements the shared guarded runner with `ConfirmsEveryCall=false` and
+no acknowledge guards. Public root argument rejection (`confirm`, `safetyToken`, `acknowledge`,
+unknown roots, nonboolean `dryRun`) happens before tool entry through the normal SDK/wrapper MCP
+error path and has no write audit. Entered validation/binding/guard denials have a canonical root
+error and one audit. Aggregate encoded-ID/protected-core admission runs before binding; it retains
+the existing 256-character per-ID limit, without a smaller per-ID or raw-character aggregate rule.
+
+`NetworkWritePlanner` reads ordinary typed hardware, resolves exact targets and records complete
+node/subnet/IO relationship evidence. Unknown inventory is not empty. Connected deletion fires
+`network_delete_connected_subnet` (`info`); incomplete consequences fire `network_state_unverifiable`
+(`block`). Both satisfaction fields are null. Blocks cannot be overridden in any mode.
+
+`NetworkWriteVerifier` retains immediate applied-setting evidence before later deliberate changes,
+then reads the effective attempted prefix. Sparse skipped settings fail the item/call while keeping
+the typed result; no check claims an unapplied setting. Subnet-only moves do not imply IO detach/attach:
+an earlier explicit IO tuple remains expected unless explicitly superseded or removed by designed
+deletion consequences, so unexpected side effects can conservatively fail final verification.
+Root `project.Devices.Count` is separate from exact preservation of grouped/ungrouped devices/nodes.
+
+`NetworkWritePayloadBudget` bounds the complete canonical document at 180,000 characters and each
+value at 60,000. It omits whole effect/result/verification values, preserves IDs/guards/outcome
+summaries and uses shared omission metadata. Diagnostic strings over 512 canonical encoded
+characters are replaced whole, never raw prefixes; collections can be dropped whole under pressure.
+Root `omission` is explicitly null when complete. Incomplete evidence delivery makes root success
+false without changing actual execution/item/verification truth. Attempted calls stay `phase:applied`,
+`error:null`, MCP `isError:false`. Recover by `network_read` with original exact selectors; omission
+metadata is not a selector and never authorizes replay. Audit text/hash exactly matches delivery,
+while audit items retain execution truth. Actual read-write confirmation is `none`; actual full
+is `policy`; dry runs/denials are `none`. No Network server elicitation is attempted.
+See the [Network reference](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 
 ### Exact host-to-worker selector boundary
 
@@ -547,18 +567,20 @@ this is defense-in-depth, the same pattern used for read-only access enforcement
 
 - **Host side** (`TiaMcpServer/Network/NetworkIdentityResolver.cs`): resolves device, node,
   subnet, and IO-system identity from a `HardwareConfigInfo` snapshot the host itself just read.
-  This resolution produces the `NetworkWriteTargetEvidence` the safety token binds to and the
-  preview response reports — it never touches Siemens Openness.
+  This resolution produces the `NetworkWriteTargetEvidence` retained in guarded effects and
+  preview responses — it never touches Siemens Openness.
 - **Worker side** (`TiaMcpServer.OpennessWorker/Openness/NetworkDeviceConfigurator.cs`):
   independently matches the same `deviceName`/`nodeId` selector against live Openness objects at
   the moment of the actual write, walking every nested device item and network interface.
 
 Both sides apply the identical rule: a selector that matches zero, more than one, or a candidate
-whose own identity could not be read all fail closed (`postcondition_failed`) rather than
+whose own identity could not be read all fail closed rather than
 resolving to a first match, a first node, or a name-only guess. The host never forwards a
 pre-resolved object reference to the worker — only the caller's own `deviceName`/`nodeId` (and,
 where applicable, `subnetId`/IO-system `number`) cross the process boundary, so the worker's
-independent resolution is a real second check, not a formality.
+independent resolution is a real second check, not a formality. Newly preflighted requested subnet/IO
+failures and unreadable discovery use `worker_operation_failed`; established complete device/node/
+subnet-lifecycle selector categories remain. Actual failed/unverified postchecks use `postcondition_failed`.
 
 ### Phase 3 read identity and introspection seam
 
@@ -620,14 +642,9 @@ network_write request
   range/enum value. `NetworkSubnetDefinition` and `NetworkSubnetChanges` are strict nested DTOs
   with no writable `subnetId` and no writable `networkType` on update. Update and delete require
   `target.kind` to be exactly `"subnet"` (ordinal comparison) and a nonblank `subnetId`.
-- **Current subnet resolution and canonical safety binding**
-  (`TiaMcpServer/Network/NetworkIdentityResolver.cs`, `NetworkSafetySnapshot.cs`): `create_subnet`
-  evidence is request-derived (no hardware read); `update_subnet`/`delete_subnet` evidence is
-  resolved by exact ordinal `subnetId` match against the same `HardwareConfigInfo` snapshot the
-  other network writes use, with no name or index fallback. The resolved
-  `NetworkWriteTargetEvidence` (with `DeviceName` now `string?` so a subnet target need not invent a
-  device identity) is bound into the same `CanonicalWriteSafety` token as every other
-  `network_write` operation — there is no separate subnet-specific token mechanism.
+- **Current subnet planning** (`NetworkIdentityResolver`, `NetworkWritePlanner`): creation
+  identity is request-derived; update/delete use exact ordinal subnet IDs with no name/index
+  fallback. Guarded effects retain resolved identities and complete affected-node evidence.
 - **Worker request** (`TiaMcpServer.Contracts/WorkerRequest.cs`,
   `TiaMcpServer/Worker/OpennessWorkerClient.cs`, `TiaMcpServer/Network/NetworkWorkerInvoker.cs`):
   production fields `SubnetName`, `SubnetNetworkType`, `SubnetHighestAddress`,
@@ -652,16 +669,16 @@ network_write request
   target subnet (or confirms its absence for delete) and re-reads `project.Devices.Count`; any
   mismatch — including a changed device count — fails with `WorkerFailureCategories.PostconditionFailed`
   rather than reporting success, and the service never retries automatically.
-- **Minimal typed canonical result** (`TiaMcpServer.Contracts/SubnetLifecycleResultInfo.cs`,
-  registered in `NetworkPayloadContract` for all three operations): exactly `subnetId`, `name`,
-  `networkDeviceCount`, `networkDeviceCountUnchanged`. All four raw JSON members must be present
-  before typed normalization. A payload missing a member, reporting
-  `networkDeviceCountUnchanged:false`, or carrying any extra member is rejected as `protocol_error`
-  before it reaches the caller.
+- **Typed canonical result** (`SubnetLifecycleResultInfo`): required core `subnetId`, `name`,
+  `networkDeviceCount`, `networkDeviceCountUnchanged`, plus conditional worker `verification`
+  required on the guarded public path. Strict projection preserves failed/unverified postchecks
+  as attempted failures. Root count means `project.Devices.Count`; grouped/ungrouped node/device
+  preservation and detached relationships receive independent identity checks.
 
 The connected-subnet delete path is implemented through this seam without deleting devices;
-the worker never enumerates dependent nodes, IO systems, or communication connections, and the
-service never calls `Project.Save()` or triggers a hardware compile. Focused static gates verify
+the worker and host capture affected identities/consequences for guards and postchecks. The
+service never calls `Project.Save()` or triggers a hardware compile. Current-candidate live acceptance
+is pending; the dated Phase4 evidence below is historical and does not qualify this migration. Focused static gates verify
 the repaired contract. A historical Phase 4 run applies only to its recorded older commit. The
 first current-revision live attempt on 2026-09-23 stopped at a TIA safety-permission rejection of
 connected Ethernet deletion. The fresh 2026-09-24 guarded public rerun passed all eight lifecycle
@@ -681,12 +698,7 @@ Its `inspectOwner` mode checks that an IO system has exactly one controller inte
 `DeviceItem` that directly hosts the unique master `PlcSoftware` through
 `SoftwareContainer` and exposes `ICompilable`; they compile that hardware item, not the
 interface owner or containing `Device`. Missing or ambiguous owner, PLC role, compiler
-service, or pre/post identity continuity stops the operation. The guarded private harness
-uses read-only Inventory and Preview evidence. Compile accepts matching Inventory or
-Preview evidence; one-field Apply requires matching Preview evidence. Both effectful modes
-require a frozen candidate, unchanged evidence, an effectful switch, and an exact confirmation
-phrase. Apply rechecks the current value and session identity, commits before post-read and
-hardware compile, and reports a known post-commit failure without claiming rollback.
+service, or pre/post identity continuity stops the operation. An applied change commits before post-read and hardware compile; a known post-commit failure must not be reported as rollback.
 
 The 2026-09-26 worker-only V21 matrix verified distinct owner and compiler targets for PN-B
 and DP-B, baseline hardware compiles, and bounded one-field edit/restoration evidence. It
@@ -695,7 +707,7 @@ qualified PN and DP modeled `Name`/`Number` and PN
 committed edit made linked PN-name evidence unavailable, and excluded
 `MaxNumberIWlanLinksPerSegment` because the fixture reported `unknownAttribute`.
 The [historical acceptance report](superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md)
-records the harness limits and final clean reopen; the
+records the qualification limits and final clean reopen; the
 [qualified contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
 is input to later public slices. This diagnostic has no public safety token or write audit,
 and `update_io_system` is not shipped. Retire the probe with the final live-harness cleanup
@@ -703,18 +715,10 @@ after the later public acceptance work.
 
 ## 8. Write safety
 
-Lifecycle writes use the guarded single-call pipeline described below. Network and legacy batch
-writes retain preview→apply tokens until their own migration. Their token is a server-side consistency check. It proves that an apply call
-carries exactly the input that was previewed, for the same tool and verified project binding,
-against unchanged project state. It does not prove that a person saw the preview or approved the
-write: an agent can read the token out of a preview response and apply it in the same turn, and
-MCP gives a server no way to require a human in between. Consent belongs to the client, which
-decides whether to prompt before a call. The
-[write-safety redesign](superpowers/specs/2026-09-29-write-safety-redesign-design.md) replaces the
-token flow with guarded single-call writes (`dryRun`, guards, and mode-derived confirmation),
-delivered in phases. Lifecycle read-write asks once per actual call; full applies under policy. The token
-description below applies to Network and legacy batch tools. Client-returned elicitation acceptance
-also does not prove that a person saw a dialog.
+Lifecycle and Network writes use the guarded single-call pipeline described below. Lifecycle
+read-write confirms every actual call; Network has no server elicitation. Generic batches retain
+preview/apply tokens as server-side consistency checks, never proof of human consent. Client
+permission prompts and accepted elicitation do not establish that a human saw the consequence.
 
 ### MCP tool annotations
 
@@ -728,15 +732,14 @@ or transitional tokens, and audit. A client may prompt independently on any dest
 
 ### Preview→apply token flow
 
-Generic batch data writes use a two-tool flow; Network writes are self-previewing:
+Generic batch data writes alone retain the two-tool flow:
 
-1. The preview call (`preview_write_batch`, or `network_write` with no
-   token and `confirm:false`) reads current state, produces a human-readable description,
+1. The preview call (`preview_write_batch`) reads current state, produces a human-readable description,
    and creates a short-lived, single-use safety token bound to the tool,
    host binding revision, requested input, and current-state hashes. Project-scoped
    writes require that revision to contain a complete verified worker/Portal/project
    identity.
-2. The apply call (`apply_write_batch`, or `network_write`) supplies
+2. The apply call (`apply_write_batch`) supplies
    `confirm=true` and the token. `confirm` is an argument the caller sets, not a user
    confirmation. The server reads current
    state again and consumes the token only when every bound value still matches.
@@ -876,7 +879,7 @@ session while a preview is assembled.
 ### Guarded write pipeline (foundation and lifecycle)
 
 `TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaces the token flow.
-The six registered lifecycle tools use it; Network and batch migrate in later phases.
+The six registered lifecycle tools and Network use it; generic batches migrate later. Network has no server elicitation; lifecycle read-write confirms every actual call.
 The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
 are recorded separately; client acceptance does not prove that a person saw the consequence.
 
@@ -1013,7 +1016,7 @@ Lifecycle regressions cover read-write/full binding preparation and stale-revisi
 refusal, all seven guards, mode-derived guard satisfaction, client elicitation outcomes, post-prompt
 state changes, typed attempted failures and verification, canonical audit provenance, and removal
 of public token inputs. Production-surface protocol tests distinguish actual applied lifecycle
-calls from dry-run previews and keep legacy Network/batch tokens active.
+calls from dry-run previews and keep generic-batch tokens active. Network tests cover zero elicitation, exact binding, sparse partial outcomes and complete-envelope omission.
 
 Manual integration testing with a live TIA Portal remains necessary to validate
 Siemens-specific attachment, confirmation, project-path, packaging, and worker

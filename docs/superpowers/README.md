@@ -21,6 +21,8 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-04 | [Network discovery and interface-qualified node identity repair (implemented; full live acceptance pending)](specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md) |
+| 2026-10-03 | [Network JSON contract and guarded writes (offline-qualified; live acceptance pending)](specs/2026-10-03-network-json-guarded-write-design.md) |
 | 2026-10-01 | [Lifecycle in read-write, mode-derived confirmation, and runtime project binding](specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md) |
 | 2026-09-29 | [Write-safety redesign: retiring preview→apply tokens](specs/2026-09-29-write-safety-redesign-design.md) |
 | 2026-09-28 | [Multiuser Engineering](specs/2026-09-28-multiuser-engineering-design.md) |
@@ -49,6 +51,8 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-04 | [Network discovery and interface-qualified node identity repair (offline-qualified; partial live verification)](plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md) |
+| 2026-10-03 | [Network JSON contract and guarded writes (implementation/offline qualification complete; live acceptance pending)](plans/2026-10-03-network-json-guarded-write.md) |
 | 2026-10-02 | [Lifecycle in read-write and runtime project binding](plans/2026-10-02-lifecycle-tiers-and-project-binding.md) |
 | 2026-09-30 | [Write-safety redesign Phase 1b — access modes](plans/2026-09-30-write-safety-phase1b-access-modes.md) |
 | 2026-09-29 | [Write-safety redesign Phase 1 — foundation](plans/2026-09-29-write-safety-phase1-foundation.md) |
@@ -102,6 +106,8 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-05 | [Network discovery and interface-qualified identity repair — offline pass, partial live verification and PR handoff](acceptance/reports/2026-10-04-network-discovery-and-interface-node-identity-repair-validation.md) |
+| 2026-10-04 | [Network JSON contract and guarded writes — corrected-candidate offline validation; live acceptance pending](acceptance/reports/2026-10-03-network-json-guarded-write-offline-validation.md) |
 | 2026-10-03 | [Lifecycle tiers and runtime binding — all three modes live-accepted; human read-only Openness dialog observation recorded](acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md) |
 | 2026-10-01 | [JSON contract Phase 3 — guarded lifecycle live validation](acceptance/reports/2026-10-01-json-contract-phase3-live-validation.md) |
 | 2026-10-01 | [JSON contract Phase 3 — offline validation](acceptance/reports/2026-10-01-json-contract-phase3-offline-validation.md) |

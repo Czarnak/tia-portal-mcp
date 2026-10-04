@@ -11,6 +11,194 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public class NetworkIdentityResolverTests
 {
+    private static NetworkOperationRequest RepairRequest(int position = 32768) => new()
+    {
+        OperationId = "repair", Operation = "configure_network_device",
+        Target = new() { DeviceName = "S7-1500/ET200MP station_1", NodeId = "E1", InterfacePath = new[]
+        { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
+          new NetworkInterfacePathSegment { Name = position == 32768 ? "PROFINET interface_1" : "PROFINET interface_2", PositionNumber = position } } },
+        Changes = new() { IpAddress = "192.168.12.99" }
+    };
+
+    [Theory]
+    [InlineData(false, 1, true)]
+    [InlineData(true, 1, true)]
+    [InlineData(false, 0, false)]
+    [InlineData(true, 0, false)]
+    public void OrdinaryProducer_SourceIndexAgreesWithHostAndWorker(bool legacy, int index, bool succeeds)
+    {
+        var source = new[] { new NodeInfo { NodeId = "E2", Name = "second" }, new NodeInfo { NodeId = "E1", Name = "first" } };
+        var capture = new TiaMcpServer.OpennessWorker.Openness.HardwareDiscoveryEvidenceCapture("project", _ => { });
+        var state = NetworkDiscoveryRepairFixture.Metadata(capture.Evidence);
+        var owner = state.Devices[0].Items[0].Items[0];
+        state.Devices[0].Items[0].TypeIdentifier = "CPU"; owner.TypeIdentifier = "Port";
+        owner.NetworkInterfaces[0].Nodes = TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.ReadNodes(
+            () => source, node => new NodeInfo { NodeId = node.NodeId, Name = node.Name }, capture);
+        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.ApplyInventory(state);
+        Assert.All(owner.NetworkInterfaces[0].Nodes, node => { Assert.NotNull(node.Selector!.InterfacePath); Assert.Null(node.Selector.NodeIndex); });
+        var request = RepairRequest(); request.Target!.NodeIndex = index;
+        if (legacy)
+        {
+            request.Target.InterfacePath = null;
+            request.Target.ItemPath = new[] { new NetworkDeviceItemPathSegment { Index = 0, Name = "PLC_DP", PositionNumber = 1, TypeIdentifier = "CPU" },
+                new NetworkDeviceItemPathSegment { Index = 0, Name = "PROFINET interface_1", PositionNumber = 32768, TypeIdentifier = "Port" } };
+        }
+        var host = NetworkIdentityResolver.Resolve(request, state);
+        var worker = TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.MatchNode(source, "E1", index, node => node.NodeId);
+        Assert.Equal(succeeds, worker.Success);
+        Assert.True(host.Success == succeeds, $"source E2,E1, index {index}, legacy {legacy}: host success={host.Success}, error={host.Error}");
+        if (succeeds) { Assert.Equal("first", host.Evidence!.NodeName); Assert.Same(source[1], worker.Item); }
+        else Assert.Equal(WorkerFailureCategories.TargetEvidenceMismatch, host.FailureCategory);
+    }
+    [Fact]
+    public void PreparedLegacyTarget_DoesNotSwitchInterfaces()
+    {
+        var state = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true });
+        state.Devices[0].Items[0].TypeIdentifier = "CPU";
+        state.Devices[0].Items[0].Items[0].TypeIdentifier = "X1Type";
+        var request = RepairRequest(); request.Target!.InterfacePath = null;
+        request.Target.ItemPath = new[] { new NetworkDeviceItemPathSegment { Index = 0, Name = "PLC_DP", PositionNumber = 1, TypeIdentifier = "CPU" },
+            new NetworkDeviceItemPathSegment { Index = 0, Name = "PROFINET interface_1", PositionNumber = 32768, TypeIdentifier = "X1Type" } };
+        request.Target.NodeIndex = 0; request.Target.InterfaceName = "PROFINET interface_1";
+        var initial = NetworkIdentityResolver.Resolve(request, state);
+        Assert.True(initial.Success, initial.Error);
+        var prepared = NetworkIdentityResolver.BindPreparedTarget(request, initial.Evidence!);
+        request.Target.ItemPath[1].Index = 1;
+        Assert.Equal(0, prepared.Target!.ItemPath![1].Index);
+        Assert.Null(prepared.Target.InterfacePath);
+        state.Devices[0].Items[0].Items.Reverse();
+        Assert.False(NetworkIdentityResolver.Resolve(prepared, state).Success);
+    }
+
+    [Fact]
+    public void PreparedBareTarget_FreezesOwnerAndDoesNotMutateCaller()
+    {
+        var state = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true });
+        state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].NodeId = "Other";
+        var request = RepairRequest(); request.Target!.InterfacePath = null;
+        var initial = NetworkIdentityResolver.Resolve(request, state);
+        Assert.True(initial.Success, initial.Error);
+        var prepared = NetworkIdentityResolver.BindPreparedTarget(request, initial.Evidence!);
+        Assert.Null(request.Target.InterfacePath);
+        Assert.Equal(32768, prepared.Target!.InterfacePath![1].PositionNumber);
+        state.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].NodeId = "Other";
+        state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].NodeId = "E1";
+        Assert.True(NetworkIdentityResolver.Resolve(request, state).Success);
+        Assert.False(NetworkIdentityResolver.Resolve(prepared, state).Success);
+    }
+
+    [Theory]
+    [InlineData(32768)]
+    [InlineData(33024)]
+    public void ConfigureEachE1_ResolvesOnlyItsOwner(int position)
+    {
+        var resolution = NetworkIdentityResolver.Resolve(RepairRequest(position),
+            NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }));
+        Assert.True(resolution.Success, resolution.Error);
+        Assert.Equal(position == 32768 ? "X1" : "X2", resolution.Evidence!.NodeName);
+    }
+
+    [Fact]
+    public void BareDuplicateE1_IsAmbiguousBeforeDispatch()
+    {
+        var request = RepairRequest(); request.Target!.InterfacePath = null;
+        var bareResolution = NetworkIdentityResolver.Resolve(request,
+            NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }));
+        Assert.False(bareResolution.Success);
+        Assert.Contains("interfacePath", bareResolution.Error);
+    }
+
+    [Theory]
+    [InlineData("position")]
+    [InlineData("type")]
+    [InlineData("interface")]
+    [InlineData("index")]
+    public void WrongQualifiedConstraints_RefuseWithoutRetargeting(string constraint)
+    {
+        var request = RepairRequest();
+        if (constraint == "position") request.Target!.InterfacePath![1].PositionNumber = 33024;
+        if (constraint == "type") request.Target!.InterfacePath![1].TypeIdentifier = "Wrong";
+        if (constraint == "interface") request.Target!.InterfaceName = "PROFINET interface_2";
+        if (constraint == "index") request.Target!.NodeIndex = 1;
+        Assert.False(NetworkIdentityResolver.Resolve(request,
+            NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true })).Success);
+    }
+
+    [Theory]
+    [InlineData("device", null)]
+    [InlineData("device", "")]
+    [InlineData("device", " ")]
+    [InlineData("node", null)]
+    [InlineData("node", "")]
+    [InlineData("node", " ")]
+    [InlineData("subnet", null)]
+    [InlineData("subnet", "")]
+    [InlineData("subnet", " ")]
+    [InlineData("io", null)]
+    public void ReadableMatch_WithUnreadableCompetingIdentity_RefusesSelection(string kind, string? identity)
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("Subnet_A", "S-1", IoSystemFixture("IO", 1)) });
+        var operation = ConfigureRequest("op1", "PC_1", "N-PLC");
+        if (kind == "device") state.Devices.Add(new() { Name = identity });
+        if (kind == "node") state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].NodeId = identity!;
+        if (kind == "subnet")
+        {
+            state.Subnets.Add(Subnet("Other", identity!));
+            operation.Changes = new() { Subnet = new() { SubnetId = "S-1" } };
+        }
+        if (kind == "io")
+        {
+            state.Subnets[0].IoSystems.Add(IoSystemFixture("Unreadable", null));
+            operation.Changes = new() { IoSystem = new() { SubnetId = "S-1", Number = 1 } };
+        }
+        var resolution = NetworkIdentityResolver.Resolve(operation, state);
+        Assert.False(resolution.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, resolution.FailureCategory);
+        Assert.Null(resolution.Evidence);
+    }
+
+    [Theory]
+    [InlineData("delete_subnet")]
+    [InlineData("update_subnet")]
+    public void ExistingSubnet_WithUnreadableCompetingId_RefusesSelection(string operationName)
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("known", "S-1"), Subnet("unknown", "") });
+        var operation = new NetworkOperationRequest { OperationId = "op1", Operation = operationName,
+            Target = new() { Kind = "subnet", SubnetId = "S-1" }, SubnetChanges = operationName == "update_subnet" ? new() { Name = "changed" } : null };
+        var resolution = NetworkIdentityResolver.Resolve(operation, state);
+        Assert.False(resolution.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, resolution.FailureCategory);
+    }
+
+    [Theory]
+    [InlineData("device", null)]
+    [InlineData("device", "")]
+    [InlineData("device", " ")]
+    [InlineData("subnet", null)]
+    [InlineData("subnet", "")]
+    [InlineData("subnet", " ")]
+    public void Creation_WithUnreadableCompetingName_RefusesUniqueness(string kind, string? name)
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("known", "S-1") });
+        var operation = kind == "device" ? CreationRequest("op1", "new")
+            : new NetworkOperationRequest { OperationId = "op1", Operation = "create_subnet", Subnet = new() { Name = "new", NetworkType = "Ethernet" } };
+        if (kind == "device") state.Devices.Add(new() { Name = name });
+        else state.Subnets[0].Name = name!;
+        var resolution = NetworkIdentityResolver.Resolve(operation, state);
+        Assert.False(resolution.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, resolution.FailureCategory);
+    }
+
+    [Fact]
+    public void UnrelatedIdentityLoss_DoesNotBlockAddressConfiguration()
+    {
+        var state = MultiHomedPcFixture(new() { Subnet("unreadable", "", IoSystemFixture("unreadable", null)) });
+        state.Devices.Add(Device("Other", Leaf("Other", NetworkInterface("Other", Node("unreadable", "")))));
+        var resolution = NetworkIdentityResolver.Resolve(ConfigureRequest("op1", "PC_1", "N-PLC"), state);
+        Assert.True(resolution.Success);
+        Assert.Equal("N-PLC", resolution.Evidence!.NodeId);
+    }
+
     // ---- Request builders --------------------------------------------------------------------
 
     private static NetworkOperationRequest ConfigureRequest(
@@ -58,6 +246,7 @@ public class NetworkIdentityResolverTests
     {
         Name = name,
         TypeIdentifier = "OrderNumber:TEST",
+        PositionNumber = 1,
         NetworkInterfaces = new List<NetworkInterfaceInfo> { networkInterface },
         Items = new List<DeviceItemInfo>(),
     };
@@ -66,6 +255,7 @@ public class NetworkIdentityResolverTests
     {
         Name = name,
         TypeIdentifier = "OrderNumber:TEST",
+        PositionNumber = 1,
         NetworkInterfaces = new List<NetworkInterfaceInfo>(),
         Items = children.ToList(),
     };

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
@@ -32,6 +34,10 @@ public sealed class DeviceItemPathSegmentInfo
 /// </summary>
 public sealed class NetworkObjectSelectorInfo
 {
+    /// <summary>Preferred node owner path, present when exact name/position evidence is available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<NetworkInterfacePathSegmentInfo>? InterfacePath { get; set; }
+
     /// <summary>One of the values declared in <see cref="NetworkObjectKinds"/>.</summary>
     public string? Kind { get; set; }
 

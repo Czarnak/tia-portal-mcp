@@ -6,11 +6,11 @@
 |---|---|---|
 | `network_read` | `read_hardware_config` | Recursively discovers devices both at project root and in nested device groups, then reads device items, network interfaces, nodes, subnets, and IO systems. Optional `deviceName` filter, `plcName`, opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`), and bounded pagination (`pageSize`, `cursor`) — see [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md). |
 | `network_read` | `search_equipment_catalog` | Requires `query`; accepts bounded `maxResults`; returns catalog type identifiers for candidate devices. |
-| `network_write` (preview → apply) | `add_network_device` | Requires an exact catalog `typeIdentifier` and `deviceName`; accepts optional `deviceItemName`. |
-| `network_write` (preview → apply) | `configure_network_device` | Requires `target: { deviceName, nodeId }` naming an existing node and `changes` with at least one of `ipAddress`, `subnetMask`, `pnDeviceName`, `subnet: { subnetId }`, and `ioSystem: { subnetId, number }`. |
+| `network_write` (guarded) | `add_network_device` | Requires an exact catalog `typeIdentifier` and `deviceName`; accepts optional `deviceItemName`. |
+| `network_write` (guarded) | `configure_network_device` | Requires `target: { deviceName, nodeId }` naming an existing node and `changes` with at least one of `ipAddress`, `subnetMask`, `pnDeviceName`, `subnet: { subnetId }`, and `ioSystem: { subnetId, number }`. |
 | `browse_project_tree` | `browse_project_tree` | Recursively discovers the same direct and grouped devices as flat `Device` nodes; accepts optional `projectPath`, `startSelector`, `depth`, `pageSize`, and `cursor`. |
 
-`add_network_device` and `configure_network_device` are data writes. Preview the complete ordered sequence and apply it with the returned token. The catalog identifier and device name are validated before the worker performs the change.
+`add_network_device` and `configure_network_device` are data writes. Preview with `dryRun:true`; execute with `dryRun:false` or omitted `dryRun`, without server elicitation. Exact already-open verified binding is required; no tokens, rollback or automatic replay. The catalog identifier and device name are validated before the worker performs the change.
 
 ## Device data model
 

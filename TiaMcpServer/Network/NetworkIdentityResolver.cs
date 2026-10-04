@@ -20,11 +20,10 @@ public sealed record NetworkIdentityResolution(
 /// <see cref="HardwareConfigInfo"/>.
 ///
 /// <para>
-/// Every step fails closed: zero matches, more than one match, or a candidate whose own identity
-/// could not be read (modelled as an empty/null identity field) are all treated the same way —
-/// <see cref="WorkerFailureCategories.PostconditionFailed"/> — because none of them describe a
-/// selector that names exactly one existing thing. There is no first-match or name-only fallback
-/// anywhere in this type.
+/// Zero or duplicate matches return <see cref="WorkerFailureCategories.PostconditionFailed"/>.
+/// A readable match with unreadable competing identities returns
+/// <see cref="WorkerFailureCategories.WorkerOperationFailed"/> because uniqueness is unknown.
+/// There is no first-match or name-only fallback anywhere in this type.
 /// </para>
 ///
 /// <para>
@@ -39,9 +38,9 @@ public static class NetworkIdentityResolver
     public static NetworkIdentityResolution Resolve(NetworkOperationRequest operation, HardwareConfigInfo? state)
         => operation.Operation switch
         {
-            "add_network_device" => ResolveCreation(operation),
+            "add_network_device" => ResolveCreation(operation, state),
             "configure_network_device" => ResolveConfiguration(operation, state),
-            "create_subnet" => ResolveSubnetCreation(operation),
+            "create_subnet" => ResolveSubnetCreation(operation, state),
             "update_subnet" => ResolveExistingSubnet(operation, state, validateChanges: true),
             "delete_subnet" => ResolveExistingSubnet(operation, state, validateChanges: false),
             _ => NetworkIdentityResolution.Fail(
@@ -51,10 +50,13 @@ public static class NetworkIdentityResolver
 
     /// <summary>
     /// Creation names something that does not exist yet, so it is evidenced from the request alone:
-    /// no hardware state is consulted and every existing-object member stays null.
+    /// existing names must be readable when an inventory is supplied. Existing-object members stay null.
     /// </summary>
-    private static NetworkIdentityResolution ResolveCreation(NetworkOperationRequest operation)
-        => NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
+    private static NetworkIdentityResolution ResolveCreation(NetworkOperationRequest operation, HardwareConfigInfo? state)
+    {
+        if (state is not null && OrEmpty(state.Devices).Any(device => string.IsNullOrWhiteSpace(device.Name)))
+            return UnreadableIdentity(operation.OperationId, "project device-name");
+        return NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
             operation.OperationId,
             operation.Operation,
             operation.DeviceName ?? string.Empty,
@@ -67,15 +69,20 @@ public static class NetworkIdentityResolver
             SubnetId: null,
             IoSystemName: null,
             IoSystemNumber: null));
+    }
 
     /// <summary>
     /// A new subnet's <c>subnetId</c> is assigned by Openness at creation time, so, like
-    /// <see cref="ResolveCreation"/>, this is evidenced from the request alone: no hardware state
-    /// is consulted, <see cref="NetworkWriteTargetEvidence.SubnetId"/> stays null, and every
+    /// <see cref="ResolveCreation"/>, its new identity is evidenced from the request. Existing names
+    /// must be readable when an inventory is supplied;
+    /// <see cref="NetworkWriteTargetEvidence.SubnetId"/> stays null, and every
     /// device-identity member also stays null because a subnet target never has a device identity.
     /// </summary>
-    private static NetworkIdentityResolution ResolveSubnetCreation(NetworkOperationRequest operation)
-        => NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
+    private static NetworkIdentityResolution ResolveSubnetCreation(NetworkOperationRequest operation, HardwareConfigInfo? state)
+    {
+        if (state is not null && OrEmpty(state.Subnets).Any(subnet => string.IsNullOrWhiteSpace(subnet.Name)))
+            return UnreadableIdentity(operation.OperationId, "project subnet-name");
+        return NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
             operation.OperationId,
             operation.Operation,
             DeviceName: null,
@@ -88,6 +95,7 @@ public static class NetworkIdentityResolver
             SubnetId: null,
             IoSystemName: null,
             IoSystemNumber: null));
+    }
 
     /// <summary>
     /// Resolves <c>update_subnet</c>/<c>delete_subnet</c> targets against
@@ -98,8 +106,8 @@ public static class NetworkIdentityResolver
     /// matches fail exactly the same way any other resolver step in this type does.
     ///
     /// <para>
-    /// Only the current subnet's own identity and <see cref="SubnetInfo.NetworkType"/> are
-    /// consulted. <see cref="SubnetInfo.ConnectedNodeNames"/> and <see cref="SubnetInfo.IoSystems"/>
+    /// Subnet IDs must be readable throughout the selected project namespace. The selected subnet's
+    /// <see cref="SubnetInfo.NetworkType"/> is checked. <see cref="SubnetInfo.ConnectedNodeNames"/> and <see cref="SubnetInfo.IoSystems"/>
     /// are never read here: connected subnets resolve and remain deletable exactly like
     /// disconnected ones, because this resolver builds no dependency inventory.
     /// </para>
@@ -141,6 +149,8 @@ public static class NetworkIdentityResolver
                     : $"{prefix}: no subnet with subnetId '{requestedId}' was found.");
         }
 
+        if (OrEmpty(state.Subnets).Any(candidate => string.IsNullOrWhiteSpace(candidate.SubnetId)))
+            return UnreadableIdentity(operation.OperationId, "project subnet-ID");
         var subnet = subnetMatch.Match!;
         if (!SubnetLifecycleContract.IsSupportedNetworkType(subnet.NetworkType))
         {
@@ -214,20 +224,12 @@ public static class NetworkIdentityResolver
                     : $"{prefix}: no device named '{target.DeviceName}' was found.");
         }
 
+        if (OrEmpty(state.Devices).Any(candidate => string.IsNullOrWhiteSpace(candidate.Name)))
+            return UnreadableIdentity(operation.OperationId, "project device-name");
         var device = deviceMatch.Match!;
-        var nodeMatch = MatchExactlyOne(
-            EnumerateNodes(device),
-            candidate => IdentitiesMatch(candidate.Node.NodeId, target.NodeId));
-        if (!nodeMatch.IsResolved)
-        {
-            return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.PostconditionFailed,
-                nodeMatch.IsAmbiguous
-                    ? $"{prefix}: multiple nodes on device '{target.DeviceName}' report nodeId '{target.NodeId}'; nodeId must select exactly one node."
-                    : $"{prefix}: no node with nodeId '{target.NodeId}' was found on device '{target.DeviceName}'.");
-        }
-
-        var matchedNode = nodeMatch.Match!;
+        var selection = SelectNode(device, target);
+        if (selection.Error is not null) return NetworkIdentityResolution.Fail(selection.Category!, $"{prefix}: {selection.Error}");
+        var matchedNode = selection.Candidate!;
         var resolvedNode = matchedNode.Node;
         var deviceItemPath = matchedNode.Path;
         var networkInterfaceName = matchedNode.InterfaceName;
@@ -248,6 +250,8 @@ public static class NetworkIdentityResolver
                         : $"{prefix}: no subnet with subnetId '{subnetIdToResolve}' was found.");
             }
 
+            if (OrEmpty(state.Subnets).Any(candidate => string.IsNullOrWhiteSpace(candidate.SubnetId)))
+                return UnreadableIdentity(operation.OperationId, "project subnet-ID");
             resolvedSubnet = subnetMatch.Match;
         }
 
@@ -277,6 +281,8 @@ public static class NetworkIdentityResolver
                         : $"{prefix}: no IO system with number {requestedNumber} was found on subnet '{subnetIdToResolve}'.");
             }
 
+            if (OrEmpty(resolvedSubnet.IoSystems).Any(candidate => !candidate.Number.HasValue || candidate.Number < 0))
+                return UnreadableIdentity(operation.OperationId, $"subnet '{resolvedSubnet.SubnetId}' IO-number");
             resolvedIoSystem = ioSystemMatch.Match;
         }
 
@@ -292,44 +298,101 @@ public static class NetworkIdentityResolver
             resolvedSubnet?.Name,
             resolvedSubnet?.SubnetId,
             resolvedIoSystem?.Name,
-            resolvedIoSystem?.Number));
+            resolvedIoSystem?.Number,
+            matchedNode.OwnerPath));
     }
 
-    /// <summary>
-    /// Walks every nested device item and every network interface under it, depth first, yielding
-    /// every node together with the device-item path and interface it was found under. Null nested
-    /// collections are treated as empty rather than dereferenced.
-    /// </summary>
-    private static IEnumerable<NodeCandidate> EnumerateNodes(DeviceInfo device)
+    private static NetworkIdentityResolution UnreadableIdentity(string operationId, string identityNamespace)
+        => NetworkIdentityResolution.Fail(WorkerFailureCategories.WorkerOperationFailed,
+            $"Operation '{operationId}': required {identityNamespace} identities are unreadable; exact selection cannot be proved. Inspect the hardware configuration before retrying.");
+
+    /// <summary>Freezes the request and fills only an underspecified bare owner's path.</summary>
+    public static NetworkOperationRequest BindPreparedTarget(NetworkOperationRequest item, NetworkWriteTargetEvidence target)
     {
-        foreach (var item in OrEmpty(device.Items))
+        var copy = TiaMcpServer.Json.CanonicalJson.Deserialize<NetworkOperationRequest>(TiaMcpServer.Json.CanonicalJson.Serialize(item));
+        if (copy.Operation == "configure_network_device" && copy.Target!.InterfacePath is null && copy.Target.ItemPath is null)
+            copy.Target.InterfacePath = target.InterfacePath?.Select(segment => new NetworkInterfacePathSegment
+            { Name = segment.Name, PositionNumber = segment.PositionNumber, TypeIdentifier = segment.TypeIdentifier }).ToArray()
+                ?? throw new InvalidOperationException("Prepared configuration target has no qualified owner identity.");
+        return copy;
+    }
+
+    internal static NodeInfo PreparedNode(HardwareConfigInfo state, NetworkWriteTargetEvidence target)
+    {
+        var device = state.Devices.Single(d => NamesMatch(d.Name, target.DeviceName));
+        var owner = NetworkInterfacePathMatcher.Match(device.Items, target.InterfacePath!, i => i.Items,
+            i => i.Name, i => i.PositionNumber, i => i.TypeIdentifier);
+        if (!owner.Success) throw new InvalidOperationException("Resolved owner evidence changed within the decoded snapshot.");
+        return owner.Item!.NetworkInterfaces.Single().Nodes.Single(n => IdentitiesMatch(n.NodeId, target.NodeId));
+    }
+
+    private static (NodeCandidate? Candidate, string? Category, string? Error) SelectNode(DeviceInfo device, NetworkObjectTarget target)
+    {
+        IReadOnlyList<NetworkInterfacePathSegmentInfo>? path = target.InterfacePath?.Select(x => new NetworkInterfacePathSegmentInfo
+        { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray();
+        if (target.InterfacePath is not null && target.ItemPath is not null)
+            return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Both owner path forms were supplied.");
+        if (target.ItemPath is not null)
         {
-            foreach (var candidate in EnumerateItem(item, Array.Empty<string>()))
+            if (target.NodeIndex is null) return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Legacy itemPath requires nodeIndex.");
+            var siblings = device.Items;
+            foreach (var segment in target.ItemPath)
             {
-                yield return candidate;
+                if (segment.Index is not int index || index < 0 || index >= siblings.Count)
+                    return (null, WorkerFailureCategories.TargetNotFound, "Legacy itemPath index was not found.");
+                var item = siblings[index];
+                if (item.Name != segment.Name || item.PositionNumber != segment.PositionNumber || item.TypeIdentifier != segment.TypeIdentifier
+                    || string.IsNullOrWhiteSpace(segment.TypeIdentifier))
+                    return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Legacy itemPath evidence does not match.");
+                siblings = item.Items;
             }
+            path = target.ItemPath.Select(x => new NetworkInterfacePathSegmentInfo
+            { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray();
         }
+        if (path is not null)
+        {
+            var owner = NetworkInterfacePathMatcher.Match(device.Items, path, i => i.Items, i => i.Name, i => i.PositionNumber, i => i.TypeIdentifier);
+            if (!owner.Success) return (null, owner.FailureCategory, owner.Error);
+            if (owner.Item!.NetworkInterfaces.Count != 1)
+                return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Selected owner does not expose exactly one interface.");
+            var networkInterface = owner.Item.NetworkInterfaces[0];
+            if (target.InterfaceName is not null && target.InterfaceName != networkInterface.Name)
+                return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Selected interface name constraint does not match.");
+            if (networkInterface.Nodes.Any(n => string.IsNullOrWhiteSpace(n.NodeId)))
+                return (null, WorkerFailureCategories.WorkerOperationFailed, "Selected interface node identities are unreadable.");
+            var matches = networkInterface.Nodes.Where(n => IdentitiesMatch(n.NodeId, target.NodeId)).ToArray();
+            if (matches.Length != 1) return (null, matches.Length == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous,
+                "Node identity must be unique within the selected interface.");
+            if (target.NodeIndex is int index && (index < 0 || index >= networkInterface.Nodes.Count || !ReferenceEquals(networkInterface.Nodes[index], matches[0])))
+                return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Node index constraint does not match.");
+            return (new(path.Select(x => x.Name).ToArray(), path, networkInterface.Name, matches[0]), null, null);
+        }
+        if (target.NodeIndex is not null || target.InterfaceName is not null)
+            return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Node constraints require an owner path.");
+        if (string.IsNullOrWhiteSpace(target.NodeId))
+            return (null, WorkerFailureCategories.PostconditionFailed, "No node with nodeId was found.");
+        var candidates = EnumerateNodes(device).ToArray();
+        if (candidates.Any(x => string.IsNullOrWhiteSpace(x.Node.NodeId)))
+            return (null, WorkerFailureCategories.WorkerOperationFailed, "Device node identities are unreadable.");
+        var matched = candidates.Where(x => IdentitiesMatch(x.Node.NodeId, target.NodeId)).ToArray();
+        if (matched.Length != 1) return (null, WorkerFailureCategories.PostconditionFailed,
+            matched.Length == 0 ? "No node with nodeId was found." : "Multiple nodes match this bare nodeId. Use the interfacePath selector returned by read_hardware_config or list_network_objects.");
+        var proof = NetworkInterfacePathMatcher.Match(device.Items, matched[0].OwnerPath, i => i.Items, i => i.Name, i => i.PositionNumber, i => i.TypeIdentifier);
+        if (!proof.Success) return (null, proof.FailureCategory, proof.Error);
+        return SelectNode(device, new NetworkObjectTarget { DeviceName = target.DeviceName, NodeId = target.NodeId,
+            InterfacePath = matched[0].OwnerPath.Select(x => new NetworkInterfacePathSegment
+            { Name = x.Name, PositionNumber = x.PositionNumber }).ToArray() });
     }
 
-    private static IEnumerable<NodeCandidate> EnumerateItem(DeviceItemInfo item, IReadOnlyList<string> parentPath)
+    private static IEnumerable<NodeCandidate> EnumerateNodes(DeviceInfo device) => OrEmpty(device.Items).SelectMany(item => EnumerateItem(item, Array.Empty<NetworkInterfacePathSegmentInfo>()));
+    private static IEnumerable<NodeCandidate> EnumerateItem(DeviceItemInfo item, IReadOnlyList<NetworkInterfacePathSegmentInfo> parent)
     {
-        var path = new List<string>(parentPath) { item.Name ?? string.Empty };
-
+        var path = parent.Concat(new[] { new NetworkInterfacePathSegmentInfo { Name = item.Name ?? string.Empty, PositionNumber = item.PositionNumber ?? -1 } }).ToArray();
         foreach (var networkInterface in OrEmpty(item.NetworkInterfaces))
-        {
             foreach (var node in OrEmpty(networkInterface.Nodes))
-            {
-                yield return new NodeCandidate(path, networkInterface.Name, node);
-            }
-        }
-
+                yield return new(path.Select(x => x.Name).ToArray(), path, networkInterface.Name, node);
         foreach (var child in OrEmpty(item.Items))
-        {
-            foreach (var candidate in EnumerateItem(child, path))
-            {
-                yield return candidate;
-            }
-        }
+            foreach (var candidate in EnumerateItem(child, path)) yield return candidate;
     }
 
     /// <summary>Case-insensitive, matching the worker's existing device-name lookup.</summary>
@@ -379,7 +442,7 @@ public static class NetworkIdentityResolver
         return new MatchOutcome<T>(count, match);
     }
 
-    private sealed record NodeCandidate(IReadOnlyList<string> Path, string InterfaceName, NodeInfo Node);
+    private sealed record NodeCandidate(IReadOnlyList<string> Path, IReadOnlyList<NetworkInterfacePathSegmentInfo> OwnerPath, string InterfaceName, NodeInfo Node);
 
     /// <summary>
     /// Wraps a match count so a single ambiguity/absence rule can be applied uniformly at every

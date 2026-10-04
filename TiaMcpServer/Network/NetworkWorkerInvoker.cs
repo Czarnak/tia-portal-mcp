@@ -43,6 +43,13 @@ public static class NetworkWorkerInvoker
         {
             Kind = target.Kind,
             DeviceName = target.DeviceName,
+            InterfacePath = target.InterfacePath?.Select(segment => new NetworkInterfacePathSegmentInfo
+            {
+                Name = segment.Name,
+                PositionNumber = segment.PositionNumber ?? throw new InvalidOperationException(
+                    "Validated network interface owner segment is missing positionNumber."),
+                TypeIdentifier = segment.TypeIdentifier,
+            }).ToList(),
             ItemPath = target.ItemPath is null
                 ? null
                 : target.ItemPath
@@ -87,8 +94,7 @@ public static class NetworkWorkerInvoker
                 operation.DeviceItemName ?? operation.DeviceName!,
                 projectPath),
             "configure_network_device" => client.ConfigureNetworkDeviceAsync(
-                operation.Target!.DeviceName!,
-                operation.Target!.NodeId!,
+                MapSelector(operation.Target!),
                 operation.Changes!.IpAddress,
                 operation.Changes!.SubnetMask,
                 operation.Changes!.PnDeviceName,

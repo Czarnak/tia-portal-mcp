@@ -94,7 +94,7 @@ public static class NetworkOperationCatalog
             [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "deviceName", "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode" },
             [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "itemPath", "nodeId", "nodeIndex" },
+                { "kind", "deviceName", "itemPath", "interfacePath", "interfaceName", "nodeId", "nodeIndex" },
             [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal)
                 { "kind", "subnetId" },
             [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal)
@@ -107,7 +107,7 @@ public static class NetworkOperationCatalog
     private static readonly IReadOnlySet<string> ConfigureInapplicableSelectorFields =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode", "nodeIndex",
+            "interfaceType", "interfaceOperatingMode",
             "subnetId", "number", "ioSystemIndex", "ioSystemName", "connectionIndex", "connectionType",
             "localConnectionName", "localConnectionId",
         };
@@ -505,6 +505,7 @@ public static class NetworkOperationCatalog
         ("kind", t => t.Kind is not null),
         ("deviceName", t => t.DeviceName is not null),
         ("itemPath", t => t.ItemPath is not null),
+        ("interfacePath", t => t.InterfacePath is not null),
         ("interfaceName", t => t.InterfaceName is not null),
         ("interfaceType", t => t.InterfaceType is not null),
         ("interfaceOperatingMode", t => t.InterfaceOperatingMode is not null),
@@ -524,6 +525,7 @@ public static class NetworkOperationCatalog
     {
         "deviceName" => !string.IsNullOrWhiteSpace(target.DeviceName),
         "itemPath" => target.ItemPath is { Count: > 0 },
+        "interfacePath" => target.InterfacePath is { Count: > 0 },
         "interfaceName" => !string.IsNullOrWhiteSpace(target.InterfaceName),
         "interfaceType" => !string.IsNullOrWhiteSpace(target.InterfaceType),
         "interfaceOperatingMode" => !string.IsNullOrWhiteSpace(target.InterfaceOperatingMode),
@@ -545,6 +547,30 @@ public static class NetworkOperationCatalog
         string prefix,
         List<string> errors)
     {
+        if (target.InterfacePath is { } interfacePath)
+        {
+            if (interfacePath.Count == 0)
+                errors.Add($"{prefix} 'target.interfacePath' must be non-empty.");
+            for (var index = 0; index < interfacePath.Count; index++)
+            {
+                var segment = interfacePath[index];
+                var member = $"{prefix} 'target.interfacePath[{index}]";
+                if (segment is null)
+                {
+                    errors.Add($"{member}' must not be null.");
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(segment.Name))
+                    errors.Add($"{member}.name' is required and must be nonblank.");
+                if (segment.PositionNumber is null)
+                    errors.Add($"{member}.positionNumber' is required.");
+                else if (segment.PositionNumber < 0)
+                    errors.Add($"{member}.positionNumber' must not be negative.");
+                if (segment.TypeIdentifier is not null && string.IsNullOrWhiteSpace(segment.TypeIdentifier))
+                    errors.Add($"{member}.typeIdentifier' must be nonblank when supplied.");
+            }
+        }
+
         if (target.ItemPath is { } itemPath)
         {
             if (itemPath.Count == 0)
@@ -611,10 +637,14 @@ public static class NetworkOperationCatalog
             errors.Add($"{prefix} 'target.number' must not be negative.");
         }
 
-        if (string.Equals(target.Kind, NetworkObjectKinds.Node, StringComparison.Ordinal)
-            && (target.ItemPath is null) != (target.NodeIndex is null))
+        if (target.Kind is null or NetworkObjectKinds.Node)
         {
-            errors.Add($"{prefix} 'target.itemPath' and 'target.nodeIndex' must be supplied together for kind '{target.Kind}'.");
+            if (target.InterfacePath is not null && target.ItemPath is not null)
+                errors.Add($"{prefix} 'target.interfacePath' and 'target.itemPath' cannot both be supplied.");
+            if (target.InterfacePath is null && (target.ItemPath is null) != (target.NodeIndex is null))
+                errors.Add($"{prefix} 'target.itemPath' and 'target.nodeIndex' must be supplied together for node targets.");
+            if (target.ItemPath is null && target.InterfacePath is null && target.InterfaceName is not null)
+                errors.Add($"{prefix} 'target.interfaceName' requires an owner path.");
         }
 
         if (target.NodeIndex is < 0)
@@ -683,11 +713,13 @@ public static class NetworkOperationCatalog
             // Phase 3: new selector fields are not applicable to configure.
             foreach (var field in ConfigureInapplicableSelectorFields)
             {
-                if (IsSelectorFieldPresent(target, field))
+                if (AllSelectorFields.Any(entry => entry.Name == field && entry.IsSet(target)))
                 {
                     errors.Add($"{prefix} 'target.{field}' is not applicable for configure_network_device.");
                 }
             }
+
+            ValidateSelectorValues(target, prefix, errors);
 
             if (string.IsNullOrWhiteSpace(target.DeviceName))
             {

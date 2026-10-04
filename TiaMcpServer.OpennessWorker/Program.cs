@@ -645,24 +645,18 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with adding a network device.");
         }
 
-        return WithProject(request, project => Success(NetworkDeviceCreator.Create(
-            project,
-            request.TypeIdentifier!,
-            request.DeviceName!,
-            string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!)));
+        return WithProject(request, project =>
+        {
+            var result = NetworkDeviceCreator.Create(project, request.TypeIdentifier!, request.DeviceName!,
+                string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!);
+            result.Verification = NetworkMutationVerifier.VerifyAddedDevice(project, request, result);
+            return Success(result);
+        });
     }
 
     private static WorkerResponse ConfigureNetworkDevice(WorkerRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.DeviceName))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "DeviceName is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.NodeId))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NodeId is required.");
-        }
+        var target = NetworkConfigurationTargetBinding.Resolve(request);
 
         if (!request.Confirm)
         {
@@ -671,16 +665,29 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with configuring a network device.");
         }
 
-        return WithProject(request, project => Success(NetworkDeviceConfigurator.Configure(
-            project,
-            request.DeviceName!,
-            request.NodeId!,
-            request.IpAddress,
-            request.SubnetMask,
-            request.PnDeviceName,
-            request.SubnetId,
-            request.IoSystemSubnetId,
-            request.IoSystemNumber)));
+        return WithProject(request, project =>
+        {
+            // Capture the normalized owner while retaining supplied constraints for the final
+            // pre-setter resolver. Immediate checks must not re-search a bare device namespace.
+            var prepared = NetworkObjectSelectorResolver.ResolveNode(project, target);
+            if (!prepared.Success) throw new WorkerOperationException(prepared.FailureCategory!, prepared.Error!);
+            var dispatchTarget = target.InterfacePath is not null || target.ItemPath is not null ? target : prepared.Resolved!.Target;
+            dispatchTarget.DeviceName = target.DeviceName;
+            dispatchTarget.InterfaceName = target.InterfaceName;
+            dispatchTarget.NodeIndex = target.NodeIndex;
+            var result = NetworkDeviceConfigurator.Configure(
+                project,
+                dispatchTarget,
+                request.IpAddress,
+                request.SubnetMask,
+                request.PnDeviceName,
+                request.SubnetId,
+                request.IoSystemSubnetId,
+                request.IoSystemNumber);
+            request.NetworkObjectTarget = dispatchTarget;
+            result.Verification = NetworkMutationVerifier.VerifyConfiguration(project, request, result);
+            return Success(result);
+        });
     }
 
     private static WorkerResponse CreateSubnet(WorkerRequest request)

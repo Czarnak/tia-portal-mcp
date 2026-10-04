@@ -20,6 +20,51 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public partial class NetworkPayloadContractTests
 {
+    private static string QualifiedInspection(string path, string? name = null, int? index = null)
+    {
+        var root = JsonNode.Parse(RuleBase("target:node"))!;
+        root["target"]!["interfacePath"] = JsonNode.Parse(path);
+        root["target"]!["interfaceName"] = name;
+        root["target"]!["nodeIndex"] = index;
+        return root.ToJsonString();
+    }
+
+    [Fact]
+    public void QualifiedSelector_RoundTripsWithoutOptionalTypeIdentifier()
+    {
+        var item = Project("inspect_network_object", QualifiedInspection("""[{"name":"CPU","positionNumber":1},{"name":"X1","positionNumber":32768}]""", "X1", 0));
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        var target = item.Result!.Value.GetProperty("target");
+        Assert.Equal("X1", target.GetProperty("interfacePath")[1].GetProperty("name").GetString());
+        Assert.False(target.GetProperty("interfacePath")[0].TryGetProperty("typeIdentifier", out _));
+        var requestTarget = JsonSerializer.Deserialize<NetworkObjectTarget>(target.GetRawText(), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var request = new NetworkOperationRequest { OperationId = "inspect", Operation = "inspect_network_object", Target = requestTarget };
+        Assert.True(NetworkOperationCatalog.ValidateRead(new[] { request }).IsValid);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("[null]")]
+    [InlineData("[{\"name\":\"X1\"}]")]
+    [InlineData("[{\"positionNumber\":1}]")]
+    [InlineData("[{\"name\":\" \",\"positionNumber\":1}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":-1}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":1,\"typeIdentifier\":\" \"}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":1,\"unknown\":true}]")]
+    public void QualifiedSelector_RejectsMalformedWorkerOwnerPath(string path)
+    {
+        AssertRejectedWithoutLeak("inspect_network_object", QualifiedInspection(path));
+    }
+
+    [Fact]
+    public void QualifiedSelector_RejectsBothWorkerOwnerPaths()
+    {
+        var root = JsonNode.Parse(QualifiedInspection("""[{"name":"X1","positionNumber":1}]"""))!;
+        root["target"]!["itemPath"] = JsonNode.Parse($"[{ItemPathSegment}]");
+        root["target"]!["nodeIndex"] = 0;
+        AssertRejectedWithoutLeak("inspect_network_object", root.ToJsonString());
+    }
+
     private const string CompleteSubnetLifecycleResult = """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""";
 
     private const string ItemPathSegment = """{"index":0,"name":"CPU","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}""";

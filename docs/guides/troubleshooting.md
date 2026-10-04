@@ -74,7 +74,7 @@ worker-reported copied project path; verify it with a subsequent status or read 
   automatically.
 
 The former lifecycle agent confirmation array and public `confirm`/`safetyToken` inputs are removed.
-Network and legacy batch tools still use tokens. The removed startup switch fails with:
+Network now uses `dryRun:true` for preview and executes by default, without server elicitation; only legacy batches retain tokens. Removed Network root inputs fail before entry as a normal MCP error with no write audit. Entered denials are canonical and audited once; inspect typed partial/verification/omission outcomes before retry. The removed startup switch fails with:
 
 ```text
 --confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.
