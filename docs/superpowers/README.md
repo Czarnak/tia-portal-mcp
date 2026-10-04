@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-05 | [PLC read/write tools and standalone cross-references (approved; PR A planning)](specs/2026-10-05-plc-read-write-and-cross-references-design.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (implemented; full live acceptance pending)](specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md) |
 | 2026-10-03 | [Network JSON contract and guarded writes (offline-qualified; live acceptance pending)](specs/2026-10-03-network-json-guarded-write-design.md) |
 | 2026-10-01 | [Lifecycle in read-write, mode-derived confirmation, and runtime project binding](specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md) |
