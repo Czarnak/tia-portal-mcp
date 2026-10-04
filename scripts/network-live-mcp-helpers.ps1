@@ -438,7 +438,7 @@ function Get-NetworkNodeKey {
 }
 
 function Test-NetworkNodeIdentity {
-    param($Expected, $Observed)
+    param($Expected, $Observed, [switch] $SelectorConstraints)
     $null = Get-NetworkNodeKey $Expected; $null = Get-NetworkNodeKey $Observed
     if (-not [string]::Equals($Expected.deviceName, $Observed.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -or $Expected.nodeId -cne $Observed.nodeId) { return $false }
     $expectedPath = Get-NetworkMember $Expected 'interfacePath'; $observedPath = Get-NetworkMember $Observed 'interfacePath'
@@ -455,6 +455,22 @@ function Test-NetworkNodeIdentity {
     }
     $interfaceName = Get-NetworkMember $Expected 'interfaceName'
     if ($null -ne $interfaceName -and ($interfaceName -isnot [string] -or [string]::IsNullOrWhiteSpace($interfaceName) -or $interfaceName -cne (Get-NetworkMember $Observed 'interfaceName'))) { return $false }
+    if ($SelectorConstraints) {
+        foreach ($field in @('nodeIndex','interfaceType','interfaceOperatingMode')) {
+            $constraint = Get-NetworkMember $Expected $field
+            if ($null -ne $constraint -and $constraint -cne (Get-NetworkMember $Observed $field)) { return $false }
+        }
+        $legacyPath = Get-NetworkMember $Expected 'itemPath'
+        if ($null -ne $legacyPath) {
+            $actualPath = Get-NetworkMember $Observed 'itemPath'
+            if ($legacyPath -isnot [array] -or $actualPath -isnot [array] -or $legacyPath.Count -ne $actualPath.Count) { return $false }
+            for ($i=0; $i -lt $legacyPath.Count; $i++) {
+                foreach ($field in @('index','name','positionNumber','typeIdentifier')) {
+                    if ((Get-NetworkMember $legacyPath[$i] $field) -cne (Get-NetworkMember $actualPath[$i] $field)) { return $false }
+                }
+            }
+        }
+    }
     return $true
 }
 
@@ -503,8 +519,15 @@ function Get-HardwareNodes {
                 $path = Get-NetworkMember $selector 'interfacePath'
                 if ($null -ne $path -and $path -isnot [array]) { throw 'Public node selector owner path must be an array.' }
                 $identity = @{ deviceName=$DeviceName; nodeId=$node.nodeId; interfacePath=$path; interfaceName=$interface.name }
+                foreach ($field in @('itemPath','nodeIndex','interfaceType','interfaceOperatingMode')) {
+                    $constraint = Get-NetworkMember $selector $field
+                    if ($null -ne $constraint) { $identity[$field] = $constraint }
+                }
                 $null = Get-NetworkNodeKey $identity
-                if (-not (Test-NetworkNodeIdentity $selector $identity) -or -not $keys.Add((Get-NetworkNodeKey $identity))) { throw 'Ambiguous or inconsistent qualified node identity.' }
+                # Unqualified legacy rows stay readable. Exact callers must prove one match;
+                # a repeated bare node ID is not itself invalid hardware or a usable key.
+                if (-not (Test-NetworkNodeIdentity $selector $identity -SelectorConstraints) -or
+                    ($null -ne $path -and -not $keys.Add((Get-NetworkNodeKey $identity)))) { throw 'Ambiguous or inconsistent qualified node identity.' }
                 # Preserve the public selector verbatim, including legacy constraints and indices.
                 $nodes.Add(@{ deviceName=$DeviceName; node=$node; selector=$selector; identity=$identity })
             }

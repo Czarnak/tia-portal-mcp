@@ -81,7 +81,7 @@ foreach ($operation in $operations) {
     $beforeNodes = if ($Restore) { @($fixture.BeforeRestoreNodes) } else { @($fixture.BeforeNodes) }
     $afterNodes = if ($Restore) { @($fixture.RestorationNodes) } else { @($fixture.AfterNodes) }
     foreach ($expectedNodes in @(@{ values = $beforeNodes }, @{ values = $afterNodes })) {
-        $matched = @($expectedNodes.values | Where-Object { Test-NetworkNodeIdentity $operation.target $_ })
+        $matched = @($expectedNodes.values | Where-Object { Test-NetworkNodeIdentity $operation.target $_ -SelectorConstraints })
         if ($matched.Count -ne 1) { throw 'Each configured exact node needs concrete before/after expectations.' }
     }
 }
@@ -96,7 +96,7 @@ function Assert-NodeExpectations {
         }
     }
     foreach ($expectation in $Expected) {
-        $found = @($nodes | Where-Object { Test-NetworkNodeIdentity $expectation $_.identity })
+        $found = @($nodes | Where-Object { Test-NetworkNodeIdentity $expectation $_.identity -SelectorConstraints })
         if ($found.Count -ne 1) { throw 'Expected one exact device/node identity.' }
         foreach ($key in @('subnetId', 'ioSystemSubnetId', 'ioSystemNumber')) {
             if (-not $expectation.ContainsKey($key)) { throw 'Node expectation must specify the complete exact subnet/IO tuple, including nulls.' }
