@@ -10,6 +10,14 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public class NetworkSelectorFactoryTests
 {
+    [Fact]
+    public void LegacyIndexedSelector_RemainsStrict()
+    {
+        var path = new[] { ValidSegment(0, "Owner") };
+        path[0].TypeIdentifier = "";
+        Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.Node("Station", "E1", path, 0));
+        Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.Node("Station", "E1", new[] { ValidSegment(0, "Owner") }, null));
+    }
     // -------------------------------------------------------------------------
     // DeviceItem
     // -------------------------------------------------------------------------
