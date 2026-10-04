@@ -106,8 +106,9 @@ differs from read-write only in lifecycle confirmation.
 - `list_tag_tables` keeps `plcName` and returns an object root `{ isComplete, plcs[] }`, each PLC
   carrying its software and device name and its `tables[]`. The read becomes the planner's tag
   inventory (§4.1), so PR A extends it:
-  - an omitted `plcName` reads every PLC (`PlcSoftwareLocator.FindAll`); today it silently reads
-    the first PLC;
+  - an omitted `plcName` reads every PLC, including PLCs in device groups (enumerated as
+    `browse_project_tree` does); today it silently reads the first PLC and never sees grouped
+    devices;
   - tags carry their external-access flags (`externalAccessible`, `externalVisible`,
     `externalWritable`), `null` when unreadable;
   - user constants carry a readability marker, so an unreadable value no longer looks like `""`;
@@ -162,7 +163,8 @@ no new `SafetyRead` entry). Missing evidence is added to those typed reads inste
 Resolution fails closed, as in Network and the write-safety redesign §4.1. A failure stops the
 whole call before anything runs (`phase: error`, `isError: true`):
 
-- The PLC selector must match exactly one PLC (`FindAll`, not today's first match). Zero matches
+- The PLC selector must match exactly one PLC among every PLC in the project, including grouped
+  devices (not today's first match). Zero matches
   is `target_not_found`; several is `target_ambiguous`.
 - Object targets resolve exactly: zero matches is `target_not_found`; several is
   `target_ambiguous`.
@@ -302,8 +304,10 @@ until real use needs it.
   stubs gain those enum members.
 - An incomplete `UnusedObjects` result keeps its documented warning that it is not proof that
   objects can be deleted.
-- Budget: sources are dropped whole from the tail, with `isComplete:false`, an omission record and
-  narrowing guidance (`maxResults`, a narrower path, or a `member`).
+- Budget: sources are dropped whole from the tail until the report value fits 60,000 characters
+  and the document 180,000. The report carries `isComplete:false`, `omittedSourceCount` and a
+  narrowing warning (`maxResults`, a narrower path, or a `member`) instead of a separate omission
+  record, so the report itself is never withheld.
 - Deferred: mapping `SourceObject.UnderlyingObject` back to canonical selectors (useful for
   chaining tools; needs stub work and has no consumer yet).
 
