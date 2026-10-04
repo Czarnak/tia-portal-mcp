@@ -47,6 +47,21 @@ public static class NetworkWritePayloadBudget
             finalChecks = Array.Empty<NetworkVerificationCheckInfo>();
         }
 
+        // Compact diagnostics in every repeated copy before dropping any whole root.
+        // In particular, many individually small check messages can overflow an item.
+        if (effects.Any(e => e.Effect is not null && Size(e.Effect) > maxItemChars)
+            || operations?.Any(o => o.Evidence is not null && Size(o.Evidence) > maxItemChars) == true
+            || finalChecks is { Count: > 0 } && Size(finalChecks) > maxItemChars
+            || current.Batch?.Operations.Any(i => i.Result is not null && Size(i.Result) > maxItemChars) == true
+            || Size(Present()) > maxDocumentChars)
+        {
+            current = Diagnostics(current, true, originalChars);
+            effects = current.Effects.ToArray();
+            verification = current.Verification;
+            operations = verification?.Operations.ToArray();
+            finalChecks = verification?.FinalChecks;
+        }
+
         for (var i = 0; i < effects.Length; i++)
             if (effects[i].Effect is not null && Size(effects[i].Effect) > maxItemChars)
                 OmitEffect(i, StructuredOperationBatchPayloadBudget.ItemLimitReason, maxItemChars);
@@ -59,7 +74,7 @@ public static class NetworkWritePayloadBudget
         if (Size(Present()) > maxDocumentChars)
         {
             // Remove diagnostics whole, never preserve a prefix of rejected worker text.
-            current = Diagnostics(current, true, originalChars);
+            // Diagnostics have already been compacted across all copies above.
             // Drop whole root values, largest first, before asking the shared batch helper to
             // fit its results into the remaining COMPLETE document. Stable ties retain order.
             var candidates = effects.Select((e, i) => (Kind: 0, Index: i, Chars: e.Effect is null ? 0 : Size(e.Effect)))
@@ -111,6 +126,106 @@ public static class NetworkWritePayloadBudget
                 "not_required", null, omission)).ToArray(), Array.Empty<NetworkVerificationCheckInfo>(), omission), omission));
     }
 
+    /// <summary>
+    /// Reserves known prepared recovery values, including encoded path strings embedded in
+    /// immediate identities and final check names. Public copies are measured independently.
+    /// Unpredictable worker-generated identities are not assigned a fabricated length bound.
+    /// </summary>
+    public static int MeasurePreparedCore(IReadOnlyList<NetworkOperationRequest> items,
+        IReadOnlyList<ItemPlan<NetworkWriteEffect>> plans)
+    {
+        long chars = MeasureProtectedCore(items);
+        var finalChecks = new List<NetworkVerificationCheckInfo>();
+        NetworkVerificationCheckInfo Check(string name, string? value) => new()
+        { Name = name, Expected = value, Observed = value, Status = "unverified", Message = DiagnosticSummary };
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+            var effect = plans[index].Effect!;
+            var target = effect.Target;
+            var identity = new Dictionary<string, string>();
+            var checks = new List<NetworkVerificationCheckInfo>();
+            void Add(string name, string? value) => checks.Add(Check(name, value));
+            if (item.Operation == "configure_network_device")
+            {
+                identity["deviceName"] = target.DeviceName!;
+                identity["nodeId"] = target.NodeId!;
+                identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.InterfacePath!);
+                if (item.Target?.InterfaceName is { } interfaceName) identity["interfaceName"] = interfaceName;
+                foreach (var setting in effect.RequestedSettings) Add(setting.Key, setting.Value);
+            }
+            else if (item.Operation == "add_network_device")
+            {
+                identity["deviceName"] = item.DeviceName!;
+                identity["deviceItemName"] = item.DeviceItemName ?? item.DeviceName!;
+                foreach (var setting in effect.RequestedSettings) Add(setting.Key, setting.Value);
+                foreach (var setting in effect.RequestedSettings)
+                    finalChecks.Add(Check($"device/{item.DeviceName}//{identity["deviceItemName"]}/{setting.Key}", setting.Value));
+            }
+            else
+            {
+                // Creation has no observed persistent ID yet. Reserve every known requested
+                // value; the generated identity still passes strict projection and delivery.
+                var subnetId = target.SubnetId ?? "";
+                identity["subnetId"] = subnetId;
+                Add("networkDeviceCountUnchanged", int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                if (item.Operation == "delete_subnet")
+                {
+                    Add("subnetAbsent", "true"); Add("affectedNodesPreserved", "true"); Add("affectedConnectionsRemoved", "true");
+                    finalChecks.Add(Check($"subnet/{subnetId}///absent", "true"));
+                }
+                else
+                {
+                    Add("subnetIdentity", subnetId);
+                    finalChecks.Add(Check($"subnet/{subnetId}///exists", "true"));
+                    foreach (var setting in effect.RequestedSettings)
+                    {
+                        Add(setting.Key, setting.Value);
+                        finalChecks.Add(Check($"subnet/{subnetId}///{setting.Key}", setting.Value));
+                    }
+                }
+            }
+            foreach (var node in effect.AffectedNodes)
+            {
+                var owner = node.InterfacePath is null ? "" : NetworkInterfacePathEncoding.Encode(node.InterfacePath);
+                var name = $"node/{node.DeviceName}/{owner}/{node.NodeId}/";
+                finalChecks.Add(Check(name + "exists", "true"));
+                if (item.Operation == "delete_subnet")
+                    finalChecks.Add(Check(name + "removedSubnet:" + target.SubnetId, "true"));
+                if (item.Operation == "configure_network_device")
+                    foreach (var setting in effect.RequestedSettings) finalChecks.Add(Check(name + setting.Key, setting.Value));
+            }
+            // Unknown outcomes also retain their operation identity in an immediateEvidence check.
+            finalChecks.Add(Check(item.OperationId + "/immediateEvidence", "available"));
+            var evidence = new NetworkMutationVerificationInfo
+            { Status = "unverified", Identity = identity, Checks = checks, Message = DiagnosticSummary };
+            var skipped = effect.RequestedSettings.ToDictionary(p => p.Key, _ => DiagnosticSummary);
+            object result = item.Operation switch
+            {
+                "configure_network_device" => new ConfigureNetworkDeviceResultInfo
+                { DeviceName = target.DeviceName!, AppliedSettings = new(effect.RequestedSettings), SkippedSettings = skipped, Verification = evidence },
+                "add_network_device" => new AddDeviceResultInfo
+                { DeviceName = item.DeviceName!, RootItemName = item.DeviceItemName ?? item.DeviceName!, TypeIdentifier = item.TypeIdentifier!, Verification = evidence },
+                _ => new SubnetLifecycleResultInfo
+                { SubnetId = target.SubnetId ?? "", Name = effect.RequestedSettings.GetValueOrDefault("Name") ?? target.SubnetName ?? "", NetworkDeviceCount = int.MaxValue, Verification = evidence }
+            };
+            var effectChars = Size(effect);
+            var evidenceChars = Size(evidence);
+            var resultChars = Size(result);
+            if (effectChars > 60000 || evidenceChars > 60000 || resultChars > 60000) return int.MaxValue;
+            // Evidence occurs both inside the worker result and at verification.operations.
+            chars += effectChars + resultChars + evidenceChars;
+            // Prior observed settings may be longer than requested values; reserve two
+            // observation copies for failed immediate/final comparisons as well.
+            chars += 2L * Size(effect.CurrentSettings);
+        }
+        finalChecks.Add(Check("networkDeviceCountUnchanged", int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        finalChecks.Add(Check("finalHardwareState", "readable complete inventory"));
+        var finalChars = Size(finalChecks);
+        if (finalChars > 60000) return int.MaxValue;
+        chars += finalChars;
+        return chars > int.MaxValue ? int.MaxValue : (int)chars;
+    }
     private static NetworkGuardedWriteResponse Diagnostics(NetworkGuardedWriteResponse response, bool compact, int originalChars)
     {
         var omitted = false;
@@ -126,15 +241,28 @@ public static class NetworkWritePayloadBudget
             omitted = true;
             return Array.Empty<string>();
         }
+        NetworkVerificationCheckInfo Check(NetworkVerificationCheckInfo check) => new()
+        { Name = check.Name, Expected = check.Expected, Observed = check.Observed, Status = check.Status,
+            Message = check.Message is null ? null : Message(check.Message) };
+        NetworkMutationVerificationInfo? Evidence(NetworkMutationVerificationInfo? evidence) => evidence is null ? null : new()
+        { Status = evidence.Status, Identity = new(evidence.Identity), Checks = evidence.Checks.Select(Check).ToList(),
+            Message = evidence.Message is null ? null : Message(evidence.Message) };
+        var verification = response.Verification is null ? null : response.Verification with
+        {
+            Operations = response.Verification.Operations.Select(o => o with { Evidence = Evidence(o.Evidence) }).ToArray(),
+            FinalChecks = response.Verification.FinalChecks.Select(Check).ToArray()
+        };
         var error = response.Error is null ? null : response.Error with { Message = Message(response.Error.Message) };
         var warnings = Warnings(response.Warnings);
         var guards = response.Guards.Select(guard => guard with { Message = Message(guard.Message) }).ToArray();
         var batch = response.Batch is null ? null : StructuredOperationBatch.FromItems(response.Batch.Operations.Select(item => item with
         {
+            Result = item.Result is { } result && item.Operation is "add_network_device" or "configure_network_device" or "create_subnet" or "update_subnet" or "delete_subnet"
+                ? NetworkPayloadContract.CompactWriteDiagnostics(result, Message, Warnings) : item.Result,
             Failure = item.Failure is null ? null : item.Failure with { Message = Message(item.Failure.Message) },
             Warnings = Warnings(item.Warnings)
         }).ToArray(), response.Batch.Truncation);
-        return response with { Error = error, Warnings = warnings, Guards = guards, Batch = batch,
+        return response with { Error = error, Warnings = warnings, Guards = guards, Batch = batch, Verification = verification,
             Omission = omitted ? Omission("diagnosticDetailsOmitted", compact ? StructuredOperationBatchPayloadBudget.MaxDocumentChars : DiagnosticChars, originalChars) : response.Omission };
     }
 

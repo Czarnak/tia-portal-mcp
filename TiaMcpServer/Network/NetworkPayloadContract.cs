@@ -95,6 +95,27 @@ public static class NetworkPayloadContract
             warnings);
     }
 
+    /// <summary>Compacts only declared diagnostic members, preserving exact recovery values.</summary>
+    internal static JsonElement CompactWriteDiagnostics(JsonElement result, Func<string, string> message,
+        Func<IReadOnlyList<string>, IReadOnlyList<string>> warnings)
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(result.GetRawText())!.AsObject();
+        void Message(System.Text.Json.Nodes.JsonObject value)
+        {
+            if (value["message"] is { } text) value["message"] = message(text.GetValue<string>());
+        }
+        foreach (var member in new[] { "messages", "warnings" })
+            if (root[member] is System.Text.Json.Nodes.JsonArray values)
+                root[member] = new System.Text.Json.Nodes.JsonArray(warnings(values.Select(v => v!.GetValue<string>()).ToArray())
+                    .Select(v => (System.Text.Json.Nodes.JsonNode?)System.Text.Json.Nodes.JsonValue.Create(v)).ToArray());
+        if (root["verification"] is System.Text.Json.Nodes.JsonObject evidence)
+        {
+            Message(evidence);
+            if (evidence["checks"] is System.Text.Json.Nodes.JsonArray checks)
+                foreach (var check in checks) Message(check!.AsObject());
+        }
+        return CanonicalJson.ToElement(root);
+    }
     private static void TryWriteProtocolDiagnostic(
         Action<string> writeProtocolDiagnostic,
         string operation,

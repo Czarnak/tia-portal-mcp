@@ -15,6 +15,8 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
     private readonly Dictionary<string, NetworkWriteEffect> _current = new(StringComparer.Ordinal);
     private readonly Dictionary<string, NetworkMutationVerificationInfo> _immediate = new(StringComparer.Ordinal);
     private readonly Dictionary<string, NetworkOperationRequest> _prepared = new(StringComparer.Ordinal);
+    private IReadOnlyList<NetworkOperationRequest> _items = Array.Empty<NetworkOperationRequest>();
+    private const string BudgetRefusal = "The prepared Network recovery evidence exceeds the response budget. Use smaller network_write calls; no mutation was dispatched for this item.";
     private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
     public string ToolName => "network_write";
     public string ContractVersion => NetworkContractVersion.Current;
@@ -32,6 +34,9 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
     public async Task<WritePlan<NetworkWriteEffect>> PlanAsync(string? path, IReadOnlyList<NetworkOperationRequest> items)
     {
         var plan = await _planner.PlanAsync(path, items).ConfigureAwait(false);
+        if (plan.Success && NetworkWritePayloadBudget.MeasurePreparedCore(items, plan.Items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+            return WritePlan<NetworkWriteEffect>.Fail(WorkerFailureCategories.ValidationError, BudgetRefusal);
+        if (plan.Success) _items = items.ToArray();
         if (plan.Success) for (var i = 0; i < items.Count; i++)
         {
             var effect = plan.Items[i].Effect!;
@@ -58,7 +63,26 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
     public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(string? path, NetworkOperationRequest item)
     {
         var replan = await _planner.ReplanAsync(path, _prepared.GetValueOrDefault(item.OperationId) ?? item).ConfigureAwait(false);
-        if (replan.Success) _current[item.OperationId] = Copy(replan.Plan!.Effect!);
+        if (replan.Success)
+        {
+            var updated = replan.Plan!.Effect!;
+            var reservation = _items.Select(operation =>
+            {
+                var initial = _initial[operation.OperationId];
+                var current = operation.OperationId == item.OperationId ? updated : _current[operation.OperationId];
+                // Final preservation includes both initial and late observations. The selected
+                // target stays fixed to preparation, even when consequences grow later.
+                return ItemPlan<NetworkWriteEffect>.Resolved(current with
+                {
+                    Target = initial.Target,
+                    AffectedNodes = initial.AffectedNodes.Concat(current.AffectedNodes)
+                        .Distinct(NetworkNodeIdentityComparer.Instance).ToArray()
+                });
+            }).ToArray();
+            if (NetworkWritePayloadBudget.MeasurePreparedCore(_items, reservation) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+                return ItemReplan<NetworkWriteEffect>.Fail(WorkerFailureCategories.ValidationError, BudgetRefusal);
+            _current[item.OperationId] = Copy(updated);
+        }
         return replan;
     }
     public Task<WorkerCallResult> MutateAsync(string? path, NetworkOperationRequest item)
