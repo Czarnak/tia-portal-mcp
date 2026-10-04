@@ -464,7 +464,26 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     [InlineData("contradictory-final")]
     [InlineData("wrong-attribute")]
     [InlineData("wrong-post-name")]
+    [InlineData("duplicate-batch")]
+    [InlineData("duplicate-immediate")]
+    [InlineData("null-checks")]
+    [InlineData("missing-immediate")]
+    [InlineData("wrong-immediate-id")]
+    [InlineData("wrong-immediate-status")]
+    [InlineData("omitted-verification")]
+    [InlineData("wrong-final-id")]
+    [InlineData("wrong-post-address")]
+    [InlineData("wrong-post-speed")]
+    [InlineData("null-post-attribute")]
+    [InlineData("duplicate-post-attribute")]
+    [InlineData("missing-affected-final")]
+    [InlineData("wrong-affected-post")]
+    [InlineData("reordered-batch")]
     [InlineData("valid")]
+    [InlineData("valid-create")]
+    [InlineData("valid-delete")]
+    [InlineData("valid-repeat")]
+    [InlineData("valid-update-delete")]
     public void LifecycleGroup_RequiresCompleteTypedEvidenceAndRetainsCanonicalApply(string variant)
     {
         var result = RunStaticAstAssertion("""
@@ -473,18 +492,73 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 Invoke-Expression $definition.Extent.Text
             }
             function Check($name, $value) { @{ name=$name; expected=$value; observed=$value; status='passed'; message=$null } }
+            $ProjectPath='C:/fixture.ap21'
             $operations = @(@{ operationId='update'; operation='update_subnet'; target=@{ kind='subnet'; subnetId='s' }; subnetChanges=@{ name='After'; highestAddress=63; transmissionSpeed='Baud1500000' } })
             $checks = @((Check 'subnetIdentity' 's'), (Check 'networkDeviceCountUnchanged' '2'), (Check 'Name' 'After'), (Check 'HighestAddress' '63'), (Check 'TransmissionSpeed' 'Baud1500000'))
             $immediate = @{ status='passed'; identity=@{ subnetId='s' }; checks=$checks }
             $script:applied = @{
                 contractVersion='1.0'; phase='applied'; success=$true; error=$null; omission=$null
-                effects=@(@{ operationId='update'; effect=@{ operation='update_subnet'; target=@{subnetId='s'}; affectedNodes=@(); rootDeviceCount=2 }; omission=$null })
+                effects=@(@{ operationId='update'; effect=@{ operation='update_subnet'; target=@{subnetId='s'}; affectedNodes=@(); rootDeviceCount=2; connectionsComplete=$true }; omission=$null })
                 batch=@{ operations=@(@{ operationId='update'; operation='update_subnet'; status='succeeded'; failure=$null; omission=$null; result=@{ subnetId='s'; name='After'; networkDeviceCount=2; networkDeviceCountUnchanged=$true; verification=$immediate } }) }
                 verification=@{ success=$true; omission=$null; operations=@(@{ operationId='update'; operation='update_subnet'; status='passed'; evidence=$immediate; omission=$null }); finalChecks=@((Check 'networkDeviceCountUnchanged' '2'), (Check 'subnet/s//exists' 'true'), (Check 'subnet/s//Name' 'After'), (Check 'subnet/s//HighestAddress' '63'), (Check 'subnet/s//TransmissionSpeed' 'Baud1500000')) }
             }
             $script:preview = @{ success=$true; effects=$script:applied.effects }
             $script:post = @{ devices=@(@{name='a'},@{name='b'}); subnets=@(@{subnetId='s';name='After';typeIdentifier='System:Subnet.Profibus'}) }
+            $script:postNodes=@()
+            $script:attributeAddress=63; $script:attributeSpeed='Baud1500000'
+            $script:nullAttribute=$false; $script:duplicateAttribute=$false
+            if ('__VARIANT__' -eq 'valid-create') {
+                $operations=@(@{operationId='update';operation='create_subnet';subnet=@{name='After';networkType='Profibus';highestAddress=63;transmissionSpeed='Baud1500000'}})
+                $script:applied.batch.operations[0].operation='create_subnet'
+                $script:applied.verification.operations[0].operation='create_subnet'
+                $script:applied.effects[0].effect.operation='create_subnet'
+                $checks += Check 'TypeIdentifier' 'System:Subnet.Profibus'
+                $immediate.checks=$checks
+                $script:applied.verification.finalChecks += Check 'subnet/s//TypeIdentifier' 'System:Subnet.Profibus'
+            }
+            if ('__VARIANT__' -in @('valid-repeat','reordered-batch')) {
+                $operations += @{operationId='second';operation='update_subnet';target=@{kind='subnet';subnetId='s'};subnetChanges=@{name='Later'}}
+                $next=@{status='passed';identity=@{subnetId='s'};checks=@((Check 'subnetIdentity' 's'),(Check 'networkDeviceCountUnchanged' '2'),(Check 'Name' 'Later'))}
+                $script:applied.batch.operations += @{operationId='second';operation='update_subnet';status='succeeded';failure=$null;omission=$null;result=@{subnetId='s';name='Later';networkDeviceCount=2;networkDeviceCountUnchanged=$true;verification=$next}}
+                $script:applied.verification.operations += @{operationId='second';operation='update_subnet';status='passed';evidence=$next;omission=$null}
+                $script:applied.effects += @{operationId='second';effect=@{operation='update_subnet';target=@{subnetId='s'};affectedNodes=@();rootDeviceCount=2;connectionsComplete=$true};omission=$null}
+                $script:applied.verification.finalChecks[2]=Check 'subnet/s//Name' 'Later'
+                $script:post.subnets[0].name='Later'
+            }
+            if ('__VARIANT__' -in @('valid-delete','valid-update-delete','missing-affected-final','wrong-affected-post')) {
+                $delete=@{operationId='delete';operation='delete_subnet';target=@{kind='subnet';subnetId='s'}}
+                $deleteEvidence=@{status='passed';identity=@{subnetId='s'};checks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnetAbsent' 'true'),(Check 'affectedNodesPreserved' 'true'),(Check 'affectedConnectionsRemoved' 'true'))}
+                $deleteItem=@{operationId='delete';operation='delete_subnet';status='succeeded';failure=$null;omission=$null;result=@{subnetId='s';name='After';networkDeviceCount=2;networkDeviceCountUnchanged=$true;verification=$deleteEvidence}}
+                $deleteVerification=@{operationId='delete';operation='delete_subnet';status='passed';evidence=$deleteEvidence;omission=$null}
+                $deleteEffect=@{operationId='delete';effect=@{operation='delete_subnet';target=@{subnetId='s'};affectedNodes=@(@{deviceName='a';nodeId='n'});rootDeviceCount=2;connectionsComplete=$true};omission=$null}
+                if ('__VARIANT__' -eq 'valid-update-delete') {
+                    $operations += $delete; $script:applied.batch.operations += $deleteItem
+                    $script:applied.verification.operations += $deleteVerification; $script:applied.effects += $deleteEffect
+                } else {
+                    $operations=@($delete); $script:applied.batch.operations=@($deleteItem)
+                    $script:applied.verification.operations=@($deleteVerification); $script:applied.effects=@($deleteEffect)
+                }
+                $script:applied.verification.finalChecks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnet/s//absent' 'true'),(Check 'node/a/n/exists' 'true'),(Check 'node/a/n/removedSubnet:s' 'true'))
+                $script:post.subnets=@()
+                $script:postNodes=@(@{deviceName='a';node=@{nodeId='n';connectionEvidence=@{complete=$true;subnetId=$null;ioSystemSubnetId=$null}}})
+            }
+            $script:preview.effects=$script:applied.effects
             switch ('__VARIANT__') {
+                'duplicate-batch' { $script:applied.batch.operations += $script:applied.batch.operations[0] }
+                'duplicate-immediate' { $script:applied.verification.operations += $script:applied.verification.operations[0] }
+                'null-checks' { $immediate.checks=$null }
+                'missing-immediate' { $script:applied.verification.operations=@() }
+                'wrong-immediate-id' { $script:applied.verification.operations[0].operationId='other' }
+                'wrong-immediate-status' { $script:applied.verification.operations[0].status='not_required' }
+                'omitted-verification' { $script:applied.verification.omission=@{reason='omitted'} }
+                'wrong-final-id' { $script:applied.verification.finalChecks[1].name='subnet/other//exists' }
+                'wrong-post-address' { $script:attributeAddress=31 }
+                'wrong-post-speed' { $script:attributeSpeed='Baud187500' }
+                'null-post-attribute' { $script:nullAttribute=$true }
+                'duplicate-post-attribute' { $script:duplicateAttribute=$true }
+                'missing-affected-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'node/a/n/exists') }
+                'wrong-affected-post' { $script:postNodes[0].node.connectionEvidence.subnetId='s' }
+                'reordered-batch' { $script:applied.batch.operations=@($script:applied.batch.operations[1],$script:applied.batch.operations[0]) }
                 'empty-verification' { $script:applied.verification.operations=@(); $script:applied.verification.finalChecks=@() }
                 'null-immediate' { $script:applied.batch.operations[0].result.verification=$null }
                 'missing-batch' { $script:applied.batch.operations=@() }
@@ -504,15 +578,18 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
             function Invoke-NetworkWritePreview { param($Operations) $script:preview }
             function Invoke-NetworkWriteApply { param($Operations) $script:applied }
             function Read-HardwareConfig { $script:post }
-            function Get-HardwareNodes { param($Hardware) @() }
+            function Get-HardwareNodes { param($Hardware) $script:postNodes }
             function Invoke-McpToolCall {
                 param($Name, $Arguments)
                 if ($Name -cne 'network_read') { throw 'No mutation transport permitted.' }
-                @{ success=$true; batch=@{operations=@(@{operationId='inspect';operation='inspect_network_object';status='succeeded';omission=$null;result=@{target=@{kind='subnet';subnetId='s'};messages=@();attributes=@(@{name='HighestAddress';availability='available';value=@{kind='integer';value=63}},@{name='TransmissionSpeed';availability='available';value=@{kind='enum';value=@{symbol='Baud1500000'}}})}})} }
+                $attributes=@(@{name='HighestAddress';availability='available';value=@{kind='integer';value=$script:attributeAddress}},@{name='TransmissionSpeed';availability='available';value=@{kind='enum';value=@{symbol=$script:attributeSpeed}}})
+                if ($script:nullAttribute) { $attributes[0].value=$null }
+                if ($script:duplicateAttribute) { $attributes[1]=$attributes[0] }
+                @{ success=$true; batch=@{operations=@(@{operationId='verify-subnet';operation='inspect_network_object';status='succeeded';omission=$null;result=@{target=@{kind='subnet';subnetId='s'};messages=@();attributes=$attributes}})} }
             }
             $rootCount=$null; $rejected=$false; $record=$null
             try { $record=Invoke-LifecycleGroupAndVerify 'synthetic' $operations 2 ([ref]$rootCount) } catch { $rejected=$true; $why=$_.Exception.Message }
-            if ('__VARIANT__' -eq 'valid') {
+            if ('__VARIANT__'.StartsWith('valid', [System.StringComparison]::Ordinal)) {
                 if ($rejected) { throw "Valid evidence rejected: $why" }
                 if (-not $record.Contains('applied') -or ($record.applied | ConvertTo-Json -Depth 50 -Compress) -cne ($script:applied | ConvertTo-Json -Depth 50 -Compress)) { throw 'Canonical applied evidence was not retained.' }
             } elseif (-not $rejected) { throw 'Malformed verification accepted: __VARIANT__' }

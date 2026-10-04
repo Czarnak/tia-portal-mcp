@@ -220,6 +220,120 @@ function Get-PreviewRecord {
     return $Preview
 }
 
+function Assert-LifecycleChecks {
+    param($Checks, $Expected)
+    if ($Checks -isnot [array] -or $Checks.Count -ne $Expected.Count) { throw 'Lifecycle verification check coverage is incomplete.' }
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($check in $Checks) {
+        if ($null -eq $check -or $check.name -isnot [string] -or -not $seen.Add($check.name) -or
+            -not $Expected.ContainsKey($check.name) -or $check.expected -isnot [string] -or
+            $check.expected -cne $Expected[$check.name] -or $check.observed -isnot [string] -or
+            $check.observed -cne $Expected[$check.name] -or $check.status -cne 'passed' -or
+            ($null -ne $check.message -and $check.message -isnot [string])) {
+            throw 'Missing, duplicate, wrong-identity or contradictory lifecycle verification evidence. Inspect before retry.'
+        }
+    }
+}
+
+function Assert-LifecycleEvidence {
+    param($Applied, [object[]] $Operations, $Preview, [int] $RootCount)
+    $items = $Applied.batch.operations
+    $verified = $Applied.verification.operations
+    if ($Applied.success -isnot [bool] -or -not $Applied.success -or $null -ne $Applied.omission -or
+        $Applied.verification.success -isnot [bool] -or -not $Applied.verification.success -or
+        $null -ne $Applied.verification.omission -or $items -isnot [array] -or
+        $items.Count -ne $Operations.Count -or $Operations.Count -eq 0 -or
+        $verified -isnot [array] -or $verified.Count -ne $Operations.Count) {
+        throw 'Complete successful batch and operation verification correspondence is required.'
+    }
+    $requiredFinal = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
+    $requiredFinal.Add('networkDeviceCountUnchanged', $RootCount.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    $seenIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    for ($i = 0; $i -lt $Operations.Count; $i++) {
+        $operation = $Operations[$i]; $item = $items[$i]; $verification = $verified[$i]
+        if (-not $seenIds.Add($operation.operationId) -or $item.operationId -cne $operation.operationId -or
+            $item.operation -cne $operation.operation -or $item.status -cne 'succeeded' -or
+            $null -ne $item.failure -or $null -ne $item.omission -or
+            $verification.operationId -cne $item.operationId -or $verification.operation -cne $item.operation -or
+            $verification.status -cne 'passed' -or $null -ne $verification.omission -or
+            $null -eq $item.result -or $item.result.subnetId -isnot [string] -or
+            [string]::IsNullOrWhiteSpace($item.result.subnetId) -or $item.result.name -isnot [string]) {
+            throw 'Exact ordered lifecycle operation identity and successful typed result are required.'
+        }
+        $id = $item.result.subnetId
+        if ($operation.operation -notin @('create_subnet','update_subnet','delete_subnet') -or
+            ($operation.operation -ne 'create_subnet' -and $id -cne $operation.target.subnetId)) { throw 'Lifecycle target identity mismatch.' }
+        $expected = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
+        $expected.Add('networkDeviceCountUnchanged', $requiredFinal['networkDeviceCountUnchanged'])
+        if ($operation.operation -eq 'delete_subnet') {
+            foreach ($field in @('subnetAbsent','affectedNodesPreserved','affectedConnectionsRemoved')) { $expected.Add($field, 'true') }
+            foreach ($key in @($requiredFinal.Keys | Where-Object { $_.StartsWith("subnet/$id//", [System.StringComparison]::Ordinal) })) { [void]$requiredFinal.Remove($key) }
+            $requiredFinal["subnet/$id//absent"] = 'true'
+        } else {
+            $expected.Add('subnetIdentity', $id)
+            $settings = if ($operation.operation -eq 'create_subnet') { $operation.subnet } else { $operation.subnetChanges }
+            foreach ($pair in @(@('Name','name'),@('HighestAddress','highestAddress'),@('TransmissionSpeed','transmissionSpeed'))) {
+                if ($settings.Contains($pair[1]) -and $null -ne $settings[$pair[1]]) {
+                    $value = [System.Convert]::ToString($settings[$pair[1]], [System.Globalization.CultureInfo]::InvariantCulture)
+                    $expected.Add($pair[0], $value)
+                    $requiredFinal["subnet/$id//$($pair[0])"] = $value
+                }
+            }
+            if ($expected.ContainsKey('Name') -and $item.result.name -cne $expected['Name']) { throw 'Lifecycle result name differs from the supplied name.' }
+            if ($operation.operation -eq 'create_subnet') {
+                $expected.Add('TypeIdentifier', "System:Subnet.$($operation.subnet.networkType)")
+                $requiredFinal["subnet/$id//TypeIdentifier"] = $expected['TypeIdentifier']
+            }
+            $requiredFinal["subnet/$id//exists"] = 'true'
+        }
+        foreach ($evidence in @($item.result.verification, $verification.evidence)) {
+            if ($null -eq $evidence -or $evidence.status -cne 'passed' -or $null -eq $evidence.identity -or
+                @($evidence.identity.PSObject.Properties).Count -ne 1 -or $evidence.identity.subnetId -isnot [string] -or $evidence.identity.subnetId -cne $id) {
+                throw 'Non-null typed immediate lifecycle evidence with the exact subnet identity is required.'
+            }
+            Assert-LifecycleChecks $evidence.checks $expected
+        }
+        # Initial and replanned effects both carry preservation obligations. Only the
+        # current deletion inventory establishes which connections must be removed.
+        foreach ($source in @($Preview, $Applied)) {
+            if ($source.effects -isnot [array] -or $source.effects.Count -ne $Operations.Count) { throw 'Complete lifecycle effects are required.' }
+            $entry = $source.effects[$i]; $effect = $entry.effect
+            if ($entry.operationId -cne $item.operationId -or $null -ne $entry.omission -or $null -eq $effect -or
+                $effect.operation -cne $item.operation -or
+                ($effect.rootDeviceCount -isnot [int] -and $effect.rootDeviceCount -isnot [long]) -or $effect.rootDeviceCount -ne $RootCount -or
+                $effect.connectionsComplete -isnot [bool] -or -not $effect.connectionsComplete -or
+                $effect.affectedNodes -isnot [array] -or
+                ($item.operation -ne 'create_subnet' -and $effect.target.subnetId -cne $id)) { throw 'Incomplete or inconsistent lifecycle effect identity/inventory.' }
+            $seenNodes = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            foreach ($node in $effect.affectedNodes) {
+                if ($node.deviceName -isnot [string] -or [string]::IsNullOrWhiteSpace($node.deviceName) -or
+                    $node.nodeId -isnot [string] -or [string]::IsNullOrWhiteSpace($node.nodeId) -or
+                    -not $seenNodes.Add((ConvertTo-Json -InputObject @($node.deviceName,$node.nodeId) -Compress))) { throw 'Invalid or duplicate affected-node identity.' }
+                $requiredFinal["node/$($node.deviceName)/$($node.nodeId)/exists"] = 'true'
+                if ([object]::ReferenceEquals($source, $Applied) -and $item.operation -eq 'delete_subnet') {
+                    $requiredFinal["node/$($node.deviceName)/$($node.nodeId)/removedSubnet:$id"] = 'true'
+                }
+            }
+        }
+    }
+    Assert-LifecycleChecks $Applied.verification.finalChecks $requiredFinal
+    return ,$requiredFinal
+}
+
+function Read-LifecycleAttributes {
+    param([string] $SubnetId, [string[]] $Names)
+    $operation = @{ operationId='verify-subnet'; operation='inspect_network_object'; projectPath=$ProjectPath; target=@{kind='subnet';subnetId=$SubnetId}; attributeNames=$Names }
+    $response = Invoke-McpToolCall -Name 'network_read' -Arguments @{operations=@($operation)}
+    $items = @($response.batch.operations)
+    if ($response.success -isnot [bool] -or -not $response.success -or $items.Count -ne 1 -or $items[0].operationId -cne 'verify-subnet' -or
+        $items[0].operation -cne 'inspect_network_object' -or $items[0].status -cne 'succeeded' -or
+        $null -ne $items[0].omission -or $null -eq $items[0].result) { throw 'Fresh subnet attribute inspection failed or was omitted.' }
+    $inspection = $items[0].result
+    if ($inspection.target.kind -cne 'subnet' -or $inspection.target.subnetId -cne $SubnetId -or
+        @($inspection.messages).Count -ne 0 -or @($inspection.attributes).Count -ne $Names.Count) { throw 'Fresh subnet attribute identity/coverage mismatch.' }
+    return $inspection
+}
+
 function Invoke-LifecycleGroupAndVerify {
     param(
         [Parameter(Mandatory)] [string] $GroupName,
@@ -279,9 +393,41 @@ function Invoke-LifecycleGroupAndVerify {
         }
     }
 
+    $requiredFinal = Assert-LifecycleEvidence $applied $Operations $preview $RootDeviceCount.Value
     $postRead = Read-HardwareConfig
     $postNodes = @(Get-HardwareNodes $postRead)
-    foreach ($effect in @($preview.effects)) {
+    $postInspections = @()
+    foreach ($id in @($results.subnetId | Select-Object -Unique)) {
+        $subnets = @($postRead.subnets | Where-Object { $_.subnetId -ceq $id })
+        if ($requiredFinal.ContainsKey("subnet/$id//absent")) {
+            if ($subnets.Count -ne 0) { throw 'Deleted exact subnet remains in fresh inventory.' }
+            continue
+        }
+        if ($subnets.Count -ne 1) { throw 'Exact subnet is missing or ambiguous in fresh inventory.' }
+        foreach ($pair in @(@('Name','name'),@('TypeIdentifier','typeIdentifier'))) {
+            $key = "subnet/$id//$($pair[0])"
+            if ($requiredFinal.ContainsKey($key) -and $subnets[0].($pair[1]) -cne $requiredFinal[$key]) { throw 'Fresh subnet setting differs from the effective requested value.' }
+        }
+        $names = @(@('HighestAddress','TransmissionSpeed') | Where-Object { $requiredFinal.ContainsKey("subnet/$id//$_") })
+        if ($names.Count -gt 0) {
+            $inspection = Read-LifecycleAttributes $id $names
+            foreach ($name in $names) {
+                $attributes = @($inspection.attributes | Where-Object { $_.name -ceq $name })
+                if ($attributes.Count -ne 1 -or $attributes[0].availability -cne 'available' -or $null -eq $attributes[0].value) { throw 'Fresh requested subnet attribute is unavailable or duplicated.' }
+                $value = $attributes[0].value
+                if ($name -ceq 'HighestAddress') {
+                    if ($value.kind -cne 'integer' -or ($value.value -isnot [int] -and $value.value -isnot [long])) { throw 'Fresh highest address is not a typed integer.' }
+                    $observed = $value.value.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+                } else {
+                    if ($value.kind -cne 'enum' -or $value.value.symbol -isnot [string]) { throw 'Fresh transmission speed is not a typed enum symbol.' }
+                    $observed = $value.value.symbol
+                }
+                if ($observed -cne $requiredFinal["subnet/$id//$name"]) { throw 'Fresh subnet attribute differs from the effective requested value.' }
+            }
+            $postInspections += $inspection
+        }
+    }
+    foreach ($effect in @($preview.effects) + @($applied.effects)) {
         foreach ($affected in @($effect.effect.affectedNodes)) {
             $found = @($postNodes | Where-Object { $_.deviceName -ceq $affected.deviceName -and $_.node.nodeId -ceq $affected.nodeId })
             if ($found.Count -ne 1) { throw 'Affected exact device/node was not preserved in fresh grouped/ungrouped inventory.' }
@@ -302,6 +448,9 @@ function Invoke-LifecycleGroupAndVerify {
         requestedOperations     = $Operations
         preview                 = $previewRecord
         applyResults            = $results
+        applied                 = $applied
+        postRead                = $postRead
+        postInspections         = $postInspections
         postReadSubnetIds       = @($postRead.subnets | ForEach-Object { $_.subnetId })
         postReadTotalHardwareDeviceCount = $totalHardwareDeviceCountAfter
         totalHardwareDeviceCountUnchanged = $true

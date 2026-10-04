@@ -263,7 +263,12 @@ The Phase4 script retains `ConnectedEthernetSubnetId` and `ConnectedProfibusSubn
 identities from fresh discovery, complete connected inventory and correct network types. Apply
 requires `-AllowMutation -Acknowledgement 'DELETE SUBNETS AND KEEP DEVICES'`. It checks root lifecycle
 counts separately from grouped/ungrouped affected device/node identity preservation and detached
-subnet/IO references. It deletes the two connected fixture subnets and does not restore them.
+subnet/IO references. Every requested operation must have the exact ordered batch result and
+non-null immediate verification; effective final checks must cover the requested attributes and
+preserved identities without missing, duplicate or contradictory evidence. Fresh reads also check
+subnet names, type identifiers and supplied PROFIBUS attributes. Each group retains the complete
+canonical applied document, hardware read and attribute inspections for review.
+It deletes the two connected fixture subnets and does not restore them.
 A disposable backup and a separately authorized restoration/inspection procedure are required.
 
 The configuration script accepts a reviewed `-FixturePath` JSON file and configuration operations
