@@ -1195,6 +1195,7 @@ while ((line = Console.In.ReadLine()) is not null)
         // Phase 3: list_network_objects and inspect_network_object fixtures
         // ---------------------------------------------------------------------------
 
+        case "network-qualified-budget-known-observations":
         case "network-qualified-budget-long":
         case "network-qualified-budget-item":
         case "network-qualified-budget-escaped":
@@ -1215,6 +1216,17 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-qualified-final-repeat-interface-drift":
             var qualifiedHardware = qualifiedNetworkState ??= QualifiedHardwareFixture();
             var qualifiedDevice = qualifiedHardware.Devices[0];
+            if (scenario == "network-qualified-budget-known-observations")
+            {
+                qualifiedDevice.Items[0].Name = new string('o', 9800);
+                if (guardedNetworkWrites == 0)
+                {
+                    var oldNode = qualifiedDevice.Items[0].Items[0].NetworkInterfaces[0].Nodes[0];
+                    oldNode.IpAddress = new string('a', 7000);
+                    oldNode.SubnetMask = new string('m', 7000);
+                    oldNode.PnDeviceName = new string('p', 7000);
+                }
+            }
             if (scenario == "network-qualified-budget-long")
                 qualifiedDevice.Items[0].Name = new string('\u4e00', 800);
             if (scenario == "network-qualified-budget-item")

@@ -480,6 +480,60 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.NotNull(bounded.Verification!.Operations[1].Omission);
         Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, 180000);
     }
+    [Fact]
+    public async Task KnownPriorValues_FinalItemOverflow_RefusesBeforeMutation()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        const string scenario = "network-qualified-budget-known-observations";
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = await QualifiedConfigure(fixture, scenario, "known");
+        operation.Changes = new() { IpAddress = new string('b', 333),
+            SubnetMask = new string('n', 333), PnDeviceName = new string('q', 334) };
+        var plan = await new NetworkWritePlanner(fixture.Client).PlanAsync(scenario, new[] { operation });
+        Assert.True(plan.Success);
+        var effect = plan.Items[0].Effect!;
+        var encodedOwner = NetworkInterfacePathEncoding.Encode(effect.Target.InterfacePath!);
+        // Feed a valid failed immediate observation through the production final verifier;
+        // preparation's exact old scalar values remain in the ordinary FakeWorker state.
+        var immediate = new NetworkMutationVerificationInfo { Status = "failed",
+            Identity = new() { ["deviceName"] = effect.Target.DeviceName!, ["nodeId"] = effect.Target.NodeId!,
+                ["interfacePath"] = encodedOwner }, Checks = effect.RequestedSettings.Select(pair => new NetworkVerificationCheckInfo
+            { Name = pair.Key, Expected = pair.Value,
+                Observed = effect.CurrentSettings[pair.Key].Value!.Value!.ToString(),
+                Status = "failed", Message = "The attempted setting retained its known old value." }).ToList() };
+        var typedResult = new ConfigureNetworkDeviceResultInfo { DeviceName = effect.Target.DeviceName!,
+            AppliedSettings = new(effect.RequestedSettings), Verification = immediate };
+        var prepared = NetworkIdentityResolver.BindPreparedTarget(operation, effect.Target);
+        var projected = NetworkPayloadContract.Project(prepared, WorkerCallResult.Ok(WorkerJson.SerializePayload(typedResult)),
+            requireVerification: true);
+        Assert.Equal("failed", projected.Status);
+        var observations = new Dictionary<string, NetworkWriteEffect> { [operation.OperationId] = effect };
+        var verification = await new NetworkWriteVerifier(fixture.Client, observations, observations).VerifyAsync(scenario,
+            StructuredOperationBatch.FromItems(new[] { projected }),
+            new Dictionary<string, NetworkMutationVerificationInfo> { [operation.OperationId] = immediate });
+        var effectChars = CanonicalJson.Serialize(effect).Length;
+        var evidenceChars = CanonicalJson.Serialize(immediate).Length;
+        var resultChars = CanonicalJson.Serialize(typedResult).Length;
+        var finalChars = CanonicalJson.Serialize(verification.FinalChecks).Length;
+        var reservation = NetworkWritePayloadBudget.MeasurePreparedCore(new[] { operation }, plan.Items);
+        output.WriteLine($"Encoded owner={CanonicalJson.Serialize(encodedOwner).Length}; effect={effectChars}; result={resultChars}; immediate={evidenceChars}; finalChecks={finalChars}; reservation={reservation}.");
+        Assert.InRange(effectChars, 0, 60000);
+        Assert.InRange(resultChars, 0, 60000);
+        Assert.InRange(evidenceChars, 0, 60000);
+        Assert.True(finalChars > 60000);
+        Assert.All(verification.FinalChecks.Where(c => c.Name.EndsWith("/Address") || c.Name.EndsWith("/SubnetMask") || c.Name.EndsWith("/PnDeviceName")),
+            c => Assert.Equal(7000, c.Observed!.Length));
+        var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
+            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
+        output.WriteLine($"Delivered phase={NetworkGuardedWriteMcpTests.Document(reply).GetProperty("phase").GetString()}; writes={requests.Methods().Count(m => m == "configure_network_device")}.");
+        Assert.DoesNotContain("configure_network_device", requests.Methods());
+        Assert.True(reply.IsError);
+        var document = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.Equal("validation_error", document.GetProperty("error").GetProperty("category").GetString());
+        AssertQualifiedAudit(reply, audit);
+    }
     private static async Task<NetworkOperationRequest> QualifiedConfigure(NetworkGuardedWriteFixture fixture, string scenario, string id)
     {
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
