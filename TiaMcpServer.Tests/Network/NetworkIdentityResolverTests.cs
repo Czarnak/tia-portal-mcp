@@ -20,6 +20,36 @@ public class NetworkIdentityResolverTests
         Changes = new() { IpAddress = "192.168.12.99" }
     };
 
+    [Theory]
+    [InlineData(false, 1, true)]
+    [InlineData(true, 1, true)]
+    [InlineData(false, 0, false)]
+    [InlineData(true, 0, false)]
+    public void OrdinaryProducer_SourceIndexAgreesWithHostAndWorker(bool legacy, int index, bool succeeds)
+    {
+        var source = new[] { new NodeInfo { NodeId = "E2", Name = "second" }, new NodeInfo { NodeId = "E1", Name = "first" } };
+        var capture = new TiaMcpServer.OpennessWorker.Openness.HardwareDiscoveryEvidenceCapture("project", _ => { });
+        var state = NetworkDiscoveryRepairFixture.Metadata(capture.Evidence);
+        var owner = state.Devices[0].Items[0].Items[0];
+        state.Devices[0].Items[0].TypeIdentifier = "CPU"; owner.TypeIdentifier = "Port";
+        owner.NetworkInterfaces[0].Nodes = TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.ReadNodes(
+            () => source, node => new NodeInfo { NodeId = node.NodeId, Name = node.Name }, capture);
+        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.ApplyInventory(state);
+        Assert.All(owner.NetworkInterfaces[0].Nodes, node => { Assert.NotNull(node.Selector!.InterfacePath); Assert.Null(node.Selector.NodeIndex); });
+        var request = RepairRequest(); request.Target!.NodeIndex = index;
+        if (legacy)
+        {
+            request.Target.InterfacePath = null;
+            request.Target.ItemPath = new[] { new NetworkDeviceItemPathSegment { Index = 0, Name = "PLC_DP", PositionNumber = 1, TypeIdentifier = "CPU" },
+                new NetworkDeviceItemPathSegment { Index = 0, Name = "PROFINET interface_1", PositionNumber = 32768, TypeIdentifier = "Port" } };
+        }
+        var host = NetworkIdentityResolver.Resolve(request, state);
+        var worker = TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.MatchNode(source, "E1", index, node => node.NodeId);
+        Assert.Equal(succeeds, worker.Success);
+        Assert.True(host.Success == succeeds, $"source E2,E1, index {index}, legacy {legacy}: host success={host.Success}, error={host.Error}");
+        if (succeeds) { Assert.Equal("first", host.Evidence!.NodeName); Assert.Same(source[1], worker.Item); }
+        else Assert.Equal(WorkerFailureCategories.TargetEvidenceMismatch, host.FailureCategory);
+    }
     [Fact]
     public void PreparedLegacyTarget_DoesNotSwitchInterfaces()
     {

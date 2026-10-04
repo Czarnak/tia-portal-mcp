@@ -7,6 +7,25 @@ namespace TiaMcpServer.Tests.Network;
 public sealed class NetworkInterfacePathMatcherTests
 {
     [Fact]
+    public void OrdinaryNodeProducer_PreservesCaptureFailuresAndRemainingCandidates()
+    {
+        var diagnostics = new List<string>();
+        var capture = new TiaMcpServer.OpennessWorker.Openness.HardwareDiscoveryEvidenceCapture("project", diagnostics.Add);
+        var nodes = NetworkNodeReadSelectorBuilder.ReadNodes(() => ThrowingNodes(), node =>
+            node.NodeId == "bad" ? throw new InvalidOperationException("candidate failure") : node, capture);
+        Assert.Equal(new[] { "E2", "E1" }, nodes.Select(node => node.NodeId));
+        Assert.Equal(new[] { "nodeMaterialization", "nodeEnumeration" }, capture.Evidence.Failures.Select(f => f.Stage));
+        Assert.False(capture.Evidence.Complete);
+        Assert.Equal(2, diagnostics.Count);
+        static IEnumerable<NodeInfo> ThrowingNodes()
+        {
+            yield return new() { NodeId = "E2" };
+            yield return new() { NodeId = "bad" };
+            yield return new() { NodeId = "E1" };
+            throw new InvalidOperationException("source failure");
+        }
+    }
+    [Fact]
     public void OwnerPath_IsIndependentOfSiblingOrder()
     {
         var roots = Fixture();

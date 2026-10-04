@@ -811,6 +811,80 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         Assert.Equal("mode-dispatch-fixture-gate-ok", result.StandardOutput.Trim());
     }
 
+    [Theory]
+    [InlineData("Preview", false, "valid")]
+    [InlineData("Apply", false, "valid")]
+    [InlineData("Apply", true, "valid")]
+    [InlineData("Preview", false, "item-index")]
+    [InlineData("Preview", false, "node-index")]
+    [InlineData("Preview", false, "name")]
+    [InlineData("Preview", false, "position")]
+    [InlineData("Preview", false, "type")]
+    [InlineData("Preview", false, "interface-name")]
+    [InlineData("Preview", false, "normalized-owner")]
+    public void LegacyFixture_CurrentProducerAndNormalizedInspection_PassesOnlyExactConstraints(string mode, bool restore, string constraint)
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            foreach ($definition in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in @('Invoke-Inventory','Invoke-Preview','Invoke-Apply','Assert-Inspections')},$true)) { Invoke-Expression $definition.Extent.Text }
+            $cpu=$capture.devices[0].items[0]; $cpu | Add-Member positionNumber 1; $cpu | Add-Member typeIdentifier 'CPUType'
+            $port=$cpu.items[0]; $port | Add-Member typeIdentifier 'PortType'
+            # Current producer has preferred interfacePath selectors, without source index fields.
+            foreach($selector in $originalSelectors){$selector.PSObject.Properties.Remove('nodeIndex')}
+            $originalSelectors[0].interfacePath[0] | Add-Member typeIdentifier 'CPUType'
+            $originalSelectors[0].interfacePath[1] | Add-Member typeIdentifier 'PortType'
+            $e2=$port.networkInterfaces[0].nodes[0] | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+            $e2.nodeId='E2';$e2.selector.nodeId='E2'
+            $port.networkInterfaces[0].nodes=@($e2,$port.networkInterfaces[0].nodes[0])
+            $legacy=@{kind='node';deviceName='plc_1';nodeId='E1';interfaceName='X2';nodeIndex=1;itemPath=@(@{index=0;name='CPU';positionNumber=1;typeIdentifier='CPUType'},@{index=0;name='X2';positionNumber=33024;typeIdentifier='PortType'})}
+            $normalized=$originalSelectors[0] | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
+            $normalized.nodeIndex=1
+            switch('__CONSTRAINT__') {
+                'item-index' {$legacy.itemPath[1].index=1}
+                'node-index' {$legacy.nodeIndex=0}
+                'name' {$legacy.itemPath[1].name='x2'}
+                'position' {$legacy.itemPath[1].positionNumber=32768}
+                'type' {$legacy.itemPath[1].typeIdentifier='Wrong'}
+                'interface-name' {$legacy.interfaceName='X1'}
+                'normalized-owner' {$normalized.interfacePath[1].positionNumber=33025}
+            }
+            $expectation=$legacy | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
+            $expectation.subnetId='original-X2';$expectation.ioSystemSubnetId=$null;$expectation.ioSystemNumber=$null
+            $inspectionExpected=@{legacy=@{target=$legacy}}
+            $fixture=@{MultiHomedDevices=@('PLC_1');Inspections=@(@{id='legacy';target=$legacy});BeforeExpected=$inspectionExpected;AfterExpected=$inspectionExpected;BeforeRestore=$inspectionExpected;RestorationExpected=$inspectionExpected;BeforeNodes=@($expectation);AfterNodes=@($expectation);BeforeRestoreNodes=@($expectation);RestorationNodes=@($expectation)}
+            $operations=@(@{operationId='legacy';operation='configure_network_device';target=$legacy;changes=@{ipAddress='192.0.2.2'}})
+            $before=$operations | ConvertTo-Json -Depth 40 -Compress
+            $script:writeRequests=@(); $script:inspectionRequests=@()
+            function Read-HardwareConfig {return $capture}
+            function Invoke-McpToolCall {
+                param($Name,$Arguments)
+                if($Name -cne 'network_read'){throw 'Unexpected transport.'}
+                $script:inspectionRequests+=,$Arguments.operations[0].target
+                return @{success=$true;batch=@{operations=@(@{status='succeeded';omission=$null;result=@{target=$normalized}})}}
+            }
+            # Mutation/preview callbacks are replaced; actual mode inventory/assertion functions run.
+            function Invoke-NetworkWritePreview {$script:writeRequests+=,($operations | ConvertTo-Json -Depth 40 -Compress);return @{}}
+            function Invoke-LifecycleGroupAndVerify {$null=Invoke-NetworkWritePreview;$script:writeRequests+=,($operations | ConvertTo-Json -Depth 40 -Compress)}
+            $FixturePath=Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N')+'.json')
+            try {
+                '{}' | Set-Content -LiteralPath $FixturePath
+                $fixtureSha256=(Get-FileHash -LiteralPath $FixturePath -Algorithm SHA256).Hash
+                $script:Evidence=@{};$Restore=$__RESTORE__;$rejected=$false;$why=''
+                try {if('__MODE__' -eq 'Preview'){Invoke-Preview}else{Invoke-Apply}}catch{$rejected=$true;$why=$_.Exception.Message}
+                if('__CONSTRAINT__' -eq 'valid') {
+                    if($rejected){throw "Valid current-producer legacy mode failed: $why"}
+                    if($script:writeRequests.Count -eq 0){throw 'Valid selector did not reach isolated write callback.'}
+                    foreach($request in $script:writeRequests){if($request -cne $before){throw 'Original write/restoration selector changed.'}}
+                    foreach($request in $script:inspectionRequests){if(($request | ConvertTo-Json -Depth 30 -Compress) -cne ($legacy | ConvertTo-Json -Depth 30 -Compress)){throw 'Legacy inspection selector changed.'}}
+                } elseif(-not $rejected -or $script:writeRequests.Count -ne 0){throw 'Wrong legacy constraint reached preview/write.'}
+                if(($operations | ConvertTo-Json -Depth 40 -Compress) -cne $before){throw 'Original fixture modified.'}
+            }finally{Remove-Item -LiteralPath $FixturePath -Force}
+            'current-producer-legacy-mode-ok'
+            """.Replace("__MODE__", mode, StringComparison.Ordinal)
+                .Replace("__RESTORE__", restore.ToString().ToLowerInvariant(), StringComparison.Ordinal)
+                .Replace("__CONSTRAINT__", constraint, StringComparison.Ordinal));
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("current-producer-legacy-mode-ok", result.StandardOutput.Trim());
+    }
     private static string FindRepositoryFile(params string[] segments)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);

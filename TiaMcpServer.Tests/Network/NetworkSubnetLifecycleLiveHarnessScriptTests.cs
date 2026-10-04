@@ -482,6 +482,12 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     [InlineData("valid")]
     [InlineData("valid-create")]
     [InlineData("valid-delete")]
+    [InlineData("valid-delete-readable-zero-match")]
+    [InlineData("blank-competing-delete")]
+    [InlineData("null-competing-delete")]
+    [InlineData("missing-competing-delete")]
+    [InlineData("blank-competing-update")]
+    [InlineData("null-competing-update")]
     [InlineData("valid-repeat")]
     [InlineData("valid-update-delete")]
     public void LifecycleGroup_RequiresCompleteTypedEvidenceAndRetainsCanonicalApply(string variant)
@@ -525,7 +531,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 $script:applied.verification.finalChecks[2]=Check 'subnet/s///Name' 'Later'
                 $script:post.subnets[0].name='Later'
             }
-            if ('__VARIANT__' -in @('valid-delete','valid-update-delete','missing-affected-final','wrong-affected-post')) {
+            if ('__VARIANT__' -in @('valid-delete','valid-delete-readable-zero-match','blank-competing-delete','null-competing-delete','missing-competing-delete','valid-update-delete','missing-affected-final','wrong-affected-post')) {
                 $delete=@{operationId='delete';operation='delete_subnet';target=@{kind='subnet';subnetId='s'}}
                 $deleteEvidence=@{status='passed';identity=@{subnetId='s'};checks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnetAbsent' 'true'),(Check 'affectedNodesPreserved' 'true'),(Check 'affectedConnectionsRemoved' 'true'))}
                 $deleteItem=@{operationId='delete';operation='delete_subnet';status='succeeded';failure=$null;omission=$null;result=@{subnetId='s';name='After';networkDeviceCount=2;networkDeviceCountUnchanged=$true;verification=$deleteEvidence}}
@@ -544,6 +550,12 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
             }
             $script:preview.effects=$script:applied.effects
             switch ('__VARIANT__') {
+                'valid-delete-readable-zero-match' { $script:post.subnets=@(@{subnetId='other'}) }
+                'blank-competing-delete' { $script:post.subnets=@(@{subnetId=' '}) }
+                'null-competing-delete' { $script:post.subnets=@(@{subnetId=$null}) }
+                'missing-competing-delete' { $script:post.subnets=@(@{name='unknown'}) }
+                'blank-competing-update' { $script:post.subnets+=@{subnetId=' '} }
+                'null-competing-update' { $script:post.subnets+=@{subnetId=$null} }
                 'duplicate-batch' { $script:applied.batch.operations += $script:applied.batch.operations[0] }
                 'duplicate-immediate' { $script:applied.verification.operations += $script:applied.verification.operations[0] }
                 'null-checks' { $immediate.checks=$null }
@@ -593,6 +605,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 if ($rejected) { throw "Valid evidence rejected: $why" }
                 if (-not $record.Contains('applied') -or ($record.applied | ConvertTo-Json -Depth 50 -Compress) -cne ($script:applied | ConvertTo-Json -Depth 50 -Compress)) { throw 'Canonical applied evidence was not retained.' }
             } elseif (-not $rejected) { throw 'Malformed verification accepted: __VARIANT__' }
+            if ('__VARIANT__' -like '*competing*' -and $why -notlike '*Inspect*before*retry*') { throw "Unreadable fresh subnet identity lacked inspect-before-retry guidance: $why" }
             'lifecycle-evidence-ok'
             """.Replace("__VARIANT__", variant, StringComparison.Ordinal));
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
