@@ -35,7 +35,7 @@ public static class HardwareConfigReader
             tagIndex = ResolveTagIndex(project, plcName, result.Messages);
         }
 
-        var selectedDevices = SelectDevices(project, deviceName, result.Messages, capture);
+        var selectedDevices = SelectDevices(project, deviceName, result.Messages, capture, out var deviceNamespaceVerified);
         capture.Traverse(() => selectedDevices,
             selected => result.Devices.Add(ReadDevice(selected.Device, selected.NameEvidence,
                 result.Messages, includeIoDetails, tagIndex, capture)),
@@ -43,6 +43,8 @@ public static class HardwareConfigReader
         capture.Traverse(() => project.Subnets.Cast<Subnet>(),
             subnet => result.Subnets.Add(ReadSubnet(subnet, result.Messages, capture)),
             "subnetEnumeration", "subnetMaterialization");
+        // Use final evidence: a later traversal failure must invalidate earlier certifications.
+        NetworkNodeReadSelectorBuilder.ApplyInventory(result, deviceNamespaceVerified);
 
         result.Devices = result.Devices
             .OrderBy(device => device.Name, StringComparer.Ordinal)
@@ -105,7 +107,8 @@ public static class HardwareConfigReader
         Project project,
         string? deviceName,
         List<string> messages,
-        HardwareDiscoveryEvidenceCapture capture)
+        HardwareDiscoveryEvidenceCapture capture,
+        out bool deviceNamespaceVerified)
     {
         var candidates = new List<(Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)>();
         capture.Traverse(() => ProjectDeviceEnumerator.Enumerate(project), device =>
@@ -113,6 +116,7 @@ public static class HardwareConfigReader
             var nameEvidence = ReadTypedIdentityString(() => device.Name, "Device name");
             candidates.Add((device, nameEvidence));
         }, "deviceEnumeration", "deviceMaterialization");
+        deviceNamespaceVerified = capture.Evidence.Complete && candidates.All(candidate => candidate.NameEvidence.IsUsable);
 
         if (deviceName is null)
         {
@@ -143,6 +147,7 @@ public static class HardwareConfigReader
         HardwareDiscoveryEvidenceCapture capture)
     {
         AddReadMessage(messages, deviceName, "device name");
+        var failuresBefore = capture.Evidence.Failures.Count;
         var deviceDescription = deviceName.IsUsable ? deviceName.Value : "(unnamed)";
         var typeIdentifier = ReadOptionalString(
             () => device.TypeIdentifier,
@@ -163,6 +168,7 @@ public static class HardwareConfigReader
             includeIoDetails,
             tagIndex,
             capture);
+        NetworkNodeReadSelectorBuilder.Apply(deviceInfo, capture.Evidence.Failures.Count == failuresBefore);
         return deviceInfo;
     }
 

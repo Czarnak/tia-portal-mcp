@@ -35,6 +35,16 @@ public sealed class NetworkInterfacePathMatcherTests
     }
 
     [Fact]
+    public void DuplicateOwnerPairs_CannotBeDisambiguatedByOptionalType()
+    {
+        var roots = Fixture();
+        roots[0].Items[0].TypeIdentifier = "OrderNumber:A";
+        roots[0].Items.Add(new() { Name = "PROFINET interface_1", PositionNumber = 32768, TypeIdentifier = "OrderNumber:B" });
+        var path = Path(); path[1].TypeIdentifier = "OrderNumber:A";
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, Match(roots, path).FailureCategory);
+    }
+
+    [Fact]
     public void QualifiedNamespace_RejectsDuplicateNodeIds()
     {
         var result = NetworkNodeReadSelectorBuilder.MatchNode(new[] { new NodeInfo { NodeId = "E1" }, new NodeInfo { NodeId = "E1" } },

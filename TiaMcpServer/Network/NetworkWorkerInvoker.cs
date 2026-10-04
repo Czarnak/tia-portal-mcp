@@ -43,6 +43,13 @@ public static class NetworkWorkerInvoker
         {
             Kind = target.Kind,
             DeviceName = target.DeviceName,
+            InterfacePath = target.InterfacePath?.Select(segment => new NetworkInterfacePathSegmentInfo
+            {
+                Name = segment.Name,
+                PositionNumber = segment.PositionNumber ?? throw new InvalidOperationException(
+                    "Validated network interface owner segment is missing positionNumber."),
+                TypeIdentifier = segment.TypeIdentifier,
+            }).ToList(),
             ItemPath = target.ItemPath is null
                 ? null
                 : target.ItemPath

@@ -12,6 +12,20 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public class NetworkIntrospectionContractTests
 {
+    [Fact]
+    public void PreferredReadSelectors_AreDirectInspectRequests()
+    {
+        var device = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }).Devices[0];
+        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.Apply(device, true);
+        foreach (var owner in device.Items[0].Items)
+        {
+            var selector = owner.NetworkInterfaces[0].Nodes[0].Selector!;
+            var target = CanonicalJson.Deserialize<NetworkObjectTarget>(CanonicalJson.Serialize(selector))!;
+            Assert.True(NetworkOperationCatalog.ValidateRead(new[] { new NetworkOperationRequest
+                { OperationId = "inspect", Operation = "inspect_network_object", Target = target } }).IsValid);
+            Assert.Equal(owner.PositionNumber, target.InterfacePath![1].PositionNumber);
+        }
+    }
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------

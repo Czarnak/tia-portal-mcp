@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.OpennessWorker;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
@@ -1191,6 +1192,38 @@ while ((line = Console.In.ReadLine()) is not null)
         // ---------------------------------------------------------------------------
         // Phase 3: list_network_objects and inspect_network_object fixtures
         // ---------------------------------------------------------------------------
+
+        case "network-qualified-read":
+            var qualifiedHardware = QualifiedHardwareFixture();
+            var qualifiedDevice = qualifiedHardware.Devices[0];
+            NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
+            var qualifiedNodes = qualifiedDevice.Items[0].Items.SelectMany(item => item.NetworkInterfaces)
+                .SelectMany(networkInterface => networkInterface.Nodes).ToList();
+            if (ReadMethod(line) == "read_hardware_config") Respond(Success(ToCamelCaseJson(qualifiedHardware)));
+            else if (ReadMethod(line) == "list_network_objects")
+                Respond(Success(ToCamelCaseJson(new NetworkObjectListInfo { TotalCount = 2, ReturnedCount = 2,
+                    Items = qualifiedNodes.Select(node => new NetworkObjectSummaryInfo { Kind = NetworkObjectKinds.Node,
+                        Selectable = node.Selectable, Selector = node.Selector,
+                        Evidence = new() { NodeName = node.Name, Name = node.Name } }).ToList() })));
+            else if (ReadMethod(line) == "inspect_network_object")
+            {
+                var selectedTarget = JsonSerializer.Deserialize<WorkerRequest>(line, requestJsonOptions)!.NetworkObjectTarget!;
+                var selectedOwner = NetworkInterfacePathMatcher.Match(qualifiedDevice.Items, selectedTarget.InterfacePath!,
+                    item => item.Items, item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+                var selectedInterface = selectedOwner.Success ? selectedOwner.Item!.NetworkInterfaces.Single() : null;
+                var selectedNode = selectedInterface is null ? null : NetworkNodeReadSelectorBuilder.MatchNode(
+                    selectedInterface.Nodes, selectedTarget.NodeId, selectedTarget.NodeIndex, node => node.NodeId);
+                if (!string.Equals(selectedTarget.DeviceName, qualifiedDevice.Name, StringComparison.OrdinalIgnoreCase)
+                    || selectedInterface is null || selectedNode?.Success != true
+                    || (selectedTarget.InterfaceName is not null && !string.Equals(selectedTarget.InterfaceName, selectedInterface.Name, StringComparison.Ordinal)))
+                    Respond(ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.TargetEvidenceMismatch,
+                        Error = "Qualified fixture selector did not match." }));
+                else Respond(Success(ToCamelCaseJson(new NetworkObjectInspectionInfo { Target = selectedNode.Item!.Selector!,
+                    Evidence = new() { NodeName = selectedNode.Item.Name, Address = selectedNode.Item.IpAddress,
+                        InterfaceName = selectedInterface.Name } })));
+            }
+            else Respond("""{"success":false,"error":"unsupported qualified-read fixture operation"}""");
+            break;
 
         case "list-network-objects-success":
             // One object of every kind (6 total), including one unselectable summary (no selector).
@@ -2862,6 +2895,28 @@ HardwareConfigInfo AmbiguousNodeHardwareConfig() => new()
     },
 };
 
+HardwareConfigInfo QualifiedHardwareFixture() => new()
+{
+    RootDeviceCount = 1,
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
+    Devices = new() { new() { Name = "S7-1500/ET200MP station_1", Items = new() { new()
+    {
+        Name = "PLC_DP", PositionNumber = 1,
+        SelectorDiagnostics = new() { "Generic item type evidence is unavailable." },
+        Items = new()
+        {
+            new() { Name = "PROFINET interface_1", PositionNumber = 32768,
+                SelectorDiagnostics = new() { "Generic item type evidence is unavailable." }, NetworkInterfaces = new()
+                { new() { Name = "PROFINET interface_1", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." },
+                    Nodes = new() { new() { NodeId = "E1", Name = "X1", IpAddress = "192.168.12.2" } } } } },
+            new() { Name = "PROFINET interface_2", PositionNumber = 33024,
+                SelectorDiagnostics = new() { "Generic item type evidence is unavailable." }, NetworkInterfaces = new()
+                { new() { Name = "PROFINET interface_2", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." },
+                    Nodes = new() { new() { NodeId = "E1", Name = "X2", IpAddress = "192.168.13.20" } } } } },
+        },
+    } } } },
+};
+
 DeviceItemInfo SelectableDeviceItem(
     string deviceName,
     int index,
@@ -2881,6 +2936,11 @@ DeviceItemInfo SelectableDeviceItem(
             TypeIdentifier = typeIdentifier,
         },
     };
+
+    foreach (var node in nodes)
+        node.Selector = NetworkSelectorFactory.QualifiedNode(deviceName, node.NodeId,
+            path.Select(segment => new NetworkInterfacePathSegmentInfo { Name = segment.Name,
+                PositionNumber = segment.PositionNumber, TypeIdentifier = segment.TypeIdentifier }).ToList(), interfaceName);
 
     return new DeviceItemInfo
     {

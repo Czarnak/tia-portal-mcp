@@ -32,10 +32,12 @@ public class NetworkIntrospectionSafetyRegressionTests
     public async Task GuardedWrite_RejectsIncompleteDiscovery()
     {
         using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
             audit.Path,
-            startupProjectPath: "network-state-seq");
-        var operations = ConfigureOperation("network-state-seq", "PLC_2", "node-1");
+            startupProjectPath: "network-guarded-traversal-nodeEnumeration");
+        var operations = ConfigureOperation("network-guarded-traversal-nodeEnumeration", "PLC_Grouped", "node-2");
 
         var preview = AssertCanonical(await CallWriteAsync(harness, operations));
         var rejectedResult = await CallWriteAsync(harness, operations, dryRun: false);
@@ -47,6 +49,9 @@ public class NetworkIntrospectionSafetyRegressionTests
             WorkerFailureCategories.WorkerOperationFailed,
             rejected.GetProperty("error").GetProperty("category").GetString());
         Assert.Equal(JsonValueKind.Null, rejected.GetProperty("batch").ValueKind);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed,
+            preview.GetProperty("error").GetProperty("category").GetString());
+        Assert.DoesNotContain("configure_network_device", requests.Methods());
     }
 
     private static object[] ConfigureOperation(string projectPath, string deviceName, string nodeId)

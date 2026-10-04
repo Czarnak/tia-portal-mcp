@@ -19,6 +19,7 @@ public static class NetworkObjectIndexReader
     {
         var requestedKinds = new HashSet<string>(objectKinds, StringComparer.Ordinal);
         var entries = new List<Entry>();
+        var allDeviceNames = new List<string?>();
         var wantsDeviceTree = requestedKinds.Contains(NetworkObjectKinds.DeviceItem)
             || requestedKinds.Contains(NetworkObjectKinds.NetworkInterface)
             || requestedKinds.Contains(NetworkObjectKinds.Node)
@@ -29,14 +30,16 @@ public static class NetworkObjectIndexReader
             foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
             {
                 var currentDeviceName = ReadTypedString(() => device.Name, "Device name");
+                allDeviceNames.Add(currentDeviceName.IsUsable ? currentDeviceName.Value : null);
                 if (deviceName is not null
                     && (!currentDeviceName.IsUsable
-                        || !string.Equals(currentDeviceName.Value, deviceName, StringComparison.Ordinal)))
+                        || !string.Equals(currentDeviceName.Value, deviceName, StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }
 
                 ReadDeviceItems(
+                    device.DeviceItems,
                     device.DeviceItems,
                     currentDeviceName,
                     Array.Empty<DeviceItemPathSegmentInfo>(),
@@ -53,6 +56,14 @@ public static class NetworkObjectIndexReader
             ReadSubnets(project, requestedKinds, entries);
         }
 
+        foreach (var entry in entries.Where(entry => entry.Summary.Kind == NetworkObjectKinds.Node && entry.Summary.Selector is not null))
+        {
+            if (NetworkNodeReadSelectorBuilder.DeviceNameIsUnique(allDeviceNames, entry.Summary.Selector!.DeviceName)) continue;
+            entry.Summary.Selectable = false;
+            entry.Summary.Selector = null;
+            entry.Summary.Diagnostics.Add("Device name namespace is unreadable or ambiguous; selector uniqueness is unknown.");
+        }
+
         return entries
             .OrderBy(entry => entry.Summary.Kind, StringComparer.Ordinal)
             .ThenBy(entry => entry.OrderingKey, StringComparer.Ordinal)
@@ -62,6 +73,7 @@ public static class NetworkObjectIndexReader
 
     private static void ReadDeviceItems(
         DeviceItemComposition items,
+        DeviceItemComposition roots,
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> parentPath,
         IReadOnlyList<string> parentPathDiagnostics,
@@ -112,6 +124,7 @@ public static class NetworkObjectIndexReader
 
             ReadInterfaceAndNodes(
                 item,
+                roots,
                 deviceName,
                 itemPath,
                 pathDiagnostics,
@@ -132,6 +145,7 @@ public static class NetworkObjectIndexReader
             {
                 ReadDeviceItems(
                     item.DeviceItems,
+                    roots,
                     deviceName,
                     itemPath,
                     pathDiagnostics,
@@ -149,6 +163,7 @@ public static class NetworkObjectIndexReader
 
     private static void ReadInterfaceAndNodes(
         DeviceItem item,
+        DeviceItemComposition roots,
         NetworkObjectDiscoveryEvidenceValue<string> deviceName,
         IReadOnlyList<DeviceItemPathSegmentInfo> itemPath,
         IReadOnlyList<string> itemPathDiagnostics,
@@ -210,17 +225,32 @@ public static class NetworkObjectIndexReader
             return;
         }
 
+        var ownerPath = itemPath.Select(x => new NetworkInterfacePathSegmentInfo
+            { Name = x.Name, PositionNumber = x.PositionNumber,
+                TypeIdentifier = string.IsNullOrWhiteSpace(x.TypeIdentifier) ? null : x.TypeIdentifier }).ToList();
+        var owner = NetworkInterfacePathMatcher.Match(roots.Cast<DeviceItem>(), ownerPath,
+            x => x.DeviceItems.Cast<DeviceItem>(), x => x.Name, x => x.PositionNumber, x => x.TypeIdentifier);
+        var nodes = new List<Node>();
+        var nodeEnumerationComplete = true;
+        try { foreach (Node node in networkInterface.Nodes) nodes.Add(node); }
+        catch (EngineeringException) { nodeEnumerationComplete = false; }
         var nodeIndex = 0;
-        foreach (Node node in networkInterface.Nodes)
+        foreach (var node in nodes)
         {
             var nodeName = ReadTypedString(() => node.Name, "Node name");
             var nodeId = ReadTypedString(() => node.NodeId, "Node identity");
+            var nodeMatch = NetworkNodeReadSelectorBuilder.MatchNode(nodes, nodeId.IsUsable ? nodeId.Value : null,
+                null, x => x.NodeId);
             var diagnostics = CombineDiagnostics(
-                itemPathDiagnostics,
+                Array.Empty<string>(),
                 deviceName.Diagnostic,
-                nodeId.Diagnostic);
+                nodeId.Diagnostic,
+                owner.Success && ReferenceEquals(owner.Item, item) ? string.Empty : owner.Error ?? "Interface owner is not unique.",
+                nodeMatch.Success ? string.Empty : nodeMatch.Error!,
+                nodeEnumerationComplete ? string.Empty : "Node discovery is incomplete; uniqueness is unknown.");
             var selector = diagnostics.Count == 0
-                ? NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value, itemPath, nodeIndex)
+                ? NetworkSelectorFactory.QualifiedNode(deviceName.Value, nodeId.Value, ownerPath,
+                    interfaceName.IsUsable ? interfaceName.Value : null)
                 : null;
             var orderingKey = nodeId.IsUsable
                 ? (deviceName.IsUsable ? deviceName.Value : string.Empty) + "\u001f" + nodeId.Value

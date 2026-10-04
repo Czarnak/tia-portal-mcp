@@ -5,6 +5,25 @@ namespace TiaMcpServer.Tests.Network;
 
 public sealed class NetworkObjectDiscoveryEvidenceTests
 {
+    [Theory]
+    [InlineData("laterTraversal")]
+    [InlineData("unreadableDevice")]
+    [InlineData("duplicateDevice")]
+    [InlineData("filteredEvidence")]
+    public void FinalInventoryEvidence_CannotCertifyAnEarlierNodeAfterLaterLoss(string failure)
+    {
+        var inventory = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true });
+        NetworkNodeReadSelectorBuilder.Apply(inventory.Devices[0], true);
+        var earlierNode = inventory.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0];
+        Assert.True(earlierNode.Selectable);
+        if (failure == "laterTraversal") inventory.DiscoveryEvidence!.Complete = false;
+        if (failure == "filteredEvidence") inventory.DiscoveryEvidence!.Scope = "device";
+        if (failure == "unreadableDevice") inventory.Devices.Add(new() { Name = null });
+        if (failure == "duplicateDevice") inventory.Devices.Add(new() { Name = "s7-1500/et200mp STATION_1" });
+        NetworkNodeReadSelectorBuilder.ApplyInventory(inventory);
+        Assert.False(earlierNode.Selectable);
+        Assert.Null(earlierNode.Selector);
+    }
     [Fact]
     public void TwoInterfacesWithE1_EmitDistinctRoundTripSelectors()
     {

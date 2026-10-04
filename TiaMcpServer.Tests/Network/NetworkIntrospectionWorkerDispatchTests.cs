@@ -111,32 +111,31 @@ public class NetworkIntrospectionWorkerDispatchTests
     }
 
     [Fact]
-    public void NodeDiscoverySelector_CarriesOwningPathAndSiblingIndexToDisambiguateDuplicateIds()
+    public void NodeDiscoverySelector_CarriesExactOwnerNamespaceIndependentlyOfType()
     {
-        var discoverySource = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
-        var resolverSource = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs"));
-
-        Assert.Contains("NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value, itemPath, nodeIndex)", discoverySource, StringComparison.Ordinal);
-        Assert.Contains("target.NodeIndex", resolverSource, StringComparison.Ordinal);
-        Assert.Contains("MatchDeviceItem(project, target)", resolverSource, StringComparison.Ordinal);
+        var device = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }).Devices[0];
+        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.Apply(device, true);
+        var target = device.Items[0].Items[1].NetworkInterfaces[0].Nodes[0].Selector!;
+        var owner = NetworkInterfacePathMatcher.Match(device.Items, target.InterfacePath!,
+            item => item.Items, item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+        Assert.True(owner.Success, owner.Error);
+        Assert.Equal(33024, owner.Item!.PositionNumber);
+        Assert.Null(target.NodeIndex);
+        Assert.Null(target.ItemPath);
     }
 
     [Fact]
-    public void NodeDiscoverySelector_RequiresCompleteOwningPathEvidence()
+    public void NodeDiscoverySelector_UnreadableSiblingPreventsOwnerProof()
     {
-        var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
-        var nodeBlockStart = source.IndexOf("foreach (Node node in networkInterface.Nodes)", StringComparison.Ordinal);
-        var nodeBlockEnd = source.IndexOf("private static void ReadSubnets", nodeBlockStart, StringComparison.Ordinal);
-
-        Assert.True(nodeBlockStart >= 0 && nodeBlockEnd > nodeBlockStart);
-        var nodeBlock = source[nodeBlockStart..nodeBlockEnd];
-        Assert.Contains("itemPathDiagnostics", nodeBlock, StringComparison.Ordinal);
-        Assert.DoesNotContain("CombineDiagnostics(\n                Array.Empty<string>()", nodeBlock, StringComparison.Ordinal);
+        var device = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }).Devices[0];
+        device.Items[0].Items[0].PositionNumber = null;
+        var path = new List<NetworkInterfacePathSegmentInfo>
+        { new() { Name = "PLC_DP", PositionNumber = 1 }, new() { Name = "PROFINET interface_2", PositionNumber = 33024 } };
+        var result = NetworkInterfacePathMatcher.Match(device.Items, path,
+            item => item.Items, item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.TargetEvidenceMismatch, result.FailureCategory);
     }
-
     [Fact]
     public void ModeledAdapters_DoNotUseReflectionOrArbitraryToStringPublication()
     {

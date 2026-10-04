@@ -132,8 +132,16 @@ public static class NetworkObjectSelectorResolver
             messages));
     }
 
-    private static NetworkObjectSelectionResult ResolveNode(Project project, NetworkObjectSelectorInfo target)
+    public static NetworkObjectSelectionResult ResolveNode(Project project, NetworkObjectSelectorInfo target)
     {
+        if (target.InterfacePath is not null && target.ItemPath is not null)
+            return EvidenceMismatch("A node selector cannot contain both owner path forms.");
+        if (target.InterfacePath is null && target.ItemPath is null && (target.NodeIndex is not null || target.InterfaceName is not null))
+            return EvidenceMismatch("Node index and interface name constraints require an owner path.");
+        if (target.ItemPath is not null && target.NodeIndex is null)
+            return EvidenceMismatch("A legacy item path requires a node index.");
+        if (target.InterfacePath is not null)
+            return ResolveQualifiedNode(project, target);
         if (target.ItemPath is not null && target.NodeIndex is not null)
         {
             return ResolveIndexedNode(project, target);
@@ -145,62 +153,61 @@ public static class NetworkObjectSelectorResolver
             return deviceMatch.Failure!;
         }
 
-        var candidates = new List<(NodeCandidate Candidate, string NodeId)>();
-        foreach (var candidate in EnumerateNodes(deviceMatch.Value!))
+        NetworkInterfacePathMatch<NodeCandidate> match;
+        try
         {
-            try
-            {
-                var nodeId = candidate.Node.NodeId;
-                if (string.Equals(nodeId, target.NodeId, StringComparison.Ordinal))
-                {
-                    candidates.Add((candidate, nodeId));
-                }
-            }
-            catch (EngineeringException)
-            {
-                // An unreadable identity can never satisfy the selector.
-            }
+            match = NetworkNodeReadSelectorBuilder.MatchNode(EnumerateNodes(deviceMatch.Value!), target.NodeId,
+                null, candidate => candidate.Node.NodeId);
         }
-
-        if (candidates.Count == 0)
+        catch (Exception)
         {
-            return NotFound($"Device '{deviceMatch.Name}' has no node with nodeId '{target.NodeId}'.");
+            return EvidenceMismatch("The device's full node namespace could not be read completely.");
         }
+        if (!match.Success) return NetworkObjectSelectionResult.Fail(match.FailureCategory!, match.Error!);
+        var ownerProof = NetworkInterfacePathMatcher.Match(deviceMatch.Value!.DeviceItems.Cast<DeviceItem>(), match.Item!.OwnerPath,
+            item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+        if (!ownerProof.Success) return NetworkObjectSelectionResult.Fail(ownerProof.FailureCategory!, ownerProof.Error!);
+        return ResolveQualifiedNode(project, NetworkSelectorFactory.QualifiedNode(deviceMatch.Name!, target.NodeId!,
+            match.Item!.OwnerPath));
+    }
 
-        if (candidates.Count > 1)
+    private static NetworkObjectSelectionResult ResolveQualifiedNode(Project project, NetworkObjectSelectorInfo target)
+    {
+        var deviceMatch = MatchDevice(project, target.DeviceName);
+        if (!deviceMatch.Success) return deviceMatch.Failure!;
+        NetworkInterfacePathMatch<DeviceItem> owner;
+        try
         {
-            return Ambiguous($"Device '{deviceMatch.Name}' has multiple nodes with nodeId '{target.NodeId}'.");
+            owner = NetworkInterfacePathMatcher.Match(deviceMatch.Value!.DeviceItems.Cast<DeviceItem>(), target.InterfacePath!,
+                item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
         }
-
-        var match = candidates[0];
-        var matchedCandidate = match.Candidate;
+        catch (Exception) { return EvidenceMismatch("The interface owner root collection could not be read."); }
+        if (!owner.Success) return NetworkObjectSelectionResult.Fail(owner.FailureCategory!, owner.Error!);
+        NetworkInterface? networkInterface;
+        try { networkInterface = ((IEngineeringServiceProvider)owner.Item!).GetService<NetworkInterface>(); }
+        catch (Exception) { return EvidenceMismatch("The selected owner's network interface could not be read."); }
+        if (networkInterface is null) return NotFound("The selected owner has no network interface service.");
         var messages = new List<string>();
-        var nodeName = ReadOptionalString(() => matchedCandidate.Node.Name, "node name", messages);
-        var nodeType = ReadOptionalEnumName(() => matchedCandidate.Node.NodeType, "node type", messages);
-        var interfaceName = ReadOptionalStringAttribute(
-            (IEngineeringObject)matchedCandidate.NetworkInterface, "Name", messages);
-        var interfaceType = ReadOptionalEnumName(
-            () => matchedCandidate.NetworkInterface.InterfaceType, "network interface type", messages);
-        var interfaceMode = ReadOptionalEnumName(
-            () => matchedCandidate.NetworkInterface.InterfaceOperatingMode,
-            "network interface operating mode",
-            messages);
+        var interfaceName = ReadOptionalStringAttribute((IEngineeringObject)networkInterface, "Name", messages);
+        if (target.InterfaceName is not null && !string.Equals(interfaceName, target.InterfaceName, StringComparison.Ordinal))
+            return EvidenceMismatch("The selected interface name does not match the supplied constraint.");
+        NetworkInterfacePathMatch<Node> node;
+        try { node = NetworkNodeReadSelectorBuilder.MatchNode(networkInterface.Nodes.Cast<Node>(), target.NodeId, target.NodeIndex, x => x.NodeId); }
+        catch (Exception) { return EvidenceMismatch("The selected interface node collection could not be read."); }
+        if (!node.Success) return NetworkObjectSelectionResult.Fail(node.FailureCategory!, node.Error!);
         var evidence = new NetworkObjectEvidenceInfo
         {
-            DeviceItemPath = matchedCandidate.ItemPath,
+            DeviceItemPath = target.InterfacePath!.Select(x => x.Name).ToList(),
             InterfaceName = interfaceName,
-            InterfaceType = interfaceType,
-            InterfaceOperatingMode = interfaceMode,
-            NodeName = nodeName,
-            NodeType = nodeType,
+            InterfaceType = ReadOptionalEnumName(() => networkInterface.InterfaceType, "network interface type", messages),
+            InterfaceOperatingMode = ReadOptionalEnumName(() => networkInterface.InterfaceOperatingMode, "network interface operating mode", messages),
+            NodeName = ReadOptionalString(() => node.Item!.Name, "node name", messages),
+            NodeType = ReadOptionalEnumName(() => node.Item!.NodeType, "node type", messages),
         };
-
-        return NetworkObjectSelectionResult.Ok(new ResolvedNetworkObject(
-            NetworkObjectKinds.Node,
-            matchedCandidate.Node,
-            NetworkSelectorFactory.Node(deviceMatch.Name!, match.NodeId),
-            evidence,
-            messages));
+        return NetworkObjectSelectionResult.Ok(new ResolvedNetworkObject(NetworkObjectKinds.Node, node.Item!,
+            NetworkSelectorFactory.QualifiedNode(deviceMatch.Name!, target.NodeId!, target.InterfacePath!,
+                string.IsNullOrWhiteSpace(interfaceName) ? null : interfaceName, target.NodeIndex),
+            evidence, messages, networkInterface));
     }
 
     private static NetworkObjectSelectionResult ResolveIndexedNode(
@@ -218,70 +225,11 @@ public static class NetworkObjectSelectorResolver
             return itemMatch.Failure!;
         }
 
-        NetworkInterface? networkInterface;
-        try
-        {
-            networkInterface = ((IEngineeringServiceProvider)itemMatch.Item!).GetService<NetworkInterface>();
-        }
-        catch (EngineeringException exception)
-        {
-            return EvidenceMismatch($"Could not resolve the selected item's network interface: {exception.Message}");
-        }
-
-        if (networkInterface is null)
-        {
-            return NotFound("The selected device item does not expose a network interface.");
-        }
-
-        var node = NodeAt(networkInterface, nodeIndex);
-        if (node is null)
-        {
-            return NotFound($"The selected network interface has no node at index {target.NodeIndex}.");
-        }
-
-        string nodeId;
-        try
-        {
-            nodeId = node.NodeId;
-        }
-        catch (EngineeringException exception)
-        {
-            return EvidenceMismatch($"Could not verify the selected node identity: {exception.Message}");
-        }
-
-        if (!string.Equals(nodeId, target.NodeId, StringComparison.Ordinal))
-        {
-            return EvidenceMismatch("The resolved node identity does not match the selector evidence.");
-        }
-
-        var messages = new List<string>();
-        var nodeName = ReadOptionalString(() => node.Name, "node name", messages);
-        var nodeType = ReadOptionalEnumName(() => node.NodeType, "node type", messages);
-        var interfaceName = ReadOptionalStringAttribute((IEngineeringObject)networkInterface, "Name", messages);
-        var interfaceType = ReadOptionalEnumName(
-            () => networkInterface.InterfaceType, "network interface type", messages);
-        var interfaceMode = ReadOptionalEnumName(
-            () => networkInterface.InterfaceOperatingMode, "network interface operating mode", messages);
-        var evidence = new NetworkObjectEvidenceInfo
-        {
-            DeviceItemPath = itemMatch.VerifiedPath!.Select(segment => segment.Name).ToList(),
-            InterfaceName = interfaceName,
-            InterfaceType = interfaceType,
-            InterfaceOperatingMode = interfaceMode,
-            NodeName = nodeName,
-            NodeType = nodeType,
-        };
-
-        return NetworkObjectSelectionResult.Ok(new ResolvedNetworkObject(
-            NetworkObjectKinds.Node,
-            node,
-            NetworkSelectorFactory.Node(
-                itemMatch.DeviceName!,
-                nodeId,
-                itemMatch.VerifiedPath!,
-                nodeIndex),
-            evidence,
-            messages));
+        // The legacy index/name/position/type path is verified first. The node index remains
+        // a consistency constraint after unique identity selection in that owner's namespace.
+        return ResolveQualifiedNode(project, NetworkSelectorFactory.QualifiedNode(itemMatch.DeviceName!, target.NodeId!,
+            itemMatch.VerifiedPath!.Select(x => new NetworkInterfacePathSegmentInfo
+            { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList(), target.InterfaceName, nodeIndex));
     }
 
     private static NetworkObjectSelectionResult ResolveSubnet(Project project, NetworkObjectSelectorInfo target)
@@ -604,6 +552,16 @@ public static class NetworkObjectSelectorResolver
 
     private static Match<Device> MatchDevice(Project project, string? requestedName)
     {
+        try
+        {
+            foreach (var candidate in ProjectDeviceEnumerator.Enumerate(project))
+                if (string.IsNullOrWhiteSpace(candidate.Name))
+                    return Match<Device>.Fail(EvidenceMismatch("The device-name namespace has unreadable required identity evidence."));
+        }
+        catch (Exception)
+        {
+            return Match<Device>.Fail(EvidenceMismatch("The device-name namespace could not be read completely."));
+        }
         var matches = ProjectDeviceNameMatcher.FindMatches(project, requestedName);
 
         if (matches.Count == 0)
@@ -710,47 +668,28 @@ public static class NetworkObjectSelectorResolver
     private static IEnumerable<NodeCandidate> EnumerateNodes(Device device)
     {
         var result = new List<NodeCandidate>();
-        EnumerateNodes(device.DeviceItems, new List<string>(), result);
+        EnumerateNodes(device.DeviceItems, new List<NetworkInterfacePathSegmentInfo>(), result);
         return result;
     }
 
-    private static void EnumerateNodes(
-        DeviceItemComposition items,
-        IReadOnlyList<string> parentPath,
-        List<NodeCandidate> result)
+    private static void EnumerateNodes(DeviceItemComposition items,
+        IReadOnlyList<NetworkInterfacePathSegmentInfo> parentPath, List<NodeCandidate> result)
     {
         foreach (DeviceItem item in items)
         {
-            var path = parentPath.ToList();
-            try
-            {
-                path.Add(item.Name);
-            }
-            catch (EngineeringException)
-            {
-                path.Add(string.Empty);
-            }
-
-            try
-            {
-                var networkInterface = ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
-                if (networkInterface is not null)
-                {
-                    foreach (Node node in networkInterface.Nodes)
-                    {
-                        result.Add(new NodeCandidate(networkInterface, node, path));
-                    }
-                }
-            }
-            catch (EngineeringException)
-            {
-                // A failed interface does not suppress later device items.
-            }
-
+            // Optional type evidence is independent of required name/position and enumeration.
+            string? type = null;
+            try { type = item.TypeIdentifier; } catch (EngineeringException) { }
+            var path = parentPath.Concat(new[] { new NetworkInterfacePathSegmentInfo
+            { Name = item.Name, PositionNumber = item.PositionNumber,
+                TypeIdentifier = string.IsNullOrWhiteSpace(type) ? null : type } }).ToList();
+            var networkInterface = ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
+            if (networkInterface is not null)
+                foreach (Node node in networkInterface.Nodes)
+                    result.Add(new NodeCandidate(networkInterface, node, path));
             EnumerateNodes(item.DeviceItems, path, result);
         }
     }
-
     private static string? ReadOptionalStringAttribute(
         IEngineeringObject value,
         string name,
@@ -924,15 +863,15 @@ public static class NetworkObjectSelectorResolver
 
     private sealed class NodeCandidate
     {
-        public NodeCandidate(NetworkInterface networkInterface, Node node, IReadOnlyList<string> itemPath)
+        public NodeCandidate(NetworkInterface networkInterface, Node node, IReadOnlyList<NetworkInterfacePathSegmentInfo> ownerPath)
         {
             NetworkInterface = networkInterface;
             Node = node;
-            ItemPath = itemPath.ToList();
+            OwnerPath = ownerPath.ToList();
         }
 
         public NetworkInterface NetworkInterface { get; }
         public Node Node { get; }
-        public List<string> ItemPath { get; }
+        public List<NetworkInterfacePathSegmentInfo> OwnerPath { get; }
     }
 }
