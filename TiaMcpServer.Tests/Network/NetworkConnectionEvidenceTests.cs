@@ -153,7 +153,7 @@ public sealed class NetworkConnectionEvidenceTests
         Assert.Empty(decoded.Messages);
         Assert.Equal(subnet.Messages, decoded.Subnets[0].ConnectionEvidence!.Messages);
         Assert.True(NetworkWritePlanner.DiscoveryComplete(decoded));
-        decoded.Messages.Add(diagnostic); // Same text at a different producer scope is structural uncertainty.
+        decoded.Messages.Add(diagnostic); // Diagnostic text alone never overrides complete typed structural evidence.
         Assert.True(NetworkWritePlanner.DiscoveryComplete(decoded));
         decoded.Messages.Clear();
         decoded.Subnets[0].SelectorDiagnostics.Add(diagnostic);
