@@ -23,7 +23,7 @@ public sealed class NetworkWriteVerifier
     {
         var operations = new List<NetworkOperationVerification>();
         var checks = new List<NetworkVerificationCheckInfo>();
-        var expected = new Dictionary<ExpectationKey, string?>();
+        var expected = new Dictionary<ExpectationKey, string?>(new ExpectationKeyComparer());
         // The first immutable observation is the baseline. Later re-plans are observations,
         // not permission to absorb external root-device loss into our expected final state.
         int? rootCount = batch.Operations.Select(item => _initial.GetValueOrDefault(item.OperationId)?.RootDeviceCount).FirstOrDefault();
@@ -197,4 +197,19 @@ public sealed class NetworkWriteVerifier
                 : "The final state differs from the effective attempted changes. Inspect with network_read."
     };
     private sealed record ExpectationKey(string Kind, string Identity, string? NodeId, string Field);
+    private sealed class ExpectationKeyComparer : IEqualityComparer<ExpectationKey>
+    {
+        // Only device names share the selector's case-insensitive identity semantics.
+        // Opaque subnet/node IDs, fields and observed values keep their exact spelling.
+        private static StringComparer IdentityComparer(ExpectationKey key)
+            => key.Kind is "node" or "device" ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+        public bool Equals(ExpectationKey? left, ExpectationKey? right)
+            => ReferenceEquals(left, right) || left is not null && right is not null
+                && left.Kind == right.Kind && IdentityComparer(left).Equals(left.Identity, right.Identity)
+                && left.NodeId == right.NodeId && left.Field == right.Field;
+
+        public int GetHashCode(ExpectationKey key)
+            => HashCode.Combine(key.Kind, IdentityComparer(key).GetHashCode(key.Identity), key.NodeId, key.Field);
+    }
 }
