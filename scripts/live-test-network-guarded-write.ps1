@@ -181,7 +181,7 @@ function Assert-VerificationCheck {
     }
 }
 function Assert-Outcome {
-    param($Response, [object[]] $ExpectedItemStatuses, [bool] $ExpectedSuccess, [bool] $ExpectedVerificationSuccess, [object[]] $ExpectedSettings)
+    param($Response, [object[]] $ExpectedItemStatuses, [bool] $ExpectedSuccess, [bool] $ExpectedVerificationSuccess, [object[]] $ExpectedSettings, $Hardware)
     if ($Response.contractVersion -ne '1.0' -or $Response.phase -ne 'applied' -or $null -ne $Response.error -or
         $Response.success -isnot [bool] -or $Response.success -ne $ExpectedSuccess -or $null -ne $Response.omission -or
         $Response.verification.success -isnot [bool] -or $Response.verification.success -ne $ExpectedVerificationSuccess -or
@@ -218,6 +218,10 @@ function Assert-Outcome {
     for ($i = 0; $i -lt $attempted.Count; $i++) {
         $item = $attempted[$i]
         $operation = @($operations | Where-Object { $_.operationId -ceq $item.operationId })[0]
+        $targetIdentity = $operation.target
+        if ($null -ne (Get-NetworkMember $operation.target 'itemPath')) {
+            $targetIdentity = Resolve-NetworkNodeSelectorEvidence $Hardware $operation.target
+        }
         $verification = $immediateChecks[$i]
         $evidence = $verification.evidence
         if ($verification.operationId -cne $item.operationId -or $verification.operation -cne 'configure_network_device' -or
@@ -226,7 +230,7 @@ function Assert-Outcome {
             -not [string]::Equals($item.result.deviceName, $operation.target.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -or
             $evidence.status -cne $verification.status -or $evidence.status -notin @('passed', 'failed', 'not_required') -or
             $evidence.identity.deviceName -isnot [string] -or $evidence.identity.nodeId -isnot [string] -or
-            -not (Test-NetworkNodeIdentity $operation.target $evidence.identity) -or
+            -not (Test-NetworkNodeIdentity $targetIdentity $evidence.identity) -or
             @($evidence.identity.PSObject.Properties | Where-Object { $_.Name -cnotin @('deviceName','nodeId','interfacePath','interfaceName') }).Count -ne 0 -or $evidence.checks -isnot [array]) {
             throw 'Exact attempted identity/order and typed immediate evidence are required.'
         }
@@ -305,9 +309,9 @@ function Invoke-LifecycleGroupAndVerify {
     $script:Evidence['preview'] = Invoke-NetworkWritePreview
     $script:Evidence['applied'] = Invoke-NetworkWriteApply
     if ($Restore) {
-        Assert-Outcome $script:Evidence.applied (@($operations | ForEach-Object { 'succeeded' })) $true $true @()
+        Assert-Outcome $script:Evidence.applied (@($operations | ForEach-Object { 'succeeded' })) $true $true @() $script:Evidence.hardware
     } else {
-        Assert-Outcome $script:Evidence.applied $fixture.ExpectedItemStatuses $fixture.ExpectedSuccess $fixture.ExpectedVerificationSuccess $fixture.ExpectedSettings
+        Assert-Outcome $script:Evidence.applied $fixture.ExpectedItemStatuses $fixture.ExpectedSuccess $fixture.ExpectedVerificationSuccess $fixture.ExpectedSettings $script:Evidence.hardware
     }
 }
 function Invoke-Inventory {
