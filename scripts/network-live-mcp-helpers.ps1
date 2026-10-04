@@ -429,6 +429,7 @@ function Get-NetworkNodeKey {
     $device = Get-NetworkMember $Identity 'deviceName'; $node = Get-NetworkMember $Identity 'nodeId'
     if ($device -isnot [string] -or [string]::IsNullOrWhiteSpace($device) -or $node -isnot [string] -or [string]::IsNullOrWhiteSpace($node)) { throw 'Invalid node identity.' }
     $path = Get-NetworkMember $Identity 'interfacePath'
+    if ($null -eq $path) { throw 'Unqualified node identity cannot be a write evidence map key.' }
     $pairs = @()
     if ($null -ne $path) {
         foreach ($segment in (ConvertTo-NetworkInterfacePath $path)) { $pairs += ,@((Get-NetworkMember $segment 'name'), (Get-NetworkMember $segment 'positionNumber')) }
@@ -439,7 +440,12 @@ function Get-NetworkNodeKey {
 
 function Test-NetworkNodeIdentity {
     param($Expected, $Observed, [switch] $SelectorConstraints)
-    $null = Get-NetworkNodeKey $Expected; $null = Get-NetworkNodeKey $Observed
+    foreach ($identity in @($Expected,$Observed)) {
+        $device = Get-NetworkMember $identity 'deviceName'; $node = Get-NetworkMember $identity 'nodeId'
+        if ($device -isnot [string] -or [string]::IsNullOrWhiteSpace($device) -or $node -isnot [string] -or [string]::IsNullOrWhiteSpace($node)) { throw 'Invalid node identity.' }
+        $path = Get-NetworkMember $identity 'interfacePath'
+        if ($null -ne $path) { $null = ConvertTo-NetworkInterfacePath $path }
+    }
     if (-not [string]::Equals($Expected.deviceName, $Observed.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -or $Expected.nodeId -cne $Observed.nodeId) { return $false }
     $expectedPath = Get-NetworkMember $Expected 'interfacePath'; $observedPath = Get-NetworkMember $Observed 'interfacePath'
     if ($null -ne $expectedPath) {
@@ -523,7 +529,6 @@ function Get-HardwareNodes {
                     $constraint = Get-NetworkMember $selector $field
                     if ($null -ne $constraint) { $identity[$field] = $constraint }
                 }
-                $null = Get-NetworkNodeKey $identity
                 # Unqualified legacy rows stay readable. Exact callers must prove one match;
                 # a repeated bare node ID is not itself invalid hardware or a usable key.
                 if (-not (Test-NetworkNodeIdentity $selector $identity -SelectorConstraints) -or
