@@ -98,7 +98,7 @@ public class NetworkToolsTests
     private static NetworkOperationRequest AddDevice(
         string id,
         string projectPath = StableScenario,
-        string deviceName = "PLC_1",
+        string deviceName = "AddedPLC",
         string? deviceItemName = null) => new()
     {
         OperationId = id,
@@ -277,11 +277,14 @@ public class NetworkToolsTests
     public async Task NetworkWrite_PreviewBindsExactOrderedTargetsAndPerformsOnlyOneStateRead()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateWriteClient(audit, out var safety, "network-state-seq");
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var client = CreateWriteClient(audit, out var safety, "network-roundtrip");
+        var before = requests.Methods().Length;
         var operations = new[]
         {
-            AddDevice("first", "network-state-seq", "PLC_1"),
-            ConfigureDevice("second", "network-state-seq", "PLC_2"),
+            AddDevice("first", "network-roundtrip", "AddedPLC"),
+            ConfigureDevice("second", "network-roundtrip", "PLC_1"),
         };
 
         var preview = await NetworkWrite(client, safety, operations);
@@ -293,10 +296,10 @@ public class NetworkToolsTests
         var target = root.GetProperty("effects").EnumerateArray().Select(e => e.GetProperty("effect").GetProperty("target")).ToArray();
         Assert.Equal("first", target[0].GetProperty("operationId").GetString());
         Assert.Equal("add_network_device", target[0].GetProperty("operation").GetString());
-        Assert.Equal("PLC_1", target[0].GetProperty("deviceName").GetString());
+        Assert.Equal("AddedPLC", target[0].GetProperty("deviceName").GetString());
         Assert.Equal("second", target[1].GetProperty("operationId").GetString());
         Assert.Equal("configure_network_device", target[1].GetProperty("operation").GetString());
-        Assert.Equal("PLC_2", target[1].GetProperty("deviceName").GetString());
+        Assert.Equal("PLC_1", target[1].GetProperty("deviceName").GetString());
 
         // The configure target's hardware-identity members are NetworkIdentityResolver's resolved
         // evidence against this same read, not an echo of the request: node-1 is the exact nodeId
@@ -308,8 +311,9 @@ public class NetworkToolsTests
 
         // Request 1 verifies the configured project, request 2 is the preview snapshot, and this
         // third request proves the preview itself still issued exactly one state read.
-        var nextRead = await client.ReadHardwareConfigAsync("network-state-seq");
-        Assert.Contains("seq:3", nextRead.Payload);
+        Assert.Single(requests.Methods().Skip(before), method => method == "read_hardware_config");
+        Assert.DoesNotContain("add_network_device", requests.Methods());
+        Assert.DoesNotContain("configure_network_device", requests.Methods());
     }
 
     [Fact]

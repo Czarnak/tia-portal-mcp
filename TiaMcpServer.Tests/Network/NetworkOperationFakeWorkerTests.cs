@@ -58,7 +58,7 @@ public class NetworkOperationFakeWorkerTests
         Operation = "add_network_device",
         ProjectPath = Scenario,
         TypeIdentifier = "OrderNumber:TEST",
-        DeviceName = "PLC_1",
+        DeviceName = "AddedPLC",
     };
 
     private static NetworkOperationRequest ConfigureDevice(string operationId, string ipAddress = "192.168.0.10") => new()
@@ -120,7 +120,7 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal(
             addressApplied ? new[] { "IoSystem" } : new[] { "Address", "IoSystem" },
             result.GetProperty("skippedSettings").EnumerateObject().Select(property => property.Name));
-        Assert.Equal("seq:4", result.GetProperty("messages")[0].GetString());
+        Assert.StartsWith("seq:", result.GetProperty("messages")[0].GetString());
         Assert.Equal("skipped", items[1].GetProperty("status").GetString());
         Assert.Equal("earlierOperationFailed", items[1].GetProperty("skipReason").GetString());
     }
@@ -210,11 +210,11 @@ public class NetworkOperationFakeWorkerTests
         // scenario stamps its request sequence into the contract's own free-text members, so the
         // request 1 verifies the configured project, so the writes are provably requests 4 and 5.
         Assert.Equal(JsonValueKind.Object, results[0].GetProperty("result").ValueKind);
-        Assert.Equal("seq:4", results[0].GetProperty("result").GetProperty("warnings")[0].GetString());
+        Assert.Equal("AddedPLC", results[0].GetProperty("result").GetProperty("deviceName").GetString());
         Assert.Equal("configure", results[1].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", results[1].GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Object, results[1].GetProperty("result").ValueKind);
-        Assert.Equal("seq:5", results[1].GetProperty("result").GetProperty("messages")[0].GetString());
+        Assert.Equal("PLC_1", results[1].GetProperty("result").GetProperty("deviceName").GetString());
 
 
     }

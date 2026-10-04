@@ -46,6 +46,7 @@ var requestJsonOptions = WorkerJson.Envelope;
 var multiHomedPlcNode = new MultiHomedNode { Name = "PLC port", NodeId = "node-plc", IpAddress = "192.168.0.20" };
 var multiHomedDbNode = new MultiHomedNode { Name = "Database port", NodeId = "node-db", IpAddress = "10.20.30.40" };
 HardwareConfigInfo? guardedNetworkState = null;
+HardwareConfigInfo? roundtripNetworkState = null;
 var guardedNetworkWrites = 0;
 var guardedSubnetAttributes = new Dictionary<(string SubnetId, string Name), string>();
 
@@ -759,9 +760,10 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "network-config-partial":
         case "network-config-all-skipped":
+            roundtripNetworkState ??= RoundtripHardwareConfig();
             Respond(ReadMethod(line) switch
             {
-                "read_hardware_config" => Success(HardwareConfigPayload()),
+                "read_hardware_config" => Success(ToCamelCaseJson(roundtripNetworkState)),
                 "configure_network_device" => Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
                 {
                     DeviceName = "PLC_1",
@@ -783,6 +785,7 @@ while ((line = Console.In.ReadLine()) is not null)
             });
             break;
         case "network-roundtrip":
+            roundtripNetworkState ??= RoundtripHardwareConfig();
             Respond(ReadMethod(line) switch
             {
                 // The request still advances seq, but its safety-bound state must remain stable
@@ -792,15 +795,11 @@ while ((line = Console.In.ReadLine()) is not null)
                 // rejected as protocol_error instead of decoding. The hardware payload models a
                 // PLC plus a multi-homed PC station so node, subnet and IO-system identities are
                 // observable end to end.
-                "read_hardware_config" => Success(HardwareConfigPayload()),
+                "read_hardware_config" => Success(ToCamelCaseJson(roundtripNetworkState)),
                 "search_equipment_catalog" => """{"success":true,"payload":"[{\"typeName\":\"TEST\",\"articleNumber\":null,\"version\":null,\"typeIdentifier\":\"OrderNumber:TEST\",\"typeIdentifierNormalized\":null,\"catalogPath\":null,\"description\":null}]"}""",
                 "list_network_objects" => Success(ToCamelCaseJson(ListNetworkObjectsFixture())),
                 "inspect_network_object" => Success(ToCamelCaseJson(InspectNetworkObjectFixture())),
-                // The write payloads must satisfy AddDeviceResultInfo / ConfigureNetworkDeviceResultInfo
-                // too. Their free-text members carry seq so request ordering stays observable
-                // without smuggling an unmapped member past the declared contract.
-                "add_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"rootItemName\":\"PLC_1\",\"typeIdentifier\":\"OrderNumber:TEST\",\"warnings\":[\"seq:{{seq}}\"]}"}""",
-                "configure_network_device" => $$"""{"success":true,"payload":"{\"deviceName\":\"PLC_1\",\"appliedSettings\":{\"Address\":\"192.168.0.10\"},\"skippedSettings\":{},\"messages\":[\"seq:{{seq}}\"]}"}""",
+                "add_network_device" or "configure_network_device" => HandleGuardedNetwork(line, roundtripNetworkState, scenario),
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
@@ -1254,6 +1253,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle"}"""
@@ -1268,6 +1268,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     DispatchSubnetLifecycleWrite(line, subnetLifecycleState),
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-alt-path"}"""
@@ -1284,6 +1285,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     $$"""{"success":true,"payload":"{\"subnetId\":\"subnet-malformed-1\",\"name\":\"Malformed\",\"networkDeviceCount\":{{SubnetLifecycleDeviceCount}},\"networkDeviceCountUnchanged\":true,\"relationshipSummary\":\"connected to 2 devices\"}"}""",
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-malformed-success"}"""
@@ -1298,6 +1300,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     $$"""{"success":false,"failureCategory":"postcondition_failed","error":"subnet lifecycle verification failed on attempt {{seq}}","warnings":["Project state may have changed; inspect the project before retrying."]}""",
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-postcondition-failed"}"""
@@ -1312,6 +1315,7 @@ while ((line = Console.In.ReadLine()) is not null)
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
+                "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
                     HandleSecondItemFailureWrite(line, subnetLifecycleState),
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-second-item-failure"}"""
@@ -3289,32 +3293,73 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
 // Phase 4: subnet lifecycle fixtures (Task 6)
 // ---------------------------------------------------------------------------
 
+// Complete fixture inventory: both PLC ports survive subnet deletion and expose current membership.
 List<DeviceInfo> SubnetLifecycleDevices() => new()
 {
-    new() { Name = "PLC_1", TypeIdentifier = "OrderNumber:TEST", Items = new List<DeviceItemInfo>() },
-    new() { Name = "HMI_1", TypeIdentifier = "OrderNumber:HMI", Items = new List<DeviceItemInfo>() },
+    SingleNodeHardwareConfig("PLC_1", "Interface", "Interface", "X1", "eth-node").Devices[0],
+    new() { Name = "HMI_1", TypeIdentifier = "OrderNumber:HMI", Items = new() },
 };
 
-/// <summary>
-/// Renders the CURRENT mutable subnet list as a contract-valid <see cref="HardwareConfigInfo"/>.
-/// Devices are always the same two entries; only <paramref name="subnets"/> reflects whatever
-/// create_subnet/update_subnet/delete_subnet has done to the shared state so far.
-/// </summary>
-HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState> subnets) => new()
+HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState> subnets)
 {
-    RootDeviceCount = SubnetLifecycleDeviceCount,
-    Devices = SubnetLifecycleDevices(),
-    Subnets = subnets
-        .Select(subnet => SelectableSubnet(
-            subnet.Name,
-            subnet.SubnetId,
-            subnet.NetworkType,
-            subnet.NetworkType,
-            Array.Empty<IoSystemInfo>(),
-            subnet.ConnectedNodeNames))
-        .ToList(),
-    Messages = new List<string>(),
-};
+    var devices = SubnetLifecycleDevices();
+    var nodes = devices[0].Items[0].NetworkInterfaces[0].Nodes;
+    nodes.Add(SelectableNode("PLC_1", "MPI", "pb-node", "Profibus"));
+    foreach (var node in nodes)
+    {
+        var connected = subnets.SingleOrDefault(s => s.ConnectedNodeNames.Contains("PLC_1." + node.Name));
+        node.SubnetName = connected?.Name;
+        node.ConnectionEvidence = new() { Complete = true, SubnetId = connected?.SubnetId };
+    }
+    return new()
+    {
+        RootDeviceCount = SubnetLifecycleDeviceCount,
+        Devices = devices,
+        Subnets = subnets.Select(subnet =>
+        {
+            var info = SelectableSubnet(subnet.Name, subnet.SubnetId, subnet.NetworkType,
+                "System:Subnet." + subnet.NetworkType, Array.Empty<IoSystemInfo>(), subnet.ConnectedNodeNames);
+            info.ConnectionEvidence = new()
+            {
+                Complete = true,
+                Nodes = nodes.Where(n => n.ConnectionEvidence!.SubnetId == subnet.SubnetId)
+                    .Select(n => new NetworkNodeIdentityInfo { DeviceName = "PLC_1", NodeId = n.NodeId! }).ToList()
+            };
+            return info;
+        }).ToList()
+    };
+}
+
+string InspectSubnetLifecycle(string request, List<SubnetLifecycleSubnetState> subnets)
+{
+    var decoded = JsonSerializer.Deserialize<WorkerRequest>(request, requestJsonOptions)!;
+    var subnet = subnets.Single(s => s.SubnetId == decoded.NetworkObjectTarget!.SubnetId);
+    return Success(ToCamelCaseJson(new NetworkObjectInspectionInfo
+    {
+        Target = decoded.NetworkObjectTarget!,
+        Attributes = decoded.NetworkAttributeNames!.Select(name => new NetworkAttributeInfo
+        {
+            Name = name, Source = "dynamic", Access = "readWrite", Availability = "available",
+            Value = name == "HighestAddress" ? new() { Kind = "integer", Value = subnet.HighestAddress }
+                : new() { Kind = "enum", Value = new NetworkEnumValueInfo { TypeName = "Fixture.Speed", Symbol = subnet.TransmissionSpeed!, NumericValue = 1 } }
+        }).ToList()
+    }));
+}
+
+HardwareConfigInfo RoundtripHardwareConfig()
+{
+    var state = JsonSerializer.Deserialize<HardwareConfigInfo>(HardwareConfigPayload(), requestJsonOptions)!;
+    state.RootDeviceCount = state.Devices.Count;
+    foreach (var node in GuardedNodes(state))
+        node.ConnectionEvidence = new() { Complete = true,
+            SubnetId = state.Subnets.SingleOrDefault(s => s.Name == node.SubnetName)?.SubnetId };
+    foreach (var subnet in state.Subnets)
+        subnet.ConnectionEvidence = new() { Complete = true,
+            Nodes = state.Devices.SelectMany(d => d.Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes)
+                .Where(n => n.ConnectionEvidence!.SubnetId == subnet.SubnetId)
+                .Select(n => new NetworkNodeIdentityInfo { DeviceName = d.Name!, NodeId = n.NodeId! })).ToList() };
+    return state;
+}
 
 // An ordinary-read fixture with explicit all-scope identities and a distinct root count.
 // Older/page scenarios intentionally keep their conditional omissions.
@@ -3483,7 +3528,7 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
     if (method == "add_network_device")
     {
         var name = ReadField(request, "deviceName")!;
-        var itemName = ReadField(request, "deviceItemName")!;
+        var itemName = ReadField(request, "deviceItemName") ?? name;
         var type = ReadField(request, "typeIdentifier")!;
         state.RootDeviceCount++;
         var rack = GuardedItem(name, 0, "Rack", "Rack:TEST");

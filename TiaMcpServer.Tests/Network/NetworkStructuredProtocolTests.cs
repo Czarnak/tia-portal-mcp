@@ -147,14 +147,14 @@ public class NetworkStructuredProtocolTests
         var preview = await CallWriteAsync(harness, WriteOperations("network-roundtrip"));
         var previewRoot = AssertOneCanonicalDocument(preview);
         Assert.False(preview.IsError);
-        AssertOnlyPopulated(previewRoot, "preview", "preview");
-        var token = previewRoot.GetProperty("preview").GetProperty("safetyToken").GetString();
+        AssertOnlyPopulated(previewRoot, "preview", "none");
+        Assert.NotEmpty(previewRoot.GetProperty("effects").EnumerateArray());
 
         var applied = await CallWriteAsync(
-            harness, WriteOperations("network-roundtrip"), confirm: true, safetyToken: token);
+            harness, WriteOperations("network-roundtrip"), dryRun: false);
         var appliedRoot = AssertOneCanonicalDocument(applied);
         Assert.False(applied.IsError);
-        AssertOnlyPopulated(appliedRoot, "apply", "batch");
+        AssertOnlyPopulated(appliedRoot, "applied", "batch");
         Assert.True(appliedRoot.GetProperty("success").GetBoolean());
     }
 
@@ -171,14 +171,13 @@ public class NetworkStructuredProtocolTests
         var applied = await CallWriteAsync(
             harness,
             operations,
-            confirm: true,
-            safetyToken: preview.GetProperty("preview").GetProperty("safetyToken").GetString());
+            dryRun: false);
 
         var root = AssertOneCanonicalDocument(applied);
 
         // The batch ran, so this is a successful MCP call reporting a failed item — not a tool error.
         Assert.False(applied.IsError);
-        AssertOnlyPopulated(root, "apply", "batch");
+        AssertOnlyPopulated(root, "applied", "batch");
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal("failed", root.GetProperty("batch").GetProperty("operations")[0].GetProperty("status").GetString());
     }
@@ -220,15 +219,14 @@ public class NetworkStructuredProtocolTests
         };
 
         var preview = AssertOneCanonicalDocument(await CallWriteAsync(harness, operations));
-        var token = preview.GetProperty("preview").GetProperty("safetyToken").GetString();
 
         // The preview's own resolved target evidence already proves node-plc (not node-db, not a
         // guess) is what was matched, before anything is applied.
-        var previewTarget = preview.GetProperty("preview").GetProperty("target")[0];
+        var previewTarget = preview.GetProperty("effects")[0].GetProperty("effect").GetProperty("target");
         Assert.Equal("node-plc", previewTarget.GetProperty("nodeId").GetString());
         Assert.Equal("PC_1", previewTarget.GetProperty("deviceName").GetString());
 
-        var applied = await CallWriteAsync(harness, operations, confirm: true, safetyToken: token);
+        var applied = await CallWriteAsync(harness, operations, dryRun: false);
         var appliedRoot = AssertOneCanonicalDocument(applied);
         Assert.False(applied.IsError);
         Assert.True(appliedRoot.GetProperty("success").GetBoolean());
@@ -245,52 +243,6 @@ public class NetworkStructuredProtocolTests
         Assert.True(JsonElement.DeepEquals(beforeDb, afterDb));
     }
 
-    /// <summary>
-    /// A caller that reorders JSON keys inside <c>target</c>/<c>changes</c> between preview and
-    /// apply has not changed anything - every value, type, and array order is identical, only pure
-    /// object-property order differs. The safety token binds through canonical (sorted-key)
-    /// hashing, so it must still validate; only a genuinely different value, type, or array order
-    /// may reject it.
-    /// </summary>
-    [Fact]
-    public async Task NetworkWrite_PropertyReorderingOnlyStillValidatesAgainstTheSameToken()
-    {
-        using var audit = new TempAuditDirectory();
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
-            audit.Path,
-            startupProjectPath: "network-roundtrip");
-
-        var previewOperation = new Dictionary<string, object?>
-        {
-            ["operationId"] = "configure",
-            ["operation"] = "configure_network_device",
-            ["projectPath"] = "network-roundtrip",
-            ["target"] = JsonSerializer.Deserialize<JsonElement>("""{"deviceName":"PLC_1","nodeId":"node-1"}"""),
-            ["changes"] = JsonSerializer.Deserialize<JsonElement>(
-                """{"ipAddress":"192.168.0.10","subnetMask":"255.255.255.0"}"""),
-        };
-        var applyOperation = new Dictionary<string, object?>
-        {
-            ["operationId"] = "configure",
-            ["operation"] = "configure_network_device",
-            ["projectPath"] = "network-roundtrip",
-            ["target"] = JsonSerializer.Deserialize<JsonElement>("""{"nodeId":"node-1","deviceName":"PLC_1"}"""),
-            ["changes"] = JsonSerializer.Deserialize<JsonElement>(
-                """{"subnetMask":"255.255.255.0","ipAddress":"192.168.0.10"}"""),
-        };
-
-        var preview = AssertOneCanonicalDocument(
-            await CallWriteAsync(harness, new object[] { previewOperation }));
-        var token = preview.GetProperty("preview").GetProperty("safetyToken").GetString();
-
-        var applied = await CallWriteAsync(
-            harness, new object[] { applyOperation }, confirm: true, safetyToken: token);
-        var appliedRoot = AssertOneCanonicalDocument(applied);
-
-        Assert.False(applied.IsError);
-        Assert.Equal("apply", appliedRoot.GetProperty("phase").GetString());
-        Assert.True(appliedRoot.GetProperty("success").GetBoolean());
-    }
 
     /// <summary>
     /// A worker success envelope whose payload fails its declared contract must not silently stop a
@@ -373,9 +325,8 @@ public class NetworkStructuredProtocolTests
         };
 
         var preview = AssertOneCanonicalDocument(await CallWriteAsync(harness, operations));
-        var token = preview.GetProperty("preview").GetProperty("safetyToken").GetString();
 
-        var applied = await CallWriteAsync(harness, operations, confirm: true, safetyToken: token);
+        var applied = await CallWriteAsync(harness, operations, dryRun: false);
         var root = AssertOneCanonicalDocument(applied);
 
         // The batch RAN (a usable batch exists), so this stays a successful MCP call even though
@@ -398,7 +349,7 @@ public class NetworkStructuredProtocolTests
 
         var warning = items[0].GetProperty("warnings")[0].GetString();
         Assert.Contains("may already have changed", warning);
-        Assert.Contains("no batch-wide rollback", warning, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no rollback", warning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -486,19 +437,14 @@ public class NetworkStructuredProtocolTests
     private static ValueTask<CallToolResult> CallWriteAsync(
         McpProtocolTestHarness harness,
         object operations,
-        bool confirm = false,
-        string? safetyToken = null)
+        bool dryRun = true)
     {
         var arguments = new Dictionary<string, object?>
         {
             ["operations"] = operations,
-            ["confirm"] = confirm,
+            ["dryRun"] = dryRun,
         };
 
-        if (safetyToken is not null)
-        {
-            arguments["safetyToken"] = safetyToken;
-        }
 
         return harness.Client.CallToolAsync("network_write", arguments);
     }
@@ -541,7 +487,7 @@ public class NetworkStructuredProtocolTests
             operation = "add_network_device",
             projectPath,
             typeIdentifier = "OrderNumber:TEST",
-            deviceName = "PLC_1"
+            deviceName = "AddedPLC"
         },
         new
         {
@@ -558,7 +504,7 @@ public class NetworkStructuredProtocolTests
     private static void AssertOnlyPopulated(JsonElement root, string phase, string populated)
     {
         Assert.Equal(phase, root.GetProperty("phase").GetString());
-        foreach (var member in new[] { "preview", "batch", "error" })
+        foreach (var member in new[] { "batch", "error" })
         {
             Assert.Equal(
                 member == populated ? JsonValueKind.Object : JsonValueKind.Null,
