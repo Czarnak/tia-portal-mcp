@@ -163,7 +163,10 @@ public static class NetworkObjectSelectorResolver
         {
             return EvidenceMismatch("The device's full node namespace could not be read completely.");
         }
-        if (!match.Success) return NetworkObjectSelectionResult.Fail(match.FailureCategory!, match.Error!);
+        if (!match.Success) return NetworkObjectSelectionResult.Fail(match.FailureCategory!,
+            match.FailureCategory == WorkerFailureCategories.TargetAmbiguous
+                ? "Multiple nodes match this bare nodeId. Use the interfacePath selector returned by read_hardware_config or list_network_objects."
+                : match.Error!);
         var ownerProof = NetworkInterfacePathMatcher.Match(deviceMatch.Value!.DeviceItems.Cast<DeviceItem>(), match.Item!.OwnerPath,
             item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
         if (!ownerProof.Success) return NetworkObjectSelectionResult.Fail(ownerProof.FailureCategory!, ownerProof.Error!);
