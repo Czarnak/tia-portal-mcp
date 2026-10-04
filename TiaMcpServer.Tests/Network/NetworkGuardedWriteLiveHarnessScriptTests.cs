@@ -738,6 +738,77 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         Assert.Equal("unqualified-map-key-rejected", result.StandardOutput.Trim());
     }
 
+
+    [Theory]
+    [InlineData("Preview", false, "dispatch")]
+    [InlineData("Apply", false, "dispatch")]
+    [InlineData("Apply", true, "dispatch")]
+    [InlineData("Preview", false, "mode")]
+    [InlineData("Apply", false, "mode")]
+    [InlineData("Apply", true, "mode")]
+    public void FixtureHashChange_StopsBeforeAllModeDispatchCallbacks(string mode, bool restore, string route)
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            # Extract actual mode functions and the actual common try-body. Never execute the entrypoint.
+            foreach($definition in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in @('Invoke-Inventory','Invoke-Preview','Invoke-Apply')},$true)) {
+                Invoke-Expression $definition.Extent.Text
+            }
+            $dispatch=@($ast.EndBlock.Statements | Where-Object {
+                $_ -is [System.Management.Automation.Language.TryStatementAst] -and $_.Body.Extent.Text -like '*Connect-McpHost*'
+            })
+            if($dispatch.Count -ne 1){throw 'Expected one common mode dispatch body.'}
+            $dispatchBody=[scriptblock]::Create(($dispatch[0].Body.Statements | ForEach-Object {$_.Extent.Text}) -join "`n")
+            $fixture=@{ BeforeExpected=@{};BeforeNodes=@();BeforeRestore=@{};BeforeRestoreNodes=@();AfterExpected=@{};AfterNodes=@();RestorationExpected=@{};RestorationNodes=@() }
+            $script:trace=[System.Collections.Generic.List[string]]::new()
+            # Every potential preliminary/verification/write callback is replaced and counted.
+            function Connect-McpHost {$script:trace.Add('connect')}
+            function Get-ObservedProjectStatus {$script:trace.Add('status');return @{}}
+            function Read-HardwareConfig {$script:trace.Add('hardware');return @{}}
+            function Read-FixtureIdentities {$script:trace.Add('identities');return @{}}
+            function Assert-Inspections {param($Observed,$Expected)}
+            function Assert-NodeExpectations {param($Hardware,$Expected)}
+            function Invoke-NetworkWritePreview {
+                Assert-NetworkFixtureHash $FixturePath $fixtureSha256
+                $script:trace.Add('preview');return @{}
+            }
+            function Invoke-LifecycleGroupAndVerify {
+                $null=Invoke-NetworkWritePreview
+                $script:trace.Add('apply')
+            }
+            $FixturePath=Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N')+'.json')
+            try {
+                '{}' | Set-Content -LiteralPath $FixturePath
+                $fixtureSha256=(Get-FileHash -LiteralPath $FixturePath -Algorithm SHA256).Hash
+                $Mode='__MODE__';$Restore=$__RESTORE__;$script:Evidence=@{}
+                # Positive control: the required unchanged fixture reaches the actual selected route.
+                if('__ROUTE__' -eq 'dispatch'){. $dispatchBody}
+                elseif($Mode -eq 'Preview'){Invoke-Preview}else{Invoke-Apply}
+                if(-not $script:trace.Contains('hardware') -or -not $script:trace.Contains('identities') -or -not $script:trace.Contains('preview')) {
+                    throw 'Unchanged fixture did not reach harmless mode callbacks.'
+                }
+                $script:trace.Clear();$script:Evidence=@{}
+                '{"changed":true}' | Set-Content -LiteralPath $FixturePath
+                $rejected=$false
+                try {
+                    if('__ROUTE__' -eq 'dispatch'){. $dispatchBody}
+                    elseif($Mode -eq 'Preview'){Invoke-Preview}else{Invoke-Apply}
+                } catch {$rejected=$_.Exception.Message -like '*Fixture changed since authorization*'}
+                if(-not $rejected -or $script:trace.Count -ne 0) {
+                    throw "Changed fixture reached preliminary __MODE__/__ROUTE__ callbacks: $($script:trace -join ',')."
+                }
+                # Inventory retains its separate read-only gate despite the changed reviewed file.
+                $Mode='Inventory';$Restore=$false;$script:Evidence=@{}
+                . $dispatchBody
+                if(($script:trace -join ',') -cne 'connect,status,hardware,identities'){throw 'Inventory gate was changed.'}
+            } finally {Remove-Item -LiteralPath $FixturePath -Force}
+            'mode-dispatch-fixture-gate-ok'
+            """.Replace("__MODE__", mode, StringComparison.Ordinal)
+                .Replace("__ROUTE__", route, StringComparison.Ordinal)
+                .Replace("__RESTORE__", restore.ToString().ToLowerInvariant(), StringComparison.Ordinal));
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("mode-dispatch-fixture-gate-ok", result.StandardOutput.Trim());
+    }
+
     private static string FindRepositoryFile(params string[] segments)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
