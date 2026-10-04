@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
@@ -165,7 +166,30 @@ public static class NetworkWritePayloadBudget
             var target = effect.Target;
             var identity = new Dictionary<string, string>();
             var checks = new List<NetworkVerificationCheckInfo>();
-            void Add(string name, string? value) => checks.Add(Check(name, value));
+            NetworkVerificationCheckInfo SettingCheck(string name, string field, string? value)
+            {
+                var check = Check(name, value);
+                if (!effect.CurrentSettings.TryGetValue(field, out var prior)
+                    || prior.Availability != "available" || prior.Value is null) return check;
+                // Both native planner values and detached payload values are possible here.
+                // Choose by canonical encoded size, not raw string length: every separately
+                // bounded result/immediate/final copy can observe the known prior value.
+                var observed = prior.Value.Value switch
+                {
+                    null => null,
+                    string text => text,
+                    NetworkEnumValueInfo enumeration => enumeration.Symbol,
+                    JsonElement element when element.ValueKind == JsonValueKind.String => element.GetString(),
+                    JsonElement element when element.ValueKind == JsonValueKind.Null => null,
+                    JsonElement element when prior.Value.Kind == "enum"
+                        => CanonicalJson.Deserialize<NetworkEnumValueInfo>(element.GetRawText()).Symbol,
+                    JsonElement element => element.GetRawText(),
+                    var scalar => Convert.ToString(scalar, System.Globalization.CultureInfo.InvariantCulture)
+                };
+                if (Size(observed) > Size(value)) check.Observed = observed;
+                return check;
+            }
+            void Add(string name, string? value) => checks.Add(SettingCheck(name, name, value));
             if (item.Operation == "configure_network_device")
             {
                 identity["deviceName"] = target.DeviceName!;
@@ -201,7 +225,7 @@ public static class NetworkWritePayloadBudget
                     foreach (var setting in effect.RequestedSettings)
                     {
                         Add(setting.Key, setting.Value);
-                        finalChecks.Add(Check($"subnet/{subnetId}///{setting.Key}", setting.Value));
+                        finalChecks.Add(SettingCheck($"subnet/{subnetId}///{setting.Key}", setting.Key, setting.Value));
                     }
                 }
             }
@@ -213,7 +237,7 @@ public static class NetworkWritePayloadBudget
                 if (item.Operation == "delete_subnet")
                     finalChecks.Add(Check(name + "removedSubnet:" + target.SubnetId, "true"));
                 if (item.Operation == "configure_network_device")
-                    foreach (var setting in effect.RequestedSettings) finalChecks.Add(Check(name + setting.Key, setting.Value));
+                    foreach (var setting in effect.RequestedSettings) finalChecks.Add(SettingCheck(name + setting.Key, setting.Key, setting.Value));
             }
             // Unknown outcomes also retain their operation identity in an immediateEvidence check.
             finalChecks.Add(Check(item.OperationId + "/immediateEvidence", "available"));
@@ -235,9 +259,9 @@ public static class NetworkWritePayloadBudget
             if (effectChars > 60000 || evidenceChars > 60000 || resultChars > 60000) return int.MaxValue;
             // Evidence occurs both inside the worker result and at verification.operations.
             chars += effectChars + resultChars + evidenceChars;
-            // Prior observed settings may be longer than requested values; reserve two
-            // observation copies for failed immediate/final comparisons as well.
-            chars += 2L * Size(effect.CurrentSettings);
+            // Known observations are included within each separately bounded shape above;
+            // aggregate-only padding cannot establish the per-item guarantee.
+
         }
         finalChecks.Add(Check("networkDeviceCountUnchanged", int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         finalChecks.Add(Check("finalHardwareState", "readable complete inventory"));
