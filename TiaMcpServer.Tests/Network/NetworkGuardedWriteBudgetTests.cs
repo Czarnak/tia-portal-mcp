@@ -278,7 +278,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var record = CanonicalJson.Deserialize<WriteAuditRecord>(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
         Assert.Equal(canonical, record.ResponseText);
         Assert.Equal("sha256:" + ContentHashes.Sha256Hex(canonical), record.ResponseHash);
-        Assert.Empty(record.Items);
+        Assert.Equal("skipped", Assert.Single(record.Items).Status);
         Assert.DoesNotContain("configure_network_device", requests.Methods());
     }
 
