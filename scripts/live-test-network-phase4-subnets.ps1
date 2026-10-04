@@ -401,9 +401,18 @@ function Invoke-LifecycleGroupAndVerify {
     $postRead = Read-HardwareConfig
     Assert-HardwareWriteEvidence $postRead
     $postNodes = @(Get-HardwareNodes $postRead)
+    # Structural completeness does not certify the fresh subnet-ID namespace.
+    $subnetNamespace = Get-NetworkMember $postRead 'subnets'
+    if ($subnetNamespace -isnot [array]) { throw 'Fresh subnet namespace is unavailable. Inspect before retry; no restoration attempted.' }
+    foreach ($candidate in $subnetNamespace) {
+        $candidateId = Get-NetworkMember $candidate 'subnetId'
+        if ($candidateId -isnot [string] -or [string]::IsNullOrWhiteSpace($candidateId)) {
+            throw 'Fresh subnet identity is unreadable; absence or uniqueness cannot be proved. Inspect before retry; no restoration attempted.'
+        }
+    }
     $postInspections = @()
     foreach ($id in @($results.subnetId | Select-Object -Unique)) {
-        $subnets = @($postRead.subnets | Where-Object { $_.subnetId -ceq $id })
+        $subnets = @($subnetNamespace | Where-Object { $_.subnetId -ceq $id })
         if ($requiredFinal.ContainsKey("subnet/$id///absent")) {
             if ($subnets.Count -ne 0) { throw 'Deleted exact subnet remains in fresh inventory.' }
             continue
