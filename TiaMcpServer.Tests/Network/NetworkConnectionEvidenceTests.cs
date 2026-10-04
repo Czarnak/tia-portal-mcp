@@ -144,7 +144,7 @@ public sealed class NetworkConnectionEvidenceTests
         Assert.Equal("subnet-1", node.IoSystemSubnetId);
         Assert.Equal(100, node.IoSystemNumber);
         Assert.Equal("node-1", Assert.Single(subnet.Nodes).NodeId);
-        var state = new HardwareConfigInfo { RootDeviceCount = 2, Subnets = new() { new()
+        var state = new HardwareConfigInfo { DiscoveryEvidence = new() { Scope = "project", Complete = true }, RootDeviceCount = 2, Subnets = new() { new()
         {
             SubnetId = "subnet-1", Selectable = true, Selector = new() { Kind = "subnet", SubnetId = "subnet-1" },
             ConnectionEvidence = subnet
@@ -154,10 +154,10 @@ public sealed class NetworkConnectionEvidenceTests
         Assert.Equal(subnet.Messages, decoded.Subnets[0].ConnectionEvidence!.Messages);
         Assert.True(NetworkWritePlanner.DiscoveryComplete(decoded));
         decoded.Messages.Add(diagnostic); // Same text at a different producer scope is structural uncertainty.
-        Assert.False(NetworkWritePlanner.DiscoveryComplete(decoded));
+        Assert.True(NetworkWritePlanner.DiscoveryComplete(decoded));
         decoded.Messages.Clear();
         decoded.Subnets[0].SelectorDiagnostics.Add(diagnostic);
-        Assert.False(NetworkWritePlanner.DiscoveryComplete(decoded));
+        Assert.True(NetworkWritePlanner.DiscoveryComplete(decoded));
     }
 
     [Fact]

@@ -1198,8 +1198,25 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-qualified-owner-drift":
         case "network-qualified-partial":
         case "network-qualified-read":
+        case "network-qualified-delete":
+        case "network-qualified-legacy":
+        case "network-qualified-late-subnet":
+        case "network-qualified-late-node":
+        case "network-qualified-late-device":
+        case "network-qualified-late-owner":
+        case "network-qualified-late-root":
             var qualifiedHardware = qualifiedNetworkState ??= QualifiedHardwareFixture();
             var qualifiedDevice = qualifiedHardware.Devices[0];
+            if (scenario != "network-qualified-read" && scenario != "network-qualified-partial" && scenario != "network-qualified-owner-drift" && qualifiedHardware.Subnets.Count == 0 && guardedNetworkWrites == 0)
+            {
+                NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
+                var connected = qualifiedDevice.Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToList();
+                foreach (var n in connected) n.ConnectionEvidence = new() { Complete = true, SubnetId = "subnet-1", IoSystemSubnetId = "subnet-1", IoSystemNumber = 100 };
+                var subnet = SelectableSubnet("PN/IE", "subnet-1", "Ethernet", "System:Subnet.Ethernet", Array.Empty<IoSystemInfo>(), Array.Empty<string>());
+                subnet.ConnectionEvidence = new() { Complete = true, Nodes = connected.Select(n => new NetworkNodeIdentityInfo {
+                    DeviceName = qualifiedDevice.Name!, NodeId = n.NodeId, InterfacePath = scenario == "network-qualified-legacy" ? null : n.Selector!.InterfacePath }).ToList() };
+                qualifiedHardware.Subnets.Add(subnet);
+            }
             NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
             var qualifiedNodes = qualifiedDevice.Items[0].Items.SelectMany(item => item.NetworkInterfaces)
                 .SelectMany(networkInterface => networkInterface.Nodes).ToList();
@@ -1207,6 +1224,15 @@ while ((line = Console.In.ReadLine()) is not null)
             {
                 if (scenario == "network-qualified-owner-drift" && ++qualifiedHardwareReadCount > 1)
                     qualifiedDevice.Items[0].Items[0].Name = "Changed owner";
+                if (guardedNetworkWrites > 0)
+                {
+                    if (scenario == "network-qualified-late-subnet") qualifiedHardware.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet identity" } });
+                    if (scenario == "network-qualified-late-node") qualifiedNodes[0].NodeId = "";
+                    if (scenario == "network-qualified-late-device") qualifiedHardware.Devices.Add(new());
+                    if (scenario == "network-qualified-late-owner") qualifiedDevice.Items[0].Items.Add(new() { PositionNumber = null });
+                    if (scenario == "network-qualified-late-root") qualifiedHardware.RootDeviceCount = null;
+                    NetworkNodeReadSelectorBuilder.ApplyInventory(qualifiedHardware);
+                }
                 Respond(Success(ToCamelCaseJson(qualifiedHardware)));
             }
             else if (ReadMethod(line) == "list_network_objects")
@@ -1233,6 +1259,14 @@ while ((line = Console.In.ReadLine()) is not null)
             }
             else if (ReadMethod(line) == "configure_network_device")
                 Respond(ConfigureQualifiedFixture(line, qualifiedHardware, scenario));
+            else if (ReadMethod(line) == "delete_subnet")
+            {
+                guardedNetworkWrites++;
+                qualifiedHardware.Subnets.Clear();
+                foreach (var n in qualifiedNodes) n.ConnectionEvidence = new() { Complete = true };
+                Respond(Success(ToCamelCaseJson(new SubnetLifecycleResultInfo { SubnetId = "subnet-1", Name = "PN/IE", NetworkDeviceCount = 1, NetworkDeviceCountUnchanged = true,
+                    Verification = FakePassedVerification(new() { ["subnetId"] = "subnet-1" }, new() { ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true", ["networkDeviceCountUnchanged"] = "1" }) })));
+            }
             else Respond("""{"success":false,"error":"unsupported qualified-read fixture operation"}""");
             break;
 
@@ -1269,6 +1303,7 @@ while ((line = Console.In.ReadLine()) is not null)
         case string traversalScenario when traversalScenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal):
         case string identityScenario when identityScenario.StartsWith("network-guarded-identity-", StringComparison.Ordinal):
         case "network-guarded-late-traversal":
+        case "network-guarded-late-unreadable-subnet":
         case "network-guarded-optional-metadata":
         case "network-guarded-missing-discovery":
         case "network-guarded-incomplete":
@@ -3638,6 +3673,8 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         if (scenario == "network-guarded-late-traversal" && guardedNetworkWrites > 0)
             state.DiscoveryEvidence = new() { Scope = "project", Complete = false,
                 Failures = new() { new() { Stage = "deviceEnumeration", Message = "Synthetic late ungrouped-device traversal failure." } } };
+        if (scenario == "network-guarded-late-unreadable-subnet" && guardedNetworkWrites > 0 && state.Subnets.Count == 0)
+            state.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet ID" } });
         if (scenario == "network-guarded-root-drift" && guardedNetworkWrites > 0) state.RootDeviceCount = 1;
         if (scenario == "network-guarded-postread-failure" && guardedNetworkWrites > 0)
             return "{\"success\":false,\"error\":\"postread unavailable\"}";
