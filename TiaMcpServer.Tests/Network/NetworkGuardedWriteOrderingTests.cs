@@ -9,6 +9,48 @@ namespace TiaMcpServer.Tests.Network;
 public sealed class NetworkGuardedWriteOrderingTests
 {
     [Fact]
+    public async Task DifferentDeviceCasing_RepeatedSettingsSupersedeWithoutChangingImmediateIdentity()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
+        var second = NetworkGuardedWriteFixture.Configure("second", "10.0.0.2");
+        second.Target!.DeviceName = "plc_grouped";
+        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), second);
+        Assert.All(response.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
+        Assert.Equal("PLC_Grouped", response.Verification.Operations[0].Evidence!.Identity["deviceName"]);
+        Assert.Equal("plc_grouped", response.Verification.Operations[1].Evidence!.Identity["deviceName"]);
+        Assert.True(response.Success);
+        var address = Assert.Single(response.Verification.FinalChecks, check => check.Name.EndsWith("/Address"));
+        Assert.Equal("10.0.0.2", address.Expected);
+        Assert.Equal("passed", address.Status);
+        Assert.Single(response.Verification.FinalChecks, check => check.Name.EndsWith("/node-2/exists"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DifferentDeviceCasing_DeleteSupersedesConnectedRelationships(bool includeIo)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-io-move");
+        var connect = NetworkGuardedWriteFixture.Configure("connect", connect: true);
+        connect.Target!.DeviceName = "plc_grouped";
+        connect.Changes = new()
+        {
+            Subnet = new() { SubnetId = "subnet-1" },
+            IoSystem = includeIo ? new() { SubnetId = "subnet-1", Number = 1 } : null
+        };
+        var response = await fixture.RunAsync(false, connect, NetworkGuardedWriteFixture.Delete());
+        Assert.All(response.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
+        Assert.Equal("plc_grouped", response.Verification.Operations[0].Evidence!.Identity["deviceName"]);
+        Assert.Contains(response.Effects[1].Effect!.AffectedNodes, node => node.DeviceName == "PLC_Grouped");
+        Assert.True(response.Success);
+        Assert.DoesNotContain(response.Verification.FinalChecks, check => check.Name.EndsWith("/Subnet") || check.Name.EndsWith("/IoSystem"));
+        Assert.Single(response.Verification.FinalChecks, check => check.Name.EndsWith("/node-2/exists"));
+        Assert.Contains(response.Verification.FinalChecks, check => check.Name.EndsWith("/node-3/exists") && check.Status == "passed");
+    }
+
+    [Fact]
     public async Task RepeatedSettings_PreserveImmediateChecks()
     {
         using var audit = new TempAuditDirectory();

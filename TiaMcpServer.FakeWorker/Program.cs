@@ -3476,8 +3476,8 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"outcome unavailable after mutation\"}";
         return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
         {
-            DeviceName = "PLC_Grouped", AppliedSettings = applied, SkippedSettings = skipped,
-            Verification = FakeConfigurationVerification(request, "PLC_Grouped", applied)
+            DeviceName = ReadField(request, "deviceName")!, AppliedSettings = applied, SkippedSettings = skipped,
+            Verification = FakeConfigurationVerification(request, ReadField(request, "deviceName")!, applied)
         }));
     }
     if (method == "add_network_device")
