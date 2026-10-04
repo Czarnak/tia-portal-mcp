@@ -10,6 +10,8 @@
 
 **Spec:** [Approved Network design](../specs/2026-10-03-network-json-guarded-write-design.md). Read it with this plan. Baseline: `main` at `baf811789893f706b2c7d398afc13e9e6c0e2a72`; worktree branch: `feature/network-contract-write-safety`. The user approved this plan and selected subagent-driven execution on 2026-10-03.
 
+**Implementation status (2026-10-04):** Tasks 1–8 and Task 9's offline qualification are complete at corrected code/package head `b97b9ee9173905fa9c19649a73d4f8a29bd6c682`. One whole-branch review and one scoped fix re-review are complete; both Important findings are addressed. The [offline validation report](../acceptance/reports/2026-10-03-network-json-guarded-write-offline-validation.md) distinguishes the original and corrected candidates, final 5,174-test result, coverage, package provenance, deferred traversal-cost Minor and evidence limits. The documentation commit is separate from the qualified code/package head. Exact-target live authorization and acceptance remain pending; no harness mode or live TIA/PLC operation was run.
+
 ## Global Constraints
 
 - One Network PR combines JSON alignment and guarded writes. Multiuser PR 1 remains separate.
@@ -65,7 +67,7 @@ The user added cross-worktree test serialization after plan approval. In additio
 
 **Interfaces:** Consume the existing read catalog, `StructuredOperationBatch`, and `StructuredToolResult.Create<T>(T response, bool isError)`. Produce `NetworkContractVersion.Current = "1.0"` and `NetworkReadResponse(string Tool, string ContractVersion, bool Success, NetworkToolError? Error, IReadOnlyList<string> Warnings, StructuredOperationBatch? Batch)`. Keep per-item warnings in their items; root warnings are call-level diagnostics.
 
-- [ ] Write `ReadEnvelope_IsVersionedAndCanonical` and `ReadRejection_HasExplicitNullBatch` on the registered read route, asserting:
+- [x] Write `ReadEnvelope_IsVersionedAndCanonical` and `ReadRejection_HasExplicitNullBatch` on the registered read route, asserting:
 
 ```csharp
 Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
@@ -75,9 +77,9 @@ Assert.Equal(JsonValueKind.Null, rejected.GetProperty("batch").ValueKind);
 Assert.True(rejectedIsError);
 ```
 
-- [ ] Run the focused command with `FullyQualifiedName~NetworkStructuredProtocolTests|FullyQualifiedName~NetworkToolsTests|FullyQualifiedName~ToolOutputContractConformanceTests`; record the expected envelope assertions failing and commit `test: pin versioned network read envelope`.
-- [ ] Implement the response signature and read composition/rejection/budget callbacks using the shared version constant. Keep typed item results, read continuation after failure, selectors, and pagination unchanged.
-- [ ] Run that focused suite plus existing `NetworkPayloadContractTests`; expect all pass with strict decoding and text/structured equality. Inspect the diff and commit `feat: version network read envelope`.
+- [x] Run the focused command with `FullyQualifiedName~NetworkStructuredProtocolTests|FullyQualifiedName~NetworkToolsTests|FullyQualifiedName~ToolOutputContractConformanceTests`; record the expected envelope assertions failing and commit `test: pin versioned network read envelope`.
+- [x] Implement the response signature and read composition/rejection/budget callbacks using the shared version constant. Keep typed item results, read continuation after failure, selectors, and pagination unchanged.
+- [x] Run that focused suite plus existing `NetworkPayloadContractTests`; expect all pass with strict decoding and text/structured equality. Inspect the diff and commit `feat: version network read envelope`.
 
 ### Task 2: Preserve sparse completed configuration failures
 
@@ -85,7 +87,7 @@ Assert.True(rejectedIsError);
 
 **Interfaces:** Consume worker `NetworkDeviceConfigurator.Configure(Project project, string deviceName, string nodeId, string? ipAddress, string? subnetMask, string? pnDeviceName, string? subnetId, string? ioSystemSubnetId, int? ioSystemNumber) -> ConfigureNetworkDeviceResultInfo` and host `NetworkPayloadContract.Project(NetworkOperationRequest, WorkerCallResult) -> StructuredOperationItem`. Produce completed typed outcomes even when every requested setting is skipped. The projector retains the validated result while setting `status:failed` and `failure.category:worker_operation_failed` whenever `SkippedSettings.Count > 0`.
 
-- [ ] Write `Configuration_ReportsOnlyRequestedKeys`, `PartialConfiguration_RetainsResultAndStopsBatch`, `AllSkipped_RetainsTypedResult`, and `MissingRequiredMap_IsProtocolError`. Use requests for `Address`/`IoSystem`, mixed and all-skipped worker payloads, and the following assertions:
+- [x] Write `Configuration_ReportsOnlyRequestedKeys`, `PartialConfiguration_RetainsResultAndStopsBatch`, `AllSkipped_RetainsTypedResult`, and `MissingRequiredMap_IsProtocolError`. Use requests for `Address`/`IoSystem`, mixed and all-skipped worker payloads, and the following assertions:
 
 ```csharp
 Assert.Equal(new[] { "Address" }, applied.Keys);
@@ -98,9 +100,9 @@ Assert.Equal("protocol_error", missingMap.Failure!.Category);
 Assert.Null(missingMap.Result);
 ```
 
-- [ ] Run `FullyQualifiedName~NetworkSparseConfigurationTests|FullyQualifiedName~ConfigureNetworkDeviceResultInfoTests|FullyQualifiedName~NetworkPayloadContractTests`; observe the new completed-outcome assertions fail and commit `test: pin sparse network configuration failures`.
-- [ ] Change the configurator's finalization to return its attempted result rather than throwing solely because all settings skipped. Keep unexpected exceptions as worker failures. Validate first, then classify skip maps in the one existing projector; never fill absent required DTO members or pad unrequested keys.
-- [ ] Run the focused suite and `NetworkOperationFakeWorkerTests`; expect mixed/all-skipped typed evidence, stop/skip behavior, and all existing malformed-payload rules to pass. Review and commit `fix: retain sparse attempted network configuration outcomes`.
+- [x] Run `FullyQualifiedName~NetworkSparseConfigurationTests|FullyQualifiedName~ConfigureNetworkDeviceResultInfoTests|FullyQualifiedName~NetworkPayloadContractTests`; observe the new completed-outcome assertions fail and commit `test: pin sparse network configuration failures`.
+- [x] Change the configurator's finalization to return its attempted result rather than throwing solely because all settings skipped. Keep unexpected exceptions as worker failures. Validate first, then classify skip maps in the one existing projector; never fill absent required DTO members or pad unrequested keys.
+- [x] Run the focused suite and `NetworkOperationFakeWorkerTests`; expect mixed/all-skipped typed evidence, stop/skip behavior, and all existing malformed-payload rules to pass. Review and commit `fix: retain sparse attempted network configuration outcomes`.
 
 ### Task 3: Expose reliable relationship evidence through ordinary reads
 
@@ -113,7 +115,7 @@ Assert.Null(missingMap.Result);
 - `NetworkSubnetConnectionsInfo`: `bool Complete`, `List<NetworkNodeIdentityInfo> Nodes`, `List<string> Messages`.
 - Add conditional `NodeInfo.ConnectionEvidence : NetworkNodeConnectionInfo?`, `SubnetInfo.ConnectionEvidence : NetworkSubnetConnectionsInfo?`, and `HardwareConfigInfo.RootDeviceCount : int?`. New ordinary worker reads populate them; historical/legacy or older paged payloads may omit them. Register those conditions; a write requiring absent evidence fails closed.
 
-- [ ] Write `ConnectedIdentity_UsesDeviceAndNodeId`, `EmptyInventory_RequiresCompleteEvidence`, `DegradedOwnerOrEnumerator_RemainsIncomplete`, `GroupedAndUngroupedOwners_AreRetained`, and `KnownNullRelationship_IsDistinctFromUnreadable`, asserting:
+- [x] Write `ConnectedIdentity_UsesDeviceAndNodeId`, `EmptyInventory_RequiresCompleteEvidence`, `DegradedOwnerOrEnumerator_RemainsIncomplete`, `GroupedAndUngroupedOwners_AreRetained`, and `KnownNullRelationship_IsDistinctFromUnreadable`, asserting:
 
 ```csharp
 Assert.Equal("PLC_Grouped", evidence.Nodes[0].DeviceName);
@@ -125,9 +127,9 @@ Assert.Null(disconnected.SubnetId);
 Assert.Equal(2, read.RootDeviceCount); // root collection, not all-scope total
 ```
 
-- [ ] Run `FullyQualifiedName~NetworkConnectionEvidenceTests|FullyQualifiedName~HardwareConfigInfoTests|FullyQualifiedName~ConditionalMemberRegisterTests`; observe missing evidence tests fail and commit `test: pin network relationship completeness`.
-- [ ] Extend existing node/subnet read capture, using qualified V21 APIs and the current all-scopes device matcher. An enumeration, identity, or owner-read failure makes the relevant inventory incomplete even if some nodes were collected. Sort node evidence by device name then node ID using deterministic comparers; never use display names alone as selectors. Preserve existing discovery diagnostics and page behavior.
-- [ ] Run that suite plus `NetworkPayloadContractTests`, `HardwarePaginationFakeWorkerTests`, `ProjectDeviceNameMatcherTests`; compile the worker with stubs and installed V21 references. Expect green contract/fixture tests and both compile paths; record compile as API compatibility evidence, not live behavior. Review and commit `feat: expose complete network connection evidence`.
+- [x] Run `FullyQualifiedName~NetworkConnectionEvidenceTests|FullyQualifiedName~HardwareConfigInfoTests|FullyQualifiedName~ConditionalMemberRegisterTests`; observe missing evidence tests fail and commit `test: pin network relationship completeness`.
+- [x] Extend existing node/subnet read capture, using qualified V21 APIs and the current all-scopes device matcher. An enumeration, identity, or owner-read failure makes the relevant inventory incomplete even if some nodes were collected. Sort node evidence by device name then node ID using deterministic comparers; never use display names alone as selectors. Preserve existing discovery diagnostics and page behavior.
+- [x] Run that suite plus `NetworkPayloadContractTests`, `HardwarePaginationFakeWorkerTests`, `ProjectDeviceNameMatcherTests`; compile the worker with stubs and installed V21 references. Expect green contract/fixture tests and both compile paths; record compile as API compatibility evidence, not live behavior. Review and commit `feat: expose complete network connection evidence`.
 
 ### Task 4: Capture immediate typed postconditions in mutation outcomes
 
@@ -137,7 +139,7 @@ Assert.Equal(2, read.RootDeviceCount); // root collection, not all-scope total
 
 Produce worker `NetworkMutationVerifier.VerifyAddedDevice(Project, WorkerRequest, AddDeviceResultInfo)`, `VerifyConfiguration(Project, WorkerRequest, ConfigureNetworkDeviceResultInfo)`, and `VerifySubnet(Project, WorkerRequest, SubnetLifecycleResultInfo, int rootCountBefore, IReadOnlyList<NetworkNodeIdentityInfo> affectedNodes)`, each returning `NetworkMutationVerificationInfo`. `WorkerRequest` is the shared flat worker envelope; the worker never references the host's `NetworkOperationRequest`. Produce Siemens-free `NetworkPostconditionChecks.Compare(string name, string? expected, string? observed, bool readable) -> NetworkVerificationCheckInfo`; link that comparison source into tests. Extend the existing host projector with `Project(NetworkOperationRequest, WorkerCallResult, bool requireVerification) -> StructuredOperationItem`; retain the existing overload for reads/transitional callers.
 
-- [ ] Write `AppliedSubsetOnly_IsVerified`, `UnreadableAppliedValue_IsUnverified`, `WrongIoSystemOnOtherSubnet_Fails`, `Deletion_PreservesAffectedNodesAcrossScopes`, `UninspectableSubnetId_IsNotAbsence`, `MissingOrContradictoryVerification_IsProtocolError`, `UnknownOrUnaccountedSetting_IsProtocolError`, and `PostconditionFailure_StopsLaterItems`, asserting:
+- [x] Write `AppliedSubsetOnly_IsVerified`, `UnreadableAppliedValue_IsUnverified`, `WrongIoSystemOnOtherSubnet_Fails`, `Deletion_PreservesAffectedNodesAcrossScopes`, `UninspectableSubnetId_IsNotAbsence`, `MissingOrContradictoryVerification_IsProtocolError`, `UnknownOrUnaccountedSetting_IsProtocolError`, and `PostconditionFailure_StopsLaterItems`, asserting:
 
 ```csharp
 Assert.Equal(new[] { "Address" }, checks.Select(check => check.Name));
@@ -150,9 +152,9 @@ Assert.NotNull(wrongState.Result);
 Assert.Equal("earlierOperationFailed", later.SkipReason);
 ```
 
-- [ ] Run `FullyQualifiedName~NetworkMutationVerificationTests|FullyQualifiedName~NetworkSubnetLifecyclePayloadContractTests|FullyQualifiedName~ConditionalMemberRegisterTests`; record RED and commit `test: pin immediate network mutation postconditions`.
-- [ ] Implement comparison/capture and attach verification before returning the existing worker success payload. Cover all five operations using spec §8's postconditions. Capture the reliable affected-node inventory and root count immediately before subnet deletion; deny dispatch if necessary pre-mutation evidence is unreadable. Read back only applied configuration keys, exact subnet/IO tuple, returned device/item/type, supplied subnet attributes, reliable deletion absence, affected node/device preservation, and root count. No applied configuration keys means `not_required`; requested skips still fail execution. Where a contract-valid subnet result exists, carry existing known postcondition failures in typed verification rather than discarding that result in a postcondition exception. Preserve attempted evidence when reads fail; never convert unknown state into success. The shared projector checks result/evidence identities against the request, requires the operation's relevant checks, rejects unknown/unrequested or contradictory setting keys and invalid statuses, and accepts `not_required` only for configuration with no applied keys. Prefer `worker_operation_failed` for skips, otherwise `postcondition_failed` for failed/unverified required checks, and `protocol_error` for invalid evidence without echoing it.
-- [ ] Run the focused suite, existing mutation forwarding/worker source-contract tests, and serial stub/installed-reference worker builds. Expect green executable comparison/projection tests and compile paths. Review and commit `feat: return immediate typed network verification`. Record orchestration/source checks as static evidence; live read-back qualification remains pending.
+- [x] Run `FullyQualifiedName~NetworkMutationVerificationTests|FullyQualifiedName~NetworkSubnetLifecyclePayloadContractTests|FullyQualifiedName~ConditionalMemberRegisterTests`; record RED and commit `test: pin immediate network mutation postconditions`.
+- [x] Implement comparison/capture and attach verification before returning the existing worker success payload. Cover all five operations using spec §8's postconditions. Capture the reliable affected-node inventory and root count immediately before subnet deletion; deny dispatch if necessary pre-mutation evidence is unreadable. Read back only applied configuration keys, exact subnet/IO tuple, returned device/item/type, supplied subnet attributes, reliable deletion absence, affected node/device preservation, and root count. No applied configuration keys means `not_required`; requested skips still fail execution. Where a contract-valid subnet result exists, carry existing known postcondition failures in typed verification rather than discarding that result in a postcondition exception. Preserve attempted evidence when reads fail; never convert unknown state into success. The shared projector checks result/evidence identities against the request, requires the operation's relevant checks, rejects unknown/unrequested or contradictory setting keys and invalid statuses, and accepts `not_required` only for configuration with no applied keys. Prefer `worker_operation_failed` for skips, otherwise `postcondition_failed` for failed/unverified required checks, and `protocol_error` for invalid evidence without echoing it.
+- [x] Run the focused suite, existing mutation forwarding/worker source-contract tests, and serial stub/installed-reference worker builds. Expect green executable comparison/projection tests and compile paths. Review and commit `feat: return immediate typed network verification`. Record orchestration/source checks as static evidence; live read-back qualification remains pending.
 
 ### Task 5: Implement the Network guarded domain and ordered final verification
 
@@ -170,7 +172,7 @@ Produce these host records:
 
 Produce `NetworkWritePlanner(OpennessWorkerClient).PlanAsync(string?, IReadOnlyList<NetworkOperationRequest>) -> Task<WritePlan<NetworkWriteEffect>>`, `ReplanAsync(string?, NetworkOperationRequest) -> Task<ItemReplan<NetworkWriteEffect>>`, and `NetworkWriteVerifier(OpennessWorkerClient).VerifyAsync(string?, StructuredOperationBatch, IReadOnlyDictionary<string,NetworkMutationVerificationInfo>) -> Task<NetworkWriteVerification>`. Produce `NetworkGuardDefinitions.Definitions : IReadOnlyList<WriteGuardDefinition>` with the two exact guard IDs/severities, materialized through `NetworkGuardDefinitions.Validate(IEnumerable<WriteGuardDefinition>) -> IReadOnlyList<WriteGuardDefinition>`; validation throws `ArgumentException` for Network severity `acknowledge`. Fixture `NetworkGuardedWriteFixture.CreateAsync(TempAuditDirectory, string projectPath, McpAccessMode mode = McpAccessMode.ReadWrite) -> Task<NetworkGuardedWriteFixture>` returns a verified FakeWorker client, shared runner, and inspectable audit sink without depending on token safety.
 
-- [ ] Write `DryRun_ReportsBlocksWithoutMutation`, `ConnectedDelete_IsInformationalInBothModes`, `IncompleteInventory_BlocksBothModes`, `Readonly_DeniesBeforeGate`, `NetworkAcknowledgeRegistration_IsRejected`, and `BindingChange_PreventsDispatch`. Add `RepeatedSettings_PreserveImmediateChecks`, `ConnectThenDelete_ReplansLateInfo`, `EarlierAdd_RefreshesRootCount`, and `LateBlock_PreservesEarlierChanges`, asserting:
+- [x] Write `DryRun_ReportsBlocksWithoutMutation`, `ConnectedDelete_IsInformationalInBothModes`, `IncompleteInventory_BlocksBothModes`, `Readonly_DeniesBeforeGate`, `NetworkAcknowledgeRegistration_IsRejected`, and `BindingChange_PreventsDispatch`. Add `RepeatedSettings_PreserveImmediateChecks`, `ConnectThenDelete_ReplansLateInfo`, `EarlierAdd_RefreshesRootCount`, and `LateBlock_PreservesEarlierChanges`, asserting:
 
 ```csharp
 Assert.Equal("network_delete_connected_subnet", connectedGuard.Id);
@@ -188,10 +190,10 @@ Assert.True(finalVerification.Success);
 Assert.Equal("earlierOperationFailed", afterLateBlock.SkipReason);
 ```
 
-- [ ] Run `FullyQualifiedName~NetworkGuardedWriteDomainTests|FullyQualifiedName~NetworkGuardedWriteOrderingTests`; record RED and commit `test: pin guarded network planning and ordering`.
-- [ ] Implement planner/domain validation and effects. Reuse catalog validation and access policy before the gate; enforce a single common project constraint. Ordinary reads provide exact identities and completeness; no new snapshot operation. Resolve the ordered call and retain effects plus `DependsOn` for affected later items; use the existing `ItemPlan` constructor to retain both initial evidence and dependency information. Re-plan before dependent dispatch, including root counts after earlier additions. Emit info for reliably connected deletion and block when required consequences are unreadable. Review focused planner tests and commit `feat: plan network writes on the shared guarded pipeline`.
-- [ ] Implement final verification over the attempted prefix. Keep immediate evidence for each attempt, include an `unverified` record when no trustworthy worker evidence exists, and exclude skipped items. Derive final expectations in order: later applied changes replace earlier expectations for the same field/relationship, and deletion supersedes that target's existence checks. Still verify preserved devices/nodes and surviving effective expectations using ordinary reads. Unknown final evidence makes `VerificationSucceeded` false and adds inspection guidance; never dispatch a retry. `Compose` maps the shared report to the new response without losing partial typed results.
-- [ ] Run both focused classes plus `WriteExecutionTests`, `WriteExecutionFakeWorkerTests`, and Network strict payload tests; expect late info allowed, late block stopping, all required identities/checks preserved, and green shared-runner regression tests. Review and commit `feat: verify ordered network write outcomes`.
+- [x] Run `FullyQualifiedName~NetworkGuardedWriteDomainTests|FullyQualifiedName~NetworkGuardedWriteOrderingTests`; record RED and commit `test: pin guarded network planning and ordering`.
+- [x] Implement planner/domain validation and effects. Reuse catalog validation and access policy before the gate; enforce a single common project constraint. Ordinary reads provide exact identities and completeness; no new snapshot operation. Resolve the ordered call and retain effects plus `DependsOn` for affected later items; use the existing `ItemPlan` constructor to retain both initial evidence and dependency information. Re-plan before dependent dispatch, including root counts after earlier additions. Emit info for reliably connected deletion and block when required consequences are unreadable. Review focused planner tests and commit `feat: plan network writes on the shared guarded pipeline`.
+- [x] Implement final verification over the attempted prefix. Keep immediate evidence for each attempt, include an `unverified` record when no trustworthy worker evidence exists, and exclude skipped items. Derive final expectations in order: later applied changes replace earlier expectations for the same field/relationship, and deletion supersedes that target's existence checks. Still verify preserved devices/nodes and surviving effective expectations using ordinary reads. Unknown final evidence makes `VerificationSucceeded` false and adds inspection guidance; never dispatch a retry. `Compose` maps the shared report to the new response without losing partial typed results.
+- [x] Run both focused classes plus `WriteExecutionTests`, `WriteExecutionFakeWorkerTests`, and Network strict payload tests; expect late info allowed, late block stopping, all required identities/checks preserved, and green shared-runner regression tests. Review and commit `feat: verify ordered network write outcomes`.
 
 ### Task 6: Cut over the real MCP route and remove Network token callers
 
@@ -199,7 +201,7 @@ Assert.Equal("earlierOperationFailed", afterLateBlock.SkipReason);
 
 **Interfaces:** Produce `NetworkWrite(OpennessWorkerClient workerClient, WriteExecution execution, NetworkOperationRequest[] operations, bool dryRun = false, CancellationToken cancellationToken = default) -> Task<CallToolResult>`. Its schema exposes only `operations`/`dryRun` and `NetworkGuardedWriteResponse`. Produce registration `WithNetworkWriteTools(IMcpServerBuilder) -> IMcpServerBuilder` using the current explicit-registration/`DelegatingMcpServerTool` pattern from `Tools/ProjectReadTools.cs`; wrapper override `InvokeAsync(RequestContext<CallToolRequestParams>, CancellationToken) -> ValueTask<CallToolResult>` rejects unknown arguments and non-boolean `dryRun` before delegating. Service parameters are not public inputs. Extract `LifecycleWriteDomain.GuardDefinitions : IReadOnlyList<WriteGuardDefinition>` without changing its values; build the runner catalog from lifecycle plus Network definitions once, letting the catalog add its intrinsic partial-write guard once.
 
-- [ ] Write registered-protocol theories `LegacyOrMalformedArguments_DoNotReachWorker`, `NetworkNeverElicits`, `LifecycleStillConfirms`, and `WriteEntry_ProducesExactlyOneAudit`. Cover `confirm:false`, `safetyToken`, `acknowledge`, arbitrary unknown root keys, string/null `dryRun`, unsupported elicitation clients, connected deletion, RW/full actual/dry-run, validation/block/partial/verification failure; assert:
+- [x] Write registered-protocol theories `LegacyOrMalformedArguments_DoNotReachWorker`, `NetworkNeverElicits`, `LifecycleStillConfirms`, and `WriteEntry_ProducesExactlyOneAudit`. Cover `confirm:false`, `safetyToken`, `acknowledge`, arbitrary unknown root keys, string/null `dryRun`, unsupported elicitation clients, connected deletion, RW/full actual/dry-run, validation/block/partial/verification failure; assert:
 
 ```csharp
 Assert.True(legacyReply.IsError);
@@ -215,9 +217,9 @@ Assert.Equal(JsonValueKind.Null, appliedFailure.GetProperty("error").ValueKind);
 Assert.False(appliedFailureIsError);
 ```
 
-- [ ] Build the solution, then run `FullyQualifiedName~NetworkGuardedWriteMcpTests|FullyQualifiedName~NetworkGuardedWriteAuditTests|FullyQualifiedName~LifecycleMcpProtocolTests|FullyQualifiedName~WriteToolMcpAnnotationProtocolTests`; record RED and commit `test: pin prompt-free registered network writes`.
-- [ ] Wire the public facade/registration and union guard catalog. Select the first explicit project path as a constraint; domain validation checks all other paths before the gate. Send every entered call through the shared runner so validation failures are audited; do not pass an elicitation adapter or lifecycle preparation strategy. Reject legacy arguments through the registered wrapper and advertise strict schemas/MCP write annotations. Run focused checks, review, and commit `feat: expose guarded network writes without elicitation`.
-- [ ] Inventory `CanonicalWriteSafety`, `NetworkWritePreview`, Network-only token/hash/expiry helpers, and all Network `confirm`/`safetyToken` callers. Migrate tests to dry run/actual execution, then delete only unused Network code; retain shared serializers/budget helpers and generic-batch token machinery. Keep internal worker protocol `Confirm` where existing dispatch requires it; removing public Network confirmation does not change that internal boundary. Run Network suites plus `WriteToolSafetyTokenTests`, `ReadWriteModeCeilingTests`, lifecycle protocol/confirmation suites; expect all green. Review and commit `refactor: retire network token execution paths`.
+- [x] Build the solution, then run `FullyQualifiedName~NetworkGuardedWriteMcpTests|FullyQualifiedName~NetworkGuardedWriteAuditTests|FullyQualifiedName~LifecycleMcpProtocolTests|FullyQualifiedName~WriteToolMcpAnnotationProtocolTests`; record RED and commit `test: pin prompt-free registered network writes`.
+- [x] Wire the public facade/registration and union guard catalog. Select the first explicit project path as a constraint; domain validation checks all other paths before the gate. Send every entered call through the shared runner so validation failures are audited; do not pass an elicitation adapter or lifecycle preparation strategy. Reject legacy arguments through the registered wrapper and advertise strict schemas/MCP write annotations. Run focused checks, review, and commit `feat: expose guarded network writes without elicitation`.
+- [x] Inventory `CanonicalWriteSafety`, `NetworkWritePreview`, Network-only token/hash/expiry helpers, and all Network `confirm`/`safetyToken` callers. Migrate tests to dry run/actual execution, then delete only unused Network code; retain shared serializers/budget helpers and generic-batch token machinery. Keep internal worker protocol `Confirm` where existing dispatch requires it; removing public Network confirmation does not change that internal boundary. Run Network suites plus `WriteToolSafetyTokenTests`, `ReadWriteModeCeilingTests`, lifecycle protocol/confirmation suites; expect all green. Review and commit `refactor: retire network token execution paths`.
 
 ### Task 7: Bound the complete envelope and pin failure/audit boundaries
 
@@ -225,7 +227,7 @@ Assert.False(appliedFailureIsError);
 
 **Interfaces:** Produce `NetworkWritePayloadBudget.Apply(NetworkGuardedWriteResponse response, int maxItemChars = 60000, int maxDocumentChars = 180000) -> NetworkGuardedWriteResponse`; `Compose` calls it before the runner serializes/audits. Budget callbacks measure the complete response. Omit oversized result/effect/verification values whole, retain operation IDs and summary statuses, and keep required root arrays/nulls. A failed result remains failed if its value is omitted; root success must not become true. Requested evidence omitted from delivery makes root success false even if internal execution/verification passed; retain those internal outcome summaries rather than inventing a mutation failure.
 
-- [ ] Write `WholeEnvelope_IncludesEffectsGuardsAndVerification`, `FailedPartialResult_OmissionRetainsFailure`, `LargeDiagnostic_IsBoundedWithoutPayloadEcho`, `OmissionNeverRequiresWriteReplay`, `ReturnedCanonicalHash_EqualsAuditHash`, and `CrashOrInvalidPayload_RemainsUnverified`, asserting:
+- [x] Write `WholeEnvelope_IncludesEffectsGuardsAndVerification`, `FailedPartialResult_OmissionRetainsFailure`, `LargeDiagnostic_IsBoundedWithoutPayloadEcho`, `OmissionNeverRequiresWriteReplay`, `ReturnedCanonicalHash_EqualsAuditHash`, and `CrashOrInvalidPayload_RemainsUnverified`, asserting:
 
 ```csharp
 Assert.True(canonical.Length <= 180000);
@@ -239,9 +241,9 @@ Assert.DoesNotContain(rejectedPayloadMarker, canonical);
 Assert.Equal("unverified", uncertainVerification.Status);
 ```
 
-- [ ] Run `FullyQualifiedName~NetworkGuardedWriteBudgetTests|FullyQualifiedName~NetworkGuardedWriteAuditTests|FullyQualifiedName~NetworkStructuredProtocolTests`; record RED and commit `test: pin complete network write budgets and audit hashing`.
-- [ ] Implement deterministic budgeting of all new root values and relevant diagnostics, preserving compact guards and summaries. Generate guard messages from compact target identities rather than raw worker diagnostics; replace oversized diagnostic values whole with a bounded summary and shared omission metadata, retaining the failure category. Avoid unbounded duplicate diagnostics across root/items. Use filtered/paged `network_read` recovery guidance; never truncate JSON, budget the internal plan, or replay a write. Convert expected worker/post-read failures to typed failed/unverified evidence inside the domain; unexpected programming exceptions retain the shared runner's diagnostic/audit handling.
-- [ ] Run focused tests plus existing structured budget, strict payload, `WriteExecutionFailureAuditTests`, and `JsonlWriteAuditSinkTests`; expect exact single audit per entered path, returned-document hash equality, bounded valid canonical JSON, and no failure-to-success conversion. Review and commit `feat: bound guarded network responses and audit evidence`.
+- [x] Run `FullyQualifiedName~NetworkGuardedWriteBudgetTests|FullyQualifiedName~NetworkGuardedWriteAuditTests|FullyQualifiedName~NetworkStructuredProtocolTests`; record RED and commit `test: pin complete network write budgets and audit hashing`.
+- [x] Implement deterministic budgeting of all new root values and relevant diagnostics, preserving compact guards and summaries. Generate guard messages from compact target identities rather than raw worker diagnostics; replace oversized diagnostic values whole with a bounded summary and shared omission metadata, retaining the failure category. Avoid unbounded duplicate diagnostics across root/items. Use filtered/paged `network_read` recovery guidance; never truncate JSON, budget the internal plan, or replay a write. Convert expected worker/post-read failures to typed failed/unverified evidence inside the domain; unexpected programming exceptions retain the shared runner's diagnostic/audit handling.
+- [x] Run focused tests plus existing structured budget, strict payload, `WriteExecutionFailureAuditTests`, and `JsonlWriteAuditSinkTests`; expect exact single audit per entered path, returned-document hash equality, bounded valid canonical JSON, and no failure-to-success conversion. Review and commit `feat: bound guarded network responses and audit evidence`.
 
 ### Task 8: Migrate maintained docs and prepare public live acceptance
 
@@ -249,7 +251,7 @@ Assert.Equal("unverified", uncertainVerification.Status);
 
 **Interfaces:** Produce a public-MCP harness with existing process/framing helpers, `-Mode Inventory|Preview|Apply` (default Inventory), explicit `-ProjectPath`, `-AccessMode read-write|full`, operation-fixture input, and retained apply-only `-AllowMutation`/exact acknowledgement protections. These harness protections authorize live test execution and are not server elicitation. The new harness covers configuration/ordered partial outcomes; the existing Phase 4 harness retains exact connected Ethernet/PROFIBUS fixture IDs and its restoration boundary. Neither harness saves/closes/downloads or automatically retries uncertain writes.
 
-- [ ] Write static harness contract tests `InventoryAndPreview_NeverMutate`, `Apply_RequiresExactTargetAuthorization`, `PublicCalls_UseDryRunAndNoTokens`, and `Restoration_UsesFreshIdentityInspection`, asserting:
+- [x] Write static harness contract tests `InventoryAndPreview_NeverMutate`, `Apply_RequiresExactTargetAuthorization`, `PublicCalls_UseDryRunAndNoTokens`, and `Restoration_UsesFreshIdentityInspection`, asserting:
 
 ```csharp
 Assert.Contains("dryRun", script);
@@ -260,9 +262,9 @@ Assert.Contains("ProjectPath", script);
 Assert.Contains("bind_project", script);
 ```
 
-- [ ] Run `FullyQualifiedName~NetworkGuardedWriteLiveHarnessScriptTests|FullyQualifiedName~NetworkSubnetLifecycleLiveHarnessScriptTests`; record RED and commit `test: pin guarded network live harness boundaries`.
-- [ ] Implement harness migration using public tools: inspect status, bind the exact already-open disposable target, read identities, preview via `dryRun:true`, apply via `dryRun:false` only inside the authorized Apply path. Retain fresh post-write/restoration reads, typed phase/partial verification assertions, multi-homed node and exact IO tuple checks, connected deletion consequences, zero elicitation checks, and evidence output keyed to frozen head/fixture. Verify PowerShell syntax and focused static tests without launching TIA; review and commit `test: migrate public network acceptance harnesses`.
-- [ ] Update maintained docs to implemented behavior, versioned envelopes, sparse partial examples, no server Network prompts, legacy-input rejection, no batch rollback, and inspect-before-retry. Keep lifecycle confirmation and generic-batch tokens accurately scoped; README links use absolute main GitHub URLs. Check local links/examples/whitespace, review the docs diff, and commit `docs: document guarded network contract migration`. Do not rerun expensive suites for this documentation step alone.
+- [x] Run `FullyQualifiedName~NetworkGuardedWriteLiveHarnessScriptTests|FullyQualifiedName~NetworkSubnetLifecycleLiveHarnessScriptTests`; record RED and commit `test: pin guarded network live harness boundaries`.
+- [x] Implement harness migration using public tools: inspect status, bind the exact already-open disposable target, read identities, preview via `dryRun:true`, apply via `dryRun:false` only inside the authorized Apply path. Retain fresh post-write/restoration reads, typed phase/partial verification assertions, multi-homed node and exact IO tuple checks, connected deletion consequences, zero elicitation checks, and evidence output keyed to frozen head/fixture. Verify PowerShell syntax and focused static tests without launching TIA; review and commit `test: migrate public network acceptance harnesses`.
+- [x] Update maintained docs to implemented behavior, versioned envelopes, sparse partial examples, no server Network prompts, legacy-input rejection, no batch rollback, and inspect-before-retry. Keep lifecycle confirmation and generic-batch tokens accurately scoped; README links use absolute main GitHub URLs. Check local links/examples/whitespace, review the docs diff, and commit `docs: document guarded network contract migration`. Do not rerun expensive suites for this documentation step alone.
 
 ### Task 9: Freeze and qualify the combined candidate
 
@@ -270,8 +272,8 @@ Assert.Contains("bind_project", script);
 
 **Interfaces:** Consume all prior deliverables. Produce a recorded frozen candidate head, test/build/coverage/package evidence, independent whole-branch review, and explicit live-acceptance status. No push/PR/merge, live execution, or worktree cleanup in this task without later authorization.
 
-- [ ] Inspect the complete baseline-to-candidate diff and active worktree status; resolve task-review findings and verify no uncommitted product edits. Record the candidate head before final qualification.
-- [ ] Run the complete Release offline suite with coverage after the same-head solution build:
+- [x] Inspect the complete baseline-to-candidate diff and active worktree status; resolve task-review findings and verify no uncommitted product edits. Record the candidate head before final qualification.
+- [x] Run the complete Release offline suite with coverage after the same-head solution build:
 
 ```powershell
 dotnet restore TiaMcpServer.slnx
@@ -284,7 +286,7 @@ $networkCoverage = Get-ChildItem -LiteralPath $networkResults -Recurse -Filter c
 
 Expected: full suite passes with zero failures, coverage threshold passes; list any skips and exclusions. Record meaningful changed host/contracts coverage and worker logic's narrower executable/static evidence. Timeouts/restore failures are limitations, not passing checks.
 
-- [ ] Build installed-reference Release serially and package the same candidate into a task-specific artifact directory:
+- [x] Build installed-reference Release serially and package the same candidate into a task-specific artifact directory:
 
 ```powershell
 dotnet build TiaMcpServer.slnx --configuration Release -m:1 /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
@@ -295,8 +297,8 @@ $networkPackage = Get-ChildItem -LiteralPath artifacts/network-final -Filter '*.
 
 Expected: both commands succeed, package verifier passes, and archive inventory contains no `Siemens.Engineering*.dll` anywhere. Inspect packaged worker/contracts provenance against the frozen candidate. Do not install/reconfigure the user's active tool or run doctor against live TIA. If installed references are unavailable, retain source/offline evidence and explicitly mark that gate pending.
 
-- [ ] Obtain independent whole-branch review covering the five Review Focus cases, worker/host seam, strict real-MCP binding, guards, partial mutation, audit/budgets, and lifecycle/batch regressions. Resolve findings with focused commits; repeat only gates invalidated by the fix and record the new frozen head.
-- [ ] Write the validation report with exact heads/commands/counts/artifact paths, review findings/rulings, scope exclusions, and live V21 status. Index it, check links/whitespace, inspect the docs diff, and commit `docs: record network guarded write qualification`.
+- [x] Obtain independent whole-branch review covering the five Review Focus cases, worker/host seam, strict real-MCP binding, guards, partial mutation, audit/budgets, and lifecycle/batch regressions. Resolve findings with focused commits; repeat only gates invalidated by the fix and record the new frozen head.
+- [x] Write the validation report with exact heads/commands/counts/artifact paths, review findings/rulings, scope exclusions, and live V21 status. Index it, check links/whitespace, inspect the docs diff, and commit `docs: record network guarded write qualification`.
 - [ ] Present the locally reviewable candidate and prepared live gate. Request fresh authorization separately for the exact disposable project, frozen head, access modes, operation arrays, restoration procedure, and excluded lifecycle/PLC actions. Until authorized, live acceptance remains pending; offline completion is not live qualification.
 
 ## Self-review and handoff
