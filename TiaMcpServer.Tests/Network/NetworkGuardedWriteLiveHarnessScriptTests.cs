@@ -225,15 +225,16 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     {
         var result = RunStaticAstAssertion("""
             $definition = @($ast.FindAll({ param($node)
-                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('Assert-Outcome', 'Assert-Subset')
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('Assert-Outcome', 'Assert-Subset', 'Assert-VerificationCheck')
             }, $true))
             foreach ($function in $definition) { Invoke-Expression $function.Extent.Text }
-            $operations = @(@{ operationId = 'first' }, @{ operationId = 'later' })
+            $operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; target = @{ deviceName = 'PC'; nodeId = 'node' }; changes = @{ ipAddress = '192.0.2.1'; pnDeviceName = 'requested' } }, @{ operationId = 'later' })
+            $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node' }; message = $null; checks = @(@{ name = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }) }
             $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $false; omission = $null
                 batch = @{ operations = @(
-                    @{ operationId = 'first'; status = 'failed'; omission = $null; result = @{ appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } } },
+                    @{ operationId = 'first'; operation = 'configure_network_device'; status = 'failed'; omission = $null; result = @{ deviceName = 'PC'; verification = $evidence; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } } },
                     @{ operationId = 'later'; status = 'skipped'; skipReason = 'earlierOperationFailed'; omission = $null }) }
-                verification = @{ success = $true; omission = $null; finalChecks = @(@{ status = 'passed' }); operations = @(@{ status = 'passed'; evidence = @{ checks = @(@{ status = 'passed' }) }; omission = $null }) }
+                verification = @{ success = $true; omission = $null; finalChecks = @(@{ name = 'node/PC/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null }, @{ name = 'node/PC/node/Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }); operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; status = 'passed'; evidence = $evidence; omission = $null }) }
             } | ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20
             $expected = @(@{ operationId = 'first'; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } })
             Assert-Outcome $response @('failed', 'skipped') $false $true $expected
@@ -275,6 +276,10 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     [InlineData("unreadable-final")]
     [InlineData("contradictory-final-status")]
     [InlineData("wrong-check-type")]
+    [InlineData("valid-io-tuple")]
+    [InlineData("wrong-io-subnet")]
+    [InlineData("wrong-identity-type")]
+    [InlineData("wrong-field-casing")]
     [InlineData("valid-device-casing")]
     [InlineData("wrong-node-casing")]
     [InlineData("valid-effective-prefix")]
@@ -307,12 +312,24 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $response = $response | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
             $scenario = '{{scenario}}'
             switch ($scenario) {
+                { $_ -in @('valid-io-tuple','wrong-io-subnet') } {
+                    $operations = @($operations[0]); $operations[0].changes = @{ ioSystem = @{ subnetId = 'exact-subnet'; number = 1 } }
+                    $response.batch.operations = @($response.batch.operations[0]); $response.verification.operations = @($response.verification.operations[0])
+                    $response.batch.operations[0].result.appliedSettings = [pscustomobject]@{ IoSystem = '1' }
+                    $response.verification.operations[0].evidence.checks = @([pscustomobject]@{ name = 'IoSystem'; status = 'passed'; expected = '["exact-subnet",1]'; observed = '["exact-subnet",1]'; message = $null })
+                    $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
+                    $response.verification.finalChecks[1].name = 'node/PC/node/IoSystem'; $response.verification.finalChecks[1].expected = '["exact-subnet",1]'; $response.verification.finalChecks[1].observed = '["exact-subnet",1]'
+                    $expected = @(@{ operationId = 'first'; appliedSettings = @{ IoSystem = '1' }; skippedSettings = @{} })
+                    if ($scenario -eq 'wrong-io-subnet') { $response.verification.operations[0].evidence.checks[0].expected = '["other",1]'; $response.verification.operations[0].evidence.checks[0].observed = '["other",1]' }
+                }
+                'wrong-identity-type' { $operations[0].target.nodeId = '123'; $response.verification.operations[0].evidence.identity.nodeId = 123; $response.batch.operations[0].result.verification.identity.nodeId = 123 }
+                'wrong-field-casing' { $response.verification.operations[0].evidence.checks[0].name = 'address' }
                 'empty-immediate' { $response.verification.operations = @() }
                 'missing-immediate' { $response.verification.operations = @($response.verification.operations[0]) }
                 'duplicate-immediate' { $response.verification.operations = @($response.verification.operations[0], $response.verification.operations[0]) }
                 'wrong-id' { $response.verification.operations[0].operationId = 'other' }
                 'wrong-order' { $response.verification.operations = @($response.verification.operations[1], $response.verification.operations[0]) }
-                'valid-device-casing' { $operations[1].target.deviceName = 'pc' }
+                'valid-device-casing' { $operations[1].target.deviceName = 'pc'; $response.batch.operations[1].result.deviceName = 'pc'; $response.batch.operations[1].result.verification.identity.deviceName = 'pc'; $response.verification.operations[1].evidence.identity.deviceName = 'pc' }
                 'wrong-node-casing' { $response.verification.operations[0].evidence.identity.nodeId = 'NODE' }
                 'missing-evidence' { $response.verification.operations[0].evidence = $null }
                 'wrong-node' { $response.verification.operations[0].evidence.identity.nodeId = 'other' }
@@ -345,7 +362,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 }
             }
             if ($scenario -eq 'valid-not-required') { $statuses = @('failed'); $expectedSuccess = $false }
-            else { $statuses = @('succeeded','succeeded'); $expectedSuccess = $true }
+            else { $statuses = @($operations | ForEach-Object { 'succeeded' }); $expectedSuccess = $true }
             $rejected = $false
             try { Assert-Outcome $response $statuses $expectedSuccess $true $expected } catch { $rejected = $true }
             if ($scenario -like 'valid-*') {

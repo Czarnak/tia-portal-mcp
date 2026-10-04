@@ -525,6 +525,17 @@ function Assert-Inspections {
     if ($Expected.Count -eq 0) { throw 'Concrete fixture inspection expectations are required.' }
     Assert-Subset $Observed $Expected
 }
+function Assert-VerificationCheck {
+    param($Check, [string] $Name, [string] $Expected)
+    if ($null -eq $Check -or $Check.name -isnot [string] -or $Check.name -cne $Name -or
+        $Check.expected -isnot [string] -or $Check.expected -cne $Expected -or
+        $Check.observed -isnot [string] -or $Check.status -notin @('passed', 'failed') -or
+        ($null -ne $Check.message -and $Check.message -isnot [string]) -or
+        ($Check.status -eq 'passed' -and $Check.observed -cne $Expected) -or
+        ($Check.status -eq 'failed' -and ($Check.observed -ceq $Expected -or [string]::IsNullOrWhiteSpace($Check.message)))) {
+        throw 'Verification check is missing, unreadable, wrongly typed or contradictory; inspect before retry.'
+    }
+}
 function Assert-Outcome {
     param($Response, [object[]] $ExpectedItemStatuses, [bool] $ExpectedSuccess, [bool] $ExpectedVerificationSuccess, [object[]] $ExpectedSettings)
     if ($Response.contractVersion -ne '1.0' -or $Response.phase -ne 'applied' -or $null -ne $Response.error -or
@@ -551,16 +562,85 @@ function Assert-Outcome {
             Assert-Subset $observed $settings[$field]
         }
     }
-    # Immediate evidence stays distinct from final effective-prefix checks; no success rewriting.
-    $immediateChecks = @($Response.verification.operations)
-    foreach ($verification in $immediateChecks) {
-        if ($verification.status -eq 'unverified' -or $null -ne $verification.omission -or $null -eq $verification.evidence) {
-            throw 'Immediate evidence uncertain or omitted; no restoration or replay.'
+    # Require the exact attempted sequence, not just any entries the response happens to include.
+    $attempted = @($items | Where-Object { $_.status -ne 'skipped' })
+    $immediateChecks = $Response.verification.operations
+    $finalChecks = $Response.verification.finalChecks
+    if ($immediateChecks -isnot [array] -or $finalChecks -isnot [array] -or $immediateChecks.Count -ne $attempted.Count) {
+        throw 'Complete immediate/final verification arrays are required.'
+    }
+    $requiredFinal = [System.Collections.Generic.List[object]]::new()
+    $verificationPassed = $true
+    for ($i = 0; $i -lt $attempted.Count; $i++) {
+        $item = $attempted[$i]
+        $operation = @($operations | Where-Object { $_.operationId -ceq $item.operationId })[0]
+        $verification = $immediateChecks[$i]
+        $evidence = $verification.evidence
+        if ($verification.operationId -cne $item.operationId -or $verification.operation -cne 'configure_network_device' -or
+            $item.operation -cne $verification.operation -or $null -ne $verification.omission -or $null -eq $evidence -or
+            $null -eq $item.result -or $item.result.deviceName -isnot [string] -or
+            -not [string]::Equals($item.result.deviceName, $operation.target.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $evidence.status -cne $verification.status -or $evidence.status -notin @('passed', 'failed', 'not_required') -or
+            $evidence.identity.deviceName -isnot [string] -or $evidence.identity.nodeId -isnot [string] -or
+            $evidence.identity.deviceName -cne $item.result.deviceName -or $evidence.identity.nodeId -cne $operation.target.nodeId -or
+            @($evidence.identity.PSObject.Properties).Count -ne 2 -or $evidence.checks -isnot [array]) {
+            throw 'Exact attempted identity/order and typed immediate evidence are required.'
+        }
+        $resultEvidence = $item.result.verification | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
+        Assert-Subset $evidence $resultEvidence
+        $requested = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
+        foreach ($pair in @(@('Address','ipAddress'), @('SubnetMask','subnetMask'), @('PnDeviceName','pnDeviceName'))) {
+            if ($operation.changes.ContainsKey($pair[1]) -and $null -ne $operation.changes[$pair[1]]) { $requested.Add($pair[0], $operation.changes[$pair[1]]) }
+        }
+        if ($operation.changes.ContainsKey('subnet') -and $null -ne $operation.changes.subnet) { $requested.Add('Subnet', $operation.changes.subnet.subnetId) }
+        if ($operation.changes.ContainsKey('ioSystem') -and $null -ne $operation.changes.ioSystem) { $requested.Add('IoSystem', $operation.changes.ioSystem.number.ToString([System.Globalization.CultureInfo]::InvariantCulture)) }
+        $applied = $item.result.appliedSettings | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable
+        $skipped = $item.result.skippedSettings | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable
+        $accounted = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($key in $skipped.Keys) {
+            if (-not $requested.ContainsKey($key) -or $skipped[$key] -isnot [string] -or [string]::IsNullOrWhiteSpace($skipped[$key]) -or -not $accounted.Add($key)) { throw 'Malformed sparse skipped settings.' }
+        }
+        if ($skipped.Count -gt 0 -and $item.status -ne 'failed') { throw 'Requested skips must fail the item.' }
+        if ($evidence.checks.Count -ne $applied.Count) { throw 'Immediate applied-setting check coverage is incomplete.' }
+        $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($check in $evidence.checks) {
+            if ($null -eq $check -or -not $seen.Add($check.name) -or -not $applied.Contains($check.name) -or
+                -not $requested.ContainsKey($check.name) -or $applied[$check.name] -isnot [string] -or
+                $applied[$check.name] -cne $requested[$check.name] -or -not $accounted.Add($check.name)) { throw 'Missing, duplicate or unexpected applied verification keys.' }
+            $expected = $applied[$check.name]
+            if ($check.name -ceq 'IoSystem') {
+                $tuple = ConvertFrom-Json -InputObject $check.expected -NoEnumerate
+                if ($tuple -isnot [array] -or $tuple.Count -ne 2 -or $tuple[0] -cne $operation.changes.ioSystem.subnetId -or
+                    $tuple[1] -isnot [long] -and $tuple[1] -isnot [int] -or $tuple[1] -ne $operation.changes.ioSystem.number) { throw 'Immediate IO verification requires the exact subnet/number tuple.' }
+                $expected = $check.expected
+            }
+            Assert-VerificationCheck $check $check.name $expected
+        }
+        if ($accounted.Count -ne $requested.Count) { throw 'Requested settings are missing from sparse results.' }
+        $status = if ($applied.Count -eq 0) { 'not_required' } elseif (@($evidence.checks | Where-Object { $_.status -eq 'failed' }).Count) { 'failed' } else { 'passed' }
+        if ($evidence.status -cne $status) { throw 'Immediate summary contradicts applied-setting evidence.' }
+        if ($status -eq 'failed') { $verificationPassed = $false }
+        # Configuration-only effective prefix: latest explicit same-field value supersedes; IO remains independent of Subnet.
+        foreach ($field in @('exists') + @($evidence.checks | ForEach-Object { $_.name })) {
+            $value = if ($field -ceq 'exists') { 'true' } else { @($evidence.checks | Where-Object { $_.name -ceq $field })[0].expected }
+            $existing = @($requiredFinal | Where-Object {
+                [string]::Equals($_.deviceName, $item.result.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -and
+                $_.nodeId -ceq $operation.target.nodeId -and $_.field -ceq $field
+            })
+            if ($existing.Count) { $existing[0].expected = $value }
+            else { $requiredFinal.Add(@{ deviceName = $item.result.deviceName; nodeId = $operation.target.nodeId; field = $field; expected = $value }) }
         }
     }
-    if (@($Response.verification.finalChecks | Where-Object { $_.status -eq 'unverified' }).Count -ne 0) {
-        throw 'Final evidence unreadable; no restoration or replay.'
+    if ($finalChecks.Count -ne $requiredFinal.Count) { throw 'Final effective-prefix evidence is incomplete.' }
+    $seenFinal = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($check in $finalChecks) {
+        if ($null -eq $check -or -not $seenFinal.Add($check.name)) { throw 'Duplicate or missing final evidence.' }
+        $expected = @($requiredFinal | Where-Object { $check.name -ceq "node/$($_.deviceName)/$($_.nodeId)/$($_.field)" })
+        if ($expected.Count -ne 1) { throw 'Unexpected final identity/setting evidence.' }
+        Assert-VerificationCheck $check $check.name $expected[0].expected
+        if ($check.status -eq 'failed') { $verificationPassed = $false }
     }
+    if ($Response.verification.success -ne $verificationPassed) { throw 'Verification summary contradicts immediate/final evidence.' }
 }
 function Invoke-NetworkWritePreview {
     $preview = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $operations; dryRun = $true }
