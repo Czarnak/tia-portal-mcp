@@ -272,6 +272,7 @@ public static class NetworkPayloadContract
     private static void ValidateHardwareConfig(HardwareConfigInfo value, bool? includeIoDetails)
     {
         if (value.RootDeviceCount < 0) throw new JsonException("'rootDeviceCount' must not be negative.");
+        if (value.DiscoveryEvidence is { } discovery) ValidateDiscoveryEvidence(discovery);
         foreach (var device in value.Devices)
         {
             RequireNotNull(device, "devices[]");
@@ -292,6 +293,13 @@ public static class NetworkPayloadContract
                     RequireNotNull(identity, "connectionEvidence.nodes[]");
                     if (string.IsNullOrWhiteSpace(identity.DeviceName) || string.IsNullOrWhiteSpace(identity.NodeId))
                         throw new JsonException("Connected nodes require exact deviceName and nodeId identities.");
+                    if (identity.InterfacePath is { } ownerPath)
+                        ValidateInterfacePath(ownerPath, "connectionEvidence.nodes[].interfacePath");
+                    if (identity.InterfaceName is not null)
+                    {
+                        if (identity.InterfacePath is null || string.IsNullOrWhiteSpace(identity.InterfaceName))
+                            throw new JsonException("Connected node interfaceName requires an owner path and must be nonblank.");
+                    }
                 }
             }
             ValidateHardwareSelector(
@@ -400,6 +408,39 @@ public static class NetworkPayloadContract
     {
         if (messages.Any(string.IsNullOrWhiteSpace) || !complete && messages.Count == 0)
             throw new JsonException("Incomplete connection evidence requires nonblank diagnostics.");
+    }
+
+    private static void ValidateDiscoveryEvidence(HardwareDiscoveryEvidenceInfo evidence)
+    {
+        if (evidence.Scope is not ("project" or "device"))
+            throw new JsonException("Discovery scope must be project or device.");
+        if (evidence.Complete != (evidence.Failures.Count == 0))
+            throw new JsonException("Discovery completeness contradicts its failures.");
+        foreach (var failure in evidence.Failures)
+        {
+            RequireNotNull(failure, "discoveryEvidence.failures[]");
+            if (failure.Stage is not ("deviceEnumeration" or "deviceMaterialization"
+                or "deviceItemEnumeration" or "deviceItemMaterialization" or "interfaceDiscovery"
+                or "nodeEnumeration" or "nodeMaterialization" or "subnetEnumeration" or "subnetMaterialization"
+                or "ioSystemEnumeration" or "ioSystemMaterialization" or "deviceSelection"))
+                throw new JsonException("Unknown discovery failure stage.");
+            if (failure.Stage == "deviceSelection" && evidence.Scope != "device")
+                throw new JsonException("Device selection failure must be device-scoped.");
+            if (string.IsNullOrWhiteSpace(failure.Message))
+                throw new JsonException("Discovery failure message must be nonblank.");
+        }
+    }
+
+    private static void ValidateInterfacePath(List<NetworkInterfacePathSegmentInfo> path, string prefix)
+    {
+        if (path.Count == 0) throw new JsonException($"'{prefix}' must be non-empty.");
+        foreach (var segment in path)
+        {
+            RequireNotNull(segment, $"{prefix}[]");
+            if (string.IsNullOrWhiteSpace(segment.Name) || segment.PositionNumber < 0
+                || segment.TypeIdentifier is not null && string.IsNullOrWhiteSpace(segment.TypeIdentifier))
+                throw new JsonException($"'{prefix}[]' requires nonblank name, nonnegative positionNumber and nonblank optional typeIdentifier.");
+        }
     }
 
     /// <summary>
@@ -734,6 +775,9 @@ public static class NetworkPayloadContract
                 $"'{prefix}.kind' value '{target.Kind}' does not match summary kind '{expectedKind}'.");
         }
 
+        if (target.InterfacePath is not null && target.Kind != NetworkObjectKinds.Node)
+            throw new JsonException($"'{prefix}.interfacePath' is only applicable to node targets.");
+
         switch (target.Kind)
         {
             case NetworkObjectKinds.DeviceItem:
@@ -757,7 +801,9 @@ public static class NetworkPayloadContract
             case NetworkObjectKinds.Node:
                 RequireSelectorText(target.DeviceName, $"{prefix}.deviceName", target.Kind);
                 RequireSelectorText(target.NodeId, $"{prefix}.nodeId", target.Kind);
-                if ((target.ItemPath is null) != (target.NodeIndex is null))
+                if (target.InterfacePath is not null && target.ItemPath is not null)
+                    throw new JsonException($"'{prefix}.interfacePath' and '{prefix}.itemPath' cannot both be supplied.");
+                if (target.InterfacePath is null && (target.ItemPath is null) != (target.NodeIndex is null))
                 {
                     throw new JsonException(
                         $"'{prefix}.itemPath' and '{prefix}.nodeIndex' must be supplied together for kind '{target.Kind}'.");
@@ -766,12 +812,19 @@ public static class NetworkPayloadContract
                 {
                     RequireSelectorPath(target, prefix, target.Kind);
                 }
+                if (target.InterfacePath is { } ownerPath)
+                    ValidateInterfacePath(ownerPath, $"{prefix}.interfacePath");
+                RequireOptionalSelectorText(target.InterfaceName, $"{prefix}.interfaceName", target.Kind);
+                if (target.InterfaceName is not null && target.ItemPath is null && target.InterfacePath is null)
+                    throw new JsonException($"'{prefix}.interfaceName' requires an owner path.");
+                RejectSelectorField(target.InterfaceType is not null, prefix, "interfaceType", target.Kind);
+                RejectSelectorField(target.InterfaceOperatingMode is not null, prefix, "interfaceOperatingMode", target.Kind);
                 if (target.NodeIndex < 0)
                 {
                     throw new JsonException($"'{prefix}.nodeIndex' must not be negative.");
                 }
                 RejectSelectorFields(target, prefix, target.Kind,
-                    interfaceFields: true, subnetField: true,
+                    subnetField: true,
                     numberField: true, ioSystemFields: true, connectionFields: true);
                 break;
 

@@ -101,6 +101,7 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class NetworkObjectTarget
 {
+    [Description("Preferred node owner path from the device root to the item providing its NetworkInterface service. Nonempty; each segment requires nonblank name and nonnegative positionNumber, with optional nonblank typeIdentifier. Cannot be combined with itemPath.")]
     public IReadOnlyList<NetworkInterfacePathSegment>? InterfacePath { get; set; }
 
     [Description("Network object kind. One of: deviceItem, networkInterface, node, subnet, ioSystem, communicationConnection. For configure_network_device, only 'node' or absent is accepted. For update_subnet and delete_subnet, kind is required and must be exactly 'subnet'.")]
@@ -112,7 +113,7 @@ public sealed class NetworkObjectTarget
     [Description("Path through the device item hierarchy. Required and non-empty for deviceItem, networkInterface, and communicationConnection kinds; every segment requires a non-negative index and positionNumber plus nonblank name and typeIdentifier.")]
     public IReadOnlyList<NetworkDeviceItemPathSegment>? ItemPath { get; set; }
 
-    [Description("Optional captured evidence for networkInterface kind; must be nonblank when supplied.")]
+    [Description("Optional exact interface-name constraint for networkInterface kind or node kind with an owner path; must be nonblank when supplied.")]
     public string? InterfaceName { get; set; }
 
     [Description("Network interface type (e.g. PROFINET, PROFIBUS). Optional for networkInterface kind.")]
@@ -124,7 +125,7 @@ public sealed class NetworkObjectTarget
     [Description("Exact nodeId reported by read_hardware_config. Required for node kind and configure_network_device.")]
     public string? NodeId { get; set; }
 
-    [Description("Optional zero-based sibling index within the network interface selected by itemPath. For node kind, nodeIndex and itemPath must be supplied together.")]
+    [Description("Optional nonnegative consistency index within the selected owner's nodes. Required with legacy itemPath for node kind; optional with interfacePath. Requires an owner path.")]
     public int? NodeIndex { get; set; }
 
     [Description("Exact subnetId reported by read_hardware_config. Required for subnet and ioSystem kinds.")]
@@ -181,8 +182,11 @@ public sealed class NetworkDeviceItemPathSegment
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class NetworkInterfacePathSegment
 {
+    [Description("Exact ordinal name of the item at this owner-path level; required and nonblank.")]
     public string Name { get; set; } = string.Empty;
+    [Description("Position number at this owner-path level; required and nonnegative.")]
     public int? PositionNumber { get; set; }
+    [Description("Optional captured type identifier used as an extra consistency constraint; nonblank when supplied.")]
     public string? TypeIdentifier { get; set; }
 }
 

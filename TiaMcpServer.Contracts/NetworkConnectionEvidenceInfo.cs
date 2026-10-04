@@ -4,8 +4,10 @@ namespace TiaMcpServer.Contracts;
 
 public class NetworkNodeIdentityInfo
 {
+    /// <summary>Owner path on new ordinary relationship reads; omission leaves ownership unknown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<NetworkInterfacePathSegmentInfo>? InterfacePath { get; set; }
+    /// <summary>Optional exact service-name consistency constraint when an owner path is present.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? InterfaceName { get; set; }
 

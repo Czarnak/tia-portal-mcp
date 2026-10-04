@@ -4,6 +4,7 @@ namespace TiaMcpServer.Contracts;
 
 public class HardwareConfigInfo
 {
+    /// <summary>Structural traversal evidence on new ordinary reads; omission never proves completeness.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public HardwareDiscoveryEvidenceInfo? DiscoveryEvidence { get; set; }
 

@@ -34,6 +34,7 @@ public sealed class DeviceItemPathSegmentInfo
 /// </summary>
 public sealed class NetworkObjectSelectorInfo
 {
+    /// <summary>Preferred node owner path, present when exact name/position evidence is available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<NetworkInterfacePathSegmentInfo>? InterfacePath { get; set; }
 
