@@ -835,7 +835,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $e2=$port.networkInterfaces[0].nodes[0] | ConvertTo-Json -Depth 30 | ConvertFrom-Json
             $e2.nodeId='E2';$e2.selector.nodeId='E2'
             $port.networkInterfaces[0].nodes=@($e2,$port.networkInterfaces[0].nodes[0])
-            $legacy=@{kind='node';deviceName='plc_1';nodeId='E1';interfaceName='X2';nodeIndex=1;itemPath=@(@{index=0;name='CPU';positionNumber=1;typeIdentifier='CPUType'},@{index=0;name='X2';positionNumber=33024;typeIdentifier='PortType'})}
+            $legacy=@{kind='node';deviceName='PLC_1';nodeId='E1';interfaceName='X2';nodeIndex=1;itemPath=@(@{index=0;name='CPU';positionNumber=1;typeIdentifier='CPUType'},@{index=0;name='X2';positionNumber=33024;typeIdentifier='PortType'})}
             $normalized=$originalSelectors[0] | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
             $normalized.nodeIndex=1
             switch('__CONSTRAINT__') {
