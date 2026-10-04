@@ -36,7 +36,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     }
 
     [Fact]
-    public void Harness_ConfirmedNetworkWriteIsReachableOnlyThroughDoubleGatedApply()
+    public void Harness_ActualNetworkWriteIsReachableOnlyThroughDoubleGatedApply()
     {
         var result = RunStaticAstAssertion("""
             function Get-OwningFunction([System.Management.Automation.Language.Ast] $Node) {
@@ -81,22 +81,22 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
             }, $true))
             if ($networkWriteCalls.Count -eq 0) { throw 'No public network_write calls found.' }
 
-            $confirmedCalls = @()
+            $actualCalls = @()
             foreach ($call in $networkWriteCalls) {
-                $confirm = [regex]::Matches(
+                $dryRun = [regex]::Matches(
                     $call.Extent.Text,
-                    '(?i)\bconfirm\s*=\s*\$(true|false)\b')
-                if ($confirm.Count -ne 1) {
-                    throw 'Every network_write call must use one literal confirm boolean.'
+                    '(?i)\bdryRun\s*=\s*\$(true|false)\b')
+                if ($dryRun.Count -ne 1) {
+                    throw 'Every network_write call must use one literal dryRun boolean.'
                 }
-                if ($confirm[0].Groups[1].Value -ieq 'true') { $confirmedCalls += $call }
+                if ($dryRun[0].Groups[1].Value -ieq 'false') { $actualCalls += $call }
             }
-            if ($confirmedCalls.Count -ne 1) {
-                throw "Expected exactly one confirmed network_write; found $($confirmedCalls.Count)."
+            if ($actualCalls.Count -ne 1) {
+                throw "Expected exactly one actual network_write; found $($actualCalls.Count)."
             }
-            $confirmedOwner = Get-OwningFunction $confirmedCalls[0]
-            if ($null -eq $confirmedOwner -or $confirmedOwner.Name -cne 'Invoke-NetworkWriteApply') {
-                throw 'The confirmed network_write is outside Invoke-NetworkWriteApply.'
+            $actualOwner = Get-OwningFunction $actualCalls[0]
+            if ($null -eq $actualOwner -or $actualOwner.Name -cne 'Invoke-NetworkWriteApply') {
+                throw 'The actual network_write is outside Invoke-NetworkWriteApply.'
             }
 
             Assert-OnlyCalledFrom 'Invoke-NetworkWriteApply' 'Invoke-LifecycleGroupAndVerify'
@@ -241,11 +241,11 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     }
 
     [Fact]
-    public void Harness_RedactsTokensWritesOneTimestampedArtifactAndAlwaysStopsTheHost()
+    public void Harness_WritesOneTimestampedArtifactAndAlwaysStopsTheHost()
     {
         var source = HarnessSource;
         Assert.Contains("artifacts/live-network-phase4", source, StringComparison.Ordinal);
-        Assert.Contains("[REDACTED]", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("safetyToken", source, StringComparison.Ordinal);
         Assert.Contains("finally", source, StringComparison.Ordinal);
         Assert.Contains("Stop-McpHost", source, StringComparison.Ordinal);
         Assert.Contains("rev-parse HEAD", source, StringComparison.Ordinal);
@@ -263,7 +263,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     public void Harness_InventoryRecordsObservedProjectAndSessionEvidence()
     {
         var source = HarnessSource;
-        Assert.Contains("$session = $envelope.sessionIdentity", source, StringComparison.Ordinal);
+        Assert.Contains("$session = $envelope.result.value.sessionIdentity", source, StringComparison.Ordinal);
         Assert.Contains("projectPath     = $project.path", source, StringComparison.Ordinal);
         Assert.Contains("sessionIdentity = $session", source, StringComparison.Ordinal);
         Assert.Contains("portalProcessId = $session.portalProcessId", source, StringComparison.Ordinal);
@@ -312,13 +312,12 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                     isModified = $false
                 }
                 if ($script:includeVersion) { $projectData.version = $null }
-                $payload = @{ project = $projectData } | ConvertTo-Json -Depth 10
-                @{ success = $true; payload = $payload; sessionIdentity = @{
+                @{ error = $null; result = @{ status = "succeeded"; value = @{ project = $projectData; sessionIdentity = @{
                     projectPath = $ProjectPath
                     portalProcessId = 1234
                     workerSessionId = 'observed-session'
                     sessionGeneration = 1
-                } }
+                } } } }
             }
 
             $status = Get-ObservedProjectStatus
@@ -383,7 +382,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 param($Name, $Arguments)
                 $script:requests += $Arguments.operations[0]
                 $page = $script:pages[$script:requests.Count - 1]
-                return (@{ batch = @{ operations = @($page) } } |
+                return (@{ result = @{ operations = @($page) } } |
                     ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20)
             }
             function Page($devices, $subnets, $returnedDevices, $returnedSubnets, $cursor) {
