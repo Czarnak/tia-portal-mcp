@@ -225,6 +225,22 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Contains(result.Verification.FinalChecks, check => check.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
     }
+    [Theory][InlineData(false)][InlineData(true)]
+    public async Task RepeatedSetting_RetainsAllOptionalFinalConstraints(bool omitLater)
+    {
+        const string scenario = "network-qualified-final-repeat-interface-drift";
+        using var audit = new TempAuditDirectory(); using var log = new FakeWorkerRequestLog(audit.Path);
+        using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var first = Configure(32768, "192.168.12.7", "first");
+        var second = Configure(32768, "192.168.12.8", "second");
+        if (omitLater) first.Target!.InterfaceName = "PROFINET interface_1"; else second.Target!.InterfaceName = "PROFINET interface_1";
+        var result = await f.RunAsync(false, first, second);
+        Assert.All(result.Batch!.Operations, operation => Assert.Equal("succeeded", operation.Status));
+        Assert.All(result.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
+        Assert.False(result.Success);
+        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/Address") && c.Expected == "192.168.12.8" && c.Status == "unverified");
+        Assert.Equal(2, log.Methods().Count(m => m == "configure_network_device"));
+    }
     [Fact]
     public async Task FinalOptionalDiagnostic_DoesNotFailVerifiedWrite()
     {
