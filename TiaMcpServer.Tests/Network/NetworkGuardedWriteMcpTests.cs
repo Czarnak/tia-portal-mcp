@@ -10,6 +10,39 @@ namespace TiaMcpServer.Tests.Network;
 [Collection("Mcp protocol serial")]
 public sealed class NetworkGuardedWriteMcpTests
 {
+    [Fact]
+    public async Task QualifiedSelector_RoundTripsRegisteredSchema()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
+        var tools = await harness.Client.ListToolsAsync();
+        foreach (var name in new[] { "network_read", "network_write" })
+        {
+            var schema = Assert.Single(tools, t => t.Name == name).ProtocolTool.InputSchema;
+            Assert.Contains("\"interfacePath\"", schema.GetRawText());
+            Assert.Contains("\"positionNumber\"", schema.GetRawText());
+        }
+        var selector = new NetworkObjectSelectorInfo
+        {
+            Kind = "node", DeviceName = "PLC_1", NodeId = "E1", InterfaceName = "X1",
+            InterfacePath = new() { new() { Name = "X1", PositionNumber = 1 } }
+        };
+        var requestTarget = JsonSerializer.Deserialize<TiaMcpServer.Network.NetworkObjectTarget>(
+            CanonicalJson.Serialize(selector), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var validation = TiaMcpServer.Network.NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            new TiaMcpServer.Network.NetworkOperationRequest
+            {
+                OperationId = "configure", Operation = "configure_network_device", Target = requestTarget,
+                Changes = new() { IpAddress = "192.168.0.10" }
+            }
+        });
+        Assert.True(validation.IsValid, validation.Error);
+        var reply = await harness.Client.CallToolAsync("network_write", new Dictionary<string, object?> { ["operations"] = Array.Empty<object>(), ["dryRun"] = true });
+        var publicRoot = Document(reply);
+        Assert.Equal("1.0", publicRoot.GetProperty("contractVersion").GetString());
+    }
+
     [Theory]
     [InlineData("confirm", "false")]
     [InlineData("safetyToken", "\"legacy\"")]

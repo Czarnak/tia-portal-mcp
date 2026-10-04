@@ -21,6 +21,74 @@ public partial class NetworkPayloadContractTests
     private const string LeakToken = "payload-leak-canary";
 
     [Theory]
+    [InlineData("{\"complete\":true,\"failures\":[]}")]
+    [InlineData("{\"scope\":\"project\",\"failures\":[]}")]
+    [InlineData("{\"scope\":\"project\",\"complete\":true}")]
+    [InlineData("{\"scope\":\"Project\",\"complete\":true,\"failures\":[]}")]
+    [InlineData("{\"scope\":\"project\",\"complete\":false,\"failures\":[{\"message\":\"payload-leak-canary\"}]}")]
+    [InlineData("{\"scope\":\"project\",\"complete\":false,\"failures\":[{\"stage\":\"nodeEnumeration\"}]}")]
+    [InlineData("{\"scope\":\"project\",\"complete\":false,\"failures\":[{\"stage\":\"unknown\",\"message\":\"payload-leak-canary\"}]}")]
+    [InlineData("{\"scope\":\"project\",\"complete\":false,\"failures\":[{\"stage\":\"nodeEnumeration\",\"message\":\" \"}]}")]
+    [InlineData("{\"scope\":\"project\",\"complete\":true,\"failures\":[],\"unknown\":true}")]
+    public void DiscoveryEvidence_RequiresAllMembersAndKnownStages(string evidence)
+    {
+        var malformedPayload = Project("read_hardware_config", $$"""{"devices":[],"subnets":[],"messages":[],"discoveryEvidence":{{evidence}}}""");
+        Assert.Equal(OperationBatchStatus.Failed, malformedPayload.Status);
+        Assert.Equal("protocol_error", malformedPayload.Failure!.Category);
+        Assert.Null(malformedPayload.Result);
+        Assert.DoesNotContain(LeakToken, CanonicalJson.Serialize(malformedPayload));
+    }
+
+    [Theory]
+    [InlineData("project", true, "[{\"stage\":\"nodeEnumeration\",\"message\":\"payload-leak-canary\"}]")]
+    [InlineData("project", false, "[]")]
+    [InlineData("project", false, "[{\"stage\":\"deviceSelection\",\"message\":\"payload-leak-canary\"}]")]
+    public void DiscoveryEvidence_RejectsContradictions(string scope, bool complete, string failures)
+    {
+        var json = """{"devices":[],"subnets":[],"messages":[],"discoveryEvidence":{"scope":"SCOPE","complete":COMPLETE,"failures":FAILURES}}"""
+            .Replace("SCOPE", scope).Replace("COMPLETE", complete ? "true" : "false").Replace("FAILURES", failures);
+        var malformedPayload = Project("read_hardware_config", json);
+        Assert.Equal(OperationBatchStatus.Failed, malformedPayload.Status);
+        Assert.Equal("protocol_error", malformedPayload.Failure!.Category);
+        Assert.Null(malformedPayload.Result);
+        Assert.DoesNotContain(LeakToken, CanonicalJson.Serialize(malformedPayload));
+    }
+
+    [Theory]
+    [InlineData("deviceEnumeration")]
+    [InlineData("deviceMaterialization")]
+    [InlineData("deviceItemEnumeration")]
+    [InlineData("deviceItemMaterialization")]
+    [InlineData("interfaceDiscovery")]
+    [InlineData("nodeEnumeration")]
+    [InlineData("nodeMaterialization")]
+    [InlineData("subnetEnumeration")]
+    [InlineData("subnetMaterialization")]
+    [InlineData("ioSystemEnumeration")]
+    [InlineData("ioSystemMaterialization")]
+    [InlineData("deviceSelection")]
+    public void DiscoveryEvidence_AcceptsKnownStages(string stage)
+    {
+        var scope = stage == "deviceSelection" ? "device" : "project";
+        var json = """{"devices":[],"subnets":[],"messages":[],"discoveryEvidence":{"scope":"SCOPE","complete":false,"failures":[{"stage":"STAGE","message":"Traversal failed."}]}}"""
+            .Replace("SCOPE", scope).Replace("STAGE", stage);
+        var item = Project("read_hardware_config", json);
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Equal(stage, item.Result!.Value.GetProperty("discoveryEvidence").GetProperty("failures")[0].GetProperty("stage").GetString());
+    }
+
+    [Fact]
+    public void LegacyRead_OmitsNewConditionalEvidence()
+    {
+        var item = Project("read_hardware_config", """{"devices":[],"subnets":[],"messages":[]}""");
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.False(item.Result!.Value.TryGetProperty("discoveryEvidence", out _));
+        var identity = CanonicalJson.ToElement(new NetworkNodeIdentityInfo { DeviceName = "PLC_1", NodeId = "E1" });
+        Assert.False(identity.TryGetProperty("interfacePath", out _));
+        Assert.False(identity.TryGetProperty("interfaceName", out _));
+    }
+
+    [Theory]
     [InlineData("""{"deviceName":"PLC_1","skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""")]
     [InlineData("""{"deviceName":"PLC_1","appliedSettings":{"Address":"192.168.0.10"},"messages":[]}""")]
     [InlineData("""{"deviceName":"PLC_1","appliedSettings":null,"skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""")]

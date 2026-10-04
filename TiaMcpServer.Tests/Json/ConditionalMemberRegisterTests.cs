@@ -25,6 +25,15 @@ public sealed class ConditionalMemberRegisterTests
         "HardwareConfigInfo.Pagination",
         // New ordinary reads report the root collection count; older/paged reads may omit it.
         "HardwareConfigInfo.RootDeviceCount",
+        // Structural traversal evidence appears on new ordinary reads; paged/legacy reads may omit it.
+        "HardwareConfigInfo.DiscoveryEvidence",
+        // Node selectors carry an owner path when it can be captured; older selectors may omit it.
+        "NetworkObjectSelectorInfo.InterfacePath",
+        // Relationship identities carry owner evidence on new ordinary reads; older reads may omit it.
+        "NetworkNodeIdentityInfo.InterfacePath",
+        "NetworkNodeIdentityInfo.InterfaceName",
+        // Owner path segments carry a type identifier only when that optional scalar can be read.
+        "NetworkInterfacePathSegmentInfo.TypeIdentifier",
         "HardwarePaginationInfo.NextCursor",
         // New ordinary reads report relationship evidence; older/legacy reads may omit it.
         "NodeInfo.ConnectionEvidence",

@@ -6,6 +6,59 @@ namespace TiaMcpServer.Tests.Network;
 
 public class NetworkOperationCatalogTests
 {
+    [Theory]
+    [InlineData("inspect_network_object", false)]
+    [InlineData("configure_network_device", false)]
+    [InlineData("inspect_network_object", true)]
+    [InlineData("configure_network_device", true)]
+    public void QualifiedNodeTarget_AcceptsPreferredAndLegacyOwnerPaths(string operation, bool legacy)
+    {
+        var request = Configure();
+        request.Operation = operation;
+        request.Target!.Kind = "node";
+        if (operation == "inspect_network_object") request.Changes = null;
+        if (legacy)
+        {
+            request.Target.ItemPath = new[] { new NetworkDeviceItemPathSegment { Index = 0, Name = "X1", PositionNumber = 1, TypeIdentifier = "OrderNumber:X1" } };
+            request.Target.NodeIndex = 0;
+        }
+        else
+        {
+            request.Target.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 1 } };
+            request.Target.InterfaceName = "X1";
+        }
+        var validation = operation == "inspect_network_object"
+            ? NetworkOperationCatalog.ValidateRead(new[] { request }) : NetworkOperationCatalog.ValidateWrite(new[] { request });
+        Assert.True(validation.IsValid, validation.Error);
+    }
+
+    [Theory]
+    [InlineData("inspect_network_object", "both")]
+    [InlineData("configure_network_device", "both")]
+    [InlineData("inspect_network_object", "name")]
+    [InlineData("configure_network_device", "name")]
+    [InlineData("inspect_network_object", "index")]
+    [InlineData("configure_network_device", "index")]
+    [InlineData("inspect_network_object", "empty")]
+    [InlineData("configure_network_device", "empty")]
+    [InlineData("inspect_network_object", "legacy-missing-index")]
+    [InlineData("configure_network_device", "legacy-missing-index")]
+    public void QualifiedNodeTarget_ValidatesOwnerPath(string operation, string shape)
+    {
+        var request = Configure();
+        request.Operation = operation;
+        request.Target!.Kind = "node";
+        if (operation == "inspect_network_object") request.Changes = null;
+        if (shape is "both" or "legacy-missing-index")
+            request.Target.ItemPath = new[] { new NetworkDeviceItemPathSegment { Index = 0, Name = "X1", PositionNumber = 1, TypeIdentifier = "OrderNumber:X1" } };
+        if (shape == "both") request.Target.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 1 } };
+        if (shape == "empty") request.Target.InterfacePath = Array.Empty<NetworkInterfacePathSegment>();
+        if (shape == "name") request.Target.InterfaceName = "X1";
+        if (shape == "index") request.Target.NodeIndex = 0;
+        var invalidTargetValidation = operation == "inspect_network_object"
+            ? NetworkOperationCatalog.ValidateRead(new[] { request }) : NetworkOperationCatalog.ValidateWrite(new[] { request });
+        Assert.False(invalidTargetValidation.IsValid);
+    }
     private const int ExpectedMaxOperationIdLength = 256;
 
     private static NetworkOperationRequest Op(

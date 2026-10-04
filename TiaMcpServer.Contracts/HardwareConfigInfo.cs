@@ -4,6 +4,9 @@ namespace TiaMcpServer.Contracts;
 
 public class HardwareConfigInfo
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HardwareDiscoveryEvidenceInfo? DiscoveryEvidence { get; set; }
+
     /// <summary>Root project.Devices.Count on new ordinary reads; older/paged payloads may omit it.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? RootDeviceCount { get; set; }

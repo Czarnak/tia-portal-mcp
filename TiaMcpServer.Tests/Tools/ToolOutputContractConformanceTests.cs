@@ -291,6 +291,8 @@ public sealed class ToolOutputContractConformanceTests
         if (probe.Name == "network_read/succeeded")
         {
             var document = result.StructuredContent!.Value;
+            Assert.False(document.GetProperty("batch").GetProperty("operations")[0]
+                .GetProperty("result").TryGetProperty("discoveryEvidence", out _));
             Assert.Equal(1, document.GetProperty("batch").GetProperty("counts")
                 .GetProperty("succeeded").GetInt32());
         }

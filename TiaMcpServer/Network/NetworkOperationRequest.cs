@@ -101,6 +101,8 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class NetworkObjectTarget
 {
+    public IReadOnlyList<NetworkInterfacePathSegment>? InterfacePath { get; set; }
+
     [Description("Network object kind. One of: deviceItem, networkInterface, node, subnet, ioSystem, communicationConnection. For configure_network_device, only 'node' or absent is accepted. For update_subnet and delete_subnet, kind is required and must be exactly 'subnet'.")]
     public string? Kind { get; set; }
 
@@ -174,6 +176,14 @@ public sealed class NetworkDeviceItemPathSegment
 
     [Description("Type identifier of the module at this level of the device hierarchy.")]
     public string TypeIdentifier { get; set; } = string.Empty;
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class NetworkInterfacePathSegment
+{
+    public string Name { get; set; } = string.Empty;
+    public int? PositionNumber { get; set; }
+    public string? TypeIdentifier { get; set; }
 }
 
 /// <summary>What to set on the targeted node. Every member is optional; null means no change.</summary>

@@ -8,6 +8,27 @@ public class NetworkOperationRequestJsonTests
 {
     private static readonly JsonSerializerOptions WebOptions = new(JsonSerializerDefaults.Web);
 
+    [Theory]
+    [InlineData("{\"name\":\"X1\"}")]
+    [InlineData("{\"name\":\"X1\",\"positionNumber\":-1}")]
+    [InlineData("{\"name\":\" \",\"positionNumber\":1}")]
+    [InlineData("{\"name\":\"X1\",\"positionNumber\":1,\"typeIdentifier\":\" \"}")]
+    [InlineData("null")]
+    public void QualifiedNodeTarget_ValidatesOwnerPath(string segment)
+    {
+        var json = """{"operationId":"inspect","operation":"inspect_network_object","target":{"kind":"node","deviceName":"PLC_1","nodeId":"E1","interfacePath":[SEGMENT]}}""".Replace("SEGMENT", segment);
+        var operation = JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions)!;
+        var invalidTargetValidation = NetworkOperationCatalog.ValidateRead(new[] { operation });
+        Assert.False(invalidTargetValidation.IsValid);
+    }
+
+    [Fact]
+    public void QualifiedNodeTarget_RejectsUnknownOwnerPathFields()
+    {
+        const string json = """{"operationId":"inspect","operation":"inspect_network_object","target":{"kind":"node","deviceName":"PLC_1","nodeId":"E1","interfacePath":[{"name":"X1","positionNumber":1,"index":0}]}}""";
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NetworkOperationRequest>(json, WebOptions));
+    }
+
     [Fact]
     public void HardwarePaginationFields_BindFromCamelCaseJson()
     {

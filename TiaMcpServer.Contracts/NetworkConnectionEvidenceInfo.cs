@@ -1,7 +1,14 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 public class NetworkNodeIdentityInfo
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<NetworkInterfacePathSegmentInfo>? InterfacePath { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InterfaceName { get; set; }
+
     public string DeviceName { get; set; } = string.Empty;
     public string NodeId { get; set; } = string.Empty;
 }
