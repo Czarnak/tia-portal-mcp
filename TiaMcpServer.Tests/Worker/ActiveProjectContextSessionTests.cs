@@ -271,6 +271,45 @@ public sealed class ActiveProjectContextSessionTests
         f.AssertNoLifecycle();
     }
 
+    [Fact]
+    public void StandaloneOwnerResolution_PreservesIdentity()
+    {
+        using var f = new Fixture();
+        f.Session.Connect(f.PathA);
+        var before = f.Session.GetSessionIdentity();
+        Assert.Same(f.Session.ActiveContext!.Owner, f.Session.RequireStandaloneOwner());
+        Assert.Same(f.Session.Project, f.Session.RequireStandaloneOwner().Project);
+        Assert.Equal(before.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);
+    }
+
+    [Theory]
+    [InlineData(ProjectContainerKinds.LocalSession, false)]
+    [InlineData(ProjectContainerKinds.LocalSession, true)]
+    [InlineData(ProjectContainerKinds.ServerProject, false)]
+    [InlineData(ProjectContainerKinds.ServerProject, true)]
+    public void LocalOwner_GenericReplacementIsRefused(string kind, bool owned)
+    {
+        using var f = new Fixture();
+        f.Session.Connect(f.PathA);
+        var local = new LocalSession { Project = new MultiuserProject { Path = new FileInfo(f.PathA) } };
+        var context = ActiveProjectContext.ForLocalSession(local, owned, kind, MultiuserSessionModes.Unknown);
+        f.Session.AdoptContext(context, f.PathA);
+        var before = f.Session.GetSessionIdentity();
+        Assert.Null(f.Session.Project);
+        AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.RequireStandaloneOwner());
+        foreach (var path in new[] { f.PathA, f.PathB })
+        {
+            AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.ReadProjectRebindState(path));
+            AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.OpenProject(path));
+        }
+        Assert.Same(context, f.Session.ActiveContext);
+        Assert.Equal(before.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);
+        Assert.Equal(0, local.SaveCalls);
+        Assert.Equal(0, local.CloseCalls);
+        Assert.Equal(0, local.CommitCalls);
+        f.AssertNoLifecycle();
+    }
+
     private static void AssertCategory(string category, Action action)
         => Assert.Equal(category, Assert.Throws<WorkerOperationException>(action).FailureCategory);
 

@@ -31,6 +31,16 @@ public class TiaPortalSession : IDisposable
     /// <summary>Standalone-only compatibility bridge for existing content services.</summary>
     public Project? Project => (_activeContext?.Owner as StandaloneProjectOwner)?.Project;
 
+    internal StandaloneProjectOwner RequireStandaloneOwner()
+    {
+        if (_activeContext is null)
+            throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(McpAccessMode.ReadWrite));
+        if (_activeContext.Owner is StandaloneProjectOwner owner)
+            return owner;
+        throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported,
+            "This operation requires a standalone project. The active local session must use its explicit lifecycle operations.");
+    }
+
     public TiaPortal? TiaPortal => _tiaPortal;
 
     public bool IsConnected => _tiaPortal != null;
@@ -279,6 +289,8 @@ public class TiaPortalSession : IDisposable
     public void OpenProject(string projectPath)
     {
         ThrowIfDisposed();
+        if (_activeContext is not null)
+            RequireStandaloneOwner();
 
         if (!IsConnected)
         {
@@ -303,7 +315,7 @@ public class TiaPortalSession : IDisposable
         {
             if (_activeContext?.Owner.OpenedByWorker == true)
             {
-                var currentProject = Project;
+                var currentProject = RequireStandaloneOwner().Project;
                 try
                 {
                     ProjectRebindCloseGuard.CloseBeforeRebind(
@@ -347,6 +359,8 @@ public class TiaPortalSession : IDisposable
     internal ProjectRebindStateInfo ReadProjectRebindState(string destinationProjectPath)
     {
         ThrowIfDisposed();
+        if (_activeContext is not null)
+            RequireStandaloneOwner();
 
         var destination = ProjectPathNormalization.Canonicalize(destinationProjectPath)
             ?? throw new WorkerOperationException(
@@ -358,7 +372,7 @@ public class TiaPortalSession : IDisposable
             return ProjectRebindStateInfo.Create(null, destination, null, sourceOpenedByWorker: false);
         }
 
-        var currentProject = Project;
+        var currentProject = RequireStandaloneOwner().Project;
         if (currentProject is null)
         {
             throw new WorkerOperationException(
