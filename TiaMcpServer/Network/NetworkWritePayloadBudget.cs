@@ -75,12 +75,32 @@ public static class NetworkWritePayloadBudget
         {
             // Remove diagnostics whole, never preserve a prefix of rejected worker text.
             // Diagnostics have already been compacted across all copies above.
-            // Drop whole root values, largest first, before asking the shared batch helper to
-            // fit its results into the remaining COMPLETE document. Stable ties retain order.
+            // An unpredictable generated result must not displace an earlier representable
+            // recovery core. Let the shared helper budget batch values first when the exact
+            // protected roots plus worst omission metadata are themselves representable.
+            if (current.Batch is { } originalBatch)
+            {
+                StructuredOperationBatch RestoreEarly(StructuredOperationBatch candidate) => StructuredOperationBatch.FromItems(
+                    candidate.Operations.Select((value, index) => value with { Status = originalBatch.Operations[index].Status }).ToArray(),
+                    candidate.Truncation);
+                var withoutResults = StructuredOperationBatch.FromItems(originalBatch.Operations.Select(value => value with
+                {
+                    Result = null,
+                    Omission = value.Result is null ? value.Omission : Omission(
+                        StructuredOperationBatchPayloadBudget.DocumentLimitReason, maxDocumentChars, Size(value.Result))
+                }).ToArray(), new(true, int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue,
+                    originalBatch.Operations.Select(value => value.OperationId).ToArray()));
+                if (Size(Present(withoutResults)) <= maxDocumentChars)
+                    current = current with { Batch = RestoreEarly(StructuredOperationBatchPayloadBudget.Apply(originalBatch,
+                        candidate => Present(RestoreEarly(candidate)), "network_read", _ => Guidance, maxItemChars, maxDocumentChars)) };
+            }
+            // Unknown verification roots yield before effects; largest values and stable
+            // request order decide within each priority. The final batch pass fits the whole document.
             var candidates = effects.Select((e, i) => (Kind: 0, Index: i, Chars: e.Effect is null ? 0 : Size(e.Effect)))
                 .Concat((operations ?? []).Select((o, i) => (Kind: 1, Index: i, Chars: o.Evidence is null ? 0 : Size(o.Evidence))))
                 .Append((Kind: 2, Index: 0, Chars: finalChecks is { Count: > 0 } ? Size(finalChecks) : 0))
-                .Where(c => c.Chars > 0).OrderByDescending(c => c.Chars).ThenBy(c => c.Kind).ThenBy(c => c.Index);
+                .Where(c => c.Chars > 0).OrderBy(c => c.Kind == 0 ? 1 : 0)
+                .ThenByDescending(c => c.Chars).ThenBy(c => c.Kind).ThenBy(c => c.Index);
             foreach (var candidate in candidates)
             {
                 if (Size(Present()) <= maxDocumentChars) break;
