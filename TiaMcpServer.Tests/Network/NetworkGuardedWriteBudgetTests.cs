@@ -410,6 +410,76 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         AssertQualifiedAudit(reply, audit);
     }
 
+    // Supplemental post-implementation boundary checks; these are not the causal RED evidence.
+    [Fact]
+    public async Task Supplemental_SmallDiagnosticsTogetherOverflowItem_KeepExactCore()
+    {
+        using var audit = new TempAuditDirectory();
+        const string scenario = "network-qualified-read";
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var response = await fixture.RunAsync(false, await QualifiedConfigure(fixture, scenario, "one"));
+        var evidence = response.Verification!.Operations[0].Evidence!;
+        var identity = evidence.Identity["interfacePath"];
+        var itemLimit = new[] { CanonicalJson.Serialize(response.Effects[0].Effect).Length,
+            CanonicalJson.Serialize(response.Batch!.Operations[0].Result).Length,
+            CanonicalJson.Serialize(response.Verification.FinalChecks).Length,
+            CanonicalJson.Serialize(evidence).Length }.Max() + 1;
+        evidence.Message = new string('m', 450);
+        evidence.Checks[0].Message = new string('c', 450);
+        Assert.True(CanonicalJson.Serialize(evidence).Length > itemLimit);
+        var bounded = NetworkWritePayloadBudget.Apply(response, maxItemChars: itemLimit);
+        Assert.NotNull(bounded.Verification!.Operations[0].Evidence);
+        Assert.Equal(identity, bounded.Verification.Operations[0].Evidence!.Identity["interfacePath"]);
+        Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Expected);
+        Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence).Length, 0, itemLimit);
+        Assert.NotNull(bounded.Omission);
+        Assert.False(bounded.Success);
+    }
+
+    [Fact]
+    public async Task Supplemental_WorkerGeneratedIdentityOverflow_RetainsKnownQualifiedRecoveryAndExecutionStatus()
+    {
+        using var audit = new TempAuditDirectory();
+        const string scenario = "network-qualified-read";
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var response = await fixture.RunAsync(false, await QualifiedConfigure(fixture, scenario, "one"));
+        var originalPath = CanonicalJson.Serialize(response.Effects[0].Effect!.Target.InterfacePath);
+        var operation = new NetworkOperationRequest { OperationId = "generated", Operation = "create_subnet",
+            Subnet = new() { Name = "created", NetworkType = "Ethernet" } };
+        var generatedId = new string('s', 70000);
+        var generatedEvidence = new NetworkMutationVerificationInfo { Status = "passed",
+            Identity = new() { ["subnetId"] = generatedId }, Checks = new()
+            {
+                new() { Name = "subnetIdentity", Expected = generatedId, Observed = generatedId, Status = "passed" },
+                new() { Name = "Name", Expected = "created", Observed = "created", Status = "passed" },
+                new() { Name = "TypeIdentifier", Expected = "System:Subnet.Ethernet", Observed = "System:Subnet.Ethernet", Status = "passed" },
+                new() { Name = "networkDeviceCountUnchanged", Expected = "1", Observed = "1", Status = "passed" }
+            } };
+        var typed = new SubnetLifecycleResultInfo { SubnetId = generatedId, Name = "created",
+            NetworkDeviceCount = 1, NetworkDeviceCountUnchanged = true, Verification = generatedEvidence };
+        var projected = NetworkPayloadContract.Project(operation, WorkerCallResult.Ok(WorkerJson.SerializePayload(typed)), requireVerification: true);
+        Assert.Equal("succeeded", projected.Status);
+        response = response with
+        {
+            Batch = StructuredOperationBatch.FromItems(response.Batch!.Operations.Append(projected).ToArray()),
+            Verification = response.Verification! with
+            {
+                Operations = response.Verification.Operations.Append(new("generated", "create_subnet", "passed", generatedEvidence, null)).ToArray(),
+                FinalChecks = response.Verification.FinalChecks.Append(new() { Name = $"subnet/{generatedId}///exists",
+                    Expected = "true", Observed = "true", Status = "passed" }).ToArray()
+            }
+        };
+        var bounded = NetworkWritePayloadBudget.Apply(response);
+        Assert.False(bounded.Success);
+        Assert.Equal("applied", bounded.Phase);
+        Assert.NotNull(bounded.Effects[0].Effect);
+        Assert.Equal(originalPath, CanonicalJson.Serialize(bounded.Effects[0].Effect!.Target.InterfacePath));
+        Assert.Equal("192.168.12.7", bounded.Batch!.Operations[0].Result!.Value.GetProperty("appliedSettings").GetProperty("Address").GetString());
+        Assert.Equal("succeeded", bounded.Batch.Operations[1].Status);
+        Assert.NotNull(bounded.Batch.Operations[1].Omission);
+        Assert.NotNull(bounded.Verification!.Operations[1].Omission);
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, 180000);
+    }
     private static async Task<NetworkOperationRequest> QualifiedConfigure(NetworkGuardedWriteFixture fixture, string scenario, string id)
     {
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
