@@ -5,6 +5,15 @@ namespace TiaMcpServer.OpennessWorker;
 /// <summary>Certifies read selectors using required namespace identities independently of optional metadata.</summary>
 internal static class NetworkNodeReadSelectorBuilder
 {
+    public static List<NodeInfo> ReadNodes<TNode>(Func<IEnumerable<TNode>> enumerate,
+        Func<TNode, NodeInfo> materialize, Openness.HardwareDiscoveryEvidenceCapture capture)
+    {
+        var nodes = new List<NodeInfo>();
+        capture.Traverse(enumerate, node => nodes.Add(materialize(node)),
+            "nodeEnumeration", "nodeMaterialization");
+        return nodes.OrderBy(node => node.NodeId, StringComparer.Ordinal).ToList();
+    }
+
     public static void ApplyPage(DeviceInfo device, bool deviceNamespaceVerified, bool traversalComplete)
         => Apply(device, deviceNamespaceVerified && traversalComplete);
     public static bool DeviceNameIsUnique(IReadOnlyList<string?> names, string? selectedName)

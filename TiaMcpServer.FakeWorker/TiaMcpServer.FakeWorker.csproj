@@ -9,6 +9,7 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkConfigurationTargetBinding.cs" Link="NetworkConfigurationTargetBinding.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationException.cs" Link="WorkerOperationException.cs" />
 
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\HardwareDiscoveryEvidenceCapture.cs" Link="HardwareDiscoveryEvidenceCapture.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkNodeReadSelectorBuilder.cs" Link="NetworkNodeReadSelectorBuilder.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkSelectorFactory.cs" Link="NetworkSelectorFactory.cs" />
     <!-- Siemens-free contract DTOs only, so scripted scenarios can serialize complete

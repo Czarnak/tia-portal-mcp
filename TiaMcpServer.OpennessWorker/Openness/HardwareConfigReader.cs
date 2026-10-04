@@ -350,13 +350,9 @@ public static class HardwareConfigReader
                 interfaceOperatingMode: null);
         }
 
-        capture.Traverse(() => networkInterface.Nodes.Cast<Node>(),
-            node => interfaceInfo.Nodes.Add(ReadNode(node, networkInterface, messages, deviceName)),
-            "nodeEnumeration", "nodeMaterialization");
-
-        interfaceInfo.Nodes = interfaceInfo.Nodes
-            .OrderBy(node => node.NodeId, StringComparer.Ordinal)
-            .ToList();
+        interfaceInfo.Nodes = NetworkNodeReadSelectorBuilder.ReadNodes(
+            () => networkInterface.Nodes.Cast<Node>(),
+            node => ReadNode(node, networkInterface, messages, deviceName), capture);
         return interfaceInfo;
     }
 
