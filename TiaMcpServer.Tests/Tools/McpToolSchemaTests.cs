@@ -370,7 +370,11 @@ public class McpToolSchemaTests
                 .GetCustomAttribute<System.ComponentModel.DescriptionAttribute>()!.Description;
 
         Assert.Contains("deviceItem, networkInterface, and communicationConnection", DescriptionOf("ItemPath"));
-        Assert.Contains("Optional captured evidence", DescriptionOf("InterfaceName"));
+        var interfaceNameDescription = DescriptionOf("InterfaceName");
+        Assert.Contains("Optional", interfaceNameDescription);
+        Assert.Contains("exact interface-name constraint", interfaceNameDescription);
+        Assert.Contains("networkInterface kind or node kind with an owner path", interfaceNameDescription);
+        Assert.Contains("must be nonblank when supplied", interfaceNameDescription);
         Assert.Contains("Required for communicationConnection", DescriptionOf("ConnectionType"));
         Assert.Contains("Required for communicationConnection", DescriptionOf("LocalConnectionName"));
         Assert.Contains("Required for S7Connection", DescriptionOf("LocalConnectionId"));
