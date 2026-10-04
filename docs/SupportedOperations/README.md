@@ -52,15 +52,15 @@ The server also provides six single-purpose lifecycle tools:
 
 ## Write safety
 
-Lifecycle uses guarded single-call writes. Network and legacy batch retain preview-then-apply
-consistency tokens; those tokens do not establish user consent.
+Lifecycle and Network use guarded single-call writes. Only legacy generic batches retain
+preview-then-apply consistency tokens; those tokens do not establish user consent.
 
 - Data writes receive a batch-level token from `preview_write_batch` and require the unchanged operation list, `confirm=true`, and that token in `apply_write_batch`.
 - Lifecycle uses `dryRun` with operation inputs and no public confirmation array or token. Every actual read-write call asks once through form elicitation; full runs under policy without server elicitation. Block guards refuse in every mode; dry runs do not mutate or elicit. See the [lifecycle reference](PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations).
-- Network previews with `network_write` using `confirm:false` and no token; apply with the unchanged list, `confirm:true`, and its token.
-- Network/batch tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
+- Network previews with `dryRun:true`; `dryRun:false` or omitted dryRun executes by default, with zero server elicitation. Exact already-open verified binding, complete guards and typed postchecks apply; stop on failure, no batch rollback or automatic replay. See the [Network contract](NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope) for pre-entry SDK rejection versus canonical entered denials.
+- Generic-batch tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
 - A write batch is sequential rather than transactional. Application stops at the first failure; completed items remain applied and later items are marked `skipped`.
-- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle audit v2 records every call, including previews and refusals, with confirmation by `user`, `policy`, or `none`; legacy writes retain their audit behavior.
+- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle and Network audit v2 record every entered call, including previews and refusals, with confirmation by `user`, `policy`, or `none`; Network SDK rejection before entry has no write audit. Generic batches retain their audit behavior.
 
 Read responses may include `warnings` for partial or degraded data. Hardware reads also provide payload-level `messages` for unreadable members. Callers should treat these fields as part of the result contract rather than filling missing values locally.
 

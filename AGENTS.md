@@ -51,20 +51,15 @@ are denied in every mode. `SessionSelection` is permitted in every mode: `bind_p
 switches to an already-open project without opening, creating, saving or closing. Ordinary reads
 never bind or switch. Only `open_project` and `create_project` open a project; there are no implicit
 opens. Worker ownership does not survive detach. Read-only never opens, creates, saves or closes.
-Lifecycle confirmation follows access mode; Network and legacy batch tools retain their token flows.
+Lifecycle confirmation follows access mode. Network uses guarded writes with no server elicitation; legacy batch tools retain tokens.
 
-The six lifecycle tools use the guarded single-call pipeline with `dryRun` and mode-derived confirmation.
-Network and legacy batch writes keep preview-then-apply until their phases of the
-[write-safety redesign](docs/superpowers/specs/2026-09-29-write-safety-redesign-design.md).
-Their safety token is a **server-side consistency check**: it proves the apply carries
-exactly the previewed input, for the same tool and binding, against unchanged project state. It is
-**not user consent**. An agent can preview and apply in one turn, and no MCP server can require a
-human in between. Consent is the client's job (tool annotations and the client's permission
-prompt). Never describe the token flow as user approval in code comments, tool descriptions, or
-documentation.
+Lifecycle and Network use the guarded single-call pipeline. Lifecycle confirms every actual
+read-write call; Network has `ConfirmsEveryCall=false`, no acknowledge guards, and zero server
+elicitation in read-write, full, or dry runs. Legacy generic batches retain preview/apply tokens,
+which are server-side consistency checks and never proof of user consent.
 
 - **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
-- **Network writes**: call `network_write` with `confirm=false` and no token to preview, then call the same tool with `confirm=true`, the unchanged ordered operation list, and the returned token
+- **Network writes**: `network_write(operations, dryRun=false)` executes by default; explicitly set `dryRun:true` for preview. Require exact already-open verified binding and one project; process up to 50 unique-ID items in caller order, stop at first failure, never roll back or replay. Connected deletion is informational; incomplete consequence inventory blocks every mode. Reject legacy `confirm`, `safetyToken`, `acknowledge`, unknown roots and nonboolean `dryRun` at SDK/wrapper entry: normal MCP error, no write audit. Entered validation/binding/guard denials use a canonical root error and one audit v2 record. Read-write actual confirmation is `none`, full actual is `policy`; previews/denials use `none`, and info/block satisfaction is null.
 - **Project lifecycle writes** (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`): available in read-write and full. `dryRun=true` resolves targets, effects, and guards without mutation or elicitation. Every actual read-write call requires one form elicitation `accept` plus boolean `confirm:true`, even with only info guards or none. Missing capability, decline, cancel, timeout, or transport failure denies with `access_denied`. Full runs without server elicitation and satisfies acknowledge guards by policy. Block guards stop the call in every mode. Public confirmation arguments and safety tokens are absent.
 - Safety tokens are single-use, expire in 10 minutes, and are bound to the exact tool name + host binding revision + requested input + current project state; project-scoped writes additionally require the complete verified project identity
 - Reordering, changing input, or project state changes invalidate the token
@@ -78,18 +73,27 @@ documentation.
   verify, audit). Do not add a new snapshot reader, `SafetyRead` catalog entry, or token-bound
   write tool; a new write domain builds on that pipeline once redesign Phase 1 has landed.
 
+Network read/write roots declare `contractVersion:"1.0"`, warnings arrays and explicit nulls.
+Write phases are `preview`, `applied`, `blocked`, `error`; attempted failures have `error:null`
+and MCP `isError:false`. Sparse settings keys are `Address`, `SubnetMask`, `PnDeviceName`,
+`Subnet`, `IoSystem`; a requested skip fails the item/call but retains typed results.
+Budget complete canonical responses at 180,000 characters and individual values at 60,000.
+Write admission reserves aggregate encoded IDs/protected summaries before binding; the 256-character
+per-ID limit remains unchanged, with no smaller per-ID limit. Root `omission` is null when complete;
+whole diagnostic/value omissions can make delivery success false while trusted execution/item/
+verification summaries remain true. Audit stores exact delivered document/hash and actual item statuses.
+Inspect with original exact selectors before retry; omission metadata is not a selector.
+
 ## Structured JSON contract rules (Network Phase 2 and beyond)
 
 `network_read`/`network_write` were the first tools on the opt-in canonical JSON contract
 (`TiaMcpServer/Json/CanonicalJson.cs`, `TiaMcpServer/Tools/StructuredToolResult.cs`,
-`TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs`,
-`TiaMcpServer/Safety/CanonicalWriteSafety.cs`), and `browse_project_tree` also uses it. These
+`TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs`), and `browse_project_tree` also uses it. These
 rules are durable for any future tool that migrates onto it — not just Network:
 
 - **Reuse the shared gate.** A new structured tool builds on `StructuredToolResult` /
   `StructuredOperationBatch`; do not hand-roll a parallel canonical-JSON mechanism for a new
-  domain. `CanonicalWriteSafety` is the token binding of `network_write` only and is retired by the
-  write-safety redesign; a new write tool does not adopt it (see "Write safety model").
+  domain. Network-only `CanonicalWriteSafety` is retired; retain generic-batch safety infrastructure.
 - **Text and structured documents are the same document.** A migrated tool's `content` text block
   and its `structuredContent` come from exactly one `CanonicalJson.Serialize` call. They must
   never be built from two independent renderings that could drift apart.
@@ -121,7 +125,7 @@ Network contract these rules describe in the abstract.
 ## Key conventions
 
 - **`global.json`** pins stable .NET SDK 10.0.400 with `rollForward: latestFeature` and disallows prerelease SDKs — use `dotnet` commands, not version-specific aliases
-- **Tests link host source files** via `<Compile Include>` — when editing files in `TiaMcpServer/Worker/`, `TiaMcpServer/Batch/`, `TiaMcpServer/Network/`, `TiaMcpServer/OperationBatches/`, `TiaMcpServer/Safety/`, `TiaMcpServer/Tools/`, `TiaMcpServer/Diagnostics/`, or `TiaMcpServer/Cli/`, the test project picks up changes automatically
+- **Tests link host source files** via `<Compile Include>` instead of a host project reference. Network/Tools files are explicitly enumerated; add new files to `TiaMcpServer.Tests.csproj` when needed. `Safety/Pipeline` uses a glob. Check actual project wiring before assuming a new source file is tested.
 - **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a generic batch operation; network operations use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
 - **Worker payload JSON** goes through `WorkerJson.SerializePayload`. A new payload contract writes null members and is decoded through the worker-payload reader; `[LegacyNullOmission]` is only for the reasons in `LegacyNullOmissionReason` (a payload that omits nulls cannot go through the reader), and adding or removing one updates `WorkerPayloadNullPolicyRegisterTests`

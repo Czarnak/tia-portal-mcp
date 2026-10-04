@@ -1,5 +1,12 @@
 # Network Operations Roadmap
 
+Current guarded migration: implemented with focused offline qualification; final combined gates
+and fresh authorized live acceptance remain pending. Version `1.0`, warnings/explicit nulls and
+`dryRun` replace Network tokens; **omitting dryRun executes**. Historical Phase4/worker-only
+qualification below applies only to recorded frozen sources. See the
+[guarded Network design](../superpowers/specs/2026-10-03-network-json-guarded-write-design.md) and
+[implementation plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
+
 Status: Phases 1 and 2 are complete. Phase 3 implementation and its separately authorized,
 read-only TIA Portal V21 evidence run are complete, but final stabilization is pending design
 review because only three of eight observed communication connections had complete selectors.
@@ -49,7 +56,7 @@ steps will be produced later.
 Create a first-class, agent-friendly network engineering surface that:
 
 - separates network operations from the generic read and write batch tools;
-- preserves preview-before-apply safety for every write;
+- supports explicit dry-run inspection and guarded single-call execution with exact verified binding;
 - exposes structured JSON that agents can inspect and transform reliably, per the completed
   Phase 2 contract gate below; and
 - exposes the completed Phase 3 snapshot-scoped discovery and typed read-only inspection surface
@@ -65,12 +72,13 @@ The current implemented surface remains documented in
 The implemented domain tools are:
 
 - `network_read`: batch network reads, registered in all three access modes.
-- `network_write`: a self-previewing batch write tool, registered in read-write and full modes.
+- `network_write`: guarded ordered writes, registered in read-write and full modes, no server elicitation.
 
-Calling `network_write` without confirmation returns a preview and safety token. Calling
-the same tool again with `confirm=true`, the unchanged operation list, and that token
-applies the batch. Existing token expiry, single-use behavior, project-state binding,
-auditing, and access-mode enforcement remain mandatory.
+`network_write(operations, dryRun=false)` executes by default; preview explicitly with `dryRun:true`.
+Reject legacy confirmation/token/acknowledge and unknown root keys or nonboolean dryRun before
+entry (normal MCP error, no audit). Entered denials are canonical and audited once. Exact current
+already-open verified binding, caller order/stop on failure, no rollback/replay, complete consequence
+guards and typed applied-subset verification govern execution. Generic batches retain tokens.
 
 The following operations have moved out of the generic batch surface:
 
@@ -102,14 +110,14 @@ Contract evaluation will cover:
 - deterministic object selectors suitable for subsequent writes;
 - typed attribute values and access metadata;
 - explicit warnings, failures, omissions, and truncation markers; and
-- canonical serialization for safety-token and current-state snapshots.
+- canonical serialization for guarded effects, typed verification and exact audit documents.
 
 Representative contract tests will exercise:
 
 1. Network read results as single-layer structured JSON.
 2. Serialize-deserialize-serialize stability for network contracts.
 3. Translation of selected writable read fields into a write request.
-4. Preview, canonical safety binding, apply result, and post-read comparison.
+4. Explicit dry-run effects, pinned verified binding, applied result and post-read comparison.
 5. Rejection of unknown, read-only, ambiguous, or incorrectly typed writes.
 
 The read model and write model do not need to be identical. Reads may contain derived,
@@ -120,7 +128,7 @@ model is an explicit operation containing a deterministic target and intended ch
 network_read snapshot
         -> agent selects intended changes
         -> network_write target + changes
-        -> preview -> confirm -> apply -> post-read
+        -> dryRun:true -> authorized dryRun:false -> typed verification/fresh inspection
 ```
 
 An editable whole-network document may be evaluated later, after the explicit operation
@@ -140,7 +148,7 @@ their behavior is suitable.
 
 Completed: `network_read` and `network_write` both declare an MCP output schema and return one
 canonical JSON document identically in `content` and `structuredContent` — no nested JSON string
-anywhere in the response. `network_write` is a discriminated `preview | apply | error` envelope.
+anywhere in the response. That historical Network envelope used `preview | apply | error`; the current guarded envelope uses `preview | applied | blocked | error`.
 Configure operations use nested `target: { deviceName, nodeId }` and
 `changes: { ipAddress?, subnetMask?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }`
 with no flat legacy alias. Selector resolution (device, node, subnet, IO system) is exact and
@@ -237,7 +245,7 @@ changes in typed operations rather than unrestricted free-form attribute writes.
 ### Phase 7: Verification and Documentation
 
 Verify schemas, access modes, catalogs, field forwarding, FakeWorker behavior, IPC,
-safety tokens, audit records, payload budgets, postconditions, and the stub build. Update
+guarded effects/binding, audit records, payload budgets, postconditions, and the stub build. Update
 the supported-operations documentation only as capabilities are actually delivered.
 
 Live TIA Portal V21 acceptance is a separate, explicitly authorized gate. Static tests,
@@ -253,7 +261,7 @@ commissioning behavior.
   values to undifferentiated strings.
 - Never silently ignore an unknown or non-writable field.
 - Keep read diagnostics and missing-data evidence instead of synthesizing values.
-- Bind write previews to canonical requested intent and current project state.
+- Resolve exact requested intent/current state under a pinned verified binding; a dry run reserves no state.
 - Return enough postcondition evidence for an agent to verify what changed.
 
 ## Implementation Anchors

@@ -21,7 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-03 | [Network JSON contract and guarded writes (approved design)](specs/2026-10-03-network-json-guarded-write-design.md) |
+| 2026-10-03 | [Network JSON contract and guarded writes (implemented; final/live gates pending)](specs/2026-10-03-network-json-guarded-write-design.md) |
 | 2026-10-01 | [Lifecycle in read-write, mode-derived confirmation, and runtime project binding](specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md) |
 | 2026-09-29 | [Write-safety redesign: retiring preview→apply tokens](specs/2026-09-29-write-safety-redesign-design.md) |
 | 2026-09-28 | [Multiuser Engineering](specs/2026-09-28-multiuser-engineering-design.md) |
@@ -50,7 +50,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-03 | [Network JSON contract and guarded writes (approved plan; subagent execution authorized)](plans/2026-10-03-network-json-guarded-write.md) |
+| 2026-10-03 | [Network JSON contract and guarded writes (Tasks1-8 implemented; final/live gates pending)](plans/2026-10-03-network-json-guarded-write.md) |
 | 2026-10-02 | [Lifecycle in read-write and runtime project binding](plans/2026-10-02-lifecycle-tiers-and-project-binding.md) |
 | 2026-09-30 | [Write-safety redesign Phase 1b — access modes](plans/2026-09-30-write-safety-phase1b-access-modes.md) |
 | 2026-09-29 | [Write-safety redesign Phase 1 — foundation](plans/2026-09-29-write-safety-phase1-foundation.md) |

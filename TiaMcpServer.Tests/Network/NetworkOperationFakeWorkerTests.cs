@@ -10,9 +10,9 @@ using Xunit;
 namespace TiaMcpServer.Tests.Network;
 
 /// <summary>
-/// End-to-end evidence that the dedicated network tools use a single hardware snapshot for
-/// each preview/apply attempt, bind tokens to the exact ordered request, and — for the migrated
-/// <c>network_read</c> — return each worker payload as declared JSON rather than a nested string.
+/// Offline FakeWorker evidence for dedicated Network reads and guarded writes, exact ordered
+/// requests and typed payloads without nested JSON strings. Previews use explicit dryRun:true;
+/// actual calls re-plan and verify under the pinned binding without Network tokens.
 /// </summary>
 [Collection(RealWorkerProcessCollection.Name)]
 public class NetworkOperationFakeWorkerTests
@@ -206,9 +206,8 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal("add", results[0].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", results[0].GetProperty("status").GetString());
 
-        // Each result is the declared contract type as JSON, never a nested JSON string. The
-        // scenario stamps its request sequence into the contract's own free-text members, so the
-        // request 1 verifies the configured project, so the writes are provably requests 4 and 5.
+        // Each result is the declared contract type as JSON, never a nested JSON string.
+        // Typed identities and outcomes below establish the fixture result, not a fixed request sequence.
         Assert.Equal(JsonValueKind.Object, results[0].GetProperty("result").ValueKind);
         Assert.Equal("AddedPLC", results[0].GetProperty("result").GetProperty("deviceName").GetString());
         Assert.Equal("configure", results[1].GetProperty("operationId").GetString());
@@ -220,19 +219,8 @@ public class NetworkOperationFakeWorkerTests
     }
 
     /// <summary>
-    /// The multi-homed device (Task 7) has two REAL, existing nodes - node-plc and node-db - not a
-    /// missing one and not an ambiguous one. A preview resolved against node-plc binds target
-    /// evidence (device item path, interface, node name/id) specific to that node; retargeting the
-    /// SAME operationId at apply time to the other, equally real node must still be rejected as a
-    /// different target, since the safety token binds exactly which node was matched, not merely
-    /// that some node exists.
-    /// </summary>
-
-    /// <summary>
-    /// Two nodes on the SAME device reporting the SAME nodeId: NetworkIdentityResolver's
-    /// ambiguous-match rule must fail the preview closed (postcondition_failed) and issue no token,
-    /// proven here through the actual NetworkWriteTools/FakeWorker wiring rather than only the pure
-    /// resolver unit tests.
+    /// Duplicate node IDs on one device fail the exact-one selector before mutation. This is
+    /// offline evidence through NetworkWriteTools/FakeWorker, not live TIA qualification.
     /// </summary>
     [Fact]
     public async Task NetworkWrite_AmbiguousNodeIdFailsClosedWithNoTokenIssued()

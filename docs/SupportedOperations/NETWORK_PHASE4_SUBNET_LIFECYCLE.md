@@ -1,6 +1,9 @@
 # Network Operations Phase 4: Subnet Lifecycle
 
-Status: Phase 4 (subnet create/update/delete) is implemented, and focused automated gates verify
+Current guarded candidate: final combined offline qualification and fresh live acceptance are
+pending. The dated Phase4 runs below do not qualify this candidate.
+
+Historical Phase 4 status: subnet create/update/delete is implemented, and focused automated gates verify
 the PR 1 contract repairs. The earlier static audit found discrepancies in the original contract
 implementation. A historical live run applies only to its recorded older commit. The first
 current-revision public attempt on 2026-09-23 failed at connected deletion; the fresh 2026-09-24
@@ -16,13 +19,12 @@ matches, is at
 See [../roadmap/network-operations.md](../roadmap/network-operations.md) for how this phase fits the
 overall network roadmap, and
 [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md) for the previously supported
-network operations and the shared canonical JSON contract Phase 4 reuses unchanged.
+network operations and the current guarded canonical contract. Historical Phase4 acceptance uses its recorded earlier contract.
 
 ## Supported operations
 
 Phase 4 adds exactly three write operations to the existing `network_write` tool. No new MCP tool
-was added. With write-safety Phase 1b, the current surface is 4 tools in read-only, 8 in
-read-write, and 14 in full. `network_write` is available in read-write and full.
+was added. The current surface is 5 tools in read-only and 15 in each writable mode. `network_write` is available in read-write and full.
 
 | Operation | Purpose | Required request fields |
 |---|---|---|
@@ -139,14 +141,14 @@ add, and does not claim to add:
 
 `delete_subnet` accepts both empty and connected subnets. Deleting a connected subnet:
 
-- **is supported** -- there is no dependency inventory, no connected-node/IO-system enumeration, and
-  no "dependency blocker" that refuses the delete because identity evidence is incomplete;
+- **is supported with complete consequence evidence** -- affected nodes/relationships are inventoried.
+  Connected deletion is informational; incomplete inventory blocks every mode and is never empty evidence;
 - **does not delete devices** -- the worker's `SubnetLifecycleService.Delete` calls only
   `Subnet.Delete()` and verifies `project.Devices.Count` is unchanged after the transaction commits,
   for every delete, not only empty ones;
 - **may clear network-related device attributes as a logical TIA effect** -- removing a subnet's
   relationship to a node or IO system is an expected consequence of deleting the subnet itself inside
-  TIA Portal, not a defect. The subnet lifecycle result never reports which attributes were cleared;
+  TIA Portal, not a defect. Typed immediate/final postchecks inspect the designed deletion consequences;
   a caller that needs to see the after-state calls `network_read` (`read_hardware_config` or
   `inspect_network_object`) separately.
 
@@ -154,10 +156,10 @@ For every delete, the worker resolves the exact target and validates its Etherne
 inside the transaction, captures a nonblank name from that same transaction-local subnet object,
 then calls `Delete()` on it. No pre-transaction subnet object supplies the mutation identity.
 
-## Minimal result
+## Typed result
 
-Every successful subnet lifecycle item -- create, update, or delete -- must contain all four raw
-JSON members shown below. They are typed by `TiaMcpServer.Contracts.SubnetLifecycleResultInfo`
+Every subnet lifecycle item retains the four core members shown below, plus typed conditional
+worker `verification` required on guarded public calls. The example is the core identity/count excerpt. They are typed by `TiaMcpServer.Contracts.SubnetLifecycleResultInfo`
 and enforced before typed normalization by
 `NetworkPayloadContract`:
 
@@ -170,10 +172,11 @@ and enforced before typed normalization by
 }
 ```
 
-- `subnetId` and `name` are nonblank strings; `networkDeviceCount` is a non-negative integer;
-  `networkDeviceCountUnchanged` must be `true` -- a payload reporting `false`, a missing member, or
-  any extra member (`networkType`, `highestAddress`, connected-node names, device names, IO systems,
-  connections, or any other detail) is rejected as `protocol_error` before it ever reaches the caller.
+- `subnetId` and `name` are nonblank; `networkDeviceCount` is a nonnegative root
+  `project.Devices.Count`, separate from grouped/ungrouped device/node preservation.
+  `networkDeviceCountUnchanged` and typed checks must agree. Missing/unknown/wrongly typed
+  members fail decoding as `protocol_error`; failed/unverified postchecks remain attempted
+  typed failures (`postcondition_failed`) with no replay.
 - For deletion, `subnetId` and `name` are the identity captured immediately before deletion, and the
   post-read proves that `subnetId` is absent afterward.
 - For creation and update, `subnetId` and `name` are the post-read identity after the transaction
@@ -200,24 +203,27 @@ and enforced before typed normalization by
 
 ## Preview, apply, and safety
 
-Subnet lifecycle operations reuse the existing `network_write` preview/apply protocol unchanged --
-there is no separate subnet-specific safety mechanism:
+Subnet lifecycle uses guarded `network_write(operations, dryRun=false)`. **Omitted dryRun executes**;
+explicit `dryRun:true` inspects effects/guards without mutation or elicitation, and `dryRun:false`
+executes in caller order. No Network server elicitation in read-write/full. A preview reserves no
+state; execution plans/re-plans its own exact current identities under one pinned already-open
+verified binding. Connected deletion is `info`; incomplete inventory is a non-overridable `block`.
 
-- **Preview** (`confirm=false`, no token): reads current `HardwareConfigInfo`, resolves every
-  requested target against it (request-derived for `create_subnet`; exact `subnetId` match for
-  `update_subnet`/`delete_subnet`), and issues a single-use safety token bound to the exact ordered
-  operations, the resolved target evidence, and the current hardware state.
-- **Apply** (`confirm=true` plus the returned token): re-reads hardware state, re-resolves every
-  target against that fresh read, and only then validates and consumes the token. Reordering the
-  operations, changing any request field, or a project-state change since preview (a rename, a
-  deletion, a newly ambiguous `subnetId`) invalidates the token.
-- The token expires after ten minutes and is single-use; a replayed token is rejected.
-- Read-only mode denies all three operations before any worker call: `create_subnet`,
-  `update_subnet`, and `delete_subnet` are classified `ProjectMutation` in `OperationPolicyCatalog`,
-  enforced independently at host tool discovery, host `OperationAccessPolicy`, and worker
-  `WorkerOperationAuthorization`.
-- A successful apply appends an audit record under `%LOCALAPPDATA%\TiaMcpServer\audit`, carrying the
-  exact response document the caller received, exactly like every other `network_write` apply.
+Legacy `confirm`, `safetyToken`, `acknowledge`, unknown root arguments and nonboolean dryRun
+are SDK/wrapper rejections before tool entry (normal MCP error, no audit). Entered validation/
+binding/guard denials use a canonical root error and one audit. Attempted partial failures remain
+`phase:applied`, `error:null`, MCP `isError:false`; stop on first failure, no batch rollback/replay.
+
+Every entered call appends one audit v2: actual read-write confirmation `none`, actual full `policy`,
+previews/denials `none`, info/block satisfaction null. Exact delivered canonical text/hash is stored;
+item statuses retain execution truth even if whole-value omissions make delivery success false.
+See the [current Network envelope](NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
+
+The public Phase4 harness requires exact connected Ethernet/PROFIBUS IDs, frozen commit/tree/script,
+Apply plus AllowMutation and the exact acknowledgement. It verifies fresh affected identities and
+removed subnet/IO references. Connected deletions are not restored by that script: use a disposable
+backed-up fixture and separately authorize restoration followed by fresh inspection. No mode of
+that live harness is an automated/static test or qualification of this candidate.
 
 ## Save and compile boundary
 

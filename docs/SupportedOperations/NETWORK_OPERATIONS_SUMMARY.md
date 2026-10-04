@@ -1,6 +1,10 @@
 # TIA Portal Network and Topology Operations
 
-Phase 3 status: snapshot-scoped network-object discovery and typed read-only inspection are
+Current guarded Network candidate: implemented with focused offline qualification; final combined
+qualification and separately authorized live acceptance remain pending. Historical live evidence
+below applies only to its recorded source and does not qualify this candidate.
+
+Phase 3 historical status: snapshot-scoped network-object discovery and typed read-only inspection are
 implemented on the Phase 2 single-layer JSON contract. The separately authorized TIA Portal V21
 evidence run completed on 2026-08-05, but final stabilization is pending design review because
 only three of eight observed communication connections had complete selectors. Its measurements,
@@ -39,8 +43,11 @@ The MCP provides a bounded device and network-identity surface:
 `create_subnet`, `update_subnet`, and `delete_subnet` are the Phase 4 subnet lifecycle operations,
 detailed in [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 Every Network batch operation requires a unique, nonblank `operationId` of at most 256 characters.
-This deterministic bound preserves enough room for the fixed status/omission envelope under the
-per-item response limit; oversized identifiers are rejected before any worker call.
+The existing 256-character per-ID limit is unchanged. Writes also reserve the aggregate canonical
+encoded identity/protected-summary shape under 180,000 characters before binding or worker activity.
+Highly escaped IDs can exceed that reserve even when all individual IDs are valid: an entered
+call is rejected with a fixed no-echo `validation_error`, smaller-call guidance and one audit.
+This is not a smaller per-ID or universal raw-character aggregate limit; reads retain their admission rules.
 
 ### Discovery and inspection requests
 
@@ -118,8 +125,8 @@ CLR object is `unrepresentable` and is never published through `ToString()`.
 
 `read_hardware_config` pagination is opt-in. Set `pageSize` (`1..200`) on the first request, or
 continue with an opaque `cursor`. A cursor-only continuation defaults to a page size of 50. A
-request with neither field stays on the original unpaged path and preserves its canonical public
-document byte-for-byte.
+request with neither field stays on the unpaged path; envelope version/warnings and additive
+connection/root-count evidence follow the current declared contract.
 
 ```jsonc
 {
@@ -197,7 +204,7 @@ guidance and never reuse an old cursor after changing bound fields.
 `read_hardware_config` can return a read-only, opt-in structured I/O map alongside the existing
 hardware tree. The legacy per-item `address` string is untouched; the structured map lives under a
 new `ioDetails` member that is **absent from a default read** (no flags), so every existing caller
-and every safety-token state hash sees byte-identical output.
+sees no optional I/O-map expansion; Network no longer uses safety-token state hashes.
 
 ### Request
 
@@ -300,7 +307,7 @@ A device item with I/O details carries:
 
 ### Payload size
 
-Recursive group traversal can make an unfiltered hardware result substantially larger than earlier versions because previously omitted devices are now present. The unchanged unpaged contract still applies the 60,000-character per-result budget and may omit the whole operation with `reason: "resultExceededItemCharLimit"`. For complete retrieval, use the paged request above, narrow `deviceName`, disable optional detail flags where possible, and place the hardware read in its own `network_read` call. No device is silently skipped merely to fit either path's budget.
+Recursive group traversal can make an unfiltered hardware result substantially larger than earlier versions because previously omitted devices are now present. The unpaged path still applies the 60,000-character per-result budget and may omit the whole operation with `reason: "resultExceededItemCharLimit"`. For complete retrieval, use the paged request above, narrow `deviceName`, disable optional detail flags where possible, and place the hardware read in its own `network_read` call. No device is silently skipped merely to fit either path's budget.
 
 ## The single-layer JSON contract
 
@@ -315,6 +322,8 @@ to parse a second time.
 ```jsonc
 {
   "tool": "network_read",
+  "contractVersion": "1.0",
+  "warnings": [],
   "success": true,
   "batch": {
     "operationCount": 1,
@@ -344,91 +353,97 @@ and sets `isError:true`.
 
 ### `network_write` envelope
 
-`network_write` is a discriminated envelope: `phase` names exactly which one of `preview`,
-`batch`, or `error` is populated — the other two are always `null`.
+Public input is `network_write(operations, dryRun=false)`: **omitting `dryRun` executes**.
+An older operations-only call used to preview; migrate every preview caller to `dryRun:true`.
+`confirm`, `safetyToken`, `acknowledge`, unknown root keys and nonboolean `dryRun` are rejected
+by the SDK/wrapper before tool entry, with a normal MCP error and no write audit. That rejection
+need not be a guarded canonical envelope. Entered validation, binding and guard denials have
+a typed canonical top-level `error`, MCP `isError:true`, and exactly one audit v2 record.
 
-**`phase: "preview"`** (returned when called with `confirm:false` and no token — nothing is changed):
+Both writable modes use zero server Network elicitation, including connected deletion and dry
+runs. Client permission prompts remain independent. Lifecycle still confirms every actual
+read-write call; generic batch writes still use tokens.
+
+Writes require one exact already-open verified project binding. One pinned lease covers planning,
+ordered re-planning, mutation, immediate/final verification, response composition and audit.
+Reads never bind, switch or open a project. Maximum 50 unique-ID operations, caller order,
+stop at the first failed write; later items are `skipped` with `skipReason:"earlierOperationFailed"`.
+No batch rollback or automatic replay.
+
+| Phase | Meaning |
+| --- | --- |
+| `preview` | `dryRun:true`; effects/guards only, no mutation or elicitation. |
+| `applied` | Mutation was attempted; typed `batch` and `verification`, `error:null`, MCP `isError:false`, even on partial or verification failure. |
+| `blocked` | A non-overridable guard prevented execution; root error and MCP `isError:true`. |
+| `error` | Entered input/binding/planning rejection; root error and MCP `isError:true`. |
+
+All write roots declare `tool`, `contractVersion:"1.0"`, `phase`, `success`, `error`, `warnings`,
+`guards`, `effects`, `batch`, `verification`, `omission`. Arrays stay present and declared nulls
+stay explicit. For example, a dry-run envelope contains the resolved effect values in `effects`:
 
 ```jsonc
 {
-  "tool": "network_write",
-  "phase": "preview",
-  "success": true,
-  "preview": {
-    "target": [
-      {
-        "operationId": "configure",
-        "operation": "configure_network_device",
+  "tool": "network_write", "contractVersion": "1.0", "phase": "preview",
+  "success": true, "error": null, "warnings": [], "guards": [],
+  "effects": [ /* { operationId, effect: resolved target/current/requested settings, omission:null } */ ],
+  "batch": null, "verification": null, "omission": null
+}
+```
+
+Effect hardware identities come from ordinary reads. Creation names are request-derived and
+have no invented device/node/subnet ID. `network_delete_connected_subnet` is `info`: its affected
+exact device/node identities explain removed subnet/IO connections. Devices/nodes remain.
+`network_state_unverifiable` is `block`: an unreadable inventory is unknown, never empty.
+Both guards have null satisfaction; Network has no acknowledge guard.
+
+Sparse configuration maps preserve `Address`, `SubnetMask`, `PnDeviceName`, `Subnet`, `IoSystem`.
+Unrequested keys are absent. Any requested skip fails the item/call while keeping the typed
+result and applied subset. This illustrative partial item belongs to an `applied` envelope
+with `success:false`, `error:null`; the later item was never dispatched:
+
+```json
+{
+  "operationCount": 2,
+  "counts": { "succeeded": 0, "failed": 1, "omitted": 0, "skipped": 1 },
+  "operations": [
+    {
+      "operationId": "configure", "operation": "configure_network_device", "status": "failed",
+      "result": {
         "deviceName": "PC_1",
-        "deviceTypeIdentifier": null,
-        "deviceItemPath": ["Ethernet interface"],
-        "networkInterfaceName": "PROFINET interface_1",
-        "nodeName": "PLC-facing port",
-        "nodeId": "node-plc",
-        "subnetName": null,
-        "subnetId": null,
-        "ioSystemName": null,
-        "ioSystemNumber": null
-      }
-    ],
-    "summary": "Apply 1 network write operation(s) sequentially; stops on first failure (no rollback).",
-    "currentStateHash": "...",
-    "requestedInputHash": "...",
-    "expiresAtUtc": "2026-01-01T00:10:00Z",
-    "safetyToken": "...",
-    "diff": null,
-    "instructions": "Preview only — nothing was changed. To apply, call network_write with the identical operations list, confirm=true, and this safetyToken."
-  },
-  "batch": null,
-  "error": null
+        "appliedSettings": { "Address": "192.0.2.99" },
+        "skippedSettings": { "PnDeviceName": "Requested setting unavailable on this node." },
+        "messages": [],
+        "verification": {
+          "status": "passed", "identity": { "deviceName": "PC_1", "nodeId": "node-plc" },
+          "checks": [ { "name": "Address", "status": "passed", "expected": "192.0.2.99", "observed": "192.0.2.99", "message": null } ],
+          "message": null
+        }
+      },
+      "failure": { "category": "worker_operation_failed", "message": "One or more requested network settings could not be applied." },
+      "omission": null, "skipReason": null, "warnings": []
+    },
+    {
+      "operationId": "later", "operation": "configure_network_device", "status": "skipped",
+      "result": null, "failure": null, "omission": null,
+      "skipReason": "earlierOperationFailed", "warnings": []
+    }
+  ],
+  "truncation": null
 }
 ```
 
-`preview.target` is evidence, not caller input: every hardware-identity field (`networkInterfaceName` through `ioSystemNumber`) is what `NetworkIdentityResolver` matched against the hardware configuration — never an echo of what the caller typed. For `add_network_device` (creation) those fields stay `null` because nothing exists yet to resolve; only `deviceName`/`deviceTypeIdentifier` come from the request.
+Verification checks only applied settings, retains immediate evidence before deliberate later
+changes, then inspects the effective attempted prefix. Missing/unreadable post-read evidence
+never passes. Later explicitly applied same-field/relationship values and designed deletion
+consequences supersede earlier final expectations, while earlier immediate checks remain.
+A Subnet-only move does not imply IO detach/attach: an earlier explicit IO tuple expectation
+remains, so an API-induced side effect can conservatively fail final verification after mutation.
+Inspect before retry; do not rewrite earlier successful item history or replay automatically.
 
-**`phase: "apply"`** (returned when called with `confirm:true` and the valid `safetyToken`):
-
-```jsonc
-{
-  "tool": "network_write",
-  "phase": "apply",
-  "success": true,
-  "preview": null,
-  "batch": {
-    "operationCount": 1,
-    "counts": { "succeeded": 1, "failed": 0, "omitted": 0, "skipped": 0 },
-    "operations": [
-      {
-        "operationId": "configure",
-        "operation": "configure_network_device",
-        "status": "succeeded",
-        "result": { "deviceName": "PC_1", "appliedSettings": { "ipAddress": "192.168.0.99" }, "skippedSettings": {}, "messages": [] },
-        "failure": null,
-        "omission": null,
-        "skipReason": null,
-        "warnings": []
-      }
-    ],
-    "truncation": null
-  },
-  "error": null
-}
-```
-
-`success` on an applied batch reflects whether **every** item succeeded — an applied batch with a failed item still reports `success:false` while the MCP call itself stays `isError:false`, because the batch ran.
-
-**`phase: "error"`** — the call was rejected before any operation ran (validation, access denial, a dead/expired/mismatched safety token, or a hardware-state read failure before preview/apply could proceed):
-
-```jsonc
-{
-  "tool": "network_write",
-  "phase": "error",
-  "success": false,
-  "preview": null,
-  "batch": null,
-  "error": { "category": "validation_error", "message": "..." }
-}
-```
+Audit v2 contains exactly one record per entered call under `%LOCALAPPDATA%\TiaMcpServer\audit`.
+Actual read-write confirmation is `none`; actual full is `policy`; previews/pre-execution denials
+are `none`. Info/block guard satisfaction is null. Audit response text/hash is the exact canonical
+document delivered, while audit item statuses describe actual execution. No Network `user` confirmation.
 
 ## Selector resolution is exact and fail-closed
 
@@ -437,7 +452,7 @@ and sets `isError:true`.
 - **Subnet**: matched by the exact `changes.subnet.subnetId` (or `changes.ioSystem.subnetId`).
 - **IO system**: matched by the exact `changes.ioSystem.number`, scoped to the already-resolved subnet.
 
-Zero matches, more than one match, or a candidate whose own identity could not be read (an empty/null identity field) are all treated identically: resolution fails with `postcondition_failed`. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
+All selection failures remain fail-closed. Newly preflighted requested subnet/IO failures and unreadable discovery use `worker_operation_failed`; established complete device/node/subnet-lifecycle selector categories are not globally normalized. Actual failed or unverified postchecks use `postcondition_failed`. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
 
 `update_subnet` and `delete_subnet` require ordinal `target.kind: "subnet"` and match `target.subnetId` with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. Late zero or multiple worker matches fail as `postcondition_failed`. Delete resolves, type-checks, and captures a nonblank name from the same transaction-local object before `Delete()`. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
@@ -447,6 +462,7 @@ A PC station (`PC_1`) with two ports — one PLC-facing (`nodeId: "node-plc"`), 
 
 ```jsonc
 {
+  "dryRun": true,
   "operations": [
     {
       "operationId": "configure",
@@ -459,9 +475,11 @@ A PC station (`PC_1`) with two ports — one PLC-facing (`nodeId: "node-plc"`), 
 }
 ```
 
-After preview → confirm → apply, a `network_read` (`read_hardware_config`) post-read shows `node-plc`'s `ipAddress` changed to `192.168.0.99`, while `node-db` is byte-for-byte unchanged — every field, not merely "still reports the same IP". This is proved end-to-end against a stateful worker by
-`NetworkWrite_MultiHomedFlow_ReadSelectPreviewApplyRead_ChangesOnlySelectedPortAndLeavesTheOtherByteForByteUnchanged`
-in `TiaMcpServer.Tests/NetworkStructuredProtocolTests.cs`. Always perform this explicit post-read after an apply: the write response itself never re-reads or echoes the written value.
+Use this request with `dryRun:true` to preview, then explicitly use `dryRun:false` for authorized
+execution. Stateful FakeWorker tests exercise selection of one multi-homed port and preservation
+of its sibling; that is offline evidence. The applied response now includes typed immediate and
+final read verification; follow uncertain or incomplete outcomes with fresh filtered `network_read`.
+Current-candidate live V21 behavior and restoration remain pending separate authorization.
 
 ## The typed payload result types
 
@@ -474,20 +492,34 @@ Every direct public network worker result decodes against exactly one declared C
 | `list_network_objects` | `NetworkObjectListInfo` | `items[]`, exact `totalCount`/`returnedCount`, and nullable `nextCursor`; each item preserves selector completeness and discovery diagnostics. |
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |
 | `add_network_device` | `AddDeviceResultInfo` | `deviceName`, `rootItemName`, `typeIdentifier`, `warnings[]`. |
-| `configure_network_device` | `ConfigureNetworkDeviceResultInfo` | `deviceName`, `appliedSettings` (map), `skippedSettings` (map), `messages[]`. |
-| `create_subnet`, `update_subnet`, `delete_subnet` | `SubnetLifecycleResultInfo` | All four raw JSON members are required: `subnetId`, `name`, `networkDeviceCount`, `networkDeviceCountUnchanged` (must be `true`). All three subnet lifecycle operations share this one result type. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). |
+| `configure_network_device` | `ConfigureNetworkDeviceResultInfo` | `deviceName`, sparse `appliedSettings`/`skippedSettings`, `messages[]`, and conditional worker `verification` (required on public guarded writes). |
+| `create_subnet`, `update_subnet`, `delete_subnet` | `SubnetLifecycleResultInfo` | Core members are `subnetId`, `name`, `networkDeviceCount`, `networkDeviceCountUnchanged`; conditional worker `verification` is required on public guarded writes. Typed failed/unverified evidence is retained, rather than reporting it as success. All three subnet lifecycle operations share this one result type. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). |
 
 `NodeInfo.NodeId` and `SubnetInfo.SubnetId` are empty strings, and `IoSystemInfo.Number` is `null`, when the engineering system could not report that identity — an empty/null identity must never satisfy a write selector (see "Selector resolution is exact and fail-closed" above).
 
 ## Omission and truncation semantics
 
-Every response is bounded against the **exact canonical document** the caller receives (envelope, counts, and truncation record included), not against an unrelated per-payload serialization:
+Bound individual canonical values at 60,000 characters and the **complete document** at 180,000.
+Strict decoding, guards and mutation use full internal values before presentation bounding.
+Whole effect/result/verification values can be omitted with shared `{reason,limitChars,originalChars,
+retryTool,guidance}` metadata; identity, actual execution failure/skip statuses, guards and compact
+verification summaries survive. Root `omission` is explicitly null when complete; it carries shared
+metadata when diagnostic delivery is incomplete. Diagnostic strings over 512 canonical encoded
+characters are replaced whole with concise summaries; diagnostic collections may be dropped whole
+under pressure. No raw diagnostic prefix or cut JSON is delivered.
 
-- **Per-item limit** (~60,000 characters): a single oversized result is dropped **whole** and replaced with an `omission` — never cut mid-value, so the response can never contain a half-written JSON document. On the ordinary path the omission carries `reason` (`resultExceededItemCharLimit` or `responseExceededDocumentCharLimit`), `limitChars`, `originalChars`, a `retryTool` (`network_read` — deliberately the read tool even for an omitted write result, since re-running a write to see what it returned would perform the write a second time), and per-operation `guidance`. Paged hardware uses the bounded special reasons below.
-- **Whole-document limit** (~180,000 characters): if the document is still too large after per-item bounding, complete successful results are dropped whole, largest first (ties broken by request order), until it fits.
-- **Paged hardware special case**: canonical projection returns the largest complete device/subnet prefix at or below the per-item limit. Diagnostics-only overflow uses `hardwarePageDiagnosticsExceededItemCharLimit`; first-entity overflow uses `hardwarePageEntityExceededItemCharLimit` and retains its complete optional subject only if that subject fits. Neither omission advances the cursor offset. If either budget omits a page, retry the unchanged request at the same cursor or start a new narrower sequence; changing cursor-bound fields requires a new sequence.
-- Only after that: complete `warnings` entries are dropped, then failure messages are shortened as a last resort (a failure's `category` and `status` are never dropped).
-- `batch.truncation` (`StructuredBatchTruncation`) records whether anything was changed (`truncated`), the original vs. presented character counts, how many results/warnings were omitted, and the affected `operationId`s — so a caller always knows what it is missing and can retry precisely.
+Delivery `success:false` may coexist with successful mutation, item status `succeeded`, immediate
+status `passed` and verification `success:true` when required requested evidence was omitted.
+Attempted calls remain `phase:applied`, `error:null`, MCP `isError:false`. The exact delivered
+document/hash goes to audit; audit item status retains execution truth. Omission records/digests
+are not selectors. Inspect via filtered/paged `network_read` using the original exact selectors,
+or discover fresh selectors if unavailable. **Never replay a write to recover an omitted result.**
+
+Read batches retain shared whole-value omission/truncation behavior. Hardware pages return the
+largest complete prefix: diagnostics-only overflow uses `hardwarePageDiagnosticsExceededItemCharLimit`,
+first-entity overflow uses `hardwarePageEntityExceededItemCharLimit`, and neither advances the
+cursor. Its optional complete subject is retained only if it fits. Continue with the unchanged
+cursor-bound request, or start a narrower sequence without an old cursor.
 
 ## Recommended workflow
 
@@ -498,13 +530,13 @@ Every response is bounded against the **exact canonical document** the caller re
    bounded targeted read is sufficient. Re-list if the project changes or a snapshot cursor or
    selector is rejected.
 3. Use `search_equipment_catalog` to obtain an exact catalog `typeIdentifier` before creation.
-4. Call `network_write` with `add_network_device` and `confirm:false` (or omit `confirm`) to
-   preview, then `confirm:true` with the unchanged list and returned token to create the device.
-5. Re-read discovery after creation. `configure_network_device` cannot target a node created
-   earlier in the same write batch because target resolution uses one pre-write hardware snapshot.
-6. Call `network_write` with `configure_network_device`, the exact `target`/`changes`, preview,
-   then apply. Use `read_hardware_config` after every write to confirm the outcome; a write result
-   never substitutes for a post-read.
+4. Bind the exact already-open project with `bind_project`; status and hardware reads never bind.
+5. Preview the complete exact request with `dryRun:true`; inspect guards and resolved effects.
+   Creation has no output-reference syntax: discover the actual created identities before later
+   calls that need those identities. All initial targets must resolve before mutation.
+6. Explicitly execute the reviewed operations with `dryRun:false`. Read typed item and verification
+   outcomes and fresh state after partial failure, timeout, crash, omission or uncertain mutation.
+   A preview reserves no state and emits no token; execution resolves its own current state.
 
 Network writes are sequential and stop on the first failure. Completed operations are **not** rolled back; a failed item carries an explicit warning that this operation and any earlier operation in the same call may already have changed TIA state, so re-read before retrying rather than re-running the batch blindly.
 

@@ -256,7 +256,8 @@ without server elicitation. Block guards stop a call in every mode, and `dryRun:
 Lifecycle accepts `dryRun` with its operation inputs; the former agent confirmation array is removed.
 After accepted elicitation the server resolves fresh state under the same binding lease before
 dispatch. Audit v2 records confirmation by `user`, `policy`, or `none`; acknowledge guard satisfaction
-is `user`, `policy`, or null. Network/batch token tools keep their current behavior.
+is `user`, `policy`, or null. Network uses guarded writes without server elicitation: preview with
+`dryRun:true`; omitted `dryRun` executes. Generic-batch token tools retain their behavior.
 
 An elicitation client's accepted response does not prove that a person saw a dialog. Keep
 destructive tools out of client auto-approve lists to require client permission prompts on every

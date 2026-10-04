@@ -270,8 +270,8 @@ public class NetworkToolsTests
         Assert.Equal(1, root.GetProperty("batch").GetProperty("counts").GetProperty("succeeded").GetInt32());
     }
 
-    // confirm=false with no token is the ordinary preview, not an invalid combination; the preview
-    // path is covered by NetworkWrite_PreviewBindsExactOrderedTargetsAndPerformsOnlyOneStateRead.
+    // Explicit dryRun:true selects the ordinary nonmutating preview; omitted dryRun executes.
+    // The preview helper is covered by NetworkWrite_PreviewBindsExactOrderedTargetsAndPerformsOnlyOneStateRead.
 
     [Fact]
     public async Task NetworkWrite_PreviewBindsExactOrderedTargetsAndPerformsOnlyOneStateRead()
@@ -303,7 +303,7 @@ public class NetworkToolsTests
 
         // The configure target's hardware-identity members are NetworkIdentityResolver's resolved
         // evidence against this same read, not an echo of the request: node-1 is the exact nodeId
-        // the "network-state-seq" fixture models for PLC_2's node.
+        // the "network-roundtrip" fixture models for PLC_1's node.
         Assert.Equal("node-1", target[1].GetProperty("nodeId").GetString());
         Assert.False(string.IsNullOrWhiteSpace(target[1].GetProperty("nodeName").GetString()));
         Assert.False(string.IsNullOrWhiteSpace(target[1].GetProperty("networkInterfaceName").GetString()));
