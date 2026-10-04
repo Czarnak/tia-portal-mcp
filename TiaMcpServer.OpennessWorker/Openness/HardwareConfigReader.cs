@@ -60,12 +60,14 @@ public static class HardwareConfigReader
         Device device,
         NetworkObjectDiscoveryEvidenceValue<string> nameEvidence,
         bool includeIoDetails,
-        IoTagIndex? tagIndex)
+        IoTagIndex? tagIndex,
+        bool deviceNamespaceVerified)
     {
         var messages = new List<string>();
         // Page materialization keeps diagnostics but cannot emit ordinary project evidence.
-        var materialized = ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex,
-            new HardwareDiscoveryEvidenceCapture("device", messages.Add));
+        var capture = new HardwareDiscoveryEvidenceCapture("device", messages.Add);
+        var materialized = ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex, capture);
+        NetworkNodeReadSelectorBuilder.ApplyPage(materialized, deviceNamespaceVerified, capture.Evidence.Complete);
         return HardwarePageCandidateMaterialization.ForDevice(materialized, messages);
     }
 

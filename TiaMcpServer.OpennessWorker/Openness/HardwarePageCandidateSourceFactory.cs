@@ -20,7 +20,7 @@ internal static class HardwarePageCandidateSourceFactory
     {
         var devicesByLocator = new Dictionary<
             string,
-            (Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)>(StringComparer.Ordinal);
+            (Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence, bool NameNamespaceVerified)>(StringComparer.Ordinal);
         var subnetsByLocator = new Dictionary<
             string,
             (Subnet Subnet, NetworkObjectDiscoveryEvidenceValue<string> SubnetId)>(StringComparer.Ordinal);
@@ -55,6 +55,11 @@ internal static class HardwarePageCandidateSourceFactory
                         return (LocatedDevice: locatedDevice, NameEvidence: nameEvidence);
                     })
                     .ToList();
+
+                // Keep the complete lightweight name set before filtering/windowing. It proves
+                // only device-name uniqueness, never ordinary hardware traversal completeness.
+                var allDeviceNames = deviceCandidates.Select(candidate => candidate.NameEvidence.IsUsable
+                    ? candidate.NameEvidence.Value : null).ToList();
 
                 IReadOnlyList<(
                     LocatedProjectDevice LocatedDevice,
@@ -99,7 +104,8 @@ internal static class HardwarePageCandidateSourceFactory
                         candidate.LocatedDevice.SourceOrder));
                     devicesByLocator.Add(
                         candidate.LocatedDevice.StructuralLocator,
-                        (candidate.LocatedDevice.Device, candidate.NameEvidence));
+                        (candidate.LocatedDevice.Device, candidate.NameEvidence,
+                            NetworkNodeReadSelectorBuilder.DeviceNameIsUnique(allDeviceNames, publicIdentity)));
                 }
 
                 var subnetIndex = 0;
@@ -139,7 +145,8 @@ internal static class HardwarePageCandidateSourceFactory
                         device.Device,
                         device.NameEvidence,
                         includeIoDetails,
-                        tagIndex);
+                        tagIndex,
+                        device.NameNamespaceVerified);
                 }
 
                 if (descriptor.Kind == HardwarePageDescriptorKind.Subnet
