@@ -20,11 +20,10 @@ public sealed record NetworkIdentityResolution(
 /// <see cref="HardwareConfigInfo"/>.
 ///
 /// <para>
-/// Every step fails closed: zero matches, more than one match, or a candidate whose own identity
-/// could not be read (modelled as an empty/null identity field) are all treated the same way —
-/// <see cref="WorkerFailureCategories.PostconditionFailed"/> — because none of them describe a
-/// selector that names exactly one existing thing. There is no first-match or name-only fallback
-/// anywhere in this type.
+/// Zero or duplicate matches return <see cref="WorkerFailureCategories.PostconditionFailed"/>.
+/// A readable match with unreadable competing identities returns
+/// <see cref="WorkerFailureCategories.WorkerOperationFailed"/> because uniqueness is unknown.
+/// There is no first-match or name-only fallback anywhere in this type.
 /// </para>
 ///
 /// <para>
@@ -39,9 +38,9 @@ public static class NetworkIdentityResolver
     public static NetworkIdentityResolution Resolve(NetworkOperationRequest operation, HardwareConfigInfo? state)
         => operation.Operation switch
         {
-            "add_network_device" => ResolveCreation(operation),
+            "add_network_device" => ResolveCreation(operation, state),
             "configure_network_device" => ResolveConfiguration(operation, state),
-            "create_subnet" => ResolveSubnetCreation(operation),
+            "create_subnet" => ResolveSubnetCreation(operation, state),
             "update_subnet" => ResolveExistingSubnet(operation, state, validateChanges: true),
             "delete_subnet" => ResolveExistingSubnet(operation, state, validateChanges: false),
             _ => NetworkIdentityResolution.Fail(
@@ -51,10 +50,13 @@ public static class NetworkIdentityResolver
 
     /// <summary>
     /// Creation names something that does not exist yet, so it is evidenced from the request alone:
-    /// no hardware state is consulted and every existing-object member stays null.
+    /// existing names must be readable when an inventory is supplied. Existing-object members stay null.
     /// </summary>
-    private static NetworkIdentityResolution ResolveCreation(NetworkOperationRequest operation)
-        => NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
+    private static NetworkIdentityResolution ResolveCreation(NetworkOperationRequest operation, HardwareConfigInfo? state)
+    {
+        if (state is not null && OrEmpty(state.Devices).Any(device => string.IsNullOrWhiteSpace(device.Name)))
+            return UnreadableIdentity(operation.OperationId, "project device-name");
+        return NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
             operation.OperationId,
             operation.Operation,
             operation.DeviceName ?? string.Empty,
@@ -67,15 +69,20 @@ public static class NetworkIdentityResolver
             SubnetId: null,
             IoSystemName: null,
             IoSystemNumber: null));
+    }
 
     /// <summary>
     /// A new subnet's <c>subnetId</c> is assigned by Openness at creation time, so, like
-    /// <see cref="ResolveCreation"/>, this is evidenced from the request alone: no hardware state
-    /// is consulted, <see cref="NetworkWriteTargetEvidence.SubnetId"/> stays null, and every
+    /// <see cref="ResolveCreation"/>, its new identity is evidenced from the request. Existing names
+    /// must be readable when an inventory is supplied;
+    /// <see cref="NetworkWriteTargetEvidence.SubnetId"/> stays null, and every
     /// device-identity member also stays null because a subnet target never has a device identity.
     /// </summary>
-    private static NetworkIdentityResolution ResolveSubnetCreation(NetworkOperationRequest operation)
-        => NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
+    private static NetworkIdentityResolution ResolveSubnetCreation(NetworkOperationRequest operation, HardwareConfigInfo? state)
+    {
+        if (state is not null && OrEmpty(state.Subnets).Any(subnet => string.IsNullOrWhiteSpace(subnet.Name)))
+            return UnreadableIdentity(operation.OperationId, "project subnet-name");
+        return NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(
             operation.OperationId,
             operation.Operation,
             DeviceName: null,
@@ -88,6 +95,7 @@ public static class NetworkIdentityResolver
             SubnetId: null,
             IoSystemName: null,
             IoSystemNumber: null));
+    }
 
     /// <summary>
     /// Resolves <c>update_subnet</c>/<c>delete_subnet</c> targets against
@@ -98,8 +106,8 @@ public static class NetworkIdentityResolver
     /// matches fail exactly the same way any other resolver step in this type does.
     ///
     /// <para>
-    /// Only the current subnet's own identity and <see cref="SubnetInfo.NetworkType"/> are
-    /// consulted. <see cref="SubnetInfo.ConnectedNodeNames"/> and <see cref="SubnetInfo.IoSystems"/>
+    /// Subnet IDs must be readable throughout the selected project namespace. The selected subnet's
+    /// <see cref="SubnetInfo.NetworkType"/> is checked. <see cref="SubnetInfo.ConnectedNodeNames"/> and <see cref="SubnetInfo.IoSystems"/>
     /// are never read here: connected subnets resolve and remain deletable exactly like
     /// disconnected ones, because this resolver builds no dependency inventory.
     /// </para>
@@ -141,6 +149,8 @@ public static class NetworkIdentityResolver
                     : $"{prefix}: no subnet with subnetId '{requestedId}' was found.");
         }
 
+        if (OrEmpty(state.Subnets).Any(candidate => string.IsNullOrWhiteSpace(candidate.SubnetId)))
+            return UnreadableIdentity(operation.OperationId, "project subnet-ID");
         var subnet = subnetMatch.Match!;
         if (!SubnetLifecycleContract.IsSupportedNetworkType(subnet.NetworkType))
         {
@@ -214,6 +224,8 @@ public static class NetworkIdentityResolver
                     : $"{prefix}: no device named '{target.DeviceName}' was found.");
         }
 
+        if (OrEmpty(state.Devices).Any(candidate => string.IsNullOrWhiteSpace(candidate.Name)))
+            return UnreadableIdentity(operation.OperationId, "project device-name");
         var device = deviceMatch.Match!;
         var nodeMatch = MatchExactlyOne(
             EnumerateNodes(device),
@@ -227,6 +239,8 @@ public static class NetworkIdentityResolver
                     : $"{prefix}: no node with nodeId '{target.NodeId}' was found on device '{target.DeviceName}'.");
         }
 
+        if (EnumerateNodes(device).Any(candidate => string.IsNullOrWhiteSpace(candidate.Node.NodeId)))
+            return UnreadableIdentity(operation.OperationId, $"device '{device.Name}' node-ID");
         var matchedNode = nodeMatch.Match!;
         var resolvedNode = matchedNode.Node;
         var deviceItemPath = matchedNode.Path;
@@ -248,6 +262,8 @@ public static class NetworkIdentityResolver
                         : $"{prefix}: no subnet with subnetId '{subnetIdToResolve}' was found.");
             }
 
+            if (OrEmpty(state.Subnets).Any(candidate => string.IsNullOrWhiteSpace(candidate.SubnetId)))
+                return UnreadableIdentity(operation.OperationId, "project subnet-ID");
             resolvedSubnet = subnetMatch.Match;
         }
 
@@ -277,6 +293,8 @@ public static class NetworkIdentityResolver
                         : $"{prefix}: no IO system with number {requestedNumber} was found on subnet '{subnetIdToResolve}'.");
             }
 
+            if (OrEmpty(resolvedSubnet.IoSystems).Any(candidate => !candidate.Number.HasValue || candidate.Number < 0))
+                return UnreadableIdentity(operation.OperationId, $"subnet '{resolvedSubnet.SubnetId}' IO-number");
             resolvedIoSystem = ioSystemMatch.Match;
         }
 
@@ -294,6 +312,10 @@ public static class NetworkIdentityResolver
             resolvedIoSystem?.Name,
             resolvedIoSystem?.Number));
     }
+
+    private static NetworkIdentityResolution UnreadableIdentity(string operationId, string identityNamespace)
+        => NetworkIdentityResolution.Fail(WorkerFailureCategories.WorkerOperationFailed,
+            $"Operation '{operationId}': required {identityNamespace} identities are unreadable; exact selection cannot be proved. Inspect the hardware configuration before retrying.");
 
     /// <summary>
     /// Walks every nested device item and every network interface under it, depth first, yielding
