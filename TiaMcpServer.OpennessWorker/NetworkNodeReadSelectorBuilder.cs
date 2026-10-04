@@ -11,7 +11,8 @@ internal static class NetworkNodeReadSelectorBuilder
         var nodes = new List<NodeInfo>();
         capture.Traverse(enumerate, node => nodes.Add(materialize(node)),
             "nodeEnumeration", "nodeMaterialization");
-        return nodes.OrderBy(node => node.NodeId, StringComparer.Ordinal).ToList();
+        // NodeIndex constrains the Siemens source collection, never a presentation order.
+        return nodes;
     }
 
     public static void ApplyPage(DeviceInfo device, bool deviceNamespaceVerified, bool traversalComplete)
