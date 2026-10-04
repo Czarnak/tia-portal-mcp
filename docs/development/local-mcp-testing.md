@@ -253,9 +253,11 @@ Both [Phase4 subnet harness](../../scripts/live-test-network-phase4-subnets.ps1)
 public MCP framing helpers: initialize/list/call, status of the exact already-open disposable
 `ProjectPath`, `bind_project`, fresh hardware/identity reads, explicit `dryRun:true`, then an actual
 `dryRun:false` only within authorized Apply. They support `-AccessMode read-write|full`, default
-`-Mode Inventory`, freeze `ExpectedCommit`, `ExpectedTree`, `ExpectedHarnessSha256`, and reject
+`-Mode Inventory`, freeze `ExpectedCommit`, `ExpectedTree`, `ExpectedHarnessSha256`, `ExpectedSharedHelperSha256`, and reject
 unexpected server elicitation. Client gates do not represent server elicitation or continuing consent.
 No save, close, compile, download, PLC control, automatic retry, or batch rollback.
+
+Both entrypoints share [the Network MCP helper](../../scripts/network-live-mcp-helpers.ps1) for process/framing, canonical status/binding, pagination and node discovery. The required `ExpectedSharedHelperSha256` must match that file before it is imported; missing or changed helpers abort before host startup. Frozen commit/tree cleanliness covers both entrypoints and the shared helper, and artifacts include `testedSharedHelperSha256`. Authorization and scenario checks remain in the entrypoints.
 
 The Phase4 script retains `ConnectedEthernetSubnetId` and `ConnectedProfibusSubnetId` as exact
 identities from fresh discovery, complete connected inventory and correct network types. Apply
@@ -310,7 +312,7 @@ A sparse partial-result expectation can be:
 
 Do not assume this skip is reproducible on arbitrary hardware. Its exact request/skip reason and
 allowed applied subset belong in the reviewed frozen fixture. Unverified or omitted immediate/final
-evidence aborts the harness even if a boolean expectation matches. Evidence artifacts preserve the
+evidence aborts the harness even if a boolean expectation matches. Verification must include exactly the attempted operation IDs in caller order, typed exact node/IO evidence and one immediate check for each applied key. Final checks must cover each attempted node and the effective applied fields; later explicit same-field values supersede earlier final expectations. Device identity compares ordinally ignoring case; node IDs, fields, values and IO tuple identities remain exact. Empty applied subsets require `not_required` with no invented setting checks, while attempted node-preservation evidence remains required. Evidence artifacts preserve the
 frozen head/tree/script, fixture SHA-256, exact operations, binding/PID, response and fresh reads;
 failures retain an inspect-before-retry classification.
 

@@ -220,7 +220,7 @@ item statuses retain execution truth even if whole-value omissions make delivery
 See the [current Network envelope](NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 
 The public Phase4 harness requires exact connected Ethernet/PROFIBUS IDs, frozen commit/tree/script,
-Apply plus AllowMutation and the exact acknowledgement. It verifies fresh affected identities and
+Apply plus AllowMutation and the exact acknowledgement. Both public harnesses share a frozen [MCP helper](../../scripts/network-live-mcp-helpers.ps1); `ExpectedSharedHelperSha256` is required and checked before import, and its clean path/hash are included in candidate evidence. It verifies fresh affected identities and
 removed subnet/IO references. Connected deletions are not restored by that script: use a disposable
 backed-up fixture and separately authorize restoration followed by fresh inspection. No mode of
 that live harness is an automated/static test or qualification of this candidate.

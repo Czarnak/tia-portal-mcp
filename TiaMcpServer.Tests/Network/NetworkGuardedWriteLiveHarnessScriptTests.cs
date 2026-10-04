@@ -5,19 +5,9 @@ using Xunit;
 namespace TiaMcpServer.Tests.Network;
 public sealed class NetworkGuardedWriteLiveHarnessScriptTests
 {
-    private static string Source
-    {
-        get
-        {
-            for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-                if (File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.slnx")))
-                {
-                    var path = Path.Combine(directory.FullName, "scripts", "live-test-network-guarded-write.ps1");
-                    return File.Exists(path) ? File.ReadAllText(path) : "";
-                }
-            throw new InvalidOperationException("Repository root not found.");
-        }
-    }
+    private static string EntryPointSource => File.ReadAllText(FindRepositoryFile("scripts", "live-test-network-guarded-write.ps1"));
+    private static string SharedSource => File.ReadAllText(FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1"));
+    private static string Source => EntryPointSource + "\n" + SharedSource;
     [Fact]
     public void InventoryAndPreview_NeverMutate()
     {
@@ -380,7 +370,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         var helperPath = FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1");
         Assert.True(File.Exists(helperPath), "Shared Network harness helper is missing.");
         var helper = File.ReadAllText(helperPath);
-        foreach (var entrypoint in new[] { Source, File.ReadAllText(FindRepositoryFile("scripts", "live-test-network-phase4-subnets.ps1")) })
+        foreach (var entrypoint in new[] { EntryPointSource, File.ReadAllText(FindRepositoryFile("scripts", "live-test-network-phase4-subnets.ps1")) })
         {
             Assert.Contains("ExpectedSharedHelperSha256", entrypoint);
             Assert.Contains(". $script:SharedHelperPath", entrypoint);
@@ -393,8 +383,10 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         Assert.DoesNotContain("function Invoke-NetworkWriteApply", helper);
         Assert.DoesNotContain("Plain-string tools (get_project_status)", helper);
     }
-    [Fact]
-    public void SharedHelper_LoadGateRejectsMissingAndChangedSourceBeforeDotSourcing()
+    [Theory]
+    [InlineData("live-test-network-guarded-write.ps1")]
+    [InlineData("live-test-network-phase4-subnets.ps1")]
+    public void SharedHelper_LoadGateRejectsMissingAndChangedSourceBeforeDotSourcing(string entrypoint)
     {
         var result = RunStaticAstAssertion("""
             $guard = @($ast.FindAll({ param($node)
@@ -422,9 +414,52 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $ExpectedSharedHelperSha256 = (Get-FileHash -LiteralPath $script:SharedHelperPath -Algorithm SHA256).Hash
             Invoke-Expression $guard[0].Extent.Text
             'shared-helper-load-guard-ok'
-            """);
+            """, entrypoint);
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
         Assert.Equal("shared-helper-load-guard-ok", result.StandardOutput.Trim());
+    }
+    [Fact]
+    public void SharedHelper_HasNoTopLevelActionsAndFreezesHelperHashAndCleanPath()
+    {
+        var result = RunStaticAstAssertion("""
+            foreach ($statement in $helperAst.EndBlock.Statements) {
+                if ($statement -isnot [System.Management.Automation.Language.FunctionDefinitionAst]) { throw 'Shared helper contains a top-level action.' }
+            }
+            $definition = @($helperAst.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Assert-FrozenCandidate'
+            }, $true))
+            Invoke-Expression $definition[0].Extent.Text
+            $script:RepositoryRoot = 'C:\synthetic'
+            $script:SharedHelperPath = $helperAst.Extent.File
+            $harnessPath = $ast.Extent.File
+            $harnessHash = (Get-FileHash -LiteralPath $harnessPath -Algorithm SHA256).Hash
+            $helperHash = (Get-FileHash -LiteralPath $script:SharedHelperPath -Algorithm SHA256).Hash
+            $script:dirty = $false
+            $script:statusArgs = @()
+            function git {
+                $global:LASTEXITCODE = 0
+                if ($args -contains 'rev-parse') {
+                    if ($args -contains 'HEAD^{tree}') { return 'tree' }
+                    return 'commit'
+                }
+                $script:statusArgs = $args
+                if ($script:dirty) { return ' M scripts/network-live-mcp-helpers.ps1' }
+            }
+            $candidate = Assert-FrozenCandidate -ExpectedCommit 'commit' -ExpectedTree 'tree' -ExpectedHarnessSha256 $harnessHash -HarnessPath $harnessPath -ExpectedSharedHelperSha256 $helperHash
+            if ($candidate.testedSharedHelperSha256 -cne $helperHash.ToLowerInvariant() -or
+                $script:statusArgs -notcontains 'scripts/network-live-mcp-helpers.ps1') { throw 'Shared source provenance is missing.' }
+            $script:dirty = $true
+            $rejected = $false
+            try { Assert-FrozenCandidate -ExpectedCommit 'commit' -ExpectedTree 'tree' -ExpectedHarnessSha256 $harnessHash -HarnessPath $harnessPath -ExpectedSharedHelperSha256 $helperHash | Out-Null } catch { $rejected = $_.Exception.Message -match 'dirty' }
+            if (-not $rejected) { throw 'Dirty shared helper was accepted.' }
+            $script:dirty = $false
+            $rejected = $false
+            try { Assert-FrozenCandidate -ExpectedCommit 'commit' -ExpectedTree 'tree' -ExpectedHarnessSha256 $harnessHash -HarnessPath $harnessPath -ExpectedSharedHelperSha256 'changed' | Out-Null } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Changed shared hash was accepted.' }
+            'shared-helper-frozen-source-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("shared-helper-frozen-source-ok", result.StandardOutput.Trim());
     }
     private static string FindRepositoryFile(params string[] segments)
     {
@@ -441,9 +476,9 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         throw new InvalidOperationException("Could not locate the repository root.");
     }
 
-    private static ScriptResult RunStaticAstAssertion(string assertionBody)
+    private static ScriptResult RunStaticAstAssertion(string assertionBody, string harnessName = "live-test-network-guarded-write.ps1")
     {
-        var harnessPath = FindRepositoryFile("scripts", "live-test-network-guarded-write.ps1");
+        var harnessPath = FindRepositoryFile("scripts", harnessName);
         var syntheticSource = $$"""
             Set-StrictMode -Version Latest
             $ErrorActionPreference = 'Stop'
@@ -457,6 +492,9 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 throw ($parseErrors | ForEach-Object Message | Out-String)
             }
 
+            $helperAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                {{PowerShellLiteral(FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1"))}}, [ref] $tokens, [ref] $parseErrors)
+            if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
             {{assertionBody}}
             """;
         var syntheticPath = Path.Combine(

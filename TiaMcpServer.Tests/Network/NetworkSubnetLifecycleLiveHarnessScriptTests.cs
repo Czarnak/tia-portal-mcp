@@ -7,8 +7,10 @@ namespace TiaMcpServer.Tests.Network;
 
 public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
 {
-    private static string HarnessSource => File.ReadAllText(FindRepositoryFile(
+    private static string EntryPointSource => File.ReadAllText(FindRepositoryFile(
         "scripts", "live-test-network-phase4-subnets.ps1"));
+    private static string SharedSource => File.ReadAllText(FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1"));
+    private static string HarnessSource => EntryPointSource + "\n" + SharedSource;
 
     [Fact]
     public void Harness_DefaultsToInventoryAndUsesStrictPowerShell7()
@@ -164,7 +166,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
         var source = HarnessSource;
         Assert.Contains("rev-parse HEAD", source, StringComparison.Ordinal);
         Assert.Contains("HEAD^{tree}", source, StringComparison.Ordinal);
-        Assert.Contains("Get-FileHash -LiteralPath $PSCommandPath", source, StringComparison.Ordinal);
+        Assert.Contains("Get-FileHash -LiteralPath $HarnessPath", source, StringComparison.Ordinal);
         Assert.Contains("$ExpectedCommit", source, StringComparison.Ordinal);
         Assert.Contains("$ExpectedTree", source, StringComparison.Ordinal);
         Assert.Contains("$ExpectedHarnessSha256", source, StringComparison.Ordinal);
@@ -178,7 +180,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                  {
                      "TiaMcpServer", "TiaMcpServer.Contracts", "TiaMcpServer.OpennessWorker",
                      "TiaMcpServer.FakeWorker", "TiaMcpServer.Tests",
-                     "scripts/live-test-network-phase4-subnets.ps1",
+                     "scripts/live-test-network-phase4-subnets.ps1", "scripts/network-live-mcp-helpers.ps1",
                  })
         {
             Assert.Contains(path, source, StringComparison.Ordinal);
@@ -291,6 +293,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     public void Harness_AcceptsUnavailableProjectVersionButRejectsPathMismatch()
     {
         var result = RunStaticAstAssertion("""
+            $ast = $helperAst
             $definition = @($ast.FindAll({
                 param($node)
                 $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
@@ -359,6 +362,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     public void Harness_HardwareReadAggregatesPagesAndRejectsBrokenContinuations()
     {
         var result = RunStaticAstAssertion("""
+            $ast = $helperAst
             $definition = @($ast.FindAll({
                 param($node)
                 $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
@@ -479,6 +483,9 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 throw ($parseErrors | ForEach-Object Message | Out-String)
             }
 
+            $helperAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                {{PowerShellLiteral(FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1"))}}, [ref] $tokens, [ref] $parseErrors)
+            if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
             {{assertionBody}}
             """;
         var syntheticPath = Path.Combine(

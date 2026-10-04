@@ -479,7 +479,7 @@ Use this request with `dryRun:true` to preview, then explicitly use `dryRun:fals
 execution. Stateful FakeWorker tests exercise selection of one multi-homed port and preservation
 of its sibling; that is offline evidence. The applied response now includes typed immediate and
 final read verification; follow uncertain or incomplete outcomes with fresh filtered `network_read`.
-Current-candidate live V21 behavior and restoration remain pending separate authorization.
+Current-candidate live V21 behavior and restoration remain pending separate authorization. The two prepared public harnesses share a frozen [MCP helper](../../scripts/network-live-mcp-helpers.ps1); both require its `ExpectedSharedHelperSha256` before import and record its hash in evidence. The configuration harness requires complete attempted-ID immediate/final verification coverage; summary booleans and fresh final reads cannot replace missing immediate evidence. See [local acceptance preparation](../development/local-mcp-testing.md#frozen-guarded-network-acceptance-harnesses).
 
 ## The typed payload result types
 
