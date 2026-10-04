@@ -114,7 +114,9 @@ public sealed class NetworkWriteVerifier
             var owner = key.NodeIdentity?.InterfacePath is { } path ? NetworkInterfacePathEncoding.Encode(path) : "";
             var name = $"{key.Kind}/{key.Identity}/{owner}/{key.NodeId}/{key.Field}";
             var observation = Observe(state, key);
-            if (key.Kind == "subnet" && key.Field is "HighestAddress" or "TransmissionSpeed" && state is not null)
+            if (key.Kind == "subnet" && key.Field is "HighestAddress" or "TransmissionSpeed" && state is not null
+                && state.Subnets.All(s => !string.IsNullOrWhiteSpace(s.SubnetId))
+                && state.Subnets.Count(s => s.SubnetId == key.Identity) == 1)
             {
                 var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath, key.Identity, new[] { key.Field }).ConfigureAwait(false);
                 var value = attributes.TryGetValue(key.Field, out var attribute) && attribute.Availability == "available"
@@ -168,6 +170,9 @@ public sealed class NetworkWriteVerifier
                 ? ((node.ConnectionEvidence.SubnetId != removed && node.ConnectionEvidence.IoSystemSubnetId != removed).ToString().ToLowerInvariant(), true)
                 : (null, false);
         }
+        if (key.Field == "Subnet" && node.ConnectionEvidence?.SubnetId is { } connectedSubnet
+            && (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))
+                || state.Subnets.Count(s => s.SubnetId == connectedSubnet) != 1)) return (null, false);
         if (key.Field == "IoSystem" && node.ConnectionEvidence?.IoSystemSubnetId is { } ioSubnet)
         {
             if (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))) return (null, false);
