@@ -68,6 +68,50 @@ public class NetworkMutationVerificationTests
     private static StructuredOperationItem Project(NetworkOperationRequest op, object result, bool required = true)
         => NetworkPayloadContract.Project(op, WorkerCallResult.Ok(WorkerJson.SerializePayload(result)), required);
 
+    [Theory]
+    [InlineData("device")]
+    [InlineData("node")]
+    public void WorkerTopLevelIdentityConflict_IsRejected(string identity)
+    {
+        var request = new WorkerRequest { DeviceName = "Station", NodeId = "E1", NetworkObjectTarget = new()
+        { Kind = "node", DeviceName = identity == "device" ? "Other" : "Station", NodeId = identity == "node" ? "e1" : "E1" } };
+        var error = Assert.Throws<TiaMcpServer.OpennessWorker.WorkerOperationException>(() =>
+            TiaMcpServer.OpennessWorker.NetworkConfigurationTargetBinding.Resolve(request));
+        Assert.Equal(WorkerFailureCategories.ValidationError, error.FailureCategory);
+    }
+
+    [Fact]
+    public void WorkerTargetBinding_ClonesConstraintsAndAcceptsDeviceCasing()
+    {
+        var request = new WorkerRequest { DeviceName = "station", NodeId = "E1", NetworkObjectTarget = new()
+        { Kind = "node", DeviceName = "Station", NodeId = "E1", NodeIndex = 0, InterfaceName = "X1",
+          InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768, TypeIdentifier = "type" } } } };
+        var target = TiaMcpServer.OpennessWorker.NetworkConfigurationTargetBinding.Resolve(request);
+        request.NetworkObjectTarget.InterfacePath![0].PositionNumber = 33024;
+        Assert.Equal(32768, target.InterfacePath![0].PositionNumber);
+        Assert.Equal("X1", target.InterfaceName);
+        Assert.Equal(0, target.NodeIndex);
+    }
+
+    [Theory]
+    [InlineData("[{}]")]
+    [InlineData("[{\"name\":\"X1\"}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":32768,\"extra\":true}]")]
+    [InlineData("[{\"name\":\"X1\",\"name\":\"X2\",\"positionNumber\":32768}]")]
+    [InlineData("[{\"name\":\"X1\",\"positionNumber\":\"32768\"}]")]
+    [InlineData("[]")]
+    public void InterfacePathEncoding_RejectsIncompleteOrUntypedEvidence(string encoded)
+        => Assert.Throws<System.Text.Json.JsonException>(() => NetworkInterfacePathEncoding.Decode(encoded));
+
+    [Fact]
+    public void InterfacePathEncoding_RoundTripsEscapedOrdinalIdentity()
+    {
+        var path = new[] { new NetworkInterfacePathSegmentInfo { Name = "X1\"/雪", PositionNumber = 32768, TypeIdentifier = "Optional" } };
+        var encoded = NetworkInterfacePathEncoding.Encode(path);
+        Assert.Equal(encoded, NetworkInterfacePathEncoding.Encode(NetworkInterfacePathEncoding.Decode(encoded)));
+        Assert.Equal(path[0].Name, NetworkInterfacePathEncoding.Decode(encoded)[0].Name);
+    }
+
     [Fact]
     public void QualifiedImmediateIdentity_IsAcceptedAndWrongOwnerRejected()
     {
