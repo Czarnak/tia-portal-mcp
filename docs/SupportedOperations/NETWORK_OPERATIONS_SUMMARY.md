@@ -479,7 +479,7 @@ Use this request with `dryRun:true` to preview, then explicitly use `dryRun:fals
 execution. Stateful FakeWorker tests exercise selection of one multi-homed port and preservation
 of its sibling; that is offline evidence. The applied response now includes typed immediate and
 final read verification; follow uncertain or incomplete outcomes with fresh filtered `network_read`.
-Current-candidate live V21 behavior and restoration remain pending separate authorization. The two prepared public harnesses share a frozen [MCP helper](../../scripts/network-live-mcp-helpers.ps1); both require its `ExpectedSharedHelperSha256` before import and record its hash in evidence. Both harnesses require complete ordered operation-ID immediate/final verification coverage; summary booleans and fresh final reads cannot replace missing immediate evidence. The Phase4 harness also checks supplied subnet attributes in fresh reads and retains the complete applied canonical document. See [local acceptance preparation](../development/local-mcp-testing.md#frozen-guarded-network-acceptance-harnesses).
+Current-candidate live V21 behavior and restoration remain pending separate authorization. The [configuration/ordered-outcome harness](../../scripts/live-test-network-guarded-write.ps1) uses a frozen [MCP helper](../../scripts/network-live-mcp-helpers.ps1), requires its `ExpectedSharedHelperSha256` before import and records its hash in evidence. It requires complete ordered operation-ID immediate/final verification coverage; summary booleans and fresh final reads cannot replace missing immediate evidence. See [local acceptance preparation](../development/local-mcp-testing.md#frozen-guarded-network-acceptance-harnesses).
 
 ## The typed payload result types
 

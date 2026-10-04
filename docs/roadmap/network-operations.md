@@ -229,7 +229,7 @@ attribute in this fixture; no DP dynamic field was admitted. See the
 [qualified contract](../superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
 and [bounded live report](../superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md).
 
-The temporary `probe_io_system_qualification` and guarded private harness produced that
+The temporary `probe_io_system_qualification` produced that
 evidence, but add no public operation. `update_io_system` is still unshipped. Later modeled
 and dynamic slices require their own plans from merged `main`, strict TDD, public preview/apply
 and audit gates, and scope-specific live acceptance. A known committed post-read or hardware

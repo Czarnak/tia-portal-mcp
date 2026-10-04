@@ -708,17 +708,13 @@ candidate re-pin passed 298 focused tests and a normal-user Debug real-reference
 sandbox full run returned 3094/3098 with four environment failures. The user directed this turn
 to the live gate, so host retry, Release, and coverage were not repeated on the re-pinned HEAD.
 
-## Network Phase 4 contract repair and guarded harness — static implementation completed (2026-09-23)
+## Network Phase 4 contract repair — static implementation completed (2026-09-23)
 
 Focused automated gates passed for four contract repairs: update/delete now require exact ordinal
 `target.kind: "subnet"`; all four raw success members, including `networkDeviceCount`, are required
 before typed normalization; late zero/multiple worker matches return `postcondition_failed`; and
 delete resolves, type-checks, and captures a nonblank name from one transaction-local subnet object
-before `Delete()`. The user-provided saved harness was restored and statically guarded, including
-frozen checkout and host provenance, token redaction, and double-gated Apply. Its source has no
-verified historical repository origin. At this static checkpoint no harness mode or live TIA Portal
-acceptance had run for the current PR 1 tree. The subsequent failed attempt and successful rerun
-are recorded in the completed entry above.
+before `Delete()`. The subsequent failed attempt and successful rerun are recorded in the completed entry above.
 
 ## JSON contract Phase 1b required-member enforcement — live acceptance completed (2026-09-29)
 

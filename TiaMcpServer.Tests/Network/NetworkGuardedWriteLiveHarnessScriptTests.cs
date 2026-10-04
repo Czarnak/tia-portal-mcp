@@ -402,12 +402,12 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     }
 
     [Fact]
-    public void BothHarnesses_ShareFrozenProtocolAndDiscoveryOwner()
+    public void GuardedHarness_UsesFrozenProtocolAndDiscoveryOwner()
     {
         var helperPath = FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1");
         Assert.True(File.Exists(helperPath), "Shared Network harness helper is missing.");
         var helper = File.ReadAllText(helperPath);
-        foreach (var entrypoint in new[] { EntryPointSource, File.ReadAllText(FindRepositoryFile("scripts", "live-test-network-phase4-subnets.ps1")) })
+        foreach (var entrypoint in new[] { EntryPointSource })
         {
             Assert.Contains("ExpectedSharedHelperSha256", entrypoint);
             Assert.Contains(". $script:SharedHelperPath", entrypoint);
@@ -422,7 +422,6 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     }
     [Theory]
     [InlineData("live-test-network-guarded-write.ps1")]
-    [InlineData("live-test-network-phase4-subnets.ps1")]
     public void SharedHelper_LoadGateRejectsMissingAndChangedSourceBeforeDotSourcing(string entrypoint)
     {
         var result = RunStaticAstAssertion("""
@@ -943,7 +942,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             """;
         var syntheticPath = Path.Combine(
             Path.GetTempPath(),
-            $"phase4-harness-static-{Guid.NewGuid():N}.ps1");
+            $"guarded-network-harness-static-{Guid.NewGuid():N}.ps1");
         File.WriteAllText(
             syntheticPath,
             syntheticSource,

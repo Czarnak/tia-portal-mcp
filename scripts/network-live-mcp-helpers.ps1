@@ -203,7 +203,6 @@ function Assert-FrozenCandidate {
         'TiaMcpServer.FakeWorker',
         'TiaMcpServer.Tests',
         'scripts/live-test-network-guarded-write.ps1',
-        'scripts/live-test-network-phase4-subnets.ps1',
         'scripts/network-live-mcp-helpers.ps1'
     )
     $dirty = @(& git -C $script:RepositoryRoot status --porcelain=v1 `

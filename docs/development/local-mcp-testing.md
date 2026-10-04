@@ -243,33 +243,20 @@ An ambiguous-selector pass requires a naturally ambiguous direct-child `(nodeTyp
 
 ## Frozen guarded Network acceptance harnesses
 
-These scripts are prepared for future separately authorized live acceptance. No Inventory, Preview,
+The configuration script is prepared for future separately authorized live acceptance. No Inventory, Preview,
 Apply or Restore invocation is part of offline qualification. Static tests parse source/AST and run
 isolated synthetic helpers only; they do not start the MCP host, TIA or a worker. Historical Phase4
 live evidence does not qualify the guarded candidate.
 
-Both [Phase4 subnet harness](../../scripts/live-test-network-phase4-subnets.ps1) and
-[configuration/ordered-outcome harness](../../scripts/live-test-network-guarded-write.ps1) use the
+The [configuration/ordered-outcome harness](../../scripts/live-test-network-guarded-write.ps1) uses the
 public MCP framing helpers: initialize/list/call, status of the exact already-open disposable
 `ProjectPath`, `bind_project`, fresh hardware/identity reads, explicit `dryRun:true`, then an actual
-`dryRun:false` only within authorized Apply. They support `-AccessMode read-write|full`, default
-`-Mode Inventory`, freeze `ExpectedCommit`, `ExpectedTree`, `ExpectedHarnessSha256`, `ExpectedSharedHelperSha256`, and reject
+`dryRun:false` only within authorized Apply. It supports `-AccessMode read-write|full`, defaults
+`-Mode Inventory`, freezes `ExpectedCommit`, `ExpectedTree`, `ExpectedHarnessSha256`, `ExpectedSharedHelperSha256`, and rejects
 unexpected server elicitation. Client gates do not represent server elicitation or continuing consent.
 No save, close, compile, download, PLC control, automatic retry, or batch rollback.
 
-Both entrypoints share [the Network MCP helper](../../scripts/network-live-mcp-helpers.ps1) for process/framing, canonical status/binding, pagination and node discovery. The required `ExpectedSharedHelperSha256` must match that file before it is imported; missing or changed helpers abort before host startup. Frozen commit/tree cleanliness covers both entrypoints and the shared helper, and artifacts include `testedSharedHelperSha256`. Authorization and scenario checks remain in the entrypoints.
-
-The Phase4 script retains `ConnectedEthernetSubnetId` and `ConnectedProfibusSubnetId` as exact
-identities from fresh discovery, complete connected inventory and correct network types. Apply
-requires `-AllowMutation -Acknowledgement 'DELETE SUBNETS AND KEEP DEVICES'`. It checks root lifecycle
-counts separately from grouped/ungrouped affected device/node identity preservation and detached
-subnet/IO references. Every requested operation must have the exact ordered batch result and
-non-null immediate verification; effective final checks must cover the requested attributes and
-preserved identities without missing, duplicate or contradictory evidence. Fresh reads also check
-subnet names, type identifiers and supplied PROFIBUS attributes. Each group retains the complete
-canonical applied document, hardware read and attribute inspections for review.
-It deletes the two connected fixture subnets and does not restore them.
-A disposable backup and a separately authorized restoration/inspection procedure are required.
+The entrypoint uses [the Network MCP helper](../../scripts/network-live-mcp-helpers.ps1) for process/framing, canonical status/binding, pagination and node discovery. The required `ExpectedSharedHelperSha256` must match that file before it is imported; missing or changed helpers abort before host startup. Frozen commit/tree cleanliness covers the entrypoint and the shared helper, and artifacts include `testedSharedHelperSha256`. Authorization and scenario checks remain in the entrypoint.
 
 The configuration script accepts a reviewed `-FixturePath` JSON file and configuration operations
 only. Each operation has the exact `projectPath`, `operationId`, `target.deviceName` and `target.nodeId`.

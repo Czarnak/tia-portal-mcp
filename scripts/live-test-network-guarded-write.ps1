@@ -77,7 +77,7 @@ if (-not (Test-Path -LiteralPath $script:SharedHelperPath -PathType Leaf) -or
 . $script:SharedHelperPath
 # Check each configured exact target is represented in concrete before/after node expectations.
 foreach ($operation in $operations) {
-    if ($operation.operation -ne 'configure_network_device') { throw 'This fixture harness accepts configuration operations only; use Phase4 for subnet lifecycle.' }
+    if ($operation.operation -ne 'configure_network_device') { throw 'This fixture harness accepts configuration operations only.' }
     $beforeNodes = if ($Restore) { @($fixture.BeforeRestoreNodes) } else { @($fixture.BeforeNodes) }
     $afterNodes = if ($Restore) { @($fixture.RestorationNodes) } else { @($fixture.AfterNodes) }
     foreach ($expectedNodes in @(@{ values = $beforeNodes }, @{ values = $afterNodes })) {
