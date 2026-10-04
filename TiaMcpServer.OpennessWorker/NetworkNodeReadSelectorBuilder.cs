@@ -5,6 +5,7 @@ namespace TiaMcpServer.OpennessWorker;
 /// <summary>Certifies read selectors using required namespace identities independently of optional metadata.</summary>
 internal static class NetworkNodeReadSelectorBuilder
 {
+    public static void ApplyPage(DeviceInfo device, bool deviceNamespaceVerified, bool traversalComplete) { }
     public static bool DeviceNameIsUnique(IReadOnlyList<string?> names, string? selectedName)
         => !string.IsNullOrWhiteSpace(selectedName) && names.All(name => !string.IsNullOrWhiteSpace(name))
             && names.Count(name => string.Equals(name, selectedName, StringComparison.OrdinalIgnoreCase)) == 1;
