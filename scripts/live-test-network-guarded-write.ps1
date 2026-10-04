@@ -64,17 +64,6 @@ if ($operations.Count -lt 1 -or $operations.Count -gt 50) { throw 'Fixture must 
 foreach ($operation in $operations) {
     if ($operation.projectPath -cne $ProjectPath) { throw 'Fixture operation projectPath differs from approved target.' }
 }
-# Check each configured exact target is represented in concrete before/after node expectations.
-foreach ($operation in $operations) {
-    if ($operation.operation -ne 'configure_network_device') { throw 'This fixture harness accepts configuration operations only; use Phase4 for subnet lifecycle.' }
-    $beforeNodes = if ($Restore) { @($fixture.BeforeRestoreNodes) } else { @($fixture.BeforeNodes) }
-    $afterNodes = if ($Restore) { @($fixture.RestorationNodes) } else { @($fixture.AfterNodes) }
-    foreach ($expectedNodes in @(@{ values = $beforeNodes }, @{ values = $afterNodes })) {
-        $matched = @($expectedNodes.values | Where-Object { $_.deviceName -ceq $operation.target.deviceName -and $_.nodeId -ceq $operation.target.nodeId })
-        if ($matched.Count -ne 1) { throw 'Each configured exact node needs concrete before/after expectations.' }
-    }
-}
-
 # --- Provenance -----------------------------------------------------------------------------
 
 # --- network_read / network_write operations -------------------------------------------------
@@ -86,16 +75,27 @@ if (-not (Test-Path -LiteralPath $script:SharedHelperPath -PathType Leaf) -or
     throw 'Shared Network helper is missing or differs from the frozen source; no host may start.'
 }
 . $script:SharedHelperPath
+# Check each configured exact target is represented in concrete before/after node expectations.
+foreach ($operation in $operations) {
+    if ($operation.operation -ne 'configure_network_device') { throw 'This fixture harness accepts configuration operations only; use Phase4 for subnet lifecycle.' }
+    $beforeNodes = if ($Restore) { @($fixture.BeforeRestoreNodes) } else { @($fixture.BeforeNodes) }
+    $afterNodes = if ($Restore) { @($fixture.RestorationNodes) } else { @($fixture.AfterNodes) }
+    foreach ($expectedNodes in @(@{ values = $beforeNodes }, @{ values = $afterNodes })) {
+        $matched = @($expectedNodes.values | Where-Object { Test-NetworkNodeIdentity $operation.target $_ })
+        if ($matched.Count -ne 1) { throw 'Each configured exact node needs concrete before/after expectations.' }
+    }
+}
+
 function Assert-NodeExpectations {
     param($Hardware, [object[]] $Expected)
     $nodes = @(Get-HardwareNodes $Hardware)
     foreach ($deviceName in @($fixture.MultiHomedDevices)) {
-        if (@($nodes | Where-Object { $_.deviceName -ceq $deviceName }).Count -lt 2) {
+        if (@($nodes | Where-Object { [string]::Equals($_.deviceName, $deviceName, [System.StringComparison]::OrdinalIgnoreCase) }).Count -lt 2) {
             throw 'The exact multi-homed fixture does not have at least two readable nodes.'
         }
     }
     foreach ($expectation in $Expected) {
-        $found = @($nodes | Where-Object { $_.deviceName -ceq $expectation.deviceName -and $_.node.nodeId -ceq $expectation.nodeId })
+        $found = @($nodes | Where-Object { Test-NetworkNodeIdentity $expectation $_.identity })
         if ($found.Count -ne 1) { throw 'Expected one exact device/node identity.' }
         foreach ($key in @('subnetId', 'ioSystemSubnetId', 'ioSystemNumber')) {
             if (-not $expectation.ContainsKey($key)) { throw 'Node expectation must specify the complete exact subnet/IO tuple, including nulls.' }
@@ -204,10 +204,11 @@ function Assert-Outcome {
             -not [string]::Equals($item.result.deviceName, $operation.target.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -or
             $evidence.status -cne $verification.status -or $evidence.status -notin @('passed', 'failed', 'not_required') -or
             $evidence.identity.deviceName -isnot [string] -or $evidence.identity.nodeId -isnot [string] -or
-            $evidence.identity.deviceName -cne $item.result.deviceName -or $evidence.identity.nodeId -cne $operation.target.nodeId -or
-            @($evidence.identity.PSObject.Properties).Count -ne 2 -or $evidence.checks -isnot [array]) {
+            -not (Test-NetworkNodeIdentity $operation.target $evidence.identity) -or
+            @($evidence.identity.PSObject.Properties | Where-Object { $_.Name -cnotin @('deviceName','nodeId','interfacePath','interfaceName') }).Count -ne 0 -or $evidence.checks -isnot [array]) {
             throw 'Exact attempted identity/order and typed immediate evidence are required.'
         }
+        $identityKey = Get-NetworkNodeKey $evidence.identity
         $resultEvidence = $item.result.verification | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
         Assert-Subset $evidence $resultEvidence
         $requested = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
@@ -245,19 +246,16 @@ function Assert-Outcome {
         # Configuration-only effective prefix: latest explicit same-field value supersedes; IO remains independent of Subnet.
         foreach ($field in @('exists') + @($evidence.checks | ForEach-Object { $_.name })) {
             $value = if ($field -ceq 'exists') { 'true' } else { @($evidence.checks | Where-Object { $_.name -ceq $field })[0].expected }
-            $existing = @($requiredFinal | Where-Object {
-                [string]::Equals($_.deviceName, $item.result.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -and
-                $_.nodeId -ceq $operation.target.nodeId -and $_.field -ceq $field
-            })
+            $existing = @($requiredFinal | Where-Object { $_.identityKey -ceq $identityKey -and $_.field -ceq $field })
             if ($existing.Count) { $existing[0].expected = $value }
-            else { $requiredFinal.Add(@{ deviceName = $item.result.deviceName; nodeId = $operation.target.nodeId; field = $field; expected = $value }) }
+            else { $requiredFinal.Add(@{ identityKey=$identityKey; identity=$evidence.identity; field=$field; expected=$value }) }
         }
     }
     if ($finalChecks.Count -ne $requiredFinal.Count) { throw 'Final effective-prefix evidence is incomplete.' }
     $seenFinal = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     foreach ($check in $finalChecks) {
         if ($null -eq $check -or -not $seenFinal.Add($check.name)) { throw 'Duplicate or missing final evidence.' }
-        $expected = @($requiredFinal | Where-Object { $check.name -ceq "node/$($_.deviceName)/$($_.nodeId)/$($_.field)" })
+        $expected = @($requiredFinal | Where-Object { $check.name -ceq (Get-NetworkNodeCheckName $_.identity $_.field) })
         if ($expected.Count -ne 1) { throw 'Unexpected final identity/setting evidence.' }
         Assert-VerificationCheck $check $check.name $expected[0].expected
         if ($check.status -eq 'failed') { $verificationPassed = $false }
@@ -265,6 +263,8 @@ function Assert-Outcome {
     if ($Response.verification.success -ne $verificationPassed) { throw 'Verification summary contradicts immediate/final evidence.' }
 }
 function Invoke-NetworkWritePreview {
+    Assert-HardwareWriteEvidence (Read-HardwareConfig)
+    Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     $preview = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $operations; dryRun = $true }
     if ($preview.phase -ne 'preview' -or -not $preview.success -or $null -ne $preview.error -or
         $null -ne $preview.omission -or @($preview.effects | Where-Object { $null -ne $_.omission }).Count -ne 0) {
@@ -273,6 +273,8 @@ function Invoke-NetworkWritePreview {
     return $preview
 }
 function Invoke-NetworkWriteApply {
+    Assert-HardwareWriteEvidence (Read-HardwareConfig)
+    Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     return (Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $operations; dryRun = $false })
 }
 function Invoke-LifecycleGroupAndVerify {

@@ -224,7 +224,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 batch = @{ operations = @(
                     @{ operationId = 'first'; operation = 'configure_network_device'; status = 'failed'; omission = $null; result = @{ deviceName = 'PC'; verification = $evidence; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } } },
                     @{ operationId = 'later'; status = 'skipped'; skipReason = 'earlierOperationFailed'; omission = $null }) }
-                verification = @{ success = $true; omission = $null; finalChecks = @(@{ name = 'node/PC/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null }, @{ name = 'node/PC/node/Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }); operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; status = 'passed'; evidence = $evidence; omission = $null }) }
+                verification = @{ success = $true; omission = $null; finalChecks = @(@{ name = 'node/PC//node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null }, @{ name = 'node/PC//node/Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }); operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; status = 'passed'; evidence = $evidence; omission = $null }) }
             } | ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20
             $expected = @(@{ operationId = 'first'; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } })
             Assert-Outcome $response @('failed', 'skipped') $false $true $expected
@@ -273,6 +273,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     [InlineData("valid-device-casing")]
     [InlineData("wrong-node-casing")]
     [InlineData("valid-effective-prefix")]
+    [InlineData("valid-qualified-two-E1")]
     [InlineData("valid-not-required")]
     public void Outcome_RequiresCompleteTypedVerificationCoverage(string scenario)
     {
@@ -297,8 +298,8 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $true; omission = $null
                 batch = @{ operations = $items }
                 verification = @{ success = $true; omission = $null; operations = $verificationItems; finalChecks = @(
-                    @{ name = 'node/PC/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
-                    @{ name = 'node/PC/node/Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
+                    @{ name = 'node/PC//node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
+                    @{ name = 'node/PC//node/Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
             $response = $response | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
             $scenario = '{{scenario}}'
             switch ($scenario) {
@@ -308,9 +309,25 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                     $response.batch.operations[0].result.appliedSettings = [pscustomobject]@{ IoSystem = '1' }
                     $response.verification.operations[0].evidence.checks = @([pscustomobject]@{ name = 'IoSystem'; status = 'passed'; expected = '["exact-subnet",1]'; observed = '["exact-subnet",1]'; message = $null })
                     $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
-                    $response.verification.finalChecks[1].name = 'node/PC/node/IoSystem'; $response.verification.finalChecks[1].expected = '["exact-subnet",1]'; $response.verification.finalChecks[1].observed = '["exact-subnet",1]'
+                    $response.verification.finalChecks[1].name = 'node/PC//node/IoSystem'; $response.verification.finalChecks[1].expected = '["exact-subnet",1]'; $response.verification.finalChecks[1].observed = '["exact-subnet",1]'
                     $expected = @(@{ operationId = 'first'; appliedSettings = @{ IoSystem = '1' }; skippedSettings = @{} })
                     if ($scenario -eq 'wrong-io-subnet') { $response.verification.operations[0].evidence.checks[0].expected = '["other",1]'; $response.verification.operations[0].evidence.checks[0].observed = '["other",1]' }
+                }
+                'valid-qualified-two-E1' {
+                    for ($i=0;$i -lt 2;$i++) {
+                        $path=@(@{name='CPU';positionNumber=1},@{name="X$($i+1)";positionNumber=(32768+256*$i)})
+                        $operations[$i].target.nodeId='E1'; $operations[$i].target.interfacePath=$path; $operations[$i].target.interfaceName="X$($i+1)"
+                        $response.verification.operations[$i].evidence.identity=[pscustomobject]@{deviceName='PC';nodeId='E1';interfacePath=($path | ConvertTo-Json -Depth 10 -Compress);interfaceName="X$($i+1)"}
+                        $response.batch.operations[$i].result.verification=$response.verification.operations[$i].evidence
+                    }
+                    $response.verification.finalChecks=@()
+                    for ($i=0;$i -lt 2;$i++) {
+                        $identity=$response.verification.operations[$i].evidence.identity
+                        foreach($field in @('exists','Address')) {
+                            $value=if($field -eq 'exists'){'true'}else{$operations[$i].changes.ipAddress}
+                            $response.verification.finalChecks+=[pscustomobject]@{name=(Get-NetworkNodeCheckName $identity $field);status='passed';expected=$value;observed=$value;message=$null}
+                        }
+                    }
                 }
                 'wrong-identity-type' { $operations[0].target.nodeId = '123'; $response.verification.operations[0].evidence.identity.nodeId = 123; $response.batch.operations[0].result.verification.identity.nodeId = 123 }
                 'wrong-field-casing' { $response.verification.operations[0].evidence.checks[0].name = 'address' }
@@ -334,7 +351,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 'empty-final' { $response.verification.finalChecks = @() }
                 'missing-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0]) }
                 'duplicate-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0], $response.verification.finalChecks[0]) }
-                'wrong-final-name' { $response.verification.finalChecks[1].name = 'node/PC/other/Address' }
+                'wrong-final-name' { $response.verification.finalChecks[1].name = 'node/PC//other/Address' }
                 'wrong-final-expected' { $response.verification.finalChecks[1].expected = '192.0.2.1' }
                 'unreadable-final' { $response.verification.finalChecks[1].observed = $null }
                 'contradictory-final-status' { $response.verification.finalChecks[1].observed = 'wrong' }
@@ -548,6 +565,10 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $rejected=$false
             try { $null=Get-HardwareNodes $capture } catch { $rejected=$true }
             if (-not $rejected) { throw 'Malformed qualified identity accepted.' }
+            # Supplemental strict scalar decoder assertion, alongside original behavioral RED.
+            $rejected=$false
+            try { $null=ConvertTo-NetworkPathJson {{PowerShellLiteral(encodedPath)}} } catch { $rejected=$true }
+            if (-not $rejected) { throw 'Malformed canonical scalar identity accepted.' }
             'malformed-qualified-rejected'
             """);
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
@@ -588,18 +609,73 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             try {
                 '{}' | Set-Content -LiteralPath $FixturePath
                 $fixtureSha256=(Get-FileHash -LiteralPath $FixturePath -Algorithm SHA256).Hash
-                '{"changed":true}' | Set-Content -LiteralPath $FixturePath
                 $operations=@(); $script:toolCalls=0
                 function Read-HardwareConfig { $capture }
                 function Invoke-McpToolCall { param($Name,$Arguments) $script:toolCalls++; return @{} }
+                $null=Invoke-NetworkWriteApply
+                if($script:toolCalls -ne 1){throw 'Unchanged authorized fixture did not reach harmless callback.'}
+                '{"changed":true}' | Set-Content -LiteralPath $FixturePath
                 $rejected=$false
                 try { $null=Invoke-NetworkWriteApply } catch { $rejected=$true }
-                if (-not $rejected -or $script:toolCalls -ne 0) { throw 'Changed fixture reached tool callback.' }
+                if (-not $rejected -or $script:toolCalls -ne 1) { throw 'Changed fixture reached tool callback.' }
             } finally { Remove-Item -LiteralPath $FixturePath -Force }
             'fixture-hash-blocked'
             """);
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
         Assert.Equal("fixture-hash-blocked", result.StandardOutput.Trim());
+    }
+
+
+    // Supplemental post-RED coverage for ordinary reads and constraint/equality boundaries.
+    [Fact]
+    public void OrdinaryHardwareRead_RetainsEvidenceAndNeverSynthesizesItFromPages()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            $script:requests=@()
+            function Invoke-McpToolCall {
+                param($Name,$Arguments)
+                $script:requests+=$Arguments.operations[0]
+                @{success=$true;batch=@{operations=@(@{status='succeeded';result=$capture})}}
+            }
+            $observed=Read-HardwareConfig
+            Assert-HardwareWriteEvidence $observed
+            if($script:requests[0].ContainsKey('pageSize') -or $script:requests[0].ContainsKey('cursor')){throw 'Guarded evidence read was paged.'}
+            $capture.discoveryEvidence=$null
+            $observed=Read-HardwareConfig
+            $rejected=$false
+            try{Assert-HardwareWriteEvidence $observed}catch{$rejected=$true}
+            if(-not $rejected){throw 'Missing ordinary evidence synthesized.'}
+            'ordinary-hardware-evidence-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("ordinary-hardware-evidence-ok", result.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public void QualifiedIdentity_UsesOrdinalOwnersAndRetainsOptionalConstraints()
+    {
+        var result = RunStaticAstAssertion(QualifiedHelperSetup + "\n" + """
+            $nodes=@(Get-HardwareNodes $capture)
+            $expected=$originalSelectors[0] | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable
+            $expected.deviceName='plc_1'
+            if(-not (Test-NetworkNodeIdentity $expected $nodes[0].identity)){throw 'Device casing rejected.'}
+            $legacy=@{deviceName='plc_1';nodeId='E1'}
+            if(@($nodes | Where-Object{Test-NetworkNodeIdentity $legacy $_.identity}).Count -ne 2){throw 'Bare E1 arbitrarily chose one owner.'}
+            $legacy.interfaceName='X2'
+            if(@($nodes | Where-Object{Test-NetworkNodeIdentity $legacy $_.identity}).Count -ne 1){throw 'Legacy exact interface constraint was lost.'}
+            $baseKey=Get-NetworkNodeKey $expected
+            $expected.interfacePath[1].typeIdentifier='OptionalType'
+            if((Get-NetworkNodeKey $expected) -cne $baseKey){throw 'Optional type entered equality.'}
+            if(Test-NetworkNodeIdentity $expected $nodes[0].identity){throw 'Unreadable required type constraint accepted.'}
+            $expected.interfacePath[1].Remove('typeIdentifier')
+            $expected.interfacePath[1].name='x2'
+            if((Get-NetworkNodeKey $expected) -ceq $baseKey -or (Test-NetworkNodeIdentity $expected $nodes[0].identity)){throw 'Owner casing was normalized.'}
+            $expected.interfacePath[1].name='X2';$expected.nodeId='e1'
+            if(Test-NetworkNodeIdentity $expected $nodes[0].identity){throw 'Node casing was normalized.'}
+            'ordinal-qualified-identity-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("ordinal-qualified-identity-ok", result.StandardOutput.Trim());
     }
 
     private static string FindRepositoryFile(params string[] segments)
@@ -636,6 +712,8 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $helperAst = [System.Management.Automation.Language.Parser]::ParseFile(
                 {{PowerShellLiteral(FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1"))}}, [ref] $tokens, [ref] $parseErrors)
             if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+            $safeHelpers = @('Get-NetworkMember','ConvertTo-NetworkInterfacePath','ConvertTo-NetworkPathJson','Get-NetworkNodeKey','Test-NetworkNodeIdentity','Get-NetworkNodeCheckName','Assert-HardwareWriteEvidence','Assert-NetworkFixtureHash')
+            foreach ($definition in $helperAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in $safeHelpers }, $true)) { Invoke-Expression $definition.Extent.Text }
             {{assertionBody}}
             """;
         var syntheticPath = Path.Combine(

@@ -196,6 +196,7 @@ function New-DeleteSubnetOperation {
 
 function Invoke-NetworkWritePreview {
     param([Parameter(Mandatory)] [object[]] $Operations)
+    Assert-HardwareWriteEvidence (Read-HardwareConfig)
     $response = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $Operations; dryRun = $true }
     if ($response.phase -ne 'preview') {
         throw "Expected phase 'preview' but got '$($response.phase)': $($response | ConvertTo-Json -Compress -Depth 20)"
@@ -207,6 +208,7 @@ function Invoke-NetworkWritePreview {
 function Invoke-NetworkWriteApply {
     param([Parameter(Mandatory)] [object[]] $Operations)
     # Sole actual call, reachable only from the authorized Apply dispatch.
+    Assert-HardwareWriteEvidence (Read-HardwareConfig)
     $response = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $Operations; dryRun = $false }
     if ($response.phase -ne 'applied' -or $null -ne $response.error -or $response.contractVersion -ne '1.0') {
         throw 'Expected canonical applied Network response. Inspect before retry.'
@@ -248,6 +250,7 @@ function Assert-LifecycleEvidence {
     }
     $requiredFinal = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
     $requiredFinal.Add('networkDeviceCountUnchanged', $RootCount.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+    $finalNodeIdentities = [System.Collections.Generic.Dictionary[string,object]]::new([System.StringComparer]::Ordinal)
     $seenIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     for ($i = 0; $i -lt $Operations.Count; $i++) {
         $operation = $Operations[$i]; $item = $items[$i]; $verification = $verified[$i]
@@ -267,8 +270,8 @@ function Assert-LifecycleEvidence {
         $expected.Add('networkDeviceCountUnchanged', $requiredFinal['networkDeviceCountUnchanged'])
         if ($operation.operation -eq 'delete_subnet') {
             foreach ($field in @('subnetAbsent','affectedNodesPreserved','affectedConnectionsRemoved')) { $expected.Add($field, 'true') }
-            foreach ($key in @($requiredFinal.Keys | Where-Object { $_.StartsWith("subnet/$id//", [System.StringComparison]::Ordinal) })) { [void]$requiredFinal.Remove($key) }
-            $requiredFinal["subnet/$id//absent"] = 'true'
+            foreach ($key in @($requiredFinal.Keys | Where-Object { $_.StartsWith("subnet/$id///", [System.StringComparison]::Ordinal) })) { [void]$requiredFinal.Remove($key) }
+            $requiredFinal["subnet/$id///absent"] = 'true'
         } else {
             $expected.Add('subnetIdentity', $id)
             $settings = if ($operation.operation -eq 'create_subnet') { $operation.subnet } else { $operation.subnetChanges }
@@ -276,15 +279,15 @@ function Assert-LifecycleEvidence {
                 if ($settings.Contains($pair[1]) -and $null -ne $settings[$pair[1]]) {
                     $value = [System.Convert]::ToString($settings[$pair[1]], [System.Globalization.CultureInfo]::InvariantCulture)
                     $expected.Add($pair[0], $value)
-                    $requiredFinal["subnet/$id//$($pair[0])"] = $value
+                    $requiredFinal["subnet/$id///$($pair[0])"] = $value
                 }
             }
             if ($expected.ContainsKey('Name') -and $item.result.name -cne $expected['Name']) { throw 'Lifecycle result name differs from the supplied name.' }
             if ($operation.operation -eq 'create_subnet') {
                 $expected.Add('TypeIdentifier', "System:Subnet.$($operation.subnet.networkType)")
-                $requiredFinal["subnet/$id//TypeIdentifier"] = $expected['TypeIdentifier']
+                $requiredFinal["subnet/$id///TypeIdentifier"] = $expected['TypeIdentifier']
             }
-            $requiredFinal["subnet/$id//exists"] = 'true'
+            $requiredFinal["subnet/$id///exists"] = 'true'
         }
         foreach ($evidence in @($item.result.verification, $verification.evidence)) {
             if ($null -eq $evidence -or $evidence.status -cne 'passed' -or $null -eq $evidence.identity -or
@@ -306,12 +309,13 @@ function Assert-LifecycleEvidence {
                 ($item.operation -ne 'create_subnet' -and $effect.target.subnetId -cne $id)) { throw 'Incomplete or inconsistent lifecycle effect identity/inventory.' }
             $seenNodes = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
             foreach ($node in $effect.affectedNodes) {
-                if ($node.deviceName -isnot [string] -or [string]::IsNullOrWhiteSpace($node.deviceName) -or
-                    $node.nodeId -isnot [string] -or [string]::IsNullOrWhiteSpace($node.nodeId) -or
-                    -not $seenNodes.Add((ConvertTo-Json -InputObject @($node.deviceName,$node.nodeId) -Compress))) { throw 'Invalid or duplicate affected-node identity.' }
-                $requiredFinal["node/$($node.deviceName)/$($node.nodeId)/exists"] = 'true'
+                $nodeKey = Get-NetworkNodeKey $node
+                if (-not $seenNodes.Add($nodeKey)) { throw 'Invalid or duplicate affected-node identity.' }
+                if (-not $finalNodeIdentities.ContainsKey($nodeKey)) { $finalNodeIdentities.Add($nodeKey, $node) }
+                $finalIdentity = $finalNodeIdentities[$nodeKey]
+                $requiredFinal[(Get-NetworkNodeCheckName $finalIdentity 'exists')] = 'true'
                 if ([object]::ReferenceEquals($source, $Applied) -and $item.operation -eq 'delete_subnet') {
-                    $requiredFinal["node/$($node.deviceName)/$($node.nodeId)/removedSubnet:$id"] = 'true'
+                    $requiredFinal[(Get-NetworkNodeCheckName $finalIdentity "removedSubnet:$id")] = 'true'
                 }
             }
         }
@@ -395,20 +399,21 @@ function Invoke-LifecycleGroupAndVerify {
 
     $requiredFinal = Assert-LifecycleEvidence $applied $Operations $preview $RootDeviceCount.Value
     $postRead = Read-HardwareConfig
+    Assert-HardwareWriteEvidence $postRead
     $postNodes = @(Get-HardwareNodes $postRead)
     $postInspections = @()
     foreach ($id in @($results.subnetId | Select-Object -Unique)) {
         $subnets = @($postRead.subnets | Where-Object { $_.subnetId -ceq $id })
-        if ($requiredFinal.ContainsKey("subnet/$id//absent")) {
+        if ($requiredFinal.ContainsKey("subnet/$id///absent")) {
             if ($subnets.Count -ne 0) { throw 'Deleted exact subnet remains in fresh inventory.' }
             continue
         }
         if ($subnets.Count -ne 1) { throw 'Exact subnet is missing or ambiguous in fresh inventory.' }
         foreach ($pair in @(@('Name','name'),@('TypeIdentifier','typeIdentifier'))) {
-            $key = "subnet/$id//$($pair[0])"
+            $key = "subnet/$id///$($pair[0])"
             if ($requiredFinal.ContainsKey($key) -and $subnets[0].($pair[1]) -cne $requiredFinal[$key]) { throw 'Fresh subnet setting differs from the effective requested value.' }
         }
-        $names = @(@('HighestAddress','TransmissionSpeed') | Where-Object { $requiredFinal.ContainsKey("subnet/$id//$_") })
+        $names = @(@('HighestAddress','TransmissionSpeed') | Where-Object { $requiredFinal.ContainsKey("subnet/$id///$_") })
         if ($names.Count -gt 0) {
             $inspection = Read-LifecycleAttributes $id $names
             foreach ($name in $names) {
@@ -422,14 +427,14 @@ function Invoke-LifecycleGroupAndVerify {
                     if ($value.kind -cne 'enum' -or $value.value.symbol -isnot [string]) { throw 'Fresh transmission speed is not a typed enum symbol.' }
                     $observed = $value.value.symbol
                 }
-                if ($observed -cne $requiredFinal["subnet/$id//$name"]) { throw 'Fresh subnet attribute differs from the effective requested value.' }
+                if ($observed -cne $requiredFinal["subnet/$id///$name"]) { throw 'Fresh subnet attribute differs from the effective requested value.' }
             }
             $postInspections += $inspection
         }
     }
     foreach ($effect in @($preview.effects) + @($applied.effects)) {
         foreach ($affected in @($effect.effect.affectedNodes)) {
-            $found = @($postNodes | Where-Object { $_.deviceName -ceq $affected.deviceName -and $_.node.nodeId -ceq $affected.nodeId })
+            $found = @($postNodes | Where-Object { Test-NetworkNodeIdentity $affected $_.identity })
             if ($found.Count -ne 1) { throw 'Affected exact device/node was not preserved in fresh grouped/ungrouped inventory.' }
             if ($effect.effect.operation -eq 'delete_subnet' -and
                 ($found[0].node.connectionEvidence.subnetId -ceq $effect.effect.target.subnetId -or

@@ -255,6 +255,7 @@ function Get-ObservedProjectStatus {
 }
 
 function Read-HardwareConfig {
+    param([switch] $Paged)
     $devices = [System.Collections.Generic.List[object]]::new()
     $subnets = [System.Collections.Generic.List[object]]::new()
     $messages = [System.Collections.Generic.List[object]]::new()
@@ -263,7 +264,8 @@ function Read-HardwareConfig {
     $expectedDevices = $null
     $expectedSubnets = $null
     do {
-        $operation = @{ operationId = 'read'; operation = 'read_hardware_config'; projectPath = $ProjectPath; pageSize = 50 }
+        $operation = @{ operationId = 'read'; operation = 'read_hardware_config'; projectPath = $ProjectPath }
+        if ($Paged) { $operation.pageSize = 50 }
         if ($null -ne $cursor) { $operation.cursor = $cursor }
         $response = Invoke-McpToolCall -Name 'network_read' -Arguments @{ operations = @($operation) }
         $items = @($response.batch.operations)
@@ -281,7 +283,13 @@ function Read-HardwareConfig {
             throw "read_hardware_config page did not succeed (status '$($item.status)')."
         }
         $page = $item.result
-        $pagination = $page.pagination
+        $pagination = Get-NetworkMember $page 'pagination'
+        if (-not $Paged) {
+            if ($null -ne $pagination -or $page.devices -isnot [array] -or $page.subnets -isnot [array] -or $page.messages -isnot [array]) {
+                throw 'Ordinary hardware read returned malformed or paged evidence.'
+            }
+            return $page
+        }
         if ($null -eq $pagination -or $page.devices -isnot [array] -or $page.subnets -isnot [array] -or
             $page.messages -isnot [array]) {
             throw 'read_hardware_config returned a malformed paged result.'
@@ -340,24 +348,173 @@ function Read-HardwareConfig {
     return @{ devices = $devices.ToArray(); subnets = $subnets.ToArray(); messages = $messages.ToArray() }
 }
 
+# Read conditional members without treating omission as a value or completeness proof.
+function Get-NetworkMember {
+    param($Value, [string] $Name)
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [System.Collections.IDictionary]) {
+        foreach ($key in $Value.Keys) { if ($key -ceq $Name) { return ,$Value[$key] } }
+    } else {
+        $member = @($Value.PSObject.Properties | Where-Object { $_.Name -ceq $Name })
+        if ($member.Count -eq 1) { return ,$member[0].Value }
+    }
+    return $null
+}
+
+function ConvertTo-NetworkInterfacePath {
+    param($Path)
+    # Immediate verification dictionaries carry encoded paths. Parse their fields before
+    # ConvertFrom-Json could discard duplicates or coerce malformed scalar types.
+    if ($Path -is [string]) {
+        $document = [System.Text.Json.JsonDocument]::Parse($Path, [System.Text.Json.JsonDocumentOptions]::new())
+        try {
+            if ($document.RootElement.ValueKind.ToString() -cne 'Array') { throw 'Interface path must be an array.' }
+            $decoded = [System.Collections.Generic.List[object]]::new()
+            foreach ($element in $document.RootElement.EnumerateArray()) {
+                if ($element.ValueKind.ToString() -cne 'Object') { throw 'Interface segment must be an object.' }
+                $segment = [ordered]@{}
+                $fields = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+                foreach ($field in $element.EnumerateObject()) {
+                    if (-not $fields.Add($field.Name)) { throw 'Duplicate interface segment field.' }
+                    switch -CaseSensitive ($field.Name) {
+                        'positionNumber' {
+                            $position = 0
+                            if ($field.Value.ValueKind.ToString() -cne 'Number' -or -not $field.Value.TryGetInt32([ref]$position)) { throw 'Invalid positionNumber.' }
+                            $segment[$field.Name] = $position
+                        }
+                        { $_ -cin @('name','typeIdentifier') } {
+                            if ($field.Value.ValueKind.ToString() -cne 'String') { throw 'Invalid interface segment string.' }
+                            $segment[$field.Name] = $field.Value.GetString()
+                        }
+                        default { throw 'Unknown interface segment field.' }
+                    }
+                }
+                $decoded.Add($segment)
+            }
+            $Path = $decoded.ToArray()
+        } finally { $document.Dispose() }
+    }
+    if ($Path -isnot [array] -or $Path.Count -eq 0) { throw 'Interface owner path must be a nonempty array.' }
+    foreach ($segment in $Path) {
+        if ($null -eq $segment) { throw 'Null interface segment.' }
+        $fields = if ($segment -is [System.Collections.IDictionary]) { @($segment.Keys) } else { @($segment.PSObject.Properties.Name) }
+        if (@($fields | Where-Object { $_ -cnotin @('name','positionNumber','typeIdentifier') }).Count -or
+            'name' -cnotin $fields -or 'positionNumber' -cnotin $fields) { throw 'Unknown or missing interface segment fields.' }
+        $name = Get-NetworkMember $segment 'name'; $position = Get-NetworkMember $segment 'positionNumber'
+        $type = Get-NetworkMember $segment 'typeIdentifier'
+        if ($name -isnot [string] -or [string]::IsNullOrWhiteSpace($name) -or
+            ($position -isnot [int] -and $position -isnot [long]) -or $position -lt 0 -or $position -gt [int]::MaxValue -or
+            ('typeIdentifier' -cin $fields -and ($type -isnot [string] -or [string]::IsNullOrWhiteSpace($type)))) { throw 'Invalid interface owner segment.' }
+    }
+    return ,$Path
+}
+
+function ConvertTo-NetworkPathJson {
+    param($Path)
+    $segments = ConvertTo-NetworkInterfacePath $Path
+    $encoded = [System.Collections.Generic.List[string]]::new()
+    foreach ($segment in $segments) {
+        $name = [System.Text.Json.JsonSerializer]::Serialize((Get-NetworkMember $segment 'name'), [string], [System.Text.Json.JsonSerializerOptions]::new())
+        $position = Get-NetworkMember $segment 'positionNumber'
+        $text = '{"name":' + $name + ',"positionNumber":' + $position.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+        $type = Get-NetworkMember $segment 'typeIdentifier'
+        if ($null -ne $type) { $text += ',"typeIdentifier":' + [System.Text.Json.JsonSerializer]::Serialize($type, [string], [System.Text.Json.JsonSerializerOptions]::new()) }
+        $encoded.Add($text + '}')
+    }
+    return '[' + ($encoded -join ',') + ']'
+}
+
+function Get-NetworkNodeKey {
+    param($Identity)
+    $device = Get-NetworkMember $Identity 'deviceName'; $node = Get-NetworkMember $Identity 'nodeId'
+    if ($device -isnot [string] -or [string]::IsNullOrWhiteSpace($device) -or $node -isnot [string] -or [string]::IsNullOrWhiteSpace($node)) { throw 'Invalid node identity.' }
+    $path = Get-NetworkMember $Identity 'interfacePath'
+    $pairs = @()
+    if ($null -ne $path) {
+        foreach ($segment in (ConvertTo-NetworkInterfacePath $path)) { $pairs += ,@((Get-NetworkMember $segment 'name'), (Get-NetworkMember $segment 'positionNumber')) }
+    }
+    # Type and interface-name constraints are evidence, not tuple equality.
+    return ConvertTo-Json -InputObject @($device.ToUpperInvariant(), $pairs, $node) -Compress -Depth 20
+}
+
+function Test-NetworkNodeIdentity {
+    param($Expected, $Observed)
+    $null = Get-NetworkNodeKey $Expected; $null = Get-NetworkNodeKey $Observed
+    if (-not [string]::Equals($Expected.deviceName, $Observed.deviceName, [System.StringComparison]::OrdinalIgnoreCase) -or $Expected.nodeId -cne $Observed.nodeId) { return $false }
+    $expectedPath = Get-NetworkMember $Expected 'interfacePath'; $observedPath = Get-NetworkMember $Observed 'interfacePath'
+    if ($null -ne $expectedPath) {
+        if ($null -eq $observedPath) { return $false }
+        $left = ConvertTo-NetworkInterfacePath $expectedPath; $right = ConvertTo-NetworkInterfacePath $observedPath
+        if ($left.Count -ne $right.Count) { return $false }
+        for ($i=0; $i -lt $left.Count; $i++) {
+            if ((Get-NetworkMember $left[$i] 'name') -cne (Get-NetworkMember $right[$i] 'name') -or
+                (Get-NetworkMember $left[$i] 'positionNumber') -ne (Get-NetworkMember $right[$i] 'positionNumber')) { return $false }
+            $type = Get-NetworkMember $left[$i] 'typeIdentifier'
+            if ($null -ne $type -and $type -cne (Get-NetworkMember $right[$i] 'typeIdentifier')) { return $false }
+        }
+    }
+    $interfaceName = Get-NetworkMember $Expected 'interfaceName'
+    if ($null -ne $interfaceName -and ($interfaceName -isnot [string] -or [string]::IsNullOrWhiteSpace($interfaceName) -or $interfaceName -cne (Get-NetworkMember $Observed 'interfaceName'))) { return $false }
+    return $true
+}
+
+function Get-NetworkNodeCheckName {
+    param($Identity, [string] $Field)
+    $null = Get-NetworkNodeKey $Identity
+    $path = Get-NetworkMember $Identity 'interfacePath'
+    $owner = if ($null -eq $path) { '' } else { ConvertTo-NetworkPathJson $path }
+    return "node/$($Identity.deviceName)/$owner/$($Identity.nodeId)/$Field"
+}
+
+function Assert-HardwareWriteEvidence {
+    param($Hardware)
+    $evidence = Get-NetworkMember $Hardware 'discoveryEvidence'
+    if ($null -ne (Get-NetworkMember $Hardware 'pagination') -or $null -eq $evidence -or
+        (Get-NetworkMember $evidence 'scope') -cne 'project' -or
+        (Get-NetworkMember $evidence 'complete') -isnot [bool] -or -not $evidence.complete -or
+        (Get-NetworkMember $evidence 'failures') -isnot [array] -or $evidence.failures.Count -ne 0) {
+        throw 'Complete ordinary project traversal evidence required before any guarded Network call.'
+    }
+    # Root count is independent; lifecycle evidence validates it only where required.
+}
+
+function Assert-NetworkFixtureHash {
+    param([string] $Path, [string] $ExpectedSha256)
+    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($ExpectedSha256) -or
+        (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ine $ExpectedSha256) { throw 'Fixture changed since authorization; no tool call permitted.' }
+}
+
 function Get-HardwareNodes {
     param($Hardware)
     $nodes = [System.Collections.Generic.List[object]]::new()
+    $keys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     function Visit-Item($DeviceName, $Item) {
-        foreach ($interface in @($Item.networkInterfaces)) {
-            foreach ($node in @($interface.nodes)) {
-                if ([string]::IsNullOrWhiteSpace($node.nodeId) -or
-                    $null -eq $node.connectionEvidence -or -not $node.connectionEvidence.complete) {
+        if ($null -eq $Item -or (Get-NetworkMember $Item 'networkInterfaces') -isnot [array] -or (Get-NetworkMember $Item 'items') -isnot [array]) { throw 'Incomplete required hardware item namespace.' }
+        foreach ($interface in $Item.networkInterfaces) {
+            if ($null -eq $interface -or (Get-NetworkMember $interface 'nodes') -isnot [array]) { throw 'Incomplete required interface node namespace.' }
+            foreach ($node in $interface.nodes) {
+                $selector = Get-NetworkMember $node 'selector'
+                if ($null -eq $node -or [string]::IsNullOrWhiteSpace($node.nodeId) -or
+                    $null -eq $node.connectionEvidence -or $node.connectionEvidence.complete -isnot [bool] -or -not $node.connectionEvidence.complete -or
+                    $null -eq $selector -or $node.selectable -isnot [bool] -or -not $node.selectable -or $selector.kind -cne 'node' -or
+                    -not [string]::Equals($selector.deviceName, $DeviceName, [System.StringComparison]::OrdinalIgnoreCase) -or $selector.nodeId -cne $node.nodeId) {
                     throw 'Incomplete node identity/connection inventory; inspect before any mutation.'
                 }
-                $nodes.Add(@{ deviceName = $DeviceName; node = $node })
+                $path = Get-NetworkMember $selector 'interfacePath'
+                if ($null -ne $path -and $path -isnot [array]) { throw 'Public node selector owner path must be an array.' }
+                $identity = @{ deviceName=$DeviceName; nodeId=$node.nodeId; interfacePath=$path; interfaceName=$interface.name }
+                $null = Get-NetworkNodeKey $identity
+                if (-not (Test-NetworkNodeIdentity $selector $identity) -or -not $keys.Add((Get-NetworkNodeKey $identity))) { throw 'Ambiguous or inconsistent qualified node identity.' }
+                # Preserve the public selector verbatim, including legacy constraints and indices.
+                $nodes.Add(@{ deviceName=$DeviceName; node=$node; selector=$selector; identity=$identity })
             }
         }
-        foreach ($child in @($Item.items)) { Visit-Item $DeviceName $child }
+        foreach ($child in $Item.items) { Visit-Item $DeviceName $child }
     }
-    if (@($Hardware.messages).Count -ne 0) { throw 'Hardware discovery contains degradation diagnostics.' }
-    foreach ($device in @($Hardware.devices)) {
-        foreach ($item in @($device.items)) { Visit-Item $device.name $item }
+    if ((Get-NetworkMember $Hardware 'devices') -isnot [array]) { throw 'Incomplete required device namespace.' }
+    foreach ($device in $Hardware.devices) {
+        if ($device.name -isnot [string] -or [string]::IsNullOrWhiteSpace($device.name) -or (Get-NetworkMember $device 'items') -isnot [array]) { throw 'Incomplete required device/item identity.' }
+        foreach ($item in $device.items) { Visit-Item $device.name $item }
     }
     return $nodes.ToArray()
 }

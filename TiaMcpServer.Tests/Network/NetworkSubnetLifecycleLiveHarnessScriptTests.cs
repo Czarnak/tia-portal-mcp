@@ -394,7 +394,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 (Page @(@{ name = 'b' }) @(@{ subnetId = 's' }) 1 1 $null)
             )
             $script:pages[1].result.pagination.Remove('nextCursor')
-            $hardware = Read-HardwareConfig
+            $hardware = Read-HardwareConfig -Paged
             if (@($hardware.devices).Count -ne 2 -or @($hardware.subnets).Count -ne 1 -or
                 $script:requests.Count -ne 2 -or $script:requests[0].pageSize -lt 1 -or
                 $script:requests[0].pageSize -gt 200 -or
@@ -419,7 +419,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 $script:requests = @()
                 $script:pages = @((Page @(@{ name = 'a' }) @() 1 0 'cursor-1'), $badSecondPage)
                 $rejected = $false
-                try { $null = Read-HardwareConfig } catch { $rejected = $true }
+                try { $null = Read-HardwareConfig -Paged } catch { $rejected = $true }
                 if (-not $rejected) { throw 'Invalid continuation was accepted.' }
             }
             'paged-hardware-contract-ok'
@@ -500,10 +500,10 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 contractVersion='1.0'; phase='applied'; success=$true; error=$null; omission=$null
                 effects=@(@{ operationId='update'; effect=@{ operation='update_subnet'; target=@{subnetId='s'}; affectedNodes=@(); rootDeviceCount=2; connectionsComplete=$true }; omission=$null })
                 batch=@{ operations=@(@{ operationId='update'; operation='update_subnet'; status='succeeded'; failure=$null; omission=$null; result=@{ subnetId='s'; name='After'; networkDeviceCount=2; networkDeviceCountUnchanged=$true; verification=$immediate } }) }
-                verification=@{ success=$true; omission=$null; operations=@(@{ operationId='update'; operation='update_subnet'; status='passed'; evidence=$immediate; omission=$null }); finalChecks=@((Check 'networkDeviceCountUnchanged' '2'), (Check 'subnet/s//exists' 'true'), (Check 'subnet/s//Name' 'After'), (Check 'subnet/s//HighestAddress' '63'), (Check 'subnet/s//TransmissionSpeed' 'Baud1500000')) }
+                verification=@{ success=$true; omission=$null; operations=@(@{ operationId='update'; operation='update_subnet'; status='passed'; evidence=$immediate; omission=$null }); finalChecks=@((Check 'networkDeviceCountUnchanged' '2'), (Check 'subnet/s///exists' 'true'), (Check 'subnet/s///Name' 'After'), (Check 'subnet/s///HighestAddress' '63'), (Check 'subnet/s///TransmissionSpeed' 'Baud1500000')) }
             }
             $script:preview = @{ success=$true; effects=$script:applied.effects }
-            $script:post = @{ devices=@(@{name='a'},@{name='b'}); subnets=@(@{subnetId='s';name='After';typeIdentifier='System:Subnet.Profibus'}) }
+            $script:post = @{ discoveryEvidence=@{scope='project';complete=$true;failures=@()}; devices=@(@{name='a'},@{name='b'}); subnets=@(@{subnetId='s';name='After';typeIdentifier='System:Subnet.Profibus'}) }
             $script:postNodes=@()
             $script:attributeAddress=63; $script:attributeSpeed='Baud1500000'
             $script:nullAttribute=$false; $script:duplicateAttribute=$false
@@ -514,7 +514,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 $script:applied.effects[0].effect.operation='create_subnet'
                 $checks += Check 'TypeIdentifier' 'System:Subnet.Profibus'
                 $immediate.checks=$checks
-                $script:applied.verification.finalChecks += Check 'subnet/s//TypeIdentifier' 'System:Subnet.Profibus'
+                $script:applied.verification.finalChecks += Check 'subnet/s///TypeIdentifier' 'System:Subnet.Profibus'
             }
             if ('__VARIANT__' -in @('valid-repeat','reordered-batch')) {
                 $operations += @{operationId='second';operation='update_subnet';target=@{kind='subnet';subnetId='s'};subnetChanges=@{name='Later'}}
@@ -522,7 +522,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 $script:applied.batch.operations += @{operationId='second';operation='update_subnet';status='succeeded';failure=$null;omission=$null;result=@{subnetId='s';name='Later';networkDeviceCount=2;networkDeviceCountUnchanged=$true;verification=$next}}
                 $script:applied.verification.operations += @{operationId='second';operation='update_subnet';status='passed';evidence=$next;omission=$null}
                 $script:applied.effects += @{operationId='second';effect=@{operation='update_subnet';target=@{subnetId='s'};affectedNodes=@();rootDeviceCount=2;connectionsComplete=$true};omission=$null}
-                $script:applied.verification.finalChecks[2]=Check 'subnet/s//Name' 'Later'
+                $script:applied.verification.finalChecks[2]=Check 'subnet/s///Name' 'Later'
                 $script:post.subnets[0].name='Later'
             }
             if ('__VARIANT__' -in @('valid-delete','valid-update-delete','missing-affected-final','wrong-affected-post')) {
@@ -538,9 +538,9 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                     $operations=@($delete); $script:applied.batch.operations=@($deleteItem)
                     $script:applied.verification.operations=@($deleteVerification); $script:applied.effects=@($deleteEffect)
                 }
-                $script:applied.verification.finalChecks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnet/s//absent' 'true'),(Check 'node/a/n/exists' 'true'),(Check 'node/a/n/removedSubnet:s' 'true'))
+                $script:applied.verification.finalChecks=@((Check 'networkDeviceCountUnchanged' '2'),(Check 'subnet/s///absent' 'true'),(Check 'node/a//n/exists' 'true'),(Check 'node/a//n/removedSubnet:s' 'true'))
                 $script:post.subnets=@()
-                $script:postNodes=@(@{deviceName='a';node=@{nodeId='n';connectionEvidence=@{complete=$true;subnetId=$null;ioSystemSubnetId=$null}}})
+                $script:postNodes=@(@{deviceName='a';identity=@{deviceName='a';nodeId='n'};node=@{nodeId='n';connectionEvidence=@{complete=$true;subnetId=$null;ioSystemSubnetId=$null}}})
             }
             $script:preview.effects=$script:applied.effects
             switch ('__VARIANT__') {
@@ -551,12 +551,12 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 'wrong-immediate-id' { $script:applied.verification.operations[0].operationId='other' }
                 'wrong-immediate-status' { $script:applied.verification.operations[0].status='not_required' }
                 'omitted-verification' { $script:applied.verification.omission=@{reason='omitted'} }
-                'wrong-final-id' { $script:applied.verification.finalChecks[1].name='subnet/other//exists' }
+                'wrong-final-id' { $script:applied.verification.finalChecks[1].name='subnet/other///exists' }
                 'wrong-post-address' { $script:attributeAddress=31 }
                 'wrong-post-speed' { $script:attributeSpeed='Baud187500' }
                 'null-post-attribute' { $script:nullAttribute=$true }
                 'duplicate-post-attribute' { $script:duplicateAttribute=$true }
-                'missing-affected-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'node/a/n/exists') }
+                'missing-affected-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'node/a//n/exists') }
                 'wrong-affected-post' { $script:postNodes[0].node.connectionEvidence.subnetId='s' }
                 'reordered-batch' { $script:applied.batch.operations=@($script:applied.batch.operations[1],$script:applied.batch.operations[0]) }
                 'empty-verification' { $script:applied.verification.operations=@(); $script:applied.verification.finalChecks=@() }
@@ -566,7 +566,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 'wrong-operation' { $script:applied.batch.operations[0].operation='delete_subnet' }
                 'wrong-subnet' { $script:applied.batch.operations[0].result.subnetId='other' }
                 'duplicate-final' { $script:applied.verification.finalChecks += $script:applied.verification.finalChecks[0] }
-                'missing-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'subnet/s//HighestAddress') }
+                'missing-final' { $script:applied.verification.finalChecks=@($script:applied.verification.finalChecks | Where-Object name -ne 'subnet/s///HighestAddress') }
                 'contradictory-final' { $script:applied.verification.finalChecks[1].observed='false' }
                 'wrong-attribute' { $checks[3].expected='31'; $checks[3].observed='31' }
                 'wrong-post-name' { $script:post.subnets[0].name='Before' }
@@ -667,6 +667,8 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
             $helperAst = [System.Management.Automation.Language.Parser]::ParseFile(
                 {{PowerShellLiteral(FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1"))}}, [ref] $tokens, [ref] $parseErrors)
             if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+            $safeHelpers = @('Get-NetworkMember','ConvertTo-NetworkInterfacePath','ConvertTo-NetworkPathJson','Get-NetworkNodeKey','Test-NetworkNodeIdentity','Get-NetworkNodeCheckName','Assert-HardwareWriteEvidence','Assert-NetworkFixtureHash')
+            foreach ($definition in $helperAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in $safeHelpers }, $true)) { Invoke-Expression $definition.Extent.Text }
             {{assertionBody}}
             """;
         var syntheticPath = Path.Combine(
