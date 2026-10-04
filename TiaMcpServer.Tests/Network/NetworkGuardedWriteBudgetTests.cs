@@ -246,7 +246,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReturnedCanonicalHash_EqualsAuditHash_AndOmissionNeverRequiresWriteReplay(bool registered)
+    public async Task KnownOversizedSetting_RefusesBeforeMutation_WithCanonicalAudit(bool registered)
     {
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
@@ -269,19 +269,166 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var root = NetworkGuardedWriteMcpTests.Document(reply);
         var canonical = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
         Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal("applied", root.GetProperty("phase").GetString());
-        Assert.False(reply.IsError == true);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        Assert.Equal("error", root.GetProperty("phase").GetString());
+        Assert.True(reply.IsError == true);
+        Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
         Assert.True(canonical.Length <= 180000);
-        Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean());
-        Assert.Equal("passed", root.GetProperty("verification").GetProperty("operations")[0].GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("verification").ValueKind);
+
         var record = CanonicalJson.Deserialize<WriteAuditRecord>(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
         Assert.Equal(canonical, record.ResponseText);
         Assert.Equal("sha256:" + ContentHashes.Sha256Hex(canonical), record.ResponseHash);
-        Assert.Equal("succeeded", Assert.Single(record.Items).Status);
-        Assert.Equal(1, requests.Methods().Count(method => method == "configure_network_device"));
+        Assert.Empty(record.Items);
+        Assert.DoesNotContain("configure_network_device", requests.Methods());
     }
 
+    [Theory]
+    [InlineData("network-qualified-budget-long", 50)]
+    [InlineData("network-qualified-budget-item", 1)]
+    public async Task LongPreparedOwnerPaths_RefuseBeforeFirstMutation(string scenario, int count)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = await QualifiedConfigure(fixture, scenario, "one");
+        var operations = Enumerable.Range(0, count).Select(i => new NetworkOperationRequest
+        { OperationId = new string('a', 253) + i.ToString("D3"), Operation = operation.Operation,
+            Target = operation.Target, Changes = operation.Changes }).ToArray();
+        Assert.All(operations, item => Assert.Equal(256, item.OperationId.Length));
+        Assert.True(new NetworkWriteDomain(fixture.Client).Validate(operations, McpAccessMode.ReadWrite).IsValid);
+        var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
+            new WriteCall<NetworkOperationRequest>(scenario, operations, false));
+        Assert.DoesNotContain("configure_network_device", requests.Methods());
+        var document = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.True(reply.IsError);
+        Assert.Equal("error", document.GetProperty("phase").GetString());
+        Assert.Equal("validation_error", document.GetProperty("error").GetProperty("category").GetString());
+        AssertQualifiedAudit(reply, audit);
+    }
+
+    [Fact]
+    public async Task QualifiedRecoveryCore_IsNeverFlattenedOrOmitted()
+    {
+        using var audit = new TempAuditDirectory();
+        const string scenario = "network-qualified-budget-escaped";
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = await QualifiedConfigure(fixture, scenario, "one");
+        var response = await fixture.RunAsync(false, operation);
+        var identity = response.Verification!.Operations[0].Evidence!.Identity["interfacePath"];
+        var originalPath = CanonicalJson.Serialize(response.Effects[0].Effect!.Target.InterfacePath);
+        // Huge worker diagnostic text is removable; the entire exact identity/check core is not.
+        response.Verification.Operations[0].Evidence!.Message = new string('x', 70000);
+        response.Verification.Operations[0].Evidence!.Checks[0].Message = new string('x', 70000);
+        var bounded = NetworkWritePayloadBudget.Apply(response);
+        Assert.NotNull(bounded.Verification!.Operations[0].Evidence);
+        Assert.Equal(identity, bounded.Verification.Operations[0].Evidence!.Identity["interfacePath"]);
+        Assert.Equal(originalPath, CanonicalJson.Serialize(bounded.Effects[0].Effect!.Target.InterfacePath));
+        Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Expected);
+        Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Observed);
+        Assert.Contains(bounded.Verification.FinalChecks, c => c.Name.Contains(identity, StringComparison.Ordinal));
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, 180000);
+        Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence).Length, 0, 60000);
+    }
+
+    [Fact]
+    public async Task MultipleAffectedE1Nodes_RemainDistinctUnderBudget()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-delete");
+        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
+        Assert.True(response.Success);
+        var nodes = response.Effects[0].Effect!.AffectedNodes;
+        Assert.Equal(2, nodes.Count);
+        Assert.All(nodes, n => Assert.Equal("E1", n.NodeId));
+        Assert.NotEqual(NetworkInterfacePathEncoding.Encode(nodes[0].InterfacePath!), NetworkInterfacePathEncoding.Encode(nodes[1].InterfacePath!));
+        Assert.All(nodes, n => Assert.Contains(response.Verification!.FinalChecks,
+            c => c.Name.Contains(NetworkInterfacePathEncoding.Encode(n.InterfacePath!), StringComparison.Ordinal) && c.Name.EndsWith("/removedSubnet:subnet-1")));
+    }
+
+    [Fact]
+    public async Task EscapedPaths_UseEncodedSize()
+    {
+        using var audit = new TempAuditDirectory();
+        const string scenario = "network-qualified-budget-escaped";
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = await QualifiedConfigure(fixture, scenario, "one");
+        operation.Target!.InterfaceName = "PROFINET interface_1";
+        var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
+            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
+        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
+        Assert.True(response.Success);
+        var path = response.Effects[0].Effect!.Target.InterfacePath!;
+        Assert.Equal(operation.Target.InterfacePath![0].Name, path[0].Name);
+        var encoded = NetworkInterfacePathEncoding.Encode(path);
+        Assert.Equal(encoded, response.Verification!.Operations[0].Evidence!.Identity["interfacePath"]);
+        Assert.Equal("PROFINET interface_1", response.Verification.Operations[0].Evidence!.Identity["interfaceName"]);
+        Assert.True(CanonicalJson.Serialize(encoded).Length > path.Sum(s => s.Name.Length));
+        AssertQualifiedAudit(reply, audit);
+    }
+
+    [Fact]
+    public async Task LatePartialFailure_PreservesExactRecoveryCore()
+    {
+        using var audit = new TempAuditDirectory();
+        const string scenario = "network-qualified-budget-late-growth";
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = await QualifiedConfigure(fixture, scenario, "first");
+        var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
+            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation, NetworkGuardedWriteFixture.Delete("second"), new NetworkOperationRequest { OperationId = "third", Operation = operation.Operation, Target = operation.Target, Changes = operation.Changes } }, false));
+        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
+        Assert.Equal(1, requests.Methods().Count(m => m == "configure_network_device"));
+        Assert.DoesNotContain("delete_subnet", requests.Methods());
+        Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
+        Assert.Equal("failed", response.Batch.Operations[1].Status);
+        Assert.Equal("validation_error", response.Batch.Operations[1].Failure!.Category);
+        Assert.Equal("skipped", response.Batch.Operations[2].Status);
+        Assert.Equal("192.168.12.7", response.Batch.Operations[0].Result!.Value.GetProperty("appliedSettings").GetProperty("Address").GetString());
+        Assert.Equal(NetworkInterfacePathEncoding.Encode(response.Effects[0].Effect!.Target.InterfacePath!),
+            response.Verification!.Operations[0].Evidence!.Identity["interfacePath"]);
+        AssertQualifiedAudit(reply, audit);
+    }
+
+    [Fact]
+    public async Task Audit_MatchesDeliveredQualifiedDocument()
+    {
+        using var audit = new TempAuditDirectory();
+        const string scenario = "network-qualified-partial";
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = await QualifiedConfigure(fixture, scenario, "partial");
+        operation.Changes = new() { IpAddress = "192.168.12.7", SubnetMask = "255.255.255.0" };
+        var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
+            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
+        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
+        Assert.False(response.Success);
+        Assert.Equal("failed", response.Batch!.Operations[0].Status);
+        Assert.NotNull(response.Effects[0].Effect!.Target.InterfacePath);
+        Assert.Equal("192.168.12.7", response.Batch.Operations[0].Result!.Value.GetProperty("appliedSettings").GetProperty("Address").GetString());
+        Assert.True(response.Batch.Operations[0].Result!.Value.GetProperty("skippedSettings").TryGetProperty("SubnetMask", out _));
+        AssertQualifiedAudit(reply, audit);
+    }
+
+    private static async Task<NetworkOperationRequest> QualifiedConfigure(NetworkGuardedWriteFixture fixture, string scenario, string id)
+    {
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
+        var device = snapshot.State!.Devices[0];
+        var owner = device.Items[0].Items[0];
+        return new() { OperationId = id, Operation = "configure_network_device", Changes = new() { IpAddress = "192.168.12.7" },
+            Target = new() { DeviceName = device.Name, NodeId = "E1",
+                InterfacePath = new[] { device.Items[0], owner }.Select(i => new NetworkInterfacePathSegment
+                { Name = i.Name!, PositionNumber = i.PositionNumber }).ToArray() } };
+    }
+    private static void AssertQualifiedAudit(CallToolResult reply, TempAuditDirectory audit)
+    {
+        var text = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
+        Assert.InRange(text.Length, 0, 180000);
+        Assert.Equal(text, ((JsonElement)reply.StructuredContent!).GetRawText());
+        var record = CanonicalJson.Deserialize<WriteAuditRecord>(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        Assert.Equal(text, record.ResponseText);
+        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(text), record.ResponseHash);
+    }
     private static NetworkGuardedWriteResponse Compose(WriteReport<NetworkWriteEffect, NetworkWriteVerification> report)
     {
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null));

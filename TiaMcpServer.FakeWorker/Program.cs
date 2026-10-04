@@ -1195,6 +1195,10 @@ while ((line = Console.In.ReadLine()) is not null)
         // Phase 3: list_network_objects and inspect_network_object fixtures
         // ---------------------------------------------------------------------------
 
+        case "network-qualified-budget-long":
+        case "network-qualified-budget-item":
+        case "network-qualified-budget-escaped":
+        case "network-qualified-budget-late-growth":
         case "network-qualified-owner-drift":
         case "network-qualified-partial":
         case "network-qualified-read":
@@ -1211,6 +1215,12 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-qualified-final-repeat-interface-drift":
             var qualifiedHardware = qualifiedNetworkState ??= QualifiedHardwareFixture();
             var qualifiedDevice = qualifiedHardware.Devices[0];
+            if (scenario == "network-qualified-budget-long")
+                qualifiedDevice.Items[0].Name = new string('\u4e00', 800);
+            if (scenario == "network-qualified-budget-item")
+                qualifiedDevice.Items[0].Name = new string('\u4e00', 12000);
+            if (scenario == "network-qualified-budget-escaped")
+                qualifiedDevice.Items[0].Name = string.Concat(Enumerable.Repeat("rack/\\\"\u4e00", 80));
             if (scenario != "network-qualified-read" && scenario != "network-qualified-partial" && scenario != "network-qualified-owner-drift" && qualifiedHardware.Subnets.Count == 0 && guardedNetworkWrites == 0)
             {
                 NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
@@ -1230,6 +1240,21 @@ while ((line = Console.In.ReadLine()) is not null)
                     qualifiedDevice.Items[0].Items[0].Name = "Changed owner";
                 if (guardedNetworkWrites > 0)
                 {
+                    if (scenario == "network-qualified-budget-late-growth" && qualifiedDevice.Items[0].Items.Count == 2)
+                    {
+                        for (var budgetIndex = 0; budgetIndex < 30; budgetIndex++)
+                            qualifiedDevice.Items[0].Items.Add(new()
+                            {
+                                Name = new string('\u4e00', 900) + budgetIndex, PositionNumber = 40000 + budgetIndex,
+                                SelectorDiagnostics = new() { "Generic item type evidence is unavailable." },
+                                NetworkInterfaces = new() { new() { Name = "late", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." }, Nodes = new() { new()
+                                { NodeId = "E1", Name = "late", ConnectionEvidence = new() { Complete = true, SubnetId = "subnet-1" } } } } }
+                            });
+                        NetworkNodeReadSelectorBuilder.ApplyInventory(qualifiedHardware);
+                        qualifiedHardware.Subnets[0].ConnectionEvidence!.Nodes = qualifiedDevice.Items[0].Items
+                            .SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).Select(n => new NetworkNodeIdentityInfo
+                            { DeviceName = qualifiedDevice.Name!, NodeId = n.NodeId, InterfacePath = n.Selector!.InterfacePath }).ToList();
+                    }
                     if (scenario == "network-qualified-late-subnet") qualifiedHardware.Subnets.Add(new() { SubnetId = "", SelectorDiagnostics = new() { "Unreadable subnet identity" } });
                     if (scenario == "network-qualified-late-node") qualifiedNodes[0].NodeId = "";
                     if (scenario == "network-qualified-late-device") qualifiedHardware.Devices.Add(new());
