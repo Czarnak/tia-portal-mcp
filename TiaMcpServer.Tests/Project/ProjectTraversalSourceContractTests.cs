@@ -24,7 +24,10 @@ public class ProjectTraversalSourceContractTests
         var tree = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
 
-        Assert.Contains("foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))", hardware, StringComparison.Ordinal);
+        Assert.Contains("capture.Traverse(() => ProjectDeviceEnumerator.Enumerate(project), device =>", hardware, StringComparison.Ordinal);
+        Assert.Contains("candidates.Add((device, nameEvidence));", hardware, StringComparison.Ordinal);
+        Assert.Contains("}, \"deviceEnumeration\", \"deviceMaterialization\");", hardware, StringComparison.Ordinal);
+        Assert.Contains("result.DiscoveryEvidence = capture.Evidence;", hardware, StringComparison.Ordinal);
         Assert.Contains("ProjectDeviceEnumerator.Enumerate(project).Cast<Device>().ToList()", tree, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (Device device in project.Devices)", hardware, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (Device device in project.Devices)", tree, StringComparison.Ordinal);
