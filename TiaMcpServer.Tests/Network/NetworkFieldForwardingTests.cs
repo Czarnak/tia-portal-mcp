@@ -94,6 +94,29 @@ public class NetworkFieldForwardingTests
         }
     }
 
+    [Theory]
+    [InlineData(32768, "PROFINET interface_1")]
+    [InlineData(33024, "PROFINET interface_2")]
+    public async Task ConfigureEachE1_ForwardsItsEntireSelector(int position, string owner)
+    {
+        using var client = await CreateClientAsync();
+        var operation = new NetworkOperationRequest { OperationId = "qualified", Operation = "configure_network_device",
+            Target = new() { Kind = "node", DeviceName = "S7-1500/ET200MP station_1", NodeId = "E1", NodeIndex = 0,
+                InterfaceName = owner, InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
+                    new NetworkInterfacePathSegment { Name = owner, PositionNumber = position, TypeIdentifier = "optional-type" } } },
+            Changes = new() { IpAddress = "192.168.12.99" } };
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, "echo");
+        Assert.True(result.Success, result.Error);
+        var request = JsonSerializer.Deserialize<WorkerRequest>(result.Payload, WorkerJson.Envelope)!;
+        Assert.NotNull(request.NetworkObjectTarget);
+        Assert.Equal(position, request.NetworkObjectTarget!.InterfacePath![1].PositionNumber);
+        Assert.Equal("optional-type", request.NetworkObjectTarget.InterfacePath[1].TypeIdentifier);
+        Assert.Equal(owner, request.NetworkObjectTarget.InterfaceName);
+        Assert.Equal(0, request.NetworkObjectTarget.NodeIndex);
+        Assert.Equal(request.DeviceName, request.NetworkObjectTarget.DeviceName);
+        Assert.Equal(request.NodeId, request.NetworkObjectTarget.NodeId);
+    }
+
     [Fact]
     public async Task AddNetworkDevice_OmittedDeviceItemNameForwardsDeviceName()
     {

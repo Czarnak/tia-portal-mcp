@@ -69,6 +69,18 @@ public class NetworkMutationVerificationTests
         => NetworkPayloadContract.Project(op, WorkerCallResult.Ok(WorkerJson.SerializePayload(result)), required);
 
     [Fact]
+    public void QualifiedImmediateIdentity_IsAcceptedAndWrongOwnerRejected()
+    {
+        var op = Configure();
+        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 32768 } };
+        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
+        result.Verification!.Identity["interfacePath"] = "[{\"name\":\"X1\",\"positionNumber\":32768}]";
+        Assert.Equal("succeeded", Project(op, result).Status);
+        result.Verification.Identity["interfacePath"] = "[{\"name\":\"X2\",\"positionNumber\":33024}]";
+        AssertProtocolError(Project(op, result));
+    }
+
+    [Fact]
     public void AppliedSubsetOnly_IsVerified()
     {
         var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));

@@ -11,6 +11,52 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public class NetworkIdentityResolverTests
 {
+    private static NetworkOperationRequest RepairRequest(int position = 32768) => new()
+    {
+        OperationId = "repair", Operation = "configure_network_device",
+        Target = new() { DeviceName = "S7-1500/ET200MP station_1", NodeId = "E1", InterfacePath = new[]
+        { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
+          new NetworkInterfacePathSegment { Name = position == 32768 ? "PROFINET interface_1" : "PROFINET interface_2", PositionNumber = position } } },
+        Changes = new() { IpAddress = "192.168.12.99" }
+    };
+
+    [Theory]
+    [InlineData(32768)]
+    [InlineData(33024)]
+    public void ConfigureEachE1_ResolvesOnlyItsOwner(int position)
+    {
+        var resolution = NetworkIdentityResolver.Resolve(RepairRequest(position),
+            NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }));
+        Assert.True(resolution.Success, resolution.Error);
+        Assert.Equal(position == 32768 ? "X1" : "X2", resolution.Evidence!.NodeName);
+    }
+
+    [Fact]
+    public void BareDuplicateE1_IsAmbiguousBeforeDispatch()
+    {
+        var request = RepairRequest(); request.Target!.InterfacePath = null;
+        var bareResolution = NetworkIdentityResolver.Resolve(request,
+            NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }));
+        Assert.False(bareResolution.Success);
+        Assert.Contains("interfacePath", bareResolution.Error);
+    }
+
+    [Theory]
+    [InlineData("position")]
+    [InlineData("type")]
+    [InlineData("interface")]
+    [InlineData("index")]
+    public void WrongQualifiedConstraints_RefuseWithoutRetargeting(string constraint)
+    {
+        var request = RepairRequest();
+        if (constraint == "position") request.Target!.InterfacePath![1].PositionNumber = 33024;
+        if (constraint == "type") request.Target!.InterfacePath![1].TypeIdentifier = "Wrong";
+        if (constraint == "interface") request.Target!.InterfaceName = "PROFINET interface_2";
+        if (constraint == "index") request.Target!.NodeIndex = 1;
+        Assert.False(NetworkIdentityResolver.Resolve(request,
+            NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true })).Success);
+    }
+
     [Theory]
     [InlineData("device", null)]
     [InlineData("device", "")]
