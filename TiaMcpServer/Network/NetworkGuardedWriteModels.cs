@@ -21,4 +21,5 @@ public sealed record NetworkWriteVerification(bool Success, IReadOnlyList<Networ
 public sealed record NetworkWriteEffectPresentation(string OperationId, NetworkWriteEffect? Effect, StructuredOperationOmission? Omission);
 public sealed record NetworkGuardedWriteResponse(string Tool, string ContractVersion, string Phase, bool Success,
     WriteToolError? Error, IReadOnlyList<string> Warnings, IReadOnlyList<WriteGuardReport> Guards,
-    IReadOnlyList<NetworkWriteEffectPresentation> Effects, StructuredOperationBatch? Batch, NetworkWriteVerification? Verification);
+    IReadOnlyList<NetworkWriteEffectPresentation> Effects, StructuredOperationBatch? Batch, NetworkWriteVerification? Verification,
+    StructuredOperationOmission? Omission = null);

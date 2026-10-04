@@ -22,6 +22,9 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
     {
         var validation = NetworkOperationCatalog.ValidateWrite(items);
         if (!validation.IsValid) return WriteValidation.Invalid(WorkerFailureCategories.ValidationError, validation.Error);
+        if (NetworkWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+            return WriteValidation.Invalid(WorkerFailureCategories.ValidationError,
+                "The encoded operation identities leave insufficient room for the required response summaries. Use smaller network_write calls.");
         var errors = NetworkOperationCatalog.ValidateAccessMode(items, accessMode);
         return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
     }
@@ -46,7 +49,7 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
                 guards.Add(new(NetworkGuardDefinitions.Unverifiable, items[i].OperationId, "Required Network consequence inventory or root device count is unavailable. Inspect current hardware state."));
             else if (effect.Operation == "delete_subnet" && effect.AffectedNodes.Count > 0)
                 guards.Add(new(NetworkGuardDefinitions.ConnectedDelete, items[i].OperationId,
-                    $"Deleting subnet '{effect.Target.SubnetId}' removes connections for " + string.Join(", ", effect.AffectedNodes.Select(n => $"{n.DeviceName}/{n.NodeId}")) + "; devices and nodes remain."));
+                    $"Deleting the selected subnet removes connections for {effect.AffectedNodes.Count} nodes; devices and nodes remain. Inspect the operation's effect for exact identities."));
         }
         return guards;
     }
@@ -69,8 +72,8 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
         => await new NetworkWriteVerifier(client, _initial, _current).VerifyAsync(path,
             StructuredOperationBatch.FromItems(batch.Operations.Where(item => _attempted.Contains(item.OperationId)).ToArray()), _immediate).ConfigureAwait(false);
     public bool VerificationSucceeded(NetworkWriteVerification? verification) => verification?.Success == true;
-    public NetworkGuardedWriteResponse Compose(WriteReport<NetworkWriteEffect, NetworkWriteVerification> report) => new(
+    public NetworkGuardedWriteResponse Compose(WriteReport<NetworkWriteEffect, NetworkWriteVerification> report) => NetworkWritePayloadBudget.Apply(new(
         ToolName, ContractVersion, report.Phase, report.Success, report.Error, report.Warnings, report.Guards,
-        report.Effects.Select(e => new NetworkWriteEffectPresentation(e.OperationId, e.Effect, null)).ToArray(), report.Batch, report.Verification);
+        report.Effects.Select(e => new NetworkWriteEffectPresentation(e.OperationId, e.Effect, null)).ToArray(), report.Batch, report.Verification));
     private static NetworkWriteEffect Copy(NetworkWriteEffect effect) => CanonicalJson.Deserialize<NetworkWriteEffect>(CanonicalJson.Serialize(effect));
 }
