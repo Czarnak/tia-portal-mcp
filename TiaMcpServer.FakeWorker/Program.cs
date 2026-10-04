@@ -954,7 +954,8 @@ while ((line = Console.In.ReadLine()) is not null)
             // A contract-valid, empty HardwareConfigInfo: no device can ever match a
             // configure_network_device target here, so a preview against this scenario proves
             // NetworkIdentityResolver's fail-closed path issues no safety token.
-            Respond("""{"success":true,"payload":"{\"devices\":[],\"subnets\":[],\"messages\":[]}"}""");
+            Respond(Success(ToCamelCaseJson(new HardwareConfigInfo
+                { DiscoveryEvidence = new() { Scope = "project", Complete = true } })));
             break;
         case "network-write-item-failure":
             // Stable hardware state (so preview/apply token binding holds) followed by a failing
@@ -999,7 +1000,8 @@ while ((line = Console.In.ReadLine()) is not null)
             // point is a DIFFERENT operation's payload being rejected as protocol_error.
             Respond(ReadMethod(line) switch
             {
-                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo())),
+                "read_hardware_config" => Success(ToCamelCaseJson(new HardwareConfigInfo
+                    { DiscoveryEvidence = new() { Scope = "project", Complete = true } })),
                 "search_equipment_catalog" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
                 "add_network_device" => """{"success":true,"payload":"{\"unexpectedShape\":true}"}""",
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}' for invalid-network-success-payload"}"""
@@ -1249,17 +1251,27 @@ while ((line = Console.In.ReadLine()) is not null)
             {
                 guardedNetworkState.Messages.Add("Optional TypeIdentifier metadata is unavailable.");
                 guardedNetworkState.Devices[0].Items[0].TypeIdentifier = null;
+                guardedNetworkState.Devices[0].Items[0].Selectable = false;
+                guardedNetworkState.Devices[0].Items[0].Selector = null;
                 guardedNetworkState.Devices[0].Items[0].SelectorDiagnostics.Add("Optional TypeIdentifier metadata is unavailable.");
+                var optionalInterface = guardedNetworkState.Devices[0].Items[0].NetworkInterfaces[0];
+                optionalInterface.Selectable = false;
+                optionalInterface.Selector = null;
+                optionalInterface.SelectorDiagnostics.Add("Optional owner TypeIdentifier metadata is unavailable.");
             }
             if (scenario == "network-guarded-incomplete-node")
                 GuardedNodes(guardedNetworkState).First().ConnectionEvidence = new() { Complete = false,
                     Messages = new() { "Could not read connected subnet identity: unavailable", "Could not read node 'Same display name' IO system: unavailable" } };
             if (scenario == "network-guarded-incomplete-root" && guardedNetworkState.Messages.Count == 0)
-                guardedNetworkState.Messages.Add("Some device groups could not be enumerated.");
+            {
+                guardedNetworkState.RootDeviceCount = null;
+                guardedNetworkState.Messages.Add("Could not read root device count: unavailable.");
+            }
             if (scenario == "network-guarded-incomplete-selector" && guardedNetworkState.Subnets[0].SelectorDiagnostics.Count == 0)
             {
                 guardedNetworkState.Subnets[0].Selectable = false;
                 guardedNetworkState.Subnets[0].Selector = null;
+                guardedNetworkState.Subnets[0].SubnetId = string.Empty;
                 guardedNetworkState.Subnets[0].SelectorDiagnostics.Add("Subnet selector identity was ambiguous.");
             }
             if (scenario is "network-guarded-partial" or "network-guarded-io-move" && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
@@ -2793,6 +2805,7 @@ HardwareConfigInfo SingleNodeHardwareConfig(
     string nodeId,
     IEnumerable<string>? messages = null) => new()
 {
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
     RootDeviceCount = 1,
     Devices = new List<DeviceInfo>
     {
@@ -2813,6 +2826,7 @@ HardwareConfigInfo SingleNodeHardwareConfig(
 
 HardwareConfigInfo AmbiguousNodeHardwareConfig() => new()
 {
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
     Devices = new List<DeviceInfo>
     {
         new()
@@ -2947,6 +2961,7 @@ IoSystemInfo SelectableIoSystem(string subnetId, string name, int number, string
 // mutable node state, so a read after a configure_network_device call observes the mutation.
 HardwareConfigInfo MultiHomedHardwareConfig(MultiHomedNode plc, MultiHomedNode db) => new()
 {
+    DiscoveryEvidence = new() { Scope = "project", Complete = true },
     Devices = new List<DeviceInfo>
     {
         new()
@@ -3345,6 +3360,7 @@ HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState
     }
     return new()
     {
+        DiscoveryEvidence = new() { Scope = "project", Complete = true },
         RootDeviceCount = SubnetLifecycleDeviceCount,
         Devices = devices,
         Subnets = subnets.Select(subnet =>
@@ -3381,6 +3397,7 @@ string InspectSubnetLifecycle(string request, List<SubnetLifecycleSubnetState> s
 HardwareConfigInfo RoundtripHardwareConfig()
 {
     var state = JsonSerializer.Deserialize<HardwareConfigInfo>(HardwareConfigPayload(), requestJsonOptions)!;
+    state.DiscoveryEvidence = new() { Scope = "project", Complete = true };
     state.RootDeviceCount = state.Devices.Count;
     foreach (var node in GuardedNodes(state))
         node.ConnectionEvidence = new() { Complete = true,

@@ -99,6 +99,7 @@ public sealed class NetworkWriteVerifier
         }
         if (operations.Count == 0) return new(true, operations, checks, null);
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
+        // Reuse preparation's ordinary-project structural gate after mutation as well.
         var readable = snapshot.Success && NetworkWritePlanner.DiscoveryComplete(snapshot.State!);
         var state = readable ? snapshot.State : null;
         if (!readable) checks.Add(Check("finalHardwareState", "readable complete inventory", null, false));

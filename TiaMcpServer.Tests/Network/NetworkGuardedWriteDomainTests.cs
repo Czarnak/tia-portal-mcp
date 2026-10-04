@@ -68,10 +68,10 @@ public sealed class NetworkGuardedWriteDomainTests
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario, mode);
         var operation = kind == "node" ? NetworkGuardedWriteFixture.Configure("connect", connect: true) : NetworkGuardedWriteFixture.Delete();
         var response = await fixture.RunAsync(dryRun, operation);
-        var structural = kind is "root" or "selector";
-        Assert.Equal(structural ? "error" : dryRun ? "preview" : "blocked", response.Phase);
+        var missingIdentity = kind == "selector";
+        Assert.Equal(missingIdentity ? "error" : dryRun ? "preview" : "blocked", response.Phase);
         Assert.Null(response.Batch);
-        if (structural) Assert.Equal("worker_operation_failed", response.Error!.Category);
+        if (missingIdentity) Assert.Equal("postcondition_failed", response.Error!.Category);
         else
         {
             Assert.Contains(response.Guards, guard => guard.Id == "network_state_unverifiable" && guard.Severity == "block");

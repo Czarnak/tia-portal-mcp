@@ -35,8 +35,8 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
 
     private async Task<ItemReplan<NetworkWriteEffect>> ResolveAsync(string? projectPath, NetworkOperationRequest item, HardwareConfigInfo state)
     {
-        // A diagnostic can represent omitted candidates. Do not accept a visible unique match
-        // or infer absence from an incomplete ordinary discovery result.
+        // Only authoritative ordinary project traversal can establish a complete inventory.
+        // Optional metadata diagnostics do not describe omitted candidates.
         if (!DiscoveryComplete(state))
             return ItemReplan<NetworkWriteEffect>.Fail(WorkerFailureCategories.WorkerOperationFailed,
                 "Network target discovery is incomplete. Inspect the hardware configuration before retrying.");
@@ -86,15 +86,8 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
             }));
     }
 
-    internal static bool DiscoveryComplete(HardwareConfigInfo state) => state.Messages.Count == 0
-        && state.Pagination is null
-        && state.Devices.All(d => !string.IsNullOrWhiteSpace(d.Name) && ItemsComplete(d.Items))
-        && state.Subnets.All(s => !string.IsNullOrWhiteSpace(s.SubnetId) && s.SelectorDiagnostics.Count == 0
-            && s.IoSystems.All(io => io.Number.HasValue))
-        && Nodes(state).All(p => !string.IsNullOrWhiteSpace(p.Node.NodeId) && p.Node.SelectorDiagnostics.Count == 0);
-
-    private static bool ItemsComplete(IEnumerable<DeviceItemInfo> items) => items.All(i => i.SelectorDiagnostics.Count == 0
-        && i.NetworkInterfaces.All(n => n.SelectorDiagnostics.Count == 0) && ItemsComplete(i.Items));
+    internal static bool DiscoveryComplete(HardwareConfigInfo state) => state.Pagination is null
+        && state.DiscoveryEvidence is { Scope: "project", Complete: true, Failures.Count: 0 };
 
     internal static IEnumerable<(string DeviceName, NodeInfo Node)> Nodes(HardwareConfigInfo state) =>
         state.Devices.SelectMany(d => DeviceNodes(d.Items).Select(n => (d.Name!, n)));
