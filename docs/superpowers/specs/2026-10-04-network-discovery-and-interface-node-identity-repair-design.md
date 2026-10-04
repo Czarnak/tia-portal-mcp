@@ -1,7 +1,7 @@
 # Network discovery and interface-qualified node identity repair
 
 Date: 2026-10-04
-Status: conversational design approved; written spec awaiting user review.
+Status: written spec approved by the user on 2026-10-04; implementation plan awaiting review.
 Branch: `feature/network-contract-write-safety`. Keep this repair in the existing Network PR.
 
 ## 1. Purpose and authority
