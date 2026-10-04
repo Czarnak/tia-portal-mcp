@@ -200,6 +200,7 @@ public static class NetworkPayloadContract
             ?? op.Target.ItemPath?.Select(x => new NetworkInterfacePathSegmentInfo
             { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray();
         if (path is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(path);
+        if (op.Target.InterfaceName is not null) identity["interfaceName"] = op.Target.InterfaceName;
         ValidateVerification(value.Verification,
             identity, checks,
             allowNotRequired: checks.Count == 0);

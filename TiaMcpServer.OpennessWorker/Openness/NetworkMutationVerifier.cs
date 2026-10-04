@@ -42,6 +42,7 @@ internal static class NetworkMutationVerifier
         if (selector.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.InterfacePath);
         else if (selector.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.ItemPath.Select(x =>
             new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
+        if (selector.InterfaceName is not null) identity["interfaceName"] = selector.InterfaceName;
         var evidence = new NetworkMutationVerificationInfo { Identity = identity };
         // Resolve only when a setting was applied. A fully skipped request has no successful
         // setting to verify; the host still classifies the skipped request as a failure.
@@ -113,7 +114,7 @@ internal static class NetworkMutationVerifier
         {
             Observe(evidence, "affectedNodesPreserved", "true", () =>
             {
-                foreach (var identity in affectedNodes) _ = ResolveNode(project, identity.DeviceName, identity.NodeId);
+                foreach (var identity in affectedNodes) _ = ResolveNode(project, identity);
                 return "true";
             });
             Observe(evidence, "affectedConnectionsRemoved", "true", () =>
@@ -121,7 +122,7 @@ internal static class NetworkMutationVerifier
                 var removed = true;
                 foreach (var identity in affectedNodes)
                 {
-                    var target = ResolveNode(project, identity.DeviceName, identity.NodeId);
+                    var target = ResolveNode(project, identity);
                     var connectedSubnet = target.Node.ConnectedSubnet;
                     var connectedId = connectedSubnet is null ? null : HardwareConfigReader.RequireSubnetIdentity(connectedSubnet);
                     var ioSystem = HardwareConfigReader.ReadIoSystemIdentity(target.Interface);
@@ -162,21 +163,13 @@ internal static class NetworkMutationVerifier
         return matches[0].Device;
     }
 
-    private static (NetworkInterface Interface, Node Node) ResolveNode(Project project, string deviceName, string nodeId)
+    private static (NetworkInterface Interface, Node Node) ResolveNode(Project project, NetworkNodeIdentityInfo identity)
     {
-        var device = ResolveDevice(project, deviceName);
-        var matches = new List<(NetworkInterface Interface, Node Node)>();
-        foreach (var item in EnumerateItems(device.DeviceItems))
-        {
-            // A normal null service means this item has no interface. A thrown read is unknown;
-            // it propagates and prevents a partial enumeration from proving uniqueness.
-            var networkInterface = ((IEngineeringServiceProvider)item).GetService<NetworkInterface>();
-            if (networkInterface is null) continue;
-            foreach (Node node in networkInterface.Nodes)
-                if (Required(node.NodeId) == nodeId) matches.Add((networkInterface, node));
-        }
-        if (matches.Count != 1) throw new InvalidOperationException("Node did not resolve uniquely.");
-        return matches[0];
+        if (identity.InterfacePath is null) throw new InvalidOperationException("Affected node has no verified owner path.");
+        var resolved = NetworkObjectSelectorResolver.ResolveNode(project, NetworkSelectorFactory.QualifiedNode(
+            identity.DeviceName, identity.NodeId, identity.InterfacePath, identity.InterfaceName));
+        if (!resolved.Success) throw new InvalidOperationException(resolved.Error);
+        return (resolved.Resolved!.OwningInterface!, (Node)resolved.Resolved.Value);
     }
 
     private static IEnumerable<DeviceItem> EnumerateItems(DeviceItemComposition items)

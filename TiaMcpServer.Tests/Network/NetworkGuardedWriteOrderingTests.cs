@@ -334,7 +334,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.False(response.Success);
         Assert.Equal("unverified", Assert.Single(response.Verification!.Operations).Status);
-        Assert.Contains(response.Verification.FinalChecks, c => c.Name == "node/PLC_Grouped/node-2/exists" && c.Status == "passed");
-        Assert.Contains(response.Verification.FinalChecks, c => c.Name == "node/PLC_Ungrouped/node-3/exists" && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Name.StartsWith("node/PLC_Grouped/", StringComparison.Ordinal) && c.Name.EndsWith("/node-2/exists", StringComparison.Ordinal) && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Name.StartsWith("node/PLC_Ungrouped/", StringComparison.Ordinal) && c.Name.EndsWith("/node-3/exists", StringComparison.Ordinal) && c.Status == "passed");
     }
 }

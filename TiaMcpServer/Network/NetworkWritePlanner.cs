@@ -52,7 +52,8 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
             var node = NetworkIdentityResolver.PreparedNode(state, target);
             foreach (var key in requested.Keys) current[key] = Attribute(key, NodeValue(node, key),
                 key is "Subnet" or "IoSystem" ? node.ConnectionEvidence?.Complete == true : NodeValue(node, key) is not null);
-            affected.Add(new() { DeviceName = target.DeviceName!, NodeId = target.NodeId! });
+            affected.Add(new() { DeviceName = target.DeviceName!, NodeId = target.NodeId!, InterfacePath = ClonePath(target.InterfacePath!),
+                InterfaceName = item.Target?.InterfaceName });
             if (requested.ContainsKey("Subnet") || requested.ContainsKey("IoSystem")) complete = node.ConnectionEvidence?.Complete == true;
         }
         else if (item.Operation is "update_subnet" or "delete_subnet")
@@ -61,9 +62,13 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
             if (item.Operation == "delete_subnet")
             {
                 complete = subnet.ConnectionEvidence?.Complete == true;
-                affected.AddRange((subnet.ConnectionEvidence?.Nodes ?? new()).Select(n => new NetworkNodeIdentityInfo { DeviceName = n.DeviceName, NodeId = n.NodeId }));
-                // Cross-check identities against all device scopes, not the root count.
-                complete &= affected.All(n => Nodes(state).Count(p => NamesEqual(p.DeviceName, n.DeviceName) && p.Node.NodeId == n.NodeId) == 1);
+                foreach (var identity in subnet.ConnectionEvidence?.Nodes ?? new())
+                {
+                    // A legacy identity is upgraded only from this fresh, complete ordinary read.
+                    if (TryResolveAffected(state, identity, out var qualified, out _)) affected.Add(qualified!);
+                    else { complete = false; affected.Add(CloneIdentity(identity)); }
+                }
+                complete &= affected.Distinct(NetworkNodeIdentityComparer.Instance).Count() == affected.Count;
             }
             foreach (var key in requested.Keys)
                 current[key] = Attribute(key, key == "Name" ? subnet.Name : null, key == "Name");
@@ -88,6 +93,27 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
 
     internal static bool DiscoveryComplete(HardwareConfigInfo state) => state.Pagination is null
         && state.DiscoveryEvidence is { Scope: "project", Complete: true, Failures.Count: 0 };
+
+    internal static List<NetworkInterfacePathSegmentInfo> ClonePath(IEnumerable<NetworkInterfacePathSegmentInfo> path) => path.Select(s => new NetworkInterfacePathSegmentInfo
+    { Name = s.Name, PositionNumber = s.PositionNumber, TypeIdentifier = s.TypeIdentifier }).ToList();
+    internal static NetworkNodeIdentityInfo CloneIdentity(NetworkNodeIdentityInfo identity) => new()
+    { DeviceName = identity.DeviceName, NodeId = identity.NodeId, InterfacePath = identity.InterfacePath is null ? null : ClonePath(identity.InterfacePath), InterfaceName = identity.InterfaceName };
+
+    internal static bool TryResolveAffected(HardwareConfigInfo state, NetworkNodeIdentityInfo identity,
+        out NetworkNodeIdentityInfo? qualified, out NodeInfo? node)
+    {
+        qualified = null; node = null;
+        if (!DiscoveryComplete(state)) return false;
+        var resolution = NetworkIdentityResolver.Resolve(new NetworkOperationRequest { OperationId = "affected", Operation = "configure_network_device",
+            Target = new() { DeviceName = identity.DeviceName, NodeId = identity.NodeId, InterfaceName = identity.InterfaceName,
+                InterfacePath = identity.InterfacePath?.Select(s => new NetworkInterfacePathSegment
+                { Name = s.Name, PositionNumber = s.PositionNumber, TypeIdentifier = s.TypeIdentifier }).ToArray() } }, state);
+        if (!resolution.Success || resolution.Evidence!.InterfacePath is null) return false;
+        var target = resolution.Evidence;
+        node = NetworkIdentityResolver.PreparedNode(state, target);
+        qualified = new() { DeviceName = target.DeviceName!, NodeId = target.NodeId!, InterfacePath = ClonePath(target.InterfacePath), InterfaceName = identity.InterfaceName };
+        return true;
+    }
 
     internal static IEnumerable<(string DeviceName, NodeInfo Node)> Nodes(HardwareConfigInfo state) =>
         state.Devices.SelectMany(d => DeviceNodes(d.Items).Select(n => (d.Name!, n)));

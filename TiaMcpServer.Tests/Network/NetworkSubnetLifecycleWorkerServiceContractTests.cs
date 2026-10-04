@@ -236,7 +236,9 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         Assert.Contains("if (!evidence.Complete)", verifier);
         Assert.Contains("ProjectDeviceNameMatcher.FindMatches(project, name", verifier);
         Assert.Contains("HardwareConfigReader.ReadConnectedNodeIdentity", verifier);
-        Assert.Contains("ResolveNode(project, identity.DeviceName, identity.NodeId)", verifier);
+        Assert.Contains("ResolveNode(project, identity)", verifier);
+        Assert.Contains("identity.InterfacePath", verifier);
+        Assert.Contains("NetworkObjectSelectorResolver.ResolveNode(project", verifier);
         Assert.Contains("HardwareConfigReader.RequireSubnetIdentity(candidate)", verifier);
     }
 

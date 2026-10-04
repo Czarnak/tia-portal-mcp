@@ -3800,6 +3800,7 @@ NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine
     if (target?.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.InterfacePath);
     else if (target?.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.ItemPath.Select(x =>
         new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
+    if (target?.InterfaceName is not null) identity["interfaceName"] = target.InterfaceName;
     return FakePassedVerification(identity, values);
 }
 

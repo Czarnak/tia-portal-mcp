@@ -5,6 +5,34 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// <summary>Shared fail-closed capture; Siemens traversal is supplied by the ordinary reader.</summary>
 internal static class NetworkConnectionEvidenceCapture
 {
+    /// <summary>Captures actual ancestors, then proves the qualified path resolves back to the same node.</summary>
+    public static NetworkNodeIdentityInfo CaptureOwner<T>(T node, string nodeId,
+        Func<T, T?> parent, Func<T, NetworkInterfacePathSegmentInfo?> itemSegment,
+        Func<T, string?> deviceName, Func<NetworkNodeIdentityInfo, T?> resolveBack) where T : class
+    {
+        if (string.IsNullOrWhiteSpace(nodeId)) throw new InvalidOperationException("Connected node identity was unreadable.");
+        var path = new List<NetworkInterfacePathSegmentInfo>();
+        var visited = new List<T>();
+        var current = parent(node);
+        while (current is not null)
+        {
+            if (visited.Any(value => ReferenceEquals(value, current))) throw new InvalidOperationException("Owner hierarchy contains a cycle.");
+            visited.Add(current);
+            if (itemSegment(current) is { } segment) path.Add(segment);
+            if (deviceName(current) is { } owner)
+            {
+                path.Reverse();
+                _ = NetworkInterfacePathEncoding.Encode(path);
+                if (string.IsNullOrWhiteSpace(owner)) throw new InvalidOperationException("Connected device name was unreadable.");
+                var identity = new NetworkNodeIdentityInfo { DeviceName = owner, NodeId = nodeId, InterfacePath = path };
+                if (!ReferenceEquals(resolveBack(identity), node)) throw new InvalidOperationException("Owner hierarchy did not resolve back to the actual node.");
+                return identity;
+            }
+            current = parent(current);
+        }
+        throw new InvalidOperationException("Connected node owner hierarchy was unavailable.");
+    }
+
     public static NetworkSubnetConnectionsInfo CaptureSubnet<T>(
         Func<IEnumerable<T>> enumerateNodes,
         Func<T, NetworkNodeIdentityInfo> readIdentity,
@@ -41,6 +69,11 @@ internal static class NetworkConnectionEvidenceCapture
         {
             result.Complete = false;
             result.Messages.Add($"Could not complete connected-node enumeration: {exception.Message}");
+        }
+        if (result.Nodes.Distinct(NetworkNodeIdentityComparer.Instance).Count() != result.Nodes.Count)
+        {
+            result.Complete = false;
+            result.Messages.Add("Connected node inventory contains duplicate qualified identities.");
         }
         result.Complete &= result.Messages.Count == 0;
         result.Nodes = result.Nodes.OrderBy(node => node.DeviceName, StringComparer.Ordinal)

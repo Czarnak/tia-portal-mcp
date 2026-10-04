@@ -516,23 +516,32 @@ public static class HardwareConfigReader
         var nodeId = ReadTypedIdentityString(() => node.NodeId, "Connected node identity");
         if (!nodeId.IsUsable) throw new InvalidOperationException(nodeId.Diagnostic);
         IEngineeringObject? current = node;
-        Device? owner = null;
+        var ancestors = new List<IEngineeringObject>();
+        Project? project = null;
         while (current is not null)
         {
-            if (current is Device device) owner = device;
-            if (current is Project project && owner is not null)
+            if (ancestors.Any(value => ReferenceEquals(value, current))) throw new InvalidOperationException("Connected node hierarchy contains a cycle.");
+            ancestors.Add(current);
+            if (current is Project owningProject) { project = owningProject; break; }
+            current = current.Parent;
+        }
+        if (project is null) throw new InvalidOperationException("Connected node project was unavailable.");
+        return NetworkConnectionEvidenceCapture.CaptureOwner<IEngineeringObject>(node, nodeId.Value,
+            value => value.Parent,
+            value => value is DeviceItem item ? new NetworkInterfacePathSegmentInfo { Name = item.Name, PositionNumber = item.PositionNumber } : null,
+            value => value is Device device ? device.Name : null,
+            identity =>
             {
-                var name = ReadTypedIdentityString(() => owner.Name, "Connected node owner name");
+                var name = ReadTypedIdentityString(() => identity.DeviceName, "Connected node owner name");
                 if (!name.IsUsable) throw new InvalidOperationException(name.Diagnostic);
                 var unreadableOwner = false;
                 var matches = ProjectDeviceNameMatcher.FindMatches(project, name.Value, _ => unreadableOwner = true);
-                if (unreadableOwner || matches.Count != 1)
+                if (unreadableOwner || matches.Count != 1 || !ancestors.Any(value => ReferenceEquals(value, matches[0].Device)))
                     throw new InvalidOperationException("Connected node owner could not be resolved uniquely across all device scopes.");
-                return new NetworkNodeIdentityInfo { DeviceName = matches[0].Name, NodeId = nodeId.Value };
-            }
-            current = current.Parent;
-        }
-        throw new InvalidOperationException("Connected node owner or project was unavailable.");
+                var resolved = NetworkObjectSelectorResolver.ResolveNode(project, NetworkSelectorFactory.QualifiedNode(identity.DeviceName, identity.NodeId, identity.InterfacePath!));
+                if (!resolved.Success) throw new InvalidOperationException(resolved.Error);
+                return (IEngineeringObject)resolved.Resolved!.Value;
+            });
     }
 
     internal static (string? SubnetId, int? Number) ReadIoSystemIdentity(NetworkInterface networkInterface)
