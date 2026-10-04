@@ -20,6 +20,18 @@ Most code in this project (the MCP host, contracts, tests, docs) can be develope
 
 External contributors without a TIA Portal license can develop and test host/contract/test changes using the stub build. The maintainer will verify any OpennessWorker changes with a real installation before merging.
 
+The tracked `ref/Siemens.Engineering.Base.dll` and `ref/Siemens.Engineering.Step7.dll` are
+source-owned, generated compile-only references. Review their minimal declarations under
+`reference-stubs/` and the locked `TiaMcpServer.OpennessReferenceProbe` when changing the
+worker API surface. The former opaque references already contained Multiuser types; this
+foundation makes that surface reviewable rather than adding runtime Multiuser support.
+
+Verify artifact provenance with `pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Configuration Release`;
+regeneration requires an explicit `-Update`. See
+[reference generation and qualification](docs/development/building.md#generated-openness-references)
+for the restore, update, identity, and evidence requirements. Stub compilation, installed-reference
+compilation, and live TIA acceptance are separate evidence; report which was performed.
+
 ## Development setup
 
 ### 1. Restore and build

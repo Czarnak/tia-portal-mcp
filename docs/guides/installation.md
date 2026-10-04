@@ -26,7 +26,7 @@ C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48
 
 Local developer builds prefer real TIA Portal V21 assemblies from `TiaPortalV21Dir`. You can override that path with the `TiaPortalV21Dir` MSBuild property or environment variable. It must point to the folder containing `Siemens.Engineering.Base.dll` and `Siemens.Engineering.Step7.dll`.
 
-The repo also contains compile-time reference stubs in `ref/` so CI can build and package the MCP server without installing TIA Portal. Those stubs are fallback-only when a local TIA install is not found. To force stub references for CI/package builds:
+The repo contains source-owned, generated compile-time reference stubs in `ref/`, declared under `reference-stubs/`, so CI can build and package the MCP server without installing TIA Portal. They preserve the V21 assembly identity using a public-only key and are never runtime substitutes. See [building from source](../development/building.md#generated-openness-references) for default verification and explicit artifact regeneration. Stub and installed-reference builds are compile evidence; live TIA behavior requires separate acceptance. Those stubs are fallback-only when a local TIA install is not found. To force stub references for CI/package builds:
 
 ```powershell
 dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true
@@ -43,6 +43,10 @@ During build, the worker prints the selected reference directory:
 ```text
 TIA Openness compile references: C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48 (UseTiaPortalReferenceStubs=false)
 ```
+
+The passive Multiuser contract foundation does not enable `.als21` selection/open or local-session
+save, close, discard, or commit. Internal binding integration belongs to PR 2; public local-session
+operations remain deferred. Existing explicit project selection and lifecycle rules below still apply.
 
 ## Install
 

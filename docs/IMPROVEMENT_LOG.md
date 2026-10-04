@@ -26,6 +26,15 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: Multiuser PR 2 internal context integration
+
+PR 1 supplies source-owned compile references, the locked compile-only probe, provenance
+verification, and passive Siemens-free contracts. Plan PR 2 from merged `main` only after PR 1
+qualification and independent review are accepted. PR 2 owns internal context integration;
+public `.als21` selection/open and local-session lifecycle operations remain later work. Preserve
+`bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
+lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
+
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
@@ -875,3 +884,22 @@ Task14's current documentation/spec updates are complete. Programmatic acceptanc
 from recorded human observations; no functional production fix or live replay was required.
 No release/tag, Network/batch retirement, headless/Multiuser, crash/timeout, archive retrieval,
 PLC/plant acceptance, plugin update, or remote publication is claimed.
+
+## Multiuser PR 1 reference and contract foundation — implemented (2026-10-03)
+
+Replaced opaque broad compile references with reviewed minimal declarations under
+`reference-stubs/`, retaining the two assembly names, version `21.0.0.0`, and public-key token
+`29bfe5fdf4ba5d3b` through a public-only delay-signing key. The former references already
+contained Multiuser types. A locked compile-only probe checks the intended API surface;
+default verification checks identity and canonical raw-source-hash metadata without updating
+tracked artifacts, while explicit `-Update` replaces only the two known DLLs. Scoped CRLF
+attributes preserve raw-byte provenance across clean checkouts; whole-PE hashes remain
+diagnostic across compiler patch versions.
+
+Passive contracts write explicit nulls and remain Siemens-free. No public tool, worker operation,
+binding integration, `.als21` lifecycle behavior, or permission was added. Generated stubs remain
+compile-only and excluded from runtime output; all Siemens binaries remain excluded from
+packages, while the net48 worker uses installed real assemblies. Stub, installed-reference,
+contract, package, and live evidence remain distinct. The final qualification and independent
+review gate acceptance of this foundation; internal context integration remains PR 2's dependency.
+See [building from source](development/building.md#generated-openness-references) for the procedure.

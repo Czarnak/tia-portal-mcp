@@ -6,3 +6,13 @@
 # two PowerShell acceptance scripts used different on-disk endings and a
 # byte-identity check went red for a difference no committed content contained.
 *.ps1 text eol=crlf
+
+# The reference verifier hashes raw source bytes. Pin every text input so a
+# clean checkout reproduces the embedded source hash on any Git configuration.
+/Directory.Build.props text eol=crlf
+/reference-stubs/Directory.Build.props text eol=crlf
+/reference-stubs/Siemens.Engineering.Base/Siemens.Engineering.Base.csproj text eol=crlf
+/reference-stubs/Siemens.Engineering.Step7/Siemens.Engineering.Step7.csproj text eol=crlf
+/reference-stubs/Siemens.Engineering.Base/**/*.cs text eol=crlf
+/reference-stubs/Siemens.Engineering.Step7/**/*.cs text eol=crlf
+/reference-stubs/Siemens.Engineering.PublicKey.snk binary

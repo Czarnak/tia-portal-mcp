@@ -1,0 +1,26 @@
+<Project>
+  <Import Project="..\Directory.Build.props" />
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Siemens.Engineering.Base' or '$(MSBuildProjectName)' == 'Siemens.Engineering.Step7'">
+    <TargetFramework>net48</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyVersion>21.0.0.0</AssemblyVersion>
+    <FileVersion>21.0.0.0</FileVersion>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/reference-stubs/</PathMap>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <SignAssembly>true</SignAssembly>
+    <DelaySign>true</DelaySign>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Siemens.Engineering.PublicKey.snk</AssemblyOriginatorKeyFile>
+    <StubSourceHash Condition="'$(StubSourceHash)' == ''">unverified</StubSourceHash>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Siemens.Engineering.Base' or '$(MSBuildProjectName)' == 'Siemens.Engineering.Step7'">
+    <AssemblyMetadata Include="StubOrigin" Value="tia-portal-mcp" />
+    <AssemblyMetadata Include="StubSourceHash" Value="$(StubSourceHash)" />
+  </ItemGroup>
+</Project>

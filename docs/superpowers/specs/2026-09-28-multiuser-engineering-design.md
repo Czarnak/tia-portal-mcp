@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-28
 
+**Revised:** 2026-10-03 against `main` at `baf811789893f706b2c7d398afc13e9e6c0e2a72`
+
 **Status:** Approved; PR 1 detailed planning authorized
 
 **Source:** Issue [#65](https://github.com/Czarnak/tia-portal-mcp/issues/65), repository
@@ -12,9 +14,10 @@ Openness type surface, and Siemens V21 product and Openness documentation
 newly enabled operation must complete operation-specific live TIA Portal V21 verification inside
 its designated pull request before that pull request is merge-ready.
 
-**Safety dependency:** This design classifies mutations and defines stable safety invariants, but
-does not define a new preview/apply protocol. Concrete mutation integration waits for the separate
-write-safety redesign and adopts the repository's then-current safety mechanism.
+**Safety baseline:** The guarded single-call pipeline and lifecycle migration are implemented.
+Multiuser lifecycle builds on `WriteExecution`, `LifecycleBindingStrategy`, mode-derived confirmation,
+and audit v2. Network and legacy batch writes still use tokens pending their own migration. New
+Multiuser writes must not add a token-bound surface or a parallel safety mechanism.
 
 ## Goal
 
@@ -24,8 +27,11 @@ write-safety model.
 
 Success means:
 
-- `--project` and `open_project` accept an existing `.als21` local or exclusive session as well as
-  a standalone `.ap21` project;
+- `open_project` explicitly opens an existing `.als21` local or exclusive session as well as a
+  standalone `.ap21` project;
+- `--project` and `TIA_MCP_PROJECT_PATH` accept `.als21` as a configured selection assertion, and
+  `bind_project` adopts an already-open session without opening, saving, closing, discarding, or
+  committing it;
 - project-content operations use one typed worker implementation wherever Siemens exposes a common
   `ProjectBase` surface;
 - Project Server connections, groups, projects, local sessions, locks, markings, freshness, and
@@ -66,11 +72,39 @@ They do not prove Project Server reachability, credentials, locks, mode transiti
 behavior, persistence, discard, or revision creation. Those claims require the per-PR live gates
 defined below.
 
+### Current lifecycle and selection baseline
+
+The October 3 revision preserves the delivered standalone behavior described in
+[Architecture](../../ARCHITECTURE.md#5-project-attachment-and-binding) and
+[Project operations](../../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations):
+
+- The six lifecycle tools (`open_project`, `create_project`, `save_project`, `save_project_as`,
+  `archive_project`, `close_project`) are available in read-write and full. Read-only denies them.
+- Every lifecycle tool accepts `dryRun`; public `confirm`, `safetyToken`, and `acknowledge` arguments
+  are absent. `--confirm-with-user` is removed. Read-write requires one form elicitation for every
+  actual lifecycle call, including calls without acknowledge guards; full uses policy satisfaction.
+- `bind_project` is `SessionSelection`, permitted in every mode. It selects an already-open `.ap21`
+  project today. Extending it to `.als21` is future Multiuser work, not delivered behavior.
+- `--project` and `TIA_MCP_PROJECT_PATH` configure an assertion; they never open a project. Ordinary
+  reads and writes never adopt or switch an unbound selection. Only an explicit opener creates an
+  open engineering context.
+- Selection, switching, and writes use the existing serialized binding gate. Worker-reported
+  identity verifies a binding; a configured path alone does not. Detach transfers no lifecycle
+  ownership and does not save or close the previous UI project. A modified headless project with
+  this worker as its only Openness client blocks detach to avoid loss.
+- Lifecycle output is canonical structured JSON with typed `result` and `verification`, and each
+  call produces one audit v2 record. Network and batch tokens remain transitional consistency
+  checks; they are not user consent.
+
+This baseline is implemented for standalone projects. The `.als21` changes below remain planned
+and require their own offline and live evidence.
+
 ## Scope
 
 ### Included
 
 - Existing Multiuser and Exclusive `.als21` local sessions.
+- Explicit selection and adoption of already-open sessions through `bind_project`.
 - Project Server connection inventory and supported connection lifecycle.
 - Server groups and server-project inventory.
 - Local-session inventory, creation, opening, saving, and supported deletion.
@@ -138,8 +172,8 @@ ActiveProjectContext
 Standalone lifecycle methods use `Project`. Local-session and server-project lifecycle methods use
 `LocalSession`. Host and contract projects remain Siemens-free.
 
-The context describes identity and applicability; it does not authorize a mutation and does not
-own the preview/apply protocol.
+The context describes identity and applicability; it does not authorize a mutation or replace the
+shared guarded write pipeline.
 
 ### Container kind
 
@@ -166,10 +200,19 @@ as unconditional cleanup because Siemens defines that call as discarding pending
 shutdown, transport failure, or host disposal must not be reported as a successful discard or
 commit.
 
+Adopting an already-open local session does not make it worker-owned. Ownership does not survive
+detach or reattachment. A switch must preserve the old UI-owned session and block if safe detach
+cannot be established, including unsaved headless-session changes. Standalone open's ability to
+close a clean worker-owned source must not automatically become permission to discard a local
+session. Require an explicit terminal session operation first when switching would close it.
+
 ## Binding and remote identity
 
 The binding extends the existing worker identity, TIA process ID, generation, and canonical path
-with `containerKind`, `sessionMode`, and capabilities.
+with `containerKind`, `sessionMode`, and capabilities. Retain the host binding ID/revision and the
+`unbound`, `configured_unverified`, `verified`, and `invalidated` states; do not introduce a separate
+Multiuser binding state machine. Project-tree cursors continue to reject ID/revision changes as
+`cursor_binding_mismatch`.
 
 When known, `RemoteIdentity` contains:
 
@@ -184,8 +227,16 @@ does not identify a project. A project name without its group context does not r
 project. A session path and ID must agree when both are available.
 
 Selection is exact and deterministic. Zero matches returns `target_not_found`; more than one match
-returns `ambiguous_target`. The worker never selects `.First()`, index zero, the first open project,
+returns `target_ambiguous`. The worker never selects `.First()`, index zero, the first open project,
 or the first running TIA Portal process as a target-resolution fallback.
+
+`bind_project(projectPath?, forceRebind=false)` retains its exact-one selection and source-conflict
+rules when `.als21` support is added. A different configured or last-bound path requires
+`forceRebind`; that flag permits selection, not saving, closing, discard, or commit. Same-context
+calls reverify worker identity. Results retain non-null before/after binding state and candidate
+inventory obtained during the call. A status read may verify the matching configured assertion,
+but cannot establish a different selection. Read-only can adopt an already-open session; it cannot
+open one. TIA's Openness access dialog is separate from lifecycle elicitation.
 
 Changes to worker instance, TIA process, binding generation, canonical session path, server alias,
 host, port, protocol, project, group, or session identity invalidate affected observations and
@@ -218,13 +269,22 @@ a local session. Export to a single-user project is outside this specification.
 
 The public surface is hybrid.
 
-### Existing lifecycle tools
+### Existing selection and lifecycle tools
 
-- `open_project` accepts `.ap21` and `.als21`. An `.als21` path always means an ordinary local or
-  exclusive session open through `LocalSessions.Open`; it does not mean direct server-project
-  editing.
+- Planned `open_project` support accepts `.ap21` and `.als21` through the existing guarded lifecycle
+  tool, preserving `forceRebind`, `dryRun`, and mode-derived confirmation. An `.als21` path means a
+  local or exclusive session open through `LocalSessions.Open`; it does not mean direct
+  server-project editing.
+- Planned `bind_project` and startup-selector support accepts `.als21` only for selection of an
+  already-open session. No read, write, or configured startup path implicitly opens it.
 - `save_project` dispatches to `Project.Save()` for a standalone project and
-  `LocalSession.Save()` for a local or exclusive session.
+  `LocalSession.Save()` for a local or exclusive session when PR 6 enables it, with the same lifecycle
+  guards, dry-run, confirmation, verification, and audit seam.
+- `create_project`, `save_project_as`, and `archive_project` remain standalone-only. Session
+  creation is a separate `multiuser_write.create_local_session` operation.
+- `close_project` remains standalone-only in this design. Local-session and server-project contexts
+  use explicit `discard_local_session` or `close_and_commit`; generic close must not silently map to
+  `LocalSession.Close()` or choose a commit. Those terminal operations are delivered in PR 9.
 - Existing project-content tools operate through the active context when their capability entry
   permits it.
 
@@ -263,8 +323,12 @@ active binding.
 - `discard_local_session`
 - `close_and_commit`
 
-The final request form for preview/apply is owned by the safety redesign. Multiuser operations do
-not introduce a parallel token, canonicalization, audit, lease, or confirmation mechanism.
+`multiuser_write` uses the shared guarded single-call pipeline: typed operation input, `dryRun`,
+target planning, guards, mode-derived confirmation, mutation, verification, and audit. It introduces
+no `confirm`, `safetyToken`, or caller `acknowledge` input. Lifecycle-classed operations ask once per
+actual read-write call and run under policy in full. Operation capability classification and
+domain-specific guards are reviewed in the delivering PR. Multiuser adds no parallel
+canonicalization, audit, lease, or confirmation mechanism.
 
 `mark_objects` and `unmark_objects` manipulate markings only. A successful marking operation is not
 reported as check-in. V21 Openness exposes no parameterless `CheckIn()` or `Update()` method, so
@@ -292,6 +356,13 @@ Both new tools use the shared structured JSON seam:
 - success and rejection probes are added to tool-output conformance tests; and
 - each new tool is removed from any legacy register only when its structured probes pass.
 
+Lifecycle extensions preserve `LifecycleWriteResponse`: `phase`, `guards`, `effects`, typed
+`result`, and typed `verification`. Rejections have `result:null`, a top-level `error`, and
+`isError:true`; attempted mutation or verification failure has `success:false`, `error:null`, and
+`isError:false`, with failure details in the typed result. A dry run reports `phase:preview` and
+provides no authority for a later call. Use the shared structured seam for new Multiuser responses
+and keep pre-dispatch rejection distinct from possible mutation.
+
 The new contracts live in `TiaMcpServer.Contracts` and contain no Siemens types.
 
 ## Open and execution flow
@@ -310,15 +381,25 @@ MCP client
 
 ### Opening a project or session
 
-1. The host validates and canonicalizes the requested path.
-2. The worker selects the opener by extension:
+1. Validate and canonicalize the requested path; enforce `ProjectLifecycle` at host and worker.
+2. Prepare the exact source binding or a genuinely unbound open through the lifecycle strategy,
+   then pin its revision under the shared lease.
+3. Plan the exact source/destination effects and evaluate guards. `dryRun` returns those effects
+   without opening, switching the project, or prompting. Block guards stop an actual call.
+4. Read-write asks once and requires form `accept` plus boolean `confirm:true`; full satisfies
+   acknowledge guards by policy. After acceptance, re-resolve effects and guards under the same
+   lease; an accepted consequence cannot expand silently.
+5. Only an actual permitted call dispatches the opener by extension:
    - `.ap21` → `TiaPortal.Projects.Open`
    - `.als21` → `TiaPortal.LocalSessions.Open`
-3. The worker builds a replacement active context only after Siemens reports success.
-4. The response contains the complete binding snapshot, capabilities, and initial connection
-   observation.
-5. A failed open leaves the prior binding unchanged unless Siemens has independently invalidated
-   it, in which case the failure reports that invalidation explicitly.
+6. Verify the opened context using worker-reported identity and operation-specific postconditions,
+   then adopt its binding and return the typed result with capabilities and connection observation.
+7. Append one audit v2 record, including dry runs and blocked calls. A pre-dispatch refusal preserves
+   the prior binding where continuity is verified. Failure after dispatch may have changed state;
+   report actual binding state or invalidation and inspect before retrying.
+
+Adopting an already-open session is a separate `bind_project` flow under `SessionSelection` and the
+serialized binding gate. It never invokes either opener and never acquires discard/commit authority.
 
 ### Multiuser reads
 
@@ -329,13 +410,16 @@ MCP client
 
 ### Multiuser writes
 
-1. Enter the repository's then-current safety integration seam.
-2. Pin and revalidate the binding.
-3. Resolve the exact target again.
-4. Perform fresh operation-specific connectivity, lock, freshness, and marking checks.
-5. Execute one declared mutation.
-6. Read the operation-specific postcondition.
-7. Update or invalidate the active context when lifecycle state changes.
+1. Enter `WriteExecution` through a typed domain; validate input and the operation's access policy.
+2. Prepare and pin the exact binding. Server-only operations require an explicit, reviewed target
+   strategy rather than inventing a fake active project or bypassing the lease.
+3. Resolve exact targets and fresh connectivity, lock, freshness, and marking preconditions.
+4. Evaluate shared catalog guards. A dry run returns effects and guards; it issues no token.
+5. Apply mode-derived confirmation; lifecycle-classed read-write calls always ask once. Re-plan
+   under the same lease after acceptance and reject changed consequences or new blocking guards.
+6. Execute the declared mutation, verify its postcondition, and update or invalidate the context
+   when lifecycle state changes.
+7. Compose one canonical structured result and append one audit v2 record.
 
 ## Offline sessions and connectivity
 
@@ -374,9 +458,13 @@ previousState
 transition
 ```
 
+Observation sources are `sessionOpen`, `sessionBind`, `explicitRead`, `operationPreflight`, and
+`postFailure`. `sessionBind` identifies an observation made while adopting an already-open session;
+binding alone never establishes Project Server connectivity.
+
 The state is observed:
 
-- during local-session opening;
+- during local-session opening or explicit adoption of an already-open session;
 - through an explicit `get_session_state` read;
 - before every server-dependent operation; and
 - after a server-related failure when a bounded observation remains possible.
@@ -387,46 +475,64 @@ not part of this specification and cannot replace fresh preflight checks.
 
 ## Safety integration boundary
 
-The concurrent safety redesign owns the concrete preview/apply request shape, token or handle
-format, canonicalization, lease, audit, and confirmation flow. Multiuser design depends only on
-these stable invariants:
+The implemented safety foundation owns canonicalization, binding preparation, the pinned lease,
+guards, `dryRun`, mode-derived confirmation, verification, and audit v2. Multiuser domains extend
+that seam with typed targets and preconditions:
 
 - every externally visible or destructive mutation uses the repository-wide safety mechanism;
 - selectors, ordered inputs, binding identity, relevant current state, and intended lifecycle
-  consequence are bound by that mechanism;
-- apply revalidates exact identity and operation-specific preconditions immediately before
+  consequence are resolved under the pinned lease;
+- an actual call revalidates exact identity and operation-specific preconditions immediately before
   dispatch;
-- changing input, binding, server/session identity, or relevant state invalidates stale authority;
+- changing binding, server/session identity, or relevant state rejects stale planning; a dry run
+  grants no continuing authority;
 - no operation saves, closes, discards, deletes, commits, or changes a server connection
   implicitly; and
 - an unknown mutation outcome is inspected, never automatically replayed.
 
-PRs that only establish stubs, contracts, internal context, or read-only inventory may proceed
-before the safety redesign. The first PR exposing `.als21` lifecycle behavior or a mutation must
-reconcile with the merged safety design before implementation.
+`info`, `acknowledge`, and `block` retain their shared catalog semantics. Missing form capability,
+decline, cancel, timeout, transport failure, or acceptance without boolean `confirm:true` denies an
+actual read-write lifecycle call with `access_denied`. Blocks cannot be overridden in full. Audit
+confirmation records `user`, `policy`, or `none`; guard satisfaction is `user`, `policy`, or null.
+Client-returned acceptance does not prove that a human saw a prompt.
+
+No new snapshot reader, `SafetyRead` catalog entry, or token-bound write tool is introduced for
+Multiuser. Existing compatible content writes preserve their current Network/batch token flows
+until the relevant migration lands. PRs that only establish references, passive contracts, internal
+context, or inventory preserve the delivered lifecycle behavior. Before exposing `.als21` lifecycle
+or a new mutation, revalidate the merged pipeline and specify owner-aware planning, verification,
+guards, and any unbound/server-only binding strategy in that PR's plan.
 
 ## Error and uncertainty model
 
-Stable failure categories are:
+Reuse the closed repository failure vocabulary for common failures:
 
-- `invalid_input`
-- `unsupported_capability`
+- `validation_error`
 - `target_not_found`
-- `ambiguous_target`
-- `binding_changed`
+- `target_ambiguous`
+- `binding_conflict`
+- `target_kind_unsupported`
+- `access_denied`
+- `guard_blocked`
+- `worker_operation_failed`
+- `worker_timeout`
+- `worker_crashed`
+- `postcondition_failed`
+- `protocol_error`
+
+Proposed Multiuser-specific categories require explicit shared-contract registration and tests in
+the delivering PR; they are not added by PR 1:
+
+- `unsupported_capability`
 - `server_unavailable`
 - `authentication_required`
-- `access_denied`
 - `project_locked`
 - `session_stale`
 - `marking_conflict`
-- `operation_failed`
-- `postcondition_failed`
-- `protocol_error`
-- `timeout_unknown_outcome`
 
-Each failure identifies one phase: `validation`, `selection`, `precondition`, `execution`, or
-`postcondition`.
+Preserve the lifecycle envelope phases (`preview`, `blocked`, `applied`, `error`). Domain diagnostics
+may identify validation, selection, precondition, execution, or postcondition; they do not replace
+the envelope phase or move attempted-operation failures into a pre-dispatch rejection.
 
 Rules:
 
@@ -439,8 +545,9 @@ Rules:
 - Authentication and authorization remain distinct from network unavailability.
 - Ambiguity always stops execution.
 - A failed postcondition is not success.
-- A timeout, worker crash, disconnect, or possible mutation after dispatch becomes
-  `timeout_unknown_outcome` and is not retried automatically.
+- A timeout or worker crash uses `worker_timeout` or `worker_crashed`, preserving unknown-outcome
+  evidence. A disconnect or untrustworthy payload after dispatch may also hide a mutation; inspect
+  actual state and do not retry automatically.
 - Discard or commit failure leaves lifecycle ownership unresolved until inspected.
 - Returned diagnostics exclude credentials and do not echo rejected worker payloads.
 
@@ -482,8 +589,10 @@ mechanically rebased.
 
 - Introduce the typed common root and lifecycle owners.
 - Preserve standalone `.ap21` behavior.
-- Migrate the central worker session seam without exposing Multiuser.
-- Gate: full offline suite plus live `.ap21` lifecycle regression because the binding seam changes.
+- Migrate the central worker session seam without exposing Multiuser. Preserve `bind_project`,
+  configured-selector promotion, detach ownership, and binding ID/revision continuity.
+- Gate: full offline suite plus live `.ap21` selection/switching and guarded lifecycle regression,
+  including dry runs, mode confirmation, typed outcomes, and audit, because the binding seam changes.
 
 ### PR 3 — Read-only Multiuser inventory
 
@@ -492,19 +601,24 @@ mechanically rebased.
 - Use exact typed selectors and canonical structured output.
 - Gate: each added read operation receives live verification against the fixture tier it requires.
 
-### Safety reconciliation checkpoint
+### Lifecycle integration checkpoint
 
-Before the first `.als21` lifecycle operation or Multiuser mutation, refresh from the merged safety
-redesign and record the final integration seam in the detailed successor plan. This is a dependency
-gate, not a competing safety PR.
+Before the first `.als21` selection/lifecycle operation or Multiuser mutation, refresh from merged
+`main` and record the current `WriteExecution`/lifecycle strategy, `SessionSelection`, guard catalog,
+typed response, and audit integration in the successor plan. The lifecycle foundation is already
+available; remaining Network/batch migrations do not justify a new token protocol. Server-only
+mutations must resolve their binding/lease strategy before implementation.
 
 ### PR 4 — Open existing `.als21` sessions
 
-- Extend `open_project` and `--project`.
+- Extend explicit `open_project`, already-open `bind_project`, and configured `--project` /
+  `TIA_MCP_PROJECT_PATH` selectors; no implicit opening.
 - Add binding, capability, active-session state, initial connection observation, and reconnection
   reporting.
-- Gate: live Multiuser and Exclusive opening online and offline, binding evidence, close ownership,
-  and observed reconnection behavior.
+- Gate: live Multiuser and Exclusive opening online and offline, read-only adoption of already-open
+  sessions, exact/ambiguous selection, switching and ownership preservation, dry runs, read-write
+  confirmation/full policy, binding/cursor evidence, and observed reconnection behavior. Generic
+  session close remains unavailable; fixture cleanup requires separately authorized exact actions.
 
 ### PR 5 — Project-content read compatibility
 
@@ -516,7 +630,8 @@ gate, not a competing safety PR.
 ### PR 6 — Project-content writes and local save
 
 - Enable compatible existing writes, imports, compilation, and `LocalSession.Save()`.
-- Integrate with the merged safety mechanism.
+- Preserve existing content-write safety flows and extend guarded `save_project` with owner-aware
+  effects, mode-derived confirmation, typed verification, and audit v2.
 - Gate: every newly enabled write/import/compile/save path receives live verification in this PR or
   is moved into its own PR.
 
@@ -549,8 +664,9 @@ Every PR uses the layers appropriate to its scope:
    conformance registration.
 2. **Worker tests:** dispatch, context ownership, binding invalidation, operation mapping, and stub
    compilation.
-3. **Host/FakeWorker integration:** MCP schemas, structured output, lifecycle rebinding, failure
-   categories, and the safety seam.
+3. **Host/FakeWorker integration:** MCP schemas, structured output, explicit binding/selection,
+   lifecycle rebinding, detach ownership, cursor invalidation, failure categories, dry runs,
+   per-call confirmation/full policy, fresh re-planning, and audit v2.
 4. **Real-reference build:** compile the net48 worker against installed V21 assemblies.
 5. **Operation-specific live acceptance:** mandatory for each new or newly enabled operation.
 
@@ -611,6 +727,8 @@ The Multiuser program is complete when:
 1. all delivered operations have strict typed host and worker contracts;
 2. `.ap21` behavior remains compatible;
 3. `.als21` Multiuser and Exclusive sessions open online and offline through `open_project`;
+   already-open sessions are adopted through `bind_project` in every mode, and configured selectors
+   never open them implicitly;
 4. the capability matrix truthfully covers every registered project-scoped operation;
 5. compatible project-content reads and writes use the common typed root;
 6. all Project Server and session selectors reject missing and ambiguous targets;
@@ -618,13 +736,17 @@ The Multiuser program is complete when:
    state;
 8. local offline work remains available while server-dependent operations fail closed;
 9. direct server-project editing, discard, and commit have explicit lifecycle ownership;
-10. mutation operations use the merged repository safety mechanism without a parallel protocol;
+10. new mutations use the shared guarded single-call pipeline, lifecycle confirmation follows mode,
+    and dry runs, typed failure/verification, and audit v2 work without a parallel token protocol;
 11. every operation-bearing PR contains current live evidence for every operation it adds or newly
     enables; and
 12. maintained documentation states the delivered surface and its evidence boundary accurately.
 
 ## References
 
+- [Current architecture and binding](../../ARCHITECTURE.md)
+- [Current project selection, lifecycle, guards, and output contract](../../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md)
+- [Write-safety redesign and migration phases](2026-09-29-write-safety-redesign-design.md)
 - [Issue #65 — Support for Project Server local sessions](https://github.com/Czarnak/tia-portal-mcp/issues/65)
 - [Siemens V21 — Working offline with Multiuser Engineering](https://docs.tia.siemens.cloud/r/en-us/v21/using-team-engineering/using-multiuser-engineering/working-offline-with-multiuser-engineering)
 - [Siemens V21 — Opening a local session of a server project](https://docs.tia.siemens.cloud/r/en-us/v21/using-team-engineering/using-multiuser-engineering/working-in-the-local-session/creating-and-managing-a-local-session/opening-a-local-session-of-a-server-project)
@@ -633,7 +755,9 @@ The Multiuser program is complete when:
 
 ## Current verification boundary
 
-This document records the approved conversational design. Repository and external-source review,
+This document records the approved conversational design and its October 3 lifecycle alignment.
+The revision used current repository source, tests, and maintained documentation; it adds no
+implementation or fresh runtime acceptance. Original repository and external-source review,
 installed-assembly reflection, serial build, and current-main GitHub CI verification were read-only
 or offline activities. They do not prove live Multiuser behavior.
 

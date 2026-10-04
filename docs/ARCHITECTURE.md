@@ -34,6 +34,15 @@ attachment for its process lifetime.
 response, failure-category, path-normalization, and access-policy contracts
 shared by both processes.
 
+The source-owned references under `reference-stubs/` generate the two compile-only `ref/`
+assemblies and retain version `21.0.0.0` and public-key token `29bfe5fdf4ba5d3b` using a
+public-only delay-signing key. Only the net48 worker and compile-only probe reference Siemens;
+the host and shared contracts remain Siemens-free. Generated stubs are never runtime inputs,
+and all Siemens binaries are excluded from packages; the worker loads installed real DLLs.
+The passive Multiuser contracts add no operation or binding behavior. PR 2 owns internal
+context integration, while public `.als21` selection/open remains deferred. See
+[build boundary and qualification](development/building.md#generated-openness-references).
+
 ## 2. Host startup and access modes
 
 `TiaMcpServer/Program.cs` handles four entry paths:

@@ -17,16 +17,27 @@ contracts; System.Text.Json; xUnit; PowerShell 7; MSBuild; GitHub Actions.
 
 **Spec:** [Multiuser Engineering design](../specs/2026-09-28-multiuser-engineering-design.md)
 
+**Revised:** 2026-10-03 against `main` at `baf811789893f706b2c7d398afc13e9e6c0e2a72`.
+The original reference measurements below are September 28 evidence. Execution must revalidate
+the current worker surface and preserve the delivered lifecycle/selection baseline. This revision
+is documentation-only; PR 1 implementation and live work remain separate gates.
+
 ## Global Constraints
 
 - This plan covers PR 1 only. Do not start `ActiveProjectContext`, `.als21` opening, inventory,
   lifecycle, lock, marking, save, discard, commit, or any other later-PR implementation.
 - Add no MCP tool, worker method, operation-catalog entry, advertised capability, or public schema.
-- Do not change preview/apply safety, safety tokens, canonicalization, audit, leases, or confirmation.
+- Do not change the guarded single-call lifecycle pipeline, `dryRun`, mode-derived confirmation,
+  audit v2, binding preparation/leases, or transitional Network/batch tokens. Add no snapshot reader,
+  `SafetyRead` operation, token-bound tool, or parallel safety implementation.
 - Keep `TiaMcpServer` and `TiaMcpServer.Contracts` free of Siemens assembly references. Only the
   net48 worker and the compile-only probe may reference `Siemens.Engineering.*`.
 - Do not extend `WorkerSessionIdentity`, `ProjectSessionBinding`, or binding comparison semantics in
-  this PR. PR 2 owns that integration after the passive contracts are reviewed.
+  this PR. Preserve host binding ID/revision, configured-selector verification, `bind_project`, and
+  detach ownership. PR 2 owns internal context integration; PR 4 owns public `.als21` selection/open.
+- Preserve the six lifecycle tools' parameters, typed output schemas, and access tiers. Do not
+  restore public `confirm`, `safetyToken`, `acknowledge`, or `--confirm-with-user`; do not introduce
+  implicit project/session opening through startup paths, reads, writes, or stub code.
 - The generated stubs are compile evidence only. They must never be copied into packages, loaded at
   runtime, or presented as live TIA evidence.
 - Preserve assembly simple names, version `21.0.0.0`, and public-key token
@@ -44,6 +55,39 @@ contracts; System.Text.Json; xUnit; PowerShell 7; MSBuild; GitHub Actions.
   action. This plan does not itself authorize implementation.
 
 ## Revalidated Baseline
+
+### Current lifecycle and selection baseline (October 3)
+
+- Current entry points are `ProjectBindingTools`, `ProjectWriteTools`, `LifecycleWriteDomain`,
+  `LifecycleBindingStrategy`, and `Safety/Pipeline/WriteExecution`; lifecycle token tooling is retired.
+- `bind_project` uses `SessionSelection` in every mode to adopt an already-open `.ap21` project.
+  `--project` / `TIA_MCP_PROJECT_PATH` configure an assertion and never open one. Ordinary reads and
+  writes do not adopt or switch an unbound selection. PR 1 adds no `.als21` behavior to these paths.
+- Lifecycle tools are available in read-write and full. `dryRun` reports effects/guards without
+  lifecycle mutation or elicitation. Each actual read-write lifecycle call requires one form
+  acceptance (`accept` plus boolean `confirm:true`); full uses policy. Block guards deny in all
+  modes. The form field is not a public tool argument.
+- Lifecycle output uses one canonical structured document with typed `result` and `verification`.
+  A rejection has `result:null`, a top-level error, and `isError:true`; attempted mutation or
+  verification failure has `success:false`, `error:null`, and `isError:false`. Each call appends one
+  audit v2 record, including previews and blocked calls.
+- Detach does not save or close the previous UI project. Ownership does not survive reattachment;
+  modified headless state can block detach. Binding ID/revision changes invalidate project-tree
+  cursors with `cursor_binding_mismatch`.
+- Current discovery counts are 5/15/15 in read-only/read-write/full. PR 1 preserves these counts and
+  all runtime behavior. It does not claim Multiuser compatibility from a passing compile probe.
+- The main solution is `TiaMcpServer.slnx`, with stable SDK 10.0.400. Use the current solution and
+  worker source as the stub compilation target rather than the September 28 binary's type count.
+
+See [Architecture](../../ARCHITECTURE.md) and
+[Project operations](../../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
+for maintained behavior. The successor plans extend those seams, not the former lifecycle
+preview/apply mechanism.
+
+### Reference foundation evidence
+
+The counts below were measured during the original September 28 planning. Recheck them during
+execution; they are not a current-worker allowlist or a requirement to reproduce unused signatures.
 
 - `ref/Siemens.Engineering.Base.dll` and `ref/Siemens.Engineering.Step7.dll` are strong-named V21
   reference assemblies, not a repository-built minimal stub set.
@@ -74,13 +118,18 @@ wired into any response in PR 1.
 | `ProjectServerGroupIdentity` | `IsRoot`, nullable `Name`; root is `{ isRoot: true, name: null }`, not an invented string sentinel |
 | `MultiuserRemoteIdentity` | `ServerAlias`, nullable `Host`, `Port`, `Protocol`, `Group`, `ServerProjectName`, `LocalSessionId`, and `LocalSessionPath` |
 | `ProjectServerConnectionStates` | `connected`, `unavailable`, `unknown`; ordered `All` |
-| `ProjectServerConnectionObservationSources` | `sessionOpen`, `explicitRead`, `operationPreflight`, `postFailure`; ordered `All` |
+| `ProjectServerConnectionObservationSources` | `sessionOpen`, `sessionBind`, `explicitRead`, `operationPreflight`, `postFailure`; ordered `All` |
 | `ProjectServerConnectionObservation` | `State`, `ObservedAt`, `ObservationSource`, nullable `PreviousState`, and Boolean `Transition` |
 
 Use mutable sealed POCOs to match the existing worker-contract style. Use `DateTimeOffset` for
 `ObservedAt`, `int?` for the V21 `LocalSessionInfo.SessionId`, and `int?` for the server port. New
 payload contracts remain unmarked, so `WorkerJson.SerializePayload` writes every member including
 null. Later services validate combinations; PR 1 does not add a parallel validation framework.
+
+`sessionBind` describes an observation while explicitly adopting an already-open local session;
+it must not be reported as `sessionOpen`. Both sources remain passive vocabulary in PR 1. Context
+ownership, host binding ID/revision, lifecycle effects/guards/results, and audit confirmation belong
+to the existing runtime contracts and their later integration PRs; do not duplicate them here.
 
 ## Locked Compile Probe
 
@@ -111,8 +160,9 @@ operation and its mandatory live verification.
    compiler patch versions.
 4. **Contract truthfulness:** Closed values, null semantics, `LocalSessionInfo.SessionId` type, and
    connection uncertainty must match the approved design and worker JSON policy.
-5. **Scope containment:** PR 1 must not change tool discovery, session binding, safety, worker
-   dispatch, runtime behavior, or claimed live support.
+5. **Scope containment:** PR 1 must not change tool discovery, `bind_project`, configured selectors,
+   binding/cursor continuity, guarded lifecycle schemas, dry runs, mode confirmation, audit v2,
+   worker dispatch, runtime behavior, or claimed live support.
 6. **Packaging:** Neither generated stubs nor installed Siemens assemblies may enter NuGet or the
    packaged worker directory.
 
@@ -122,7 +172,12 @@ operation and its mandatory live verification.
 
 - [ ] Confirm `git status --short --branch` names the intended PR 1 branch and is clean. Preserve
   unrelated work; stop if the implementation allowlist overlaps user changes.
-- [ ] Run `dotnet restore TiaMcpServer.sln` and the current serialized stub build before editing.
+- [ ] Record the current head and inspect the lifecycle/selection seams listed above. Reconcile
+  predecessor changes before writing stubs; do not execute this plan against its old September base.
+- [ ] Run `dotnet restore TiaMcpServer.slnx` and the current serialized stub build before editing.
+- [ ] Record baseline discovery, binding, lifecycle protocol, mode-confirmation, and audit test
+  evidence from the current full serialized suite. Use it to distinguish a reference regression
+  from a pre-existing failure; this is offline/FakeWorker evidence, not live acceptance.
 - [ ] Confirm the installed real-reference directory contains both V21 assemblies. If it does not,
   the branch may be explored but cannot be called PR-ready.
 
@@ -247,7 +302,9 @@ operation and its mandatory live verification.
 
 - [ ] **Step 4: Implement only the current worker's compiler-required surface.**
 
-  Start from the namespaces and types referenced by the current worker, grouped in the files above.
+  Start from the namespaces and types referenced by the current worker at the frozen PR 1 base,
+  including explicit selection, lifecycle preparation, ownership, and status paths; group them in
+  the files above. Do not rebuild the older implicit-open behavior to accommodate the stubs.
   Use empty interfaces, enums with only referenced values, abstract or sealed placeholder classes,
   and members whose bodies throw `NotSupportedException`. Do not copy private/internal factory
   facades or unreferenced V21 members. Build against the generated reference output after each
@@ -523,12 +580,13 @@ operation and its mandatory live verification.
 
   Keep user procedure in the building/installation guides. Add only a concise compile-time boundary
   paragraph to `ARCHITECTURE.md`. Record the completed foundation and remaining PR 2 dependency in
-  `IMPROVEMENT_LOG.md`.
+  `IMPROVEMENT_LOG.md`. Preserve maintained lifecycle and `bind_project` guidance; do not imply that
+  the passive contract types enable `.als21` selection, save, close, discard, or commit.
 
 - [ ] **Step 2: Restore and verify generated-reference drift.**
 
   ```powershell
-  dotnet restore TiaMcpServer.sln
+  dotnet restore TiaMcpServer.slnx
   dotnet restore reference-stubs/TiaMcpServer.ReferenceStubs.sln
   pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Configuration Release -NoRestore
   ```
@@ -538,7 +596,7 @@ operation and its mandatory live verification.
 - [ ] **Step 3: Run the authoritative stub build.**
 
   ```powershell
-  dotnet build TiaMcpServer.sln -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
+  dotnet build TiaMcpServer.slnx -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
   ```
 
   Expected: PASS and log `UseTiaPortalReferenceStubs=true` for the worker and probe.
@@ -556,10 +614,16 @@ operation and its mandatory live verification.
   Expected: all tests PASS and line coverage is at least 80%. Do not re-enable collection
   parallelism to work around timeouts.
 
+  The full-suite evidence must retain `BindProjectToolProtocolTests`, `ProjectOpenPolicyTests`,
+  `LifecycleBindingStrategyTests`, `LifecycleMcpProtocolTests`, and `ModeDerivedConfirmationTests`
+  (or their current equivalents). Check no implicit opening, read-only selection, source ownership,
+  dry-run/no-elicitation, read-write per-call confirmation, full policy, typed failures, and audit v2.
+  These are existing behavior regressions; PR 1 introduces no new lifecycle test surface or live run.
+
 - [ ] **Step 5: Run the real-reference gates.**
 
   ```powershell
-  dotnet build TiaMcpServer.sln -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
+  dotnet build TiaMcpServer.slnx -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
   dotnet build reference-stubs/TiaMcpServer.OpennessReferenceProbe/TiaMcpServer.OpennessReferenceProbe.csproj -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"
   ```
 
@@ -588,7 +652,9 @@ operation and its mandatory live verification.
 
   Expected: only the PR 1 allowlist is changed, and the final search shows no newly registered tool,
   dispatch case, `.als21` lifecycle path, or mutation. Inspect the complete binary and text diff;
-  confirm the generated artifacts are reproducible from the reviewed source.
+  confirm the generated artifacts are reproducible from the reviewed source. Compare tool counts,
+  lifecycle input/output schemas, configured-selector and `bind_project` behavior, binding/cursor
+  rules, confirmation, and audit against the recorded preflight baseline.
 
 - [ ] **Step 8: Commit documentation after all gates pass.**
 
@@ -603,6 +669,7 @@ operation and its mandatory live verification.
   Review against the six **Review Focus** risks. The PR description must state:
 
   - no public operation or runtime Multiuser behavior was added;
+  - the existing explicit-selection and guarded lifecycle baseline was preserved;
   - stub, contract, full-suite, coverage, package, and real-reference evidence;
   - no live TIA acceptance was required because PR 1 adds no operation;
   - stubs remain non-runtime compile aids; and
@@ -618,6 +685,9 @@ operation and its mandatory live verification.
   installed V21 reference and Siemens documentation before adding it.
 - Stop if any generated or installed Siemens assembly appears in package output.
 - Stop if contract work requires changing session binding or public results; move that work to PR 2.
+- Stop if reference/contract work requires changing `bind_project`, startup selection, lifecycle
+  parameters, mode confirmation, guard semantics, audit, or detach ownership. Replan the successor
+  PR rather than expanding this passive foundation or reviving lifecycle tokens.
 - Stop if real-reference compilation is unavailable. Stub success is not a substitute.
 - Do not open TIA Portal or a Project Server for PR 1 verification. If any runtime behavior is added
   despite this boundary, the plan is invalid and must be revised before implementation continues.
