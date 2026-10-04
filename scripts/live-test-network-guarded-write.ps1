@@ -96,7 +96,11 @@ function Assert-NodeExpectations {
         }
     }
     foreach ($expectation in $Expected) {
-        $found = @($nodes | Where-Object { Test-NetworkNodeIdentity $expectation $_.identity -SelectorConstraints })
+        $identity = Resolve-NetworkNodeSelectorEvidence $Hardware $expectation
+        # Source indices have been checked above; ordinary selectors expose semantic owners.
+        $constraints = $identity | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable -Depth 100
+        $constraints.Remove('nodeIndex')
+        $found = @($nodes | Where-Object { Test-NetworkNodeIdentity $constraints $_.identity -SelectorConstraints })
         if ($found.Count -ne 1) { throw 'Expected one exact device/node identity.' }
         foreach ($key in @('subnetId', 'ioSystemSubnetId', 'ioSystemNumber')) {
             if (-not $expectation.ContainsKey($key)) { throw 'Node expectation must specify the complete exact subnet/IO tuple, including nulls.' }
@@ -130,6 +134,7 @@ function Assert-Subset {
     } elseif ($Observed -cne $Expected) { throw "Evidence mismatch at $Path." }
 }
 function Read-FixtureIdentities {
+    param($Hardware)
     $observations = [ordered]@{}
     foreach ($inspection in @($fixture.Inspections)) {
         $operation = @{ operationId = $inspection.id; operation = 'inspect_network_object'; projectPath = $ProjectPath; target = $inspection.target }
@@ -138,15 +143,31 @@ function Read-FixtureIdentities {
         $items = @($response.batch.operations)
         if (-not $response.success -or $items.Count -ne 1 -or $items[0].status -ne 'succeeded' -or
             $null -eq $items[0].result -or $null -ne $items[0].omission) { throw 'Fresh exact identity inspection failed or was omitted.' }
-        Assert-Subset $items[0].result.target $inspection.target
+        if ($null -ne (Get-NetworkMember $inspection.target 'itemPath')) {
+            $identity = Resolve-NetworkNodeSelectorEvidence $Hardware $inspection.target
+            if ((Get-NetworkMember $items[0].result.target 'kind') -cne 'node' -or
+                -not (Test-NetworkNodeIdentity $identity $items[0].result.target -SelectorConstraints)) { throw 'Fresh normalized legacy inspection identity differs from source evidence.' }
+        } else { Assert-Subset $items[0].result.target $inspection.target }
         $observations[$inspection.id] = $items[0].result
     }
     return $observations
 }
 function Assert-Inspections {
-    param($Observed, $Expected)
+    param($Observed, $Expected, $Hardware)
     if ($Expected.Count -eq 0) { throw 'Concrete fixture inspection expectations are required.' }
-    Assert-Subset $Observed $Expected
+    foreach ($id in $Expected.Keys) {
+        $expectedResult = $Expected[$id]
+        $target = Get-NetworkMember $expectedResult 'target'
+        if ($null -ne (Get-NetworkMember $target 'itemPath')) {
+            $actual = Get-NetworkMember $Observed $id
+            $identity = Resolve-NetworkNodeSelectorEvidence $Hardware $target
+            if ($null -eq $actual -or (Get-NetworkMember $actual.target 'kind') -cne 'node' -or
+                -not (Test-NetworkNodeIdentity $identity $actual.target -SelectorConstraints)) { throw 'Expected legacy inspection identity differs from fresh source evidence.' }
+            $remaining = $expectedResult | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable -Depth 100
+            $remaining.Remove('target')
+            Assert-Subset $actual $remaining
+        } else { Assert-Subset $Observed @{ $id=$expectedResult } }
+    }
 }
 function Assert-VerificationCheck {
     param($Check, [string] $Name, [string] $Expected)
@@ -291,12 +312,12 @@ function Invoke-LifecycleGroupAndVerify {
 }
 function Invoke-Inventory {
     $script:Evidence['hardware'] = Read-HardwareConfig
-    $script:Evidence['inspections'] = Read-FixtureIdentities
+    $script:Evidence['inspections'] = Read-FixtureIdentities $script:Evidence.hardware
 }
 function Invoke-Preview {
     Assert-NetworkFixtureHash $FixturePath $fixtureSha256
     Invoke-Inventory
-    Assert-Inspections $script:Evidence.inspections $fixture.BeforeExpected
+    Assert-Inspections $script:Evidence.inspections $fixture.BeforeExpected $script:Evidence.hardware
     Assert-NodeExpectations $script:Evidence.hardware $fixture.BeforeNodes | Out-Null
     $script:Evidence['preview'] = Invoke-NetworkWritePreview
 }
@@ -305,20 +326,20 @@ function Invoke-Apply {
     Invoke-Inventory
     if ($Restore) {
         # Fresh exact identity inspection and concrete restoration preconditions BEFORE preview.
-        Assert-Inspections $script:Evidence.inspections $fixture.BeforeRestore
+        Assert-Inspections $script:Evidence.inspections $fixture.BeforeRestore $script:Evidence.hardware
         Assert-NodeExpectations $script:Evidence.hardware $fixture.BeforeRestoreNodes | Out-Null
     } else {
-        Assert-Inspections $script:Evidence.inspections $fixture.BeforeExpected
+        Assert-Inspections $script:Evidence.inspections $fixture.BeforeExpected $script:Evidence.hardware
         Assert-NodeExpectations $script:Evidence.hardware $fixture.BeforeNodes | Out-Null
     }
     Invoke-LifecycleGroupAndVerify
     $script:Evidence['postHardware'] = Read-HardwareConfig
-    $script:Evidence['postInspections'] = Read-FixtureIdentities
+    $script:Evidence['postInspections'] = Read-FixtureIdentities $script:Evidence.postHardware
     if ($Restore) {
-        Assert-Inspections $script:Evidence.postInspections $fixture.RestorationExpected
+        Assert-Inspections $script:Evidence.postInspections $fixture.RestorationExpected $script:Evidence.postHardware
         Assert-NodeExpectations $script:Evidence.postHardware $fixture.RestorationNodes | Out-Null
     } else {
-        Assert-Inspections $script:Evidence.postInspections $fixture.AfterExpected
+        Assert-Inspections $script:Evidence.postInspections $fixture.AfterExpected $script:Evidence.postHardware
         Assert-NodeExpectations $script:Evidence.postHardware $fixture.AfterNodes | Out-Null
     }
 }

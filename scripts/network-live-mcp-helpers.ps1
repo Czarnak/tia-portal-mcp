@@ -480,6 +480,59 @@ function Test-NetworkNodeIdentity {
     return $true
 }
 
+# Resolve source constraints from a fresh ordinary read; keep request selectors untouched.
+function Resolve-NetworkNodeSelectorEvidence {
+    param($Hardware, $Selector)
+    $legacy = Get-NetworkMember $Selector 'itemPath'
+    $nodeIndex = Get-NetworkMember $Selector 'nodeIndex'
+    if ($null -eq $legacy -and $null -eq $nodeIndex) { return $Selector }
+    Assert-HardwareWriteEvidence $Hardware
+    $null = @(Get-HardwareNodes $Hardware)
+    $devices = @($Hardware.devices | Where-Object { [string]::Equals($_.name, $Selector.deviceName, [System.StringComparison]::OrdinalIgnoreCase) })
+    if ($devices.Count -ne 1) { throw 'Exact source device identity is missing or ambiguous; inspect before retry.' }
+    $path = Get-NetworkMember $Selector 'interfacePath'
+    if ($null -ne $legacy -and $null -ne $path) { throw 'Both node owner paths supplied.' }
+    if ($null -ne $legacy) {
+        if ($legacy -isnot [array] -or $legacy.Count -eq 0 -or $null -eq $nodeIndex) { throw 'Legacy source path requires a node index.' }
+        $segments = $legacy
+    } else { $segments = ConvertTo-NetworkInterfacePath $path }
+    $siblings = $devices[0].items
+    $owner = $null
+    $semanticPath = @()
+    foreach ($segment in $segments) {
+        if ($null -ne $legacy) {
+            $index = Get-NetworkMember $segment 'index'
+            if (($index -isnot [int] -and $index -isnot [long]) -or $index -lt 0 -or $index -ge $siblings.Count) { throw 'Legacy source item index does not match.' }
+            $owner = $siblings[$index]
+            $type = Get-NetworkMember $segment 'typeIdentifier'
+            if ($type -isnot [string] -or [string]::IsNullOrWhiteSpace($type)) { throw 'Legacy source type constraint is required.' }
+        } else {
+            if (@($siblings | Where-Object { [string]::IsNullOrWhiteSpace((Get-NetworkMember $_ 'name')) -or $null -eq (Get-NetworkMember $_ 'positionNumber') }).Count) { throw 'Owner namespace identity is unreadable; inspect before retry.' }
+            $matches = @($siblings | Where-Object { (Get-NetworkMember $_ 'name') -ceq $segment.name -and (Get-NetworkMember $_ 'positionNumber') -eq $segment.positionNumber })
+            if ($matches.Count -ne 1) { throw 'Exact source owner is missing or ambiguous.' }
+            $owner = $matches[0]
+            $type = Get-NetworkMember $segment 'typeIdentifier'
+        }
+        if ((Get-NetworkMember $owner 'name') -cne $segment.name -or (Get-NetworkMember $owner 'positionNumber') -cne $segment.positionNumber -or
+            ($null -ne $type -and (Get-NetworkMember $owner 'typeIdentifier') -cne $type)) { throw 'Source owner name/position/type constraint does not match.' }
+        $semantic = @{name=$segment.name;positionNumber=$segment.positionNumber}
+        if ($null -ne $type) { $semantic.typeIdentifier=$type }
+        $semanticPath += $semantic
+        $siblings = $owner.items
+    }
+    if ($owner.networkInterfaces.Count -ne 1) { throw 'Source owner does not expose exactly one interface.' }
+    $interface = $owner.networkInterfaces[0]
+    $interfaceName = Get-NetworkMember $Selector 'interfaceName'
+    if ($null -ne $interfaceName -and $interfaceName -cne $interface.name) { throw 'Source interface name constraint does not match.' }
+    $matches = @($interface.nodes | Where-Object { $_.nodeId -ceq $Selector.nodeId })
+    if ($matches.Count -ne 1) { throw 'Source interface node identity is missing or ambiguous.' }
+    if ($null -ne $nodeIndex -and (($nodeIndex -isnot [int] -and $nodeIndex -isnot [long]) -or $nodeIndex -lt 0 -or
+        $nodeIndex -ge $interface.nodes.Count -or -not [object]::ReferenceEquals($interface.nodes[$nodeIndex], $matches[0]))) { throw 'Source node index constraint does not match.' }
+    $normalized = $Selector | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable -Depth 100
+    $normalized.Remove('itemPath')
+    $normalized.interfacePath = $semanticPath
+    return $normalized
+}
 function Get-NetworkNodeCheckName {
     param($Identity, [string] $Field)
     $null = Get-NetworkNodeKey $Identity
