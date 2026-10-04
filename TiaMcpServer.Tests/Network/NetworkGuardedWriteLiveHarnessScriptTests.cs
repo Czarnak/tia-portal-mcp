@@ -251,6 +251,164 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
         Assert.Equal("partial-static-outcome-ok", result.StandardOutput.Trim());
     }
+    [Theory]
+    [InlineData("empty-immediate")]
+    [InlineData("missing-immediate")]
+    [InlineData("duplicate-immediate")]
+    [InlineData("wrong-id")]
+    [InlineData("wrong-order")]
+    [InlineData("missing-evidence")]
+    [InlineData("wrong-node")]
+    [InlineData("wrong-device")]
+    [InlineData("wrong-operation")]
+    [InlineData("summary-mismatch")]
+    [InlineData("missing-applied-check")]
+    [InlineData("duplicate-applied-check")]
+    [InlineData("wrong-applied-check")]
+    [InlineData("result-evidence-mismatch")]
+    [InlineData("not-required-with-applied")]
+    [InlineData("empty-final")]
+    [InlineData("missing-final")]
+    [InlineData("duplicate-final")]
+    [InlineData("wrong-final-name")]
+    [InlineData("wrong-final-expected")]
+    [InlineData("unreadable-final")]
+    [InlineData("contradictory-final-status")]
+    [InlineData("wrong-check-type")]
+    [InlineData("valid-device-casing")]
+    [InlineData("wrong-node-casing")]
+    [InlineData("valid-effective-prefix")]
+    [InlineData("valid-not-required")]
+    public void Outcome_RequiresCompleteTypedVerificationCoverage(string scenario)
+    {
+        var result = RunStaticAstAssertion($$"""
+            $definitions = @($ast.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('Assert-Outcome', 'Assert-Subset', 'Assert-VerificationCheck')
+            }, $true))
+            foreach ($definition in $definitions) { Invoke-Expression $definition.Extent.Text }
+            $operations = @(
+                @{ operationId = 'first'; operation = 'configure_network_device'; target = @{ deviceName = 'PC'; nodeId = 'node' }; changes = @{ ipAddress = '192.0.2.1' } },
+                @{ operationId = 'second'; operation = 'configure_network_device'; target = @{ deviceName = 'PC'; nodeId = 'node' }; changes = @{ ipAddress = '192.0.2.2' } })
+            $items = @(); $verificationItems = @(); $expected = @()
+            foreach ($operation in $operations) {
+                $settings = @{ Address = $operation.changes.ipAddress }
+                $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node' }; message = $null
+                    checks = @(@{ name = 'Address'; status = 'passed'; expected = $settings.Address; observed = $settings.Address; message = $null }) }
+                $items += @{ operationId = $operation.operationId; operation = $operation.operation; status = 'succeeded'; omission = $null
+                    result = @{ deviceName = 'PC'; appliedSettings = $settings; skippedSettings = @{}; verification = $evidence } }
+                $verificationItems += @{ operationId = $operation.operationId; operation = $operation.operation; status = 'passed'; evidence = $evidence; omission = $null }
+                $expected += @{ operationId = $operation.operationId; appliedSettings = $settings; skippedSettings = @{} }
+            }
+            $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $true; omission = $null
+                batch = @{ operations = $items }
+                verification = @{ success = $true; omission = $null; operations = $verificationItems; finalChecks = @(
+                    @{ name = 'node/PC/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
+                    @{ name = 'node/PC/node/Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
+            $response = $response | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
+            $scenario = '{{scenario}}'
+            switch ($scenario) {
+                'empty-immediate' { $response.verification.operations = @() }
+                'missing-immediate' { $response.verification.operations = @($response.verification.operations[0]) }
+                'duplicate-immediate' { $response.verification.operations = @($response.verification.operations[0], $response.verification.operations[0]) }
+                'wrong-id' { $response.verification.operations[0].operationId = 'other' }
+                'wrong-order' { $response.verification.operations = @($response.verification.operations[1], $response.verification.operations[0]) }
+                'valid-device-casing' { $operations[1].target.deviceName = 'pc' }
+                'wrong-node-casing' { $response.verification.operations[0].evidence.identity.nodeId = 'NODE' }
+                'missing-evidence' { $response.verification.operations[0].evidence = $null }
+                'wrong-node' { $response.verification.operations[0].evidence.identity.nodeId = 'other' }
+                'wrong-device' { $response.verification.operations[0].evidence.identity.deviceName = 'other' }
+                'wrong-operation' { $response.verification.operations[0].operation = 'delete_subnet' }
+                'summary-mismatch' { $response.verification.operations[0].status = 'failed' }
+                'missing-applied-check' { $response.verification.operations[0].evidence.checks = @() }
+                'duplicate-applied-check' { $response.verification.operations[0].evidence.checks = @($response.verification.operations[0].evidence.checks[0], $response.verification.operations[0].evidence.checks[0]) }
+                'wrong-applied-check' { $response.verification.operations[0].evidence.checks[0].name = 'Subnet' }
+                'result-evidence-mismatch' { $response.batch.operations[0].result.verification.identity.nodeId = 'other' }
+                'not-required-with-applied' { $response.verification.operations[0].status = 'not_required'; $response.verification.operations[0].evidence.status = 'not_required' }
+                'empty-final' { $response.verification.finalChecks = @() }
+                'missing-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0]) }
+                'duplicate-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0], $response.verification.finalChecks[0]) }
+                'wrong-final-name' { $response.verification.finalChecks[1].name = 'node/PC/other/Address' }
+                'wrong-final-expected' { $response.verification.finalChecks[1].expected = '192.0.2.1' }
+                'unreadable-final' { $response.verification.finalChecks[1].observed = $null }
+                'contradictory-final-status' { $response.verification.finalChecks[1].observed = 'wrong' }
+                'wrong-check-type' { $response.verification.operations[0].evidence.checks[0].expected = 123 }
+                'valid-not-required' {
+                    $operations = @($operations[0]); $operations[0].changes = @{ pnDeviceName = 'requested' }
+                    $response.success = $false; $response.batch.operations = @($response.batch.operations[0])
+                    $response.batch.operations[0].status = 'failed'; $response.batch.operations[0].result.appliedSettings = [pscustomobject]@{}
+                    $response.batch.operations[0].result.skippedSettings = [pscustomobject]@{ PnDeviceName = 'unavailable' }
+                    $response.verification.operations = @($response.verification.operations[0]); $response.verification.operations[0].status = 'not_required'
+                    $response.verification.operations[0].evidence.status = 'not_required'; $response.verification.operations[0].evidence.checks = @()
+                    $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
+                    $response.verification.finalChecks = @($response.verification.finalChecks[0])
+                    $expected = @(@{ operationId = 'first'; appliedSettings = @{}; skippedSettings = @{ PnDeviceName = 'unavailable' } })
+                }
+            }
+            if ($scenario -eq 'valid-not-required') { $statuses = @('failed'); $expectedSuccess = $false }
+            else { $statuses = @('succeeded','succeeded'); $expectedSuccess = $true }
+            $rejected = $false
+            try { Assert-Outcome $response $statuses $expectedSuccess $true $expected } catch { $rejected = $true }
+            if ($scenario -like 'valid-*') {
+                if ($rejected) { throw "Valid verification rejected: $scenario" }
+            } elseif (-not $rejected) { throw "Incomplete or contradictory verification accepted: $scenario" }
+            'verification-coverage-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("verification-coverage-ok", result.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public void BothHarnesses_ShareFrozenProtocolAndDiscoveryOwner()
+    {
+        var helperPath = FindRepositoryFile("scripts", "network-live-mcp-helpers.ps1");
+        Assert.True(File.Exists(helperPath), "Shared Network harness helper is missing.");
+        var helper = File.ReadAllText(helperPath);
+        foreach (var entrypoint in new[] { Source, File.ReadAllText(FindRepositoryFile("scripts", "live-test-network-phase4-subnets.ps1")) })
+        {
+            Assert.Contains("ExpectedSharedHelperSha256", entrypoint);
+            Assert.Contains(". $script:SharedHelperPath", entrypoint);
+            Assert.DoesNotContain("function Read-HardwareConfig", entrypoint);
+            Assert.DoesNotContain("function Start-McpHost", entrypoint);
+            Assert.DoesNotContain("function Get-HardwareNodes", entrypoint);
+        }
+        foreach (var name in new[] { "Start-McpHost", "Read-McpResponse", "Get-ObservedProjectStatus", "Read-HardwareConfig", "Get-HardwareNodes", "Assert-FrozenCandidate" })
+            Assert.Contains("function " + name, helper);
+        Assert.DoesNotContain("function Invoke-NetworkWriteApply", helper);
+        Assert.DoesNotContain("Plain-string tools (get_project_status)", helper);
+    }
+    [Fact]
+    public void SharedHelper_LoadGateRejectsMissingAndChangedSourceBeforeDotSourcing()
+    {
+        var result = RunStaticAstAssertion("""
+            $guard = @($ast.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.IfStatementAst] -and
+                $node.Extent.Text -match 'Test-Path.*SharedHelperPath' -and
+                $node.Extent.Text -match 'Get-FileHash.*SharedHelperPath' -and
+                $node.Extent.Text -match 'ExpectedSharedHelperSha256'
+            }, $true))
+            if ($guard.Count -ne 1) { throw 'Missing shared-helper existence/hash load guard.' }
+            $loads = @($ast.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and
+                $node.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot -and
+                $node.Extent.Text -ceq '. $script:SharedHelperPath'
+            }, $true))
+            if ($loads.Count -ne 1 -or $loads[0].Extent.StartOffset -le $guard[0].Extent.EndOffset) { throw 'Shared helper loads before source guard.' }
+            $script:SharedHelperPath = Join-Path ([System.IO.Path]::GetTempPath()) ('missing-helper-' + [guid]::NewGuid() + '.ps1')
+            $ExpectedSharedHelperSha256 = '00'
+            $rejected = $false
+            try { Invoke-Expression $guard[0].Extent.Text } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Missing helper was accepted.' }
+            $script:SharedHelperPath = Join-Path (Split-Path $ast.Extent.File) 'network-live-mcp-helpers.ps1'
+            $rejected = $false
+            try { Invoke-Expression $guard[0].Extent.Text } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Changed helper hash was accepted.' }
+            $ExpectedSharedHelperSha256 = (Get-FileHash -LiteralPath $script:SharedHelperPath -Algorithm SHA256).Hash
+            Invoke-Expression $guard[0].Extent.Text
+            'shared-helper-load-guard-ok'
+            """);
+        Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
+        Assert.Equal("shared-helper-load-guard-ok", result.StandardOutput.Trim());
+    }
     private static string FindRepositoryFile(params string[] segments)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
