@@ -1,126 +1,20 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    SEPARATELY AUTHORIZED live-TIA MCP-protocol acceptance harness for the Network Operations
-    Phase 4 subnet lifecycle contract (create_subnet / update_subnet / delete_subnet, exposed as
-    operations of network_write).
-
+    Separately authorized public-MCP acceptance for Ethernet/PROFIBUS subnet lifecycle.
 .DESCRIPTION
-    Launches the REAL TiaMcpServer MCP host (net10.0) as a child process and speaks the actual MCP
-    JSON-RPC protocol over its stdio pipes -- initialize, notifications/initialized, tools/list,
-    tools/call -- exactly as a real MCP client would, reusing the proven process/MCP framing
-    helpers from scripts/live-test-network-phase2.ps1 rather than inventing new plumbing or
-    talking to the Openness worker directly. Every mutation goes through the PUBLIC network_write
-    route; this harness never calls the internal worker mutation-probe operation reserved for
-    evidence fixtures and never used by the public host surface.
-
-    Requires a running TIA Portal V21 instance with the target project already open, and requires
-    PowerShell 7 (pwsh).
-
-    -Mode Inventory (the default) never mutates the project: it only calls network_read
-    (read_hardware_config) and get_project_status. -Mode Preview also never mutates: it calls
-    network_write with confirm:false for a representative create/update/delete operation array and
-    records the resulting target evidence and non-secret token metadata -- it never reaches a
-    confirming apply call. Preview mode also exercises three non-mutating negative-path checks (an
-    invalid transmission-speed symbol, a PROFIBUS-only field on an Ethernet target, and a bogus
-    subnetId), confirming each is rejected with isError:true before any Openness transaction runs.
-    Only -Mode Apply can change the project, and only when BOTH -AllowMutation
-    is supplied AND -Acknowledgement matches the exact required string below -- there is no
-    shortcut and no default-yes path.
-
-        DELETE SUBNETS AND KEEP DEVICES
-
-    Apply creates one isolated Ethernet subnet and one isolated PROFIBUS subnet, updates both,
-    deletes both created subnets, then deletes the caller-supplied connected Ethernet and PROFIBUS
-    subnetId values (-ConnectedEthernetSubnetId / -ConnectedProfibusSubnetId -- exact existing IDs
-    only, names are never accepted). Every apply call reuses the unchanged ordered operations array
-    and safety token returned by its own immediately preceding preview call -- nothing is rebuilt
-    or retried in between. After every group this harness re-reads the hardware configuration
-    through network_read and checks the aggregate hardware device count and deleted subnetId
-    absence. Root device count evidence comes from consistent subnet lifecycle results reporting
-    networkDeviceCountUnchanged:true; the public hardware read also includes grouped devices and
-    cannot independently establish a pre-apply root count. Deleting connected subnets may clear subnet-related
-    attributes on the retained devices as a normal TIA Portal project-state effect; this harness
-    records that expectation in its output but does not read node-level attributes to confirm it,
-    matching the public subnet lifecycle result, which never returns device or attribute detail.
-
-    THIS SCRIPT IS NOT RUN BY ANY AUTOMATED TEST OR CI GATE, and its Preview/Apply modes are not
-    executed as part of implementing this harness -- see
-    TiaMcpServer.Tests/Network/NetworkSubnetLifecycleLiveHarnessScriptTests.cs, which proves the invariants
-    below by reading this file's own source text rather than executing it. Running this script
-    against a real project is a separately authorized action, gated behind its own explicit
-    review, independent of the review that approved writing this file.
-
-    Output is a single timestamped JSON artifact written under artifacts/live-network-phase4/.
-    Safety tokens are NEVER written to that artifact -- every recorded preview redacts the real
-    token with a fixed placeholder string; the real token value lives only in a local variable for
-    the immediate duration of its own apply call.
-
-.PARAMETER ProjectPath
-    Explicit absolute path to a DISPOSABLE or backed-up TIA Portal V21 .ap21 project. Required in
-    every mode. Never point this at a project that matters -- Apply mode writes to it for real,
-    with no automatic retry and no batch-wide rollback.
-
-.PARAMETER Mode
-    Inventory (default, non-mutating), Preview (non-mutating; previews the exact create/update/
-    delete operation arrays and prints their resolved targets and non-secret token metadata), or
-    Apply (mutating; requires -AllowMutation and the exact -Acknowledgement string).
-
-.PARAMETER ConnectedEthernetSubnetId
-    Exact existing subnetId of a connected Ethernet subnet, reported by a prior -Mode Inventory
-    run. Required for Preview and Apply. Never a name.
-
-.PARAMETER ConnectedProfibusSubnetId
-    Exact existing subnetId of a connected PROFIBUS subnet, reported by a prior -Mode Inventory
-    run. Required for Preview and Apply. Never a name.
-
-.PARAMETER AllowMutation
-    Required in addition to -Mode Apply. Without it, Apply mode is refused before anything is read
-    or written.
-
-.PARAMETER Acknowledgement
-    Required in addition to -Mode Apply. Must be the exact case-sensitive string
-    'DELETE SUBNETS AND KEEP DEVICES'. There is no shortcut and no default-yes value.
-
-.PARAMETER ExpectedCommit
-    Exact Git commit of the frozen candidate. Required for every mode.
-
-.PARAMETER ExpectedTree
-    Exact Git tree of the frozen candidate. Required for every mode.
-
-.PARAMETER ExpectedHarnessSha256
-    SHA-256 of this script in the frozen candidate. Required for every mode. All three expected
-    values must be supplied from the Task 7 candidate record before the MCP host can start.
-
-.PARAMETER StartupTimeoutSeconds
-    Seconds to wait for each MCP response before timing out.
-
-.EXAMPLE
-    # Non-mutating: read the current hardware configuration, available project version, and total hardware device
-    # count through the real MCP protocol.
-    pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
-        -ProjectPath C:\Sandbox\Phase4Fixture.ap21 `
-        -ExpectedCommit 'COMMIT_SHA' -ExpectedTree 'TREE_SHA' -ExpectedHarnessSha256 'HARNESS_SHA256'
-
-.EXAMPLE
-    # Non-mutating: preview the exact create/update/delete operation arrays.
-    pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
-        -ProjectPath C:\Sandbox\Phase4Fixture.ap21 -Mode Preview `
-        -ConnectedEthernetSubnetId 590-1 -ConnectedProfibusSubnetId 590-2 `
-        -ExpectedCommit 'COMMIT_SHA' -ExpectedTree 'TREE_SHA' -ExpectedHarnessSha256 'HARNESS_SHA256'
-
-.EXAMPLE
-    # MUTATING. Requires -AllowMutation and the exact -Acknowledgement string. Use a disposable
-    # or backed-up project.
-    pwsh -File scripts/live-test-network-phase4-subnets.ps1 `
-        -ProjectPath C:\Sandbox\Phase4Fixture.ap21 -Mode Apply `
-        -ConnectedEthernetSubnetId 590-1 -ConnectedProfibusSubnetId 590-2 `
-        -AllowMutation -Acknowledgement 'DELETE SUBNETS AND KEEP DEVICES' `
-        -ExpectedCommit 'COMMIT_SHA' -ExpectedTree 'TREE_SHA' -ExpectedHarnessSha256 'HARNESS_SHA256'
-
-.NOTES
-    Use a disposable or backed-up TIA Portal V21 project. Apply mode writes to it for real; this
-    harness performs no automatic retry and network_write itself performs no batch-wide rollback.
+    Inventory (default) reads only. Preview uses dryRun:true. Apply requires AllowMutation
+    and the exact acknowledgement DELETE SUBNETS AND KEEP DEVICES before host startup.
+    The explicit already-open ProjectPath is inspected, then bound with bind_project.
+    No save, close, compile, download, PLC action, batch rollback or automatic retry.
+    Connected Ethernet/PROFIBUS subnet IDs must come from fresh inventory; names are not IDs.
+    Apply creates/updates/deletes isolated subnets, then permanently deletes the two connected
+    fixture subnets. It does not restore connected deletions: use a disposable backed-up fixture
+    and a separately authorized restoration procedure, followed by fresh identity inspection.
+    Network has zero server elicitation in read-write/full; harness gates are client protections.
+    Explicit dryRun:false is used for execution (omitting dryRun also executes).
+    Commit/tree/script SHA-256 freeze evidence is required in every mode. No mode runs in CI.
+    Historical Phase4 acceptance does not qualify this guarded candidate.
 #>
 [CmdletBinding()]
 param(
@@ -128,6 +22,7 @@ param(
     [string] $Mode = 'Inventory',
 
     [Parameter(Mandatory)] [string] $ProjectPath,
+    [ValidateSet('read-write', 'full')] [string] $AccessMode = 'read-write',
 
     [string] $ConnectedEthernetSubnetId,
     [string] $ConnectedProfibusSubnetId,
@@ -151,6 +46,8 @@ $script:EthernetNetworkType = 'Ethernet'
 $script:ProfibusNetworkType = 'Profibus'
 $script:HostProcess = $null
 $script:NextRequestId = 0
+$script:ObservedBinding = $null
+$script:ElicitationCount = 0
 
 # --- Mode gating: validated BEFORE the MCP host is launched or anything is read/written --------
 
@@ -191,6 +88,8 @@ function Start-McpHost {
     [void] $psi.ArgumentList.Add('--')
     [void] $psi.ArgumentList.Add('--project')
     [void] $psi.ArgumentList.Add($ProjectPath)
+    [void] $psi.ArgumentList.Add('--access-mode')
+    [void] $psi.ArgumentList.Add($AccessMode)
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $false
@@ -255,6 +154,10 @@ function Read-McpResponse {
 
         try { $parsed = $line | ConvertFrom-Json -Depth 60 } catch { continue }
 
+        if ($null -ne $parsed.PSObject.Properties['method'] -and $parsed.method -eq 'elicitation/create') {
+            $script:ElicitationCount++
+            throw 'Unexpected server elicitation from Network acceptance.'
+        }
         if ($null -ne $parsed.PSObject.Properties['id'] -and $parsed.id -eq $Id) {
             return $parsed
         }
@@ -294,24 +197,27 @@ function Connect-McpHost {
 
     $tools = Invoke-McpRequest -Method 'tools/list'
     $toolNames = @($tools.tools | ForEach-Object { $_.name })
-    foreach ($required in @('network_read', 'network_write', 'get_project_status')) {
+    foreach ($required in @('network_read', 'network_write', 'get_project_status', 'bind_project')) {
         if ($toolNames -notcontains $required) {
             throw "The connected MCP host does not advertise '$required'. Advertised tools: $($toolNames -join ', ')."
         }
     }
 
+    # A status read never binds or opens. Refuse a mismatch before session selection.
+    Get-ObservedProjectStatus | Out-Null
+    $bound = Invoke-McpToolCall -Name 'bind_project' -Arguments @{ projectPath = $ProjectPath }
+    if (-not $bound.success -or $bound.result.status -ne 'succeeded' -or
+        $bound.result.value.binding.state -ne 'verified' -or
+        -not [string]::Equals($bound.result.value.binding.projectPath, $ProjectPath,
+            [System.StringComparison]::OrdinalIgnoreCase) -or $bound.result.value.binding.portalProcessId -le 0) {
+        throw 'bind_project did not verify the exact already-open fixture.'
+    }
+    $script:ObservedBinding = $bound.result.value.binding
     Write-Host "Connected to MCP host: $($initializeResult.serverInfo.name) $($initializeResult.serverInfo.version)"
     return $initializeResult
 }
 
 function Get-ToolResultIsError {
-    # Per the MCP spec (CallToolResult.isError): "If not explicitly set, it defaults to false."
-    # get_project_status (and other tools that still return a plain string rather than going
-    # through StructuredToolResult.Create) are auto-wrapped by the SDK into a CallToolResult that
-    # never sets IsError, so the field is entirely absent from the JSON -- that is a normal
-    # successful result per spec, not a malformed one. Reading the property through
-    # PSObject.Properties keeps this safe under Set-StrictMode -Version Latest, which otherwise
-    # throws on any property access a JSON payload didn't happen to include.
     param([object] $Result)
     $property = $Result.PSObject.Properties['isError']
     if ($null -eq $property) { return $false }
@@ -319,12 +225,6 @@ function Get-ToolResultIsError {
 }
 
 function Get-ToolResultStructuredContent {
-    # UseStructuredContent = true tools (network_read/network_write) always emit a
-    # 'structuredContent' member. Plain-string tools like get_project_status never declare it, so
-    # the property is entirely absent from the JSON, not merely null -- a bare '.structuredContent'
-    # access throws under Set-StrictMode -Version Latest instead of returning $null. Reading it
-    # through PSObject.Properties makes "not declared" and "declared null" both come back as $null,
-    # which is what the caller's structuredContent-preferred / text-block-fallback logic expects.
     param([object] $Result)
     $property = $Result.PSObject.Properties['structuredContent']
     if ($null -eq $property) { return $null }
@@ -387,7 +287,7 @@ function Assert-FrozenCandidate {
     $testedHarnessSha256 = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
     if ($testedCommit -cne $ExpectedCommit -or $testedTree -cne $ExpectedTree -or
         $testedHarnessSha256 -ine $ExpectedHarnessSha256) {
-        throw 'Current source or harness does not match the frozen Task 7 candidate.'
+        throw 'Current source or harness does not match the frozen guarded Network candidate.'
     }
 
     $candidatePaths = @(
@@ -427,34 +327,19 @@ function Get-ServerCommit {
 
 function Get-ObservedProjectStatus {
     $envelope = Invoke-McpToolCall -Name 'get_project_status' -Arguments @{ projectPath = $ProjectPath }
-    if (-not $envelope.success) {
-        throw "get_project_status reported failure: $($envelope.error)"
+    if (-not $envelope.success -or $null -ne $envelope.error -or $envelope.result.status -ne 'succeeded') {
+        throw 'get_project_status did not deliver successful canonical evidence.'
     }
-    $payload = $envelope.payload | ConvertFrom-Json -Depth 40
-    $project = $payload.project
-    $session = $envelope.sessionIdentity
-    if ($null -eq $project -or $null -eq $session) {
-        throw 'get_project_status returned no observed project/session identity.'
-    }
-    # StrictMode rejects absent members; explicit type checks reject null/coerced evidence.
+    $project = $envelope.result.value
     if ($project.isOpen -isnot [bool] -or -not $project.isOpen -or
         $project.isModified -isnot [bool]) {
         throw 'get_project_status must report an open project and a boolean isModified state.'
-    }
-    if ($session.portalProcessId -isnot [int] -and $session.portalProcessId -isnot [long]) {
-        throw 'get_project_status must report an integer Portal PID.'
-    }
-    if ($session.portalProcessId -le 0 -or
-        [string]::IsNullOrWhiteSpace($session.workerSessionId) -or
-        ($session.sessionGeneration -isnot [int] -and $session.sessionGeneration -isnot [long]) -or
-        $session.sessionGeneration -lt 0) {
-        throw 'get_project_status returned an incomplete session identity or nonpositive Portal PID.'
     }
     if (-not [System.IO.Path]::IsPathFullyQualified($ProjectPath)) {
         throw 'The requested project path must be absolute.'
     }
     $expectedPath = [System.IO.Path]::GetFullPath($ProjectPath)
-    foreach ($observedPath in @($project.path, $session.projectPath)) {
+    foreach ($observedPath in @($project.path)) {
         if ([string]::IsNullOrWhiteSpace($observedPath) -or
             -not [System.IO.Path]::IsPathFullyQualified($observedPath) -or
             -not [string]::Equals([System.IO.Path]::GetFullPath($observedPath), $expectedPath,
@@ -462,14 +347,12 @@ function Get-ObservedProjectStatus {
             throw 'Observed project/session path does not match the requested project.'
         }
     }
-    # TIA Openness may leave project.Version unavailable. It is not the Portal process version.
     $versionProperty = $project.PSObject.Properties['version']
     $projectVersion = if ($null -eq $versionProperty -or
         [string]::IsNullOrWhiteSpace($versionProperty.Value)) { $null } else { $versionProperty.Value }
     [ordered]@{
         projectPath     = $project.path
-        sessionIdentity = $session
-        portalProcessId = $session.portalProcessId
+        binding         = $script:ObservedBinding
         isModified      = $project.isModified
         projectVersion  = $projectVersion
     }
@@ -563,6 +446,41 @@ function Read-HardwareConfig {
     return @{ devices = $devices.ToArray(); subnets = $subnets.ToArray(); messages = $messages.ToArray() }
 }
 
+function Get-HardwareNodes {
+    param($Hardware)
+    $nodes = [System.Collections.Generic.List[object]]::new()
+    function Visit-Item($DeviceName, $Item) {
+        foreach ($interface in @($Item.networkInterfaces)) {
+            foreach ($node in @($interface.nodes)) {
+                if ([string]::IsNullOrWhiteSpace($node.nodeId) -or
+                    $null -eq $node.connectionEvidence -or -not $node.connectionEvidence.complete) {
+                    throw 'Incomplete node identity/connection inventory; inspect before any mutation.'
+                }
+                $nodes.Add(@{ deviceName = $DeviceName; node = $node })
+            }
+        }
+        foreach ($child in @($Item.items)) { Visit-Item $DeviceName $child }
+    }
+    if (@($Hardware.messages).Count -ne 0) { throw 'Hardware discovery contains degradation diagnostics.' }
+    foreach ($device in @($Hardware.devices)) {
+        foreach ($item in @($device.items)) { Visit-Item $device.name $item }
+    }
+    return $nodes.ToArray()
+}
+function Assert-ConnectedFixture {
+    param($Hardware)
+    foreach ($expected in @(@{ id = $ConnectedEthernetSubnetId; type = $script:EthernetNetworkType },
+                            @{ id = $ConnectedProfibusSubnetId; type = $script:ProfibusNetworkType })) {
+        $found = @($Hardware.subnets | Where-Object { $_.subnetId -ceq $expected.id })
+        if ($found.Count -ne 1 -or $found[0].networkType -cne $expected.type -or
+            $null -eq $found[0].connectionEvidence -or -not $found[0].connectionEvidence.complete -or
+            @($found[0].connectionEvidence.nodes).Count -eq 0) {
+            throw 'Exact connected Ethernet/PROFIBUS fixture identity or complete inventory was not proved.'
+        }
+    }
+    Get-HardwareNodes $Hardware | Out-Null
+}
+
 function Get-ExistingSubnetName {
     param([Parameter(Mandatory)] [object] $Hardware, [Parameter(Mandatory)] [string] $SubnetId)
     # Named "subnetMatches" rather than PowerShell's automatic "matches" variable (the one
@@ -624,49 +542,29 @@ function New-DeleteSubnetOperation {
 
 function Invoke-NetworkWritePreview {
     param([Parameter(Mandatory)] [object[]] $Operations)
-    $response = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $Operations; confirm = $false }
+    $response = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $Operations; dryRun = $true }
     if ($response.phase -ne 'preview') {
         throw "Expected phase 'preview' but got '$($response.phase)': $($response | ConvertTo-Json -Compress -Depth 20)"
     }
+    if (-not $response.success -or $null -ne $response.omission) { throw 'Preview evidence incomplete; no apply.' }
     return $response
 }
 
 function Invoke-NetworkWriteApply {
-    param(
-        [Parameter(Mandatory)] [object[]] $Operations,
-        [Parameter(Mandatory)] [string] $SafetyToken
-    )
-    # THE ONLY confirm:$true call site in this script -- reached only from Invoke-LifecycleGroupAndVerify,
-    # which is reached only when $Mode -eq 'Apply', -AllowMutation was supplied, and -Acknowledgement
-    # already matched the exact required string above.
-    $response = Invoke-McpToolCall -Name 'network_write' -Arguments @{
-        operations  = $Operations
-        confirm     = $true
-        safetyToken = $SafetyToken
+    param([Parameter(Mandatory)] [object[]] $Operations)
+    # Sole actual call, reachable only from the authorized Apply dispatch.
+    $response = Invoke-McpToolCall -Name 'network_write' -Arguments @{ operations = $Operations; dryRun = $false }
+    if ($response.phase -ne 'applied' -or $null -ne $response.error -or $response.contractVersion -ne '1.0') {
+        throw 'Expected canonical applied Network response. Inspect before retry.'
     }
-    if ($response.phase -ne 'apply') {
-        throw "Expected phase 'apply' but got '$($response.phase)': $($response | ConvertTo-Json -Compress -Depth 20)"
-    }
+    if ($null -ne $response.omission) { throw 'Applied evidence omitted. Inspect before retry.' }
     return $response
 }
 
-function Get-RedactedPreviewRecord {
+function Get-PreviewRecord {
     param([Parameter(Mandatory)] [object] $Preview)
-    # The real safetyToken is NEVER placed here -- it lives only in the local variable that feeds
-    # the immediately following Invoke-NetworkWriteApply call, and is never written to $evidence.
-    [ordered]@{
-        target              = $Preview.preview.target
-        summary             = $Preview.preview.summary
-        currentStateHash    = $Preview.preview.currentStateHash
-        requestedInputHash  = $Preview.preview.requestedInputHash
-        expiresAtUtc        = $Preview.preview.expiresAtUtc
-        safetyToken         = '[REDACTED]'
-        instructions        = $Preview.preview.instructions
-    }
+    return $Preview
 }
-
-# --- Lifecycle group: preview -> apply -> verify -> post-read, using the unchanged ordered ----
-# --- request and token from that same preview -------------------------------------------------
 
 function Invoke-LifecycleGroupAndVerify {
     param(
@@ -677,15 +575,14 @@ function Invoke-LifecycleGroupAndVerify {
     )
 
     $preview = Invoke-NetworkWritePreview -Operations $Operations
-    $redactedPreview = Get-RedactedPreviewRecord -Preview $preview
-    $token = $preview.preview.safetyToken
-    if ([string]::IsNullOrWhiteSpace($token)) {
-        throw "Preview for group '$GroupName' returned no safety token."
+    $previewRecord = Get-PreviewRecord -Preview $preview
+    if (-not $preview.success) { throw 'Preview was blocked or incomplete; no mutation attempted.' }
+    $applied = Invoke-NetworkWriteApply -Operations $Operations
+    if ($applied.verification.success -isnot [bool] -or -not $applied.verification.success -or
+        @($applied.verification.finalChecks | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
+        @($applied.verification.operations | Where-Object { $_.status -notin @('passed', 'not_required') }).Count -ne 0) {
+        throw 'Applied verification failed or is unavailable. Inspect before retry; no restoration attempted.'
     }
-
-    # Apply reuses the SAME $Operations array and the token from THIS preview -- never rebuilt,
-    # never retried.
-    $applied = Invoke-NetworkWriteApply -Operations $Operations -SafetyToken $token
     if (-not $applied.success) {
         throw "network_write group '$GroupName' reported success:false: $($applied.batch | ConvertTo-Json -Compress -Depth 20)"
     }
@@ -697,9 +594,9 @@ function Invoke-LifecycleGroupAndVerify {
         }
 
         $memberNames = @($item.result.PSObject.Properties | ForEach-Object { $_.Name } | Sort-Object)
-        $expectedMemberNames = @('name', 'networkDeviceCount', 'networkDeviceCountUnchanged', 'subnetId')
+        $expectedMemberNames = @('name', 'networkDeviceCount', 'networkDeviceCountUnchanged', 'subnetId', 'verification')
         if (Compare-Object -ReferenceObject $expectedMemberNames -DifferenceObject $memberNames) {
-            throw "Group '$GroupName' operation '$($item.operationId)' result is not the exact four-member minimal shape. Got: $($memberNames -join ', ')."
+            throw "Group '$GroupName' operation '$($item.operationId)' result is not the typed lifecycle shape including immediate verification. Got: $($memberNames -join ', ')."
         }
         if ($item.result.networkDeviceCountUnchanged -isnot [bool] -or
             -not $item.result.networkDeviceCountUnchanged) {
@@ -729,6 +626,18 @@ function Invoke-LifecycleGroupAndVerify {
     }
 
     $postRead = Read-HardwareConfig
+    $postNodes = @(Get-HardwareNodes $postRead)
+    foreach ($effect in @($preview.effects)) {
+        foreach ($affected in @($effect.effect.affectedNodes)) {
+            $found = @($postNodes | Where-Object { $_.deviceName -ceq $affected.deviceName -and $_.node.nodeId -ceq $affected.nodeId })
+            if ($found.Count -ne 1) { throw 'Affected exact device/node was not preserved in fresh grouped/ungrouped inventory.' }
+            if ($effect.effect.operation -eq 'delete_subnet' -and
+                ($found[0].node.connectionEvidence.subnetId -ceq $effect.effect.target.subnetId -or
+                 $found[0].node.connectionEvidence.ioSystemSubnetId -ceq $effect.effect.target.subnetId)) {
+                throw 'Fresh affected node still references the deleted subnet/IO tuple.'
+            }
+        }
+    }
     $totalHardwareDeviceCountAfter = @($postRead.devices).Count
     if ($totalHardwareDeviceCountAfter -ne $TotalHardwareDeviceCountBefore) {
         throw "Group '$GroupName' changed the total hardware device count from $TotalHardwareDeviceCountBefore to $totalHardwareDeviceCountAfter."
@@ -737,7 +646,7 @@ function Invoke-LifecycleGroupAndVerify {
     [ordered]@{
         groupName               = $GroupName
         requestedOperations     = $Operations
-        preview                 = $redactedPreview
+        preview                 = $previewRecord
         applyResults            = $results
         postReadSubnetIds       = @($postRead.subnets | ForEach-Object { $_.subnetId })
         postReadTotalHardwareDeviceCount = $totalHardwareDeviceCountAfter
@@ -765,6 +674,7 @@ function Invoke-Inventory {
 
 function Invoke-Preview {
     $before = Read-HardwareConfig
+    Assert-ConnectedFixture $before
     $projectStatus = Get-ObservedProjectStatus
 
     # Harness-created ISOLATED subnets: request-derived identity only, no subnetId invented here.
@@ -788,17 +698,13 @@ function Invoke-Preview {
     $deletePreview = Invoke-NetworkWritePreview -Operations $deleteOperations
 
     # --- Non-mutating negative-path checks -------------------------------------------------------
-    # Each of these three cases is rejected by the host BEFORE any Openness transaction runs
-    # (validated in NetworkOperationCatalog/NetworkIdentityResolver during preview construction),
-    # so calling them with confirm:false is fully safe. They stay entirely within this function,
-    # confirm:false only, and never advance to a confirming apply call -- there is no safety token
-    # for a request preview rejects.
+    # These negative dry runs never dispatch a mutation.
     $negativeCases = @()
 
     # 1. Invalid transmission-speed symbol -- rejected by NetworkOperationCatalog.ValidateWrite
     #    before any hardware state is even read.
     $invalidSpeedOperation = New-CreateSubnetOperation -OperationId 'preview-negative-invalid-transmission-speed' -Name 'Phase4HarnessInvalidSpeedPreview' -NetworkType $script:ProfibusNetworkType -HighestAddress 20 -TransmissionSpeed 'NotARealBaudRate'
-    $invalidSpeedResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($invalidSpeedOperation); confirm = $false }
+    $invalidSpeedResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($invalidSpeedOperation); dryRun = $true }
     if ($invalidSpeedResult.error.category -ne 'validation_error') {
         throw "Expected error.category 'validation_error' for the invalid-transmission-speed negative case; got '$($invalidSpeedResult.error.category)'."
     }
@@ -811,9 +717,9 @@ function Invoke-Preview {
 
     # 2. PROFIBUS-only field on an Ethernet target -- rejected during preview's target resolution
     #    (NetworkIdentityResolver.ResolveExistingSubnet), after the hardware read but before any
-    #    token is issued or any worker call happens.
+    #    mutation is dispatched (ordinary discovery reads may run).
     $ethernetHighestAddressOperation = New-UpdateSubnetOperation -OperationId 'preview-negative-ethernet-highest-address' -SubnetId $ConnectedEthernetSubnetId -Changes @{ highestAddress = 10 }
-    $ethernetHighestAddressResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($ethernetHighestAddressOperation); confirm = $false }
+    $ethernetHighestAddressResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($ethernetHighestAddressOperation); dryRun = $true }
     if ($ethernetHighestAddressResult.error.category -ne 'validation_error') {
         throw "Expected error.category 'validation_error' for the PROFIBUS-only-field-on-Ethernet negative case; got '$($ethernetHighestAddressResult.error.category)'."
     }
@@ -828,13 +734,13 @@ function Invoke-Preview {
     #    already read above -- defensively confirmed absent from the current hardware
     #    configuration before use. Rejected during preview's target resolution's exact-one-match
     #    check (NetworkIdentityResolver.ResolveExistingSubnet's no-match branch), which reports
-    #    postcondition_failed, not target_not_found.
+    #    postcondition_failed for the established lifecycle selector category.
     $bogusSubnetId = "$ConnectedEthernetSubnetId-does-not-exist"
     if (@($before.subnets | Where-Object { $_.subnetId -eq $bogusSubnetId }).Count -ne 0) {
         throw "The synthesized bogus subnetId '$bogusSubnetId' unexpectedly collides with a real subnet in the current hardware configuration -- choose a different suffix."
     }
     $bogusSubnetOperation = New-DeleteSubnetOperation -OperationId 'preview-negative-bogus-subnet-id' -SubnetId $bogusSubnetId
-    $bogusSubnetResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($bogusSubnetOperation); confirm = $false }
+    $bogusSubnetResult = Invoke-McpToolCallExpectingError -Name 'network_write' -Arguments @{ operations = @($bogusSubnetOperation); dryRun = $true }
     if ($bogusSubnetResult.error.category -ne 'postcondition_failed') {
         throw "Expected error.category 'postcondition_failed' for the bogus-subnetId negative case; got '$($bogusSubnetResult.error.category)'."
     }
@@ -855,15 +761,16 @@ function Invoke-Preview {
             update = $updateOperations
             delete = $deleteOperations
         }
-        createPreview = Get-RedactedPreviewRecord -Preview $createPreview
-        updatePreview = Get-RedactedPreviewRecord -Preview $updatePreview
-        deletePreview = Get-RedactedPreviewRecord -Preview $deletePreview
+        createPreview = Get-PreviewRecord -Preview $createPreview
+        updatePreview = Get-PreviewRecord -Preview $updatePreview
+        deletePreview = Get-PreviewRecord -Preview $deletePreview
         negativeCases = $negativeCases
     }
 }
 
 function Invoke-Apply {
     $before = Read-HardwareConfig
+    Assert-ConnectedFixture $before
     $totalHardwareDeviceCountBefore = @($before.devices).Count
     $rootDeviceCount = $null
     $projectStatus = Get-ObservedProjectStatus
@@ -926,7 +833,7 @@ function Invoke-Apply {
         finalRootDeviceCount     = $rootDeviceCount
         rootDeviceCountEvidenceSource = 'subnet lifecycle results; no independent pre-apply root count'
         rootDeviceCountUnchangedAcrossAllGroups = $true
-        expectedProjectStateEffects = 'Deleting the connected Ethernet and PROFIBUS subnets may clear subnet-related node and IO-system attributes on the retained devices as a normal TIA Portal project-state effect. The public subnet lifecycle result never returns those attributes; this harness records the expectation here only and does not read node-level attributes to confirm it.'
+        expectedProjectStateEffects = 'Connected deletion removes subnet/IO references while exact affected devices/nodes remain. Fresh complete node inventory checks those identities/relationships after each group. Connected deletions are not restored by this script.'
     }
 }
 
@@ -957,10 +864,11 @@ $evidence['serverCommit'] = Get-ServerCommit
 $evidence['testedCommit'] = $candidate.testedCommit
 $evidence['testedTree'] = $candidate.testedTree
 $evidence['testedHarnessSha256'] = $candidate.testedHarnessSha256
+$evidence['accessMode'] = $AccessMode
+$evidence['elicitationCount'] = $script:ElicitationCount
 $evidence['generatedAtUtc'] = (Get-Date).ToUniversalTime().ToString('o')
 
-$artifactRoot = Join-Path $script:RepositoryRoot 'artifacts'
-$artifactRoot = Join-Path $artifactRoot 'live-network-phase4'
+$artifactRoot = Join-Path $script:RepositoryRoot 'artifacts/live-network-phase4'
 [void] (New-Item -ItemType Directory -Force -Path $artifactRoot)
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmssfff'
 $artifactName = "$timestamp-$($Mode.ToLowerInvariant()).json"

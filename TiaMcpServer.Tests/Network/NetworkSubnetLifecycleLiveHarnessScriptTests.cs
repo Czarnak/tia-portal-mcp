@@ -263,10 +263,10 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
     public void Harness_InventoryRecordsObservedProjectAndSessionEvidence()
     {
         var source = HarnessSource;
-        Assert.Contains("$session = $envelope.result.value.sessionIdentity", source, StringComparison.Ordinal);
+        Assert.Contains("$project = $envelope.result.value", source, StringComparison.Ordinal);
         Assert.Contains("projectPath     = $project.path", source, StringComparison.Ordinal);
-        Assert.Contains("sessionIdentity = $session", source, StringComparison.Ordinal);
-        Assert.Contains("portalProcessId = $session.portalProcessId", source, StringComparison.Ordinal);
+        Assert.Contains("binding         = $script:ObservedBinding", source, StringComparison.Ordinal);
+        Assert.Contains("bind_project", source, StringComparison.Ordinal);
         Assert.Contains("isModified      = $project.isModified", source, StringComparison.Ordinal);
         Assert.Contains("projectVersion  = $projectVersion", source, StringComparison.Ordinal);
         Assert.Contains("projectStatus   = $projectStatus", source, StringComparison.Ordinal);
@@ -280,10 +280,8 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
         var source = HarnessSource;
         Assert.Contains("$project.isOpen -isnot [bool] -or -not $project.isOpen", source, StringComparison.Ordinal);
         Assert.Contains("$project.isModified -isnot [bool]", source, StringComparison.Ordinal);
-        Assert.Contains("$session.portalProcessId -le 0", source, StringComparison.Ordinal);
-        Assert.Contains("[string]::IsNullOrWhiteSpace($session.workerSessionId)", source, StringComparison.Ordinal);
-        Assert.Contains("$session.sessionGeneration -lt 0", source, StringComparison.Ordinal);
-        Assert.Contains("foreach ($observedPath in @($project.path, $session.projectPath))", source, StringComparison.Ordinal);
+        Assert.Contains("$bound.result.value.binding.portalProcessId -le 0", source, StringComparison.Ordinal);
+        Assert.Contains("foreach ($observedPath in @($project.path))", source, StringComparison.Ordinal);
         Assert.Contains("[System.IO.Path]::GetFullPath($observedPath)", source, StringComparison.Ordinal);
         Assert.Contains("[System.StringComparison]::OrdinalIgnoreCase", source, StringComparison.Ordinal);
         Assert.Contains("$project.PSObject.Properties['version']", source, StringComparison.Ordinal);
@@ -303,6 +301,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
 
             $ProjectPath = 'C:\fixture.ap21'
             $script:observedProjectPath = $ProjectPath
+            $script:ObservedBinding = $null
             $script:includeVersion = $true
             function Invoke-McpToolCall {
                 param($Name, $Arguments)
@@ -312,18 +311,11 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                     isModified = $false
                 }
                 if ($script:includeVersion) { $projectData.version = $null }
-                @{ error = $null; result = @{ status = "succeeded"; value = @{ project = $projectData; sessionIdentity = @{
-                    projectPath = $ProjectPath
-                    portalProcessId = 1234
-                    workerSessionId = 'observed-session'
-                    sessionGeneration = 1
-                } } } }
+                @{ success = $true; error = $null; result = @{ status = "succeeded"; value = $projectData } }
             }
 
             $status = Get-ObservedProjectStatus
             if ($status.projectPath -cne $ProjectPath -or
-                $status.sessionIdentity.projectPath -cne $ProjectPath -or
-                $status.portalProcessId -ne 1234 -or
                 $status.isModified -isnot [bool] -or $status.isModified -or
                 $null -ne $status.projectVersion) {
                 throw 'Null project version was not recorded with the observed identity.'
@@ -332,7 +324,6 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
             $script:includeVersion = $false
             $status = Get-ObservedProjectStatus
             if ($status.projectPath -cne $ProjectPath -or
-                $status.sessionIdentity.projectPath -cne $ProjectPath -or
                 $status.isModified -isnot [bool] -or $status.isModified -or
                 $null -ne $status.projectVersion) {
                 throw 'Omitted project version was not recorded with the observed identity.'
@@ -382,7 +373,7 @@ public sealed class NetworkSubnetLifecycleLiveHarnessScriptTests
                 param($Name, $Arguments)
                 $script:requests += $Arguments.operations[0]
                 $page = $script:pages[$script:requests.Count - 1]
-                return (@{ result = @{ operations = @($page) } } |
+                return (@{ batch = @{ operations = @($page) } } |
                     ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20)
             }
             function Page($devices, $subnets, $returnedDevices, $returnedSubnets, $cursor) {
