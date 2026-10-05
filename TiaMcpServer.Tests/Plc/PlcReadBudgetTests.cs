@@ -27,4 +27,21 @@ public class PlcReadBudgetTests
         Assert.Equal(OperationBatchStatus.Succeeded, bounded.Operations[1].Status);
         Assert.NotNull(bounded.Operations[1].Result);
     }
+
+    [Fact]
+    public void OversizedInventoryGuidanceNamesEveryNarrowingField()
+    {
+        var payload = "{\"isComplete\":true,\"messages\":[],\"plcs\":[{\"plcName\":\"P\",\"deviceName\":null,\"tables\":"
+            + "[{\"name\":\"" + new string('t', 70_000) + "\",\"folderPath\":\"/\",\"isDefault\":false,\"tags\":[],\"userConstants\":[]}]}]}";
+        var item = PlcPayloadContract.Project(
+            new PlcOperationRequest { OperationId = "tags", Operation = "list_tag_tables" },
+            WorkerCallResult.Ok(payload));
+
+        var bounded = PlcReadTools.ApplyBudget(StructuredOperationBatch.FromItems(new[] { item }));
+
+        var guidance = bounded.Operations[0].Omission!.Guidance;
+        Assert.Contains("plcName", guidance);
+        Assert.Contains("folderPath", guidance);
+        Assert.Contains("tableName", guidance);
+    }
 }

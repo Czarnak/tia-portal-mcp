@@ -113,7 +113,17 @@ differs from read-write only in lifecycle confirmation.
     `externalWritable`), `null` when unreadable;
   - user constants carry a readability marker, so an unreadable value no longer looks like `""`;
   - skipped tables, groups, tags or constants mark `isComplete:false` with a message instead of
-    vanishing silently.
+    vanishing silently;
+  - optional `tableName` and `folderPath` narrow the read (amended after the final review): a
+    mid-size PLC exceeds the 60,000-character value (§7), so `plcName` alone is not enough.
+    `tableName` keeps only the table of that name and `folderPath` only the tables directly in
+    that folder, written as the inventory emits it (`/`, `/Line/Cell`); both match
+    case-insensitively, as the tree does, and combine with `plcName`. A narrowing that matches no
+    table fails the item with `target_not_found`, unless part of the tree was unreadable: then the
+    incomplete inventory is returned, because the target may be in the unreadable part. Omission
+    guidance for `list_tag_tables` names `plcName`, `folderPath` and `tableName`;
+  - `messages` is capped: the first 50 are kept and one final `... and N more messages.` entry
+    summarizes the rest (`isComplete` stays `false`).
 - `CrossReferenceReport` and `TagTableInfo` (and their nested types) lose
   `[LegacyNullOmission(BatchRedesign)]` and decode through the worker-payload reader; the
   null-policy and conditional-member registers are updated.
@@ -406,6 +416,7 @@ token flow.
 | Item | Handling |
 | --- | --- |
 | Content over 60,000 characters is omitted, so it has no hash and cannot be updated through `plc_write`. | Same ceiling as today's truncation. Recorded in the PLC operations summary. |
+| A tag inventory serializes at roughly 150 characters per tag, so one PLC of about 400 tags exceeds the 60,000-character value and `list_tag_tables` is omitted whole. | Narrow with `plcName`, `folderPath` or `tableName` (§3.2); the guidance names all three. A single table larger than the value remains unreadable through `list_tag_tables`. |
 | `get_block_content(format="source")` can return stale symbol names until recompiled ([#82](https://github.com/Czarnak/tia-portal-mcp/issues/82)). | Unchanged; the hash protects against concurrent edits, not against stale export. |
 | A concurrent TIA Portal UI edit to a value-setting target between plan and mutation. | Exact-target resolution at mutation; residual risk as in the write-safety redesign §8. |
 | Snapshot-reader rules are lost when the readers are deleted. | §4.3 ports rule by rule with tests before deletion; Appendix A is the checklist. |

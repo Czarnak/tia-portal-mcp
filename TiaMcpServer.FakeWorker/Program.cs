@@ -815,7 +815,18 @@ while ((line = Console.In.ReadLine()) is not null)
                 "get_type_content" => Success($"TYPE \"{ReadField(line, "typePath")}\" format={ReadField(line, "format")}"),
                 "list_tag_tables" => Success(ToCamelCaseJson(new PlcTagInventoryInfo
                 {
-                    Plcs = { new PlcTagInventoryPlcInfo { PlcName = "PLC_1", DeviceName = "PLC_1_Device" } },
+                    Plcs =
+                    {
+                        new PlcTagInventoryPlcInfo
+                        {
+                            PlcName = "PLC_1",
+                            DeviceName = "PLC_1_Device",
+                            // Echoes the forwarded narrowing so the host test can see it reached the worker.
+                            Tables = ReadField(line, "tableName") is { } tableName
+                                ? new List<TagTableInfo> { new() { Name = tableName, FolderPath = ReadField(line, "folderPath") ?? "/" } }
+                                : new List<TagTableInfo>(),
+                        },
+                    },
                 })),
                 _ => $$"""{"success":false,"error":"unexpected plc read method '{{ReadMethod(line)}}'"}"""
             });

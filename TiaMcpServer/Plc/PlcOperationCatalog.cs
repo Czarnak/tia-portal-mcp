@@ -18,7 +18,7 @@ public static class PlcOperationCatalog
     {
         ["get_block_content"] = new(new[] { "blockPath" }, new[] { "format", "withDependencies" }),
         ["get_type_content"] = new(new[] { "typePath" }, new[] { "format", "withDependencies" }),
-        ["list_tag_tables"] = new(Array.Empty<string>(), new[] { "plcName" }),
+        ["list_tag_tables"] = new(Array.Empty<string>(), new[] { "plcName", "tableName", "folderPath" }),
     };
 
     private static readonly (string Name, Func<PlcOperationRequest, bool> IsSet)[] OperationFields =
@@ -28,6 +28,8 @@ public static class PlcOperationCatalog
         ("format", op => op.Format is not null),
         ("withDependencies", op => op.WithDependencies is not null),
         ("plcName", op => op.PlcName is not null),
+        ("tableName", op => op.TableName is not null),
+        ("folderPath", op => op.FolderPath is not null),
     };
 
     public static IReadOnlyList<string> ReadOperationNames { get; } = Specs.Keys.ToArray();
@@ -132,9 +134,15 @@ public static class PlcOperationCatalog
             errors.Add($"{prefix} is missing required field(s): {string.Join(", ", missing)}.");
         }
 
-        if (operation.PlcName is not null && string.IsNullOrWhiteSpace(operation.PlcName))
+        foreach (var (name, value) in new[]
+                 {
+                     ("plcName", operation.PlcName), ("tableName", operation.TableName), ("folderPath", operation.FolderPath),
+                 })
         {
-            errors.Add($"{prefix}: 'plcName' must be nonblank when supplied.");
+            if (value is not null && string.IsNullOrWhiteSpace(value))
+            {
+                errors.Add($"{prefix}: '{name}' must be nonblank when supplied.");
+            }
         }
 
         if (operation.Format is not null)

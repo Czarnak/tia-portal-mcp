@@ -31,4 +31,10 @@ public sealed class PlcOperationRequest : IOperationBatchItem
 
     [Description("Optional PLC software name for list_tag_tables. When omitted, every PLC in the project is read.")]
     public string? PlcName { get; set; }
+
+    [Description("Optional tag table name for list_tag_tables (case-insensitive). Returns only that table; no match fails the item with target_not_found.")]
+    public string? TableName { get; set; }
+
+    [Description("Optional tag table folder for list_tag_tables, as the inventory emits it in folderPath (\"/\" for the root, e.g. /Line/Cell; case-insensitive). Returns only tables directly in that folder; no match fails the item with target_not_found.")]
+    public string? FolderPath { get; set; }
 }

@@ -69,6 +69,34 @@ public class PlcOperationCatalogTests
     }
 
     [Fact]
+    public void TagTableNarrowingIsValidOnlyForListTagTables()
+    {
+        var narrowed = new PlcOperationRequest
+        {
+            OperationId = "t", Operation = "list_tag_tables", PlcName = "PLC_1", TableName = "Motors", FolderPath = "/Line",
+        };
+        Assert.True(PlcOperationCatalog.ValidateRead(new[] { narrowed }).IsValid);
+
+        var withTable = Block("b");
+        withTable.TableName = "Motors";
+        var withFolder = new PlcOperationRequest { OperationId = "c", Operation = "get_type_content", TypePath = "t", FolderPath = "/Line" };
+        var error = PlcOperationCatalog.ValidateRead(new[] { withTable, withFolder }).Error;
+
+        Assert.Contains("'tableName' is not valid for get_block_content", error);
+        Assert.Contains("'folderPath' is not valid for get_type_content", error);
+    }
+
+    [Theory]
+    [InlineData("", null)]
+    [InlineData(null, " ")]
+    public void RejectsBlankTagTableNarrowing(string? tableName, string? folderPath)
+    {
+        var op = new PlcOperationRequest { OperationId = "t", Operation = "list_tag_tables", TableName = tableName, FolderPath = folderPath };
+
+        Assert.Contains("must be nonblank", PlcOperationCatalog.ValidateRead(new[] { op }).Error);
+    }
+
+    [Fact]
     public void RejectsMissingRequiredFieldAndBadFormat()
     {
         var missing = new PlcOperationRequest { OperationId = "a", Operation = "get_type_content" };

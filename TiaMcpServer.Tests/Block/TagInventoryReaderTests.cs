@@ -114,6 +114,75 @@ public class TagInventoryReaderTests
     }
 
     [Fact]
+    public void TableNameNarrowsToThatTable()
+    {
+        var project = new SiemensProject();
+        var plc = AddPlc(project.Devices, "Device", "Plc");
+        AddTable(plc, "Motors").Tags.Items.Add(new PlcTag { Name = "M1" });
+        AddTable(plc, "Valves").Tags.Items.Add(new PlcTag { Name = "V1" });
+
+        var inventory = TagTableReader.ReadInventory(project, null, tableName: "VALVES");
+
+        var table = Assert.Single(Assert.Single(inventory.Plcs).Tables);
+        Assert.Equal("Valves", table.Name);
+        Assert.True(inventory.IsComplete);
+    }
+
+    [Fact]
+    public void FolderPathNarrowsToThatFolder()
+    {
+        var project = new SiemensProject();
+        var plc = AddPlc(project.Devices, "Device", "Plc");
+        AddTable(plc, "RootTable");
+        var line = new PlcTagTableGroup { Name = "Line" };
+        line.TagTables.Items.Add(new PlcTagTable { Name = "LineTable" });
+        var nested = new PlcTagTableGroup { Name = "Cell" };
+        nested.TagTables.Items.Add(new PlcTagTable { Name = "CellTable" });
+        line.Groups.Items.Add(nested);
+        plc.TagTableGroup.Groups.Items.Add(line);
+
+        var inventory = TagTableReader.ReadInventory(project, null, folderPath: "/line/cell");
+
+        var table = Assert.Single(Assert.Single(inventory.Plcs).Tables);
+        Assert.Equal("CellTable", table.Name);
+        Assert.Equal("/Line/Cell", table.FolderPath);
+    }
+
+    [Fact]
+    public void NoMatchingTableOrFolderFailsTargetNotFound()
+    {
+        var project = new SiemensProject();
+        AddTable(AddPlc(project.Devices, "Device", "Plc"), "T");
+
+        var byTable = Assert.Throws<WorkerOperationException>(
+            () => TagTableReader.ReadInventory(project, null, tableName: "Missing"));
+        var byFolder = Assert.Throws<WorkerOperationException>(
+            () => TagTableReader.ReadInventory(project, null, folderPath: "/Missing"));
+
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, byTable.FailureCategory);
+        Assert.Contains("Missing", byTable.Message);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, byFolder.FailureCategory);
+    }
+
+    [Fact]
+    public void MessagesAreCappedAtFiftyPlusSummary()
+    {
+        var project = new SiemensProject();
+        var table = AddTable(AddPlc(project.Devices, "Device", "Plc"), "T");
+        for (var i = 0; i < 60; i++)
+        {
+            table.UserConstants.Items.Add(new PlcUserConstant { Name = $"C{i}", ValueFailure = new EngineeringException("boom") });
+        }
+
+        var inventory = TagTableReader.ReadInventory(project, null);
+
+        Assert.False(inventory.IsComplete);
+        Assert.Equal(51, inventory.Messages.Count);
+        Assert.Contains("C49", inventory.Messages[49]);
+        Assert.StartsWith("... and 10 more", inventory.Messages[50]);
+    }
+
+    [Fact]
     public void InventoryRootWritesExplicitNulls()
     {
         var project = new SiemensProject();

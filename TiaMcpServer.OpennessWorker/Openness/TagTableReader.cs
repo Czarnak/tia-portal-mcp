@@ -39,9 +39,21 @@ public static class TagTableReader
     /// it reads the external-access flags and never skips silently: every table, group, tag or
     /// constant that cannot be read yields one message and <c>IsComplete = false</c>.
     /// </summary>
-    public static PlcTagInventoryInfo ReadInventory(Project project, string? plcName)
+    public const int MaxInventoryMessages = 50;
+
+    /// <param name="tableName">Only the table with this name (case-insensitive) when not null.</param>
+    /// <param name="folderPath">Only tables directly in this folder, in the emitted folderPath syntax
+    /// (case-insensitive), when not null.</param>
+    /// <remarks>A narrowing that matches no table fails <c>target_not_found</c>, unless part of the
+    /// tree was unreadable: then the incomplete inventory is returned, since the target may be there.</remarks>
+    public static PlcTagInventoryInfo ReadInventory(
+        Project project,
+        string? plcName,
+        string? tableName = null,
+        string? folderPath = null)
     {
         var inventory = new PlcTagInventoryInfo();
+        var filter = new TableFilter(tableName, folderPath);
         foreach (var discovered in PlcSoftwareLocator.FindEveryPlc(project, plcName))
         {
             var plc = new PlcTagInventoryPlcInfo
@@ -49,7 +61,7 @@ public static class TagTableReader
                 PlcName = discovered.Software.Name,
                 DeviceName = discovered.DeviceName
             };
-            InventoryGroup(discovered.Software.TagTableGroup, "/", plc.Tables, inventory.Messages);
+            InventoryGroup(discovered.Software.TagTableGroup, "/", filter, plc.Tables, inventory.Messages);
             inventory.Plcs.Add(plc);
         }
 
@@ -61,19 +73,61 @@ public static class TagTableReader
                 $"No PLC software{detail} was found in the project.");
         }
 
+        if (filter.IsActive && inventory.Messages.Count == 0 && inventory.Plcs.All(p => p.Tables.Count == 0))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
+                $"No tag table matched {filter.Describe()}.");
+        }
+
         inventory.IsComplete = inventory.Messages.Count == 0;
+        CapMessages(inventory.Messages);
         return inventory;
+    }
+
+    // Keeps the first MaxInventoryMessages messages and summarizes the rest in one final message.
+    private static void CapMessages(List<string> messages)
+    {
+        if (messages.Count <= MaxInventoryMessages)
+        {
+            return;
+        }
+
+        var omitted = messages.Count - MaxInventoryMessages;
+        messages.RemoveRange(MaxInventoryMessages, omitted);
+        messages.Add($"... and {omitted} more messages.");
+    }
+
+    private sealed record TableFilter(string? TableName, string? FolderPath)
+    {
+        public bool IsActive => TableName is not null || FolderPath is not null;
+
+        public bool Includes(string folderPath, Func<string> name)
+            => (FolderPath is null || string.Equals(FolderPath, folderPath, StringComparison.OrdinalIgnoreCase))
+                && (TableName is null || string.Equals(TableName, name(), StringComparison.OrdinalIgnoreCase));
+
+        public string Describe() => string.Join(" and ", new[]
+        {
+            TableName is null ? null : $"tableName '{TableName}'",
+            FolderPath is null ? null : $"folderPath '{FolderPath}'",
+        }.Where(part => part is not null));
     }
 
     private static void InventoryGroup(
         PlcTagTableGroup group,
         string folderPath,
+        TableFilter filter,
         List<TagTableInfo> tables,
         List<string> messages)
     {
         var where = $"tag table group '{folderPath}'";
         ReadEach(group.TagTables, $"a tag table in {where}", messages, table =>
         {
+            if (!filter.Includes(folderPath, () => table.Name))
+            {
+                return;
+            }
+
             tables.Add(new TagTableInfo
             {
                 Name = table.Name,
@@ -87,7 +141,7 @@ public static class TagTableReader
         ReadEach(group.Groups, $"a nested group in {where}", messages, child =>
         {
             var childPath = folderPath == "/" ? $"/{child.Name}" : $"{folderPath}/{child.Name}";
-            InventoryGroup(child, childPath, tables, messages);
+            InventoryGroup(child, childPath, filter, tables, messages);
         });
     }
 

@@ -991,7 +991,8 @@ internal static class Program
 
     private static WorkerResponse ListTagTables(WorkerRequest request)
     {
-        return WithProject(request, project => Success(TagTableReader.ReadInventory(project, request.PlcName)));
+        return WithProject(request, project => Success(TagTableReader.ReadInventory(
+            project, request.PlcName, request.TableName, request.FolderPath)));
     }
 
     private static WorkerResponse ReadUpdateTagSafetySnapshot(WorkerRequest request)

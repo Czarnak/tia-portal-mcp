@@ -1040,12 +1040,21 @@ public class OpennessWorkerClient : IDisposable
             string.Empty);
     }
 
-    public Task<WorkerCallResult> ListTagTablesAsync(string? plcName, string? projectPath)
+    public Task<WorkerCallResult> ListTagTablesAsync(
+        string? plcName,
+        string? projectPath,
+        string? tableName = null,
+        string? folderPath = null)
     {
         return SendBoundProjectRequestAsync(
             "list_tag_tables",
             projectPath,
-            request => request.PlcName = plcName,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+            },
             "[]");
     }
 

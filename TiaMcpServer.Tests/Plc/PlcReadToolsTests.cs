@@ -56,6 +56,27 @@ public class PlcReadToolsTests
     }
 
     [Fact]
+    public async Task ListTagTablesForwardsTableNameAndFolderPath()
+    {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
+        using var client = CreateClient();
+
+        var result = await PlcReadTools.PlcRead(client, new[]
+        {
+            new PlcOperationRequest
+            {
+                OperationId = "tags", Operation = "list_tag_tables", ProjectPath = Scenario,
+                TableName = "Motors", FolderPath = "/Line",
+            },
+        });
+
+        var table = Structured(result).GetProperty("batch").GetProperty("operations")[0]
+            .GetProperty("result").GetProperty("plcs")[0].GetProperty("tables")[0];
+        Assert.Equal("Motors", table.GetProperty("name").GetString());
+        Assert.Equal("/Line", table.GetProperty("folderPath").GetString());
+    }
+
+    [Fact]
     public async Task MismatchedProjectPathFailsOnlyThatItem()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);

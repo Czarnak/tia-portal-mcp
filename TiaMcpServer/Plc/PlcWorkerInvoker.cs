@@ -26,7 +26,8 @@ public static class PlcWorkerInvoker
                     PlcFormatNames.Normalize(operation.Operation, operation.Format),
                     operation.ProjectPath,
                     operation.WithDependencies),
-                "list_tag_tables" => client.ListTagTablesAsync(operation.PlcName, operation.ProjectPath),
+                "list_tag_tables" => client.ListTagTablesAsync(
+                    operation.PlcName, operation.ProjectPath, operation.TableName, operation.FolderPath),
                 _ => Task.FromResult(WorkerCallResult.Fail(
                     WorkerFailureCategories.ValidationError,
                     $"Unsupported PLC read operation '{operation.Operation}'.")),
