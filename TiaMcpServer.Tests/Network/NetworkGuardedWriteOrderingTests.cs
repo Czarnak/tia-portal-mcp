@@ -185,7 +185,7 @@ public sealed class NetworkGuardedWriteOrderingTests
     }
 
     [Fact]
-    public async Task PartialConfiguration_VerifiesOnlyAppliedSubsetAndStops()
+    public async Task PartialConfiguration_VerifiesAppliedSubsetPreservesSkippedAndStops()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-partial");
@@ -198,7 +198,10 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
         Assert.True(response.Verification!.Success);
         Assert.Single(response.Verification.Operations);
-        Assert.DoesNotContain(response.Verification.FinalChecks, c => c.Field.StartsWith("IoSystem", StringComparison.Ordinal));
+        // The skipped IoSystem keeps its pre-write relationship, never the requested one.
+        var preserved = response.Verification.FinalChecks.Where(c => c.Field.StartsWith("IoSystem", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(new[] { "IoSystemNumber", "IoSystemSubnet" }, preserved.Select(c => c.Field).Order(StringComparer.Ordinal));
+        Assert.All(preserved, c => { Assert.Equal("passed", c.Status); Assert.NotEqual("subnet-1", c.Expected); Assert.NotEqual("1", c.Expected); });
     }
     [Fact]
     public async Task DeletedSubnet_AggregatePassCannotHideLostUngroupedNode()

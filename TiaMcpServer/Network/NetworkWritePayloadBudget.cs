@@ -242,7 +242,11 @@ public static class NetworkWritePayloadBudget
                     finalChecks.Add(Final(NetworkFinalCheck.Node(node, "removedSubnet", target.SubnetId), "true"));
                 if (item.Operation == "configure_network_device")
                     foreach (var setting in effect.RequestedSettings)
-                        finalChecks.Add(Observed(NetworkFinalCheck.Node(node, setting.Key), setting.Value, KnownObserved(setting.Key, setting.Value)));
+                    {
+                        // A skipped key's final check expects its prior value instead of the requested one.
+                        var known = KnownObserved(setting.Key, setting.Value);
+                        finalChecks.Add(Observed(NetworkFinalCheck.Node(node, setting.Key), known, known));
+                    }
             }
             // Unknown outcomes also retain their operation identity in an immediateEvidence check.
             finalChecks.Add(Final(NetworkFinalCheck.Operation(item.OperationId, "immediateEvidence"), "available"));

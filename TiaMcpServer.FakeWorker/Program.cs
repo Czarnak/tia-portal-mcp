@@ -3136,7 +3136,7 @@ HardwareConfigInfo QualifiedHardwareFixture() => new()
             new() { Name = "PROFINET interface_1", PositionNumber = 32768,
                 SelectorDiagnostics = new() { "Generic item type evidence is unavailable." }, NetworkInterfaces = new()
                 { new() { Name = "PROFINET interface_1", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." },
-                    Nodes = new() { new() { NodeId = "E1", Name = "X1", IpAddress = "192.168.12.2" } } } } },
+                    Nodes = new() { new() { NodeId = "E1", Name = "X1", IpAddress = "192.168.12.2", SubnetMask = "255.255.255.0" } } } } },
             new() { Name = "PROFINET interface_2", PositionNumber = 33024,
                 SelectorDiagnostics = new() { "Generic item type evidence is unavailable." }, NetworkInterfaces = new()
                 { new() { Name = "PROFINET interface_2", SelectorDiagnostics = new() { "Generic owner type evidence is unavailable." },

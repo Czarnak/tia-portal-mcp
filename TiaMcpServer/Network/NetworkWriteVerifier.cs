@@ -27,9 +27,13 @@ public sealed class NetworkWriteVerifier
         // Equality identifies the node; optional constraints from any attempted observation
         // remain obligations even when a later write supersedes its scalar value.
         var constraints = new Dictionary<NetworkNodeIdentityInfo, List<NetworkNodeIdentityInfo>>(NetworkNodeIdentityComparer.Instance);
+        // Preservation expectations whose pre-write value was unreadable can never pass.
+        var unknownPrior = new HashSet<ExpectationKey>(new ExpectationKeyComparer());
         void ExpectNode(NetworkNodeIdentityInfo identity, string field, string? value, string? removedSubnet = null)
         {
-            expected[NodeKey(identity, field) with { SubnetId = removedSubnet }] = value;
+            var nodeKey = NodeKey(identity, field) with { SubnetId = removedSubnet };
+            expected[nodeKey] = value;
+            unknownPrior.Remove(nodeKey);
             if (identity.InterfacePath is null || identity.InterfaceName is null && identity.InterfacePath.All(s => s.TypeIdentifier is null)) return;
             if (!constraints.TryGetValue(identity, out var observations))
                 constraints.Add(NetworkWritePlanner.CloneIdentity(identity), observations = new());
@@ -76,9 +80,23 @@ public sealed class NetworkWriteVerifier
                     InterfacePath = evidence.Identity.InterfacePath is { } path ? NetworkWritePlanner.ClonePath(path) : null,
                     InterfaceName = evidence.Identity.InterfaceName };
                 ExpectNode(identity, "exists", "true");
-                // Strict projection required exactly the applied keys. Skips are execution failures,
-                // but make no final setting claim and cannot erase an earlier applied expectation.
+                // Strict projection required exactly the applied keys. A skipped key must keep its
+                // pre-write value, unless an earlier applied expectation for it already exists.
                 foreach (var check in evidence.Checks) ExpectNode(identity, check.Name, check.Expected);
+                var skipped = item.Result is { ValueKind: JsonValueKind.Object } result
+                    && result.TryGetProperty("skippedSettings", out var map) && map.ValueKind == JsonValueKind.Object
+                    ? map.EnumerateObject().Select(p => p.Name) : Enumerable.Empty<string>();
+                foreach (var field in skipped.SelectMany(name => name == "IoSystem" ? new[] { "IoSystemSubnet", "IoSystemNumber" } : new[] { name }))
+                {
+                    if (expected.ContainsKey(NodeKey(identity, field))) continue;
+                    var prior = initial?.CurrentSettings.GetValueOrDefault(field);
+                    var known = prior is { Availability: "available", Value: not null };
+                    ExpectNode(identity, field, known ? prior!.Value!.Value switch
+                    {
+                        string text => text, JsonElement => AttributeText(prior), _ => null
+                    } : null);
+                    if (!known) unknownPrior.Add(NodeKey(identity, field));
+                }
             }
             else
             {
@@ -141,7 +159,7 @@ public sealed class NetworkWriteVerifier
                     ? AttributeText(attribute) : null;
                 observation = (value, value is not null);
             }
-            checks.Add(Evaluate(subject, entry.Value, observation.Value, observation.Readable));
+            checks.Add(Evaluate(subject, entry.Value, observation.Value, observation.Readable && !unknownPrior.Contains(key)));
         }
         return new(operations.All(o => o.Status is "passed" or "not_required") && checks.All(c => c.Status == "passed"), operations, checks, null);
     }

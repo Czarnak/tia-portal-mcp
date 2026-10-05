@@ -138,6 +138,57 @@ public class NetworkOperationFakeWorkerTests
     }
 
     [Fact]
+    public async Task QualifiedPartialSkip_ExecutionFailsWhileVerificationProvesAppliedAndPreservedSettings()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
+        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        var priorMask = before.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].SubnetMask;
+        Assert.NotNull(priorMask);
+        var operation = QualifiedConfigure("partial"); operation.Changes = new() { IpAddress = "192.168.12.99", SubnetMask = "255.255.0.0" };
+        var response = await fixture.RunAsync(false, operation);
+        // verification.success covers evidence only; execution failure lives in batch and root success.
+        Assert.False(response.Success);
+        Assert.Equal(TiaMcpServer.OperationBatches.OperationBatchStatus.Failed, response.Batch!.Operations[0].Status);
+        Assert.True(response.Verification!.Success);
+        var preserved = Assert.Single(response.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
+        Assert.Equal(priorMask, preserved.Expected);
+        Assert.Equal("passed", preserved.Status);
+    }
+
+    [Fact]
+    public async Task QualifiedAllSkipped_FinalCheckProvesSkippedSettingWasPreserved()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
+        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        var priorMask = before.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].SubnetMask;
+        Assert.NotNull(priorMask);
+        var operation = QualifiedConfigure("skipped"); operation.Changes = new() { SubnetMask = "255.255.0.0" };
+        var response = await fixture.RunAsync(false, operation);
+        Assert.False(response.Success);
+        Assert.Equal("not_required", response.Verification!.Operations[0].Status);
+        var preserved = Assert.Single(response.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
+        Assert.Equal(priorMask, preserved.Expected);
+        Assert.Equal(priorMask, preserved.Observed);
+        Assert.Equal("passed", preserved.Status);
+        Assert.True(response.Verification.Success);
+    }
+
+    [Fact]
+    public async Task QualifiedAllSkipped_UnreadablePriorValueLeavesPreservationUnverified()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
+        // The second owner's node has no readable subnet mask before the write.
+        var operation = QualifiedConfigure("unreadable", 33024); operation.Changes = new() { SubnetMask = "255.255.0.0" };
+        var response = await fixture.RunAsync(false, operation);
+        var preserved = Assert.Single(response.Verification!.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
+        Assert.Equal("unverified", preserved.Status);
+        Assert.False(response.Verification.Success);
+    }
+
+    [Fact]
     public async Task QualifiedConfigure_IdentityIsTypedWithoutNestedJson()
     {
         using var audit = new TempAuditDirectory();
