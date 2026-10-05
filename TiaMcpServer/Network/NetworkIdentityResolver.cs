@@ -20,7 +20,12 @@ public sealed record NetworkIdentityResolution(
 /// <see cref="HardwareConfigInfo"/>.
 ///
 /// <para>
-/// Zero or duplicate matches return <see cref="WorkerFailureCategories.PostconditionFailed"/>.
+/// Zero matches return <see cref="WorkerFailureCategories.TargetNotFound"/> and duplicate matches
+/// <see cref="WorkerFailureCategories.TargetAmbiguous"/>; a resolved subnet with a missing or
+/// unsupported network type returns <see cref="WorkerFailureCategories.TargetKindUnsupported"/>, and a
+/// missing hardware snapshot returns <see cref="WorkerFailureCategories.WorkerOperationFailed"/>.
+/// <see cref="WorkerFailureCategories.PostconditionFailed"/> is reserved for late worker-side matches
+/// and postchecks, never for this pre-mutation resolution.
 /// A readable match with unreadable competing identities returns
 /// <see cref="WorkerFailureCategories.WorkerOperationFailed"/> because uniqueness is unknown.
 /// There is no first-match or name-only fallback anywhere in this type.
@@ -120,7 +125,7 @@ public static class NetworkIdentityResolver
         if (state is null)
         {
             return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.PostconditionFailed,
+                WorkerFailureCategories.WorkerOperationFailed,
                 $"Operation '{operation.OperationId}': no hardware snapshot was available to resolve this target.");
         }
 
@@ -143,7 +148,7 @@ public static class NetworkIdentityResolver
         if (!subnetMatch.IsResolved)
         {
             return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.PostconditionFailed,
+                subnetMatch.IsAmbiguous ? WorkerFailureCategories.TargetAmbiguous : WorkerFailureCategories.TargetNotFound,
                 subnetMatch.IsAmbiguous
                     ? $"{prefix}: multiple subnets report subnetId '{requestedId}'; subnetId must select exactly one subnet."
                     : $"{prefix}: no subnet with subnetId '{requestedId}' was found.");
@@ -155,7 +160,7 @@ public static class NetworkIdentityResolver
         if (!SubnetLifecycleContract.IsSupportedNetworkType(subnet.NetworkType))
         {
             return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.PostconditionFailed,
+                WorkerFailureCategories.TargetKindUnsupported,
                 $"{prefix}: subnet '{requestedId}' reports a missing or unsupported network type and cannot be "
                     + "resolved as a write target.");
         }
@@ -191,7 +196,7 @@ public static class NetworkIdentityResolver
         if (state is null)
         {
             return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.PostconditionFailed,
+                WorkerFailureCategories.WorkerOperationFailed,
                 $"Operation '{operation.OperationId}': no hardware snapshot was available to resolve this target.");
         }
 
@@ -218,7 +223,7 @@ public static class NetworkIdentityResolver
         if (!deviceMatch.IsResolved)
         {
             return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.PostconditionFailed,
+                deviceMatch.IsAmbiguous ? WorkerFailureCategories.TargetAmbiguous : WorkerFailureCategories.TargetNotFound,
                 deviceMatch.IsAmbiguous
                     ? $"{prefix}: multiple devices are named '{target.DeviceName}'; device names must be unique to select one exactly."
                     : $"{prefix}: no device named '{target.DeviceName}' was found.");
@@ -244,7 +249,7 @@ public static class NetworkIdentityResolver
             if (!subnetMatch.IsResolved)
             {
                 return NetworkIdentityResolution.Fail(
-                    WorkerFailureCategories.PostconditionFailed,
+                    subnetMatch.IsAmbiguous ? WorkerFailureCategories.TargetAmbiguous : WorkerFailureCategories.TargetNotFound,
                     subnetMatch.IsAmbiguous
                         ? $"{prefix}: multiple subnets report subnetId '{subnetIdToResolve}'; subnetId must select exactly one subnet."
                         : $"{prefix}: no subnet with subnetId '{subnetIdToResolve}' was found.");
@@ -275,7 +280,7 @@ public static class NetworkIdentityResolver
             if (!ioSystemMatch.IsResolved)
             {
                 return NetworkIdentityResolution.Fail(
-                    WorkerFailureCategories.PostconditionFailed,
+                    ioSystemMatch.IsAmbiguous ? WorkerFailureCategories.TargetAmbiguous : WorkerFailureCategories.TargetNotFound,
                     ioSystemMatch.IsAmbiguous
                         ? $"{prefix}: multiple IO systems on subnet '{subnetIdToResolve}' report number {requestedNumber}; number must select exactly one IO system."
                         : $"{prefix}: no IO system with number {requestedNumber} was found on subnet '{subnetIdToResolve}'.");
@@ -370,12 +375,12 @@ public static class NetworkIdentityResolver
         if (target.NodeIndex is not null || target.InterfaceName is not null)
             return (null, WorkerFailureCategories.TargetEvidenceMismatch, "Node constraints require an owner path.");
         if (string.IsNullOrWhiteSpace(target.NodeId))
-            return (null, WorkerFailureCategories.PostconditionFailed, "No node with nodeId was found.");
+            return (null, WorkerFailureCategories.TargetNotFound, "No node with nodeId was found.");
         var candidates = EnumerateNodes(device).ToArray();
         if (candidates.Any(x => string.IsNullOrWhiteSpace(x.Node.NodeId)))
             return (null, WorkerFailureCategories.WorkerOperationFailed, "Device node identities are unreadable.");
         var matched = candidates.Where(x => IdentitiesMatch(x.Node.NodeId, target.NodeId)).ToArray();
-        if (matched.Length != 1) return (null, WorkerFailureCategories.PostconditionFailed,
+        if (matched.Length != 1) return (null, matched.Length == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous,
             matched.Length == 0 ? "No node with nodeId was found." : "Multiple nodes match this bare nodeId. Use the interfacePath selector returned by read_hardware_config or list_network_objects.");
         var proof = NetworkInterfacePathMatcher.Match(device.Items, matched[0].OwnerPath, i => i.Items, i => i.Name, i => i.PositionNumber, i => i.TypeIdentifier);
         if (!proof.Success) return (null, proof.FailureCategory, proof.Error);

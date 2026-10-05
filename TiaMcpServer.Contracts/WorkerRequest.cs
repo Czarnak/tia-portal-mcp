@@ -209,6 +209,9 @@ public class WorkerRequest
     /// <summary>Forwarded by: configure_network_device.</summary>
     public string? PnDeviceName { get; set; }
 
+    /// <summary>Forwarded by: configure_network_device. Written before <see cref="PnDeviceName"/>.</summary>
+    public bool? PnDeviceNameAutoGeneration { get; set; }
+
     /// <summary>
     /// Forwarded by: configure_network_device (the subnet to connect the node to), update_subnet
     /// and delete_subnet (the exact existing subnet targeted by the operation). create_subnet never

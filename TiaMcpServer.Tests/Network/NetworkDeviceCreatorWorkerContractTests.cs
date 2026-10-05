@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -15,6 +16,17 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         Assert.Contains("FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value)", preflight);
         Assert.Contains("networkInterface.IoConnectors", preflight);
         Assert.Contains("NetworkPostconditionChecks.IoSystemSkipReason(", source);
+    }
+
+    [Fact]
+    public void PnDeviceNameAutoGeneration_IsSetBeforePnDeviceName()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");
+        var autoGeneration = source.IndexOf("\"PnDeviceNameAutoGeneration\", generated", StringComparison.Ordinal);
+        var name = source.IndexOf("ApplyNodeAttribute(node, \"PnDeviceName\", pnDeviceName", StringComparison.Ordinal);
+        Assert.True(autoGeneration >= 0 && name > autoGeneration);
+        var verifier = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs");
+        Assert.Contains("case \"PnDeviceNameAutoGeneration\":", verifier);
     }
 
     [Fact]
@@ -73,6 +85,48 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         Assert.Single(Regex.Matches(normalizedSource, expectedCall));
         Assert.Empty(Regex.Matches(normalizedSource, reversedCall));
     }
+
+    [Fact]
+    public void CreatorAndImmediateVerifier_SelectCreatedItemAmongTopLevelItemsOnly()
+    {
+        foreach (var file in new[] { "NetworkDeviceCreator.cs", "NetworkMutationVerifier.cs" })
+        {
+            var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", file);
+            Assert.Contains("NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>()", source);
+        }
+    }
+
+    [Fact]
+    public void SelectCreatedItem_HeadModuleWithSameNamedChild_SelectsTopLevelItem()
+    {
+        // ET200SP shape: the child sub-item repeats the head module name; children are never searched.
+        var head = new TopLevelItem("MCP_Test_IM");
+        var selected = NetworkPostconditionChecks.SelectCreatedItem(
+            new[] { new TopLevelItem("Rack_0"), head }, item => item.Name, "MCP_Test_IM");
+        Assert.Same(head, selected);
+    }
+
+    [Fact]
+    public void SelectCreatedItem_DuplicateTopLevelName_IsNotUnique()
+    {
+        var selected = NetworkPostconditionChecks.SelectCreatedItem(
+            new[] { new TopLevelItem("IM"), new TopLevelItem("IM") }, item => item.Name, "IM");
+        Assert.Null(selected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void SelectCreatedItem_BlankSiblingName_DoesNotBlockUniqueTarget(string? siblingName)
+    {
+        var head = new TopLevelItem("IM");
+        var selected = NetworkPostconditionChecks.SelectCreatedItem(
+            new[] { new TopLevelItem(siblingName), head }, item => item.Name, "IM");
+        Assert.Same(head, selected);
+    }
+
+    private sealed record TopLevelItem(string? Name);
 
     private static string ReadRepositorySource(params string[] pathSegments)
     {

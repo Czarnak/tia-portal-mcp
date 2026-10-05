@@ -23,10 +23,11 @@ public static class NetworkDeviceConfigurator
         string? ioSystemSubnetId,
         int? ioSystemNumber)
         => Configure(project, new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
-            ipAddress, subnetMask, pnDeviceName, subnetId, ioSystemSubnetId, ioSystemNumber);
+            ipAddress, subnetMask, pnDeviceName, null, subnetId, ioSystemSubnetId, ioSystemNumber);
 
     public static ConfigureNetworkDeviceResultInfo Configure(Project project, NetworkObjectSelectorInfo target,
-        string? ipAddress, string? subnetMask, string? pnDeviceName, string? subnetId, string? ioSystemSubnetId, int? ioSystemNumber)
+        string? ipAddress, string? subnetMask, string? pnDeviceName, bool? pnDeviceNameAutoGeneration,
+        string? subnetId, string? ioSystemSubnetId, int? ioSystemNumber)
     {
         var selection = NetworkObjectSelectorResolver.ResolveNode(project, target);
         if (!selection.Success) throw new WorkerOperationException(selection.FailureCategory!, selection.Error!);
@@ -63,6 +64,9 @@ public static class NetworkDeviceConfigurator
 
         ApplyNodeAttribute(node, "Address", ipAddress, result);
         ApplyNodeAttribute(node, "SubnetMask", subnetMask, result);
+        // An explicit name is only settable once automatic generation is off; the caller opts in.
+        if (pnDeviceNameAutoGeneration is { } generated)
+            ApplyNodeAttribute(node, "PnDeviceNameAutoGeneration", generated, generated ? "true" : "false", result);
         ApplyNodeAttribute(node, "PnDeviceName", pnDeviceName, result);
 
         var subnetConnected = false;
@@ -119,10 +123,16 @@ public static class NetworkDeviceConfigurator
             return;
         }
 
+        ApplyNodeAttribute(node, attributeName, value!, value!, result);
+    }
+
+    private static void ApplyNodeAttribute(Node node, string attributeName, object value, string reported,
+        ConfigureNetworkDeviceResultInfo result)
+    {
         try
         {
             ((IEngineeringObject)node).SetAttribute(attributeName, value);
-            result.AppliedSettings[attributeName] = value!;
+            result.AppliedSettings[attributeName] = reported;
         }
         catch (EngineeringException ex)
         {

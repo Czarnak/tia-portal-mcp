@@ -37,7 +37,7 @@ public class OpennessWorkerClientIntegrationTests
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
         var selector = new NetworkObjectSelectorInfo { Kind = "node", DeviceName = "Station", NodeId = "E1", InterfaceName = "X1", NodeIndex = 0,
             InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768, TypeIdentifier = "type" } } };
-        var pending = client.ConfigureNetworkDeviceAsync(selector, "10.0.0.1", null, null, null, null, null, "echo");
+        var pending = client.ConfigureNetworkDeviceAsync(selector, "10.0.0.1", null, null, null, null, null, null, "echo");
         selector.InterfacePath[0].PositionNumber = 33024; selector.NodeId = "Changed";
         var result = await pending;
         Assert.True(result.Success, result.Error);

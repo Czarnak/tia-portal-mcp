@@ -13,7 +13,7 @@ public sealed class NetworkInterfacePathSegmentInfo
     public string? TypeIdentifier { get; set; }
 }
 
-/// <summary>Canonical typed owner identity for scalar verification dictionaries.</summary>
+/// <summary>Canonical owner-path text: validates a path and compares two paths exactly. Never a wire value.</summary>
 public static class NetworkInterfacePathEncoding
 {
     public static string Encode(IReadOnlyList<NetworkInterfacePathSegmentInfo> path)
@@ -36,39 +36,5 @@ public static class NetworkInterfacePathEncoding
             writer.WriteEndArray();
         }
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
-    }
-
-    public static IReadOnlyList<NetworkInterfacePathSegmentInfo> Decode(string encoded)
-    {
-        using var document = JsonDocument.Parse(encoded);
-        if (document.RootElement.ValueKind != JsonValueKind.Array) throw new JsonException("Interface path must be an array.");
-        var path = new List<NetworkInterfacePathSegmentInfo>();
-        foreach (var value in document.RootElement.EnumerateArray())
-        {
-            if (value.ValueKind != JsonValueKind.Object) throw new JsonException("Interface segment must be an object.");
-            var fields = new HashSet<string>(StringComparer.Ordinal);
-            var segment = new NetworkInterfacePathSegmentInfo();
-            foreach (var field in value.EnumerateObject())
-            {
-                if (!fields.Add(field.Name)) throw new JsonException("Duplicate interface segment field.");
-                switch (field.Name)
-                {
-                    case "name":
-                        if (field.Value.ValueKind != JsonValueKind.String) throw new JsonException("Invalid name.");
-                        segment.Name = field.Value.GetString()!; break;
-                    case "positionNumber":
-                        if (field.Value.ValueKind != JsonValueKind.Number || !field.Value.TryGetInt32(out var position)) throw new JsonException("Invalid positionNumber.");
-                        segment.PositionNumber = position; break;
-                    case "typeIdentifier":
-                        if (field.Value.ValueKind != JsonValueKind.String) throw new JsonException("Invalid typeIdentifier.");
-                        segment.TypeIdentifier = field.Value.GetString(); break;
-                    default: throw new JsonException("Unknown interface segment field.");
-                }
-            }
-            if (!fields.Contains("name") || !fields.Contains("positionNumber")) throw new JsonException("Required interface segment field missing.");
-            path.Add(segment);
-        }
-        _ = Encode(path); // Validate semantic requirements using the same typed writer.
-        return path;
     }
 }

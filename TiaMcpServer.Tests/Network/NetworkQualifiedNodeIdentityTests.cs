@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
+using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.OpennessWorker.Openness;
 using Xunit;
 namespace TiaMcpServer.Tests.Network;
@@ -17,7 +18,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal(2, new HashSet<NetworkNodeIdentityInfo>(new[] { a, b }, NetworkNodeIdentityComparer.Instance).Count);
         var map = new Dictionary<NetworkNodeIdentityInfo, string>(NetworkNodeIdentityComparer.Instance) { [a] = "x1", [b] = "x2" };
         Assert.Equal(2, map.Count);
-        Assert.Equal("x1", map[new() { DeviceName = "plc", NodeId = "E1", InterfacePath = NetworkInterfacePathEncoding.Decode(NetworkInterfacePathEncoding.Encode(a.InterfacePath!)).ToList() }]);
+        Assert.Equal("x1", map[new() { DeviceName = "plc", NodeId = "E1", InterfacePath = NetworkWritePlanner.ClonePath(a.InterfacePath!) }]);
     }
     [Fact]
     public void DeviceCaseAndPathCase_FollowDeclaredRules()
@@ -31,19 +32,54 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.False(NetworkNodeIdentityComparer.Instance.Equals(a, Identity("PLC", ("Rack", 1), ("Port", 3))));
         b.NodeId = "e1"; Assert.False(NetworkNodeIdentityComparer.Instance.Equals(a, b));
     }
+    /// <summary>Models Openness wrappers: with a Key, distinct CLR instances of one TIA object are Equal.</summary>
     private sealed class Ancestor
     {
-        public Ancestor? Parent; public string? Device; public NetworkInterfacePathSegmentInfo? Item;
+        public Ancestor? Parent; public string? Device; public NetworkInterfacePathSegmentInfo? Item; public string? Key;
+        public override bool Equals(object? obj) => Key is null ? ReferenceEquals(this, obj) : obj is Ancestor other && other.Key == Key;
+        public override int GetHashCode() => Key?.GetHashCode() ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
     }
-    [Theory][InlineData(false)][InlineData(true)]
-    public void OwnerHierarchy_MustResolveBackToActualNode(bool wrongNode)
+    [Theory][InlineData("same")][InlineData("equalWrapper")][InlineData("wrongNode")][InlineData("wrongWrapper")]
+    public void OwnerHierarchy_MustResolveBackToActualNode(string resolved)
     {
         var device = new Ancestor { Device = "PLC" }; var rack = new Ancestor { Parent = device, Item = new() { Name = "rack/\"", PositionNumber = 1 } };
         var owner = new Ancestor { Parent = rack, Item = new() { Name = "Interface", PositionNumber = 32768 } };
-        var service = new Ancestor { Parent = owner }; var node = new Ancestor { Parent = service };
+        var service = new Ancestor { Parent = owner }; var node = new Ancestor { Parent = service, Key = "node" };
+        Ancestor ResolveBack() => resolved switch
+        {
+            "same" => node,
+            "equalWrapper" => new Ancestor { Parent = service, Key = "node" },
+            "wrongWrapper" => new Ancestor { Parent = service, Key = "other" },
+            _ => new Ancestor { Parent = service },
+        };
         NetworkNodeIdentityInfo Capture() => NetworkConnectionEvidenceCapture.CaptureOwner(node, "E1", v => v.Parent, v => v.Item, v => v.Device,
-            identity => { Assert.Equal(new[] { "rack/\"", "Interface" }, identity.InterfacePath!.Select(p => p.Name)); return wrongNode ? new Ancestor { Parent = service } : node; });
-        if (wrongNode) Assert.Throws<InvalidOperationException>(Capture); else Assert.Equal(32768, Capture().InterfacePath![1].PositionNumber);
+            identity => { Assert.Equal(new[] { "rack/\"", "Interface" }, identity.InterfacePath!.Select(p => p.Name)); return ResolveBack(); });
+        if (resolved.StartsWith("wrong", StringComparison.Ordinal)) Assert.Throws<InvalidOperationException>(Capture);
+        else Assert.Equal(32768, Capture().InterfacePath![1].PositionNumber);
+    }
+    [Fact]
+    public void OwnerAncestry_AcceptsDistinctButEqualWrappers()
+    {
+        var device = new Ancestor { Key = "PLC" };
+        var ancestors = new[] { new Ancestor(), device };
+        Assert.True(NetworkConnectionEvidenceCapture.ContainsSameObject(ancestors, new Ancestor { Key = "PLC" }));
+        Assert.False(NetworkConnectionEvidenceCapture.ContainsSameObject(ancestors, new Ancestor { Key = "HMI" }));
+        Assert.False(NetworkConnectionEvidenceCapture.ContainsSameObject(ancestors, new Ancestor()));
+    }
+    [Fact]
+    public void IndexOwner_ReEnumeratedWrappersStaySelectable()
+    {
+        // Each enumeration materializes fresh wrappers, as Siemens Openness compositions do.
+        IEnumerable<Ancestor> Children(Ancestor parent) => parent.Key == "rack"
+            ? new[] { new Ancestor { Key = "X1", Item = new() { Name = "X1", PositionNumber = 32768 } } }
+            : Array.Empty<Ancestor>();
+        IEnumerable<Ancestor> Roots() => new[] { new Ancestor { Key = "rack", Item = new() { Name = "Rack", PositionNumber = 1 } } };
+        var item = Children(Roots().Single()).Single();
+        var path = new List<NetworkInterfacePathSegmentInfo> { new() { Name = "Rack", PositionNumber = 1 }, new() { Name = "X1", PositionNumber = 32768 } };
+        var owner = NetworkInterfacePathMatcher.Match(Roots(), path, Children, x => x.Item!.Name, x => x.Item!.PositionNumber, _ => null);
+        Assert.False(ReferenceEquals(owner.Item, item));
+        Assert.Equal(string.Empty, NetworkNodeReadSelectorBuilder.LiveOwnerDiagnostic(owner, item));
+        Assert.NotEqual(string.Empty, NetworkNodeReadSelectorBuilder.LiveOwnerDiagnostic(owner, new Ancestor { Key = "X2" }));
     }
     [Fact]
     public void OwnerHierarchy_UnknownOrCyclicCannotCertify()
@@ -90,7 +126,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         var a = Configure(32768, "192.168.12.7", "x1"); var b = Configure(33024, "192.168.13.8", "x2");
         var result = await f.RunAsync(false, reverse ? b : a, reverse ? a : b);
         Assert.True(result.Success);
-        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Name.EndsWith("/Address") && c.Status == "passed"));
+        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Kind == "node" && c.Field == "Address" && c.Status == "passed"));
         Assert.All(result.Effects, e => Assert.NotNull(Assert.Single(e.Effect!.AffectedNodes).InterfacePath));
     }
     [Fact]
@@ -104,7 +140,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal(2, new HashSet<NetworkNodeIdentityInfo>(result.Effects[0].Effect!.AffectedNodes, NetworkNodeIdentityComparer.Instance).Count);
         Assert.Equal("network_delete_connected_subnet", Assert.Single(result.Guards).Id);
         Assert.All(result.Effects[0].Effect!.AffectedNodes, n => Assert.NotNull(n.InterfacePath));
-        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Name.EndsWith("/removedSubnet:subnet-1") && c.Status == "passed"));
+        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Kind == "node" && c.Field == "removedSubnet" && c.Subject!.SubnetId == "subnet-1" && c.Status == "passed"));
         var final = await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, "network-qualified-delete");
         Assert.Equal(baseline.State!.RootDeviceCount, final.State!.RootDeviceCount);
         Assert.All(final.State.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes), n =>
@@ -142,7 +178,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
         var result = await f.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.Equal("applied", result.Phase); Assert.False(result.Success);
-        Assert.Contains(result.Verification!.FinalChecks, c => c.Name.EndsWith("/absent") && c.Status == "unverified");
+        Assert.Contains(result.Verification!.FinalChecks, c => c.Kind == "subnet" && c.Field == "absent" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "delete_subnet");
     }
     [Fact]
@@ -155,8 +191,8 @@ public sealed class NetworkQualifiedNodeIdentityTests
             Subnet = new() { Name = "PB", NetworkType = "Profibus", HighestAddress = 31, TransmissionSpeed = "Baud187500" } });
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
         Assert.Equal("passed", result.Verification!.Operations[0].Status);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/HighestAddress") && c.Status == "unverified");
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/TransmissionSpeed") && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "HighestAddress" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "TransmissionSpeed" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "create_subnet");
     }
     [Theory][InlineData("number")][InlineData("subnet")]
@@ -171,8 +207,9 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("applied", result.Phase); Assert.False(result.Success);
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
         Assert.Equal("passed", result.Verification!.Operations[0].Status);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/IoSystem") && c.Status == "unverified");
-        if (kind == "subnet") Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/Subnet") && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "IoSystemSubnet" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "IoSystemNumber" && c.Status == "unverified");
+        if (kind == "subnet") Assert.Contains(result.Verification.FinalChecks, c => c.Field == "Subnet" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
     }
     [Fact]
@@ -185,7 +222,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status); Assert.False(result.Success);
         Assert.Equal("skipped", result.Batch.Operations[2].Status);
         Assert.Equal("passed", Assert.Single(result.Verification!.Operations).Status);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name == "finalHardwareState" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Kind == "write" && c.Field == "finalHardwareState" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
         var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
         var nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
@@ -220,7 +257,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
         var immediate = Assert.Single(result.Verification!.Operations);
         Assert.Equal("passed", immediate.Status);
-        Assert.Equal("PROFINET interface_1", immediate.Evidence!.Identity["interfaceName"]);
+        Assert.Equal("PROFINET interface_1", immediate.Evidence!.Identity.InterfaceName);
         Assert.Contains(immediate.Evidence.Checks, check => check.Name == "Address" && check.Expected == "192.168.12.7" && check.Status == "passed");
         Assert.Contains(result.Verification.FinalChecks, check => check.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
@@ -238,7 +275,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.All(result.Batch!.Operations, operation => Assert.Equal("succeeded", operation.Status));
         Assert.All(result.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
         Assert.False(result.Success);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/Address") && c.Expected == "192.168.12.8" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "Address" && c.Expected == "192.168.12.8" && c.Status == "unverified");
         Assert.Equal(2, log.Methods().Count(m => m == "configure_network_device"));
     }
     [Fact]

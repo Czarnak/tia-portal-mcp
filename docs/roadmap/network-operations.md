@@ -1,7 +1,8 @@
 # Network Operations Roadmap
 
-Current guarded migration: implemented with focused offline qualification; final combined gates
-and fresh authorized live acceptance remain pending. Version `1.0`, warnings/explicit nulls and
+Current guarded migration: implemented with focused offline qualification; the 2026-10-05
+live-defect fixes were live accepted on V21 (see the
+[improvement log](../IMPROVEMENT_LOG.md)); final combined gates remain pending. Version `1.0`, warnings/explicit nulls and
 `dryRun` replace Network tokens; **omitting dryRun executes**. Historical Phase4/worker-only
 qualification below applies only to recorded frozen sources. See the
 [guarded Network design](../superpowers/specs/2026-10-03-network-json-guarded-write-design.md) and

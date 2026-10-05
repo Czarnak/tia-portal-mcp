@@ -20,6 +20,9 @@ internal static class NetworkNodeReadSelectorBuilder
     public static bool DeviceNameIsUnique(IReadOnlyList<string?> names, string? selectedName)
         => !string.IsNullOrWhiteSpace(selectedName) && names.All(name => !string.IsNullOrWhiteSpace(name))
             && names.Count(name => string.Equals(name, selectedName, StringComparison.OrdinalIgnoreCase)) == 1;
+    /// <summary>Owner proof for a live Openness item reached by re-enumeration, which may yield a distinct but equal wrapper.</summary>
+    public static string LiveOwnerDiagnostic<TItem>(NetworkInterfacePathMatch<TItem> owner, TItem item) where TItem : class
+        => owner.Success && object.Equals(owner.Item, item) ? string.Empty : owner.Error ?? "Interface owner is not unique.";
     public static void ApplyInventory(HardwareConfigInfo inventory, bool deviceNamespaceVerified = false)
     {
         var complete = inventory.DiscoveryEvidence is { Complete: true }

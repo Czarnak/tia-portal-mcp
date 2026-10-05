@@ -37,7 +37,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.Null(guard.Acknowledged);
         Assert.True(response.Success);
         Assert.Equal(2, response.Effects[0].Effect!.AffectedNodes.Count);
-        Assert.Contains(response.Verification!.FinalChecks, c => c.Name.Contains("PLC_Ungrouped") && c.Status == "passed");
+        Assert.Contains(response.Verification!.FinalChecks, c => c.Subject?.DeviceName == "PLC_Ungrouped" && c.Status == "passed");
     }
     [Theory]
     [InlineData(McpAccessMode.ReadWrite)]
@@ -71,7 +71,7 @@ public sealed class NetworkGuardedWriteDomainTests
         var missingIdentity = kind == "selector";
         Assert.Equal(missingIdentity ? "error" : dryRun ? "preview" : "blocked", response.Phase);
         Assert.Null(response.Batch);
-        if (missingIdentity) Assert.Equal("postcondition_failed", response.Error!.Category);
+        if (missingIdentity) Assert.Equal("target_not_found", response.Error!.Category);
         else
         {
             Assert.Contains(response.Guards, guard => guard.Id == "network_state_unverifiable" && guard.Severity == "block");

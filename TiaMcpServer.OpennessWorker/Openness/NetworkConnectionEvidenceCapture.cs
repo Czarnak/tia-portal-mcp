@@ -25,13 +25,17 @@ internal static class NetworkConnectionEvidenceCapture
                 _ = NetworkInterfacePathEncoding.Encode(path);
                 if (string.IsNullOrWhiteSpace(owner)) throw new InvalidOperationException("Connected device name was unreadable.");
                 var identity = new NetworkNodeIdentityInfo { DeviceName = owner, NodeId = nodeId, InterfacePath = path };
-                if (!ReferenceEquals(resolveBack(identity), node)) throw new InvalidOperationException("Owner hierarchy did not resolve back to the actual node.");
+                if (!object.Equals(resolveBack(identity), node)) throw new InvalidOperationException("Owner hierarchy did not resolve back to the actual node.");
                 return identity;
             }
             current = parent(current);
         }
         throw new InvalidOperationException("Connected node owner hierarchy was unavailable.");
     }
+
+    /// <summary>Siemens Openness may return different CLR wrappers for the same TIA object, so live identity uses Equals.</summary>
+    public static bool ContainsSameObject<T>(IEnumerable<T> values, T target) where T : class
+        => values.Any(value => object.Equals(value, target));
 
     public static NetworkSubnetConnectionsInfo CaptureSubnet<T>(
         Func<IEnumerable<T>> enumerateNodes,

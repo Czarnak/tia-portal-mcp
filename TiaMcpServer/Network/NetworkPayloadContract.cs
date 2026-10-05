@@ -181,7 +181,7 @@ public static class NetworkPayloadContract
         var itemName = op.DeviceItemName ?? op.DeviceName;
         if (value.DeviceName != op.DeviceName || value.RootItemName != itemName || value.TypeIdentifier != op.TypeIdentifier)
             throw new JsonException("Added device identity contradicts the request.");
-        ValidateVerification(value.Verification, new() { ["deviceName"] = value.DeviceName, ["deviceItemName"] = value.RootItemName },
+        ValidateVerification(value.Verification, new() { DeviceName = value.DeviceName, DeviceItemName = value.RootItemName },
             new() { ["deviceName"] = op.DeviceName, ["deviceItemName"] = itemName, ["typeIdentifier"] = op.TypeIdentifier });
     }
 
@@ -194,6 +194,7 @@ public static class NetworkPayloadContract
         var changes = op.Changes;
         if (changes?.IpAddress is { } address) requested.Add("Address", address);
         if (changes?.SubnetMask is { } mask) requested.Add("SubnetMask", mask);
+        if (changes?.PnDeviceNameAutoGeneration is { } generated) requested.Add("PnDeviceNameAutoGeneration", generated ? "true" : "false");
         if (changes?.PnDeviceName is { } pn) requested.Add("PnDeviceName", pn);
         if (changes?.Subnet is { } subnet) requested.Add("Subnet", subnet.SubnetId!);
         if (changes?.IoSystem is { Number: { } number }) requested.Add("IoSystem", Number(number));
@@ -210,18 +211,22 @@ public static class NetworkPayloadContract
         }
         if (!accounted.SetEquals(requested.Keys)) throw new JsonException("Requested settings are unaccounted for.");
         var checks = value.AppliedSettings.ToDictionary(pair => pair.Key, pair => (string?)pair.Value, StringComparer.Ordinal);
-        if (checks.ContainsKey("IoSystem"))
+        // One applied IoSystem setting is verified as two scalar checks: its subnet and number.
+        if (checks.Remove("IoSystem"))
         {
             if (string.IsNullOrWhiteSpace(changes?.IoSystem?.SubnetId)) throw new JsonException("IO system subnet identity is required.");
-            checks["IoSystem"] = System.Text.Json.JsonSerializer.Serialize(new object[] { changes!.IoSystem!.SubnetId!, changes.IoSystem.Number!.Value });
+            checks["IoSystemSubnet"] = changes!.IoSystem!.SubnetId;
+            checks["IoSystemNumber"] = Number(changes.IoSystem.Number!.Value);
         }
-        var identity = new Dictionary<string, string> { ["deviceName"] = value.DeviceName, ["nodeId"] = op.Target!.NodeId! };
-        var path = op.Target.InterfacePath?.Select(x => new NetworkInterfacePathSegmentInfo
-            { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray()
-            ?? op.Target.ItemPath?.Select(x => new NetworkInterfacePathSegmentInfo
-            { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToArray();
-        if (path is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(path);
-        if (op.Target.InterfaceName is not null) identity["interfaceName"] = op.Target.InterfaceName;
+        // A missing request position becomes -1, which the path validator rejects.
+        var identity = new NetworkMutationIdentityInfo
+        {
+            DeviceName = value.DeviceName, NodeId = op.Target!.NodeId!, InterfaceName = op.Target.InterfaceName,
+            InterfacePath = op.Target.InterfacePath?.Select(x => new NetworkInterfacePathSegmentInfo
+                { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToList()
+                ?? op.Target.ItemPath?.Select(x => new NetworkInterfacePathSegmentInfo
+                { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToList(),
+        };
         ValidateVerification(value.Verification,
             identity, checks,
             allowNotRequired: checks.Count == 0);
@@ -263,15 +268,14 @@ public static class NetworkPayloadContract
             || value.NetworkDeviceCountUnchanged != (count.Status == "passed"))
             throw new JsonException("Root device count evidence contradicts the result.");
         checks.Add("networkDeviceCountUnchanged", count.Expected);
-        ValidateVerification(value.Verification, new() { ["subnetId"] = value.SubnetId }, checks);
+        ValidateVerification(value.Verification, new() { SubnetId = value.SubnetId }, checks);
     }
 
     private static void ValidateVerification(NetworkMutationVerificationInfo? evidence,
-        Dictionary<string, string> identity, Dictionary<string, string?> expected, bool allowNotRequired = false)
+        NetworkMutationIdentityInfo identity, Dictionary<string, string?> expected, bool allowNotRequired = false)
     {
         if (evidence is null) throw new JsonException("Immediate mutation verification is required.");
-        if (identity.Any(pair => string.IsNullOrWhiteSpace(pair.Value)) || evidence.Identity.Count != identity.Count
-            || identity.Any(pair => !evidence.Identity.TryGetValue(pair.Key, out var actual) || actual != pair.Value))
+        if (!SameIdentity(identity, evidence.Identity))
             throw new JsonException("Verification identity contradicts the result or request.");
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var check in evidence.Checks)
@@ -291,6 +295,19 @@ public static class NetworkPayloadContract
             : evidence.Checks.Count == 0 && allowNotRequired ? "not_required" : "passed";
         if (evidence.Status != status || evidence.Checks.Count == 0 && !allowNotRequired)
             throw new JsonException("Verification summary contradicts its checks.");
+    }
+
+    private static bool SameIdentity(NetworkMutationIdentityInfo expected, NetworkMutationIdentityInfo actual)
+    {
+        var scalars = new[]
+        {
+            (expected.DeviceName, actual.DeviceName), (expected.DeviceItemName, actual.DeviceItemName),
+            (expected.NodeId, actual.NodeId), (expected.InterfaceName, actual.InterfaceName), (expected.SubnetId, actual.SubnetId),
+        };
+        if (scalars.Any(pair => pair.Item1 is not null && string.IsNullOrWhiteSpace(pair.Item1) || pair.Item1 != pair.Item2)) return false;
+        if (expected.InterfacePath is null || actual.InterfacePath is null) return expected.InterfacePath is null && actual.InterfacePath is null;
+        // The canonical encoder validates both paths (nonempty, named, nonnegative positions) and compares them exactly.
+        return NetworkInterfacePathEncoding.Encode(expected.InterfacePath) == NetworkInterfacePathEncoding.Encode(actual.InterfacePath);
     }
 
     // The worker-payload reader rejects a missing member and an explicit null in any member the
