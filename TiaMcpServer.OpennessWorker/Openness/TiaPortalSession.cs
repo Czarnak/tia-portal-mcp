@@ -124,6 +124,18 @@ public class TiaPortalSession : IDisposable
                 $"TIA Portal selector chose PID {selectedProcessId}, but that process was no longer available for Attach().");
         }
 
+        AttachPortal(selectedProcess, selectedProcessId);
+        // Projects present when we attach belong to the TIA Portal UI, never this worker.
+        SelectOpenProject(
+            ProjectPathNormalization.Canonicalize(requestedProjectPath) ?? advertisedProjectPath);
+
+        Console.Error.WriteLine(
+            $"Connected to TIA Portal PID {_attachedProcessId}"
+            + $" with project '{CurrentProjectPath ?? "(none)"}'.");
+    }
+
+    private void AttachPortal(TiaPortalProcess selectedProcess, int selectedProcessId)
+    {
         var attachedPortal = selectedProcess.Attach();
         var attachedProcessId = attachedPortal.GetCurrentProcess().Id;
         if (attachedProcessId != selectedProcessId)
@@ -138,13 +150,52 @@ public class TiaPortalSession : IDisposable
         attachedPortal.Notification += OnNotification;
         attachedPortal.Confirmation += OnConfirmation;
         attachedPortal.Disposed += OnDisposed;
-        // Projects present when we attach belong to the TIA Portal UI, never this worker.
-        SelectOpenProject(
-            ProjectPathNormalization.Canonicalize(requestedProjectPath) ?? advertisedProjectPath);
+    }
 
-        Console.Error.WriteLine(
-            $"Connected to TIA Portal PID {_attachedProcessId}"
-            + $" with project '{CurrentProjectPath ?? "(none)"}'.");
+    /// <summary>Validates or establishes only the persistent Portal attachment; never selects a project.</summary>
+    public void EnsurePortalConnected(int? requestedProcessId = null)
+    {
+        ThrowIfDisposed();
+        if (requestedProcessId.HasValue && requestedProcessId.Value <= 0)
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "PortalProcessId must be positive.");
+
+        if (IsConnected)
+        {
+            // A deliberate foreign-PID refusal precedes even the live handle check.
+            if (requestedProcessId.HasValue && requestedProcessId != _attachedProcessId)
+                throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                    "Inventory is limited to the currently attached Portal. Use explicit binding to select another instance.");
+            ValidatePortalProcess();
+            return;
+        }
+
+        var inventory = TiaPortalProcessInventory.Read();
+        var matches = inventory.Where(entry => !requestedProcessId.HasValue || entry.Candidate.Id == requestedProcessId).ToList();
+        if (matches.Count == 0)
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, "No matching running TIA Portal instance was found.");
+        if (matches.Count != 1)
+            throw new WorkerOperationException(WorkerFailureCategories.TargetAmbiguous, "Multiple running TIA Portal instances require an exact PortalProcessId.");
+        AttachPortal(matches[0].Process, matches[0].Candidate.Id);
+    }
+
+    private void ValidatePortalProcess()
+    {
+        int actualProcessId;
+        try { actualProcessId = _tiaPortal!.GetCurrentProcess().Id; }
+        catch (Exception)
+        {
+            // Forget dead evidence without attaching, detaching, or disposing any project/session.
+            OnDisposed(_tiaPortal, EventArgs.Empty);
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict, "The attached TIA Portal instance is no longer verifiable.");
+        }
+        if (_attachedProcessId != actualProcessId)
+        {
+            var expectedProcessId = _attachedProcessId;
+            _attachedProcessId = actualProcessId;
+            IncrementGeneration();
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                $"The attached TIA Portal PID changed from {FormatProcessId(expectedProcessId)} to {actualProcessId}. No operation was performed.");
+        }
     }
 
     private WorkerSessionIdentity GetCachedSessionIdentity()
@@ -475,17 +526,7 @@ public class TiaPortalSession : IDisposable
             return;
         }
 
-        var actualProcessId = _tiaPortal!.GetCurrentProcess().Id;
-        if (_attachedProcessId != actualProcessId)
-        {
-            var expectedProcessId = _attachedProcessId;
-            _attachedProcessId = actualProcessId;
-            IncrementGeneration();
-            throw new WorkerOperationException(
-                WorkerFailureCategories.BindingConflict,
-                $"The attached TIA Portal PID changed from {FormatProcessId(expectedProcessId)} "
-                + $"to {actualProcessId}. No operation was performed.");
-        }
+        ValidatePortalProcess();
 
         if (_activeContext is not null)
         {

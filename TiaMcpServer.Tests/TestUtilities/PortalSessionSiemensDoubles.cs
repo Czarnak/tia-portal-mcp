@@ -76,12 +76,13 @@ namespace Siemens.Engineering
         }
     }
 
-    public sealed class TiaPortal : IDisposable
+    public sealed partial class TiaPortal : IDisposable
     {
         public static List<TiaPortalProcess> Processes { get; } = new();
         public static IEnumerable<TiaPortalProcess> GetProcesses() => Processes;
         public TiaPortalProcess Process { get; set; } = null!;
-        public TiaPortalProcess GetCurrentProcess() => Process;
+        public Exception? CurrentProcessFailure { get; set; }
+        public TiaPortalProcess GetCurrentProcess() => CurrentProcessFailure is null ? Process : throw CurrentProcessFailure;
         public ProjectComposition Projects { get; } = new();
         public event EventHandler<NotificationEventArgs>? Notification;
         public event EventHandler<ConfirmationEventArgs>? Confirmation;

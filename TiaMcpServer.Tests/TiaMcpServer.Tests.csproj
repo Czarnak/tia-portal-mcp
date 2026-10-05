@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalSession.cs" Link="Linked\Openness\TiaPortalSession.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\MultiuserPortalReadDispatch.cs" Link="Linked\Openness\MultiuserPortalReadDispatch.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalProcessInventory.cs" Link="Linked\Openness\TiaPortalProcessInventory.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectLifecycleOwner.cs" Link="Linked\Openness\ProjectLifecycleOwner.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\StandaloneProjectOwner.cs" Link="Linked\Openness\StandaloneProjectOwner.cs" />
