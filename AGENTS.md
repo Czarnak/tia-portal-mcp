@@ -75,8 +75,14 @@ which are server-side consistency checks and never proof of user consent.
 
 Network read/write roots declare `contractVersion:"1.0"`, warnings arrays and explicit nulls.
 Write phases are `preview`, `applied`, `blocked`, `error`; attempted failures have `error:null`
-and MCP `isError:false`. Sparse settings keys are `Address`, `SubnetMask`, `PnDeviceName`,
-`Subnet`, `IoSystem`; a requested skip fails the item/call but retains typed results.
+and MCP `isError:false`. Sparse applied/skipped settings keys are `Address`, `SubnetMask`,
+`PnDeviceNameAutoGeneration`, `PnDeviceName`, `Subnet`, `IoSystem`; effect settings and checks split
+`IoSystem` into scalar `IoSystemSubnet`/`IoSystemNumber`. A requested skip fails the item/call but
+retains typed results and gets a final preservation check. Verification `identity` and
+`finalChecks[].subject` are typed objects with explicit nulls, never interpolated names;
+`verification.success:true` with root `success:false` is by design. Host preflight selector misses
+are `target_not_found`/`target_ambiguous`; `postcondition_failed` is only late worker drift/postchecks.
+Worker code compares live Openness objects with `object.Equals`, never `ReferenceEquals`.
 Budget complete canonical responses at 180,000 characters and individual values at 60,000.
 Write admission reserves aggregate encoded IDs/protected summaries before binding; the 256-character
 per-ID limit remains unchanged, with no smaller per-ID limit. Root `omission` is null when complete;
