@@ -13,6 +13,7 @@ public class TiaPortalSession : IDisposable
     private int? _attachedProcessId;
     private string? _selectedProjectPath;
     private long _sessionGeneration;
+    private long _portalAttachmentRevision;
 
     public TiaPortalSession(bool allowTiaConfirmations = false)
     {
@@ -46,6 +47,7 @@ public class TiaPortalSession : IDisposable
     public bool IsConnected => _tiaPortal != null;
 
     public int? CurrentProcessId => _attachedProcessId;
+    internal long PortalAttachmentRevision => _portalAttachmentRevision;
 
     public WorkerSessionIdentity GetSessionIdentity()
     {
@@ -659,6 +661,7 @@ public class TiaPortalSession : IDisposable
 
         _tiaPortal = portal;
         _attachedProcessId = processId;
+        _portalAttachmentRevision++;
         IncrementGeneration();
     }
 
