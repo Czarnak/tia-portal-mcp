@@ -19,6 +19,8 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Architecture](ARCHITECTURE.md) | Two-process topology, tier enforcement, explicit binding/cursor invalidation, transport, canonical JSON, mode-derived confirmation/audit v2, and testing |
+| [Multiuser preparation and acceptance boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) | Internal context and typed owners; undelivered public Multiuser operations and pending standalone live acceptance |
+| [PR 2 qualification and disposable live fixtures](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md) | Offline evidence, exact project contents/scratch layout, and the pending standalone live matrix |
 
 ## Building and contributing
 

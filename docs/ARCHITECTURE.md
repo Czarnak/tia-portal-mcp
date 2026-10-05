@@ -39,8 +39,9 @@ assemblies and retain version `21.0.0.0` and public-key token `29bfe5fdf4ba5d3b`
 public-only delay-signing key. Only the net48 worker and compile-only probe reference Siemens;
 the host and shared contracts remain Siemens-free. Generated stubs are never runtime inputs,
 and all Siemens binaries are excluded from packages; the worker loads installed real DLLs.
-The passive Multiuser contracts add no operation or binding behavior. PR 2 owns internal
-context integration, while public `.als21` selection/open remains deferred. See
+The passive Multiuser contracts add no public operation or binding behavior. The worker's
+internal active project context supplies typed ownership; public `.als21` selection/open
+remains deferred. See [the Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) and
 [build boundary and qualification](development/building.md#generated-openness-references).
 
 ## 2. Host startup and access modes
@@ -287,6 +288,32 @@ Switching detaches without closing/saving the previous UI project. A modified he
 with this worker as its only Openness client blocks detach to avoid loss. Worker ownership does
 not survive detach; a reattached project is treated as UI-owned. Reattachment may show TIA's
 Openness access dialog, requiring a human answer. This is separate from lifecycle elicitation.
+
+### Internal active project context
+
+`TiaPortalSession` stores one `ActiveProjectContext`. Its `ProjectBase` engineering root is
+derived from a typed lifecycle owner, so the root and owner cannot disagree. A
+`StandaloneProjectOwner` retains a concrete `Project`; a passive `LocalSessionOwner` retains
+a `LocalSession` and its `MultiuserProject`, with no save, close, discard, or commit methods.
+No production route activates a local/server context in PR 2. Existing content services keep
+the read-only standalone `Project` compatibility accessor. Status, lifecycle, and worker
+dispatch explicitly resolve `RequireStandaloneOwner`; a synthetic local/server context is
+rejected with `target_kind_unsupported` before generic lifecycle replacement or content work.
+
+The session remains the authority for worker ID, Portal PID, generation, and live path; the
+context stores no duplicate wire identity. Rewrapping the same engineering handle preserves
+generation. A different handle at the same path or an accepted SaveAs path change advances it.
+An unreadable or blank live path clears the context and ownership without selecting another
+project. Adoption and reattachment confer no worker-open ownership. Only explicit standalone
+open/create routes obtain worker-owned handles; a clean worker-owned source may close before
+replacement, while a dirty or unreadable source blocks it. Disconnect/dispose remove event
+handlers and release the Portal without calling project or local-session lifecycle methods.
+
+The internal capability collection is empty, and remote identity/connection observation are
+null. These fields describe unpopulated preparation and grant no permission or advertised
+compatibility. Host binding epochs, public schemas, protocol version, confirmation, audit,
+and 5/15/15 discovery counts remain unchanged. Current-candidate live standalone acceptance
+remains a separate gate; see the [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
 
 ## 6. Worker transport and execution
 
