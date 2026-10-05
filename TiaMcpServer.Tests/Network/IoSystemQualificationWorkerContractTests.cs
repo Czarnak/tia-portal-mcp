@@ -111,7 +111,7 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerInspection_CannotCompileOrMutate()
     {
         var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
-        Assert.Contains("\"inspectOwner\" => IoSystemQualificationProbeService.InspectOwner(session.TiaPortal, session.Project, probe)", program);
+        Assert.Contains("\"inspectOwner\" => IoSystemQualificationProbeService.InspectOwner(session.TiaPortal, session.RequireStandaloneOwner().Project, probe)", program);
         Assert.Contains("InspectOwner(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)", Source);
         var body = ExtractMethodBody(Source, "InspectOwner");
         Ordered(body, "using var exclusive = portal.ExclusiveAccess();", "RequireExactIoSystem(",
@@ -244,7 +244,7 @@ public class IoSystemQualificationWorkerContractTests
     {
         var program = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Program.cs"));
         var dispatch = ExtractMethodBody(program, "ProbeIoSystemQualification");
-        Assert.Contains("\"compileBaseline\" => IoSystemQualificationProbeService.CompileBaseline(session.TiaPortal, session.Project, probe)", dispatch);
+        Assert.Contains("\"compileBaseline\" => IoSystemQualificationProbeService.CompileBaseline(session.TiaPortal, session.RequireStandaloneOwner().Project, probe)", dispatch);
         Assert.Contains("CompileBaseline(TiaPortal portal, Project project, IoSystemQualificationProbeInfo request)", Source);
         var body = ExtractMethodBody(Source, "CompileBaseline");
         Ordered(body, "using var exclusive = portal.ExclusiveAccess();", "RequireExactIoSystem(",

@@ -37,7 +37,8 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         var lifecycle = File.ReadAllText(Path.Combine(repositoryRoot,
             "TiaMcpServer.OpennessWorker", "Openness", "ProjectLifecycleService.cs"));
         Assert.DoesNotContain("Provide a projectPath argument or open a project in TIA Portal.", lifecycle);
-        Assert.Contains("ProjectOpenPolicy.NoProjectOpenMessage(", lifecycle);
+        Assert.Contains("session.RequireStandaloneOwner().Project", lifecycle);
+        Assert.Contains("ProjectOpenPolicy.NoProjectOpenMessage(", source, StringComparison.Ordinal);
 
         var clientSource = File.ReadAllText(Path.Combine(repositoryRoot, "TiaMcpServer", "Worker", "OpennessWorkerClient.cs"));
         var refusalStart = clientSource.IndexOf("An invalidated source can be re-grounded", StringComparison.Ordinal);
