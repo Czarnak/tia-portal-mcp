@@ -117,10 +117,11 @@ immediately before preview and again immediately before apply:
 
 - there is no fallback to `name`, collection index, connected device, or "first match";
 - a different-cased `subnetId` does not match;
-- zero matches or more than one candidate reporting the same `subnetId` both fail closed with
-  `postcondition_failed`, including late worker re-resolution after the host safety read;
+- at host preflight, zero matches fail closed with `target_not_found` and more than one candidate
+  reporting the same `subnetId` with `target_ambiguous`; late worker re-resolution after the host
+  read that finds zero or several fails with `postcondition_failed`;
 - a target subnet whose own `networkType` is missing or outside `Ethernet`/`Profibus` fails closed
-  and is never resolved as a write target.
+  with `target_kind_unsupported` and is never resolved as a write target.
 
 `create_subnet` never accepts a caller-supplied `subnetId`: Openness assigns it, and the created
 subnet's identity is reported back only in the result after the transaction commits.

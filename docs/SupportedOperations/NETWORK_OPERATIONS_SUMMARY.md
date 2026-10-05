@@ -1,8 +1,9 @@
 # TIA Portal Network and Topology Operations
 
-Current guarded Network candidate: implemented with focused offline qualification; final combined
-qualification and separately authorized live acceptance remain pending. Historical live evidence
-below applies only to its recorded source and does not qualify this candidate.
+Current guarded Network candidate: implemented with focused offline qualification. The
+2026-10-05 live-defect fixes were live accepted on TIA Portal V21 within the bounds recorded under
+"Live acceptance evidence" below; final combined qualification remains pending. Older historical
+live evidence applies only to its recorded source and does not qualify this candidate.
 
 Phase 3 historical status: snapshot-scoped network-object discovery and typed read-only inspection are
 implemented on the Phase 2 single-layer JSON contract. The separately authorized TIA Portal V21
@@ -29,12 +30,12 @@ The MCP provides a bounded device and network-identity surface:
 
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
-| `network_read` | `read_hardware_config` | Recursively discovers devices both at project root and in nested device groups, then reads their network DTOs: interfaces, nodes, subnets, and IO systems where present. Optional `deviceName` filter, optional `plcName` tag-matching selector, and opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`) — see "Structured I/O map" below. |
+| `network_read` | `read_hardware_config` | Recursively discovers devices both at project root and in nested device groups, then reads their network DTOs: interfaces, nodes, subnets, and IO systems where present. Optional `deviceName` filter (the station/root device name as in `devices[].name`), optional `plcName` tag-matching selector, and opt-in structured I/O extraction (`includeIoDetails`, `includeTagMatches`) — see "Structured I/O map" below. |
 | `network_read` | `search_equipment_catalog` | Searches the hardware catalog for a device type before creation (`query`, optional `maxResults`). |
 | `network_read` | `list_network_objects` | Pages deterministic summaries for one or more `objectKinds`; accepts optional device-scoped filtering, `pageSize` 1-200, and an opaque continuation `cursor`. Complete identities include a selector that can be copied into inspection. |
 | `network_read` | `inspect_network_object` | Resolves one exact `target`, verifies its captured identity evidence, and returns modeled and generic attributes. Optional `attributeNames` is case-sensitive, duplicate-free, and limited to 200 names. |
-| `network_write` | `add_network_device` | Creates a device from an exact catalog `typeIdentifier`; requires `deviceName` and accepts optional `deviceItemName`. Flat by design — it names something that does not exist yet. |
-| `network_write` | `configure_network_device` | Configures one exact existing node: `target: { deviceName, nodeId }` plus `changes: { ipAddress?, subnetMask?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }`. |
+| `network_write` | `add_network_device` | Creates a device from an exact catalog `typeIdentifier`; requires `deviceName` and accepts optional `deviceItemName` (blank or whitespace is a `validation_error`). Flat by design — it names something that does not exist yet. The created item is verified by unique exact name among the device's top-level items only, so a head module whose child repeats its name passes. |
+| `network_write` | `configure_network_device` | Configures one exact existing node: `target: { deviceName, nodeId }` plus `changes: { ipAddress?, subnetMask?, pnDeviceNameAutoGeneration?, pnDeviceName?, subnet?: { subnetId }, ioSystem?: { subnetId, number } }`. See "PROFINET device name" below. |
 | `network_write` | `create_subnet` | Creates a new Ethernet or PROFIBUS subnet from `subnet: { name, networkType, highestAddress?, transmissionSpeed? }`. PROFIBUS-only fields are rejected for Ethernet. |
 | `network_write` | `update_subnet` | Renames or changes PROFIBUS attributes on an existing subnet: `target: { kind: "subnet", subnetId }` plus `subnetChanges` (at least one member). |
 | `network_write` | `delete_subnet` | Deletes an existing subnet by exact `target: { kind: "subnet", subnetId }`. Connected subnets are deletable; devices are never deleted. |
@@ -202,8 +203,9 @@ guidance and never reuse an old cursor after changing bound fields.
 ## Structured I/O map
 
 `read_hardware_config` can return a read-only, opt-in structured I/O map alongside the existing
-hardware tree. The legacy per-item `address` string is untouched; the structured map lives under a
-new `ioDetails` member that is **absent from a default read** (no flags), so every existing caller
+hardware tree. The legacy per-item `address` member is always `null`: a TIA `DeviceItem` has no
+`Address` attribute, so the worker no longer reads one (which only produced per-item messages). Use
+`ioDetails.addresses` for I/O addresses. The structured map lives under a new `ioDetails` member that is **absent from a default read** (no flags), so every existing caller
 sees no optional I/O-map expansion; Network no longer uses safety-token state hashes.
 
 ### Request
@@ -224,8 +226,10 @@ sees no optional I/O-map expansion; Network no longer uses safety-token state ha
 }
 ```
 
-- `deviceName` narrows to exactly one device. Zero or multiple matches report a non-fatal
-  `messages` entry and return no devices — never a first-match fallback.
+- `deviceName` narrows to exactly one device. It names the station/root device as reported in
+  `devices[].name` (case-insensitive), not a PLC/CPU device-item name; use `plcName` for the PLC.
+  Zero or multiple matches report a non-fatal `messages` entry and return no devices — never a
+  first-match fallback. A device-scoped read still returns every project subnet.
 - `plcName` selects the PLC whose tag tables are matched, by exact ordinal name (PLC software name
   or owning device name). When omitted, tag matching uses a PLC only when exactly one PLC exists in
   the project; otherwise a non-fatal `messages` entry reports that no tag matches were produced.
@@ -239,7 +243,7 @@ A device item with I/O details carries:
 {
   "name": "DI_16",
   "typeIdentifier": "OrderNumber:TEST",
-  "address": "0..1",              // legacy string, unchanged
+  "address": null,                // legacy member, always null; use ioDetails.addresses
   "ioDetails": {
     "addresses": [
       {
@@ -396,8 +400,17 @@ exact device/node identities explain removed subnet/IO connections. Devices/node
 `network_state_unverifiable` is `block`: an unreadable inventory is unknown, never empty.
 Both guards have null satisfaction; Network has no acknowledge guard.
 
-Sparse configuration maps preserve `Address`, `SubnetMask`, `PnDeviceName`, `Subnet`, `IoSystem`.
-Unrequested keys are absent. Any requested skip fails the item/call while keeping the typed
+Effect `currentSettings` come from an exact `inspect_network_object` of the target node or subnet,
+so each value reports its real Openness `source` and `access` (for example `Address` is `dynamic`,
+`readWrite`). A setting that inspection cannot read falls back to the hardware snapshot with
+`source:"modeled"` and `access:"unknown"`; the relationship keys `Subnet`, `IoSystemSubnet` and
+`IoSystemNumber` are always that modeled/unknown snapshot evidence.
+
+Sparse result maps `appliedSettings`/`skippedSettings` preserve `Address`, `SubnetMask`,
+`PnDeviceNameAutoGeneration`, `PnDeviceName`, `Subnet`, `IoSystem`. The single `IoSystem` key
+stands for the requested relationship; effect `currentSettings`/`requestedSettings` and immediate
+and final checks split it into scalar `IoSystemSubnet` (subnet ID) and `IoSystemNumber` keys. No
+value is a nested JSON string. Unrequested keys are absent. Any requested skip fails the item/call while keeping the typed
 result and applied subset. This illustrative partial item belongs to an `applied` envelope
 with `success:false`, `error:null`; the later item was never dispatched:
 
@@ -414,7 +427,12 @@ with `success:false`, `error:null`; the later item was never dispatched:
         "skippedSettings": { "PnDeviceName": "Requested setting unavailable on this node." },
         "messages": [],
         "verification": {
-          "status": "passed", "identity": { "deviceName": "PC_1", "nodeId": "node-plc" },
+          "status": "passed",
+          "identity": {
+            "deviceName": "PC_1", "deviceItemName": null, "nodeId": "node-plc",
+            "interfacePath": [ { "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": null } ],
+            "interfaceName": null, "subnetId": null
+          },
           "checks": [ { "name": "Address", "status": "passed", "expected": "192.0.2.99", "observed": "192.0.2.99", "message": null } ],
           "message": null
         }
@@ -432,13 +450,48 @@ with `success:false`, `error:null`; the later item was never dispatched:
 }
 ```
 
-Verification checks only applied settings, retains immediate evidence before deliberate later
-changes, then inspects the effective attempted prefix. Missing/unreadable post-read evidence
-never passes. Later explicitly applied same-field/relationship values and designed deletion
-consequences supersede earlier final expectations, while earlier immediate checks remain.
-A Subnet-only move does not imply IO detach/attach: an earlier explicit IO tuple expectation
-remains, so an API-induced side effect can conservatively fail final verification after mutation.
-Inspect before retry; do not rewrite earlier successful item history or replay automatically.
+Immediate checks cover applied settings. Verification retains that evidence before deliberate later
+changes, then inspects the effective attempted prefix. A skipped configure setting gets a final
+preservation check whose `expected` is the pre-write value; an unreadable pre-write value leaves that
+check `unverified`, and an earlier applied expectation for the same field takes precedence.
+Missing/unreadable post-read evidence never passes. Later explicitly applied same-field/relationship
+values and designed deletion consequences supersede earlier final expectations, while earlier
+immediate checks remain. A Subnet-only move does not imply IO detach/attach: an earlier explicit
+`IoSystemSubnet`/`IoSystemNumber` expectation remains, so an API-induced side effect can
+conservatively fail final verification after mutation. Inspect before retry; do not rewrite earlier
+successful item history or replay automatically.
+
+`verification.success` reports only whether the evidence for the attempted prefix matched; execution
+failure is reported by batch/root `success`. So `verification.success:true` with root
+`success:false` is by design: for example, a skipped setting whose pre-write value was preserved.
+
+Each item's verification `identity` is a typed object `{ deviceName, deviceItemName, nodeId,
+interfacePath, interfaceName, subnetId }`; members that do not apply are explicit nulls and
+`interfacePath` is an array of `{ name, positionNumber, typeIdentifier }` segments. A device carries
+`deviceName`/`deviceItemName`, a node `deviceName`/`nodeId` with its owner path, a subnet `subnetId`.
+Each `verification.finalChecks[]` entry is `{ kind, operationId, subject, field, status, expected,
+observed, message }`:
+
+| `kind` | `subject` / `operationId` | Example `field` values |
+| --- | --- | --- |
+| `device` | typed device identity | `deviceName`, `deviceItemName`, `typeIdentifier` |
+| `node` | typed node identity | `exists`, `Address`, `SubnetMask`, `PnDeviceNameAutoGeneration`, `PnDeviceName`, `Subnet`, `IoSystemSubnet`, `IoSystemNumber`, `removedSubnet` (subject `subnetId` names the removed subnet) |
+| `subnet` | `{ subnetId }` | `exists`, `absent`, `Name`, `HighestAddress`, `TransmissionSpeed` |
+| `operation` | `subject:null`, `operationId` set | `immediateEvidence`, `affectedInventory` |
+| `write` | both null | `finalHardwareState`, `networkDeviceCountUnchanged` |
+
+Names are never interpolated into a check string.
+
+### PROFINET device name
+
+Optional boolean `changes.pnDeviceNameAutoGeneration` writes the node's "Generate PROFINET device
+name automatically" setting before `PnDeviceName`, and appears in requested/applied settings,
+verification and audit. On V21 it is a `readWrite` Boolean (`true` on a PLC by default) and
+`PnDeviceName` reports `readOnly` while it is `true`. When `pnDeviceName` is requested, the node
+generates its name automatically (or `PnDeviceName` is not writable), and
+`pnDeviceNameAutoGeneration:false` is not supplied, the item fails at plan time with
+`validation_error` before any change. Pass `pnDeviceNameAutoGeneration:false` together with
+`pnDeviceName` to set the name explicitly.
 
 Audit v2 contains exactly one record per entered call under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 Actual read-write confirmation is `none`; actual full is `policy`; previews/pre-execution denials
@@ -452,9 +505,9 @@ document delivered, while audit item statuses describe actual execution. No Netw
 - **Subnet**: matched by the exact `changes.subnet.subnetId` (or `changes.ioSystem.subnetId`).
 - **IO system**: matched by the exact `changes.ioSystem.number`, scoped to the already-resolved subnet.
 
-All selection failures remain fail-closed. Newly preflighted requested subnet/IO failures and unreadable discovery use `worker_operation_failed`; established complete device/node/subnet-lifecycle selector categories are not globally normalized. Actual failed or unverified postchecks use `postcondition_failed`. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
+All selection failures remain fail-closed. Host preflight reports a device, node, subnet or IO-system selector that matches nothing as `target_not_found` and one that matches several as `target_ambiguous`; a resolved subnet with a blank or unsupported `NetworkType` is `target_kind_unsupported`; an unreadable discovery snapshot, or a match whose competing identities are unreadable, is `worker_operation_failed`. `postcondition_failed` is reserved for late worker-side drift (zero or multiple matches at mutation time) and failed or unverified postchecks. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
 
-`update_subnet` and `delete_subnet` require ordinal `target.kind: "subnet"` and match `target.subnetId` with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. Late zero or multiple worker matches fail as `postcondition_failed`. Delete resolves, type-checks, and captures a nonblank name from the same transaction-local object before `Delete()`. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+`update_subnet` and `delete_subnet` require ordinal `target.kind: "subnet"` and match `target.subnetId` with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. A preflight miss is `target_not_found`/`target_ambiguous`; late zero or multiple worker matches fail as `postcondition_failed`. Delete resolves, type-checks, and captures a nonblank name from the same transaction-local object before `Delete()`. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
 ### Multi-homed example
 
@@ -479,7 +532,7 @@ Use this request with `dryRun:true` to preview, then explicitly use `dryRun:fals
 execution. Stateful FakeWorker tests exercise selection of one multi-homed port and preservation
 of its sibling; that is offline evidence. The applied response now includes typed immediate and
 final read verification; follow uncertain or incomplete outcomes with fresh filtered `network_read`.
-Current-candidate live V21 behavior and restoration remain pending separate authorization. The [configuration/ordered-outcome harness](../../scripts/live-test-network-guarded-write.ps1) uses a frozen [MCP helper](../../scripts/network-live-mcp-helpers.ps1), requires its `ExpectedSharedHelperSha256` before import and records its hash in evidence. It requires complete ordered operation-ID immediate/final verification coverage; summary booleans and fresh final reads cannot replace missing immediate evidence. See [local acceptance preparation](../development/local-mcp-testing.md#frozen-guarded-network-acceptance-harnesses).
+The 2026-10-05 live V21 run is recorded under "Live acceptance evidence" below. The [configuration/ordered-outcome harness](../../scripts/live-test-network-guarded-write.ps1) uses a frozen [MCP helper](../../scripts/network-live-mcp-helpers.ps1), requires its `ExpectedSharedHelperSha256` before import and records its hash in evidence. It requires complete ordered operation-ID immediate/final verification coverage; summary booleans and fresh final reads cannot replace missing immediate evidence. Its exact final-check count does not yet account for skipped-setting preservation checks (open follow-up). See [local acceptance preparation](../development/local-mcp-testing.md#frozen-guarded-network-acceptance-harnesses).
 
 ## The typed payload result types
 
@@ -487,7 +540,7 @@ Every direct public network worker result decodes against exactly one declared C
 
 | Operation | Result type | Notable shape |
 |---|---|---|
-| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` includes project-root and recursively grouped devices (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), and a payload-level `messages[]` remains the hardware degradation channel; only when requested, `items[].ioDetails` contains addresses, channels, and tag matches. Opt-in pages add `HardwarePaginationInfo`; the worker candidate payload is decoded separately and never exposed. |
+| `read_hardware_config` | `HardwareConfigInfo` | `devices[]` includes project-root and recursively grouped devices (each with nested `items[]`, each item with `networkInterfaces[].nodes[]`), `subnets[]` (each with `ioSystems[]` and `connectedNodeNames[]`), and a payload-level `messages[]` remains the hardware degradation channel (deduplicated; a null device-item type identifier, which TIA reports for some items, is not a message); `items[].address` is always null; only when requested, `items[].ioDetails` contains addresses, channels, and tag matches. Opt-in pages add `HardwarePaginationInfo`; the worker candidate payload is decoded separately and never exposed. |
 | `search_equipment_catalog` | `CatalogEntryInfo[]` | `typeName`, `typeIdentifier`, optional `articleNumber`/`version`/`catalogPath`/`description`. |
 | `list_network_objects` | `NetworkObjectListInfo` | `items[]`, exact `totalCount`/`returnedCount`, and nullable `nextCursor`; each item preserves selector completeness and discovery diagnostics. |
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |
@@ -591,6 +644,16 @@ without an independent pre-Apply root baseline. See
 [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md) and the
 [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
 Subnet lifecycle operations do not save the project or compile hardware.
+
+The 2026-10-05 live-defect fixes (build from `3642062`, disposable `SimpleProject_copy`, V21)
+were confirmed live: 15/15 `list_network_objects` nodes selectable; a connected `delete_subnet`
+applied with `subnetAbsent`, `affectedNodesPreserved` and `affectedConnectionsRemoved` passed;
+`add_network_device` of an ET200SP IM 155-6 PN ST passed; an unknown device (`NOPE-99`) returned
+`target_not_found`; typed verification identity and `finalChecks[]`; an IoSystem attach to IO
+system 100 on `PN/IE_1` passed its `IoSystemSubnet`/`IoSystemNumber` checks; an invalid IP
+produced a passed `Address` preservation final check; a single-device hardware read returned an
+empty `messages[]`; and `pnDeviceNameAutoGeneration:false` followed by a name write applied and
+verified. The run is recorded in the [improvement log](../IMPROVEMENT_LOG.md).
 
 ## Future roadmap
 
