@@ -9,19 +9,28 @@ public class BatchOperationRequestJsonTests
     // Mirrors the camelCase + case-insensitive binding the MCP SDK uses for tool arguments.
     private static readonly JsonSerializerOptions WebOptions = new(JsonSerializerDefaults.Web);
 
-    [Fact]
-    public void DeserializesRetainedMaxResultsField()
+    [Theory]
+    [InlineData("maxResults", 25)]
+    [InlineData("filter", "AllObjects")]
+    [InlineData("withDependencies", true)]
+    public void RetiredReadFields_AreRejected(string field, object value)
     {
-        var json = """{"operationId":"a","operation":"read_cross_references","maxResults":25}""";
+        var json = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["operationId"] = "a",
+            ["operation"] = "create_tag_table",
+            [field] = value,
+        });
 
-        var request = JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions)!;
+        var exception = Assert.Throws<JsonException>(
+            () => JsonSerializer.Deserialize<BatchOperationRequest>(json, WebOptions));
 
-        Assert.Equal(25, request.MaxResults);
+        Assert.Contains(field, exception.Message);
     }
 
     [Theory]
-    [InlineData("""{"operationId":"a","operation":"list_tag_tables","depth":3}""", "depth")]
-    [InlineData("""{"operationId":"a","operation":"list_tag_tables","startPath":"PLC_1/Blocks"}""", "startPath")]
+    [InlineData("""{"operationId":"a","operation":"create_tag_table","depth":3}""", "depth")]
+    [InlineData("""{"operationId":"a","operation":"create_tag_table","startPath":"PLC_1/Blocks"}""", "startPath")]
     public void RemovedProjectTreeFields_AreRejected(string json, string field)
     {
         var exception = Assert.Throws<JsonException>(

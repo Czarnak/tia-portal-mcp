@@ -432,7 +432,7 @@ function Connect-McpServer {
 
     $toolsResponse = Invoke-McpRequest -Method 'tools/list'
     $script:ToolNames = @($toolsResponse.Parsed.result.tools | ForEach-Object name | Sort-Object)
-    $expectedToolNames = @('browse_project_tree', 'execute_read_batch', 'get_project_status', 'network_read')
+    $expectedToolNames = @('bind_project', 'browse_project_tree', 'get_project_status', 'network_read', 'plc_read', 'read_cross_references')
     Assert-Condition (($script:ToolNames -join "`n") -ceq ($expectedToolNames -join "`n")) 'The server did not expose the exact read-only tool surface.'
 }
 

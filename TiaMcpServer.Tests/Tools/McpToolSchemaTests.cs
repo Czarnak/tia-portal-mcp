@@ -158,7 +158,7 @@ public class McpToolSchemaTests
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlySeventeenApprovedTools()
+    public void McpToolSurface_ExposesExactlySixteenApprovedTools()
     {
         var toolTypes = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -177,8 +177,7 @@ public class McpToolSchemaTests
             "bind_project",
             "get_project_status",
             "browse_project_tree",
-            "execute_read_batch",
-            "compile_check",
+                "compile_check",
             "open_project",
             "create_project",
             "save_project",
@@ -198,13 +197,12 @@ public class McpToolSchemaTests
     }
 
     [Fact]
-    public void McpReadOnlySurface_RemainsExactlySevenApprovedTools()
+    public void McpReadOnlySurface_RemainsExactlySixApprovedTools()
     {
         var toolNames = new[]
         {
             typeof(ProjectBindingTools),
             typeof(ProjectReadTools),
-            typeof(ReadBatchTools),
             RequiredNetworkToolType("NetworkReadTools"),
             typeof(TiaMcpServer.Plc.PlcReadTools),
             typeof(TiaMcpServer.CrossReferences.CrossReferenceReadTools),
@@ -217,7 +215,7 @@ public class McpToolSchemaTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "bind_project", "browse_project_tree", "execute_read_batch", "get_project_status", "network_read", "plc_read", "read_cross_references" },
+            new[] { "bind_project", "browse_project_tree", "get_project_status", "network_read", "plc_read", "read_cross_references" },
             toolNames);
         Assert.DoesNotContain("probe_network_object_attributes", toolNames);
     }

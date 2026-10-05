@@ -116,14 +116,9 @@ public static class BatchWorkerInvoker
                 $"The current tag does not expose requested flag '{unavailableFlag}'.");
     }
 
-    /// <summary>Executes a single read or write item against the worker.</summary>
+    /// <summary>Executes a single write item against the worker.</summary>
     public static Task<WorkerCallResult> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
     {
-        // Reads
-        "get_block_content" => InvokeGetBlockContent(client, op),
-        "list_tag_tables" => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
-        "get_type_content" => InvokeGetTypeContent(client, op),
-
         // Data writes
         "update_block_logic" => InvokeUpdateBlockLogic(client, op),
         "create_tag_table" => client.CreateTagTableAsync(op.PlcName, op.TableName!, op.FolderPath, op.ProjectPath),
@@ -152,8 +147,8 @@ public static class BatchWorkerInvoker
     /// normalization/validation, without touching the worker. This is the seam that makes
     /// request construction — and an invalid format's rejection before any session binds —
     /// testable without a worker process, exactly as <see cref="BatchSafetySnapshot"/> made
-    /// snapshot construction testable without one. Only the four format-bearing operations
-    /// (get_block_content, update_block_logic, get_type_content, update_type_content) populate
+    /// snapshot construction testable without one. Only the two format-bearing operations
+    /// (update_block_logic, update_type_content) populate
     /// operation-specific fields; the invoke arms above are the only production callers.
     /// </summary>
     public static WorkerRequest BuildRequest(BatchOperationRequest op)
@@ -166,21 +161,11 @@ public static class BatchWorkerInvoker
 
         switch (op.Operation)
         {
-            case "get_block_content":
-                request.BlockPath = op.BlockPath;
-                request.Format = NormalizeFormat(op);
-                request.WithDependencies = op.WithDependencies;
-                break;
             case "update_block_logic":
                 request.BlockPath = op.BlockPath;
                 request.YamlContent = op.YamlContent;
                 request.Format = NormalizeFormat(op);
                 request.AllowTiaConfirmations = true;
-                break;
-            case "get_type_content":
-                request.TypePath = op.TypePath;
-                request.Format = NormalizeFormat(op);
-                request.WithDependencies = op.WithDependencies;
                 break;
             case "update_type_content":
                 request.TypePath = op.TypePath;
@@ -198,23 +183,11 @@ public static class BatchWorkerInvoker
             ? normalized
             : throw new ArgumentException(error, nameof(op));
 
-    private static Task<WorkerCallResult> InvokeGetBlockContent(OpennessWorkerClient client, BatchOperationRequest op)
-        => WithValidatedFormat(
-            () => BuildRequest(op),
-            request => client.GetBlockContentAsync(
-                request.BlockPath!, op.ProjectPath, request.Format, request.WithDependencies));
-
     private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
             () => BuildRequest(op),
             request => client.UpdateBlockLogicAsync(request.BlockPath!, request.YamlContent!, op.ProjectPath, request.Format),
             decorateBlockUpdateRejection: true);
-
-    private static Task<WorkerCallResult> InvokeGetTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
-        => WithValidatedFormat(
-            () => BuildRequest(op),
-            request => client.GetTypeContentAsync(
-                request.TypePath!, request.Format, op.ProjectPath, request.WithDependencies));
 
     private static Task<WorkerCallResult> InvokeUpdateTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
@@ -228,7 +201,7 @@ public static class BatchWorkerInvoker
     /// per BatchTools.cs's documented contract that one failing item never stops the others — so the
     /// exception is caught here and converted into the same graceful validation_error result every
     /// other rejected-before-the-worker case in this class already returns (compare the catalog-miss
-    /// fallback arms above and ReadCrossReferencesAsync's filter validation).
+    /// fallback arms above).
     /// </summary>
     private static Task<WorkerCallResult> WithValidatedFormat<T>(
         Func<T> build,

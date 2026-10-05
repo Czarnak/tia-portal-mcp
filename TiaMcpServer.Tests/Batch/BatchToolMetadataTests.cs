@@ -20,16 +20,6 @@ public class BatchToolMetadataTests
     }
 
     [Fact]
-    public void ExecuteReadBatchDescription_ListsEveryReadOperation()
-    {
-        var description = MethodDescription("ExecuteReadBatch");
-        foreach (var operation in BatchOperationCatalog.ReadOperationNames)
-        {
-            Assert.Contains(operation, description);
-        }
-    }
-
-    [Fact]
     public void PreviewWriteBatchDescription_ListsEveryWriteOperation()
     {
         var description = MethodDescription("PreviewWriteBatch");
@@ -57,9 +47,7 @@ public class BatchToolMetadataTests
         var description = property!.GetCustomAttribute<DescriptionAttribute>();
         Assert.NotNull(description);
 
-        var allOperations = BatchOperationCatalog.ReadOperationNames
-            .Concat(BatchOperationCatalog.WriteOperationNames);
-        foreach (var operation in allOperations)
+        foreach (var operation in BatchOperationCatalog.WriteOperationNames)
         {
             Assert.Contains(operation, description!.Description);
         }
@@ -79,17 +67,6 @@ public class BatchToolMetadataTests
         var description = property!.GetCustomAttribute<DescriptionAttribute>();
         Assert.NotNull(description);
         return description!.Description;
-    }
-
-    [Fact]
-    public void FilterDescription_NamesItsOperationAndListsAllValues()
-    {
-        var description = PropertyDescription(nameof(BatchOperationRequest.Filter));
-        Assert.Contains("read_cross_references", description);
-        Assert.Contains("AllObjects", description);
-        Assert.Contains("ObjectsWithReferences", description);
-        Assert.Contains("ObjectsWithoutReferences", description);
-        Assert.Contains("UnusedObjects", description);
     }
 
     [Fact]
@@ -116,25 +93,8 @@ public class BatchToolMetadataTests
     public void PlcNameDescription_NamesTheOperationsThatHonorIt()
     {
         var description = PropertyDescription(nameof(BatchOperationRequest.PlcName));
-        Assert.Contains("list_tag_tables", description);
+        Assert.Contains("start_plc", description);
         Assert.DoesNotContain("compile_check", description);
-    }
-
-    [Fact]
-    public void ExecuteReadBatchDescriptions_OmitStandaloneProjectOperations()
-    {
-        foreach (var toolType in new[] { typeof(BatchTools), typeof(ReadBatchTools) })
-        {
-            var description = MethodDescription(toolType, "ExecuteReadBatch");
-            foreach (var retained in BatchOperationCatalog.ReadOperationNames)
-            {
-                Assert.Contains(retained, description);
-            }
-
-            Assert.DoesNotContain("get_project_status", description);
-            Assert.DoesNotContain("browse_project_tree", description);
-            Assert.DoesNotContain("compile_check", description);
-        }
     }
 
     [Fact]
@@ -159,10 +119,8 @@ public class BatchToolMetadataTests
     {
         var descriptions = new[]
         {
-            MethodDescription(typeof(BatchTools), "ExecuteReadBatch"),
             MethodDescription(typeof(BatchTools), "PreviewWriteBatch"),
             MethodDescription(typeof(BatchTools), "ApplyWriteBatch"),
-            MethodDescription(typeof(ReadBatchTools), "ExecuteReadBatch"),
             MethodDescription(typeof(WriteBatchTools), "PreviewWriteBatch"),
             MethodDescription(typeof(WriteBatchTools), "ApplyWriteBatch"),
             PropertyDescription(nameof(BatchOperationRequest.Operation)),

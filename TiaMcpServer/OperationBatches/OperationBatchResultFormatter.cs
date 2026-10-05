@@ -15,24 +15,6 @@ public static class OperationBatchResultFormatter
             ? Error(toolName, error)
             : JsonSerializer.Serialize(new { tool = toolName, success = false, failureCategory, error }, TiaJson.Presentation);
 
-    public static string Read(string toolName, IReadOnlyList<OperationBatchResult> results)
-    {
-        var failed = Count(results, OperationBatchStatus.Failed);
-        var omitted = Count(results, OperationBatchStatus.Omitted);
-        return JsonSerializer.Serialize(
-            new
-            {
-                tool = toolName,
-                success = failed == 0 && omitted == 0,
-                operationCount = results.Count,
-                succeeded = Count(results, OperationBatchStatus.Succeeded),
-                failed,
-                omitted,
-                operations = Project(results)
-            },
-            TiaJson.Presentation);
-    }
-
     public static string Apply(string toolName, IReadOnlyList<OperationBatchResult> results)
     {
         var failed = Count(results, OperationBatchStatus.Failed);
@@ -64,8 +46,7 @@ public static class OperationBatchResultFormatter
                 Result = result.Result,
                 Warnings = result.Warnings,
                 FailureCategory = result.FailureCategory,
-                BlockImportOutcome = result.BlockImportOutcome,
-                ContentHash = result.ContentHash
+                BlockImportOutcome = result.BlockImportOutcome
             })
             .ToArray();
 
@@ -80,8 +61,5 @@ public static class OperationBatchResultFormatter
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
-
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? ContentHash { get; init; }
     }
 }

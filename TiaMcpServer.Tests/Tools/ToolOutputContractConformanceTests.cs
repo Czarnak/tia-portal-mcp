@@ -27,7 +27,6 @@ public sealed class ToolOutputContractConformanceTests
     private static readonly IReadOnlyDictionary<string, string> LegacyTextContractTools =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["execute_read_batch"] = BatchRedesign,
             ["preview_write_batch"] = BatchRedesign,
             ["apply_write_batch"] = BatchRedesign,
         };

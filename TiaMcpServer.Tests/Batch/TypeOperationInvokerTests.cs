@@ -31,8 +31,9 @@ public class TypeOperationInvokerTests
         var op = new BatchOperationRequest
         {
             OperationId = "r1",
-            Operation = "get_type_content",
+            Operation = "update_type_content",
             TypePath = "PLC_1/Types/AnalogInputSettings",
+            SourceContent = "TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n",
         };
 
         var request = BatchWorkerInvoker.BuildRequest(op);
@@ -46,8 +47,9 @@ public class TypeOperationInvokerTests
         var op = new BatchOperationRequest
         {
             OperationId = "r2",
-            Operation = "get_block_content",
+            Operation = "update_block_logic",
             BlockPath = "PLC_1/Blocks/Main",
+            YamlContent = "<Document />",
         };
 
         var request = BatchWorkerInvoker.BuildRequest(op);
@@ -61,8 +63,9 @@ public class TypeOperationInvokerTests
         var op = new BatchOperationRequest
         {
             OperationId = "r3",
-            Operation = "get_type_content",
+            Operation = "update_type_content",
             TypePath = "PLC_1/Types/AnalogInputSettings",
+            SourceContent = "TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n",
             Format = "s7dcl",
         };
 

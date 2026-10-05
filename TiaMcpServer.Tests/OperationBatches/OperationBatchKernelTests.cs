@@ -14,29 +14,6 @@ public class OperationBatchKernelTests
         string? ProjectPath = null) : IOperationBatchItem;
 
     [Fact]
-    public async Task ExecuteReadsAsync_FailureDoesNotStopLaterItems()
-    {
-        var items = new[] { new Item("a", "first"), new Item("b", "second") };
-        var invoked = new List<string>();
-
-        var results = await OperationBatchExecutionEngine.ExecuteReadsAsync(
-            items,
-            item =>
-            {
-                invoked.Add(item.OperationId);
-                return Task.FromResult(item.OperationId == "a"
-                    ? WorkerCallResult.Fail("validation_error", "bad read")
-                    : WorkerCallResult.Ok("{\"ok\":true}"));
-            });
-
-        Assert.Equal(new[] { "a", "b" }, invoked);
-        Assert.Equal(OperationBatchStatus.Failed, results[0].Status);
-        Assert.Equal("validation_error", results[0].FailureCategory);
-        Assert.Equal(OperationBatchStatus.Succeeded, results[1].Status);
-        Assert.Null(results[1].FailureCategory);
-    }
-
-    [Fact]
     public async Task ApplyWritesAsync_StopsAndMarksLaterItemsSkipped()
     {
         var items = new[]
@@ -88,41 +65,6 @@ public class OperationBatchKernelTests
     }
 
     [Fact]
-    public void ReadFormatter_UsesCallerSuppliedToolAndKeepsResultAsString()
-    {
-        var json = OperationBatchResultFormatter.Read(
-            "execute_read_batch",
-            new[]
-            {
-                new OperationBatchResult(
-                    "a",
-                    "read_hardware_config",
-                    OperationBatchStatus.Succeeded,
-                    "{\"devices\":[]}")
-            });
-
-        using var document = JsonDocument.Parse(json);
-        Assert.Equal("execute_read_batch", document.RootElement.GetProperty("tool").GetString());
-        Assert.Equal(
-            JsonValueKind.String,
-            document.RootElement.GetProperty("operations")[0].GetProperty("result").ValueKind);
-    }
-
-    [Fact]
-    public async Task ExecuteReadsAsync_AllSucceeded_PreservesOrderAndPayloads()
-    {
-        var items = new[] { new Item("a", "first"), new Item("b", "second") };
-
-        var results = await OperationBatchExecutionEngine.ExecuteReadsAsync(
-            items,
-            item => Task.FromResult(WorkerCallResult.Ok($"payload-{item.OperationId}")));
-
-        Assert.Equal(new[] { "a", "b" }, results.Select(result => result.OperationId));
-        Assert.All(results, result => Assert.Equal(OperationBatchStatus.Succeeded, result.Status));
-        Assert.Equal("payload-a", results[0].Result);
-    }
-
-    [Fact]
     public async Task ApplyWritesAsync_AllSucceeded_MarksEveryItemSucceeded()
     {
         var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
@@ -152,9 +94,9 @@ public class OperationBatchKernelTests
     }
 
     [Fact]
-    public async Task ExecuteReadsAsync_ErrorPrefixedPayloadIsStillSucceeded()
+    public async Task ApplyWritesAsync_ErrorPrefixedPayloadIsStillSucceeded()
     {
-        var results = await OperationBatchExecutionEngine.ExecuteReadsAsync(
+        var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
             new[] { new Item("a", "first") },
             _ => Task.FromResult(WorkerCallResult.Ok("Error: literal SCL comment text")));
 
@@ -163,9 +105,9 @@ public class OperationBatchKernelTests
     }
 
     [Fact]
-    public async Task ExecuteReadsAsync_CopiesWorkerWarnings()
+    public async Task ApplyWritesAsync_CopiesWorkerWarnings()
     {
-        var results = await OperationBatchExecutionEngine.ExecuteReadsAsync(
+        var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
             new[] { new Item("a", "first") },
             _ => Task.FromResult(WorkerCallResult.Ok("[]", new[] { "Skipping device 'X'." })));
 
@@ -175,49 +117,11 @@ public class OperationBatchKernelTests
     [Fact]
     public void ErrorFormatter_ProducesUnsuccessfulEnvelopeWithMessage()
     {
-        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Error("execute_read_batch", "boom"));
+        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Error("preview_write_batch", "boom"));
 
-        Assert.Equal("execute_read_batch", document.RootElement.GetProperty("tool").GetString());
+        Assert.Equal("preview_write_batch", document.RootElement.GetProperty("tool").GetString());
         Assert.False(document.RootElement.GetProperty("success").GetBoolean());
         Assert.Equal("boom", document.RootElement.GetProperty("error").GetString());
-    }
-
-    [Fact]
-    public void ReadFormatter_ProjectsCountsWarningsAndOmissions()
-    {
-        var results = new[]
-        {
-            new OperationBatchResult("a", "first", OperationBatchStatus.Succeeded, "x", new[] { "warning" }),
-            new OperationBatchResult("b", "second", OperationBatchStatus.Omitted, "[OMITTED]")
-        };
-
-        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Read("execute_read_batch", results));
-        var root = document.RootElement;
-
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal(1, root.GetProperty("succeeded").GetInt32());
-        Assert.Equal(1, root.GetProperty("omitted").GetInt32());
-        Assert.Equal("warning", root.GetProperty("operations")[0].GetProperty("warnings")[0].GetString());
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("operations")[1].GetProperty("failureCategory").ValueKind);
-    }
-
-    [Fact]
-    public void ReadFormatter_FailureClearsSuccess()
-    {
-        using var document = JsonDocument.Parse(OperationBatchResultFormatter.Read(
-            "execute_read_batch",
-            new[]
-            {
-                new OperationBatchResult("a", "first", OperationBatchStatus.Succeeded, "x"),
-                new OperationBatchResult(
-                    "b", "second", OperationBatchStatus.Failed, "Error: nope",
-                    FailureCategory: WorkerFailureCategories.ValidationError)
-            }));
-
-        Assert.False(document.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(1, document.RootElement.GetProperty("failed").GetInt32());
-        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("operations")[0].GetProperty("failureCategory").ValueKind);
-        Assert.Equal("validation_error", document.RootElement.GetProperty("operations")[1].GetProperty("failureCategory").GetString());
     }
 
     [Fact]

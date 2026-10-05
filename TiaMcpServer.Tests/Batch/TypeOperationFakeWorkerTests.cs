@@ -9,11 +9,10 @@ using Xunit;
 namespace TiaMcpServer.Tests.Batch;
 
 /// <summary>
-/// End-to-end coverage of get_type_content / update_type_content through the real batch tools
-/// and a FakeWorker process. Proves what the pure BuildRequest unit tests in
-/// TypeOperationInvokerTests cannot reach: the scripted worker payload actually flows back
-/// through execute_read_batch, and the safety-token preview/apply/single-use round trip works
-/// for update_type_content exactly like it does for the other write operations.
+/// End-to-end coverage of update_type_content through the real batch tools and a FakeWorker
+/// process. Proves what the pure BuildRequest unit tests in TypeOperationInvokerTests cannot
+/// reach: the safety-token preview/apply/single-use round trip works for update_type_content
+/// exactly like it does for the other write operations.
 /// </summary>
 [Collection(RealWorkerProcessCollection.Name)]
 public class TypeOperationFakeWorkerTests
@@ -27,37 +26,6 @@ public class TypeOperationFakeWorkerTests
 
     private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding)
         => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
-
-    private static OpennessWorkerClient CreateReadOnlyClient(ProjectSessionBinding binding)
-        => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
-
-    private static BatchOperationRequest ReadOp(string operation, string? projectPath) => new()
-    {
-        OperationId = operation,
-        Operation = operation,
-        BlockPath = operation == "get_block_content" ? "PLC_1/Blocks/Main" : null,
-        TypePath = operation == "get_type_content" ? TypePath : null,
-        ProjectPath = projectPath,
-    };
-
-    private static async Task<(string Status, string? Category, string Result)> ExecuteSingleReadAsync(
-        OpennessWorkerClient client, string operation, string? projectPath)
-    {
-        using var doc = JsonDocument.Parse(await BatchTools.ExecuteReadBatch(
-            client, new[] { ReadOp(operation, projectPath) }));
-        Assert.True(doc.RootElement.TryGetProperty("operations", out var items), doc.RootElement.ToString());
-        var item = items[0];
-        return (item.GetProperty("status").GetString()!,
-            item.TryGetProperty("failureCategory", out var category) ? category.GetString() : null,
-            item.GetProperty("result").GetString()!);
-    }
-
-    private static void AssertEchoRead(string result, string operation)
-    {
-        using var request = JsonDocument.Parse(result);
-        Assert.Equal(operation, request.RootElement.GetProperty("method").GetString());
-    }
 
     private static WriteSafetyService CreateSafety(TempAuditDirectory audit, ProjectSessionBinding binding)
         => new(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
@@ -76,127 +44,6 @@ public class TypeOperationFakeWorkerTests
         SourceContent = "TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n",
         ProjectPath = Scenario,
     };
-
-    [Fact]
-    public async Task ExecuteReadBatch_GetTypeContent_ReturnsScriptedPayloadKeyedByOperationId()
-    {
-        var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding);
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
-
-        var result = await BatchTools.ExecuteReadBatch(
-            client,
-            new[]
-            {
-                new BatchOperationRequest
-                {
-                    OperationId = "r1",
-                    Operation = "get_type_content",
-                    TypePath = TypePath,
-                    ProjectPath = Scenario,
-                }
-            });
-
-        using var doc = JsonDocument.Parse(result);
-        var operation = doc.RootElement.GetProperty("operations")[0];
-        Assert.Equal("r1", operation.GetProperty("operationId").GetString());
-        Assert.Equal("succeeded", operation.GetProperty("status").GetString());
-        Assert.Contains("AnalogInputSettings", operation.GetProperty("result").GetString());
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_BoundMatchesBlockContent()
-    {
-        var binding = new ProjectSessionBinding(null);
-        using var client = CreateReadOnlyClient(binding);
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
-
-        foreach (var operation in new[] { "get_block_content", "get_type_content" })
-        {
-            var result = await ExecuteSingleReadAsync(client, operation, "echo");
-            Assert.Equal("succeeded", result.Status);
-            AssertEchoRead(result.Result, operation);
-        }
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundExplicitPathMatchesBlockContent()
-    {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
-        var binding = new ProjectSessionBinding(null);
-        using var client = CreateReadOnlyClient(binding);
-
-        foreach (var operation in new[] { "get_block_content", "get_type_content" })
-        {
-            var result = await ExecuteSingleReadAsync(client, operation, "echo");
-            Assert.Equal("succeeded", result.Status);
-            AssertEchoRead(result.Result, operation);
-        }
-        Assert.False(binding.IsVerified);
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundConfiguredPathMatchesBlockContent()
-    {
-        using var uiOpen = new FakeWorkerUiOpenProject("echo");
-        foreach (var operation in new[] { "get_block_content", "get_type_content" })
-        {
-            var binding = new ProjectSessionBinding("echo");
-            using var client = CreateReadOnlyClient(binding);
-            Assert.False(binding.IsVerified);
-
-            var result = await ExecuteSingleReadAsync(client, operation, null);
-            Assert.Equal("succeeded", result.Status);
-            AssertEchoRead(result.Result, operation);
-            Assert.True(binding.IsVerified);
-        }
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_UnboundWithoutPath_MatchesBlockContent()
-    {
-        async Task<(string Status, string? Category, string Result, int DispatchCount)> RunAsync(
-            string operation)
-        {
-            using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
-            var binding = new ProjectSessionBinding(null);
-            using var client = CreateReadOnlyClient(binding);
-            var result = await ExecuteSingleReadAsync(client, operation, null);
-            var probe = await client.GetProjectStatusAsync("ok");
-            Assert.True(probe.Success, probe.Error);
-            using var probePayload = JsonDocument.Parse(probe.Payload);
-            var sequence = probePayload.RootElement.GetProperty("seq").GetInt32();
-            return (result.Status, result.Category, result.Result, sequence - 1);
-        }
-
-        var block = await RunAsync("get_block_content");
-        var type = await RunAsync("get_type_content");
-
-        Assert.Equal(block.DispatchCount, type.DispatchCount);
-        Assert.Equal(block.Status, type.Status);
-        Assert.Equal(block.Category, type.Category);
-        Assert.Equal(block.Result, type.Result);
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_GetTypeContent_ReadOnlyMode_BoundProjectPathConflictFailsBeforeDispatch()
-    {
-        var binding = new ProjectSessionBinding(null);
-        using var client = CreateReadOnlyClient(binding);
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "ok");
-
-        foreach (var operation in new[] { "get_block_content", "get_type_content" })
-        {
-            var result = await ExecuteSingleReadAsync(client, operation, "other");
-            Assert.Equal("failed", result.Status);
-            Assert.Equal(WorkerFailureCategories.BindingConflict, result.Category);
-        }
-
-        var probe = await client.GetProjectStatusAsync("ok");
-        Assert.True(probe.Success, probe.Error);
-        using var payload = JsonDocument.Parse(probe.Payload);
-        Assert.Equal(2, payload.RootElement.GetProperty("seq").GetInt32());
-    }
 
     [Fact]
     public async Task PreviewWriteBatch_UpdateTypeContent_ReturnsTokenAndDescriptivePreview()
@@ -246,65 +93,5 @@ public class TypeOperationFakeWorkerTests
         using var secondDoc = JsonDocument.Parse(secondApply);
         Assert.False(secondDoc.RootElement.GetProperty("success").GetBoolean());
         Assert.Contains("Safety token", secondDoc.RootElement.GetProperty("error").GetString());
-    }
-
-    /// <summary>
-    /// A bad format value must fail only its own item, not the whole batch loop. Regression test
-    /// for a gap the review caught: BatchWorkerInvoker.NormalizeFormat throws ArgumentException
-    /// (by design — TypeOperationInvokerTests.An_invalid_format_is_rejected_before_the_session_binds
-    /// requires this), and that exception used to propagate straight out of
-    /// OperationBatchExecutionEngine.ExecuteReadsAsync's plain foreach loop, crashing every other item in
-    /// the same batch instead of just the offending one — breaking the documented
-    /// "a failing item does not stop the others" contract (BatchTools.cs:20). Runs the real
-    /// execute_read_batch pipeline (not just BuildRequest) so the fix in the invoke arms is what's
-    /// actually exercised.
-    /// </summary>
-    [Fact]
-    public async Task ExecuteReadBatch_OneItemWithInvalidFormat_FailsOnlyThatItemAndLeavesOthersSucceeding()
-    {
-        var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding);
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
-
-        var operations = new[]
-        {
-            new BatchOperationRequest
-            {
-                OperationId = "ok-block",
-                Operation = "get_block_content",
-                BlockPath = "PLC_1/Blocks/Main",
-                ProjectPath = "echo",
-            },
-            new BatchOperationRequest
-            {
-                OperationId = "bad-format",
-                Operation = "get_type_content",
-                TypePath = TypePath,
-                Format = "bogus",
-                ProjectPath = "echo",
-            },
-            new BatchOperationRequest
-            {
-                OperationId = "ok-type",
-                Operation = "get_type_content",
-                TypePath = TypePath,
-                ProjectPath = "echo",
-            },
-        };
-
-        var result = await BatchTools.ExecuteReadBatch(client, operations);
-
-        using var doc = JsonDocument.Parse(result);
-        var items = doc.RootElement.GetProperty("operations");
-
-        Assert.Equal("ok-block", items[0].GetProperty("operationId").GetString());
-        Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
-
-        Assert.Equal("bad-format", items[1].GetProperty("operationId").GetString());
-        Assert.Equal("failed", items[1].GetProperty("status").GetString());
-        Assert.Contains("bogus", items[1].GetProperty("result").GetString());
-
-        Assert.Equal("ok-type", items[2].GetProperty("operationId").GetString());
-        Assert.Equal("succeeded", items[2].GetProperty("status").GetString());
     }
 }
