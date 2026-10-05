@@ -45,7 +45,7 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
     [Description("Exact equipment catalog type identifier. Required by add_network_device.")]
     public string? TypeIdentifier { get; set; }
 
-    [Description("Name for the new network device or device-scoped filter for list_network_objects. Required by add_network_device; for list_network_objects it is allowed only when every requested kind is deviceItem, networkInterface, node, or communicationConnection. For read_hardware_config: optional ordinal-ignore-case device filter — exactly one match reads only that device; zero or multiple matches report a non-fatal message and no devices.")]
+    [Description("Name for the new network device or device-scoped filter for list_network_objects. Required by add_network_device; for list_network_objects it is allowed only when every requested kind is deviceItem, networkInterface, node, or communicationConnection. For read_hardware_config: optional ordinal-ignore-case device filter — exactly one match reads only that device; zero or multiple matches report a non-fatal message and no devices. As a filter it names the station/root device as reported in read_hardware_config devices[].name, not a PLC/CPU device-item name; use plcName only for tag matching.")]
     public string? DeviceName { get; set; }
 
     [Description("Optional device item name for add_network_device; defaults to deviceName when omitted.")]
