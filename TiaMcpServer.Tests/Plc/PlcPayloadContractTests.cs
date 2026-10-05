@@ -90,6 +90,26 @@ public class PlcPayloadContractTests
     }
 
     [Fact]
+    public void ProtocolErrorWritesServerDiagnosticWithoutPayload()
+    {
+        var lines = new List<string>();
+
+        _ = PlcPayloadContract.Project(Tags(), WorkerCallResult.Ok("leak-me"), lines.Add);
+
+        var line = Assert.Single(lines);
+        Assert.Contains("operation=list_tag_tables", line);
+        Assert.DoesNotContain("leak-me", line);
+    }
+
+    [Fact]
+    public void FormatErrorTextCarriesNoParameterSuffix()
+    {
+        var error = Assert.Throws<ArgumentException>(() => PlcFormatNames.Normalize("get_block_content", "yaml"));
+        Assert.DoesNotContain("(Parameter", error.Message);
+        Assert.StartsWith("Invalid format 'yaml'", error.Message.Replace("'", "'"));
+    }
+
+    [Fact]
     public void WorkerFailureKeepsCategory()
     {
         var failure = WorkerCallResult.Fail(WorkerFailureCategories.TargetNotFound, "nope", new[] { "w" });

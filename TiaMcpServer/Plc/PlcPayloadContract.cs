@@ -13,6 +13,12 @@ namespace TiaMcpServer.Plc;
 public static class PlcPayloadContract
 {
     public static StructuredOperationItem Project(PlcOperationRequest operation, WorkerCallResult workerResult)
+        => Project(operation, workerResult, Console.Error.WriteLine);
+
+    internal static StructuredOperationItem Project(
+        PlcOperationRequest operation,
+        WorkerCallResult workerResult,
+        Action<string> writeProtocolDiagnostic)
     {
         var warnings = workerResult.Warnings ?? Array.Empty<string>();
         if (!workerResult.Success)
@@ -36,8 +42,19 @@ public static class PlcPayloadContract
                 SkipReason: null,
                 warnings);
         }
-        catch (Exception exception) when (exception is JsonException or ArgumentException)
+        catch (JsonException)
         {
+            // Server-side diagnostic only: names the operation, never the rejected payload.
+            try
+            {
+                writeProtocolDiagnostic(
+                    $"TiaMcpServer: worker payload contract rejection: operation={operation.Operation}.");
+            }
+            catch
+            {
+                // Diagnostics must never replace the stable fail-closed protocol_error response.
+            }
+
             return Failed(
                 operation,
                 WorkerFailureCategories.ProtocolError,

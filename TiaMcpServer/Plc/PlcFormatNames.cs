@@ -10,16 +10,16 @@ public static class PlcFormatNames
     /// blocks to xml). Throws <see cref="ArgumentException"/> for an unknown format.
     /// </summary>
     public static string Normalize(string operation, string? format)
+        => TryNormalize(operation, format, out var normalized, out var error)
+            ? normalized
+            : throw new ArgumentException(error);
+
+    /// <summary>Non-throwing form; <paramref name="error"/> is the plain validation text.</summary>
+    public static bool TryNormalize(string operation, string? format, out string normalized, out string? error)
     {
         var fallback = operation is "get_type_content" or "update_type_content"
             ? SourceFormatNames.Source
             : SourceFormatNames.Xml;
-
-        if (!SourceFormatNames.TryNormalize(format, fallback, out var normalized, out var error))
-        {
-            throw new ArgumentException(error, nameof(format));
-        }
-
-        return normalized;
+        return SourceFormatNames.TryNormalize(format, fallback, out normalized, out error);
     }
 }

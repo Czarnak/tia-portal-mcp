@@ -46,6 +46,6 @@ public static class BatchContentHashes
             return null;
         }
 
-        return ContentHashes.Compute(BatchWorkerInvoker.NormalizeFormat(request), result.Result);
+        return Plc.PlcContentHashes.Compute(BatchWorkerInvoker.NormalizeFormat(request), result.Result);
     }
 }

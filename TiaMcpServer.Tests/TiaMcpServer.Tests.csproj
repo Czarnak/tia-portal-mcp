@@ -158,7 +158,15 @@
       Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"
       Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
-    <Compile Include="..\TiaMcpServer\Plc\*.cs" Link="Host\Plc\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcContentHashes.cs" Link="Host\Plc\PlcContentHashes.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcContractVersion.cs" Link="Host\Plc\PlcContractVersion.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcFormatNames.cs" Link="Host\Plc\PlcFormatNames.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcOperationCatalog.cs" Link="Host\Plc\PlcOperationCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcOperationRequest.cs" Link="Host\Plc\PlcOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcPayloadContract.cs" Link="Host\Plc\PlcPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcReadTools.cs" Link="Host\Plc\PlcReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcToolResponses.cs" Link="Host\Plc\PlcToolResponses.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWorkerInvoker.cs" Link="Host\Plc\PlcWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchContentHashes.cs"
       Link="Host\Batch\BatchContentHashes.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
