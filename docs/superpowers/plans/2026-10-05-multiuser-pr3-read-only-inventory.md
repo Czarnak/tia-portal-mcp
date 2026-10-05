@@ -10,7 +10,7 @@
 
 **Spec:** [Multiuser Engineering design](../specs/2026-09-28-multiuser-engineering-design.md), amended on 2026-10-05 for the user-selected binding-only read surface.
 
-**Status:** Revised draft for review. The user selected this tool routing; planning authorizes no implementation, commits, remote writes, or live execution. Future task commits require a user instruction.
+**Status:** Accepted for local implementation, granular local commits and offline qualification. Tasks 1–3 implemented and independently reviewed; Task 4 qualification/documentation in progress. Task 5 live acceptance is pending exact fixture/scope authorization. No remote publication or installed-tool/configuration change is authorized.
 
 **Baseline:** `main` / `origin/main` / GitHub main at `ea269c222e7415af347f2929cbc82a366aa2ee0f` (merged PR #109). Worktree `C:\Users\LCZ\.codex\worktrees\multiuser-pr3\tia-portal-mcp`, branch `feature/multiuser-pr3`. PR 1/PR 2 are present. Discovery remains **6/16/16**. The earlier separate read tool, request batching, new registration, and higher tool counts are superseded.
 
@@ -141,7 +141,7 @@ Combined annotation remains ReadOnly=false, Destructive=false, Idempotent=true; 
 
 ## Task 4: Qualification and maintained documentation
 
-**Files:** Update delivered behavior in PROJECT_OPERATIONS_SUMMARY, MULTIUSER_OPERATIONS_SUMMARY, SupportedOperations index, architecture, necessary guides, README/AGENTS, improvement log, and both indexes. Qualification goes into Task 5 report with live status pending.
+**Files:** Update delivered behavior in PROJECT_OPERATIONS_SUMMARY, MULTIUSER_OPERATIONS_SUMMARY, SupportedOperations index, architecture, necessary guides, README/AGENTS, improvement log, and both indexes. Qualification goes into the indexed [PR 3 offline report](../acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md); create a separate Task 5 live report only for actual evidence.
 
 - [ ] **Step 1: Run serial same-configuration solution build before subprocess tests**, full suite, materially changed branch coverage with existing 0.80 line threshold, stub drift, installed build/probe, and package-leak checks. Retain logs/exit codes and environmental limitations.
 - [ ] **Step 2: Document explicit discovery vs default auto-bind**, attached-PID restriction, real invalidation, selectors, current-user scope, lock/omission limits, unchanged count, and undelivered ALS21/Issue65 boundary.

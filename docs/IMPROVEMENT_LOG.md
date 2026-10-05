@@ -26,13 +26,17 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: public Multiuser operations
+## Open: Multiuser live qualification and remaining operations
 
 PR 2 implements the internal active project context and typed lifecycle owners on the merged
 PR 1 foundation. Its frozen standalone candidate is offline qualified and live accepted within
 the bounds in the [acceptance report](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md).
+PR 3 implements six explicit discovery/inventory actions through `bind_project` without a new
+tool or binding mutation. Its combined offline qualification is recorded in the
+[PR 3 report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md).
+Operation-specific live acceptance remains pending exact fixture/scope authorization.
 The [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) distinguishes
-this preparation from Issue #65 completion. Public `.als21` selection/open and local-session
+this partial delivery from Issue #65 completion. Public `.als21` selection/open and local-session
 lifecycle operations remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.

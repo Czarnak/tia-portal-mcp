@@ -4,6 +4,18 @@ MCP server for Siemens TIA Portal V21. Exposes 6 tools in read-only, 16 in read-
 
 ## Two-process architecture (critical to understand)
 
+`bind_project` retains default/null/explicit `bind` behavior and adds six explicit inspections:
+`list_portals`, `list_server_connections`, `list_server_groups`, `list_server_projects`,
+`list_local_sessions`, `get_lock_state`. Counts stay 6/16/16. Discovery never adopts; inventory
+uses persistent Portal-only attachment, never switches/adopts/opens a project. Selectors are exact
+raw-key validated; root group requires `{isRoot:true,name:null}`. Verified foreign-PID refusal is
+local/NotSent and preserves binding/cursors; genuine context/transport loss still invalidates.
+Sessions cover `currentMachineCurrentUser`; locks are non-atomic observations. Typed inspection
+is conditional inside the budgeted binding value (60,000/180,000 characters), not a new envelope.
+No lifecycle elicitation/write audit, ALS21 adoption, session content/markings or mutation is added.
+See [Multiuser reference](docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
+PR3 live operation-specific acceptance remains pending exact fixture/scope authorization.
+
 The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`, net48) are separate processes. Siemens Openness DLLs use .NET Framework remoting and **cannot run in a .NET 10 process** — this is why the split exists.
 
 - Host communicates with worker via newline-delimited JSON over stdin/stdout

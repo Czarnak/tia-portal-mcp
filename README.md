@@ -63,7 +63,7 @@ Large hardware reads can opt into cursor pagination with `pageSize` (`1..200`) o
 
 ### Project tools
 
-- `bind_project` — adopt an already-open project in any mode; omit the path to adopt the sole open project or list candidates. Use `forceRebind:true` to switch to a different already-open project. Reattachment may show TIA's Openness access dialog, which a human must answer.
+- `bind_project` — default `bind` adopts an already-open project in any mode; omit the path to adopt the sole open project or list candidates. Use `forceRebind:true` to switch. Explicit `list_portals` discovers without adoption; five Project Server inventory actions inspect the persistent attached instance without changing project binding. Reattachment may show TIA's human-answerable Openness access dialog. See [Multiuser inventory and acceptance limits](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
 - `get_project_status` — inspect active project metadata without opening, binding, or switching projects; a supplied path is an assertion.
 - `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata in block-node `details` (default-on string fields: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName`), `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
 - `compile_check` — compile a PLC or selected block and return compiler messages; available in read-write and full modes.

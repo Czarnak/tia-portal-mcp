@@ -4,7 +4,7 @@
 
 **Revised:** 2026-10-03 for lifecycle alignment; 2026-10-05 for the user-selected `bind_project` read surface, against `main` at `ea269c222e7415af347f2929cbc82a366aa2ee0f`
 
-**Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. The revised PR 3 implementation plan remains a draft for review.
+**Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. Revised PR 3 implementation plan accepted for local implementation and offline qualification. Task 5 live acceptance remains pending exact fixture/scope authorization.
 
 **Source:** Issue [#65](https://github.com/Czarnak/tia-portal-mcp/issues/65), repository
 commit `269f9b94c3e9df19e5a2e51d0ca7da515aca84ca`, the installed TIA Portal V21

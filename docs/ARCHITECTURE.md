@@ -269,7 +269,7 @@ handles and immediately before the operation body. In read-only mode it reuses
 only the uniquely identified project discovered during attachment.
 
 Only `open_project` and `create_project` open projects; no request implicitly opens one.
-`bind_project(projectPath?, forceRebind=false)` selects an exact advertised open `.ap21` path.
+Default/null/explicit `action:"bind"` on `bind_project(projectPath?, forceRebind=false)` selects an exact advertised open `.ap21` path.
 Without a path an unbound session lists Portals, adopts the sole open project, or reports typed
 `target_not_found`/`target_ambiguous`. Verified same-path/no-path calls reverify through Observe
 `get_project_status`; binding result status has `metadata:null`. A different configured or last-bound
@@ -286,6 +286,25 @@ Switching detaches without closing/saving the previous UI project. A modified he
 with this worker as its only Openness client blocks detach to avoid loss. Worker ownership does
 not survive detach; a reattached project is treated as UI-owned. Reattachment may show TIA's
 Openness access dialog, requiring a human answer. This is separate from lifecycle elicitation.
+
+Explicit `list_portals` uses fresh discovery without attachment or sole-project adoption. Five
+Project Server actions (`list_server_connections`, `list_server_groups`, `list_server_projects`,
+`list_local_sessions`, `get_lock_state`) use serialized `InspectPortalAsync` and persistent
+Portal-only attachment, without project rescan/adoption or temporary detach. Exact raw selectors
+reject cross-action keys before dispatch. An existing attachment refuses foreign PID; a verified
+foreign-PID assertion is local/NotSent `binding_conflict`, preserving binding/cursors. Healthy
+server/selector failure preserves ownership/context; genuine identity or transport loss retains
+normal invalidation. No inventory replay, lifecycle elicitation or write audit is added.
+
+Typed worker payloads pass the shared required-member reader and identity/coherence validation.
+Conditional `ProjectBindingResult.Inspection` lives inside the budgeted value; default bind omits
+it. Actual attachment PID comes from worker evidence, not configured/last-bound state. Inspection
+has `transition:"none"`, `project:null`, five explicit nullable result slots and unchanged healthy
+before/after binding. Sessions are scoped to `currentMachineCurrentUser`; lock reads recheck a
+locked flag after owner retrieval but remain non-atomic. Endpoint history resets after actual
+attachment/configuration changes. Existing whole-value 60,000/document 180,000 budgets apply;
+omission guidance uses applicable exact inventory selectors. See the
+[Multiuser reference](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
 
 ### Internal active project context
 
@@ -310,8 +329,10 @@ handlers and release the Portal without calling project or local-session lifecyc
 The internal capability collection is empty, and remote identity/connection observation are
 null. These fields describe unpopulated preparation and grant no permission or advertised
 compatibility. Host binding epochs, public schemas, protocol version, confirmation, audit,
-and 5/15/15 discovery counts remain unchanged. Current-candidate live standalone acceptance
-remains a separate gate; see the [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
+and discovery counts remain unchanged by that internal migration. Current counts are 6/16/16;
+PR3 inventory live acceptance remains separate from historical standalone acceptance. `.als21`
+adoption/content/session/markings/mutations remain undelivered; see the
+[Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
 
 ## 6. Worker transport and execution
 
