@@ -38,9 +38,11 @@ FakeWorker tests establish host protocol, binding, confirmation, and audit behav
 checks cannot prove installed Openness runtime behavior. Generated references are compile-only;
 installed-reference compilation and package exclusion are separate qualification checks.
 
-Fresh standalone live selection/switching and lifecycle acceptance on a frozen PR 2 candidate,
-including headless and adverse-state cases, remains pending. Historical reports do not qualify
-this candidate. The [PR 2 implementation plan](../superpowers/plans/2026-10-05-multiuser-pr2-active-project-context.md)
-defines the exact matrix and fixture authorization boundary.
-The [qualification and fixture preparation record](../superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md)
-lists the exact project contents and proposed destinations; live acceptance remains pending.
+Frozen PR 2 candidate `a47bf0dbc3efba4ff654464b6393d01163dc7900` passed bounded standalone
+live selection/switching and lifecycle acceptance, including headless last-client and adverse-state
+cases: 131 captured tool calls, 64 lifecycle calls, matching canonical documents/audits, and
+restored fixtures. The [acceptance report](../superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md)
+records exact evidence, failures and limits: project-comment dirtying, independent Openness
+external changes, and scripted elicitation. These results qualify the internal migration's
+standalone behavior; they do not qualify public Multiuser operations. The
+[implementation plan](../superpowers/plans/2026-10-05-multiuser-pr2-active-project-context.md) defines that boundary.

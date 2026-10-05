@@ -26,18 +26,16 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: Multiuser PR 2 standalone live acceptance
+## Open: public Multiuser operations
 
 PR 2 implements the internal active project context and typed lifecycle owners on the merged
-PR 1 foundation. Current-candidate live `.ap21` selection/switching, guarded lifecycle,
-headless detach, and restoration evidence remain required before merge qualification.
-Offline tests, package checks, and installed-reference compilation do not close that gate.
+PR 1 foundation. Its frozen standalone candidate is offline qualified and live accepted within
+the bounds in the [acceptance report](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md).
 The [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) distinguishes
 this preparation from Issue #65 completion. Public `.als21` selection/open and local-session
 lifecycle operations remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
-See the [offline qualification and exact fixture preparation record](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md).
 
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
@@ -926,3 +924,20 @@ production issue. See the [qualification/fixture record](superpowers/acceptance/
 for preserved failed-run evidence, exact retained real-reference hashes, and disposable scope.
 Offline changes are committed with explicit user authorization. Current-candidate standalone
 live acceptance and restoration remain open; Issue #65 is not complete.
+
+## Multiuser PR 2 standalone live accepted (2026-10-05)
+
+After explicit exact-fixture authorization, frozen candidate `a47bf0d` passed bounded live
+standalone qualification: 131 captured tool calls, including 64 lifecycle calls across
+read-only/read-write/full. Canonical documents and all lifecycle audit hashes matched.
+Selection/cursor continuity, six lifecycle previews/applies, decline/cancel, ownership loss,
+dirty-source/last-client blocks, external identity changes, typed attempted failures and
+restoration were observed. A/B are clean and open at their original paths; H was saved with
+its original comment, independently reopened clean, then closed. Test helpers exited.
+
+The [acceptance report](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md)
+retains installed hashes, private evidence locations, deviations and failures. Root-project
+comments substituted for PLC edits; external changes used an independent Openness client;
+form acceptance was scripted. Independent review found no Important/Critical behavior issue.
+No production change or expensive suite replay followed these documentation-only results.
+Public Multiuser operations and Issue #65 remain open.
