@@ -113,7 +113,8 @@ public class StructuredOperationBatchPayloadBudgetTests
         var bounded = NetworkReadTools.ApplyBudget(projectedPages);
 
         var networkDocumentChars = CanonicalJson.Serialize(
-            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null)).Length;
+            new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                Error: null, Warnings: Array.Empty<string>(), Batch: bounded)).Length;
         Assert.True(networkDocumentChars <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
         Assert.True(bounded.Counts.Omitted > 0);
         Assert.NotNull(bounded.Truncation);
@@ -147,7 +148,8 @@ public class StructuredOperationBatchPayloadBudgetTests
         Assert.Equal(HardwarePageProjector.RetryGuidance, item.Omission.Guidance);
         Assert.True(
             CanonicalJson.Serialize(
-                new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null)).Length
+                new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                    Error: null, Warnings: Array.Empty<string>(), Batch: bounded)).Length
                 <= DocumentLimit);
     }
 
@@ -455,7 +457,8 @@ public class StructuredOperationBatchPayloadBudgetTests
         Assert.Contains("fewer attributeNames", item.Omission.Guidance, StringComparison.Ordinal);
 
         var toolResult = StructuredToolResult.Create(
-            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null),
+            new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                Error: null, Warnings: Array.Empty<string>(), Batch: bounded),
             isError: false);
         var text = Assert.IsType<TextContentBlock>(Assert.Single(toolResult.Content)).Text;
         using var parsed = JsonDocument.Parse(text);
@@ -472,7 +475,8 @@ public class StructuredOperationBatchPayloadBudgetTests
 
         var bounded = NetworkReadTools.ApplyBudget(batch);
         var presented = CanonicalJson.Serialize(
-            new NetworkReadResponse("network_read", bounded.IsFullySuccessful, bounded, Error: null));
+            new NetworkReadResponse("network_read", NetworkContractVersion.Current, bounded.IsFullySuccessful,
+                Error: null, Warnings: Array.Empty<string>(), Batch: bounded));
 
         Assert.Equal(180_000, StructuredOperationBatchPayloadBudget.MaxDocumentChars);
         Assert.True(presented.Length <= 180_000, $"The bounded document was {presented.Length} characters.");
@@ -497,7 +501,8 @@ public class StructuredOperationBatchPayloadBudgetTests
 
         static int Chars(StructuredOperationBatch value)
             => CanonicalJson.Serialize(
-                new NetworkReadResponse("network_read", value.IsFullySuccessful, value, Error: null)).Length;
+                new NetworkReadResponse("network_read", NetworkContractVersion.Current, value.IsFullySuccessful,
+                    Error: null, Warnings: Array.Empty<string>(), Batch: value)).Length;
 
         var sizes = Enumerable.Repeat(Probe, Count).ToArray();
         var delta = target - Chars(Build(sizes));
@@ -528,6 +533,12 @@ public class StructuredOperationBatchPayloadBudgetTests
             item.Omission!.Reason);
     }
 
+    private static StructuredOperationBatch ApplyNetworkBudget(StructuredOperationBatch batch)
+        => StructuredOperationBatchPayloadBudget.Apply(batch,
+            value => new NetworkGuardedWriteResponse("network_write", "1.0", "applied", value.IsFullySuccessful,
+                null, [], [], [], value, null), "network_read",
+            _ => "Read current hardware with network_read; do not replay the write.");
+
     // ------------------------------------------------------------------------------------------
     // Phase 4 subnet lifecycle: network_write budget behavior with the minimal
     // SubnetLifecycleResultInfo result contract. Neither budget constant is raised here.
@@ -549,7 +560,7 @@ public class StructuredOperationBatchPayloadBudgetTests
         var batch = StructuredOperationBatch.FromItems(new[] { item });
 
         // Default (real, un-lowered) budgets: MaxItemChars = 60,000 / MaxDocumentChars = 180,000.
-        var bounded = NetworkWriteTools.ApplyBudget(batch);
+        var bounded = ApplyNetworkBudget(batch);
 
         var boundedItem = Assert.Single(bounded.Operations);
         Assert.Equal(OperationBatchStatus.Succeeded, boundedItem.Status);
@@ -561,7 +572,7 @@ public class StructuredOperationBatchPayloadBudgetTests
     /// <summary>
     /// An oversized/unexpected worker payload never reaches the budgeting stage at all: the
     /// typed <see cref="SubnetLifecycleResultInfo"/> contract in <see cref="NetworkPayloadContract"/>
-    /// rejects any unmapped member as protocol_error before <see cref="NetworkWriteTools.ApplyBudget"/>
+    /// rejects any unmapped member as protocol_error before <see cref="ApplyNetworkBudget"/>
     /// ever runs, regardless of how large the offending payload is. This proves the rejection is a
     /// contract-shape decision, not a size decision the budget happened to make.
     /// </summary>
@@ -589,7 +600,7 @@ public class StructuredOperationBatchPayloadBudgetTests
         Assert.True(item.Failure.Message.Length < StructuredOperationBatchPayloadBudget.MaxItemChars);
 
         var batch = StructuredOperationBatch.FromItems(new[] { item });
-        var bounded = NetworkWriteTools.ApplyBudget(batch);
+        var bounded = ApplyNetworkBudget(batch);
 
         // Untouched by budgeting: still Failed (never Omitted), and no truncation metadata was
         // needed, because the contract already rejected the item as a whole.

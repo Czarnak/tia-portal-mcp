@@ -4,8 +4,11 @@ using System.Collections;
 
 namespace Siemens.Engineering
 {
-    public abstract class NamedObject : IEngineeringServiceProvider
+    public abstract class NamedObject : IEngineeringServiceProvider, IEngineeringObject
     {
+        public object GetAttribute(string attributeName) => attributeName == "Name"
+            ? Name
+            : throw new EngineeringException($"Attribute '{attributeName}' is not modeled.");
         private string name = string.Empty;
         public Exception? NameFailure { get; set; }
         public string Name
@@ -72,9 +75,20 @@ namespace Siemens.Engineering
         public NonRecoverableException(string message) : base(message) { }
     }
 
+    // Openness throws this (not System.NotSupportedException) for an attribute the object does not have.
+    public sealed class EngineeringNotSupportedException : EngineeringException
+    {
+        public EngineeringNotSupportedException(string message) : base(message) { }
+    }
+
     public interface IEngineeringServiceProvider
     {
         T? GetService<T>() where T : class;
+    }
+
+    public interface IEngineeringObject
+    {
+        object GetAttribute(string name);
     }
 }
 
@@ -121,11 +135,27 @@ namespace Siemens.Engineering.CrossReference
     }
     public sealed class Location : CrossReferenceObject
     {
-        public string Access { get; set; } = string.Empty;
-        public string ReferenceType { get; set; } = string.Empty;
+        public Access Access { get; set; }
+        public ReferenceType ReferenceType { get; set; }
         public string ReferenceLocation { get; set; } = string.Empty;
-        public string ReferencedAs { get; set; } = string.Empty;
+        public IEngineeringObject? ReferencedAs { get; set; }
         public string ReferencedAsName { get; set; } = string.Empty;
+    }
+
+    // Members and values match the V21 metadata and the reference stub.
+    public enum Access
+    {
+        Undefined, Read, Write, RW, Unknown, Definition, Declaration, Interface, Jump, Monitor, Modify, Force,
+        Call, UC, CC, Multiinstance, InstanceDB, Open, Interlock, Supervision, Actions, Transition, ReadAndSymbol,
+        WriteAndSymbol, ReadWriteAndSymbol, InstanceAndSymbol, MultiinstanceAndSymbol, ProDiagSupervision,
+        DefaultValue, ArrayBoundary, StringLength, TypeAlarm, InstanceAlarm, Parameterinstance,
+        ParameterinstanceAndSymbol, CreateReference, CreateReferenceAndSymbol
+    }
+
+    public enum ReferenceType
+    {
+        Uses, UsedBy, Undefined, TypeInstance, InstanceType, Assigns, MemberGroup, GroupMember, Defines,
+        DefinedBy, OverlapsWith, Scope, Unknown
     }
 }
 
@@ -208,7 +238,9 @@ namespace Siemens.Engineering.SW
     public sealed class PlcSoftware : NamedObject, IEngineeringServiceProvider
     {
         private readonly Blocks.PlcBlockSystemGroup blockGroup = new();
-        public Tags.PlcTagTableGroup TagTableGroup { get; } = new();
+        private readonly Tags.PlcTagTableGroup tagTableGroup = new();
+        public Exception? TagTableGroupFailure { get; set; }
+        public Tags.PlcTagTableGroup TagTableGroup => TagTableGroupFailure is null ? tagTableGroup : throw TagTableGroupFailure;
         public Exception? BlockGroupFailure { get; set; }
         public Blocks.PlcBlockSystemGroup BlockGroup => BlockGroupFailure is null ? blockGroup : throw BlockGroupFailure;
         public Types.PlcTypeGroup TypeGroup { get; } = new();
@@ -231,6 +263,7 @@ namespace Siemens.Engineering.SW.Tags
         public Composition<PlcTag> Tags { get; } = new();
         public Composition<PlcUserConstant> UserConstants { get; } = new();
         public Composition<PlcSystemConstant> SystemConstants { get; } = new();
+        public bool IsDefault { get; set; }
         public void Export(FileInfo path, ExportOptions options, DocumentInfoOptions documentInfo)
             => throw new NotSupportedException("Export is outside this offline collision fixture.");
     }
@@ -238,15 +271,37 @@ namespace Siemens.Engineering.SW.Tags
     {
         public string DataTypeName { get; set; } = "Bool";
         public string LogicalAddress { get; set; } = "%I0.0";
-        public bool ExternalAccessible { get; set; }
-        public bool ExternalVisible { get; set; }
-        public bool ExternalWritable { get; set; }
+        private bool externalAccessible, externalVisible, externalWritable;
+        public Exception? ExternalAccessibleFailure { get; set; }
+        public Exception? ExternalVisibleFailure { get; set; }
+        public Exception? ExternalWritableFailure { get; set; }
+        public bool ExternalAccessible
+        {
+            get => ExternalAccessibleFailure is null ? externalAccessible : throw ExternalAccessibleFailure;
+            set => externalAccessible = value;
+        }
+        public bool ExternalVisible
+        {
+            get => ExternalVisibleFailure is null ? externalVisible : throw ExternalVisibleFailure;
+            set => externalVisible = value;
+        }
+        public bool ExternalWritable
+        {
+            get => ExternalWritableFailure is null ? externalWritable : throw ExternalWritableFailure;
+            set => externalWritable = value;
+        }
     }
     public sealed class PlcSystemConstant : NamedObject { }
     public sealed class PlcUserConstant : NamedObject
     {
         public string DataTypeName { get; set; } = "Int";
-        public object Value { get; set; } = "25";
+        private object value = "25";
+        public Exception? ValueFailure { get; set; }
+        public object Value
+        {
+            get => ValueFailure is null ? value : throw ValueFailure;
+            set => this.value = value;
+        }
     }
 }
 

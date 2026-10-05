@@ -320,12 +320,11 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task InternalSnapshotRead_ThroughTheIoMapScenarioStaysLightweight()
     {
-        // NetworkSafetySnapshot.ReadCurrentStateAsync uses the default read (no ioDetails). Even
-        // against the io-map scenario, the snapshot state must not contain ioDetails, so the
-        // safety-token hash stays byte-identical to the legacy hardware shape.
+        // NetworkWritePlanner.ReadCurrentStateAsync uses the default read (no ioDetails). Even
+        // against the io-map scenario, ordinary planning reads must omit optional ioDetails.
         using var client = CreateClient();
 
-        var snapshot = await NetworkSafetySnapshot.ReadCurrentStateAsync(client, Scenario);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(client, Scenario);
 
         Assert.True(snapshot.Success, snapshot.Error);
         var canonical = CanonicalJson.Serialize(snapshot.State!);

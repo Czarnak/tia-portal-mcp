@@ -4,6 +4,43 @@ namespace Siemens.Engineering.CrossReference
 {
     public enum Access : int
     {
+        Undefined = 0,
+        Read = 1,
+        Write = 2,
+        RW = 3,
+        Unknown = 4,
+        Definition = 5,
+        Declaration = 6,
+        Interface = 7,
+        Jump = 8,
+        Monitor = 9,
+        Modify = 10,
+        Force = 11,
+        Call = 12,
+        UC = 13,
+        CC = 14,
+        Multiinstance = 15,
+        InstanceDB = 16,
+        Open = 17,
+        Interlock = 18,
+        Supervision = 19,
+        Actions = 20,
+        Transition = 21,
+        ReadAndSymbol = 22,
+        WriteAndSymbol = 23,
+        ReadWriteAndSymbol = 24,
+        InstanceAndSymbol = 25,
+        MultiinstanceAndSymbol = 26,
+        ProDiagSupervision = 27,
+        DefaultValue = 28,
+        ArrayBoundary = 29,
+        StringLength = 30,
+        TypeAlarm = 31,
+        InstanceAlarm = 32,
+        Parameterinstance = 33,
+        ParameterinstanceAndSymbol = 34,
+        CreateReference = 35,
+        CreateReferenceAndSymbol = 36,
     }
     public enum CrossReferenceFilter : int
     {
@@ -72,6 +109,19 @@ namespace Siemens.Engineering.CrossReference
     }
     public enum ReferenceType : int
     {
+        Uses = 0,
+        UsedBy = 1,
+        Undefined = 2,
+        TypeInstance = 3,
+        InstanceType = 4,
+        Assigns = 5,
+        MemberGroup = 6,
+        GroupMember = 7,
+        Defines = 8,
+        DefinedBy = 9,
+        OverlapsWith = 10,
+        Scope = 11,
+        Unknown = 12,
     }
     public abstract class SourceObject : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {

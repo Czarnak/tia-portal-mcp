@@ -9,174 +9,117 @@ public class CrossReferenceInfoTests
     private static readonly JsonSerializerOptions JsonOptions = WorkerJson.PayloadOptionsFor(typeof(CrossReferenceReport));
 
     [Fact]
-    public void EmptyReportSerializesWithEmptyPlcList()
+    public void EmptyReportSerializesWithEmptySourcesAndDefaultFilter()
     {
-        var report = new CrossReferenceReport();
-
-        var roundTripped = RoundTrip(report);
+        var roundTripped = RoundTrip(new CrossReferenceReport());
 
         Assert.Equal(CrossReferenceFilterNames.ObjectsWithReferences, roundTripped.Filter);
-        Assert.NotNull(roundTripped.Plcs);
-        Assert.Empty(roundTripped.Plcs);
+        Assert.Empty(roundTripped.Sources);
+        Assert.Empty(roundTripped.Messages);
+        Assert.Empty(roundTripped.Target.Path);
+        Assert.Null(roundTripped.Target.Member);
         Assert.Equal(0, roundTripped.TotalSourceCount);
-        Assert.Equal(0, roundTripped.TotalReferenceCount);
-        Assert.Equal(0, roundTripped.TotalLocationCount);
+        Assert.Equal(0, roundTripped.OmittedSourceCount);
     }
 
     [Fact]
-    public void FullReportRoundTripsSourceReferenceAndLocation()
+    public void ReportWritesExplicitNulls()
+    {
+        var json = JsonSerializer.Serialize(new CrossReferenceReport
+        {
+            Sources =
+            {
+                new CrossReferenceSourceInfo
+                {
+                    References = { new CrossReferenceTargetInfo { Locations = { new CrossReferenceLocationInfo() } } }
+                }
+            }
+        }, JsonOptions);
+
+        Assert.Contains("\"member\":null", json);
+        Assert.Contains("\"referencedAs\":null", json);
+        Assert.Contains("\"omittedSourceCount\":0", json);
+    }
+
+    [Fact]
+    public void FullReportRoundTripsTargetSourceReferenceAndLocation()
     {
         var report = new CrossReferenceReport
         {
+            Target = new CrossReferenceSelectorInfo
+            {
+                Path =
+                {
+                    new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.Device, Name = "Station_1" },
+                    new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.PlcSoftware, Name = "PLC_1" },
+                    new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.TagTableFolder, Name = "PLC tags" },
+                    new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.TagTable, Name = "Default tag table" }
+                },
+                Member = new CrossReferenceMemberSelectorInfo { Kind = CrossReferenceMemberKinds.Tag, Name = "MotorReady" }
+            },
             Filter = CrossReferenceFilterNames.AllObjects,
-            IsComplete = true,
+            IsComplete = false,
+            OwnerQueryCount = 3,
+            SuccessfulOwnerQueryCount = 2,
+            Messages = { "incomplete" },
             TotalSourceCount = 2,
             TotalReferenceCount = 1,
             TotalLocationCount = 1,
-            Plcs =
+            OmittedSourceCount = 4,
+            Sources =
             {
-                new PlcCrossReferenceInfo
+                new CrossReferenceSourceInfo
                 {
-                    PlcName = "PLC_1",
-                    DeviceName = "Station_1",
-                    OwnerQueryCount = 1,
-                    SuccessfulOwnerQueryCount = 1,
-                    IsComplete = true,
-                    SourceCount = 2,
-                    ReferenceCount = 1,
-                    LocationCount = 1,
-                    Sources =
+                    Name = "MotorStart", TypeName = "FC", Path = "PLC_1/Blocks/MotorStart", Device = "PLC_1", Address = "FC1",
+                    References =
                     {
-                        new CrossReferenceSourceInfo
+                        new CrossReferenceTargetInfo
                         {
-                            Name = "MotorStart",
-                            TypeName = "FC",
-                            Path = "PLC_1/Blocks/MotorStart",
-                            Device = "PLC_1",
-                            Address = "FC1",
-                            References =
+                            Name = "MotorReady", TypeName = "Bool", Address = "%I0.0",
+                            Locations =
                             {
-                                new CrossReferenceTargetInfo
+                                new CrossReferenceLocationInfo
                                 {
-                                    Name = "MotorReady",
-                                    TypeName = "Bool",
-                                    Path = "PLC_1/TagTables/Default tag table/MotorReady",
-                                    Device = "PLC_1",
-                                    Address = "%I0.0",
-                                    Locations =
-                                    {
-                                        new CrossReferenceLocationInfo
-                                        {
-                                            Name = "Network 1",
-                                            TypeName = "Network",
-                                            Address = "1",
-                                            Access = "Read",
-                                            ReferenceType = "Uses",
-                                            ReferenceLocation = "PLC_1/Blocks/MotorStart",
-                                            ReferencedAs = "Tag",
-                                            ReferencedAsName = "MotorReady"
-                                        }
-                                    }
-                                }
-                            },
-                            Children =
-                            {
-                                new CrossReferenceSourceInfo
-                                {
-                                    Name = "Network 1",
-                                    TypeName = "Network",
-                                    Path = "PLC_1/Blocks/MotorStart/Network 1"
+                                    Name = "Network 1", Access = "Read", ReferenceType = "Uses",
+                                    ReferencedAs = new CrossReferenceObjectRefInfo { Name = "MotorReady", TypeName = "PlcTag" },
+                                    ReferencedAsName = "MotorReady"
                                 }
                             }
                         }
-                    }
+                    },
+                    Children = { new CrossReferenceSourceInfo { Name = "Network 1" } }
                 }
             }
         };
 
         var roundTripped = RoundTrip(report);
-        var plc = Assert.Single(roundTripped.Plcs);
-        var source = Assert.Single(plc.Sources);
-        var reference = Assert.Single(source.References);
-        var location = Assert.Single(reference.Locations);
-        var child = Assert.Single(source.Children);
+        var source = Assert.Single(roundTripped.Sources);
+        var location = Assert.Single(Assert.Single(source.References).Locations);
 
+        Assert.Equal("Default tag table", roundTripped.Target.Path[3].Name);
+        Assert.Equal(CrossReferenceMemberKinds.Tag, roundTripped.Target.Member!.Kind);
+        Assert.Equal("MotorReady", roundTripped.Target.Member.Name);
         Assert.Equal(CrossReferenceFilterNames.AllObjects, roundTripped.Filter);
-        Assert.Equal("PLC_1", plc.PlcName);
-        Assert.Equal("MotorStart", source.Name);
-        Assert.Equal("FC", source.TypeName);
-        Assert.Equal("PLC_1/Blocks/MotorStart", source.Path);
-        Assert.Equal("PLC_1", source.Device);
-        Assert.Equal("FC1", source.Address);
-        Assert.Equal("MotorReady", reference.Name);
-        Assert.Equal("%I0.0", reference.Address);
+        Assert.False(roundTripped.IsComplete);
+        Assert.Equal(3, roundTripped.OwnerQueryCount);
+        Assert.Equal(2, roundTripped.SuccessfulOwnerQueryCount);
+        Assert.Equal("incomplete", Assert.Single(roundTripped.Messages));
+        Assert.Equal(4, roundTripped.OmittedSourceCount);
+        Assert.Equal("Network 1", Assert.Single(source.Children).Name);
         Assert.Equal("Read", location.Access);
         Assert.Equal("Uses", location.ReferenceType);
-        Assert.Equal("MotorReady", location.ReferencedAsName);
-        Assert.Equal("Network 1", child.Name);
-        Assert.Equal(2, roundTripped.TotalSourceCount);
-        Assert.Equal(2, plc.SourceCount);
-        Assert.Equal("Station_1", plc.DeviceName);
-        Assert.Equal(1, plc.OwnerQueryCount);
-        Assert.Equal(1, plc.SuccessfulOwnerQueryCount);
-        Assert.True(plc.IsComplete);
-        Assert.True(roundTripped.IsComplete);
-        Assert.Equal(1, roundTripped.TotalReferenceCount);
-        Assert.Equal(1, roundTripped.TotalLocationCount);
+        Assert.Equal("PlcTag", location.ReferencedAs!.TypeName);
+        Assert.Equal("MotorReady", location.ReferencedAs.Name);
     }
 
     [Fact]
-    public void UnusedObjectReportRoundTripsSourcesWithEmptyReferences()
+    public void ClosedNameListsAreDistinctAndContainUnknown()
     {
-        var report = new CrossReferenceReport
-        {
-            Filter = CrossReferenceFilterNames.UnusedObjects,
-            TotalSourceCount = 1,
-            Plcs =
-            {
-                new PlcCrossReferenceInfo
-                {
-                    PlcName = "PLC_1",
-                    SourceCount = 1,
-                    Sources =
-                    {
-                        new CrossReferenceSourceInfo
-                        {
-                            Name = "UnusedBlock",
-                            TypeName = "FC",
-                            Path = "PLC_1/Blocks/UnusedBlock"
-                        }
-                    }
-                }
-            }
-        };
-
-        var roundTripped = RoundTrip(report);
-        var source = Assert.Single(Assert.Single(roundTripped.Plcs).Sources);
-
-        Assert.Equal(CrossReferenceFilterNames.UnusedObjects, roundTripped.Filter);
-        Assert.Empty(source.References);
-    }
-
-    [Fact]
-    public void PlcMessagesRoundTrip()
-    {
-        var report = new CrossReferenceReport
-        {
-            Plcs =
-            {
-                new PlcCrossReferenceInfo
-                {
-                    PlcName = "PLC_1",
-                    Messages = { "Skipped source 'ProtectedBlock': Access denied." }
-                }
-            }
-        };
-
-        var roundTripped = RoundTrip(report);
-        var plc = Assert.Single(roundTripped.Plcs);
-
-        Assert.Equal("Skipped source 'ProtectedBlock': Access denied.", Assert.Single(plc.Messages));
+        Assert.Equal(37, CrossReferenceAccessNames.All.Distinct().Count());
+        Assert.Equal(13, CrossReferenceTypeNames.All.Distinct().Count());
+        Assert.Contains(CrossReferenceAccessNames.Unknown, CrossReferenceAccessNames.All);
+        Assert.Contains(CrossReferenceTypeNames.Unknown, CrossReferenceTypeNames.All);
+        Assert.Equal(new[] { "Tag", "SystemConstant", "UserConstant" }, CrossReferenceMemberKinds.All);
     }
 
     [Fact]
@@ -208,51 +151,7 @@ public class CrossReferenceInfoTests
         Assert.Equal(string.Empty, filter);
         Assert.NotNull(error);
         Assert.Contains("BlocksOnly", error);
-        Assert.Contains(CrossReferenceFilterNames.AllObjects, error);
-        Assert.Contains(CrossReferenceFilterNames.ObjectsWithReferences, error);
-        Assert.Contains(CrossReferenceFilterNames.ObjectsWithoutReferences, error);
-        Assert.Contains(CrossReferenceFilterNames.UnusedObjects, error);
-    }
-
-    [Theory]
-    [InlineData(true, 0, 1, 1)]
-    [InlineData(false, 1, 3, 1)]
-    public void CoverageMetadataRoundTrips(bool complete, int sources, int attempted, int successful)
-    {
-        var report = RoundTrip(new CrossReferenceReport
-        {
-            IsComplete = complete,
-            TotalSourceCount = sources,
-            Plcs =
-            {
-                new PlcCrossReferenceInfo
-                {
-                    PlcName = "PLC_DP", DeviceName = "Station_1", IsComplete = complete,
-                    SourceCount = sources, OwnerQueryCount = attempted, SuccessfulOwnerQueryCount = successful
-                }
-            }
-        });
-        var plc = Assert.Single(report.Plcs);
-        Assert.Equal(complete, report.IsComplete);
-        Assert.Equal(complete, plc.IsComplete);
-        Assert.Equal(attempted, plc.OwnerQueryCount);
-        Assert.Equal(successful, plc.SuccessfulOwnerQueryCount);
-        Assert.Equal(sources, report.TotalSourceCount);
-        Assert.Equal("PLC_DP", plc.PlcName);
-        Assert.Equal("Station_1", plc.DeviceName);
-    }
-
-    [Fact]
-    public void OldJsonDefaultsToUnknownIncompleteCoverage()
-    {
-        var report = JsonSerializer.Deserialize<CrossReferenceReport>(
-            """{"plcs":[{"plcName":"legacy","sources":[]}]}""", JsonOptions)!;
-        var plc = Assert.Single(report.Plcs);
-        Assert.False(report.IsComplete);
-        Assert.False(plc.IsComplete);
-        Assert.Null(plc.DeviceName);
-        Assert.Equal(0, plc.OwnerQueryCount);
-        Assert.Equal(0, plc.SuccessfulOwnerQueryCount);
+        foreach (var allowed in CrossReferenceFilterNames.Allowed) Assert.Contains(allowed, error);
     }
 
     private static CrossReferenceReport RoundTrip(CrossReferenceReport report)

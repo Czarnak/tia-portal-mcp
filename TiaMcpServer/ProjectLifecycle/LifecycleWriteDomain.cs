@@ -35,7 +35,7 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         };
     }
 
-    public static WriteGuardCatalog Catalog { get; } = new(new[]
+    public static IReadOnlyList<WriteGuardDefinition> GuardDefinitions { get; } = Array.AsReadOnly(new[]
     {
         new WriteGuardDefinition("closes_source_project", WriteGuardSeverities.Info, "A saved worker-owned source will close."),
         new WriteGuardDefinition("discards_unsaved_source_changes", WriteGuardSeverities.Block, "A modified worker-owned source must be saved or closed explicitly."),
@@ -45,6 +45,8 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         new WriteGuardDefinition("archive_inside_project_folder", WriteGuardSeverities.Block, "An archive cannot be written inside the project folder."),
         new WriteGuardDefinition("target_exists", WriteGuardSeverities.Block, "The destination directory already exists.")
     });
+
+    public static WriteGuardCatalog Catalog { get; } = new(GuardDefinitions);
 
     private LifecycleEffects? _planned;
     private StandaloneToolOutcome<ProjectLifecycleResultInfo>? _mutation;

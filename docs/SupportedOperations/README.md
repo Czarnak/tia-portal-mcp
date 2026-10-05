@@ -6,28 +6,29 @@ The MCP surface is intentionally narrower than the complete TIA Portal Openness 
 
 ## Operation model
 
-### Batch tools
+### PLC read tools and batch write tools
 
-Data operations run through one of three batch tools:
+PLC reads run through `plc_read` (up to 50 independent operations; a failed item does not stop the
+remaining items) and the standalone `read_cross_references`; see the
+[PLC operations summary](PLC_OPERATIONS_SUMMARY.md). Data writes run through the two legacy batch
+tools until `plc_write` replaces them:
 
 | Tool | Purpose |
 |---|---|
-| `execute_read_batch` | Executes up to 50 independent read operations. A failed item does not stop the remaining items. |
 | `preview_write_batch` | Validates and previews up to 50 data-write operations, then returns one single-use `safetyToken`. |
 | `apply_write_batch` | Applies the exact previewed operation list in order. Requires `confirm=true` and the preview's `safetyToken`; both are set by the caller and are not a user approval. |
 
 Every batch item contains an `operationId`, an `operation` name, and the fields for that operation. Read and write operation names are separate; project-lifecycle operations are not valid batch items.
 
-In `execute_read_batch` and `apply_write_batch` responses, each `operations[]` item includes `failureCategory`. A failed item retains its approved worker failure category; succeeded, skipped, and omitted items have `failureCategory: null`. The existing `result` text and item status remain available.
+In `apply_write_batch` responses, each `operations[]` item includes `failureCategory`. A failed item retains its approved worker failure category; succeeded, skipped, and omitted items have `failureCategory: null`. The existing `result` text and item status remain available.
 
 #### Read operations
 
-`execute_read_batch` supports:
-
-`read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+`plc_read` supports `get_block_content`, `get_type_content`, and `list_tag_tables`;
+`read_cross_references` is a standalone tool. `execute_read_batch` was retired.
 Hardware/catalog reads use `network_read`.
 
-Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. OnlineControl (PLC run/stop) requires full. See [Installation](../guides/installation.md#access-modes) for the 5/15/15 surfaces and confirmation policy.
+Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. OnlineControl (PLC run/stop) requires full. See [Installation](../guides/installation.md#access-modes) for the 6/16/16 surfaces and confirmation policy.
 
 #### Write operations
 
@@ -52,15 +53,15 @@ The server also provides six single-purpose lifecycle tools:
 
 ## Write safety
 
-Lifecycle uses guarded single-call writes. Network and legacy batch retain preview-then-apply
-consistency tokens; those tokens do not establish user consent.
+Lifecycle and Network use guarded single-call writes. Only legacy generic batches retain
+preview-then-apply consistency tokens; those tokens do not establish user consent.
 
 - Data writes receive a batch-level token from `preview_write_batch` and require the unchanged operation list, `confirm=true`, and that token in `apply_write_batch`.
 - Lifecycle uses `dryRun` with operation inputs and no public confirmation array or token. Every actual read-write call asks once through form elicitation; full runs under policy without server elicitation. Block guards refuse in every mode; dry runs do not mutate or elicit. See the [lifecycle reference](PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations).
-- Network previews with `network_write` using `confirm:false` and no token; apply with the unchanged list, `confirm:true`, and its token.
-- Network/batch tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
+- Network previews with `dryRun:true`; `dryRun:false` or omitted dryRun executes by default, with zero server elicitation. Exact already-open verified binding, complete guards and typed postchecks apply; stop on failure, no batch rollback or automatic replay. See the [Network contract](NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope) for pre-entry SDK rejection versus canonical entered denials.
+- Generic-batch tokens are single-use, expire after ten minutes, and bind the exact tool, normalized project path, requested input, and current project state.
 - A write batch is sequential rather than transactional. Application stops at the first failure; completed items remain applied and later items are marked `skipped`.
-- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle audit v2 records every call, including previews and refusals, with confirmation by `user`, `policy`, or `none`; legacy writes retain their audit behavior.
+- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle and Network audit v2 record every entered call, including previews and refusals, with confirmation by `user`, `policy`, or `none`; Network SDK rejection before entry has no write audit. Generic batches retain their audit behavior.
 
 Read responses may include `warnings` for partial or degraded data. Hardware reads also provide payload-level `messages` for unreadable members. Callers should treat these fields as part of the result contract rather than filling missing values locally.
 

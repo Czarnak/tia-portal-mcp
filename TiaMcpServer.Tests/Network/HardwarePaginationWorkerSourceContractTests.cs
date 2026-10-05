@@ -57,8 +57,8 @@ public class HardwarePaginationWorkerSourceContractTests
         Assert.Contains("new HardwarePageDescriptorSet(descriptors)", factorySource, StringComparison.Ordinal);
         Assert.Contains("HardwareConfigReader.ReadDevicePageCandidate(", factorySource, StringComparison.Ordinal);
         Assert.Contains("HardwareConfigReader.ReadSubnetPageCandidate(", factorySource, StringComparison.Ordinal);
-        Assert.Contains("ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex)", readerSource, StringComparison.Ordinal);
-        Assert.Contains("ReadSubnet(subnet, subnetId, messages)", readerSource, StringComparison.Ordinal);
+        Assert.Contains("ReadDevice(device, nameEvidence, messages, includeIoDetails, tagIndex,", readerSource, StringComparison.Ordinal);
+        Assert.Contains("ReadSubnet(subnet, subnetId, messages,", readerSource, StringComparison.Ordinal);
     }
 
     private static void AssertBefore(string source, string first, string second)

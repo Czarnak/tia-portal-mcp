@@ -1,5 +1,6 @@
 using Siemens.Engineering;
 using Siemens.Engineering.CrossReference;
+using Siemens.Engineering.HW;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Tags;
@@ -11,174 +12,197 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class CrossReferenceReader
 {
-    public static CrossReferenceReport Read(Project project, string? plcName, string filterName, int? maxResults = null)
+    public static CrossReferenceReport Read(Project project, CrossReferenceSelectorInfo selector, string filterName, int? maxResults = null)
     {
         var filter = ToOpennessFilter(filterName);
+        var target = CrossReferenceTargetResolver.Resolve(project, selector);
         var report = new CrossReferenceReport
         {
-            Filter = filterName
+            Target = target.Canonical,
+            Filter = filterName,
+            IsComplete = true
         };
 
-        var remaining = maxResults;
-        foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
-        {
-            var plcInfo = ReadPlc(plc.DeviceName, plc.Software, filter, remaining);
-            report.Plcs.Add(plcInfo);
+        if (target.LeafService is not null)
+            QueryService(target.LeafService, filter, maxResults, report);
+        else
+            FanOut(target.Container!, owner => QueryOwner(owner, filter, maxResults, report), report);
 
-            if (remaining is not null)
-            {
-                remaining = Math.Max(0, remaining.Value - plcInfo.Sources.Count);
-            }
-        }
-
-        if (report.Plcs.Count == 0)
-        {
-            var detail = plcName is null ? string.Empty : $" named '{plcName}'";
-            throw new InvalidOperationException($"No PLC software{detail} was found in the project.");
-        }
-
-        report.TotalSourceCount = report.Plcs.Sum(plc => plc.SourceCount);
-        report.TotalReferenceCount = report.Plcs.Sum(plc => plc.ReferenceCount);
-        report.TotalLocationCount = report.Plcs.Sum(plc => plc.LocationCount);
-        if (report.Plcs.Sum(plc => plc.SuccessfulOwnerQueryCount) == 0)
+        // An empty container is a complete success; owners that all failed are not.
+        if (report.OwnerQueryCount > 0 && report.SuccessfulOwnerQueryCount == 0)
             throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
-                "No cross-reference owner query succeeded for the selected PLC software.");
+                "No cross-reference owner query succeeded for the selected target.");
 
-        report.IsComplete = report.Plcs.All(plc => plc.IsComplete);
+        report.TotalSourceCount = CountSources(report.Sources);
+        report.TotalReferenceCount = CountReferences(report.Sources);
+        report.TotalLocationCount = CountLocations(report.Sources);
         if (!report.IsComplete)
             Console.Error.WriteLine("Cross-reference coverage is incomplete; retained results are not a complete unused-object audit.");
 
         return report;
     }
 
-    private static PlcCrossReferenceInfo ReadPlc(
-        string deviceName,
-        PlcSoftware plcSoftware,
-        CrossReferenceFilter filter,
-        int? maxSources)
+    // Containers are never owners themselves (spec Appendix B); only the owners beneath them are queried.
+    private static void FanOut(object container, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {
-        var result = new PlcCrossReferenceInfo
+        switch (container)
         {
-            PlcName = plcSoftware.Name,
-            DeviceName = deviceName,
-            IsComplete = true
-        };
+            case Device device:
+                Visit(() => PlcSoftwareLocator.FindInDevice(device), software => ReadSoftware(software, query, report), report);
+                break;
+            case PlcSoftware software:
+                ReadSoftware(software, query, report);
+                break;
+            case PlcUnit unit:
+                ReadUnit(unit, query, report);
+                break;
+            case PlcSystemBlockGroup group:
+                ReadSystemBlocks(group, query, report);
+                break;
+            case PlcBlockGroup group:
+                ReadBlocks(group, query, report);
+                break;
+            case PlcTagTableGroup group:
+                ReadTags(group, query, report);
+                break;
+            case PlcTagTable table:
+                ReadTable(table, query, report);
+                break;
+            case PlcTypeGroup group:
+                ReadTypes(group, query, report);
+                break;
+            default:
+                throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported,
+                    "The selected target does not provide cross-references.");
+        }
+    }
 
-        void Query(IEngineeringServiceProvider owner) => QueryOwner(owner, filter, maxSources, result);
-        TryRead(() => ReadBlocks(plcSoftware.BlockGroup, Query, result), result);
-        TryRead(() => ReadTags(plcSoftware.TagTableGroup, Query, result), result);
-        TryRead(() => ReadTypes(plcSoftware.TypeGroup, Query, result), result);
+    private static void ReadSoftware(PlcSoftware software, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
+    {
+        TryRead(() => ReadBlocks(software.BlockGroup, query, report), report);
+        TryRead(() => ReadTags(software.TagTableGroup, query, report), report);
+        TryRead(() => ReadTypes(software.TypeGroup, query, report), report);
         TryRead(() =>
         {
-            var provider = plcSoftware.GetService<PlcUnitProvider>();
+            var provider = software.GetService<PlcUnitProvider>();
             if (provider is null) return; // Software units are optional, not a missing source-owner service.
-            Visit(() => provider.UnitGroup.Units, unit =>
-            {
-                TryRead(() => ReadBlocks(unit.BlockGroup, Query, result), result);
-                TryRead(() => ReadTags(unit.TagTableGroup, Query, result), result);
-                TryRead(() => ReadTypes(unit.TypeGroup, Query, result), result);
-            }, result);
-        }, result);
+            Visit(() => provider.UnitGroup.Units, unit => ReadUnit(unit, query, report), report);
+        }, report);
+    }
 
-        if (result.SuccessfulOwnerQueryCount == 0)
-            MarkIncomplete(result);
-
-        result.SourceCount = CountSources(result.Sources);
-        result.ReferenceCount = CountReferences(result.Sources);
-        result.LocationCount = CountLocations(result.Sources);
-
-        return result;
+    private static void ReadUnit(PlcUnit unit, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
+    {
+        TryRead(() => ReadBlocks(unit.BlockGroup, query, report), report);
+        TryRead(() => ReadTags(unit.TagTableGroup, query, report), report);
+        TryRead(() => ReadTypes(unit.TypeGroup, query, report), report);
     }
 
     private static void QueryOwner(IEngineeringServiceProvider owner, CrossReferenceFilter filter,
-        int? maxSources, PlcCrossReferenceInfo result)
+        int? maxSources, CrossReferenceReport report)
     {
-        result.OwnerQueryCount++;
+        report.OwnerQueryCount++;
         TryRead(() =>
         {
             var service = owner.GetService<CrossReferenceService>();
             if (service is null)
             {
-                MarkIncomplete(result);
+                MarkIncomplete(report);
                 return;
             }
+            RunQuery(service, filter, maxSources, report);
+        }, report);
+    }
+
+    private static void QueryService(CrossReferenceService service, CrossReferenceFilter filter,
+        int? maxSources, CrossReferenceReport report)
+    {
+        report.OwnerQueryCount++;
+        RunQuery(service, filter, maxSources, report);
+    }
+
+    private static void RunQuery(CrossReferenceService service, CrossReferenceFilter filter,
+        int? maxSources, CrossReferenceReport report)
+    {
+        TryRead(() =>
+        {
             var query = service.GetCrossReferences(filter);
-            result.SuccessfulOwnerQueryCount++;
+            report.SuccessfulOwnerQueryCount++;
             // Continue querying owners at the cap: empty queries still prove successful coverage.
-            // maxResults limits top-level roots, as before; totals include retained descendants.
+            // maxResults limits top-level roots; totals include retained descendants.
             foreach (SourceObject source in query.Sources)
             {
-                if (maxSources is not null && result.Sources.Count >= maxSources.Value)
+                if (maxSources is not null && report.Sources.Count >= maxSources.Value)
                 {
-                    MarkIncomplete(result);
+                    MarkIncomplete(report);
                     break;
                 }
-                TryRead(() => result.Sources.Add(ReadSource(source, result)), result);
+                TryRead(() => report.Sources.Add(ReadSource(source, report)), report);
             }
-        }, result);
+        }, report);
     }
 
-    private static void ReadBlocks(PlcBlockGroup group, Action<IEngineeringServiceProvider> query, PlcCrossReferenceInfo result)
+    private static void ReadBlocks(PlcBlockGroup group, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {
-        Visit(() => group.Blocks, block => { if (IsSupportedBlock(block)) query(block); }, result);
-        Visit(() => group.Groups, child => ReadBlocks(child, query, result), result);
+        // Every block class is an owner; one without the service is counted and marks the sweep incomplete.
+        Visit(() => group.Blocks, block => query(block), report);
+        Visit(() => group.Groups, child => ReadBlocks(child, query, report), report);
         if (group is PlcBlockSystemGroup system)
-            Visit(() => system.SystemBlockGroups, child => ReadSystemBlocks(child, query, result), result);
+            Visit(() => system.SystemBlockGroups, child => ReadSystemBlocks(child, query, report), report);
     }
 
-    private static void ReadSystemBlocks(PlcSystemBlockGroup group, Action<IEngineeringServiceProvider> query, PlcCrossReferenceInfo result)
+    private static void ReadSystemBlocks(PlcSystemBlockGroup group, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {
-        Visit(() => group.Blocks, block => { if (IsSupportedBlock(block)) query(block); }, result);
-        Visit(() => group.Groups, child => ReadSystemBlocks(child, query, result), result);
+        Visit(() => group.Blocks, block => query(block), report);
+        Visit(() => group.Groups, child => ReadSystemBlocks(child, query, report), report);
     }
 
-    private static bool IsSupportedBlock(PlcBlock block) =>
-        block is OB || block is FB || block is FC || block is GlobalDB || block is InstanceDB || block is ArrayDB;
-
-    private static void ReadTags(PlcTagTableGroup group, Action<IEngineeringServiceProvider> query, PlcCrossReferenceInfo result)
+    private static void ReadTags(PlcTagTableGroup group, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {
-        Visit(() => group.TagTables, table =>
-        {
-            Visit(() => table.Tags, tag => query(tag), result);
-            Visit(() => table.SystemConstants, constant => query(constant), result);
-        }, result);
-        Visit(() => group.Groups, child => ReadTags(child, query, result), result);
+        Visit(() => group.TagTables, table => ReadTable(table, query, report), report);
+        Visit(() => group.Groups, child => ReadTags(child, query, report), report);
     }
 
-    private static void ReadTypes(PlcTypeGroup group, Action<IEngineeringServiceProvider> query, PlcCrossReferenceInfo result)
+    private static void ReadTable(PlcTagTable table, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {
-        Visit(() => group.Types, type => query(type), result);
-        Visit(() => group.Groups, child => ReadTypes(child, query, result), result);
+        Visit(() => table.Tags, tag => query(tag), report);
+        Visit(() => table.SystemConstants, constant => query(constant), report);
+        Visit(() => table.UserConstants, constant => query(constant), report);
     }
 
-    private static void Visit<T>(Func<IEnumerable<T>> items, Action<T> read, PlcCrossReferenceInfo result)
+    private static void ReadTypes(PlcTypeGroup group, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
+    {
+        Visit(() => group.Types, type => query(type), report);
+        Visit(() => group.Groups, child => ReadTypes(child, query, report), report);
+    }
+
+    private static void Visit<T>(Func<IEnumerable<T>> items, Action<T> read, CrossReferenceReport report)
     {
         TryRead(() =>
         {
             foreach (var item in items())
-                TryRead(() => read(item), result);
-        }, result);
+                TryRead(() => read(item), report);
+        }, report);
     }
 
-    private static void TryRead(Action read, PlcCrossReferenceInfo result)
+    private static void TryRead(Action read, CrossReferenceReport report)
     {
         try { read(); }
         catch (Exception ex) when (ex is not NonRecoverableException &&
             (ex is EngineeringException || ex.GetType() == typeof(InvalidOperationException)))
         {
-            MarkIncomplete(result);
+            MarkIncomplete(report);
         }
     }
 
-    private static void MarkIncomplete(PlcCrossReferenceInfo result)
+    private static void MarkIncomplete(CrossReferenceReport report)
     {
-        result.IsComplete = false;
-        // Fixed, one-per-PLC diagnostic bounds output and never includes object names or exception detail.
-        if (result.Messages.Count == 0)
-            result.Messages.Add("Cross-reference coverage is incomplete: an owner or projection was unavailable, failed, or exceeded maxResults. Retained results are not a complete unused-object audit.");
+        report.IsComplete = false;
+        // Fixed, one-per-report diagnostic bounds output and never includes object names or exception detail.
+        if (report.Messages.Count == 0)
+            report.Messages.Add("Cross-reference coverage is incomplete: an owner or projection was unavailable, failed, or exceeded maxResults. Retained results are not a complete unused-object audit.");
     }
 
-    private static CrossReferenceSourceInfo ReadSource(SourceObject source, PlcCrossReferenceInfo result)
+    private static CrossReferenceSourceInfo ReadSource(SourceObject source, CrossReferenceReport report)
     {
         var sourceInfo = new CrossReferenceSourceInfo
         {
@@ -189,13 +213,13 @@ public static class CrossReferenceReader
             Address = SafeString(source.Address)
         };
 
-        Visit(() => source.References, reference => sourceInfo.References.Add(ReadReference(reference, result)), result);
-        Visit(() => source.Children, child => sourceInfo.Children.Add(ReadSource(child, result)), result);
+        Visit(() => source.References, reference => sourceInfo.References.Add(ReadReference(reference, report)), report);
+        Visit(() => source.Children, child => sourceInfo.Children.Add(ReadSource(child, report)), report);
 
         return sourceInfo;
     }
 
-    private static CrossReferenceTargetInfo ReadReference(ReferenceObject reference, PlcCrossReferenceInfo result)
+    private static CrossReferenceTargetInfo ReadReference(ReferenceObject reference, CrossReferenceReport report)
     {
         var referenceInfo = new CrossReferenceTargetInfo
         {
@@ -206,25 +230,41 @@ public static class CrossReferenceReader
             Address = SafeString(reference.Address)
         };
 
-        Visit(() => reference.Locations, location => referenceInfo.Locations.Add(ReadLocation(location)), result);
+        Visit(() => reference.Locations, location => referenceInfo.Locations.Add(ReadLocation(location, report)), report);
 
         return referenceInfo;
     }
 
-    private static CrossReferenceLocationInfo ReadLocation(Location location)
+    private static CrossReferenceLocationInfo ReadLocation(Location location, CrossReferenceReport report)
     {
-        return new CrossReferenceLocationInfo
+        var info = new CrossReferenceLocationInfo
         {
             Name = SafeString(location.Name),
             TypeName = SafeString(location.TypeName),
             Address = SafeString(location.Address),
-            Access = location.Access.ToString(),
-            ReferenceType = location.ReferenceType.ToString(),
+            Access = ClosedName(location.Access.ToString(), CrossReferenceAccessNames.All, CrossReferenceAccessNames.Unknown),
+            ReferenceType = ClosedName(location.ReferenceType.ToString(), CrossReferenceTypeNames.All, CrossReferenceTypeNames.Unknown),
             ReferenceLocation = SafeString(location.ReferenceLocation),
-            ReferencedAs = SafeString(location.ReferencedAs),
             ReferencedAsName = SafeString(location.ReferencedAsName)
         };
+        // An unreadable referenced object keeps the location, as null plus an incomplete report.
+        TryRead(() => info.ReferencedAs = ReadObjectRef(location.ReferencedAs, report), report);
+        return info;
     }
+
+    private static CrossReferenceObjectRefInfo? ReadObjectRef(IEngineeringObject? referenced, CrossReferenceReport report)
+    {
+        if (referenced is null) return null;
+        // TypeName needs no Openness call; an unreadable Name keeps the type with an empty name.
+        var info = new CrossReferenceObjectRefInfo { TypeName = referenced.GetType().Name };
+        TryRead(() => info.Name = SafeString(referenced.GetAttribute("Name")), report);
+        return info;
+    }
+
+    // ponytail: a value outside the V21 enum (a later TIA version) maps to "Unknown"; widen the
+    // closed lists when the metadata gains members.
+    private static string ClosedName(string name, IReadOnlyList<string> closed, string unknown)
+        => closed.Contains(name) ? name : unknown;
 
     private static CrossReferenceFilter ToOpennessFilter(string filterName)
     {

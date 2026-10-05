@@ -97,7 +97,8 @@ public class NetworkReadTools
             maxDocumentChars);
 
     private static NetworkReadResponse Compose(StructuredOperationBatch batch)
-        => new(ToolName, batch.IsFullySuccessful, batch, Error: null);
+        => new(ToolName, NetworkContractVersion.Current, batch.IsFullySuccessful,
+            Error: null, Warnings: Array.Empty<string>(), Batch: batch);
 
     private static string RetryGuidance(StructuredOperationItem item) => item.Operation switch
     {
@@ -127,6 +128,7 @@ public class NetworkReadTools
 
     private static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(
-            new NetworkReadResponse(ToolName, false, Batch: null, new NetworkToolError(category, message)),
+            new NetworkReadResponse(ToolName, NetworkContractVersion.Current, false,
+                new NetworkToolError(category, message), Warnings: Array.Empty<string>(), Batch: null),
             isError: true);
 }

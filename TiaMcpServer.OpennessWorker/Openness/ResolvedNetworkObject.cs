@@ -10,7 +10,8 @@ public sealed class ResolvedNetworkObject
         object value,
         NetworkObjectSelectorInfo target,
         NetworkObjectEvidenceInfo evidence,
-        IReadOnlyList<string>? messages = null)
+        IReadOnlyList<string>? messages = null,
+        Siemens.Engineering.HW.Features.NetworkInterface? owningInterface = null)
     {
         Kind = kind;
         Value = value;
@@ -18,6 +19,7 @@ public sealed class ResolvedNetworkObject
         Target = target;
         Evidence = evidence;
         Messages = messages ?? Array.Empty<string>();
+        OwningInterface = owningInterface;
     }
 
     public string Kind { get; }
@@ -26,6 +28,7 @@ public sealed class ResolvedNetworkObject
     public NetworkObjectSelectorInfo Target { get; }
     public NetworkObjectEvidenceInfo Evidence { get; }
     public IReadOnlyList<string> Messages { get; }
+    public Siemens.Engineering.HW.Features.NetworkInterface? OwningInterface { get; }
 }
 
 public sealed class NetworkObjectSelectionResult

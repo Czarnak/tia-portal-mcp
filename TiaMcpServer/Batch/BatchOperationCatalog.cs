@@ -3,15 +3,8 @@ using TiaMcpServer.Safety;
 
 namespace TiaMcpServer.Batch;
 
-public enum BatchOperationCategory
-{
-    Read,
-    Write
-}
-
 public sealed record BatchOperationSpec(
     string Name,
-    BatchOperationCategory Category,
     IReadOnlyList<string> RequiredFields,
     IReadOnlyList<string> OptionalFields);
 
@@ -23,7 +16,7 @@ public sealed record BatchValidationResult(bool IsValid, string Error)
 }
 
 /// <summary>
-/// Whitelists the read and write operations that may run inside a batch and validates the
+/// Whitelists the write operations that may run inside a batch and validates the
 /// structural rules a batch must satisfy. Pure logic — no worker access — so it is fully
 /// unit-testable and runs before any worker call.
 /// </summary>
@@ -51,9 +44,16 @@ public static class BatchOperationCatalog
                 IsSet: new Func<BatchOperationRequest, bool>(op => property.GetValue(op) is not null)))
             .ToArray();
 
-    public static IReadOnlyList<string> ReadOperationNames { get; } = NamesByCategory(BatchOperationCategory.Read);
+    public static IReadOnlyList<string> WriteOperationNames { get; } = Specs.Keys.ToArray();
 
-    public static IReadOnlyList<string> WriteOperationNames { get; } = NamesByCategory(BatchOperationCategory.Write);
+    // Reads moved to plc_read and read_cross_references; a write batch names the replacements.
+    private static readonly IReadOnlySet<string> RetiredReadOperations = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "get_block_content",
+        "get_type_content",
+        "list_tag_tables",
+        "read_cross_references",
+    };
 
     /// <summary>Every registered spec. Used by the field-forwarding invariant test.</summary>
     public static IReadOnlyCollection<BatchOperationSpec> All { get; } = Specs.Values.ToArray();
@@ -99,15 +99,7 @@ public static class BatchOperationCatalog
     public static bool TryGetSpec(string operation, out BatchOperationSpec? spec)
         => Specs.TryGetValue(operation, out spec);
 
-    public static BatchValidationResult ValidateReadBatch(IReadOnlyList<BatchOperationRequest>? operations)
-        => Validate(operations, BatchOperationCategory.Read);
-
     public static BatchValidationResult ValidateWriteBatch(IReadOnlyList<BatchOperationRequest>? operations)
-        => Validate(operations, BatchOperationCategory.Write);
-
-    private static BatchValidationResult Validate(
-        IReadOnlyList<BatchOperationRequest>? operations,
-        BatchOperationCategory expected)
     {
         if (operations is null || operations.Count == 0)
         {
@@ -148,7 +140,7 @@ public static class BatchOperationCatalog
                 continue;
             }
 
-            var categoryResult = ResolveSpec(op, expected, out var spec);
+            var categoryResult = ResolveSpec(op, out var spec);
             if (!categoryResult.IsValid)
             {
                 errors.Add(categoryResult.Error);
@@ -171,24 +163,16 @@ public static class BatchOperationCatalog
                     $"Operation '{op.Operation}' (operationId '{op.OperationId}'): '{field}' is not valid for "
                     + $"{op.Operation}. Valid optional fields: {valid}.");
             }
-
-            foreach (var boundsError in ValidateBounds(op))
-            {
-                errors.Add($"Operation '{op.Operation}' (operationId '{op.OperationId}'): {boundsError}");
-            }
         }
 
-        if (expected == BatchOperationCategory.Write)
+        var distinctPaths = operations
+            .Where(op => op is not null && !string.IsNullOrWhiteSpace(op.ProjectPath))
+            .Select(op => WriteSafetyService.NormalizeProjectPath(op!.ProjectPath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (distinctPaths.Count > 1)
         {
-            var distinctPaths = operations
-                .Where(op => op is not null && !string.IsNullOrWhiteSpace(op.ProjectPath))
-                .Select(op => WriteSafetyService.NormalizeProjectPath(op!.ProjectPath))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (distinctPaths.Count > 1)
-            {
-                errors.Add("All write operations in a batch must target the same project path.");
-            }
+            errors.Add("All write operations in a batch must target the same project path.");
         }
 
         return errors.Count > 0
@@ -196,11 +180,15 @@ public static class BatchOperationCatalog
             : BatchValidationResult.Valid();
     }
 
-    private static BatchValidationResult ResolveSpec(
-        BatchOperationRequest op,
-        BatchOperationCategory expected,
-        out BatchOperationSpec? spec)
+    private static BatchValidationResult ResolveSpec(BatchOperationRequest op, out BatchOperationSpec? spec)
     {
+        if (RetiredReadOperations.Contains(op.Operation))
+        {
+            spec = null;
+            return BatchValidationResult.Invalid(
+                $"'{op.Operation}' is a read operation; use plc_read or read_cross_references.");
+        }
+
         if (!Specs.TryGetValue(op.Operation, out spec))
         {
             if (NonBatchableOperations.Contains(op.Operation))
@@ -209,19 +197,9 @@ public static class BatchOperationCatalog
                     $"Operation '{op.Operation}' is a project-lifecycle operation and is not available in batch operations; use its single tool.");
             }
 
-            var validNames = expected == BatchOperationCategory.Read ? ReadOperationNames : WriteOperationNames;
-            var categoryLabel = expected == BatchOperationCategory.Read ? "read" : "write";
             return BatchValidationResult.Invalid(
                 $"Unknown operation '{op.Operation}' for operationId '{op.OperationId}'. "
-                + $"Valid {categoryLabel} operations: {string.Join(", ", validNames)}.");
-        }
-
-        if (spec.Category != expected)
-        {
-            var actual = spec.Category == BatchOperationCategory.Read ? "read" : "write";
-            var container = expected == BatchOperationCategory.Read ? "execute_read_batch" : "a write batch";
-            return BatchValidationResult.Invalid(
-                $"Operation '{op.Operation}' is a {actual} operation and cannot run in {container}.");
+                + $"Valid write operations: {string.Join(", ", WriteOperationNames)}.");
         }
 
         return BatchValidationResult.Valid();
@@ -257,44 +235,27 @@ public static class BatchOperationCatalog
         }
     }
 
-    private static IEnumerable<string> ValidateBounds(BatchOperationRequest op)
-    {
-        if (op.MaxResults is < 1)
-        {
-            yield return "'maxResults' must be 1 or greater.";
-        }
-    }
-
-    private static IReadOnlyList<string> NamesByCategory(BatchOperationCategory category)
-        => Specs.Values.Where(s => s.Category == category).Select(s => s.Name).ToArray();
-
     private static IReadOnlyDictionary<string, BatchOperationSpec> BuildSpecs()
     {
         var specs = new[]
         {
-            // Reads
-            new BatchOperationSpec("read_cross_references", BatchOperationCategory.Read, None, new[] { "plcName", "filter", "maxResults" }),
-            new BatchOperationSpec("get_block_content", BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format", "withDependencies" }),
-            new BatchOperationSpec("list_tag_tables", BatchOperationCategory.Read, None, new[] { "plcName" }),
-            new BatchOperationSpec("get_type_content", BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format", "withDependencies" }),
-
             // Data writes
-            new BatchOperationSpec("update_block_logic", BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, new[] { "format" }),
-            new BatchOperationSpec("create_tag_table", BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
-            new BatchOperationSpec("delete_tag_table", BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
-            new BatchOperationSpec("create_tag", BatchOperationCategory.Write, new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
-            new BatchOperationSpec("update_tag", BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
-            new BatchOperationSpec("delete_tag", BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
-            new BatchOperationSpec("create_user_constant", BatchOperationCategory.Write, new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
-            new BatchOperationSpec("update_user_constant", BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
-            new BatchOperationSpec("delete_user_constant", BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
-            new BatchOperationSpec("create_block", BatchOperationCategory.Write, new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
-            new BatchOperationSpec("delete_block", BatchOperationCategory.Write, new[] { "blockPath" }, None),
-            new BatchOperationSpec("create_block_group", BatchOperationCategory.Write, new[] { "blockPath" }, None),
-            new BatchOperationSpec("delete_block_group", BatchOperationCategory.Write, new[] { "blockPath" }, None),
-            new BatchOperationSpec("start_plc", BatchOperationCategory.Write, None, new[] { "plcName" }),
-            new BatchOperationSpec("stop_plc", BatchOperationCategory.Write, None, new[] { "plcName" }),
-            new BatchOperationSpec("update_type_content", BatchOperationCategory.Write, new[] { "typePath", "sourceContent" }, new[] { "format" }),
+            new BatchOperationSpec("update_block_logic", new[] { "blockPath", "yamlContent" }, new[] { "format" }),
+            new BatchOperationSpec("create_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+            new BatchOperationSpec("delete_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+            new BatchOperationSpec("create_tag", new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
+            new BatchOperationSpec("update_tag", new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
+            new BatchOperationSpec("delete_tag", new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+            new BatchOperationSpec("create_user_constant", new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
+            new BatchOperationSpec("update_user_constant", new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
+            new BatchOperationSpec("delete_user_constant", new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+            new BatchOperationSpec("create_block", new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
+            new BatchOperationSpec("delete_block", new[] { "blockPath" }, None),
+            new BatchOperationSpec("create_block_group", new[] { "blockPath" }, None),
+            new BatchOperationSpec("delete_block_group", new[] { "blockPath" }, None),
+            new BatchOperationSpec("start_plc", None, new[] { "plcName" }),
+            new BatchOperationSpec("stop_plc", None, new[] { "plcName" }),
+            new BatchOperationSpec("update_type_content", new[] { "typePath", "sourceContent" }, new[] { "format" }),
         };
 
         return specs.ToDictionary(spec => spec.Name, StringComparer.Ordinal);

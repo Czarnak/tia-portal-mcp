@@ -40,11 +40,25 @@ lifecycle confirmation, and audit v2. Capability descriptions remain descriptive
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
-5/15/15 tool counts, `bind_project` for already-open projects, no implicit opens, per-call
+6/16/16 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`), `bind_project` for already-open projects, no implicit opens, per-call
 read-write lifecycle confirmation, full policy confirmation, removed startup switch/agent
 confirmation arguments, audit v2, and binding-scoped tree cursors. Preserve the distinction between
 functional live evidence and human dialog observations. This repository task changes no installed
 plugin cache or user configuration.
+
+## Open: PLC read and cross-reference follow-ups (PR A)
+
+Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-references.md); none blocks it.
+
+- Network: `PlcSoftwareLocator.FindAll` (used by Network) never sees PLCs in device groups; `FindEveryPlc` does.
+- `totally-integrated-claude` skill: update for `plc_read` / `read_cross_references`, the retired `execute_read_batch`, and counts 6/16/16.
+- `list_tag_tables`: when `tableName`/`folderPath` match nothing but part of the tree was unreadable, the incomplete inventory is returned without an explicit "not found among readable tables" message.
+- `read_cross_references` budget: the trim never recurses inside a kept child; a bare source over budget (pathological names or messages) is still withheld by the renderer; the standalone fallback guidance omits `filter`.
+- `read_cross_references`: a `maxResults` cut does not count into `omittedSourceCount`; the shared incomplete message mentions "unused-object audit" for every filter.
+- `read_cross_references`: legacy `referencedAsName` is kept beside `referencedAs` (it carries call-site text when `referencedAs` is null); decide whether to keep it.
+- The Plc protocol diagnostic duplicates Network's private `TryWriteProtocolDiagnostic` (missing `validators` field, 512 cap); share one helper.
+- `CrossReferenceTargetResolver.MatchOne` duplicates `ProjectTreeFilter.ResolveOne`'s predicate (drift is pinned by a round-trip test).
+- Unverified cross-reference owner kinds (spec Appendix B): technology objects and Unified `HmiTag` are verified but not shipped; TO instance DBs and Classic HMI tags were not present in the spike project.
 
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
@@ -719,17 +733,13 @@ candidate re-pin passed 298 focused tests and a normal-user Debug real-reference
 sandbox full run returned 3094/3098 with four environment failures. The user directed this turn
 to the live gate, so host retry, Release, and coverage were not repeated on the re-pinned HEAD.
 
-## Network Phase 4 contract repair and guarded harness — static implementation completed (2026-09-23)
+## Network Phase 4 contract repair — static implementation completed (2026-09-23)
 
 Focused automated gates passed for four contract repairs: update/delete now require exact ordinal
 `target.kind: "subnet"`; all four raw success members, including `networkDeviceCount`, are required
 before typed normalization; late zero/multiple worker matches return `postcondition_failed`; and
 delete resolves, type-checks, and captures a nonblank name from one transaction-local subnet object
-before `Delete()`. The user-provided saved harness was restored and statically guarded, including
-frozen checkout and host provenance, token redaction, and double-gated Apply. Its source has no
-verified historical repository origin. At this static checkpoint no harness mode or live TIA Portal
-acceptance had run for the current PR 1 tree. The subsequent failed attempt and successful rerun
-are recorded in the completed entry above.
+before `Delete()`. The subsequent failed attempt and successful rerun are recorded in the completed entry above.
 
 ## JSON contract Phase 1b required-member enforcement — live acceptance completed (2026-09-29)
 

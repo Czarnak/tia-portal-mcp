@@ -39,33 +39,20 @@ internal static class SubnetLifecycleService
             transaction.CommitOnDispose();
         }
 
-        var deviceCountAfter = project.Devices.Count;
-        var deviceCountUnchanged = deviceCountAfter == deviceCountBefore;
-
-        var postReadMatches = string.IsNullOrWhiteSpace(createdSubnetId)
-            ? new List<Subnet>()
-            : FindMatches(project, createdSubnetId!);
-        if (postReadMatches.Count != 1
-            || !string.Equals(postReadMatches[0].Name, name, StringComparison.Ordinal)
-            || !MatchesTypeIdentifier(postReadMatches[0], typeIdentifier)
-            || !MatchesRequestedProfibusFields(postReadMatches[0], highestAddress, transmissionSpeed)
-            || !deviceCountUnchanged)
-        {
-            throw PostconditionFailed(
-                "create_subnet",
-                "Expected exactly one post-read subnet with the returned nonblank SubnetId whose name, "
-                + "type, and requested PROFIBUS attributes matched the request, and an unchanged device "
-                + "count, after the transaction committed. Inspect the project before retrying.");
-        }
-
-        var created = postReadMatches[0];
-        return new SubnetLifecycleResultInfo
+        if (string.IsNullOrWhiteSpace(createdSubnetId))
+            throw PostconditionFailed("create_subnet", "The create committed but its identity was unreadable. Inspect the project before retrying.");
+        var result = new SubnetLifecycleResultInfo
         {
             SubnetId = createdSubnetId!,
-            Name = created.Name,
-            NetworkDeviceCount = deviceCountAfter,
-            NetworkDeviceCountUnchanged = deviceCountUnchanged,
+            Name = name,
+            NetworkDeviceCount = deviceCountBefore,
         };
+        result.Verification = NetworkMutationVerifier.VerifySubnet(project, new WorkerRequest
+        {
+            Method = "create_subnet", SubnetName = name, SubnetNetworkType = networkType,
+            SubnetHighestAddress = highestAddress, SubnetTransmissionSpeed = transmissionSpeed,
+        }, result, deviceCountBefore, Array.Empty<NetworkNodeIdentityInfo>());
+        return result;
     }
 
     public static SubnetLifecycleResultInfo Update(
@@ -91,6 +78,7 @@ internal static class SubnetLifecycleService
         }
 
         var deviceCountBefore = project.Devices.Count;
+        var capturedName = ReadRequiredSubnetNameOrThrow(ResolveExactSubnetOrThrow(project, subnetId, "update_subnet"), subnetId);
 
         using (var exclusiveAccess = tiaPortal.ExclusiveAccess("Network Phase 4 subnet lifecycle: update_subnet"))
         using (var transaction = exclusiveAccess.Transaction(project, "update_subnet"))
@@ -105,30 +93,18 @@ internal static class SubnetLifecycleService
             transaction.CommitOnDispose();
         }
 
-        var deviceCountAfter = project.Devices.Count;
-        var deviceCountUnchanged = deviceCountAfter == deviceCountBefore;
-
-        var postReadMatches = FindMatches(project, subnetId);
-        if (postReadMatches.Count != 1
-            || (name is not null && !string.Equals(postReadMatches[0].Name, name, StringComparison.Ordinal))
-            || !MatchesRequestedProfibusFields(postReadMatches[0], highestAddress, transmissionSpeed)
-            || !deviceCountUnchanged)
-        {
-            throw PostconditionFailed(
-                "update_subnet",
-                $"Expected exactly one subnet with SubnetId '{subnetId}' whose requested fields matched, "
-                + "and an unchanged device count, after the transaction committed. Inspect the project "
-                + "before retrying.");
-        }
-
-        var updated = postReadMatches[0];
-        return new SubnetLifecycleResultInfo
+        var result = new SubnetLifecycleResultInfo
         {
             SubnetId = subnetId,
-            Name = updated.Name,
-            NetworkDeviceCount = deviceCountAfter,
-            NetworkDeviceCountUnchanged = deviceCountUnchanged,
+            Name = name ?? capturedName,
+            NetworkDeviceCount = deviceCountBefore,
         };
+        result.Verification = NetworkMutationVerifier.VerifySubnet(project, new WorkerRequest
+        {
+            Method = "update_subnet", SubnetId = subnetId, SubnetName = name,
+            SubnetHighestAddress = highestAddress, SubnetTransmissionSpeed = transmissionSpeed,
+        }, result, deviceCountBefore, Array.Empty<NetworkNodeIdentityInfo>());
+        return result;
     }
 
     public static SubnetLifecycleResultInfo Delete(
@@ -136,10 +112,9 @@ internal static class SubnetLifecycleService
         Project project,
         string subnetId)
     {
-        // Deliberately does not enumerate the target's connected nodes or IO systems: a
-        // connected-subnet deletion must not inspect or block on any of that.
-        var deviceCountBefore = project.Devices.Count;
+        int deviceCountBefore;
         string capturedName;
+        IReadOnlyList<NetworkNodeIdentityInfo> affectedNodes;
 
         using (var exclusiveAccess = tiaPortal.ExclusiveAccess("Network Phase 4 subnet lifecycle: delete_subnet"))
         using (var transaction = exclusiveAccess.Transaction(project, "delete_subnet"))
@@ -147,35 +122,23 @@ internal static class SubnetLifecycleService
             var subnet = ResolveExactSubnetOrThrow(project, subnetId, "delete_subnet");
             _ = ResolveCurrentTypeIdentifierOrThrow(subnet, subnetId);
             capturedName = ReadRequiredSubnetNameOrThrow(subnet, subnetId);
+            // Capture reliable exact identities immediately before mutation. Unknown inventory
+            // is not an empty inventory and cannot establish preservation after deletion.
+            affectedNodes = NetworkMutationVerifier.CaptureAffectedNodes(subnet);
+            deviceCountBefore = project.Devices.Count;
             subnet.Delete();
             transaction.CommitOnDispose();
         }
 
-        var deviceCountAfter = project.Devices.Count;
-        var deviceCountUnchanged = deviceCountAfter == deviceCountBefore;
-
-        // Fail-closed, not fail-open: a surviving subnet whose SubnetId happens to be transiently
-        // unreadable must NOT read as "successfully deleted". Every other postcondition in this
-        // service already fails closed on an unreadable identity because absence-of-match is a
-        // FAILURE condition there; delete_subnet is the one operation where absence-of-match is the
-        // SUCCESS condition, so it needs its own explicit guard against that asymmetry.
-        var postReadMatches = FindMatches(project, subnetId, out var unreadableSubnetIdCount);
-        if (postReadMatches.Count != 0 || unreadableSubnetIdCount > 0 || !deviceCountUnchanged)
-        {
-            throw PostconditionFailed(
-                "delete_subnet",
-                $"Expected no subnet with SubnetId '{subnetId}', no subnet with an unreadable "
-                + "SubnetId, and an unchanged device count after the transaction committed. "
-                + "The delete already committed; inspect the project before retrying.");
-        }
-
-        return new SubnetLifecycleResultInfo
+        var result = new SubnetLifecycleResultInfo
         {
             SubnetId = subnetId,
             Name = capturedName,
-            NetworkDeviceCount = deviceCountAfter,
-            NetworkDeviceCountUnchanged = deviceCountUnchanged,
+            NetworkDeviceCount = deviceCountBefore,
         };
+        result.Verification = NetworkMutationVerifier.VerifySubnet(project,
+            new WorkerRequest { Method = "delete_subnet", SubnetId = subnetId }, result, deviceCountBefore, affectedNodes);
+        return result;
     }
 
     /// <summary>
@@ -201,62 +164,6 @@ internal static class SubnetLifecycleService
             var requestedValue = Enum.Parse(currentValue.GetType(), transmissionSpeed, ignoreCase: false);
             engineeringObject.SetAttribute("TransmissionSpeed", requestedValue);
         }
-    }
-
-    private static bool MatchesTypeIdentifier(Subnet subnet, string expectedTypeIdentifier)
-    {
-        try
-        {
-            return string.Equals(subnet.TypeIdentifier, expectedTypeIdentifier, StringComparison.Ordinal);
-        }
-        catch (EngineeringException)
-        {
-            return false;
-        }
-    }
-
-    private static bool MatchesRequestedProfibusFields(Subnet subnet, int? highestAddress, string? transmissionSpeed)
-    {
-        var engineeringObject = (IEngineeringObject)subnet;
-
-        if (highestAddress is not null)
-        {
-            object? currentHighestAddress;
-            try
-            {
-                currentHighestAddress = engineeringObject.GetAttribute("HighestAddress");
-            }
-            catch (EngineeringException)
-            {
-                return false;
-            }
-
-            if (currentHighestAddress is null || Convert.ToInt32(currentHighestAddress) != highestAddress.Value)
-            {
-                return false;
-            }
-        }
-
-        if (transmissionSpeed is not null)
-        {
-            object? currentTransmissionSpeed;
-            try
-            {
-                currentTransmissionSpeed = engineeringObject.GetAttribute("TransmissionSpeed");
-            }
-            catch (EngineeringException)
-            {
-                return false;
-            }
-
-            if (currentTransmissionSpeed is null
-                || !string.Equals(currentTransmissionSpeed.ToString(), transmissionSpeed, StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static string ResolveTypeIdentifier(string networkType)
@@ -338,7 +245,11 @@ internal static class SubnetLifecycleService
         string subnetId,
         string operationName)
     {
-        var matches = FindMatches(project, subnetId);
+        var matches = FindMatches(project, subnetId, out var unreadableCount);
+        var failure = NetworkPostconditionChecks.ClassifySelection(matches.Count, unreadableCount == 0);
+        if (failure == WorkerFailureCategories.WorkerOperationFailed)
+            throw new WorkerOperationException(failure,
+                "Subnet identity discovery was unreadable. No subnet mutation was attempted.");
 
         if (matches.Count == 0)
         {
@@ -357,14 +268,9 @@ internal static class SubnetLifecycleService
         return matches[0];
     }
 
-    private static List<Subnet> FindMatches(Project project, string subnetId)
-        => FindMatches(project, subnetId, out _);
-
     /// <summary>
-    /// Same ordinal exact-match scan as <see cref="FindMatches(Project, string)"/>, additionally
-    /// reporting how many candidates' <c>SubnetId</c> could not be read at all — distinct from "read
-    /// successfully but didn't match" — so a caller that treats zero matches as a meaningful outcome
-    /// (delete_subnet's postcondition) can tell the two apart instead of silently conflating them.
+    /// Reports unreadable candidates separately from known nonmatches so partial discovery
+    /// cannot authorize a mutation on an apparently unique visible match.
     /// </summary>
     private static List<Subnet> FindMatches(Project project, string subnetId, out int unreadableCount)
     {
@@ -373,7 +279,7 @@ internal static class SubnetLifecycleService
         foreach (Subnet candidate in project.Subnets)
         {
             var candidateId = ReadSubnetId(candidate);
-            if (candidateId is null)
+            if (string.IsNullOrWhiteSpace(candidateId))
             {
                 unreadable++;
                 continue;

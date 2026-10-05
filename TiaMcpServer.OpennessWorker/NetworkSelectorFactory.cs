@@ -108,6 +108,27 @@ public static class NetworkSelectorFactory
         };
     }
 
+    /// <summary>Builds the preferred node selector without requiring generic item indices or type evidence.</summary>
+    public static NetworkObjectSelectorInfo QualifiedNode(string deviceName, string nodeId,
+        IReadOnlyList<NetworkInterfacePathSegmentInfo> interfacePath, string? interfaceName = null, int? nodeIndex = null)
+    {
+        RequireNonBlank(deviceName, nameof(deviceName));
+        RequireNonBlank(nodeId, nameof(nodeId));
+        if (interfacePath.Count == 0 || nodeIndex < 0)
+            throw new ArgumentException("A qualified node requires a nonempty owner path and nonnegative optional node index.");
+        if (interfaceName is not null) RequireNonBlank(interfaceName, nameof(interfaceName));
+        var path = new List<NetworkInterfacePathSegmentInfo>();
+        foreach (var segment in interfacePath)
+        {
+            if (segment is null || segment.PositionNumber < 0) throw new ArgumentException("Invalid interface owner path segment.");
+            RequireNonBlank(segment.Name, nameof(interfacePath));
+            if (segment.TypeIdentifier is not null) RequireNonBlank(segment.TypeIdentifier, nameof(interfacePath));
+            path.Add(new NetworkInterfacePathSegmentInfo { Name = segment.Name, PositionNumber = segment.PositionNumber, TypeIdentifier = segment.TypeIdentifier });
+        }
+        return new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName,
+            NodeId = nodeId, InterfacePath = path, InterfaceName = interfaceName, NodeIndex = nodeIndex };
+    }
+
     /// <summary>Builds a subnet selector from the subnet's own identity.</summary>
     /// <param name="subnetId">Subnet identity as reported by read_hardware_config. Must be non-blank.</param>
     public static NetworkObjectSelectorInfo Subnet(string subnetId)

@@ -4,6 +4,14 @@ namespace TiaMcpServer.Contracts;
 
 public class HardwareConfigInfo
 {
+    /// <summary>Structural traversal evidence on new ordinary reads; omission never proves completeness.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HardwareDiscoveryEvidenceInfo? DiscoveryEvidence { get; set; }
+
+    /// <summary>Root project.Devices.Count on new ordinary reads; older/paged payloads may omit it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RootDeviceCount { get; set; }
+
     public List<DeviceInfo> Devices { get; set; } = new List<DeviceInfo>();
 
     public List<SubnetInfo> Subnets { get; set; } = new List<SubnetInfo>();

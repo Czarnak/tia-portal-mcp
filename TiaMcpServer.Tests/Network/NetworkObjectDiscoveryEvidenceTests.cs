@@ -5,6 +5,72 @@ namespace TiaMcpServer.Tests.Network;
 
 public sealed class NetworkObjectDiscoveryEvidenceTests
 {
+    [Theory]
+    [InlineData("laterTraversal")]
+    [InlineData("unreadableDevice")]
+    [InlineData("duplicateDevice")]
+    [InlineData("filteredEvidence")]
+    public void FinalInventoryEvidence_CannotCertifyAnEarlierNodeAfterLaterLoss(string failure)
+    {
+        var inventory = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true });
+        NetworkNodeReadSelectorBuilder.Apply(inventory.Devices[0], true);
+        var earlierNode = inventory.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0];
+        Assert.True(earlierNode.Selectable);
+        if (failure == "laterTraversal") inventory.DiscoveryEvidence!.Complete = false;
+        if (failure == "filteredEvidence") inventory.DiscoveryEvidence!.Scope = "device";
+        if (failure == "unreadableDevice") inventory.Devices.Add(new() { Name = null });
+        if (failure == "duplicateDevice") inventory.Devices.Add(new() { Name = "s7-1500/et200mp STATION_1" });
+        NetworkNodeReadSelectorBuilder.ApplyInventory(inventory);
+        Assert.False(earlierNode.Selectable);
+        Assert.Null(earlierNode.Selector);
+    }
+    [Fact]
+    public void TwoInterfacesWithE1_EmitDistinctRoundTripSelectors()
+    {
+        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.HardwareDiscoveryEvidenceInfo
+            { Scope = "project", Complete = true }).Devices[0];
+        NetworkNodeReadSelectorBuilder.Apply(device, true);
+        var x1Selector = device.Items[0].Items[0].NetworkInterfaces[0].Nodes[0].Selector!;
+        var x2Selector = device.Items[0].Items[1].NetworkInterfaces[0].Nodes[0].Selector!;
+        Assert.NotNull(x1Selector);
+        Assert.NotNull(x2Selector);
+        Assert.Equal("E1", x1Selector.NodeId);
+        Assert.Equal("E1", x2Selector.NodeId);
+        Assert.Equal(32768, x1Selector.InterfacePath![1].PositionNumber);
+        Assert.Equal(33024, x2Selector.InterfacePath![1].PositionNumber);
+        Assert.Null(x1Selector.InterfacePath[1].TypeIdentifier);
+        Assert.Equal("PROFINET interface_1", x1Selector.InterfaceName);
+        Assert.Equal("PROFINET interface_2", x2Selector.InterfaceName);
+        Assert.Null(x1Selector.ItemPath);
+    }
+
+    [Fact]
+    public void NullParentType_DoesNotDisableQualifiedNode()
+    {
+        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.HardwareDiscoveryEvidenceInfo
+            { Scope = "project", Complete = true }).Devices[0];
+        NetworkNodeReadSelectorBuilder.Apply(device, true);
+        Assert.True(device.Items[0].Items[0].NetworkInterfaces[0].Nodes[0].Selectable);
+        Assert.Null(device.Items[0].Items[0].Selector);
+    }
+
+    [Theory]
+    [InlineData("sibling")]
+    [InlineData("duplicate")]
+    [InlineData("traversal")]
+    public void ReadSelectability_RequiresReadableUniqueOwnerAndNode(string failure)
+    {
+        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.HardwareDiscoveryEvidenceInfo
+            { Scope = "project", Complete = true }).Devices[0];
+        var networkInterface = device.Items[0].Items[0].NetworkInterfaces[0];
+        networkInterface.Nodes[0].Selectable = true;
+        if (failure == "sibling") device.Items[0].Items[1].Name = null;
+        if (failure == "duplicate") networkInterface.Nodes.Add(new() { NodeId = "E1" });
+        NetworkNodeReadSelectorBuilder.Apply(device, failure != "traversal");
+        Assert.False(networkInterface.Nodes[0].Selectable);
+        Assert.Null(networkInterface.Nodes[0].Selector);
+        Assert.NotEmpty(networkInterface.Nodes[0].SelectorDiagnostics);
+    }
     [Fact]
     public void ReadString_AcceptsOnlyNonblankExactStrings()
     {

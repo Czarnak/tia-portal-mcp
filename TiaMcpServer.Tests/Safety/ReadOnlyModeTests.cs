@@ -572,7 +572,7 @@ public class ReadOnlyModeTests
     {
         var ops = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references" },
+            new BatchOperationRequest { OperationId = "a", Operation = "list_tag_tables" },
             new BatchOperationRequest { OperationId = "b", Operation = "get_block_content", BlockPath = "Main" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadOnly);
@@ -597,11 +597,11 @@ public class ReadOnlyModeTests
     #region Tool Discovery Tests
 
     [Fact]
-    public void ReadOnlyMode_HasExactlyFiveTools()
+    public void ReadOnlyMode_HasExactlySixTools()
     {
         var networkReadType = typeof(NetworkOperationRequest).Assembly.GetType("TiaMcpServer.Network.NetworkReadTools");
         Assert.NotNull(networkReadType);
-        var toolNames = new[] { typeof(ProjectBindingTools), typeof(ProjectReadTools), typeof(ReadBatchTools), networkReadType! }
+        var toolNames = new[] { typeof(ProjectBindingTools), typeof(ProjectReadTools), networkReadType!, typeof(TiaMcpServer.Plc.PlcReadTools), typeof(TiaMcpServer.CrossReferences.CrossReferenceReadTools) }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
             .Where(attribute => attribute is not null)
@@ -610,12 +610,12 @@ public class ReadOnlyModeTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "bind_project", "browse_project_tree", "execute_read_batch", "get_project_status", "network_read" },
+            new[] { "bind_project", "browse_project_tree", "get_project_status", "network_read", "plc_read", "read_cross_references" },
             toolNames);
     }
 
     [Fact]
-    public void FullSurface_HasExactlyFifteenDistinctTools()
+    public void FullSurface_HasExactlySixteenDistinctTools()
     {
         var toolNames = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -631,8 +631,8 @@ public class ReadOnlyModeTests
             new[]
             {
                 "apply_write_batch", "archive_project", "bind_project", "browse_project_tree", "close_project",
-                "compile_check", "create_project", "execute_read_batch", "get_project_status",
-                "network_read", "network_write", "open_project", "preview_write_batch",
+                "compile_check", "create_project", "get_project_status",
+                "network_read", "network_write", "open_project", "plc_read", "preview_write_batch", "read_cross_references",
                 "save_project", "save_project_as"
             },
             toolNames);
@@ -647,19 +647,6 @@ public class ReadOnlyModeTests
         var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
         Assert.NotNull(attr);
         Assert.Equal("get_project_status", attr.Name);
-        Assert.True(attr.ReadOnly);
-        Assert.False(attr.Destructive);
-    }
-
-    [Fact]
-    public void ReadBatchTools_HasExecuteReadBatch()
-    {
-        var method = typeof(ReadBatchTools).GetMethod("ExecuteReadBatch",
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
-        Assert.NotNull(method);
-        var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
-        Assert.NotNull(attr);
-        Assert.Equal("execute_read_batch", attr.Name);
         Assert.True(attr.ReadOnly);
         Assert.False(attr.Destructive);
     }

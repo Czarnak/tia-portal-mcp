@@ -11,11 +11,8 @@ namespace TiaMcpServer.Safety;
 /// Issues, validates, consumes, and audits write-safety tokens.
 ///
 /// <para>
-/// Two presentations share one set of private primitives. The methods on this file render and
-/// bind through the PRESENTATION serializer and are what generic batches, type writes, and
-/// lifecycle tools use. The opt-in canonical methods in <c>CanonicalWriteSafety.cs</c> bind
-/// through <see cref="Json.CanonicalJson"/> instead. Only the rendering differs — expiry,
-/// single use, tool/path/target/input/state binding, and audit behaviour are the same code.
+/// Generic batch previews bind the serialized target, input, state and verified project identity.
+/// Expiry, single use, and audit behavior remain on this legacy token path.
 /// </para>
 /// </summary>
 public sealed partial class WriteSafetyService

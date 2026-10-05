@@ -15,7 +15,10 @@ reported no new read-only TIA dialog, completing Task13 live acceptance. Task14 
 documentation/spec updates are complete. The report bounds the maintainer's worker-lifetime
 conclusion because the worker PID changed between read-write and read-only. Offline qualification at `3bb504b`
 passed 4,946 tests and 93.24% linked host/contracts line coverage; this is not Siemens coverage.
-Phase 4 is not started. On 2026-09-29 the
+Phase 4 Network alignment and guarded writes are implemented with focused offline qualification;
+final combined gates and fresh live acceptance remain pending. Project-tree alignment/batch
+retirement remain future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
+On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
 tokens) and added the token core to Phase 4. The three batch tools are excluded from this roadmap;
@@ -29,19 +32,20 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. Twelve tools now follow it. This roadmap moves the rest onto
+already describe that contract. Fourteen tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
 
 | Tool | Current contract | Plan |
 | --- | --- | --- |
-| `network_read`, `network_write` | Structured (canonical seam) | Phase 4: align envelope members |
+| `network_read`, `network_write` | Version `1.0`, root warnings/explicit nulls; guarded write effects/batch/verification/omission | Implemented; final combined/live gates pending |
 | `browse_project_tree` | Structured (canonical seam, v3 envelope) | Phase 4: align envelope members |
 | `get_project_status`, `compile_check` | Structured standalone envelope (`1.0`) | Phase 2 implemented; live acceptance pending |
 | `bind_project` | Structured standalone envelope (`1.0`) | Implemented; Task13 live-accepted 2026-10-03 in all three modes, with the separate human read-only dialog observation recorded |
 | `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Structured guarded lifecycle envelope (`1.0`) | Phase 3 implemented; current-candidate full/read-write live matrix passed 2026-10-03 |
-| `execute_read_batch`, `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 |
+| `plc_read`, `read_cross_references` | Structured (`1.0`, root warnings/explicit nulls; 60,000-character value and 180,000-character document budgets) | Implemented and live-accepted 2026-10-05; replace `execute_read_batch`, which was retired |
+| `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 (`plc_write` planned) |
 
 The batch tools are excluded because a separate redesign splits them into domain read/write tools
 (`block_read`, `tag_write`, and so on) in the `network_read`/`network_write` shape. The
@@ -61,7 +65,7 @@ Two active output families remain after Phase 3. The original findings were take
 
 | Family | How the response is built | Main departures from the target |
 | --- | --- | --- |
-| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone/lifecycle tools use the target envelope; Network/tree departures are listed below |
+| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone/lifecycle/Network tools use the target envelope; project-tree alignment remains |
 | Batch (excluded) | `TiaJson.Presentation` anonymous objects | Item `result` is a string holding JSON, raw source text, `Error: …` prose, an omission marker, or JSON cut at a character limit |
 
 Every legacy tool returns a plain string, so the SDK never sets `isError` or `structuredContent`
@@ -81,13 +85,13 @@ Below the tool surface, the host and worker also disagree about JSON:
   (`DeserializeWorkerPayload` / `NormalizeWorkerPayload`) makes every settable member required
   unless it is declared conditional with
   `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. The hand-written
-  member lists are gone. Four conditional members exist, pinned by `ConditionalMemberRegisterTests`.
+  member lists are gone. The conditional member register pins the current set and each appearance condition.
 - The host decodes worker payloads at four strictness levels: strict `CanonicalJson` (which now
   includes the worker-payload reader), untyped
   `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
   the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
   rebind-state readers now go through `ProjectRebindStatePayloadContract`.
-- Legacy token audit files retain their existing shapes. Lifecycle uses one canonical guarded
+- Legacy generic-batch token audit files retain their existing shapes. Lifecycle and Network use one canonical guarded
   write record per call in the separate `writes-yyyy-MM-dd.jsonl` stream, with a record discriminator,
   exact response/hash, and confirmation/guard satisfaction provenance; blocked calls and dry runs are included.
 
@@ -115,9 +119,9 @@ This is the contract every in-scope tool ends on.
 | `success` | boolean | `true` only when the whole call did everything requested. |
 | `error` | `{ category, message }` or null | Tool-level rejection. `category` is a `WorkerFailureCategories` value. Non-null exactly when `isError` is `true`. |
 | `warnings` | string array | Always present; empty when there are none. |
-| `phase` | string | Only on write tools: `preview` (a `dryRun`), `applied`, `blocked` (a guard refused), or `error`, per write-safety redesign §4.7. `network_write` reports `preview`, `apply`, or `error` until it moves onto the guarded pipeline. |
+| `phase` | string | Only on write tools: `preview` (a `dryRun`), `applied`, `blocked` (a guard refused), or `error`, per write-safety redesign §4.7. Network now uses these guarded phases; attempted partial/verification failures remain `applied`. |
 | `guards`, `effects`, `verification` | per write-safety redesign §4.7 | Only on write tools: the guards that fired, what the write did or would do per item, and the typed post-write read. |
-| payload | object or null | Tool-specific and declared in the output schema: `result` for a single result, `batch` for a `StructuredOperationBatch`. `network_write` also carries `preview` until the guarded pipeline replaces it with `effects`. Null when `error` is set. |
+| payload | object or null | Tool-specific and declared in the output schema: `result` for a single result, `batch` for a `StructuredOperationBatch`. Network uses `effects`, typed `batch`/`verification`, and explicit-null root `omission`. Null when `error` is set. |
 
 Per-operation items keep the existing `StructuredOperationItem` shape: `operationId`, `operation`,
 `status`, `result`, `failure { category, message }`, `omission`, `skipReason`, `warnings`.
@@ -289,20 +293,20 @@ built lifecycle tokens only for the redesign to delete them.
 `bind_project` adds explicit session selection in every mode with a typed standalone result,
 non-null before/after binding state and in-call Portal inventory. No request implicitly opens a
 project; ordinary reads never bind or switch. Project-tree cursors now reject binding changes as
-`cursor_binding_mismatch`. Mode counts are 5/15/15. The
+`cursor_binding_mismatch`. Mode counts are 6/16/16. The
 [engineering log](../IMPROVEMENT_LOG.md) records the completed human dialog observation and tracks the
 `totally-integrated-claude` plugin's `tia-portal-mcp` skill migration; installed plugin files were
 not changed by this documentation task.
 
 ### Phase 4: Align and Retire
 
-- Network: add `contractVersion` and top-level `warnings` (additive).
+- Network alignment delivered with guarded writes: version `1.0`, warnings/explicit nulls, effects and typed immediate/final verification; actual-by-default `dryRun=false`, no server elicitation. SDK/wrapper legacy/unknown-root/nonboolean rejection before entry is a normal MCP error with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
 - Delete remaining legacy pieces such as `StandaloneToolResultFormatter` and
   `WorkerCallResult.ToEnvelopeText` only after caller inventory proves they are unused.
-  Lifecycle wrapper/token paths are retired in Phase 3; retained batch/Network paths through
-  `WriteSafetyTooling` stay until their own migration.
-- Retire the token core with the write-safety redesign: `CanonicalWriteSafety` goes in its Phase 3
+  Lifecycle wrapper/token paths and Network-only token paths are retired; generic-batch
+  `WriteSafetyTooling` remains until its migration.
+- Retire the remaining token core with the write-safety redesign: `CanonicalWriteSafety` is retired in its Phase 3
   (network); the batch token paths go in its Phase 4, when the batch tools are retired; the
   `WriteSafetyService` token core (including the presentation token binding), the legacy audit
   record, `WriteSafetyTooling`, and `SafetyRead` go in its Phase 5.

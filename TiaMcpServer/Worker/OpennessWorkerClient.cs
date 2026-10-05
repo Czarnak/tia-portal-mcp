@@ -456,8 +456,7 @@ public class OpennessWorkerClient : IDisposable
     /// narrows to exactly one device, <paramref name="plcName"/> selects the PLC used for tag
     /// matching, and <paramref name="includeIoDetails"/>/<paramref name="includeTagMatches"/> opt
     /// into the structured I/O map. All four default to no-narrowing/no-details so internal
-    /// callers (notably <c>NetworkSafetySnapshot.ReadCurrentStateAsync</c>) stay lightweight and
-    /// hash-identical.
+    /// callers (notably <c>NetworkWritePlanner.ReadCurrentStateAsync</c>) stay lightweight.
     /// </summary>
     public Task<WorkerCallResult> ReadHardwareConfigAsync(
         string? projectPath,
@@ -801,14 +800,23 @@ public class OpennessWorkerClient : IDisposable
         string? ioSystemSubnetId,
         int? ioSystemNumber,
         string? projectPath)
+        => ConfigureNetworkDeviceAsync(new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
+            ipAddress, subnetMask, pnDeviceName, subnetId, ioSystemSubnetId, ioSystemNumber, projectPath);
+
+    public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(NetworkObjectSelectorInfo target,
+        string? ipAddress, string? subnetMask, string? pnDeviceName, string? subnetId,
+        string? ioSystemSubnetId, int? ioSystemNumber, string? projectPath)
     {
+        // Freeze before asynchronous binding/IPC work can yield to the caller.
+        var prepared = JsonSerializer.Deserialize<NetworkObjectSelectorInfo>(JsonSerializer.Serialize(target, WorkerJson.Envelope), WorkerJson.Envelope)!;
         return SendBoundProjectRequestAsync(
             "configure_network_device",
             projectPath,
             request =>
             {
-                request.DeviceName = deviceName;
-                request.NodeId = nodeId;
+                request.NetworkObjectTarget = prepared;
+                request.DeviceName = prepared.DeviceName;
+                request.NodeId = prepared.NodeId;
                 request.IpAddress = ipAddress;
                 request.SubnetMask = subnetMask;
                 request.PnDeviceName = pnDeviceName;
@@ -893,7 +901,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter, int? maxResults = null)
+    public Task<WorkerCallResult> ReadCrossReferencesAsync(
+        string? projectPath,
+        CrossReferenceSelectorInfo selector,
+        string? filter,
+        int? maxResults)
     {
         // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
@@ -906,7 +918,7 @@ public class OpennessWorkerClient : IDisposable
             projectPath,
             request =>
             {
-                request.PlcName = plcName;
+                request.CrossReferenceSelector = selector;
                 request.CrossReferenceFilter = normalizedFilter;
                 request.MaxResults = maxResults;
             },
@@ -1028,12 +1040,21 @@ public class OpennessWorkerClient : IDisposable
             string.Empty);
     }
 
-    public Task<WorkerCallResult> ListTagTablesAsync(string? plcName, string? projectPath)
+    public Task<WorkerCallResult> ListTagTablesAsync(
+        string? plcName,
+        string? projectPath,
+        string? tableName = null,
+        string? folderPath = null)
     {
         return SendBoundProjectRequestAsync(
             "list_tag_tables",
             projectPath,
-            request => request.PlcName = plcName,
+            request =>
+            {
+                request.PlcName = plcName;
+                request.TableName = tableName;
+                request.FolderPath = folderPath;
+            },
             "[]");
     }
 

@@ -7,6 +7,49 @@ namespace TiaMcpServer.Tests.Network;
 
 public class HardwarePageCandidateReaderTests
 {
+    [Theory]
+    [InlineData("unique", true)]
+    [InlineData("duplicate", false)]
+    [InlineData("unreadable", false)]
+    [InlineData("lateTraversal", false)]
+    public void PageCandidateSelectors_RequireAllScopeDeviceNameProof(string scenario, bool selectable)
+    {
+        var device = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }).Devices[0];
+        var allScopeNames = new List<string?> { device.Name };
+        if (scenario == "duplicate") allScopeNames.Add("s7-1500/et200mp STATION_1");
+        if (scenario == "unreadable") allScopeNames.Add(null);
+        var descriptors = new HardwarePageDescriptorSet(new[] { Device(device.Name!, "group/devices/7", 7) });
+        var source = new HardwarePageCandidateSource(
+            enumerate: () => new HardwarePageCandidateInventory(descriptors, Array.Empty<string>()),
+            materialize: _ =>
+            {
+                NetworkNodeReadSelectorBuilder.Apply(device, true);
+                NetworkNodeReadSelectorBuilder.ApplyPage(device,
+                    NetworkNodeReadSelectorBuilder.DeviceNameIsUnique(allScopeNames, device.Name), scenario != "lateTraversal");
+                return HardwarePageCandidateMaterialization.ForDevice(device, Array.Empty<string>());
+            });
+        var page = HardwarePageCandidateReader.Read(source, null, null, false, false, 1, null);
+        var candidate = Assert.Single(page.DeviceCandidates).Device;
+        Assert.Equal("S7-1500/ET200MP station_1", candidate.Name);
+        Assert.Equal(2, candidate.Items[0].Items.Count);
+        foreach (var owner in candidate.Items[0].Items)
+        {
+            var node = owner.NetworkInterfaces[0].Nodes[0];
+            Assert.Equal(selectable, node.Selectable);
+            if (!selectable)
+            {
+                Assert.Null(node.Selector);
+                Assert.NotEmpty(node.SelectorDiagnostics);
+                continue;
+            }
+            Assert.Equal(owner.PositionNumber, node.Selector!.InterfacePath![1].PositionNumber);
+            var resolved = NetworkInterfacePathMatcher.Match(candidate.Items, node.Selector.InterfacePath,
+                item => item.Items, item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+            Assert.Same(owner, resolved.Item);
+            Assert.Equal("E1", node.Selector.NodeId);
+            Assert.Null(node.Selector.InterfacePath[1].TypeIdentifier);
+        }
+    }
     [Fact]
     public void Read_EnumeratesAndValidatesTheFullSnapshotBeforeMaterializingTheSelectedWindow()
     {
