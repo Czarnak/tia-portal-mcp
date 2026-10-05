@@ -192,6 +192,6 @@ public class NetworkIntrospectionSafetySnapshotTests
         };
         var resolution = NetworkIdentityResolver.Resolve(request, state);
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(duplicate ? WorkerFailureCategories.TargetAmbiguous : WorkerFailureCategories.TargetNotFound, resolution.FailureCategory);
     }
 }

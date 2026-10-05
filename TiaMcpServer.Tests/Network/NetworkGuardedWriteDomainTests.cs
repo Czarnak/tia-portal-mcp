@@ -71,7 +71,7 @@ public sealed class NetworkGuardedWriteDomainTests
         var missingIdentity = kind == "selector";
         Assert.Equal(missingIdentity ? "error" : dryRun ? "preview" : "blocked", response.Phase);
         Assert.Null(response.Batch);
-        if (missingIdentity) Assert.Equal("postcondition_failed", response.Error!.Category);
+        if (missingIdentity) Assert.Equal("target_not_found", response.Error!.Category);
         else
         {
             Assert.Contains(response.Guards, guard => guard.Id == "network_state_unverifiable" && guard.Severity == "block");

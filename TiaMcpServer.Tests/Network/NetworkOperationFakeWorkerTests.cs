@@ -324,7 +324,7 @@ public class NetworkOperationFakeWorkerTests
         Assert.True(result.IsError);
         Assert.Equal("error", root.GetProperty("phase").GetString());
         Assert.Equal(
-            WorkerFailureCategories.PostconditionFailed,
+            WorkerFailureCategories.TargetAmbiguous,
             root.GetProperty("error").GetProperty("category").GetString());
     }
 

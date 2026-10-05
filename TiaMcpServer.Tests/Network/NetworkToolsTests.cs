@@ -332,7 +332,7 @@ public class NetworkToolsTests
         Assert.Equal("error", root.GetProperty("phase").GetString());
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(
-            WorkerFailureCategories.PostconditionFailed,
+            WorkerFailureCategories.TargetNotFound,
             root.GetProperty("error").GetProperty("category").GetString());
     }
 
