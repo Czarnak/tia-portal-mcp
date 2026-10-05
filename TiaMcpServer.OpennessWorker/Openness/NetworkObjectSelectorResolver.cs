@@ -48,7 +48,8 @@ public static class NetworkObjectSelectorResolver
             Name = leafEvidence.Name,
             TypeIdentifier = leafEvidence.TypeIdentifier,
             PositionNumber = leafEvidence.PositionNumber,
-            Address = ReadOptionalStringAttribute((IEngineeringObject)item, "Address", messages),
+            // DeviceItem has no 'Address' attribute; I/O addresses are in ioDetails.addresses.
+            Address = null,
             DeviceItemPath = itemMatch.VerifiedPath!.Select(segment => segment.Name).ToList(),
         };
 

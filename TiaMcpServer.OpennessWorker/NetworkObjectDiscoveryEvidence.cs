@@ -93,4 +93,20 @@ internal static class NetworkObjectDiscoveryEvidence
         => NetworkObjectDiscoveryEvidenceValue<int>.Unusable(
             $"{field} could not be read; selector not available.",
             "readFailed");
+
+    /// <summary>
+    /// Adds an unusable value's diagnostic, which already names the field, to read messages.
+    /// With <paramref name="reportNull"/> false, a successfully read null is ordinary data and adds
+    /// nothing; blank, wrong-type and unreadable values still report.
+    /// </summary>
+    public static void AddReadMessage<T>(
+        List<string> messages,
+        NetworkObjectDiscoveryEvidenceValue<T> evidence,
+        bool reportNull = true)
+    {
+        if (!evidence.IsUsable && (reportNull || evidence.SnapshotToken != "null"))
+        {
+            messages.Add(evidence.Diagnostic);
+        }
+    }
 }

@@ -55,7 +55,7 @@ public class HardwareDeviceSelectionTests
 
         // ReadDevice preserves unreadable device with Name = null and emits degradation message
         Assert.Contains("Name = deviceName.IsUsable ? deviceName.Value : null,", source, StringComparison.Ordinal);
-        Assert.Contains("AddReadMessage(messages, deviceName, \"device name\");", source, StringComparison.Ordinal);
+        Assert.Contains("NetworkObjectDiscoveryEvidence.AddReadMessage(messages, deviceName);", source, StringComparison.Ordinal);
     }
 
     [Fact]

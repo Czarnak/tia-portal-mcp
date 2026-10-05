@@ -52,6 +52,7 @@ public static class HardwareConfigReader
         result.Subnets = result.Subnets
             .OrderBy(subnet => subnet.SubnetId, StringComparer.Ordinal)
             .ToList();
+        result.Messages = result.Messages.Distinct(StringComparer.Ordinal).ToList();
 
         return result;
     }
@@ -148,7 +149,7 @@ public static class HardwareConfigReader
         IoTagIndex? tagIndex,
         HardwareDiscoveryEvidenceCapture capture)
     {
-        AddReadMessage(messages, deviceName, "device name");
+        NetworkObjectDiscoveryEvidence.AddReadMessage(messages, deviceName);
         var failuresBefore = capture.Evidence.Failures.Count;
         var deviceDescription = deviceName.IsUsable ? deviceName.Value : "(unnamed)";
         var typeIdentifier = ReadOptionalString(
@@ -226,9 +227,9 @@ public static class HardwareConfigReader
         var positionNumber = ReadTypedIdentityInt(
             () => item.PositionNumber,
             $"Device item '{itemDescription}' position number");
-        AddReadMessage(messages, itemName, "device item name");
-        AddReadMessage(messages, typeIdentifier, $"device item '{itemDescription}' type identifier");
-        AddReadMessage(messages, positionNumber, $"device item '{itemDescription}' position number");
+        NetworkObjectDiscoveryEvidence.AddReadMessage(messages, itemName);
+        NetworkObjectDiscoveryEvidence.AddReadMessage(messages, typeIdentifier, reportNull: false);
+        NetworkObjectDiscoveryEvidence.AddReadMessage(messages, positionNumber);
 
         var segment = new DeviceItemPathSegmentInfo
         {
@@ -250,11 +251,8 @@ public static class HardwareConfigReader
             Name = itemName.IsUsable ? itemName.Value : null,
             TypeIdentifier = typeIdentifier.IsUsable ? typeIdentifier.Value : null,
             PositionNumber = positionNumber.IsUsable ? positionNumber.Value : null,
-            Address = ReadExactStringAttribute(
-                (IEngineeringObject)item,
-                "Address",
-                $"device item '{itemDescription}' address",
-                messages),
+            // DeviceItem has no 'Address' attribute; I/O addresses are in ioDetails.addresses.
+            Address = null,
             Selectable = selectorDiagnostics.Count == 0,
             SelectorDiagnostics = selectorDiagnostics,
         };
@@ -367,7 +365,7 @@ public static class HardwareConfigReader
         var nodeId = ReadTypedIdentityString(
             () => node.NodeId,
             $"Node '{nodeDescription}' identity");
-        AddReadMessage(messages, nodeId, $"node '{nodeDescription}' identity");
+        NetworkObjectDiscoveryEvidence.AddReadMessage(messages, nodeId);
         var selectorDiagnostics = CombineDiagnostics(
             Array.Empty<string>(),
             deviceName.Diagnostic,
@@ -449,7 +447,7 @@ public static class HardwareConfigReader
         List<string> messages,
         HardwareDiscoveryEvidenceCapture capture)
     {
-        AddReadMessage(messages, subnetId, $"subnet '{subnetDescription}' identity");
+        NetworkObjectDiscoveryEvidence.AddReadMessage(messages, subnetId);
         var selectorDiagnostics = CombineDiagnostics(
             Array.Empty<string>(),
             subnetId.Diagnostic);
@@ -567,7 +565,7 @@ public static class HardwareConfigReader
         var number = ReadTypedIdentityInt(
             () => ioSystem.Number,
             $"IO system '{ioSystemName ?? "(unnamed)"}' number");
-        AddReadMessage(messages, number, $"IO system '{ioSystemName ?? "(unnamed)"}' number");
+        NetworkObjectDiscoveryEvidence.AddReadMessage(messages, number);
         var selectorDiagnostics = CombineDiagnostics(
             Array.Empty<string>(),
             subnetId.Diagnostic,
@@ -817,15 +815,4 @@ public static class HardwareConfigReader
             .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic))
             .Distinct(StringComparer.Ordinal)
             .ToList();
-
-    private static void AddReadMessage<T>(
-        List<string> messages,
-        NetworkObjectDiscoveryEvidenceValue<T> evidence,
-        string description)
-    {
-        if (!evidence.IsUsable)
-        {
-            messages.Add($"Could not read {description}: {evidence.Diagnostic}");
-        }
-    }
 }
