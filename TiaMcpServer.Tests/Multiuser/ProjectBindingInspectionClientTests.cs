@@ -1,4 +1,6 @@
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Cursors;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
@@ -131,5 +133,42 @@ public sealed class ProjectBindingInspectionClientTests
         var outcome = await f.Client.InspectPortalAsync(new WorkerRequest { Method = "save_project" });
         Assert.False(outcome.Result.Success); Assert.Equal(WorkerDispatchState.NotSent, outcome.Result.DispatchState);
         Assert.Empty(f.Methods());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExistingProjectTreeCursor_SurvivesInspectionOrLocalRefusal(bool foreignPid)
+    {
+        const string scenario = "project-tree-v3-small";
+        var path = Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, scenario);
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, path));
+        using var ui = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
+        var binding = new ProjectSessionBinding(path);
+        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.ReadOnly));
+        var codec = new ProjectTreeCursorCodec(new AuthenticatedCursorProtector(Enumerable.Range(0, 32).Select(x => (byte)x).ToArray(), "inspection-test"));
+        using var store = new ProjectTreeSnapshotStore();
+        var coordinator = new ProjectTreeBrowseCoordinator(client, codec, store, new ProjectTreePageProjector(codec), TimeProvider.System);
+        var first = await coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+        Assert.True(first.IsSuccess, first.CanonicalText);
+        var cursor = first.Response.Result!.Pagination.NextCursor;
+        Assert.NotNull(cursor);
+        var inspection = await client.InspectPortalAsync(Request("expect-bound", foreignPid ? 43 : 42));
+        Assert.Equal(!foreignPid, inspection.Result.Success);
+        var next = await coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor));
+        Assert.True(next.IsSuccess, next.CanonicalText);
+        Assert.Equal(new[] { 1, 2, 3 }, next.Response.Result!.Nodes.Select(node => node.Sequence));
+    }
+
+    [Fact]
+    public async Task Configured_AttachedForeignPidRefusalDoesNotInvalidateAssertion()
+    {
+        using var f = new Fixture(Project, open: false);
+        Assert.True((await f.Client.InspectPortalAsync(Request("Fixture", 42))).Result.Success);
+        var before = f.Client.BindingSnapshot;
+        var refused = await f.Client.InspectPortalAsync(Request("Fixture", 43));
+        Assert.Equal("binding_conflict", refused.Result.FailureCategory);
+        Assert.True(before.SameBinding(refused.After));
+        Assert.True((await f.Client.InspectPortalAsync(Request("Fixture", 42))).Result.Success);
     }
 }
