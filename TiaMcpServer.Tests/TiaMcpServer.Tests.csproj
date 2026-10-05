@@ -123,6 +123,8 @@
       Link="Host\ProjectReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectBindingTools.cs"
       Link="Host\ProjectBindingTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectBindingInspectionCatalog.cs" Link="Host\ProjectBindingInspectionCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectBindingInspectionPayloadContract.cs" Link="Host\ProjectBindingInspectionPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectEngineeringTools.cs"
       Link="Host\ProjectEngineeringTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\McpToolRegistration.cs"

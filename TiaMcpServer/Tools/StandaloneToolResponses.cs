@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 
@@ -54,7 +55,17 @@ public sealed record ProjectBindingResult(
     ProjectBindingInfo Binding,
     ProjectBindingInfo PreviousBinding,
     ProjectStatusInfo? Project,
-    IReadOnlyList<PortalProcessInfo> Portals);
+    IReadOnlyList<PortalProcessInfo> Portals,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ProjectBindingInspectionInfo? Inspection = null);
+
+public sealed record ProjectBindingInspectionInfo(
+    string Action,
+    int? PortalProcessId,
+    MultiuserServerConnectionsInfo? ServerConnections,
+    MultiuserServerGroupsInfo? ServerGroups,
+    MultiuserServerProjectsInfo? ServerProjects,
+    MultiuserLocalSessionsInfo? LocalSessions,
+    MultiuserLockStateInfo? LockState);
 
 public sealed record ProjectBindingInfo(string State, string? ProjectPath, int? PortalProcessId);
 

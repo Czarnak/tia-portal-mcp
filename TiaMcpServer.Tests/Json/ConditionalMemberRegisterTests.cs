@@ -39,12 +39,14 @@ public sealed class ConditionalMemberRegisterTests
         "NodeInfo.ConnectionEvidence",
         "SubnetInfo.ConnectionEvidence",
         "WorkerResponse.BlockImportOutcome",
+        // Only explicit bind_project inspection actions add this host value; default binding omits it.
+        "ProjectBindingResult.Inspection",
     };
 
     [Fact]
     public void ConditionalMembers_AreExactlyTheRegisteredSet()
     {
-        var actual = typeof(WorkerJson).Assembly.GetTypes()
+        var actual = typeof(WorkerJson).Assembly.GetTypes().Append(typeof(TiaMcpServer.Tools.ProjectBindingResult))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(IsWhenWritingNullConditional)

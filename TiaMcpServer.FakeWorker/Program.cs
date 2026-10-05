@@ -214,6 +214,13 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
+    if (currentMethod is "list_server_connections" or "list_server_groups" or "list_server_projects"
+        or "list_local_sessions" or "get_lock_state")
+    {
+        InspectMultiuser(JsonSerializer.Deserialize<WorkerRequest>(line, WorkerJson.Envelope)!);
+        continue;
+    }
+
     var establishesProject = currentMethod is "open_project" or "create_project";
     var statusRead = currentMethod is "get_project_status" or "get_basic_project_status"
         or "probe_project_status_for_lifecycle";
@@ -1646,6 +1653,68 @@ void SelectPortalProject(string? requestedPath)
     Respond(Success(ScenarioKey(targetPath) == "portal-selection-malformed"
         ? "{\"untrustedMarker\":true}"
         : WorkerJson.SerializePayload(result)));
+}
+
+void InspectMultiuser(WorkerRequest request)
+{
+    var alias = request.MultiuserServerAlias;
+    if (request.ProjectPath is not null
+        || alias == "expect-bound" && (request.ExpectedSessionIdentity is null || request.PortalProcessId != fakePortalProcessId)
+        || alias == "expect-unbound" && request.ExpectedSessionIdentity is not null)
+    {
+        Respond(JsonSerializer.Serialize(BindingConflict("Unexpected inspection request identity or projectPath."), WorkerJson.Envelope));
+        return;
+    }
+    if (fakePortalProcessId is { } attached && request.PortalProcessId is { } requested && attached != requested)
+    {
+        Respond(JsonSerializer.Serialize(BindingConflict("Another Portal is already attached."), WorkerJson.Envelope));
+        return;
+    }
+    if (fakePortalProcessId is null)
+    {
+        var candidates = fakePortals.Where(p => request.PortalProcessId is null || p.ProcessId == request.PortalProcessId).ToArray();
+        if (candidates.Length != 1)
+        {
+            Respond(JsonSerializer.Serialize(new WorkerResponse { Success = false,
+                FailureCategory = candidates.Length == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous,
+                Error = "Select one Portal." }, WorkerJson.Envelope));
+            return;
+        }
+        fakePortalProcessId = candidates[0].ProcessId;
+    }
+    if (alias == "hang") { Thread.Sleep(Timeout.Infinite); return; }
+    if (alias == "crash") { Environment.Exit(17); return; }
+    if (alias is "identity-loss" or "server-failure" or "target_not_found" or "target_ambiguous")
+    {
+        Respond(JsonSerializer.Serialize(new WorkerResponse { Success = false,
+            FailureCategory = alias == "identity-loss" ? WorkerFailureCategories.BindingConflict
+                : alias == "server-failure" ? WorkerFailureCategories.WorkerOperationFailed : alias,
+            Error = "Scripted inventory failure." }, WorkerJson.Envelope));
+        return;
+    }
+    var identity = new MultiuserRemoteIdentity
+    {
+        ServerAlias = alias ?? "Fixture", Host = "server", Port = 1234,
+        Group = request.MultiuserGroupIsRoot is { } root ? new() { IsRoot = root, Name = request.MultiuserGroupName } : null,
+        ServerProjectName = request.MultiuserServerProjectName
+    };
+    var observation = new ProjectServerConnectionObservation
+    { State = "connected", ObservationSource = "explicitRead", ObservedAt = DateTimeOffset.Parse("2026-10-05T12:00:00Z") };
+    var payload = request.Method switch
+    {
+        "list_server_connections" => WorkerJson.SerializePayload(new MultiuserServerConnectionsInfo
+            { Connections = [new() { ServerAlias = "Fixture", Host = "server", Port = 1234 }] }),
+        "list_server_groups" => WorkerJson.SerializePayload(new MultiuserServerGroupsInfo
+            { RemoteIdentity = identity, ConnectionObservation = observation, Groups = [new() { IsRoot = false, Name = "Group A" }] }),
+        "list_server_projects" => WorkerJson.SerializePayload(new MultiuserServerProjectsInfo
+            { RemoteIdentity = identity, ConnectionObservation = observation, Projects = [new() { Name = "Project A" }] }),
+        "list_local_sessions" => WorkerJson.SerializePayload(new MultiuserLocalSessionsInfo
+            { RemoteIdentity = identity, ConnectionObservation = observation, Sessions = [new() { SessionId = 0, ProjectPath = "C:\\Sessions\\A.als21" }] }),
+        "get_lock_state" => WorkerJson.SerializePayload(new MultiuserLockStateInfo
+            { RemoteIdentity = identity, ConnectionObservation = observation, IsLocked = false, ObservedAt = observation.ObservedAt }),
+        _ => throw new InvalidOperationException()
+    };
+    Respond(JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = payload, PortalProcessId = fakePortalProcessId }, WorkerJson.Envelope));
 }
 
 void Respond(string json, bool includeSessionIdentity = true)
