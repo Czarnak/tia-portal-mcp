@@ -34,6 +34,25 @@ public class AccessModeDiscoveryTests
 
     [Theory]
     [InlineData(McpAccessMode.ReadOnly)]
+    [InlineData(McpAccessMode.ReadWrite)]
+    [InlineData(McpAccessMode.Full)]
+    public async Task BindingInspection_IsObservationInEveryModeWithoutElicitation(McpAccessMode mode)
+    {
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, null));
+        using var ui = new FakeWorkerUiOpenProject(null);
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode, directory.Path);
+        var result = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+            { ["action"] = "list_server_connections", ["portalProcessId"] = 42 });
+        Assert.True(result.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        Assert.Equal(OperationCapability.Observe, OperationPolicyCatalog.GetCapability("list_server_connections"));
+        Assert.Equal(OperationCapability.SessionSelection, OperationPolicyCatalog.GetCapability("select_portal_project"));
+        Assert.Empty(Directory.GetFiles(directory.Path, "*", SearchOption.AllDirectories));
+    }
+
+    [Theory]
+    [InlineData(McpAccessMode.ReadOnly)]
     public async Task ToolsCall_CannotReachHiddenLifecycleTools(McpAccessMode mode)
     {
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);

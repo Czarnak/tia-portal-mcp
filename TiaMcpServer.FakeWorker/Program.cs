@@ -1707,14 +1707,16 @@ void InspectMultiuser(WorkerRequest request)
         "list_server_groups" => WorkerJson.SerializePayload(new MultiuserServerGroupsInfo
             { RemoteIdentity = identity, ConnectionObservation = observation, Groups = [new() { IsRoot = false, Name = "Group A" }] }),
         "list_server_projects" => WorkerJson.SerializePayload(new MultiuserServerProjectsInfo
-            { RemoteIdentity = identity, ConnectionObservation = observation, Projects = [new() { Name = "Project A" }] }),
+            { RemoteIdentity = identity, ConnectionObservation = observation, Projects = [new() { Name = alias == "oversized" ? new string('x', 60010) : "Project A" }] }),
         "list_local_sessions" => WorkerJson.SerializePayload(new MultiuserLocalSessionsInfo
             { RemoteIdentity = identity, ConnectionObservation = observation, Sessions = [new() { SessionId = 0, ProjectPath = "C:\\Sessions\\A.als21" }] }),
         "get_lock_state" => WorkerJson.SerializePayload(new MultiuserLockStateInfo
             { RemoteIdentity = identity, ConnectionObservation = observation, IsLocked = false, ObservedAt = observation.ObservedAt }),
         _ => throw new InvalidOperationException()
     };
-    Respond(JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = payload, PortalProcessId = fakePortalProcessId }, WorkerJson.Envelope));
+    Respond(JsonSerializer.Serialize(new WorkerResponse { Success = true,
+        Payload = alias == "malformed" ? "{\"secret-sentinel\":true}" : payload,
+        PortalProcessId = alias == "missing-pid" ? null : alias == "wrong-pid" ? 43 : fakePortalProcessId }, WorkerJson.Envelope));
 }
 
 void Respond(string json, bool includeSessionIdentity = true)
