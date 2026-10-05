@@ -619,7 +619,8 @@ independent resolution is a real second check, not a formality. Host preflight m
 
 Live Openness wrappers are not reference-stable: the same engineering object can surface as two
 distinct CLR instances. Worker identity comparisons (node owner resolve-back, subnet connection evidence,
-discovery selectors) therefore use `object.Equals`, never `ReferenceEquals`.
+discovery selectors) therefore use `object.Equals`, never `ReferenceEquals`; the cycle guards
+over live ancestor/owner hierarchies keep `ReferenceEquals`.
 
 ### Phase 3 read identity and introspection seam
 

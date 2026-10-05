@@ -973,7 +973,7 @@ Public Multiuser operations and Issue #65 remain open.
 Branch `fix/network-write-live-defects` (`d23b2d6..3642062`) fixed the defects a live
 `network_write`/`network_read` run exposed. No contract version bump.
 
-- Live Openness objects are compared with `object.Equals`, not `ReferenceEquals`: Openness may
+- Identity comparisons of live Openness objects use `object.Equals`, not `ReferenceEquals`: Openness may
   return distinct wrappers for one object. `list_network_objects` nodes are selectable again,
   `read_hardware_config` subnet connection evidence is complete with qualified node identities, and
   connected `delete_subnet` is no longer always blocked by `network_state_unverifiable`.
