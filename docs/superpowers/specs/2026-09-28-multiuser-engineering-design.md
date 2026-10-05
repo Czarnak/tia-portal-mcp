@@ -794,7 +794,7 @@ The Multiuser program is complete when:
 
 ## Current verification boundary
 
-This document records the approved conversational design, its October 3 lifecycle alignment,
+Initial planning history: this document records the approved conversational design, its October 3 lifecycle alignment,
 and the user's October 5 decision to put reads/discovery in `bind_project` without a separate tool.
 The revision used current repository source, tests, and maintained documentation; it adds no
 implementation or fresh runtime acceptance. Original repository and external-source review,
@@ -803,8 +803,9 @@ or offline activities. They do not prove live Multiuser behavior.
 
 No production code, Project Server connection, local session, server project, TIA Portal project,
 PLC, or remote resource was changed while preparing this design. No live acceptance is claimed.
-PR 1 and PR 2 are now merged in the inspected `main`. The next gate is review of the revised
+PR 1 and PR 2 were merged in the inspected `main`. The revised
 [PR 3 binding/discovery implementation plan](../plans/2026-10-05-multiuser-pr3-read-only-inventory.md)
-and selection of its execution method. This read-surface amendment and planning work authorize no
-implementation, remote write, or live operation. Successor mutation surfaces remain separately
+was subsequently accepted and implemented/offline-qualified. The remaining gates are final review
+and current-PR operation-specific live acceptance, pending exact fixture/scope authorization.
+Remote writes and live operations remain unauthorized. Successor mutation surfaces remain separately
 planned; this PR 3 routing decision adds no mutation action to `bind_project`.

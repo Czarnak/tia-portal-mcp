@@ -71,7 +71,7 @@ Root group is `{isRoot:true,name:null}`; named group is `{isRoot:false,name:"Exa
 
 ## Portal and binding policy
 
-`list_portals` performs fresh process discovery without `BindOpenProjectAsync`, attachment, or project selection. Existing `portals` entries come from that call; `isBound` uses the unchanged verified host snapshot.
+`list_portals` performs fresh process discovery without `BindOpenProjectAsync`, attachment, or project selection. Existing `portals` entries come from that call; `isBound` uses the current host snapshot: healthy verified identity is unchanged; observed identity loss invalidates it, including during supplemental candidate listing.
 
 Capture host binding under `ExecuteSerializedBindingOperationAsync` for inventory:
 
@@ -179,4 +179,4 @@ Earlier October 5 planning used reflection-only installed V21 metadata without i
 
 Primary V21 sources: [projects](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-server-projects), [groups](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-project-server-group), [current-user sessions](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-available-local-sessions), [lock provider](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-lockstate-provider), [lock state](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/checking-project-locked), [owner](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-lock-owner).
 
-Only planning documents changed. No implementation, build/test/package suite, commit, remote mutation, or live TIA operation ran. Review the revised single-tool plan before choosing execution; subagent implementation and independent task/whole-candidate review are recommended for this binding/schema boundary.
+Initial planning history (October 5): only planning documents changed; no implementation, build/test/package suite, commit, remote mutation, or live TIA operation ran during that planning step. The plan was subsequently accepted and implemented/offline-qualified as recorded above. The remaining gates are final review and Task 5 operation-specific live acceptance on an explicitly authorized fixture.

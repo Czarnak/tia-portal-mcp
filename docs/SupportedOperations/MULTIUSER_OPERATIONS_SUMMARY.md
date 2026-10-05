@@ -82,7 +82,9 @@ Inspection never opens, adopts, switches, saves, closes, discards or commits a p
 There is no temporary detach, second worker, lifecycle elicitation or write audit. Openness
 attachment may still require TIA's human-answerable access dialog. Ordinary server/selector failure
 preserves healthy context and ownership. Genuine Portal/project identity loss, worker crash or
-timeout invalidates binding evidence and cursors. Failed inventory is never automatically replayed.
+timeout invalidates binding evidence and cursors. This also applies to identity loss observed by
+`list_portals` or a supplemental candidate listing; `isBound` reflects the resulting snapshot.
+Failed inventory is never automatically replayed.
 Use explicit `bind` with its existing guards to select another instance.
 
 ## Typed results and observation limits
