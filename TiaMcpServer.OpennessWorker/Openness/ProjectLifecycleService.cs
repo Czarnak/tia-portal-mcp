@@ -55,7 +55,7 @@ public static class ProjectLifecycleService
                 ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, mode));
         }
 
-        return session.Project;
+        return session.ActiveContext is null ? null : session.RequireStandaloneOwner().Project;
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public static class ProjectLifecycleService
         session.EnsureConnected(projectPath);
         session.OpenProject(projectPath);
 
-        return Result("open_project", session.Project);
+        return Result("open_project", session.RequireStandaloneOwner().Project);
     }
 
     public static ProjectLifecycleResultInfo CreateProject(
@@ -99,6 +99,8 @@ public static class ProjectLifecycleService
         RequireAbsoluteDirectory(projectDirectory, "ProjectDirectory", mustExist: true);
         RequireName(projectName, "ProjectName");
 
+        if (session.ActiveContext is not null)
+            session.RequireStandaloneOwner();
         session.EnsureConnected(requestedProjectPath: null);
         if (session.TiaPortal is null)
         {
@@ -339,8 +341,7 @@ public static class ProjectLifecycleService
                     ProjectOpenPolicy.RefusalMessage(session.CurrentProjectPath!, projectPath!, McpAccessMode.ReadWrite));
         }
 
-        return session.Project ??
-            throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(McpAccessMode.ReadWrite));
+        return session.RequireStandaloneOwner().Project;
     }
 
     private static void ValidateExpectedImmediatelyBeforeMutation(

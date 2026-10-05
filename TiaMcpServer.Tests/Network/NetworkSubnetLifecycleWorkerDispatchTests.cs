@@ -114,7 +114,7 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
             ExtractMethodBody(source, "WithSession"),
             StringComparison.Ordinal);
         Assert.Contains("session.TiaPortal", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
-        Assert.Contains("session.Project", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
+        Assert.Contains("session.RequireStandaloneOwner();", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
     }
 
     private static int CountOccurrences(string source, string value)

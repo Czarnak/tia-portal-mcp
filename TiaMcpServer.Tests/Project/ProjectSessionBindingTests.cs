@@ -80,6 +80,27 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
+    public void TryAdoptVerified_NewGenerationAtSamePath_CreatesFreshEpoch()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var path = Path.GetFullPath("P.ap21");
+        Assert.True(binding.BindVerified(SelectionIdentity(path), false, out _));
+        var before = binding.CaptureSnapshot();
+        var replacement = SelectionIdentity(path);
+        replacement.SessionGeneration++;
+
+        Assert.True(binding.TryAdoptVerified(before, replacement, out var error));
+
+        Assert.Null(error);
+        var after = binding.CaptureSnapshot();
+        Assert.Equal(before.ProjectPath, after.ProjectPath);
+        Assert.Equal(before.SessionGeneration + 1, after.SessionGeneration);
+        Assert.NotEqual(before.BindingId, after.BindingId);
+        Assert.Equal(before.Revision + 1, after.Revision);
+        Assert.False(before.SameBinding(after));
+    }
+
+    [Fact]
     public void TryAdoptVerified_StaleExpected_FailsUnchanged()
     {
         var binding = new ProjectSessionBinding(null);

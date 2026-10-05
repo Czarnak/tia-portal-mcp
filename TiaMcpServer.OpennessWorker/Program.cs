@@ -418,14 +418,14 @@ internal static class Program
                     return Failure(failure.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                         "The requested qualification project is unavailable.");
                 ValidateExpectedAfterProjectResolution(session, request);
-                if (session.Project is null || session.TiaPortal is null)
+                if (session.ActiveContext is null || session.TiaPortal is null)
                     return Failure(WorkerFailureCategories.WorkerOperationFailed, "No project or Portal session is available.");
                 var probe = request.IoSystemQualification!;
                 var result = probe.Mode switch
                 {
-                    "inspectOwner" => IoSystemQualificationProbeService.InspectOwner(session.TiaPortal, session.Project, probe),
-                    "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.TiaPortal, session.Project, probe),
-                    "setAndCompile" => IoSystemQualificationProbeService.SetAndCompile(session.TiaPortal, session.Project, probe),
+                    "inspectOwner" => IoSystemQualificationProbeService.InspectOwner(session.TiaPortal, session.RequireStandaloneOwner().Project, probe),
+                    "compileBaseline" => IoSystemQualificationProbeService.CompileBaseline(session.TiaPortal, session.RequireStandaloneOwner().Project, probe),
+                    "setAndCompile" => IoSystemQualificationProbeService.SetAndCompile(session.TiaPortal, session.RequireStandaloneOwner().Project, probe),
                     _ => throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Unsupported qualification mode.")
                 };
                 return new WorkerResponse { Success = true, Payload = IoSystemQualificationEvidence.SerializeBounded(result) };
@@ -579,7 +579,7 @@ internal static class Program
                 return failure;
             }
             ValidateExpectedAfterProjectResolution(session, request);
-            if (session.Project is null || session.TiaPortal is null)
+            if (session.ActiveContext is null || session.TiaPortal is null)
             {
                 return Failure(
                     WorkerFailureCategories.WorkerOperationFailed,
@@ -588,7 +588,7 @@ internal static class Program
 
             return Success(SubnetLifecycleMutationProbeService.Run(
                 session.TiaPortal,
-                session.Project,
+                session.RequireStandaloneOwner().Project,
                 probeRunId,
                 request.ProbeConnectedEthernetSubnetId!,
                 request.ProbeConnectedProfibusSubnetId!,
@@ -726,7 +726,7 @@ internal static class Program
 
         return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Create(
             session.TiaPortal!,
-            session.Project!,
+            session.RequireStandaloneOwner().Project,
             request.SubnetName!,
             request.SubnetNetworkType!,
             request.SubnetHighestAddress,
@@ -764,7 +764,7 @@ internal static class Program
 
         return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Update(
             session.TiaPortal!,
-            session.Project!,
+            session.RequireStandaloneOwner().Project,
             request.SubnetId!,
             request.SubnetName,
             request.SubnetHighestAddress,
@@ -787,7 +787,7 @@ internal static class Program
 
         return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Delete(
             session.TiaPortal!,
-            session.Project!,
+            session.RequireStandaloneOwner().Project,
             request.SubnetId!)));
     }
 
@@ -815,8 +815,8 @@ internal static class Program
     }
 
     /// <summary>
-    /// Shared session/project plumbing for the three subnet lifecycle operations: connects, opens
-    /// the requested project if needed, and requires both <see cref="WorkerTiaPortalSession.TiaPortal"/>
+    /// Shared session/project plumbing for the three subnet lifecycle operations: connects, selects
+    /// only an already-open standalone project, and requires both <see cref="WorkerTiaPortalSession.TiaPortal"/>
     /// and <see cref="WorkerTiaPortalSession.Project"/> — the lifecycle service needs the portal handle
     /// for <c>ExclusiveAccess</c>/<c>Transaction</c>, not just the project.
     /// </summary>
@@ -831,13 +831,14 @@ internal static class Program
             }
             ValidateExpectedAfterProjectResolution(session, request);
 
-            if (session.Project is null || session.TiaPortal is null)
+            if (session.ActiveContext is null || session.TiaPortal is null)
             {
                 return Failure(
                     WorkerFailureCategories.WorkerOperationFailed,
                     "No project or TIA Portal session is available for the subnet lifecycle operation.");
             }
 
+            session.RequireStandaloneOwner();
             return body(session);
         });
     }
@@ -1435,14 +1436,14 @@ internal static class Program
             }
             ValidateExpectedAfterProjectResolution(session, request);
 
-            if (session.Project is null)
+            if (session.ActiveContext is null)
             {
                 return Failure(
                     WorkerFailureCategories.WorkerOperationFailed,
                     ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
             }
 
-            return body(session.Project);
+            return body(session.RequireStandaloneOwner().Project);
         });
     }
 

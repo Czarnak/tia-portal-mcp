@@ -52,6 +52,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-05 | [Multiuser PR 2 — active project context](plans/2026-10-05-multiuser-pr2-active-project-context.md) |
 | 2026-10-05 | [PLC read and standalone cross-references, PR A (implemented; live-accepted)](plans/2026-10-05-plc-read-and-cross-references.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (offline-qualified; partial live verification)](plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md) |
 | 2026-10-03 | [Network JSON contract and guarded writes (implementation/offline qualification complete; live acceptance pending)](plans/2026-10-03-network-json-guarded-write.md) |
@@ -108,6 +109,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-05 | [Multiuser PR 2 — offline qualification and bounded standalone live acceptance](acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md) |
 | 2026-10-05 | [PLC read and standalone cross-references (PR A) — offline pass and read-only live PASS with recorded limits](acceptance/reports/2026-10-05-plc-read-and-cross-references-validation.md) |
 | 2026-10-05 | [Network discovery and interface-qualified identity repair — offline pass, partial live verification and PR handoff](acceptance/reports/2026-10-04-network-discovery-and-interface-node-identity-repair-validation.md) |
 | 2026-10-04 | [Network JSON contract and guarded writes — corrected-candidate offline validation; live acceptance pending](acceptance/reports/2026-10-03-network-json-guarded-write-offline-validation.md) |

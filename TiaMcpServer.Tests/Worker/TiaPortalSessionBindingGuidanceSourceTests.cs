@@ -7,7 +7,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
     [Fact]
     public void GuidanceStrings_NameBindProject()
     {
-        // Source-contract guard: the net48 session class is not linked into this net10 test assembly.
+        // Source guard for user guidance, alongside source-linked session behavior tests.
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot,
             "TiaMcpServer.OpennessWorker", "Openness", "TiaPortalSession.cs"));
@@ -37,7 +37,8 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         var lifecycle = File.ReadAllText(Path.Combine(repositoryRoot,
             "TiaMcpServer.OpennessWorker", "Openness", "ProjectLifecycleService.cs"));
         Assert.DoesNotContain("Provide a projectPath argument or open a project in TIA Portal.", lifecycle);
-        Assert.Contains("ProjectOpenPolicy.NoProjectOpenMessage(", lifecycle);
+        Assert.Contains("session.RequireStandaloneOwner().Project", lifecycle);
+        Assert.Contains("ProjectOpenPolicy.NoProjectOpenMessage(", source, StringComparison.Ordinal);
 
         var clientSource = File.ReadAllText(Path.Combine(repositoryRoot, "TiaMcpServer", "Worker", "OpennessWorkerClient.cs"));
         var refusalStart = clientSource.IndexOf("An invalidated source can be re-grounded", StringComparison.Ordinal);

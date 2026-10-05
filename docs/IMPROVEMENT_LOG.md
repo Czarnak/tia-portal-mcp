@@ -26,12 +26,14 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: Multiuser PR 2 internal context integration
+## Open: public Multiuser operations
 
-PR 1 supplies source-owned compile references, the locked compile-only probe, provenance
-verification, and passive Siemens-free contracts. Plan PR 2 from merged `main` only after PR 1
-qualification and independent review are accepted. PR 2 owns internal context integration;
-public `.als21` selection/open and local-session lifecycle operations remain later work. Preserve
+PR 2 implements the internal active project context and typed lifecycle owners on the merged
+PR 1 foundation. Its frozen standalone candidate is offline qualified and live accepted within
+the bounds in the [acceptance report](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md).
+The [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) distinguishes
+this preparation from Issue #65 completion. Public `.als21` selection/open and local-session
+lifecycle operations remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
 
@@ -913,3 +915,39 @@ packages, while the net48 worker uses installed real assemblies. Stub, installed
 contract, package, and live evidence remain distinct. The final qualification and independent
 review gate acceptance of this foundation; internal context integration remains PR 2's dependency.
 See [building from source](development/building.md#generated-openness-references) for the procedure.
+
+## Multiuser PR 2 active project context — offline qualified (2026-10-05)
+
+The worker session now stores one typed active context and lifecycle owner, with a common
+`ProjectBase` engineering root and a standalone-only bridge for existing content services.
+Selection, live identity/generation, ownership, explicit lifecycle resolution, and cleanup
+are covered by source-linked boundary tests. No production caller activates local/server
+contexts, and no public `.als21` or Multiuser operation is enabled.
+
+Continuation repaired four stale source assertions in three test files without changing
+production behavior. The final serialized suite passed **5036/5036**, with **93.96%** line
+coverage above the existing 80% gate. Reference provenance/drift checks, serial stub build,
+installed-V21 solution and API-probe compilation, and package/doctor exclusion passed.
+Both compile modes had zero warnings/errors; package verification found one canonical
+15-file worker payload and no Siemens DLLs. Independent review found no Important/Critical
+production issue. See the [qualification/fixture record](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md)
+for preserved failed-run evidence, exact retained real-reference hashes, and disposable scope.
+Offline changes are committed with explicit user authorization. Current-candidate standalone
+live acceptance and restoration remain open; Issue #65 is not complete.
+
+## Multiuser PR 2 standalone live accepted (2026-10-05)
+
+After explicit exact-fixture authorization, frozen candidate `a47bf0d` passed bounded live
+standalone qualification: 131 captured tool calls, including 64 lifecycle calls across
+read-only/read-write/full. Canonical documents and all lifecycle audit hashes matched.
+Selection/cursor continuity, six lifecycle previews/applies, decline/cancel, ownership loss,
+dirty-source/last-client blocks, external identity changes, typed attempted failures and
+restoration were observed. A/B are clean and open at their original paths; H was saved with
+its original comment, independently reopened clean, then closed. Test helpers exited.
+
+The [acceptance report](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md)
+retains installed hashes, private evidence locations, deviations and failures. Root-project
+comments substituted for PLC edits; external changes used an independent Openness client;
+form acceptance was scripted. Independent review found no Important/Critical behavior issue.
+No production change or expensive suite replay followed these documentation-only results.
+Public Multiuser operations and Issue #65 remain open.

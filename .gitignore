@@ -69,3 +69,7 @@ nunit-*.xml
 priv/
 mcp-inspector-tia.json
 .docs/
+
+# Isolated implementation workspaces
+.worktrees/
+.superpowers/
