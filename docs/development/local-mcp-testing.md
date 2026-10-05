@@ -31,11 +31,11 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net10.0\T
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify 15 tools in read-write/full or 5 in read-only. Full is required for OnlineControl (PLC run/stop); lifecycle works in both writable modes.
+- Click `List Tools` and verify 16 tools in read-write/full or 6 in read-only. Full is required for OnlineControl (PLC run/stop); lifecycle works in both writable modes.
 - Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open.
 - Start with the standalone `get_project_status` and `browse_project_tree` tools.
 - In read-write or full mode, call standalone `compile_check` for PLC or block compilation.
-- Then call `execute_read_batch` with an `operations` array whose items use retained operations such as `list_tag_tables`, `read_cross_references`, or `get_block_content`.
+- Then call `plc_read` with an `operations` array whose items use `list_tag_tables`, `get_block_content`, or `get_type_content`, and `read_cross_references` with a `target` copied from `browse_project_tree` output.
 - Use `network_read` with `search_equipment_catalog` before hardware insertion so you can copy an exact `typeIdentifier`.
 - Use a `get_block_content` read item on a block path returned by `browse_project_tree`.
 - Use `get_project_status` before lifecycle changes.
@@ -73,18 +73,28 @@ In read-write mode, call standalone `compile_check` with inputs such as:
 { "projectPath": null, "plcName": "PLC_1", "blockPath": "PLC_1/Blocks/Main" }
 ```
 
-Then use this read smoke-test for `execute_read_batch` (independent items; a failing item does not stop the others):
+Then use this read smoke-test for `plc_read` (independent items; a failing item does not stop the others):
 
 ```json
 {
   "operations": [
-    { "operationId": "xref", "operation": "read_cross_references", "filter": "ObjectsWithReferences", "plcName": "PLC_1" },
-    { "operationId": "tables", "operation": "list_tag_tables", "plcName": "PLC_1" }
+    { "operationId": "tables", "operation": "list_tag_tables", "plcName": "PLC_1" },
+    { "operationId": "main", "operation": "get_block_content", "blockPath": "PLC_1/Blocks/Main" }
   ]
 }
 ```
 
-Large projects can return large JSON from cross-reference diagnostics; narrow each read item with `plcName` and `filter`. For the dedicated network surface, use `network_read`:
+Then a cross-reference read of one block (copy the `path` segments from `browse_project_tree`):
+
+```json
+{
+  "target": { "path": [ { "nodeType": "...", "name": "PLC_1" } ] },
+  "filter": "ObjectsWithReferences",
+  "maxResults": 20
+}
+```
+
+A value over 60,000 characters is omitted whole with narrowing guidance: narrow `list_tag_tables` with `plcName`, `folderPath` or `tableName`, and a cross-reference sweep with `filter`, `maxResults` or a narrower `target`. For the dedicated network surface, use `network_read`:
 
 ```json
 {

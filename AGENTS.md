@@ -1,6 +1,6 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 5 tools in read-only, 15 in read-write (startup default), and 15 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual call. Full runs lifecycle without server elicitation and adds OnlineControl (PLC run/stop). The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 6 tools in read-only, 16 in read-write (startup default), and 16 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual call. Full runs lifecycle without server elicitation and adds OnlineControl (PLC run/stop). The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
 
 ## Two-process architecture (critical to understand)
 
@@ -88,7 +88,7 @@ Inspect with original exact selectors before retry; omission metadata is not a s
 
 `network_read`/`network_write` were the first tools on the opt-in canonical JSON contract
 (`TiaMcpServer/Json/CanonicalJson.cs`, `TiaMcpServer/Tools/StructuredToolResult.cs`,
-`TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs`), and `browse_project_tree` also uses it. These
+`TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs`), and `browse_project_tree`, `plc_read` and `read_cross_references` also use it. These
 rules are durable for any future tool that migrates onto it — not just Network:
 
 - **Reuse the shared gate.** A new structured tool builds on `StructuredToolResult` /

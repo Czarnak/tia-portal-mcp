@@ -21,7 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-05 | [PLC read/write tools and standalone cross-references (approved; PR A planning)](specs/2026-10-05-plc-read-write-and-cross-references-design.md) |
+| 2026-10-05 | [PLC read/write tools and standalone cross-references (approved; PR A implemented and live-accepted; PR B pending)](specs/2026-10-05-plc-read-write-and-cross-references-design.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (implemented; full live acceptance pending)](specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md) |
 | 2026-10-03 | [Network JSON contract and guarded writes (offline-qualified; live acceptance pending)](specs/2026-10-03-network-json-guarded-write-design.md) |
 | 2026-10-01 | [Lifecycle in read-write, mode-derived confirmation, and runtime project binding](specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md) |
@@ -52,7 +52,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-05 | [PLC read and standalone cross-references, PR A (plan under review)](plans/2026-10-05-plc-read-and-cross-references.md) |
+| 2026-10-05 | [PLC read and standalone cross-references, PR A (implemented; live-accepted)](plans/2026-10-05-plc-read-and-cross-references.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (offline-qualified; partial live verification)](plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md) |
 | 2026-10-03 | [Network JSON contract and guarded writes (implementation/offline qualification complete; live acceptance pending)](plans/2026-10-03-network-json-guarded-write.md) |
 | 2026-10-02 | [Lifecycle in read-write and runtime project binding](plans/2026-10-02-lifecycle-tiers-and-project-binding.md) |
@@ -108,6 +108,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-05 | [PLC read and standalone cross-references (PR A) — offline pass and read-only live PASS with recorded limits](acceptance/reports/2026-10-05-plc-read-and-cross-references-validation.md) |
 | 2026-10-05 | [Network discovery and interface-qualified identity repair — offline pass, partial live verification and PR handoff](acceptance/reports/2026-10-04-network-discovery-and-interface-node-identity-repair-validation.md) |
 | 2026-10-04 | [Network JSON contract and guarded writes — corrected-candidate offline validation; live acceptance pending](acceptance/reports/2026-10-03-network-json-guarded-write-offline-validation.md) |
 | 2026-10-03 | [Lifecycle tiers and runtime binding — all three modes live-accepted; human read-only Openness dialog observation recorded](acceptance/reports/2026-10-03-lifecycle-tiers-bind-project-live-validation.md) |

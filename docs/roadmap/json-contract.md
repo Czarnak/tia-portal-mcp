@@ -32,7 +32,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. Twelve tools now follow it. This roadmap moves the rest onto
+already describe that contract. Fourteen tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
@@ -44,7 +44,8 @@ it without inventing a second mechanism.
 | `get_project_status`, `compile_check` | Structured standalone envelope (`1.0`) | Phase 2 implemented; live acceptance pending |
 | `bind_project` | Structured standalone envelope (`1.0`) | Implemented; Task13 live-accepted 2026-10-03 in all three modes, with the separate human read-only dialog observation recorded |
 | `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Structured guarded lifecycle envelope (`1.0`) | Phase 3 implemented; current-candidate full/read-write live matrix passed 2026-10-03 |
-| `execute_read_batch`, `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 |
+| `plc_read`, `read_cross_references` | Structured (`1.0`, root warnings/explicit nulls; 60,000-character value and 180,000-character document budgets) | Implemented and live-accepted 2026-10-05; replace `execute_read_batch`, which was retired |
+| `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 (`plc_write` planned) |
 
 The batch tools are excluded because a separate redesign splits them into domain read/write tools
 (`block_read`, `tag_write`, and so on) in the `network_read`/`network_write` shape. The
@@ -292,7 +293,7 @@ built lifecycle tokens only for the redesign to delete them.
 `bind_project` adds explicit session selection in every mode with a typed standalone result,
 non-null before/after binding state and in-call Portal inventory. No request implicitly opens a
 project; ordinary reads never bind or switch. Project-tree cursors now reject binding changes as
-`cursor_binding_mismatch`. Mode counts are 5/15/15. The
+`cursor_binding_mismatch`. Mode counts are 6/16/16. The
 [engineering log](../IMPROVEMENT_LOG.md) records the completed human dialog observation and tracks the
 `totally-integrated-claude` plugin's `tia-portal-mcp` skill migration; installed plugin files were
 not changed by this documentation task.

@@ -117,7 +117,7 @@ body:
     attributes:
       label: Tool and operation
       description: Leave empty for CLI problems.
-      placeholder: execute_read_batch > get_block_content
+      placeholder: plc_read > get_block_content
     validations:
       required: false
 
@@ -176,7 +176,7 @@ body:
         block language, device types, or whatever else the problem depends on.
       placeholder: |
         1. Open a project with one S7-1500 CPU and an FB written in LAD
-        2. Call execute_read_batch with get_block_content for that FB
+        2. Call plc_read with get_block_content for that FB
         3. ...
     validations:
       required: true

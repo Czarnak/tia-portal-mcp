@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-05
 
-**Status:** Spec approved on 2026-10-05. PR A plan in progress; PR B is planned after PR A merges.
+**Status:** Spec approved on 2026-10-05. PR A (`plc_read`, `read_cross_references`) implemented and live-accepted on 2026-10-05; PR B (`plc_write`) pending, planned after PR A merges.
 
 **Source baseline:** `main` at `430a454` (after Network PR #107).
 

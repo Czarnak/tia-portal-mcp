@@ -6,28 +6,29 @@ The MCP surface is intentionally narrower than the complete TIA Portal Openness 
 
 ## Operation model
 
-### Batch tools
+### PLC read tools and batch write tools
 
-Data operations run through one of three batch tools:
+PLC reads run through `plc_read` (up to 50 independent operations; a failed item does not stop the
+remaining items) and the standalone `read_cross_references`; see the
+[PLC operations summary](PLC_OPERATIONS_SUMMARY.md). Data writes run through the two legacy batch
+tools until `plc_write` replaces them:
 
 | Tool | Purpose |
 |---|---|
-| `execute_read_batch` | Executes up to 50 independent read operations. A failed item does not stop the remaining items. |
 | `preview_write_batch` | Validates and previews up to 50 data-write operations, then returns one single-use `safetyToken`. |
 | `apply_write_batch` | Applies the exact previewed operation list in order. Requires `confirm=true` and the preview's `safetyToken`; both are set by the caller and are not a user approval. |
 
 Every batch item contains an `operationId`, an `operation` name, and the fields for that operation. Read and write operation names are separate; project-lifecycle operations are not valid batch items.
 
-In `execute_read_batch` and `apply_write_batch` responses, each `operations[]` item includes `failureCategory`. A failed item retains its approved worker failure category; succeeded, skipped, and omitted items have `failureCategory: null`. The existing `result` text and item status remain available.
+In `apply_write_batch` responses, each `operations[]` item includes `failureCategory`. A failed item retains its approved worker failure category; succeeded, skipped, and omitted items have `failureCategory: null`. The existing `result` text and item status remain available.
 
 #### Read operations
 
-`execute_read_batch` supports:
-
-`read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+`plc_read` supports `get_block_content`, `get_type_content`, and `list_tag_tables`;
+`read_cross_references` is a standalone tool. `execute_read_batch` was retired.
 Hardware/catalog reads use `network_read`.
 
-Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. OnlineControl (PLC run/stop) requires full. See [Installation](../guides/installation.md#access-modes) for the 5/15/15 surfaces and confirmation policy.
+Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. OnlineControl (PLC run/stop) requires full. See [Installation](../guides/installation.md#access-modes) for the 6/16/16 surfaces and confirmation policy.
 
 #### Write operations
 

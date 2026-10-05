@@ -143,7 +143,6 @@ You can test the Openness worker directly for internal diagnostics (the worker p
 
 ```powershell
 '{ "method": "browse_project_tree", "projectPath": null }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
-'{ "method": "read_cross_references", "projectPath": null, "crossReferenceFilter": "ObjectsWithReferences" }' | .\TiaMcpServer.OpennessWorker\bin\Debug\net48\TiaMcpServer.OpennessWorker.exe
 ```
 
 Use the dedicated `network_read` and `network_write` MCP tools for hardware discovery,

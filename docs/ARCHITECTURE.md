@@ -63,7 +63,7 @@ falling back to another mode.
 
 ### Read-write mode
 
-Read-write exposes fifteen tools: four observation tools, `bind_project`, `compile_check`, the
+Read-write exposes sixteen tools: five observation tools, `bind_project`, `compile_check`, the
 batch write pair, `network_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
 transitional `SafetyRead`, `SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`.
 Legacy batches retain tokens. Network never elicits; every actual lifecycle call asks once through client form elicitation.
@@ -72,7 +72,7 @@ switch, or open; `bind_project` selects an already-open project.
 
 ### Full mode
 
-Full exposes the same fifteen tools and adds `OnlineControl` (PLC run/stop). Lifecycle runs
+Full exposes the same sixteen tools and adds `OnlineControl` (PLC run/stop). Lifecycle runs
 under policy without server elicitation. Block guards stop the call in every mode.
 
 ### Confirmation configuration
@@ -96,7 +96,7 @@ archives, or closes a project; never compiles; never controls a PLC;
 and never performs project-data mutations. It operates only on a project that
 is already open in the attached TIA Portal instance.
 
-The read-only surface contains five tools: four observations and `bind_project` for explicit
+The read-only surface contains six tools: five observations and `bind_project` for explicit
 session selection. Binding can switch the selected Portal/project without project mutation.
 
 A supplied `projectPath` on ordinary observation/read tools in read-only mode is an assertion.
@@ -137,15 +137,13 @@ preview-only live V21 evidence are recorded in the
 | `bind_project` | Adopt or switch to an already-open project without opening, creating, saving or closing. |
 | `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
 | `browse_project_tree` | Return a canonical, paged v3 point-in-time snapshot using optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`, or continue it with `cursor`. |
-| `execute_read_batch` | Execute up to 50 validated observation operations. |
+| `plc_read` | Execute up to 50 validated PLC read operations (`get_block_content`, `get_type_content`, `list_tag_tables`) on the structured contract. |
+| `read_cross_references` | Read the cross-references of one project-tree target (leaf object, member, or container sweep) on the structured contract. |
 | `network_read` | Execute up to 50 validated network observation operations. |
 
-The read batch supports:
-
-- `read_cross_references`
-- `get_block_content`
-- `list_tag_tables`
-- `get_type_content`
+`execute_read_batch` was retired; its four operations moved to `plc_read` (`get_block_content`,
+`get_type_content`, `list_tag_tables`) and the standalone `read_cross_references`. See the
+[PLC operations summary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md).
 
 `network_read` owns the network-read catalog:
 
@@ -447,8 +445,8 @@ JSON or silently substituting a shortened path for complete identity evidence.
 Last-resort failure-prose shortening is disclosed and preserves the failure category and
 rejection-versus-attempted-failure classification.
 
-The six tools leave the output-conformance legacy register; only `execute_read_batch`,
-`preview_write_batch`, and `apply_write_batch` remain. Public `confirm`/`safetyToken` are removed
+The six tools leave the output-conformance legacy register; only `preview_write_batch` and
+`apply_write_batch` remain (`plc_read` and `read_cross_references` are structured). Public `confirm`/`safetyToken` are removed
 from lifecycle schemas, while worker-internal confirmation fences remain. The [lifecycle reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
 describes guards and client migration. This describes the lifecycle delivery unit; separate Network token
 retirement is now implemented, while generic-batch retirement and package release remain later gates.
@@ -965,10 +963,10 @@ again. A failed append is reported on stderr and never hides the write result.
 
 #### Content hash
 
-`execute_read_batch` returns an additive `contentHash` on each succeeded `get_block_content` and
-`get_type_content` read that returned one object: `xml:sha256:<hex>` or `source:sha256:<hex>` over the
-exact served text (`BatchContentHashes`, `ContentHashes.Compute`). It is omitted on
-`withDependencies` reads and whenever the result was truncated or omitted for size. A guarded write
+`plc_read` returns `contentHash` on each succeeded `get_block_content` and `get_type_content` read:
+`xml:sha256:<hex>` or `source:sha256:<hex>` over the exact served text (`PlcContentHashes`,
+`ContentHashes.Compute`). It is an explicit `null` on `withDependencies` reads, and a result over the
+60,000-character value is omitted whole, so no hash is reported for it. A guarded write
 compares an expected hash with a fresh read through `ContentHashes.Check`: a malformed hash or a
 format that differs from the write's format is `validation_error`, content that no longer matches
 is `state_changed`, and the comparison is recorded as a `contentHash` precondition.
