@@ -444,3 +444,45 @@ today and refuses nothing.
 | 15 | `delete_block_group`: group exists; every descendant block exportable | `ProjectTreeSafetySnapshotReader` | refusal + hash | refuses only when not found | `plc_state_unverifiable`, `plc_deletes_group_contents` + worker precondition |
 | 16 | Any block export empty → refuse | `ProjectTreeSafetySnapshotReader` | refusal | n/a | `plc_state_unverifiable` |
 | 17 | Software-unit namespaces not guessed for tag collisions | `TagOperationSafetySnapshotReader` comment | limitation | n/a | documented limitation (§4.2) |
+
+## Appendix B. Ownership spike results
+
+Run 2026-10-05 against TIA Portal V21, project `SimpleProject_copy` (read-only: attach, read, query,
+detach; nothing opened, saved or modified). Probe: `GetService<CrossReferenceService>()` on one
+instance per kind, then `GetCrossReferences(AllObjects)`. A kind ships only if the service is
+available and the query succeeds.
+
+| Kind | Instance | Service | Query | Sources | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| Block (control) | `Main` | yes | ok | 1 | verified |
+| PlcTag (control) | `System_Byte` | yes | ok | 1 | verified |
+| UserConstant | `heaterStages` | yes | ok | 1 | verified |
+| System block | `System blocks/G7_RT_Plus_1_V6` | yes | ok | 1 | verified |
+| Technology object | `PID_Compact_1` | yes | ok | 1 | verified |
+| WinCC Unified `HmiTag` | `PLC_LAD_Simulation_DB_TankLevel` | yes | ok | 1 | verified (HMI scope) |
+| TagTable | `Default tag table` | no | n/a | n/a | unverified |
+| PlcSoftware | `ET 200SP station_1` | no | n/a | n/a | unverified |
+| SoftwareUnit | `Test_SU` | no | n/a | n/a | unverified |
+| Device | `ET 200SP station_1` | no | n/a | n/a | unverified |
+| DeviceItem | `PLC_LAD` | no | n/a | n/a | unverified |
+| Subnet | `PN/IE_1` | no | n/a | n/a | unverified |
+| Node | `X1` | no | n/a | n/a | unverified |
+| TO instance DB | none found under system blocks | n/a | n/a | n/a | notPresent |
+| WinCC Classic HMI tag | none found via `TagFolder.Tags` | n/a | n/a | n/a | notPresent |
+
+### Decisions
+
+- **Member kinds** (leaves addressed by `member` under a `TagTable` path):
+  `CrossReferenceMemberKinds.All = { Tag, SystemConstant, UserConstant }`. `Tag` and
+  `SystemConstant` are verified by code and stay regardless; `UserConstant` is newly verified.
+- **Leaf endpoints** (path-addressed, one query): the block kinds and `Type` (code-verified) and
+  system blocks, which the tree already emits as `Block` under `SystemBlockFolder`.
+- **Container endpoints** (path-addressed, fan out over verified owners): `Device`, `PlcSoftware`,
+  `SoftwareUnit`, the block, system-block, tag-table and type folders, and `TagTable`. None of
+  these is itself a cross-reference owner (service unavailable for `Device`, `PlcSoftware`,
+  `SoftwareUnit`, `TagTable`); they only enumerate owners beneath them, and the owner set is the
+  member kinds plus the leaf endpoints above.
+- **Not shipped in PR A**: technology objects and WinCC Unified `HmiTag` (verified, but the project
+  tree has no node type for them and the tool is PLC-scoped; follow-up needs new node types),
+  `DeviceItem`, `Subnet`, `Node` (unverified), TO instance DBs and Classic HMI tags (not present
+  in this project, so unverified). Listed as unverified in the PLC operations summary.
