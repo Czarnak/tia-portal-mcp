@@ -4,8 +4,11 @@ using System.Collections;
 
 namespace Siemens.Engineering
 {
-    public abstract class NamedObject : IEngineeringServiceProvider
+    public abstract class NamedObject : IEngineeringServiceProvider, IEngineeringObject
     {
+        public object GetAttribute(string attributeName) => attributeName == "Name"
+            ? Name
+            : throw new EngineeringException($"Attribute '{attributeName}' is not modeled.");
         private string name = string.Empty;
         public Exception? NameFailure { get; set; }
         public string Name
@@ -76,6 +79,11 @@ namespace Siemens.Engineering
     {
         T? GetService<T>() where T : class;
     }
+
+    public interface IEngineeringObject
+    {
+        object GetAttribute(string name);
+    }
 }
 
 namespace Siemens.Engineering.CrossReference
@@ -121,11 +129,27 @@ namespace Siemens.Engineering.CrossReference
     }
     public sealed class Location : CrossReferenceObject
     {
-        public string Access { get; set; } = string.Empty;
-        public string ReferenceType { get; set; } = string.Empty;
+        public Access Access { get; set; }
+        public ReferenceType ReferenceType { get; set; }
         public string ReferenceLocation { get; set; } = string.Empty;
-        public string ReferencedAs { get; set; } = string.Empty;
+        public IEngineeringObject? ReferencedAs { get; set; }
         public string ReferencedAsName { get; set; } = string.Empty;
+    }
+
+    // Members and values match the V21 metadata and the reference stub.
+    public enum Access
+    {
+        Undefined, Read, Write, RW, Unknown, Definition, Declaration, Interface, Jump, Monitor, Modify, Force,
+        Call, UC, CC, Multiinstance, InstanceDB, Open, Interlock, Supervision, Actions, Transition, ReadAndSymbol,
+        WriteAndSymbol, ReadWriteAndSymbol, InstanceAndSymbol, MultiinstanceAndSymbol, ProDiagSupervision,
+        DefaultValue, ArrayBoundary, StringLength, TypeAlarm, InstanceAlarm, Parameterinstance,
+        ParameterinstanceAndSymbol, CreateReference, CreateReferenceAndSymbol
+    }
+
+    public enum ReferenceType
+    {
+        Uses, UsedBy, Undefined, TypeInstance, InstanceType, Assigns, MemberGroup, GroupMember, Defines,
+        DefinedBy, OverlapsWith, Scope, Unknown
     }
 }
 

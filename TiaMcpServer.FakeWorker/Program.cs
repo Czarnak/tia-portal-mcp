@@ -2735,7 +2735,7 @@ string ProjectTreeDedupResponse(string requestLine)
     if (request.Method == "get_project_status") return Success("{\"isOpen\":true}");
     // The test explicitly marks phase boundaries via this fixture-only counter probe.
     // No production request or protocol field is added, and reads never infer a phase by count.
-    if (request.Method == "read_cross_references" && request.PlcName is "preview" or "apply")
+    if (request.Method == "list_tag_tables" && request.PlcName is "preview" or "apply")
     {
         projectTreeDedupPhase = request.PlcName;
         return Success(JsonSerializer.Serialize(projectTreeDedupCounters));

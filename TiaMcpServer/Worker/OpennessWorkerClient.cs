@@ -901,7 +901,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> ReadCrossReferencesAsync(string? projectPath, string? plcName, string? filter, int? maxResults = null)
+    public Task<WorkerCallResult> ReadCrossReferencesAsync(
+        string? projectPath,
+        CrossReferenceSelectorInfo selector,
+        string? filter,
+        int? maxResults)
     {
         // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
@@ -914,7 +918,7 @@ public class OpennessWorkerClient : IDisposable
             projectPath,
             request =>
             {
-                request.PlcName = plcName;
+                request.CrossReferenceSelector = selector;
                 request.CrossReferenceFilter = normalizedFilter;
                 request.MaxResults = maxResults;
             },

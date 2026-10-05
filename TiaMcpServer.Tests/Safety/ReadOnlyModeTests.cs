@@ -572,7 +572,7 @@ public class ReadOnlyModeTests
     {
         var ops = new[]
         {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references" },
+            new BatchOperationRequest { OperationId = "a", Operation = "list_tag_tables" },
             new BatchOperationRequest { OperationId = "b", Operation = "get_block_content", BlockPath = "Main" },
         };
         var errors = BatchOperationCatalog.ValidateAccessMode(ops, McpAccessMode.ReadOnly);

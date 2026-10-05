@@ -18,7 +18,7 @@ public class BatchOperationCatalogTests
     {
         var operations = new List<BatchOperationRequest>
         {
-            Op("a", "read_cross_references"),
+            Op("a", "get_type_content", r => r.TypePath = "PLC_1/UDT"),
             Op("b", "get_block_content", r => r.BlockPath = "PLC_1/Main"),
             Op("c", "list_tag_tables"),
         };
@@ -84,7 +84,7 @@ public class BatchOperationCatalogTests
     public void ValidateReadBatch_RejectsDuplicateOperationId()
     {
         var result = BatchOperationCatalog.ValidateReadBatch(
-            new[] { Op("dup", "read_cross_references"), Op("dup", "list_tag_tables") });
+            new[] { Op("dup", "list_tag_tables"), Op("dup", "list_tag_tables") });
 
         Assert.False(result.IsValid);
         Assert.Contains("dup", result.Error);
@@ -269,37 +269,19 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void Validate_RejectsOutOfRangeBounds()
+    public void ValidateReadBatch_RejectsCrossReferencesNowServedByTheirOwnTool()
     {
-        var operations = new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references", MaxResults = 0 },
-        };
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
+        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("a", "read_cross_references") });
 
         Assert.False(result.IsValid);
-        Assert.Contains("'maxResults' must be 1 or greater", result.Error);
-    }
-
-    [Fact]
-    public void Validate_AcceptsBoundsOnTheirOperations()
-    {
-        var operations = new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references", MaxResults = 10 },
-        };
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
-
-        Assert.True(result.IsValid, result.Error);
+        Assert.Contains("read_cross_references", result.Error);
     }
 
     [Fact]
     public void All_ExposesEverySpec()
     {
-        // 4 reads + 16 writes.
-        Assert.Equal(20, BatchOperationCatalog.All.Count);
+        // 3 reads + 16 writes.
+        Assert.Equal(19, BatchOperationCatalog.All.Count);
     }
 
     [Fact]
@@ -308,7 +290,6 @@ public class BatchOperationCatalogTests
         var none = Array.Empty<string>();
         var expected = new Dictionary<string, (BatchOperationCategory Category, IReadOnlyList<string> Required, IReadOnlyList<string> Optional)>
         {
-            ["read_cross_references"] = (BatchOperationCategory.Read, none, new[] { "plcName", "filter", "maxResults" }),
             ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format", "withDependencies" }),
             ["list_tag_tables"] = (BatchOperationCategory.Read, none, new[] { "plcName" }),
             ["get_type_content"] = (BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format", "withDependencies" }),

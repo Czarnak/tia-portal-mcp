@@ -120,7 +120,6 @@ public static class BatchWorkerInvoker
     public static Task<WorkerCallResult> InvokeAsync(OpennessWorkerClient client, BatchOperationRequest op) => op.Operation switch
     {
         // Reads
-        "read_cross_references" => client.ReadCrossReferencesAsync(op.ProjectPath, op.PlcName, op.Filter, op.MaxResults),
         "get_block_content" => InvokeGetBlockContent(client, op),
         "list_tag_tables" => client.ListTagTablesAsync(op.PlcName, op.ProjectPath),
         "get_type_content" => InvokeGetTypeContent(client, op),

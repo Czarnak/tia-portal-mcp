@@ -16,8 +16,8 @@ namespace TiaMcpServer.Batch;
 public static class BatchTools
 {
     [Description("Run up to 50 non-project read operations in one call. Each item is { operationId (unique), operation, ...that operation's parameters }; projectPath is optional on every item. Reads run independently, so a failing item does not stop the others. "
-    + "Valid operations (parentheses list required fields): read_cross_references, get_block_content (blockPath), list_tag_tables, get_type_content (typePath). "
-    + "Large reads: narrow with plcName, filter, or maxResults; oversized responses are truncated or omitted server-side with explicit markers.")]
+    + "Valid operations (parentheses list required fields): get_block_content (blockPath), list_tag_tables, get_type_content (typePath). "
+    + "Large reads: narrow with plcName or split the batch; oversized responses are truncated or omitted server-side with explicit markers.")]
     public static Task<string> ExecuteReadBatch(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of read operations. Each: { operationId, operation, ...operation parameters }.")] BatchOperationRequest[] operations)

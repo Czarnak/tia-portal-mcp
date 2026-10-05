@@ -101,7 +101,7 @@ public class WorkerRequest
     #region PLC scoping, tag tables, tags, and user constants
 
     /// <summary>
-    /// Forwarded by: read_cross_references, compile_check, list_tag_tables, start_plc,
+    /// Forwarded by: compile_check, list_tag_tables, start_plc,
     /// stop_plc, read_hardware_config (optional — selects the PLC used for tag matching),
     /// and every tag-table, tag, and user-constant operation.
     /// </summary>
@@ -165,11 +165,17 @@ public class WorkerRequest
     public int? MaxResults { get; set; }
 
     /// <summary>
-    /// Forwarded by: read_cross_references. Populated from the batch item's `filter` field —
-    /// the names differ — after CrossReferenceFilterNames.TryNormalize validates it. That
-    /// validation runs BEFORE the session binds so an invalid filter cannot bind the session.
+    /// Forwarded by: read_cross_references, after CrossReferenceFilterNames.TryNormalize
+    /// validates the caller's `filter`. That validation runs BEFORE the session binds so an
+    /// invalid filter cannot bind the session.
     /// </summary>
     public string? CrossReferenceFilter { get; set; }
+
+    /// <summary>
+    /// Forwarded by: read_cross_references. The target as a project-tree selector path plus an
+    /// optional tag-table member; resolved by the worker exactly as browse_project_tree resolves it.
+    /// </summary>
+    public CrossReferenceSelectorInfo? CrossReferenceSelector { get; set; }
 
     #endregion
 

@@ -17,6 +17,9 @@ namespace TiaMcpServer.Tests.Block;
 [Collection("Cross-reference console")]
 public class CrossReferenceReaderTests
 {
+    private static readonly CrossReferenceSelectorInfo PlcPath = Path(
+        (ProjectTreeNodeTypes.Device, "Station_1"), (ProjectTreeNodeTypes.PlcSoftware, "PLC_DP"));
+
     [Fact]
     public void Harness_PreservesNestedProjectionAndFilter()
     {
@@ -25,21 +28,21 @@ public class CrossReferenceReaderTests
         var root = service.Result.Sources.Items[0];
         var child = new SourceObject { Name = "child" };
         var reference = new ReferenceObject { Name = "target", Path = "target/path" };
-        reference.Locations.Items.Add(new Location { Name = "network", Access = "Read", ReferencedAsName = "tag" });
+        reference.Locations.Items.Add(new Location { Name = "network", Access = Access.Read, ReferencedAsName = "tag" });
         child.References.Items.Add(reference);
         root.Children.Items.Add(child);
-        // Same fixture characterizes projection before and after owner discovery changes.
         plc.CrossReferenceService = service;
         plc.BlockGroup.Blocks.Items.Add(new FC { Name = "owner", CrossReferenceService = service });
 
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.UnusedObjects);
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.UnusedObjects);
 
-        var source = Assert.Single(Assert.Single(report.Plcs).Sources);
+        var source = Assert.Single(report.Sources);
         Assert.Equal("root", source.Name);
         Assert.Equal("target/path", Assert.Single(Assert.Single(source.Children).References).Path);
         Assert.Equal(2, report.TotalSourceCount);
         Assert.Equal(1, report.TotalReferenceCount);
         Assert.Equal(1, report.TotalLocationCount);
+        Assert.Equal(0, report.OmittedSourceCount);
         Assert.Equal(CrossReferenceFilter.UnusedObjects, Assert.Single(service.Queries));
     }
 
@@ -56,6 +59,8 @@ public class CrossReferenceReaderTests
             return owner;
         }
         plc.BlockGroup.Blocks.Items.Add(Owner(new OB(), "rootOB"));
+        var unsupported = new PlcBlock { Name = "unsupported", CrossReferenceService = Service("forbiddenBlock") };
+        plc.BlockGroup.Blocks.Items.Add(unsupported);
         var nested = new PlcBlockGroup();
         plc.BlockGroup.Groups.Items.Add(new PlcBlockGroup { Groups = { Items = { nested } } });
         nested.Blocks.Items.Add(Owner(new FB(), "nestedFB"));
@@ -65,13 +70,12 @@ public class CrossReferenceReaderTests
         system.Blocks.Items.Add(Owner(new GlobalDB(), "systemDB"));
         system.Blocks.Items.Add(Owner(new InstanceDB(), "systemIDB"));
         var table = new PlcTagTable { Name = "table", CrossReferenceService = Service("forbiddenTable") };
-        var userConstant = new PlcUserConstant { CrossReferenceService = Service("forbiddenUserConstant") };
-        table.UserConstants.Items.Add(userConstant);
+        table.UserConstants.Items.Add(Owner(new PlcUserConstant(), "userConstant"));
         table.Tags.Items.Add(Owner(new PlcTag(), "tag"));
         table.SystemConstants.Items.Add(Owner(new PlcSystemConstant(), "systemConstant"));
         plc.TagTableGroup.Groups.Items.Add(new PlcTagTableGroup { TagTables = { Items = { table } } });
         plc.TypeGroup.Groups.Items.Add(new PlcTypeGroup { Types = { Items = { Owner(new PlcType(), "nestedUDT") } } });
-        var unit = new PlcUnit { Name = "Unit1" };
+        var unit = new PlcUnit { Name = "Unit1", CrossReferenceService = Service("forbiddenUnit") };
         plc.UnitProvider = new PlcUnitProvider();
         plc.UnitProvider.UnitGroup.Units.Items.Add(unit);
         unit.BlockGroup.Blocks.Items.Add(Owner(new ArrayDB(), "unitDB"));
@@ -82,17 +86,173 @@ public class CrossReferenceReaderTests
         unit.TagTableGroup.TagTables.Items.Add(unitTable);
         plc.CrossReferenceService = Service("forbiddenSoftware");
 
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects);
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
 
-        var result = Assert.Single(report.Plcs);
-        Assert.Equal(owners.Select(o => o.Name).OrderBy(n => n), result.Sources.Select(s => s.Name).OrderBy(n => n));
-        Assert.Equal(owners.Count, result.OwnerQueryCount);
-        Assert.Equal(owners.Count, result.SuccessfulOwnerQueryCount);
+        Assert.Equal(owners.Select(o => o.Name).OrderBy(n => n), report.Sources.Select(s => s.Name).OrderBy(n => n));
+        Assert.Equal(owners.Count, report.OwnerQueryCount);
+        Assert.Equal(owners.Count, report.SuccessfulOwnerQueryCount);
+        Assert.True(report.IsComplete);
         Assert.All(owners, o => Assert.Equal(1, o.CrossReferenceServiceRequests));
         Assert.Equal(0, plc.CrossReferenceServiceRequests);
         Assert.Equal(0, table.CrossReferenceServiceRequests);
-        Assert.Equal(0, userConstant.CrossReferenceServiceRequests);
+        Assert.Equal(0, unit.CrossReferenceServiceRequests);
+        Assert.Equal(0, unsupported.CrossReferenceServiceRequests);
         Assert.All(owners, o => Assert.Equal(CrossReferenceFilter.AllObjects, Assert.Single(o.CrossReferenceService!.Queries)));
+    }
+
+    [Fact]
+    public void Read_EchoesCanonicalTargetAndFilter()
+    {
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("source") });
+
+        var report = CrossReferenceReader.Read(project,
+            Path((ProjectTreeNodeTypes.Device, "STATION_1"), (ProjectTreeNodeTypes.PlcSoftware, "plc_dp")),
+            CrossReferenceFilterNames.AllObjects);
+
+        Assert.Equal(new[] { "Station_1", "PLC_DP" }, report.Target.Path.Select(s => s.Name));
+        Assert.Null(report.Target.Member);
+        Assert.Equal(CrossReferenceFilterNames.AllObjects, report.Filter);
+    }
+
+    [Fact]
+    public void LeafTargetQueriesOneOwner()
+    {
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Name = "Program blocks";
+        var leaf = new FC { Name = "Leaf", CrossReferenceService = Service("leafSource") };
+        var sibling = new FC { Name = "Sibling", CrossReferenceService = Service("siblingSource") };
+        plc.BlockGroup.Blocks.Items.Add(leaf);
+        plc.BlockGroup.Blocks.Items.Add(sibling);
+
+        var report = CrossReferenceReader.Read(project, Path((ProjectTreeNodeTypes.Device, "Station_1"),
+            (ProjectTreeNodeTypes.PlcSoftware, "PLC_DP"), (ProjectTreeNodeTypes.BlockFolder, "Program blocks"),
+            (ProjectTreeNodeTypes.Fc, "leaf")), CrossReferenceFilterNames.ObjectsWithReferences);
+
+        Assert.Equal("leafSource", Assert.Single(report.Sources).Name);
+        Assert.Equal(1, report.OwnerQueryCount);
+        Assert.Equal(1, report.SuccessfulOwnerQueryCount);
+        Assert.True(report.IsComplete);
+        Assert.Equal(CrossReferenceFilter.ObjectsWithReferences, Assert.Single(leaf.CrossReferenceService!.Queries));
+        Assert.Equal(0, sibling.CrossReferenceServiceRequests);
+    }
+
+    [Fact]
+    public void LeafTargetWhoseQueryFailsIsWorkerOperationFailed()
+    {
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Name = "Program blocks";
+        plc.BlockGroup.Blocks.Items.Add(new FC
+        {
+            Name = "Leaf",
+            CrossReferenceService = new CrossReferenceService { Failure = new EngineeringException("private") }
+        });
+
+        var error = Assert.Throws<WorkerOperationException>(() => CrossReferenceReader.Read(project,
+            Path((ProjectTreeNodeTypes.Device, "Station_1"), (ProjectTreeNodeTypes.PlcSoftware, "PLC_DP"),
+                (ProjectTreeNodeTypes.BlockFolder, "Program blocks"), (ProjectTreeNodeTypes.Fc, "Leaf")),
+            CrossReferenceFilterNames.AllObjects));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, error.FailureCategory);
+        Assert.DoesNotContain("private", error.Message);
+    }
+
+    [Fact]
+    public void TagTableContainerFansOutOverTags()
+    {
+        var (project, plc) = Fixture();
+        plc.TagTableGroup.Name = "PLC tags";
+        var table = new PlcTagTable { Name = "Motors", CrossReferenceService = Service("forbiddenTable") };
+        table.Tags.Items.Add(new PlcTag { Name = "Start", CrossReferenceService = Service("Start") });
+        table.Tags.Items.Add(new PlcTag { Name = "Stop", CrossReferenceService = Service("Stop") });
+        table.UserConstants.Items.Add(new PlcUserConstant { Name = "Stages", CrossReferenceService = Service("Stages") });
+        table.SystemConstants.Items.Add(new PlcSystemConstant { Name = "HwId", CrossReferenceService = Service("HwId") });
+        var other = new PlcTagTable { Name = "Other" };
+        other.Tags.Items.Add(new PlcTag { Name = "Elsewhere", CrossReferenceService = Service("Elsewhere") });
+        plc.TagTableGroup.TagTables.Items.Add(table);
+        plc.TagTableGroup.TagTables.Items.Add(other);
+
+        var report = CrossReferenceReader.Read(project, Path((ProjectTreeNodeTypes.Device, "Station_1"),
+            (ProjectTreeNodeTypes.PlcSoftware, "PLC_DP"), (ProjectTreeNodeTypes.TagTableFolder, "PLC tags"),
+            (ProjectTreeNodeTypes.TagTable, "Motors")), CrossReferenceFilterNames.AllObjects);
+
+        Assert.Equal(new[] { "HwId", "Stages", "Start", "Stop" }, report.Sources.Select(s => s.Name).OrderBy(n => n));
+        Assert.Equal(4, report.OwnerQueryCount);
+        Assert.Equal(4, report.SuccessfulOwnerQueryCount);
+        Assert.Equal(0, table.CrossReferenceServiceRequests);
+        Assert.Equal(0, other.Tags.Items[0].CrossReferenceServiceRequests);
+        Assert.True(report.IsComplete);
+    }
+
+    [Theory]
+    [InlineData(ProjectTreeNodeTypes.BlockFolder, "Program blocks", "blockFB")]
+    [InlineData(ProjectTreeNodeTypes.SystemBlockFolder, "System blocks", "systemDB")]
+    [InlineData(ProjectTreeNodeTypes.TagTableFolder, "PLC tags", "tag")]
+    [InlineData(ProjectTreeNodeTypes.TypeFolder, "PLC data types", "udt")]
+    [InlineData(ProjectTreeNodeTypes.SoftwareUnit, "Unit1", "unitFC")]
+    public void FolderContainersFanOutOverOwnersBeneathOnly(string nodeType, string name, string expectedSource)
+    {
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Name = "Program blocks";
+        plc.TagTableGroup.Name = "PLC tags";
+        plc.TypeGroup.Name = "PLC data types";
+        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "fb", CrossReferenceService = Service("blockFB") });
+        var system = new PlcSystemBlockGroup { Name = "System blocks" };
+        system.Blocks.Items.Add(new GlobalDB { Name = "db", CrossReferenceService = Service("systemDB") });
+        plc.BlockGroup.SystemBlockGroups.Items.Add(system);
+        var table = new PlcTagTable { Name = "t" };
+        table.Tags.Items.Add(new PlcTag { Name = "tag", CrossReferenceService = Service("tag") });
+        plc.TagTableGroup.TagTables.Items.Add(table);
+        plc.TypeGroup.Types.Items.Add(new PlcType { Name = "udt", CrossReferenceService = Service("udt") });
+        var unit = new PlcUnit { Name = "Unit1" };
+        unit.BlockGroup.Blocks.Items.Add(new FC { Name = "fc", CrossReferenceService = Service("unitFC") });
+        plc.UnitProvider = new PlcUnitProvider();
+        plc.UnitProvider.UnitGroup.Units.Items.Add(unit);
+        var path = PlcPath.Path.Append(new ProjectTreeSelectorSegment { NodeType = nodeType, Name = name }).ToList();
+        if (nodeType == ProjectTreeNodeTypes.SystemBlockFolder)
+            path.Insert(2, new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.BlockFolder, Name = "Program blocks" });
+
+        var report = CrossReferenceReader.Read(project, new CrossReferenceSelectorInfo { Path = path },
+            CrossReferenceFilterNames.AllObjects);
+
+        var expected = nodeType == ProjectTreeNodeTypes.BlockFolder ? new[] { "blockFB", "systemDB" } : new[] { expectedSource };
+        Assert.Equal(expected, report.Sources.Select(s => s.Name));
+        Assert.True(report.IsComplete);
+    }
+
+    [Fact]
+    public void MemberTargetQueriesOnlyThatMember()
+    {
+        var (project, plc) = Fixture();
+        plc.TagTableGroup.Name = "PLC tags";
+        var table = new PlcTagTable { Name = "Motors" };
+        table.Tags.Items.Add(new PlcTag { Name = "Start", CrossReferenceService = Service("tagSource") });
+        table.UserConstants.Items.Add(new PlcUserConstant { Name = "Start", CrossReferenceService = Service("constantSource") });
+        plc.TagTableGroup.TagTables.Items.Add(table);
+        var selector = Path((ProjectTreeNodeTypes.Device, "Station_1"), (ProjectTreeNodeTypes.PlcSoftware, "PLC_DP"),
+            (ProjectTreeNodeTypes.TagTableFolder, "PLC tags"), (ProjectTreeNodeTypes.TagTable, "Motors"));
+        selector.Member = new CrossReferenceMemberSelectorInfo { Kind = CrossReferenceMemberKinds.UserConstant, Name = "START" };
+
+        var report = CrossReferenceReader.Read(project, selector, CrossReferenceFilterNames.AllObjects);
+
+        Assert.Equal("constantSource", Assert.Single(report.Sources).Name);
+        Assert.Equal(CrossReferenceMemberKinds.UserConstant, report.Target.Member!.Kind);
+        Assert.Equal("Start", report.Target.Member.Name);
+        Assert.Equal(0, table.Tags.Items[0].CrossReferenceServiceRequests);
+    }
+
+    [Fact]
+    public void EmptyContainerIsCompleteSuccess()
+    {
+        var (project, _) = Fixture();
+
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.UnusedObjects);
+
+        Assert.True(report.IsComplete);
+        Assert.Empty(report.Sources);
+        Assert.Empty(report.Messages);
+        Assert.Equal(0, report.OwnerQueryCount);
+        Assert.Equal(0, report.SuccessfulOwnerQueryCount);
     }
 
     [Fact]
@@ -100,33 +260,94 @@ public class CrossReferenceReaderTests
     {
         var (project, plc) = Fixture();
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service() });
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.UnusedObjects);
-        var result = Assert.Single(report.Plcs);
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.UnusedObjects);
         Assert.True(report.IsComplete);
-        Assert.True(result.IsComplete);
-        Assert.Empty(result.Sources);
-        Assert.Empty(result.Messages);
-        Assert.Equal(1, result.OwnerQueryCount);
-        Assert.Equal(1, result.SuccessfulOwnerQueryCount);
+        Assert.Empty(report.Sources);
+        Assert.Empty(report.Messages);
+        Assert.Equal(1, report.OwnerQueryCount);
+        Assert.Equal(1, report.SuccessfulOwnerQueryCount);
         Assert.Equal(0, report.TotalSourceCount);
         Assert.Equal(0, report.TotalReferenceCount);
         Assert.Equal(0, report.TotalLocationCount);
     }
 
     [Theory]
-    [InlineData("noOwners")]
     [InlineData("unavailable")]
     [InlineData("query")]
     [InlineData("service")]
-    public void Read_NoSuccessfulQueriesFailsCategorically(string failure)
+    public void OwnersExistButNoneSucceedFails(string failure)
     {
         var (project, plc) = Fixture();
-        if (failure != "noOwners") plc.BlockGroup.Blocks.Items.Add(FailingOwner(failure));
+        plc.BlockGroup.Blocks.Items.Add(FailingOwner(failure));
         var error = Assert.Throws<WorkerOperationException>(() =>
-            CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects));
+            CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects));
         Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, error.FailureCategory);
         Assert.DoesNotContain("private", error.Message);
         Assert.True(error.Message.Length < 300);
+    }
+
+    [Fact]
+    public void ReferencedAsMapsNameAndType()
+    {
+        var (project, plc) = Fixture();
+        var service = Service("source");
+        var reference = new ReferenceObject { Name = "target" };
+        reference.Locations.Items.Add(new Location { Name = "resolved", ReferencedAs = new PlcTag { Name = "Start" } });
+        reference.Locations.Items.Add(new Location { Name = "none", ReferencedAs = null });
+        service.Result.Sources.Items[0].References.Items.Add(reference);
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = service });
+
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
+
+        var locations = Assert.Single(Assert.Single(report.Sources).References).Locations;
+        Assert.Equal("Start", locations[0].ReferencedAs!.Name);
+        Assert.Equal("PlcTag", locations[0].ReferencedAs!.TypeName);
+        Assert.Null(locations[1].ReferencedAs);
+        Assert.True(report.IsComplete);
+    }
+
+    [Fact]
+    public void UnreadableReferencedAsIsNullAndIncomplete()
+    {
+        var (project, plc) = Fixture();
+        var service = Service("source");
+        var reference = new ReferenceObject { Name = "target" };
+        reference.Locations.Items.Add(new Location
+        {
+            Name = "kept",
+            ReferencedAs = new PlcTag { NameFailure = new EngineeringException("private") }
+        });
+        service.Result.Sources.Items[0].References.Items.Add(reference);
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = service });
+
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
+
+        var location = Assert.Single(Assert.Single(Assert.Single(report.Sources).References).Locations);
+        Assert.Equal("kept", location.Name);
+        Assert.Null(location.ReferencedAs);
+        Assert.False(report.IsComplete);
+        Assert.DoesNotContain("private", string.Join("", report.Messages));
+    }
+
+    [Fact]
+    public void AccessAndReferenceTypeUseClosedNames()
+    {
+        var (project, plc) = Fixture();
+        var service = Service("source");
+        var reference = new ReferenceObject { Name = "target" };
+        reference.Locations.Items.Add(new Location { Access = Access.ReadWriteAndSymbol, ReferenceType = ReferenceType.UsedBy });
+        reference.Locations.Items.Add(new Location { Access = Access.CreateReferenceAndSymbol, ReferenceType = ReferenceType.Scope });
+        reference.Locations.Items.Add(new Location { Access = (Access)999, ReferenceType = (ReferenceType)999 });
+        service.Result.Sources.Items[0].References.Items.Add(reference);
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = service });
+
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
+
+        var locations = Assert.Single(Assert.Single(report.Sources).References).Locations;
+        Assert.Equal(new[] { "ReadWriteAndSymbol", "CreateReferenceAndSymbol", "Unknown" }, locations.Select(l => l.Access));
+        Assert.Equal(new[] { "UsedBy", "Scope", "Unknown" }, locations.Select(l => l.ReferenceType));
+        Assert.All(locations, l => Assert.Contains(l.Access, CrossReferenceAccessNames.All));
+        Assert.All(locations, l => Assert.Contains(l.ReferenceType, CrossReferenceTypeNames.All));
     }
 
     [Theory]
@@ -158,27 +379,17 @@ public class CrossReferenceReaderTests
             if (failure == "sourceEnumeration") service.Result.Sources.EnumerationFailure = new EngineeringException("private");
             plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = service });
         }
-        var savedError = Console.Error;
-        using var warning = new StringWriter();
-        CrossReferenceReport report;
-        try
-        {
-            Console.SetError(warning);
-            report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.UnusedObjects);
-        }
-        finally { Console.SetError(savedError); }
-        var result = Assert.Single(report.Plcs);
-        Assert.Contains(result.Sources, s => s.Name == "retained");
+        var (report, warning) = ReadCapturingWarnings(project, CrossReferenceFilterNames.UnusedObjects);
+        Assert.Contains(report.Sources, s => s.Name == "retained");
         Assert.False(report.IsComplete);
-        Assert.False(result.IsComplete);
-        Assert.NotEmpty(result.Messages);
-        Assert.DoesNotContain("private", string.Join("", result.Messages));
-        Assert.DoesNotContain("private", warning.ToString());
-        Assert.Single(warning.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
-        Assert.True(warning.ToString().Length < 300);
-        Assert.Equal(failure == "ownerEnumeration" ? 1 : 2, result.OwnerQueryCount);
+        Assert.NotEmpty(report.Messages);
+        Assert.DoesNotContain("private", string.Join("", report.Messages));
+        Assert.DoesNotContain("private", warning);
+        Assert.Single(warning.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.True(warning.Length < 300);
+        Assert.Equal(failure == "ownerEnumeration" ? 1 : 2, report.OwnerQueryCount);
         Assert.Equal(failure is "unavailable" or "query" or "service" or "ownerEnumeration" ? 1 : 2,
-            result.SuccessfulOwnerQueryCount);
+            report.SuccessfulOwnerQueryCount);
     }
 
     [Theory]
@@ -187,32 +398,13 @@ public class CrossReferenceReaderTests
     [InlineData(2, true)]
     public void Read_MaxResultsIsReportWideRootLimit(int maximum, bool complete)
     {
-        var (project, first) = Fixture();
-        var (secondProject, second) = Fixture();
-        second.Name = "PLC_2";
-        project.Devices.Items.Add(secondProject.Devices.Items[0]);
-        first.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("first") });
-        second.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("second") });
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects, maximum);
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("first") });
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("second") });
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects, maximum);
         Assert.Equal(maximum, report.TotalSourceCount);
         Assert.Equal(complete, report.IsComplete);
-        Assert.Equal(complete, report.Plcs[1].IsComplete);
-        Assert.All(report.Plcs, p => Assert.Equal(1, p.SuccessfulOwnerQueryCount));
-    }
-
-    [Fact]
-    public void Read_OnePlcWithoutOwnersDoesNotEraseAnotherSuccessfulEmptyQuery()
-    {
-        var (project, first) = Fixture();
-        var (other, _) = Fixture();
-        project.Devices.Items.Add(other.Devices.Items[0]);
-        first.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service() });
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects);
-        Assert.False(report.IsComplete);
-        Assert.True(report.Plcs[0].IsComplete);
-        Assert.False(report.Plcs[1].IsComplete);
-        Assert.Equal(0, report.Plcs[1].OwnerQueryCount);
-        Assert.NotEmpty(report.Plcs[1].Messages);
+        Assert.Equal(2, report.SuccessfulOwnerQueryCount);
     }
 
     [Fact]
@@ -221,13 +413,12 @@ public class CrossReferenceReaderTests
         var (project, plc) = Fixture();
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service() });
         for (var i = 0; i < 250; i++) plc.BlockGroup.Blocks.Items.Add(FailingOwner("query"));
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects);
-        var result = Assert.Single(report.Plcs);
-        Assert.Equal(251, result.OwnerQueryCount);
-        Assert.Equal(1, result.SuccessfulOwnerQueryCount);
-        Assert.False(result.IsComplete);
-        Assert.InRange(string.Join("", result.Messages).Length, 1, 1024);
-        Assert.DoesNotContain("private", string.Join("", result.Messages));
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
+        Assert.Equal(251, report.OwnerQueryCount);
+        Assert.Equal(1, report.SuccessfulOwnerQueryCount);
+        Assert.False(report.IsComplete);
+        Assert.InRange(string.Join("", report.Messages).Length, 1, 1024);
+        Assert.DoesNotContain("private", string.Join("", report.Messages));
     }
 
     [Theory]
@@ -252,19 +443,7 @@ public class CrossReferenceReaderTests
             CrossReferenceService = new CrossReferenceService { Failure = serviceAccess ? null : failure }
         });
         Assert.Same(failure, Assert.ThrowsAny<Exception>(() =>
-            CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects)));
-    }
-
-    [Theory]
-    [InlineData("PLC_DP")]
-    [InlineData("Station_1")]
-    public void Read_ReportsSoftwareAndDeviceIdentityForEitherSelector(string selector)
-    {
-        var (project, plc) = Fixture();
-        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("source") });
-        var result = Assert.Single(CrossReferenceReader.Read(project, selector, CrossReferenceFilterNames.AllObjects).Plcs);
-        Assert.Equal("PLC_DP", result.PlcName);
-        Assert.Equal("Station_1", result.DeviceName);
+            CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects)));
     }
 
     [Theory]
@@ -277,7 +456,7 @@ public class CrossReferenceReaderTests
         var (project, plc) = Fixture();
         var service = Service();
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = service });
-        var report = CrossReferenceReader.Read(project, null, name);
+        var report = CrossReferenceReader.Read(project, PlcPath, name);
         Assert.Equal(name, report.Filter);
         Assert.Equal(expected, Assert.Single(service.Queries));
     }
@@ -290,8 +469,8 @@ public class CrossReferenceReaderTests
         var table = new PlcTagTable();
         table.Tags.Items.Add(new PlcTag { CrossReferenceService = Service("tag") });
         plc.TagTableGroup.TagTables.Items.Add(table);
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects);
-        Assert.Equal("tag", Assert.Single(Assert.Single(report.Plcs).Sources).Name);
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
+        Assert.Equal("tag", Assert.Single(report.Sources).Name);
         Assert.False(report.IsComplete);
     }
 
@@ -301,7 +480,7 @@ public class CrossReferenceReaderTests
         var (project, plc) = Fixture();
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("same") });
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("same") });
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects);
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
         Assert.Equal(2, report.TotalSourceCount);
         Assert.True(report.IsComplete);
     }
@@ -312,10 +491,26 @@ public class CrossReferenceReaderTests
         var (project, plc) = Fixture();
         var service = Service("retained", "omitted", "mustNotEnumerate");
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = service });
-        var report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects, 1);
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects, 1);
         Assert.Equal(1, report.TotalSourceCount);
         Assert.False(report.IsComplete);
         Assert.Equal(2, service.Result.Sources.YieldedItemCount);
+    }
+
+    [Fact]
+    public void Read_DeviceContainerSweepsEveryPlcInTheDevice()
+    {
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("first") });
+        var second = new PlcSoftware { Name = "PLC_2" };
+        second.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("second") });
+        project.Devices.Items[0].DeviceItems.Items.Add(new DeviceItem { Container = new SoftwareContainer { Software = second } });
+
+        var report = CrossReferenceReader.Read(project, Path((ProjectTreeNodeTypes.Device, "Station_1")),
+            CrossReferenceFilterNames.AllObjects);
+
+        Assert.Equal(new[] { "first", "second" }, report.Sources.Select(s => s.Name));
+        Assert.True(report.IsComplete);
     }
 
     [Theory]
@@ -331,33 +526,23 @@ public class CrossReferenceReaderTests
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("retained") });
         plc.BlockGroup.Blocks.Items.Add(AdapterFailureOwner(stage, new InvalidOperationException(privateDetail)));
         plc.BlockGroup.Blocks.Items.Add(new FC { CrossReferenceService = Service("later") });
-        var savedError = Console.Error;
-        using var warning = new StringWriter();
-        CrossReferenceReport report;
-        try
-        {
-            Console.SetError(warning);
-            report = CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.UnusedObjects);
-        }
-        finally { Console.SetError(savedError); }
+        var (report, warning) = ReadCapturingWarnings(project, CrossReferenceFilterNames.UnusedObjects);
 
-        var result = Assert.Single(report.Plcs);
-        Assert.Contains(result.Sources, s => s.Name == "retained");
-        Assert.Contains(result.Sources, s => s.Name == "later");
-        Assert.Equal(3, result.OwnerQueryCount);
-        Assert.Equal(stage is "service" or "query" ? 2 : 3, result.SuccessfulOwnerQueryCount);
+        Assert.Contains(report.Sources, s => s.Name == "retained");
+        Assert.Contains(report.Sources, s => s.Name == "later");
+        Assert.Equal(3, report.OwnerQueryCount);
+        Assert.Equal(stage is "service" or "query" ? 2 : 3, report.SuccessfulOwnerQueryCount);
         Assert.Equal(stage is "target" or "location" ? 3 : 2, report.TotalSourceCount);
         Assert.Equal(stage == "location" ? 1 : 0, report.TotalReferenceCount);
         Assert.Equal(0, report.TotalLocationCount);
-        Assert.False(result.IsComplete);
         Assert.False(report.IsComplete);
-        Assert.InRange(Assert.Single(result.Messages).Length, 1, 300);
-        Assert.DoesNotContain(privateDetail, result.Messages[0]);
-        Assert.DoesNotContain("private", result.Messages[0]);
-        Assert.Single(warning.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
-        Assert.InRange(warning.ToString().Length, 1, 300);
-        Assert.DoesNotContain("private", warning.ToString());
-        Assert.DoesNotContain("adapter detail", warning.ToString());
+        Assert.InRange(Assert.Single(report.Messages).Length, 1, 300);
+        Assert.DoesNotContain(privateDetail, report.Messages[0]);
+        Assert.DoesNotContain("private", report.Messages[0]);
+        Assert.Single(warning.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.InRange(warning.Length, 1, 300);
+        Assert.DoesNotContain("private", warning);
+        Assert.DoesNotContain("adapter detail", warning);
     }
 
     public static IEnumerable<object[]> UnexpectedAdapterFailures()
@@ -385,11 +570,25 @@ public class CrossReferenceReaderTests
         plc.BlockGroup.Blocks.Items.Add(AdapterFailureOwner(stage, failure));
 
         var propagated = Assert.ThrowsAny<Exception>(() =>
-            CrossReferenceReader.Read(project, null, CrossReferenceFilterNames.AllObjects));
+            CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects));
 
         Assert.Same(failure, propagated);
         Assert.Single(first.Queries);
         Assert.Equal(1, first.Result.Sources.YieldedItemCount);
+    }
+
+    private static (CrossReferenceReport Report, string Warning) ReadCapturingWarnings(
+        Siemens.Engineering.Project project, string filter)
+    {
+        var savedError = Console.Error;
+        using var warning = new StringWriter();
+        try
+        {
+            Console.SetError(warning);
+            var report = CrossReferenceReader.Read(project, PlcPath, filter);
+            return (report, warning.ToString());
+        }
+        finally { Console.SetError(savedError); }
     }
 
     private static FC AdapterFailureOwner(string stage, Exception failure)
@@ -434,6 +633,9 @@ public class CrossReferenceReaderTests
         project.Devices.Items.Add(device);
         return (project, software);
     }
+
+    private static CrossReferenceSelectorInfo Path(params (string NodeType, string Name)[] segments)
+        => CrossReferenceTargetResolverTests.Selector(segments);
 
     private static CrossReferenceService Service(params string[] names)
     {

@@ -55,6 +55,8 @@
       Link="Linked\Openness\CompileChecker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferenceReader.cs"
       Link="Linked\Openness\CrossReferenceReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferenceTargetResolver.cs"
+      Link="Linked\Openness\CrossReferenceTargetResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileReportProjection.cs"
       Link="Linked\Openness\CompileReportProjection.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockTargetResolver.cs"
