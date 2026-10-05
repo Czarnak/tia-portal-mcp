@@ -52,6 +52,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-05 | [Multiuser PR 3 — inventory through bind_project (draft for review)](plans/2026-10-05-multiuser-pr3-read-only-inventory.md) |
 | 2026-10-05 | [Multiuser PR 2 — active project context](plans/2026-10-05-multiuser-pr2-active-project-context.md) |
 | 2026-10-05 | [PLC read and standalone cross-references, PR A (implemented; live-accepted)](plans/2026-10-05-plc-read-and-cross-references.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (offline-qualified; partial live verification)](plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md) |
