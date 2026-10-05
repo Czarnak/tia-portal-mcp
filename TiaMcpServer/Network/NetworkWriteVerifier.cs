@@ -98,8 +98,12 @@ public sealed class NetworkWriteVerifier
                             // Replace only expectations referring to the removed relationship.
                             var subnetKey = NodeKey(node, "Subnet");
                             if (expected.GetValueOrDefault(subnetKey) == subnet) expected.Remove(subnetKey);
-                            var ioKey = subnetKey with { Field = "IoSystem" };
-                            if (expected.TryGetValue(ioKey, out var io) && IoSubnet(io) == subnet) expected.Remove(ioKey);
+                            var ioKey = subnetKey with { Field = "IoSystemSubnet" };
+                            if (expected.GetValueOrDefault(ioKey) == subnet)
+                            {
+                                expected.Remove(ioKey);
+                                expected.Remove(subnetKey with { Field = "IoSystemNumber" });
+                            }
                         }
                     }
                 }
@@ -189,7 +193,7 @@ public sealed class NetworkWriteVerifier
         if (key.Field == "Subnet" && node.ConnectionEvidence?.SubnetId is { } connectedSubnet
             && (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))
                 || state.Subnets.Count(s => s.SubnetId == connectedSubnet) != 1)) return (null, false);
-        if (key.Field == "IoSystem" && node.ConnectionEvidence?.IoSystemSubnetId is { } ioSubnet)
+        if (key.Field is "IoSystemSubnet" or "IoSystemNumber" && node.ConnectionEvidence?.IoSystemSubnetId is { } ioSubnet)
         {
             if (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))) return (null, false);
             var subnets = state.Subnets.Where(s => s.SubnetId == ioSubnet).ToArray();
@@ -197,7 +201,7 @@ public sealed class NetworkWriteVerifier
                 || subnets[0].IoSystems.Count(i => i.Number == node.ConnectionEvidence.IoSystemNumber) != 1) return (null, false);
         }
         var nodeValue = NetworkWritePlanner.NodeValue(node, key.Field);
-        return (nodeValue, key.Field is "Subnet" or "IoSystem" ? node.ConnectionEvidence?.Complete == true : nodeValue is not null);
+        return (nodeValue, NetworkWritePlanner.IsConnectionKey(key.Field) ? node.ConnectionEvidence?.Complete == true : nodeValue is not null);
     }
     private static string? AttributeText(NetworkAttributeInfo attribute)
     {
@@ -216,19 +220,13 @@ public sealed class NetworkWriteVerifier
             _ => null
         };
     }
-    private static string? IoSubnet(string? value)
-    {
-        if (value is null) return null;
-        using var document = JsonDocument.Parse(value);
-        return document.RootElement[0].GetString();
-    }
     private static string? Format(int? value) => value?.ToString(CultureInfo.InvariantCulture);
     private static NetworkFinalCheck Evaluate(NetworkFinalCheck check, string? expected, string? observed, bool readable) => check with
     {
         Expected = expected, Observed = observed,
         Status = !readable ? "unverified" : expected == observed ? "passed" : "failed",
         Message = !readable ? "Evidence is unavailable. Inspect current state with network_read before retrying; do not replay automatically."
-            : expected == observed ? null : check.Kind == "node" && check.Field == "IoSystem"
+            : expected == observed ? null : check.Kind == "node" && check.Field is "IoSystemSubnet" or "IoSystemNumber"
                 ? "The explicit IO relationship differs. Inspect current state and possible side effects of later subnet changes with network_read."
                 : "The final state differs from the effective attempted changes. Inspect with network_read."
     };

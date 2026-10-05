@@ -3950,8 +3950,11 @@ NetworkMutationVerificationInfo FakePassedVerification(NetworkMutationIdentityIn
 NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine, string deviceName, Dictionary<string, string> applied)
 {
     var values = new Dictionary<string, string>(applied);
-    if (values.ContainsKey("IoSystem")) values["IoSystem"] = JsonSerializer.Serialize(new object?[]
-        { ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId"), ReadIntField(requestLine, "ioSystemNumber") });
+    if (values.Remove("IoSystem"))
+    {
+        values["IoSystemSubnet"] = ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId")!;
+        values["IoSystemNumber"] = ReadIntField(requestLine, "ioSystemNumber")!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
     var target = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!.NetworkObjectTarget;
     var identity = new NetworkMutationIdentityInfo
     {

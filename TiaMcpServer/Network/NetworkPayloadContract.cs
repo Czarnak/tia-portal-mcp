@@ -210,10 +210,12 @@ public static class NetworkPayloadContract
         }
         if (!accounted.SetEquals(requested.Keys)) throw new JsonException("Requested settings are unaccounted for.");
         var checks = value.AppliedSettings.ToDictionary(pair => pair.Key, pair => (string?)pair.Value, StringComparer.Ordinal);
-        if (checks.ContainsKey("IoSystem"))
+        // One applied IoSystem setting is verified as two scalar checks: its subnet and number.
+        if (checks.Remove("IoSystem"))
         {
             if (string.IsNullOrWhiteSpace(changes?.IoSystem?.SubnetId)) throw new JsonException("IO system subnet identity is required.");
-            checks["IoSystem"] = System.Text.Json.JsonSerializer.Serialize(new object[] { changes!.IoSystem!.SubnetId!, changes.IoSystem.Number!.Value });
+            checks["IoSystemSubnet"] = changes!.IoSystem!.SubnetId;
+            checks["IoSystemNumber"] = Number(changes.IoSystem.Number!.Value);
         }
         // A missing request position becomes -1, which the path validator rejects.
         var identity = new NetworkMutationIdentityInfo

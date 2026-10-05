@@ -250,20 +250,20 @@ function Assert-Outcome {
             if (-not $requested.ContainsKey($key) -or $skipped[$key] -isnot [string] -or [string]::IsNullOrWhiteSpace($skipped[$key]) -or -not $accounted.Add($key)) { throw 'Malformed sparse skipped settings.' }
         }
         if ($skipped.Count -gt 0 -and $item.status -ne 'failed') { throw 'Requested skips must fail the item.' }
-        if ($evidence.checks.Count -ne $applied.Count) { throw 'Immediate applied-setting check coverage is incomplete.' }
+        # One applied IoSystem setting is verified as two scalar checks: its subnet and number.
+        $checkExpected = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
+        foreach ($key in $applied.Keys) {
+            if (-not $requested.ContainsKey($key) -or $applied[$key] -isnot [string] -or
+                $applied[$key] -cne $requested[$key] -or -not $accounted.Add($key)) { throw 'Missing, duplicate or unexpected applied verification keys.' }
+            if ($key -ceq 'IoSystem') { $checkExpected.Add('IoSystemSubnet', $operation.changes.ioSystem.subnetId); $checkExpected.Add('IoSystemNumber', $applied[$key]) }
+            else { $checkExpected.Add($key, $applied[$key]) }
+        }
+        if ($evidence.checks.Count -ne $checkExpected.Count) { throw 'Immediate applied-setting check coverage is incomplete.' }
         $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
         foreach ($check in $evidence.checks) {
-            if ($null -eq $check -or -not $seen.Add($check.name) -or -not $applied.Contains($check.name) -or
-                -not $requested.ContainsKey($check.name) -or $applied[$check.name] -isnot [string] -or
-                $applied[$check.name] -cne $requested[$check.name] -or -not $accounted.Add($check.name)) { throw 'Missing, duplicate or unexpected applied verification keys.' }
-            $expected = $applied[$check.name]
-            if ($check.name -ceq 'IoSystem') {
-                $tuple = ConvertFrom-Json -InputObject $check.expected -NoEnumerate
-                if ($tuple -isnot [array] -or $tuple.Count -ne 2 -or $tuple[0] -cne $operation.changes.ioSystem.subnetId -or
-                    $tuple[1] -isnot [long] -and $tuple[1] -isnot [int] -or $tuple[1] -ne $operation.changes.ioSystem.number) { throw 'Immediate IO verification requires the exact subnet/number tuple.' }
-                $expected = $check.expected
-            }
-            Assert-VerificationCheck $check $check.name $expected
+            if ($null -eq $check -or $check.name -isnot [string] -or -not $seen.Add($check.name) -or
+                -not $checkExpected.ContainsKey($check.name)) { throw 'Missing, duplicate or unexpected applied verification keys.' }
+            Assert-VerificationCheck $check $check.name $checkExpected[$check.name]
         }
         if ($accounted.Count -ne $requested.Count) { throw 'Requested settings are missing from sparse results.' }
         $status = if ($applied.Count -eq 0) { 'not_required' } elseif (@($evidence.checks | Where-Object { $_.status -eq 'failed' }).Count) { 'failed' } else { 'passed' }

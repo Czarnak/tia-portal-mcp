@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -59,9 +58,15 @@ internal static class NetworkMutationVerifier
         }
         foreach (var setting in result.AppliedSettings)
         {
-            var expected = setting.Key == "IoSystem"
-                ? IoTuple(request.IoSystemSubnetId ?? request.SubnetId, request.IoSystemNumber) : setting.Value;
-            Observe(evidence, setting.Key, expected, () =>
+            if (setting.Key == "IoSystem")
+            {
+                // One applied IO relationship is verified as two scalar checks: its subnet and number.
+                Observe(evidence, "IoSystemSubnet", request.IoSystemSubnetId ?? request.SubnetId, () => ReadIoSystem(target).SubnetId);
+                Observe(evidence, "IoSystemNumber", request.IoSystemNumber is { } number ? Number(number) : null,
+                    () => ReadIoSystem(target).Number is { } observed ? Number(observed) : null);
+                continue;
+            }
+            Observe(evidence, setting.Key, setting.Value, () =>
             {
                 if (target is null) throw new InvalidOperationException("Target could not be resolved uniquely.");
                 switch (setting.Key)
@@ -70,9 +75,6 @@ internal static class NetworkMutationVerifier
                         return Required(((IEngineeringObject)target.Value.Node).GetAttribute(setting.Key) as string);
                     case "Subnet":
                         return target.Value.Node.ConnectedSubnet is { } subnet ? HardwareConfigReader.RequireSubnetIdentity(subnet) : null;
-                    case "IoSystem":
-                        var tuple = HardwareConfigReader.ReadIoSystemIdentity(target.Value.Interface);
-                        return IoTuple(tuple.SubnetId, tuple.Number);
                     default: throw new InvalidOperationException("Unknown applied setting.");
                 }
             });
@@ -176,5 +178,10 @@ internal static class NetworkMutationVerifier
     private static Subnet RequireSubnet(Subnet? subnet) => subnet ?? throw new InvalidOperationException("Subnet identity was not verified.");
     private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
     private static string Boolean(bool value) => value ? "true" : "false";
-    private static string IoTuple(string? subnetId, int? number) => JsonSerializer.Serialize(new object?[] { subnetId, number });
+    private static (string? SubnetId, int? Number) ReadIoSystem((NetworkInterface Interface, Node Node)? target)
+    {
+        if (target is null) throw new InvalidOperationException("Target could not be resolved uniquely.");
+        var identity = HardwareConfigReader.ReadIoSystemIdentity(target.Value.Interface);
+        return (identity.SubnetId, identity.Number);
+    }
 }

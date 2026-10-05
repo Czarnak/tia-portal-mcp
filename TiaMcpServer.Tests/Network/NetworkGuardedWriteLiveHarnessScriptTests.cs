@@ -270,6 +270,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     [InlineData("wrong-check-type")]
     [InlineData("valid-io-tuple")]
     [InlineData("wrong-io-subnet")]
+    [InlineData("wrong-io-legacy-tuple")]
     [InlineData("wrong-identity-type")]
     [InlineData("wrong-field-casing")]
     [InlineData("valid-device-casing")]
@@ -322,15 +323,23 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 foreach($check in $response.verification.finalChecks){$check.subject.interfacePath=(ConvertFrom-Json -InputObject $owner -NoEnumerate)}
                 $hardware=$hardware | ConvertTo-Json -Depth 40 | ConvertFrom-Json
             }            switch ($scenario) {
-                { $_ -in @('valid-io-tuple','wrong-io-subnet') } {
+                { $_ -in @('valid-io-tuple','wrong-io-subnet','wrong-io-legacy-tuple') } {
                     $operations = @($operations[0]); $operations[0].changes = @{ ioSystem = @{ subnetId = 'exact-subnet'; number = 1 } }
                     $response.batch.operations = @($response.batch.operations[0]); $response.verification.operations = @($response.verification.operations[0])
                     $response.batch.operations[0].result.appliedSettings = [pscustomobject]@{ IoSystem = '1' }
-                    $response.verification.operations[0].evidence.checks = @([pscustomobject]@{ name = 'IoSystem'; status = 'passed'; expected = '["exact-subnet",1]'; observed = '["exact-subnet",1]'; message = $null })
-                    $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
-                    $response.verification.finalChecks[1].field = 'IoSystem'; $response.verification.finalChecks[1].expected = '["exact-subnet",1]'; $response.verification.finalChecks[1].observed = '["exact-subnet",1]'
+                    $response.verification.operations[0].evidence.checks = @(
+                        [pscustomobject]@{ name = 'IoSystemSubnet'; status = 'passed'; expected = 'exact-subnet'; observed = 'exact-subnet'; message = $null },
+                        [pscustomobject]@{ name = 'IoSystemNumber'; status = 'passed'; expected = '1'; observed = '1'; message = $null })
+                    $number = $response.verification.finalChecks[1] | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
+                    $response.verification.finalChecks[1].field = 'IoSystemSubnet'; $response.verification.finalChecks[1].expected = 'exact-subnet'; $response.verification.finalChecks[1].observed = 'exact-subnet'
+                    $number.field = 'IoSystemNumber'; $number.expected = '1'; $number.observed = '1'
+                    $response.verification.finalChecks = @($response.verification.finalChecks) + @($number)
                     $expected = @(@{ operationId = 'first'; appliedSettings = @{ IoSystem = '1' }; skippedSettings = @{} })
-                    if ($scenario -eq 'wrong-io-subnet') { $response.verification.operations[0].evidence.checks[0].expected = '["other",1]'; $response.verification.operations[0].evidence.checks[0].observed = '["other",1]' }
+                    if ($scenario -eq 'wrong-io-subnet') { $response.verification.operations[0].evidence.checks[0].expected = 'other'; $response.verification.operations[0].evidence.checks[0].observed = 'other' }
+                    if ($scenario -eq 'wrong-io-legacy-tuple') {
+                        $response.verification.operations[0].evidence.checks = @([pscustomobject]@{ name = 'IoSystem'; status = 'passed'; expected = '["exact-subnet",1]'; observed = '["exact-subnet",1]'; message = $null })
+                    }
+                    $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
                 }
                 'valid-qualified-two-E1' {
                     for ($i=0;$i -lt 2;$i++) {

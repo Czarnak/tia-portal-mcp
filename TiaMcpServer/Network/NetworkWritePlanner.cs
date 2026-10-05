@@ -51,10 +51,10 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         {
             var node = NetworkIdentityResolver.PreparedNode(state, target);
             foreach (var key in requested.Keys) current[key] = Attribute(key, NodeValue(node, key),
-                key is "Subnet" or "IoSystem" ? node.ConnectionEvidence?.Complete == true : NodeValue(node, key) is not null);
+                IsConnectionKey(key) ? node.ConnectionEvidence?.Complete == true : NodeValue(node, key) is not null);
             affected.Add(new() { DeviceName = target.DeviceName!, NodeId = target.NodeId!, InterfacePath = ClonePath(target.InterfacePath!),
                 InterfaceName = item.Target?.InterfaceName });
-            if (requested.ContainsKey("Subnet") || requested.ContainsKey("IoSystem")) complete = node.ConnectionEvidence?.Complete == true;
+            if (requested.Keys.Any(IsConnectionKey)) complete = node.ConnectionEvidence?.Complete == true;
         }
         else if (item.Operation is "update_subnet" or "delete_subnet")
         {
@@ -124,10 +124,12 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
     {
         "Address" => node.IpAddress, "SubnetMask" => node.SubnetMask, "PnDeviceName" => node.PnDeviceName,
         "Subnet" => node.ConnectionEvidence?.SubnetId,
-        "IoSystem" => node.ConnectionEvidence?.IoSystemSubnetId is { } subnet
-            ? CanonicalJson.Serialize(new object?[] { subnet, node.ConnectionEvidence.IoSystemNumber }) : null,
+        "IoSystemSubnet" => node.ConnectionEvidence?.IoSystemSubnetId,
+        "IoSystemNumber" => node.ConnectionEvidence?.IoSystemNumber?.ToString(CultureInfo.InvariantCulture),
         _ => null
     };
+    // The requested IoSystem relationship is reported as two scalar keys: its subnet and number.
+    internal static bool IsConnectionKey(string key) => key is "Subnet" or "IoSystemSubnet" or "IoSystemNumber";
     internal static NetworkAttributeInfo Attribute(string name, string? value, bool readable) => new()
     {
         Name = name, Source = "modeled", Access = "readOnly", Availability = readable ? "available" : "unreadable",
@@ -143,7 +145,8 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         {
             Add("Address", changes.IpAddress); Add("SubnetMask", changes.SubnetMask); Add("PnDeviceName", changes.PnDeviceName);
             Add("Subnet", changes.Subnet?.SubnetId);
-            if (changes.IoSystem is { } io) Add("IoSystem", CanonicalJson.Serialize(new object?[] { io.SubnetId, io.Number }));
+            Add("IoSystemSubnet", changes.IoSystem?.SubnetId);
+            Add("IoSystemNumber", changes.IoSystem?.Number?.ToString(CultureInfo.InvariantCulture));
         }
         if (item.Subnet is { } subnet)
         { Add("Name", subnet.Name); Add("TypeIdentifier", "System:Subnet." + subnet.NetworkType); Add("HighestAddress", subnet.HighestAddress?.ToString(CultureInfo.InvariantCulture)); Add("TransmissionSpeed", subnet.TransmissionSpeed); }

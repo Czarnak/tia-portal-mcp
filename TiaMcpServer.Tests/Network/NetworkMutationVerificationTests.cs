@@ -161,11 +161,23 @@ public class NetworkMutationVerificationTests
     [Fact]
     public void WrongIoSystemOnOtherSubnet_Fails()
     {
-        var wrongIoTuple = NetworkPostconditionChecks.Compare("IoSystem", "[\"subnet-1\",100]", "[\"subnet-2\",100]", true);
-        Assert.Equal("failed", wrongIoTuple.Status);
-        var result = ConfigResult(Evidence(wrongIoTuple));
+        var wrongIoSubnet = NetworkPostconditionChecks.Compare("IoSystemSubnet", "subnet-1", "subnet-2", true);
+        Assert.Equal("failed", wrongIoSubnet.Status);
+        var result = ConfigResult(Evidence(wrongIoSubnet, NetworkPostconditionChecks.Compare("IoSystemNumber", "100", "100", true)));
         result.AppliedSettings = new() { ["IoSystem"] = "100" };
         Assert.Equal("postcondition_failed", Project(Configure(true), result).Failure!.Category);
+    }
+
+    [Fact]
+    public void IoSystemVerification_RequiresScalarSubnetAndNumberChecks()
+    {
+        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("IoSystemSubnet", "subnet-1", "subnet-1", true),
+            NetworkPostconditionChecks.Compare("IoSystemNumber", "100", "100", true)));
+        result.AppliedSettings = new() { ["IoSystem"] = "100" };
+        Assert.Null(Project(Configure(true), result).Failure);
+        var tuple = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("IoSystem", "[\"subnet-1\",100]", "[\"subnet-1\",100]", true)));
+        tuple.AppliedSettings = new() { ["IoSystem"] = "100" };
+        AssertProtocolError(Project(Configure(true), tuple));
     }
 
     [Fact]

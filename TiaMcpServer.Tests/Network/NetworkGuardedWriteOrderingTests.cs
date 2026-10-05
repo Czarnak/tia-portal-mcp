@@ -98,7 +98,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal("plc_grouped", response.Verification.Operations[0].Evidence!.Identity.DeviceName);
         Assert.Contains(response.Effects[1].Effect!.AffectedNodes, node => node.DeviceName == "PLC_Grouped");
         Assert.True(response.Success);
-        Assert.DoesNotContain(response.Verification.FinalChecks, check => check.Field is "Subnet" or "IoSystem");
+        Assert.DoesNotContain(response.Verification.FinalChecks, check => check.Field is "Subnet" or "IoSystemSubnet" or "IoSystemNumber");
         Assert.Single(response.Verification.FinalChecks, check => check.Subject?.NodeId == "node-2" && check.Field == "exists");
         Assert.Contains(response.Verification.FinalChecks, check => check.Subject?.NodeId == "node-3" && check.Field == "exists" && check.Status == "passed");
     }
@@ -198,7 +198,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
         Assert.True(response.Verification!.Success);
         Assert.Single(response.Verification.Operations);
-        Assert.DoesNotContain(response.Verification.FinalChecks, c => c.Field == "IoSystem");
+        Assert.DoesNotContain(response.Verification.FinalChecks, c => c.Field.StartsWith("IoSystem", StringComparison.Ordinal));
     }
     [Fact]
     public async Task DeletedSubnet_AggregatePassCannotHideLostUngroupedNode()
@@ -312,11 +312,47 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, attach, move);
         Assert.False(response.Success);
         Assert.All(response.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
-        var io = Assert.Single(response.Verification.FinalChecks, c => c.Field == "IoSystem");
+        var io = Assert.Single(response.Verification.FinalChecks, c => c.Field == "IoSystemSubnet");
         Assert.Equal("failed", io.Status);
-        Assert.Equal("[\"subnet-1\",1]", io.Expected);
+        Assert.Equal("subnet-1", io.Expected);
         Assert.Null(io.Observed);
         Assert.Contains("side effects", io.Message);
+        var number = Assert.Single(response.Verification.FinalChecks, c => c.Field == "IoSystemNumber");
+        Assert.Equal("1", number.Expected);
+    }
+    [Fact]
+    public async Task IoSystemAttach_ReportsScalarSubnetAndNumberWithoutNestedJsonStrings()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-io-move");
+        var attach = NetworkGuardedWriteFixture.Configure("attach");
+        attach.Changes = new() { IoSystem = new() { SubnetId = "subnet-1", Number = 1 } };
+        var response = await fixture.RunAsync(false, attach);
+        Assert.True(response.Success);
+        var effect = response.Effects[0].Effect!;
+        Assert.Equal(new[] { "IoSystemNumber", "IoSystemSubnet" }, effect.RequestedSettings.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("subnet-1", effect.RequestedSettings["IoSystemSubnet"]);
+        Assert.Equal("1", effect.RequestedSettings["IoSystemNumber"]);
+        Assert.Equal(new[] { "IoSystemNumber", "IoSystemSubnet" }, effect.CurrentSettings.Keys.Order(StringComparer.Ordinal));
+        var checks = response.Verification!.Operations[0].Evidence!.Checks;
+        Assert.Contains(checks, c => c.Name == "IoSystemSubnet" && c.Expected == "subnet-1" && c.Observed == "subnet-1");
+        Assert.Contains(checks, c => c.Name == "IoSystemNumber" && c.Expected == "1" && c.Observed == "1");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Field == "IoSystemSubnet" && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Field == "IoSystemNumber" && c.Status == "passed");
+        using var document = System.Text.Json.JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
+        AssertNoNestedJson(document.RootElement);
+    }
+    private static void AssertNoNestedJson(System.Text.Json.JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Object: foreach (var p in element.EnumerateObject()) AssertNoNestedJson(p.Value); break;
+            case System.Text.Json.JsonValueKind.Array: foreach (var v in element.EnumerateArray()) AssertNoNestedJson(v); break;
+            case System.Text.Json.JsonValueKind.String:
+                var text = element.GetString()!.TrimStart();
+                Assert.False(text.StartsWith('[') || text.StartsWith('{'), $"Nested JSON string: {text}");
+                break;
+        }
     }
     [Fact]
     public async Task ReplannedRootCount_DoesNotEraseEarlierPreservationExpectation()

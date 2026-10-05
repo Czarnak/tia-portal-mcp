@@ -207,7 +207,8 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("applied", result.Phase); Assert.False(result.Success);
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
         Assert.Equal("passed", result.Verification!.Operations[0].Status);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "IoSystem" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "IoSystemSubnet" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "IoSystemNumber" && c.Status == "unverified");
         if (kind == "subnet") Assert.Contains(result.Verification.FinalChecks, c => c.Field == "Subnet" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
     }
