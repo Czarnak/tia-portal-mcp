@@ -174,12 +174,12 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-only** - five tools: four observation tools plus `bind_project`; no compile, edits,
+- **read-only** - six tools: five observation tools plus `bind_project`; no compile, edits,
   lifecycle, or PLC control.
-- **read-write** (server startup default) - fifteen tools: the read-only surface plus
+- **read-write** (server startup default) - sixteen tools: the read-only surface plus
   `compile_check`, `preview_write_batch`, `apply_write_batch`, `network_write`, and all six lifecycle
   tools. Every actual lifecycle call requires one confirmation form.
-- **full** - the same fifteen tools; lifecycle runs without server elicitation, and legacy batch
+- **full** - the same sixteen tools; lifecycle runs without server elicitation, and legacy batch
   `start_plc` / `stop_plc` is permitted through OnlineControl. Unknown operations remain denied.
 
 **Migration:** read-write clients can save, close, and use all lifecycle tools with confirmation.
@@ -207,12 +207,13 @@ Configuration precedence: CLI argument > environment variable > default (read-wr
 
 The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
 
-In read-only mode, the server exposes exactly five MCP tools:
+In read-only mode, the server exposes exactly six MCP tools:
 
 - `bind_project` — adopt or switch to an already-open project without project mutation.
 - `get_project_status` — read active project metadata without opening or switching projects.
 - `browse_project_tree` — browse a canonical paged v3 snapshot using `startSelector`, `depth`, and `pageSize`; continue with `cursor`.
-- `execute_read_batch` — run the four retained non-project generic reads in a batch.
+- `plc_read` — run PLC block, type and tag-table reads in a batch.
+- `read_cross_references` — read the cross-references of one project-tree target.
 - `network_read` — run dedicated network reads in a batch.
 
 The following operations are **not available** in read-only mode:

@@ -806,6 +806,42 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "plc-read-roundtrip":
+            Respond(ReadMethod(line) switch
+            {
+                "get_block_content" when ReadField(line, "blockPath") == "PLC_1/Missing"
+                    => """{"success":false,"error":"block not found"}""",
+                "get_block_content" => Success($"<Block path=\"{ReadField(line, "blockPath")}\" format=\"{ReadField(line, "format")}\"/>"),
+                "get_type_content" => Success($"TYPE \"{ReadField(line, "typePath")}\" format={ReadField(line, "format")}"),
+                "list_tag_tables" => Success(ToCamelCaseJson(new PlcTagInventoryInfo
+                {
+                    Plcs =
+                    {
+                        new PlcTagInventoryPlcInfo
+                        {
+                            PlcName = "PLC_1",
+                            DeviceName = "PLC_1_Device",
+                            // Echoes the forwarded narrowing so the host test can see it reached the worker.
+                            Tables = ReadField(line, "tableName") is { } tableName
+                                ? new List<TagTableInfo> { new() { Name = tableName, FolderPath = ReadField(line, "folderPath") ?? "/" } }
+                                : new List<TagTableInfo>(),
+                        },
+                    },
+                })),
+                _ => $$"""{"success":false,"error":"unexpected plc read method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
+        case "xref-roundtrip":
+            Respond(ReadMethod(line) != "read_cross_references"
+                ? $$"""{"success":false,"error":"unexpected xref method '{{ReadMethod(line)}}'"}"""
+                : LastXrefSegmentName(line) == "Unsupported"
+                    ? """{"success":false,"failureCategory":"target_kind_unsupported","error":"The selected target does not provide cross-references."}"""
+                    : Success(ToCamelCaseJson(XrefReport(1, 10, ReadField(line, "crossReferenceFilter") != "UnusedObjects"))));
+            break;
+        case "xref-oversized":
+            // 40 sources of ~3,000 characters exceed the 60,000-character value budget.
+            Respond(Success(ToCamelCaseJson(XrefReport(40, 3_000, true))));
+            break;
         case "network-mixed-results":
             // One explicitly open project can return distinct outcomes for a batch without
             // pretending that each item switched the Portal to a different project.
@@ -2325,6 +2361,54 @@ string HardwareConfigPayload() => ToCamelCaseJson(RoundTripHardwareConfig());
 
 string? ReadMethod(string requestLine) => ReadField(requestLine, "method");
 
+string? LastXrefSegmentName(string requestLine)
+{
+    using var doc = JsonDocument.Parse(requestLine);
+    return doc.RootElement.TryGetProperty("crossReferenceSelector", out var selector)
+        && selector.TryGetProperty("path", out var path) && path.GetArrayLength() > 0
+            ? path[path.GetArrayLength() - 1].GetProperty("name").GetString()
+            : null;
+}
+
+CrossReferenceReport XrefReport(int sources, int nameChars, bool isComplete)
+{
+    var report = new CrossReferenceReport
+    {
+        Target = new CrossReferenceSelectorInfo
+        {
+            Path =
+            {
+                new ProjectTreeSelectorSegment { NodeType = "Device", Name = "PLC_1_Device" },
+                new ProjectTreeSelectorSegment { NodeType = "PlcSoftware", Name = "PLC_1" },
+            },
+        },
+        IsComplete = isComplete,
+        OwnerQueryCount = 1,
+        SuccessfulOwnerQueryCount = 1,
+        Messages = isComplete ? new List<string>() : new List<string> { "One owner could not be read." },
+        TotalSourceCount = sources,
+        TotalReferenceCount = sources,
+        TotalLocationCount = sources,
+    };
+    for (var i = 0; i < sources; i++)
+    {
+        report.Sources.Add(new CrossReferenceSourceInfo
+        {
+            Name = sources == 1 ? "FB_Main" : $"FB_{i}_" + new string('x', nameChars),
+            TypeName = "FB",
+            References =
+            {
+                new CrossReferenceTargetInfo
+                {
+                    Name = "Tag1",
+                    Locations = { new CrossReferenceLocationInfo { Access = "Read", ReferenceType = "Uses" } },
+                },
+            },
+        });
+    }
+    return report;
+}
+
 string? ReadField(string requestLine, string propertyName)
 {
     try
@@ -2721,7 +2805,7 @@ string ProjectTreeDedupResponse(string requestLine)
     if (request.Method == "get_project_status") return Success("{\"isOpen\":true}");
     // The test explicitly marks phase boundaries via this fixture-only counter probe.
     // No production request or protocol field is added, and reads never infer a phase by count.
-    if (request.Method == "read_cross_references" && request.PlcName is "preview" or "apply")
+    if (request.Method == "list_tag_tables" && request.PlcName is "preview" or "apply")
     {
         projectTreeDedupPhase = request.PlcName;
         return Success(JsonSerializer.Serialize(projectTreeDedupCounters));

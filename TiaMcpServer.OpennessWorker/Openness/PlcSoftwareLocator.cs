@@ -25,7 +25,21 @@ public static class PlcSoftwareLocator
     /// <summary>Enumerates every PLC software in the project (optionally filtered by device name), paired with its owning device name.</summary>
     public static IEnumerable<DiscoveredPlcSoftware> FindAll(Project project, string? plcName)
     {
-        foreach (Device device in project.Devices)
+        return Discover(project.Devices.Cast<Device>(), plcName);
+    }
+
+    /// <summary>
+    /// Like <see cref="FindAll"/>, but enumerates devices as <c>browse_project_tree</c> does: root
+    /// devices, devices in (nested) device groups and ungrouped devices.
+    /// </summary>
+    public static IEnumerable<DiscoveredPlcSoftware> FindEveryPlc(Project project, string? plcName)
+    {
+        return Discover(ProjectDeviceEnumerator.Enumerate(project), plcName);
+    }
+
+    private static IEnumerable<DiscoveredPlcSoftware> Discover(IEnumerable<Device> devices, string? plcName)
+    {
+        foreach (Device device in devices)
         {
             foreach (var plcSoftware in FindInDevice(device))
             {

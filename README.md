@@ -16,27 +16,33 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server exposes 5 tools in `read-only`, 15 in `read-write` (the startup default), and 15 in `full`.
+The server exposes 6 tools in `read-only`, 16 in `read-write` (the startup default), and 16 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls with user confirmation.
 `full` adds PLC runtime control and runs lifecycle calls directly. Lifecycle uses guarded single-call
 writes; Network uses the same guarded pipeline without server elicitation, while legacy batch writes retain tokens.
 
+### PLC reads and cross-references
+
+- `plc_read` - run up to 50 PLC read operations in one call: `get_block_content`, `get_type_content` and `list_tag_tables`. Each item carries a unique `operationId`, an `operation` name, and that operation's parameters. Items run independently, so a failing item does not stop the others. Results are structured JSON with `contractVersion` `1.0`; a value over 60,000 characters is omitted whole with narrowing guidance, never cut.
+- `read_cross_references` - read the cross-references of one project-tree target (a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it). Arguments: `target`, `filter`, `maxResults`, `projectPath`. Both reads are available in every access mode and never open or switch a project.
+
 ### Batch operations
 
-- `execute_read_batch` - run up to 50 retained generic read operations in one call. Each item carries an `operationId`, an `operation` name (e.g. `get_block_content`, `list_tag_tables`), and that operation's parameters. Reads run independently, so a failing item does not stop the others. Bound `read_cross_references` with `maxResults`; oversized batch responses are truncated or omitted server-side with explicit markers.
+The generic batch write tools remain on their legacy token flow until the planned `plc_write` replaces them; `execute_read_batch` was retired in favor of `plc_read` and `read_cross_references`.
+
 - `preview_write_batch` / `apply_write_batch` - preview up to 50 retained generic data writes and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Project-lifecycle and network writes stay dedicated.
 
-The generic batch tools are the path for retained block, PLC type, tag-table, tag, and user-constant operations. Each `operation` name carries that operation's parameters as one item; a single operation is just a one-item batch.
+The generic batch write tools are the path for retained block, PLC type, tag-table, tag, and user-constant writes. Each `operation` name carries that operation's parameters as one item; a single operation is just a one-item batch.
 
 Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker. A populated `warnings` array means the payload may be partial.
 
-Available read operations for `execute_read_batch`: `read_cross_references`, `get_block_content`, `list_tag_tables`, and `get_type_content`.
+Available `plc_read` operations: `get_block_content`, `get_type_content`, and `list_tag_tables`.
 
 Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`.
 
 `get_block_content` / `update_block_logic` and `get_type_content` / `update_type_content` accept a `format` field. `format=source` is available for global data blocks, PLC data types, and SCL-language FB/FC/OB. Every other block language stays on `format=xml`.
 
-`withDependencies` (reads only, default `false`) asks TIA Portal to include the object's dependency closure. The resulting document declares several objects and is **context only** — a write refuses any source declaring more than one object, and the read carries a warning saying so. Omit the field to get a document you can edit and submit back.
+`withDependencies` (`plc_read` only, default `false`) asks TIA Portal to include the object's dependency closure. The resulting document declares several objects and is **context only** — a write refuses any source declaring more than one object, and the read carries a warning saying so. Omit the field to get a document you can edit and submit back.
 
 `get_block_content` and `get_type_content` reads also return a `contentHash` (`xml:sha256:<hex>` or `source:sha256:<hex>`) computed over the exact text served in `result`, tagged with the served format. It lets a later guarded write detect that the document changed since it was read. It is omitted for `withDependencies` reads, failed reads, and results truncated or omitted for size.
 
@@ -165,9 +171,9 @@ structured results. This custom-integration requirement is separate from the `br
 v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
-**read-only** mode by default (five tools); add `--access-mode read-write` for edits, compilation,
-and lifecycle with one prompt per actual call (fifteen tools). Select `--access-mode full` for
-lifecycle without server elicitation and PLC runtime control (fifteen tools).
+**read-only** mode by default (six tools); add `--access-mode read-write` for edits, compilation,
+and lifecycle with one prompt per actual call (sixteen tools). Select `--access-mode full` for
+lifecycle without server elicitation and PLC runtime control (sixteen tools).
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing

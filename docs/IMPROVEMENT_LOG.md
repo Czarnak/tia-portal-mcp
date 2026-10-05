@@ -38,11 +38,25 @@ lifecycle confirmation, and audit v2. Capability descriptions remain descriptive
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
-5/15/15 tool counts, `bind_project` for already-open projects, no implicit opens, per-call
+6/16/16 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`), `bind_project` for already-open projects, no implicit opens, per-call
 read-write lifecycle confirmation, full policy confirmation, removed startup switch/agent
 confirmation arguments, audit v2, and binding-scoped tree cursors. Preserve the distinction between
 functional live evidence and human dialog observations. This repository task changes no installed
 plugin cache or user configuration.
+
+## Open: PLC read and cross-reference follow-ups (PR A)
+
+Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-references.md); none blocks it.
+
+- Network: `PlcSoftwareLocator.FindAll` (used by Network) never sees PLCs in device groups; `FindEveryPlc` does.
+- `totally-integrated-claude` skill: update for `plc_read` / `read_cross_references`, the retired `execute_read_batch`, and counts 6/16/16.
+- `list_tag_tables`: when `tableName`/`folderPath` match nothing but part of the tree was unreadable, the incomplete inventory is returned without an explicit "not found among readable tables" message.
+- `read_cross_references` budget: the trim never recurses inside a kept child; a bare source over budget (pathological names or messages) is still withheld by the renderer; the standalone fallback guidance omits `filter`.
+- `read_cross_references`: a `maxResults` cut does not count into `omittedSourceCount`; the shared incomplete message mentions "unused-object audit" for every filter.
+- `read_cross_references`: legacy `referencedAsName` is kept beside `referencedAs` (it carries call-site text when `referencedAs` is null); decide whether to keep it.
+- The Plc protocol diagnostic duplicates Network's private `TryWriteProtocolDiagnostic` (missing `validators` field, 512 cap); share one helper.
+- `CrossReferenceTargetResolver.MatchOne` duplicates `ProjectTreeFilter.ResolveOne`'s predicate (drift is pinned by a round-trip test).
+- Unverified cross-reference owner kinds (spec Appendix B): technology objects and Unified `HmiTag` are verified but not shipped; TO instance DBs and Classic HMI tags were not present in the spike project.
 
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 

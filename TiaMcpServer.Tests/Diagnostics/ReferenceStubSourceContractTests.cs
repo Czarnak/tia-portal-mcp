@@ -84,6 +84,22 @@ public class ReferenceStubSourceContractTests
         Assert.Equal("29bfe5fdf4ba5d3b", Convert.ToHexString(hash[^8..].Reverse().ToArray()).ToLowerInvariant());
     }
 
+    [Theory]
+    [InlineData("Access")]
+    [InlineData("ReferenceType")]
+    public void CrossReferenceStubEnumsDeclareEveryClosedName(string enumName)
+    {
+        var source = File.ReadAllText(StubPath("Siemens.Engineering.Base", "CrossReference.cs"));
+        var body = System.Text.RegularExpressions.Regex.Match(source,
+            $@"public enum {enumName} : int\s*\{{(?<body>[^}}]*)\}}").Groups["body"].Value;
+        var declared = System.Text.RegularExpressions.Regex.Matches(body, @"(\w+)\s*=\s*(\d+)")
+            .Select(m => (Name: m.Groups[1].Value, Value: int.Parse(m.Groups[2].Value))).ToList();
+        var expected = enumName == "Access" ? TiaMcpServer.Contracts.CrossReferenceAccessNames.All : TiaMcpServer.Contracts.CrossReferenceTypeNames.All;
+
+        // The closed names are the V21 declaration order, so each value is its index.
+        Assert.Equal(expected.Select((name, index) => (name, index)), declared);
+    }
+
     [Fact]
     public void NamespaceOwnershipAndNonExecutablePurposeAreExplicit()
     {

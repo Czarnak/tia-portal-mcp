@@ -226,7 +226,7 @@ the plain project status only — it never enumerates history or the extended me
 ## Lifecycle operations
 
 All six lifecycle tools are available in read-write and full; the complete mode counts are
-5/15/15. Read-write requires one confirmation form per actual call; full executes under policy
+6/16/16. Read-write requires one confirmation form per actual call; full executes under policy
 without server elicitation. Block guards stop a call in every mode. Ordinary reads never bind,
 switch or open; use `bind_project` for already-open projects and open/create for deliberate opening.
 

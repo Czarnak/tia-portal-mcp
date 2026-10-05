@@ -854,8 +854,15 @@ internal static class Program
                 filterError ?? "Invalid cross-reference filter.");
         }
 
+        if (request.CrossReferenceSelector is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.InvalidSelector,
+                "read_cross_references requires a target selector.");
+        }
+
         return WithProject(request, project => Success(
-            CrossReferenceReader.Read(project, request.PlcName, filter, request.MaxResults)));
+            CrossReferenceReader.Read(project, request.CrossReferenceSelector, filter, request.MaxResults)));
     }
 
     private static WorkerResponse GetBlockContent(WorkerRequest request)
@@ -984,7 +991,8 @@ internal static class Program
 
     private static WorkerResponse ListTagTables(WorkerRequest request)
     {
-        return WithProject(request, project => Success(TagTableReader.ReadAll(project, request.PlcName)));
+        return WithProject(request, project => Success(TagTableReader.ReadInventory(
+            project, request.PlcName, request.TableName, request.FolderPath)));
     }
 
     private static WorkerResponse ReadUpdateTagSafetySnapshot(WorkerRequest request)

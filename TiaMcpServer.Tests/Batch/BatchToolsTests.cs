@@ -26,17 +26,13 @@ public class BatchToolsTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
 
     [Theory]
-    [InlineData("ExecuteReadBatch", "execute_read_batch")]
     [InlineData("PreviewWriteBatch", "preview_write_batch")]
     [InlineData("ApplyWriteBatch", "apply_write_batch")]
     public void BatchToolsHaveMcpMetadata(string methodName, string expectedToolName)
     {
-        // Tools have been split into ReadBatchTools and WriteBatchTools.
         // BatchTools retains the methods for backward compatibility but no longer
         // carries [McpServerToolType]/[McpServerTool] attributes.
-        var type = methodName == "ExecuteReadBatch"
-            ? typeof(ReadBatchTools)
-            : typeof(WriteBatchTools);
+        var type = typeof(WriteBatchTools);
 
         Assert.NotNull(type.GetCustomAttribute<McpServerToolTypeAttribute>());
 
@@ -67,41 +63,6 @@ public class BatchToolsTests
         Assert.Equal(readOnly, toolAttribute.ReadOnly);
         Assert.Equal(destructive, toolAttribute.Destructive);
         Assert.Equal(openWorld, toolAttribute.OpenWorld);
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_RejectsWriteOperation()
-    {
-        var result = await BatchTools.ExecuteReadBatch(
-            workerClient: null!,
-            new[] { Op("a", "update_block_logic", r => { r.BlockPath = "Main"; r.YamlContent = "x"; }) });
-
-        var root = JsonDocument.Parse(result).RootElement;
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Contains("update_block_logic", root.GetProperty("error").GetString());
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_RejectsEmptyBatch()
-    {
-        var result = await BatchTools.ExecuteReadBatch(workerClient: null!, Array.Empty<BatchOperationRequest>());
-
-        var root = JsonDocument.Parse(result).RootElement;
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Contains("at least one", root.GetProperty("error").GetString());
-    }
-
-    [Fact]
-    public async Task ExecuteReadBatch_RejectsDedicatedNetworkReadBeforeWorkerStartup()
-    {
-        var result = await BatchTools.ExecuteReadBatch(
-            workerClient: null!,
-            new[] { Op("a", "read_hardware_config") });
-
-        using var document = JsonDocument.Parse(result);
-        Assert.Contains(
-            "Unknown operation 'read_hardware_config'",
-            document.RootElement.GetProperty("error").GetString());
     }
 
     [Fact]

@@ -5,13 +5,14 @@
 | Entry point | Operation | Inputs | Behavior |
 |---|---|---|---|
 | `browse_project_tree` | `browse_project_tree` | Optional `projectPath`, `depth`, `startSelector`, `pageSize`; continuation `cursor` | Locates PLC software, blocks, groups, types, and other project objects; cursors reject binding changes. |
-| `execute_read_batch` | `get_block_content` | Required `blockPath`; optional `format` | Reads an existing block as XML/SimaticML or an eligible external source. See [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md). |
-| `execute_read_batch` | `get_type_content` | Required `typePath`; optional `format` | Reads an existing PLC type as `.udt` source or XML/SimaticML. |
-| `execute_read_batch` | `list_tag_tables` | Optional `plcName` | Lists PLC tag tables and the exposed tag and constant information. |
-| `execute_read_batch` | `read_cross_references` | Optional `plcName`, `filter`, `maxResults` | Reads cross-references. Filters are `AllObjects`, `ObjectsWithReferences`, `ObjectsWithoutReferences`, and `UnusedObjects`. |
+| `plc_read` | `get_block_content` | Required `blockPath`; optional `format`, `withDependencies` | Reads an existing block as XML/SimaticML (default) or an eligible external source. See [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md). |
+| `plc_read` | `get_type_content` | Required `typePath`; optional `format`, `withDependencies` | Reads an existing PLC type as `.udt` source (default) or XML/SimaticML. |
+| `plc_read` | `list_tag_tables` | Optional `plcName`, `folderPath`, `tableName` | Lists PLC tag tables and the exposed tag and constant information. |
+| `read_cross_references` | `read_cross_references` | Required `target`; optional `filter`, `maxResults`, `projectPath` | Reads the cross-references of one project-tree target. Filters are `AllObjects`, `ObjectsWithReferences` (default), `ObjectsWithoutReferences`, and `UnusedObjects`. |
 | `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, `blockPath` | Compiles the PLC or selected block scope and returns compiler messages. |
 
-Tree browsing and compilation are standalone tools. `compile_check` is available in read-write
+`plc_read` and `read_cross_references` are registered in every access mode. `execute_read_batch` was
+retired; use these two tools instead. Tree browsing and compilation are standalone tools. `compile_check` is available in read-write
 and full modes and does not use a safety token. In-project PLC edits also work in both writable
 modes. Legacy batch `start_plc` and `stop_plc` require full; a read-write batch containing either
 is rejected before binding, snapshots, token handling, or worker activity.
@@ -20,9 +21,40 @@ Use `bind_project` in any mode to adopt or switch to an already-open project; a 
 requires `forceRebind:true`. Ordinary PLC reads never bind, switch or open. Only `open_project` and
 `create_project` open projects. Lifecycle runs in read-write with one confirmation form per actual
 call, or in full without server elicitation; block guards stop the call in every mode. The complete
-tool counts are 5/15/15. Read-only never opens, creates, saves or closes a project.
+tool counts are 6/16/16. Read-only never opens, creates, saves or closes a project.
 
-`get_block_content` and `get_type_content` items also carry `contentHash`: `<format>:sha256:<lower-case hex>` over the exact served `result` text, where `<format>` is the served (normalized) format, `xml` or `source`. It is omitted when `withDependencies` is true, when the read failed, and when the result was truncated or omitted for size.
+## PLC reads (`plc_read`)
+
+`plc_read(operations)` takes at most 50 items. Each has a unique, non-blank `operationId` of at most
+256 characters, an `operation`, an optional `projectPath`, and that operation's parameters. Items run
+in caller order and independently: a failed item does not stop the others. Unknown fields are
+rejected. The response is one structured document (`contractVersion` `1.0`, root `warnings` array,
+explicit nulls), delivered identically as text and `structuredContent`. `isError` is true only for a
+rejection before anything ran.
+
+- `get_block_content` and `get_type_content` return `{ format, content, contentHash, warnings }`.
+  `format` is `xml` or `source`; blocks default to `xml` and types to `source`. `withDependencies`
+  adds the dependency closure to a `source` export; that document is context only and cannot be
+  written back.
+- `contentHash` is `xml:sha256:<hex>` or `source:sha256:<hex>` over the exact served text. It is an
+  explicit `null` when `withDependencies` is true.
+- `list_tag_tables` returns `{ isComplete, plcs[] }`, each PLC naming its software and device and
+  carrying its `tables[]`. An omitted `plcName` reads every PLC, including PLCs in device groups.
+  Tags carry `externalAccessible`, `externalVisible` and `externalWritable` (`null` when unreadable);
+  user constants carry a readability marker; anything that could not be read sets `isComplete:false`
+  with a message (the first 50 messages are kept, then one summary entry). `tableName` keeps one table
+  and `folderPath` the tables directly in one folder (written as the inventory emits it, `/` or
+  `/Line/Cell`); both are case-insensitive and combine with `plcName`. A narrowing that matches no
+  table fails the item with `target_not_found`, unless part of the tree was unreadable.
+- A `projectPath` that differs from the bound project fails only that item with `binding_conflict`.
+  Reads never bind, switch or open a project.
+
+Budget: a value over 60,000 characters or a document over 180,000 characters is never cut. The
+affected item `result` is omitted whole with an omission record and narrowing guidance, so it has no
+hash. A single block or type export over 60,000 characters therefore cannot be read through
+`plc_read`, and cannot be updated through the batch write path, which needs the hash. One PLC of
+roughly 400 tags already exceeds the value: narrow `list_tag_tables` with `plcName`, `folderPath` or
+`tableName`.
 
 ## Compiler diagnostics (`compile_check`)
 
@@ -62,38 +94,48 @@ Its zero counts are fallback values, not evidence of an error-free compilation.
 
 ## Cross-reference coverage (`read_cross_references`)
 
-Cross references are queried on supported source objects: OB, FB, FC, GlobalDB, InstanceDB, and
-ArrayDB blocks; PLC tags; PLC system constants; and PLC user data types. Traversal includes nested
-block/tag-table/type groups, system-block groups, and those supported objects in software units.
-`PlcSoftware`, tag tables themselves, and user constants are not cross-reference service owners.
+`read_cross_references(target, filter?, maxResults?, projectPath?)` reads one target per call.
+`target` is `{ path: [{ nodeType, name }, ...], member?: { kind, name } }`: copy the `path` segments
+from `browse_project_tree` output (matching is case-insensitive as in the tree; siblings that differ
+only in case are `target_ambiguous`). `member` addresses leaves the tree does not model, under a
+`TagTable` path, with `kind` one of `Tag`, `SystemConstant` or `UserConstant` (exact case). `filter`
+and `maxResults` (1 or greater) are validated before any worker call; `projectPath` is a target
+constraint only.
 
-The result retains the source/child-source, reference, and location hierarchy. It does not
-deduplicate overlapping results from different owners. `maxResults` limits top-level source roots
-across the selected PLCs; source/reference/location totals count the retained hierarchy, including
-descendants. All four filters listed above are forwarded to each queried owner.
+- A path ending at a leaf (an OB, FB, FC, GlobalDB, InstanceDB or ArrayDB block, a system block, or a
+  PLC type) or any `member` is one query on that object.
+- A path ending at a container (`Device`, `PlcSoftware`, `SoftwareUnit`, a block, system-block,
+  tag-table or type folder, or `TagTable`) sweeps every owner beneath it. A container with no owners
+  is an empty, complete success; if owners exist and none of their queries succeeds, the call fails
+  with `worker_operation_failed`.
+- Zero matches is `target_not_found`; a leaf without the cross-reference service is
+  `target_kind_unsupported`, which is distinct from "no references".
 
-Each PLC result reports actual software `plcName`, containing `deviceName`, `ownerQueryCount`
-(attempts, including unavailable services), `successfulOwnerQueryCount`, and `isComplete`.
-The input selector accepts either software or device name. Report-level `isComplete` is true only
-when every selected PLC has complete coverage.
+The result is one typed document: the target echo, `filter`, completeness fields (`isComplete`,
+`ownerQueryCount`, `successfulOwnerQueryCount`), totals and the recursive
+`sources[] -> references[] -> locations[]` hierarchy. `referencedAs` is `{ name, typeName }` of the
+referenced object, and `access` and `referenceType` are V21 member names. Overlapping results from
+different owners are not deduplicated. A complete successful sweep can have zero sources.
 
-- A successful owner query returning no roots is a genuine empty result. Complete successful
-  coverage can therefore have zero sources, references, and locations.
-- If no owner query succeeds anywhere in the selected PLC set, the operation fails with
-  `worker_operation_failed`; unavailable services or no supported owners are not reported as a
-  successful empty read.
-- With some successful queries, unavailable/failed owners, traversal or projection skips, and
-  `maxResults` truncation retain the available data and set affected PLCs and the report to
-  `isComplete: false`. Expected recoverable engineering failures and exact ordinary
-  `InvalidOperationException` are handled this way; session loss, derived invalid-operation,
-  I/O, cancellation, and unexpected faults propagate rather than masquerading as partial success.
-  Incomplete reports include one bounded sanitized note per affected PLC and one concise worker
-  warning, without raw exception details.
+Unavailable owner services, traversal skips and a `maxResults` cut retain the available data and set
+`isComplete:false` with messages. An incomplete `UnusedObjects` result is not an authoritative
+unused-object audit and must not be used as proof that objects can safely be deleted.
 
-An incomplete `UnusedObjects` result is not an authoritative unused-object audit and must not be
-used as proof that objects can safely be deleted. When reading older JSON that omits the additive
-coverage fields, completeness defaults to false, query counts to zero, and device identity to null;
-absence of those fields does not establish complete coverage.
+Budget: sources are dropped whole from the tail until the report value fits 60,000 characters and
+the document 180,000. The report then carries `isComplete:false`, `omittedSourceCount` and narrowing
+guidance (`filter`, `maxResults`, a narrower `path`, or a `member`). When not even one whole source
+fits, the first source is kept and trimmed inside (child sources, then references, then locations),
+with one message counting what was omitted; the omitted tail cannot be paged.
+
+### Unverified owner kinds
+
+Only kinds whose owners were verified live (2026-10-05, V21) ship as members or endpoints. Not
+shipped, and unverified for this tool: technology objects and WinCC Unified `HmiTag` (the
+cross-reference service works, but the project tree has no node type for them), `DeviceItem`,
+`Subnet` and `Node` (no service observed), technology-object instance DBs and WinCC Classic HMI tags
+(not present in the spike project). `Device`, `PlcSoftware`, `SoftwareUnit` and `TagTable` are not
+owners themselves; they only enumerate the owners beneath them. See Appendix B of the
+[design spec](../superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md).
 
 ## Supported write operations
 

@@ -179,7 +179,7 @@ public sealed class ProjectTreeSafetyDedupTests
 
     private static async Task<Dictionary<string, int>> ProbeAsync(OpennessWorkerClient client, string nextPhase)
     {
-        var response = await client.ReadCrossReferencesAsync(ProjectPath, nextPhase, filter: null);
+        var response = await client.ListTagTablesAsync(nextPhase, ProjectPath);
         Assert.True(response.Success, response.Error);
         return JsonSerializer.Deserialize<Dictionary<string, int>>(response.Payload)!;
     }

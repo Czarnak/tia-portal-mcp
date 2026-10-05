@@ -19,9 +19,6 @@ public sealed record OperationBatchResult(
     string? FailureCategory = null)
 {
     public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
-
-    /// <summary>Format-tagged hash of <see cref="Result"/> on a content read; cleared when the text is truncated or omitted.</summary>
-    public string? ContentHash { get; init; }
 }
 
 public sealed record OperationBatchTarget(

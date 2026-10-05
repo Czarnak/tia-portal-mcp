@@ -2,7 +2,7 @@
 
 ## Operation surface
 
-The MCP provides a focused PLC round-trip interface through four batch operations:
+The MCP provides a focused PLC round-trip interface through four operations (reads through `plc_read`, writes through the legacy batch tools):
 
 | Operation | Direction | Default format | Purpose |
 |---|---|---|---|
@@ -11,7 +11,7 @@ The MCP provides a focused PLC round-trip interface through four batch operation
 | `get_type_content` | Read | `source` | Reads one existing PLC data type. |
 | `update_type_content` | Write | `source` | Updates one existing PLC data type from supplied document content. |
 
-The `format` field accepts `xml` and `source`, case-insensitively. Block and type writes use the normal `preview_write_batch` → `apply_write_batch` workflow.
+The `format` field accepts `xml` and `source`, case-insensitively. Block and type reads use `plc_read`; writes use the normal `preview_write_batch` → `apply_write_batch` workflow.
 
 ## Supported formats
 

@@ -49,10 +49,14 @@
       Link="Linked\Openness\ProjectTreeSnapshotWalker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcSoftwareLocator.cs"
       Link="Linked\Openness\PlcSoftwareLocator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTableReader.cs"
+      Link="Linked\Openness\TagTableReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileChecker.cs"
       Link="Linked\Openness\CompileChecker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferenceReader.cs"
       Link="Linked\Openness\CrossReferenceReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferenceTargetResolver.cs"
+      Link="Linked\Openness\CrossReferenceTargetResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileReportProjection.cs"
       Link="Linked\Openness\CompileReportProjection.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockTargetResolver.cs"
@@ -156,14 +160,24 @@
       Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"
       Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchContentHashes.cs"
-      Link="Host\Batch\BatchContentHashes.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcContentHashes.cs" Link="Host\Plc\PlcContentHashes.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcContractVersion.cs" Link="Host\Plc\PlcContractVersion.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcFormatNames.cs" Link="Host\Plc\PlcFormatNames.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcOperationCatalog.cs" Link="Host\Plc\PlcOperationCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcOperationRequest.cs" Link="Host\Plc\PlcOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcPayloadContract.cs" Link="Host\Plc\PlcPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcReadTools.cs" Link="Host\Plc\PlcReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcToolResponses.cs" Link="Host\Plc\PlcToolResponses.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWorkerInvoker.cs" Link="Host\Plc\PlcWorkerInvoker.cs" />
+    <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceBudget.cs" Link="Host\CrossReferences\CrossReferenceBudget.cs" />
+    <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferencePayloadContract.cs" Link="Host\CrossReferences\CrossReferencePayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceReadTools.cs" Link="Host\CrossReferences\CrossReferenceReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceTarget.cs" Link="Host\CrossReferences\CrossReferenceTarget.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
       Link="Host\Batch\BatchWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Batch\TagUpdateSafetyCurrentState.cs"
       Link="Host\Batch\TagUpdateSafetyCurrentState.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchTools.cs" Link="Host\Batch\BatchTools.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\ReadBatchTools.cs" Link="Host\Batch\ReadBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationRequest.cs"
       Link="Host\Network\NetworkOperationRequest.cs" />

@@ -14,101 +14,6 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void ValidateReadBatch_AcceptsKnownReadsWithRequiredFields()
-    {
-        var operations = new List<BatchOperationRequest>
-        {
-            Op("a", "read_cross_references"),
-            Op("b", "get_block_content", r => r.BlockPath = "PLC_1/Main"),
-            Op("c", "list_tag_tables"),
-        };
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
-
-        Assert.True(result.IsValid, result.Error);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsEmptyBatch()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new List<BatchOperationRequest>());
-
-        Assert.False(result.IsValid);
-        Assert.Contains("at least one", result.Error);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsNullBatch()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(null);
-
-        Assert.False(result.IsValid);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsBatchOverFiftyItems()
-    {
-        var operations = new List<BatchOperationRequest>();
-        for (var i = 0; i < BatchOperationCatalog.MaxBatchSize + 1; i++)
-        {
-            operations.Add(Op($"id{i}", "list_tag_tables"));
-        }
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
-
-        Assert.False(result.IsValid);
-        Assert.Contains("50", result.Error);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsUnknownOperation()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("a", "teleport_plc") });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("teleport_plc", result.Error);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsWriteOperation()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(
-            new[] { Op("a", "update_block_logic", r => { r.BlockPath = "Main"; r.YamlContent = "x"; }) });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("update_block_logic", result.Error);
-        Assert.Contains("write", result.Error);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsDuplicateOperationId()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(
-            new[] { Op("dup", "read_cross_references"), Op("dup", "list_tag_tables") });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("dup", result.Error);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsMissingOperationId()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("", "list_tag_tables") });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("operationId", result.Error);
-    }
-
-    [Fact]
-    public void ValidateReadBatch_RejectsMissingRequiredField()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("a", "get_block_content") });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("blockPath", result.Error);
-    }
-
-    [Fact]
     public void ValidateWriteBatch_AcceptsKnownDataWrites()
     {
         var operations = new List<BatchOperationRequest>
@@ -121,17 +26,6 @@ public class BatchOperationCatalogTests
         var result = BatchOperationCatalog.ValidateWriteBatch(operations);
 
         Assert.True(result.IsValid, result.Error);
-    }
-
-    [Fact]
-    public void ValidateWriteBatch_RejectsReadOperation()
-    {
-        var result = BatchOperationCatalog.ValidateWriteBatch(
-            new[] { Op("a", "get_block_content", r => r.BlockPath = "Main") });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("get_block_content", result.Error);
-        Assert.Contains("read", result.Error);
     }
 
     [Fact]
@@ -203,29 +97,6 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void AllReadOperations_AcceptARequestWithTheirRequiredFields()
-    {
-        foreach (var operation in BatchOperationCatalog.ReadOperationNames)
-        {
-            var result = BatchOperationCatalog.ValidateReadBatch(new[] { FullyPopulated("id", operation) });
-            Assert.True(result.IsValid, $"{operation}: {result.Error}");
-        }
-    }
-
-    [Fact]
-    public void ValidateReadBatch_UnknownOperationErrorListsValidReadOperations()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("a", "teleport_plc") });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("Valid read operations", result.Error);
-        Assert.Contains("get_type_content", result.Error);
-        Assert.DoesNotContain("get_project_status", result.Error);
-        Assert.DoesNotContain("browse_project_tree", result.Error);
-        Assert.DoesNotContain("compile_check", result.Error);
-    }
-
-    [Fact]
     public void ValidateWriteBatch_UnknownOperationErrorListsValidWriteOperations()
     {
         var result = BatchOperationCatalog.ValidateWriteBatch(new[] { Op("a", "frobnicate") });
@@ -255,79 +126,34 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void Validate_RejectsMaxResultsOnUnsupportedOperations()
-    {
-        var operations = new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "list_tag_tables", MaxResults = 10 },
-        };
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
-
-        Assert.False(result.IsValid);
-        Assert.Contains("'maxResults' is not valid for list_tag_tables", result.Error);
-    }
-
-    [Fact]
-    public void Validate_RejectsOutOfRangeBounds()
-    {
-        var operations = new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references", MaxResults = 0 },
-        };
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
-
-        Assert.False(result.IsValid);
-        Assert.Contains("'maxResults' must be 1 or greater", result.Error);
-    }
-
-    [Fact]
-    public void Validate_AcceptsBoundsOnTheirOperations()
-    {
-        var operations = new[]
-        {
-            new BatchOperationRequest { OperationId = "a", Operation = "read_cross_references", MaxResults = 10 },
-        };
-
-        var result = BatchOperationCatalog.ValidateReadBatch(operations);
-
-        Assert.True(result.IsValid, result.Error);
-    }
-
-    [Fact]
     public void All_ExposesEverySpec()
     {
-        // 4 reads + 16 writes.
-        Assert.Equal(20, BatchOperationCatalog.All.Count);
+        // 16 writes.
+        Assert.Equal(16, BatchOperationCatalog.All.Count);
     }
 
     [Fact]
     public void All_MatchesTheAuthoritativeOperationFieldContract()
     {
         var none = Array.Empty<string>();
-        var expected = new Dictionary<string, (BatchOperationCategory Category, IReadOnlyList<string> Required, IReadOnlyList<string> Optional)>
+        var expected = new Dictionary<string, (IReadOnlyList<string> Required, IReadOnlyList<string> Optional)>
         {
-            ["read_cross_references"] = (BatchOperationCategory.Read, none, new[] { "plcName", "filter", "maxResults" }),
-            ["get_block_content"] = (BatchOperationCategory.Read, new[] { "blockPath" }, new[] { "format", "withDependencies" }),
-            ["list_tag_tables"] = (BatchOperationCategory.Read, none, new[] { "plcName" }),
-            ["get_type_content"] = (BatchOperationCategory.Read, new[] { "typePath" }, new[] { "format", "withDependencies" }),
-            ["update_block_logic"] = (BatchOperationCategory.Write, new[] { "blockPath", "yamlContent" }, new[] { "format" }),
-            ["create_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
-            ["delete_tag_table"] = (BatchOperationCategory.Write, new[] { "tableName" }, new[] { "plcName", "folderPath" }),
-            ["create_tag"] = (BatchOperationCategory.Write, new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
-            ["update_tag"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
-            ["delete_tag"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
-            ["create_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
-            ["update_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
-            ["delete_user_constant"] = (BatchOperationCategory.Write, new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
-            ["create_block"] = (BatchOperationCategory.Write, new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
-            ["delete_block"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
-            ["create_block_group"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
-            ["delete_block_group"] = (BatchOperationCategory.Write, new[] { "blockPath" }, none),
-            ["start_plc"] = (BatchOperationCategory.Write, none, new[] { "plcName" }),
-            ["stop_plc"] = (BatchOperationCategory.Write, none, new[] { "plcName" }),
-            ["update_type_content"] = (BatchOperationCategory.Write, new[] { "typePath", "sourceContent" }, new[] { "format" }),
+            ["update_block_logic"] = (new[] { "blockPath", "yamlContent" }, new[] { "format" }),
+            ["create_tag_table"] = (new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+            ["delete_tag_table"] = (new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+            ["create_tag"] = (new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
+            ["update_tag"] = (new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
+            ["delete_tag"] = (new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+            ["create_user_constant"] = (new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
+            ["update_user_constant"] = (new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
+            ["delete_user_constant"] = (new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+            ["create_block"] = (new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
+            ["delete_block"] = (new[] { "blockPath" }, none),
+            ["create_block_group"] = (new[] { "blockPath" }, none),
+            ["delete_block_group"] = (new[] { "blockPath" }, none),
+            ["start_plc"] = (none, new[] { "plcName" }),
+            ["stop_plc"] = (none, new[] { "plcName" }),
+            ["update_type_content"] = (new[] { "typePath", "sourceContent" }, new[] { "format" }),
         };
         var actual = BatchOperationCatalog.All.ToDictionary(spec => spec.Name, StringComparer.Ordinal);
 
@@ -335,7 +161,6 @@ public class BatchOperationCatalogTests
         foreach (var (name, expectedSpec) in expected)
         {
             var actualSpec = actual[name];
-            Assert.Equal(expectedSpec.Category, actualSpec.Category);
             Assert.Equal(expectedSpec.Required, actualSpec.RequiredFields);
             Assert.Equal(expectedSpec.Optional, actualSpec.OptionalFields);
         }
@@ -445,22 +270,6 @@ public class BatchOperationCatalogTests
     }
 
     [Fact]
-    public void UniversalFields_AreNeverRejected()
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[]
-        {
-            new BatchOperationRequest
-            {
-                OperationId = "a",
-                Operation = "list_tag_tables",
-                ProjectPath = "C:\\p.ap21"
-            }
-        });
-
-        Assert.True(result.IsValid);
-    }
-
-    [Fact]
     public void ObEventClassOnCreateBlock_IsAccepted()
     {
         var result = BatchOperationCatalog.ValidateWriteBatch(new[]
@@ -476,19 +285,6 @@ public class BatchOperationCatalogTests
         });
 
         Assert.True(result.IsValid, result.Error);
-    }
-
-    [Theory]
-    [InlineData("get_project_status")]
-    [InlineData("browse_project_tree")]
-    [InlineData("compile_check")]
-    public void ValidateReadBatch_RejectsStandaloneProjectOperations(string operation)
-    {
-        var result = BatchOperationCatalog.ValidateReadBatch(new[] { Op("a", operation) });
-
-        Assert.False(result.IsValid);
-        Assert.Contains($"Unknown operation '{operation}'", result.Error);
-        Assert.DoesNotContain(operation, BatchOperationCatalog.ReadOperationNames);
     }
 
     [Fact]
@@ -514,9 +310,59 @@ public class BatchOperationCatalogTests
             "delete_subnet"
         })
         {
-            Assert.DoesNotContain(operation, BatchOperationCatalog.ReadOperationNames);
             Assert.DoesNotContain(operation, BatchOperationCatalog.WriteOperationNames);
         }
+    }
+
+    [Theory]
+    [InlineData("get_block_content")]
+    [InlineData("get_type_content")]
+    [InlineData("list_tag_tables")]
+    [InlineData("read_cross_references")]
+    public void ReadOperationInWriteBatchNamesNewTools(string operation)
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[] { Op("a", operation) });
+
+        Assert.False(result.IsValid);
+        Assert.Equal($"'{operation}' is a read operation; use plc_read or read_cross_references.", result.Error);
+    }
+
+    [Fact]
+    public void RetiredReadBatchSurface_IsGone()
+    {
+        Assert.Null(typeof(BatchOperationCatalog).GetMethod("ValidateReadBatch"));
+        Assert.Null(typeof(BatchOperationCatalog).GetProperty("ReadOperationNames"));
+        Assert.Null(typeof(BatchOperationRequest).GetProperty("Filter"));
+        Assert.Null(typeof(BatchOperationRequest).GetProperty("MaxResults"));
+        Assert.Null(typeof(BatchOperationRequest).GetProperty("WithDependencies"));
+    }
+
+    [Theory]
+    [InlineData("get_project_status")]
+    [InlineData("browse_project_tree")]
+    [InlineData("compile_check")]
+    public void ValidateWriteBatch_RejectsStandaloneProjectOperations(string operation)
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[] { Op("a", operation) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains($"Unknown operation '{operation}'", result.Error);
+    }
+
+    [Fact]
+    public void UniversalFields_AreNeverRejected()
+    {
+        var result = BatchOperationCatalog.ValidateWriteBatch(new[]
+        {
+            new BatchOperationRequest
+            {
+                OperationId = "a",
+                Operation = "start_plc",
+                ProjectPath = @"C:\p.ap21"
+            }
+        });
+
+        Assert.True(result.IsValid, result.Error);
     }
 
     private static BatchOperationRequest FullyPopulated(string id, string operation)

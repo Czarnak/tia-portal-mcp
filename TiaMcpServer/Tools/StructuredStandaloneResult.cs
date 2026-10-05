@@ -24,6 +24,7 @@ internal static class StructuredStandaloneResult
         var guidance = tool switch
         {
             "compile_check" => "Narrow the compile with plcName or blockPath. The complete report was omitted.",
+            "read_cross_references" => "Narrow with maxResults, a narrower target path, or a member. The complete report was omitted.",
             "bind_project" => "Retry bind_project with the absolute projectPath of one open project to narrow the candidates.",
             _ => "Extended metadata was too large to return. This tool has no metadata selector; retry after reducing project metadata or inspect it in TIA Portal."
         };
@@ -49,6 +50,9 @@ internal static class StructuredStandaloneResult
                 "compile_check" when typeof(TPayload) == typeof(CompileCheckReport) =>
                     new CompileCheckResponse(Version, success, rejection, retainedWarnings,
                         (StandaloneToolOutcome<CompileCheckReport>?)(object?)outcome),
+                "read_cross_references" when typeof(TPayload) == typeof(CrossReferenceReport) =>
+                    new ReadCrossReferencesResponse(Version, success, rejection, retainedWarnings,
+                        (StandaloneToolOutcome<CrossReferenceReport>?)(object?)outcome),
                 "bind_project" when typeof(TPayload) == typeof(ProjectBindingResult) =>
                     new BindProjectResponse(Version, success, rejection, retainedWarnings,
                         (StandaloneToolOutcome<ProjectBindingResult>?)(object?)outcome),
