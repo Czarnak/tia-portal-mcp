@@ -430,7 +430,7 @@ with `success:false`, `error:null`; the later item was never dispatched:
           "status": "passed",
           "identity": {
             "deviceName": "PC_1", "deviceItemName": null, "nodeId": "node-plc",
-            "interfacePath": [ { "name": "PROFINET interface_1", "positionNumber": 0, "typeIdentifier": null } ],
+            "interfacePath": [ { "name": "PROFINET interface_1", "positionNumber": 0 } ],
             "interfaceName": null, "subnetId": null
           },
           "checks": [ { "name": "Address", "status": "passed", "expected": "192.0.2.99", "observed": "192.0.2.99", "message": null } ],
@@ -466,8 +466,9 @@ failure is reported by batch/root `success`. So `verification.success:true` with
 `success:false` is by design: for example, a skipped setting whose pre-write value was preserved.
 
 Each item's verification `identity` is a typed object `{ deviceName, deviceItemName, nodeId,
-interfacePath, interfaceName, subnetId }`; members that do not apply are explicit nulls and
-`interfacePath` is an array of `{ name, positionNumber, typeIdentifier }` segments. A device carries
+interfacePath, interfaceName, subnetId }`; identity members that do not apply are explicit nulls and
+`interfacePath` is an array of `{ name, positionNumber, typeIdentifier? }` segments whose
+`typeIdentifier` is present only when readable (omitted, not null, otherwise). A device carries
 `deviceName`/`deviceItemName`, a node `deviceName`/`nodeId` with its owner path, a subnet `subnetId`.
 Each `verification.finalChecks[]` entry is `{ kind, operationId, subject, field, status, expected,
 observed, message }`:
@@ -476,7 +477,7 @@ observed, message }`:
 | --- | --- | --- |
 | `device` | typed device identity | `deviceName`, `deviceItemName`, `typeIdentifier` |
 | `node` | typed node identity | `exists`, `Address`, `SubnetMask`, `PnDeviceNameAutoGeneration`, `PnDeviceName`, `Subnet`, `IoSystemSubnet`, `IoSystemNumber`, `removedSubnet` (subject `subnetId` names the removed subnet) |
-| `subnet` | `{ subnetId }` | `exists`, `absent`, `Name`, `HighestAddress`, `TransmissionSpeed` |
+| `subnet` | `{ subnetId }` | `exists`, `absent`, `TypeIdentifier`, `Name`, `HighestAddress`, `TransmissionSpeed` |
 | `operation` | `subject:null`, `operationId` set | `immediateEvidence`, `affectedInventory` |
 | `write` | both null | `finalHardwareState`, `networkDeviceCountUnchanged` |
 
@@ -491,7 +492,8 @@ verification and audit. On V21 it is a `readWrite` Boolean (`true` on a PLC by d
 generates its name automatically (or `PnDeviceName` is not writable), and
 `pnDeviceNameAutoGeneration:false` is not supplied, the item fails at plan time with
 `validation_error` before any change. Pass `pnDeviceNameAutoGeneration:false` together with
-`pnDeviceName` to set the name explicitly.
+`pnDeviceName` to set the name explicitly. The check blocks only on read evidence: an unreadable
+flag with a writable or unreadable `PnDeviceName` does not block the request.
 
 Audit v2 contains exactly one record per entered call under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 Actual read-write confirmation is `none`; actual full is `policy`; previews/pre-execution denials

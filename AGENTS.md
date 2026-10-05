@@ -82,7 +82,7 @@ retains typed results and gets a final preservation check. Verification `identit
 `finalChecks[].subject` are typed objects with explicit nulls, never interpolated names;
 `verification.success:true` with root `success:false` is by design. Host preflight selector misses
 are `target_not_found`/`target_ambiguous`; `postcondition_failed` is only late worker drift/postchecks.
-Worker code compares live Openness objects with `object.Equals`, never `ReferenceEquals`.
+Worker identity comparisons of live Openness objects (owner resolve-back, ancestor containment, owner diagnostics) use `object.Equals`, never `ReferenceEquals`; the cycle guards over live ancestor/owner hierarchies keep `ReferenceEquals`.
 Budget complete canonical responses at 180,000 characters and individual values at 60,000.
 Write admission reserves aggregate encoded IDs/protected summaries before binding; the 256-character
 per-ID limit remains unchanged, with no smaller per-ID limit. Root `omission` is null when complete;
