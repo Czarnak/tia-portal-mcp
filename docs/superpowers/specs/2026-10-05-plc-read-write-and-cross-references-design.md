@@ -316,8 +316,15 @@ until real use needs it.
   objects can be deleted.
 - Budget: sources are dropped whole from the tail until the report value fits 60,000 characters
   and the document 180,000. The report carries `isComplete:false`, `omittedSourceCount` and a
-  narrowing warning (`maxResults`, a narrower path, or a `member`) instead of a separate omission
-  record, so the report itself is never withheld.
+  narrowing warning (`maxResults`, `filter`, a narrower path, or a `member`, noting that a single
+  heavily used object may exceed the limit) instead of a separate omission record, so the report
+  itself is never withheld.
+- When not even one whole source fits (typically a leaf target with one heavily referenced source),
+  the first source is kept and trimmed inside rather than returning `sources:[]` (amended after the
+  final review): tail child sources are dropped whole first, then tail references, then tail
+  locations of the one remaining reference. `isComplete` is `false` and one message counts the
+  omitted child sources, references and locations. No contract fields are added;
+  `omittedSourceCount` still counts top-level sources only.
 - Deferred: mapping `SourceObject.UnderlyingObject` back to canonical selectors (useful for
   chaining tools; needs stub work and has no consumer yet).
 
@@ -417,6 +424,7 @@ token flow.
 | --- | --- |
 | Content over 60,000 characters is omitted, so it has no hash and cannot be updated through `plc_write`. | Same ceiling as today's truncation. Recorded in the PLC operations summary. |
 | A tag inventory serializes at roughly 150 characters per tag, so one PLC of about 400 tags exceeds the 60,000-character value and `list_tag_tables` is omitted whole. | Narrow with `plcName`, `folderPath` or `tableName` (§3.2); the guidance names all three. A single table larger than the value remains unreadable through `list_tag_tables`. |
+| One cross-reference source can exceed the 60,000-character value on its own (a heavily used tag or block). | The source is trimmed inside (§5.3), so the caller gets its head with counts of what was omitted; the omitted tail cannot be paged and needs `filter`, a narrower target or a `member`. |
 | `get_block_content(format="source")` can return stale symbol names until recompiled ([#82](https://github.com/Czarnak/tia-portal-mcp/issues/82)). | Unchanged; the hash protects against concurrent edits, not against stale export. |
 | A concurrent TIA Portal UI edit to a value-setting target between plan and mutation. | Exact-target resolution at mutation; residual risk as in the write-safety redesign §8. |
 | Snapshot-reader rules are lost when the readers are deleted. | §4.3 ports rule by rule with tests before deletion; Appendix A is the checklist. |
