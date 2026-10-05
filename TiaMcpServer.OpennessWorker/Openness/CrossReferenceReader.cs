@@ -143,7 +143,8 @@ public static class CrossReferenceReader
 
     private static void ReadBlocks(PlcBlockGroup group, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {
-        Visit(() => group.Blocks, block => { if (IsSupportedBlock(block)) query(block); }, report);
+        // Every block class is an owner; one without the service is counted and marks the sweep incomplete.
+        Visit(() => group.Blocks, block => query(block), report);
         Visit(() => group.Groups, child => ReadBlocks(child, query, report), report);
         if (group is PlcBlockSystemGroup system)
             Visit(() => system.SystemBlockGroups, child => ReadSystemBlocks(child, query, report), report);
@@ -151,12 +152,9 @@ public static class CrossReferenceReader
 
     private static void ReadSystemBlocks(PlcSystemBlockGroup group, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {
-        Visit(() => group.Blocks, block => { if (IsSupportedBlock(block)) query(block); }, report);
+        Visit(() => group.Blocks, block => query(block), report);
         Visit(() => group.Groups, child => ReadSystemBlocks(child, query, report), report);
     }
-
-    private static bool IsSupportedBlock(PlcBlock block) =>
-        block is OB || block is FB || block is FC || block is GlobalDB || block is InstanceDB || block is ArrayDB;
 
     private static void ReadTags(PlcTagTableGroup group, Action<IEngineeringServiceProvider> query, CrossReferenceReport report)
     {

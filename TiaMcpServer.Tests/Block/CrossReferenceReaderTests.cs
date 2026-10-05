@@ -47,7 +47,7 @@ public class CrossReferenceReaderTests
     }
 
     [Fact]
-    public void Read_QueriesOnlySupportedOwnersAcrossGroupsAndUnits()
+    public void Read_QueriesEveryOwnerAcrossGroupsAndUnits()
     {
         var (project, plc) = Fixture();
         var owners = new List<NamedObject>();
@@ -59,8 +59,8 @@ public class CrossReferenceReaderTests
             return owner;
         }
         plc.BlockGroup.Blocks.Items.Add(Owner(new OB(), "rootOB"));
-        var unsupported = new PlcBlock { Name = "unsupported", CrossReferenceService = Service("forbiddenBlock") };
-        plc.BlockGroup.Blocks.Items.Add(unsupported);
+        // A block class outside OB/FB/FC/DB kinds is still an owner (spec §5.2).
+        plc.BlockGroup.Blocks.Items.Add(Owner(new PlcBlock(), "nonStandardBlock"));
         var nested = new PlcBlockGroup();
         plc.BlockGroup.Groups.Items.Add(new PlcBlockGroup { Groups = { Items = { nested } } });
         nested.Blocks.Items.Add(Owner(new FB(), "nestedFB"));
@@ -96,8 +96,25 @@ public class CrossReferenceReaderTests
         Assert.Equal(0, plc.CrossReferenceServiceRequests);
         Assert.Equal(0, table.CrossReferenceServiceRequests);
         Assert.Equal(0, unit.CrossReferenceServiceRequests);
-        Assert.Equal(0, unsupported.CrossReferenceServiceRequests);
         Assert.All(owners, o => Assert.Equal(CrossReferenceFilter.AllObjects, Assert.Single(o.CrossReferenceService!.Queries)));
+    }
+
+    [Fact]
+    public void SweepCountsNonStandardBlockWithoutServiceAsIncomplete()
+    {
+        var (project, plc) = Fixture();
+        plc.BlockGroup.Blocks.Items.Add(new FC { Name = "fc", CrossReferenceService = Service("fcSource") });
+        var system = new PlcSystemBlockGroup();
+        plc.BlockGroup.SystemBlockGroups.Items.Add(system);
+        system.Blocks.Items.Add(new PlcBlock { Name = "noService" });
+
+        var report = CrossReferenceReader.Read(project, PlcPath, CrossReferenceFilterNames.AllObjects);
+
+        Assert.Equal(2, report.OwnerQueryCount);
+        Assert.Equal(1, report.SuccessfulOwnerQueryCount);
+        Assert.Equal("fcSource", Assert.Single(report.Sources).Name);
+        Assert.False(report.IsComplete);
+        Assert.NotEmpty(report.Messages);
     }
 
     [Fact]
