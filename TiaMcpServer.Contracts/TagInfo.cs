@@ -8,8 +8,6 @@ public class TagInfo
 
     public string LogicalAddress { get; set; } = string.Empty;
 
-    public string? Comment { get; set; }
-
     /// <summary>External-access flags; null when unreadable or not supported (always null from <c>ReadAll</c>).</summary>
     public bool? ExternalAccessible { get; set; }
 

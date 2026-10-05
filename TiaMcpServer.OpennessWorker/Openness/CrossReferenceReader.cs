@@ -248,18 +248,17 @@ public static class CrossReferenceReader
             ReferencedAsName = SafeString(location.ReferencedAsName)
         };
         // An unreadable referenced object keeps the location, as null plus an incomplete report.
-        TryRead(() => info.ReferencedAs = ReadObjectRef(location.ReferencedAs), report);
+        TryRead(() => info.ReferencedAs = ReadObjectRef(location.ReferencedAs, report), report);
         return info;
     }
 
-    private static CrossReferenceObjectRefInfo? ReadObjectRef(IEngineeringObject? referenced)
+    private static CrossReferenceObjectRefInfo? ReadObjectRef(IEngineeringObject? referenced, CrossReferenceReport report)
     {
         if (referenced is null) return null;
-        return new CrossReferenceObjectRefInfo
-        {
-            Name = SafeString(referenced.GetAttribute("Name")),
-            TypeName = referenced.GetType().Name
-        };
+        // TypeName needs no Openness call; an unreadable Name keeps the type with an empty name.
+        var info = new CrossReferenceObjectRefInfo { TypeName = referenced.GetType().Name };
+        TryRead(() => info.Name = SafeString(referenced.GetAttribute("Name")), report);
+        return info;
     }
 
     // ponytail: a value outside the V21 enum (a later TIA version) maps to "Unknown"; widen the

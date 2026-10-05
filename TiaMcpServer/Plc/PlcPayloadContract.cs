@@ -2,6 +2,7 @@ using System.Text.Json;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Plc;
@@ -68,9 +69,31 @@ public static class PlcPayloadContract
         => operation.Operation switch
         {
             "get_block_content" or "get_type_content" => CanonicalJson.ToElement(Content(operation, payload, warnings)),
-            "list_tag_tables" => CanonicalJson.NormalizeWorkerPayload<PlcTagInventoryInfo>(payload).Element,
+            "list_tag_tables" => Inventory(payload),
             _ => throw new JsonException($"No declared result contract for PLC operation '{operation.Operation}'."),
         };
+
+    /// <exception cref="JsonException">A list or list element of the inventory is null.</exception>
+    private static JsonElement Inventory(string payload)
+    {
+        var (inventory, _, element) = CanonicalJson.NormalizeWorkerPayload<PlcTagInventoryInfo>(payload);
+        if (inventory.Messages is null || inventory.Plcs is null) throw new JsonException();
+        StandalonePayloadContract.RejectNullElements(inventory.Messages);
+        StandalonePayloadContract.RejectNullElements(inventory.Plcs);
+        foreach (var plc in inventory.Plcs)
+        {
+            if (plc.Tables is null) throw new JsonException();
+            StandalonePayloadContract.RejectNullElements(plc.Tables);
+            foreach (var table in plc.Tables)
+            {
+                if (table.Tags is null || table.UserConstants is null) throw new JsonException();
+                StandalonePayloadContract.RejectNullElements(table.Tags);
+                StandalonePayloadContract.RejectNullElements(table.UserConstants);
+            }
+        }
+
+        return element;
+    }
 
     private static PlcContentResult Content(PlcOperationRequest operation, string payload, IReadOnlyList<string> warnings)
     {

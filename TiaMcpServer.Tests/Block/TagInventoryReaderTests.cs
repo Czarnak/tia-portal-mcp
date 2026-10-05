@@ -194,8 +194,42 @@ public class TagInventoryReaderTests
         using var document = JsonDocument.Parse(json);
         var tag = document.RootElement.GetProperty("plcs")[0].GetProperty("tables")[0].GetProperty("tags")[0];
         Assert.Equal(JsonValueKind.Null, tag.GetProperty("externalWritable").ValueKind);
-        Assert.Equal(JsonValueKind.Null, tag.GetProperty("comment").ValueKind);
+        // Comments are never read, so the inventory does not claim "no comment" with a null.
+        Assert.False(tag.TryGetProperty("comment", out _));
         Assert.Equal(JsonValueKind.True, document.RootElement.GetProperty("isComplete").ValueKind);
+    }
+
+    [Fact]
+    public void EngineeringNotSupportedFlagIsNullWithoutMessage()
+    {
+        var project = new SiemensProject();
+        AddTable(AddPlc(project.Devices, "Device", "Plc"), "T").Tags.Items.Add(new PlcTag
+        {
+            Name = "A", ExternalWritableFailure = new EngineeringNotSupportedException("not supported"),
+        });
+
+        var inventory = TagTableReader.ReadInventory(project, null);
+
+        Assert.True(inventory.IsComplete);
+        Assert.Empty(inventory.Messages);
+        Assert.Null(Assert.Single(Assert.Single(Assert.Single(inventory.Plcs).Tables).Tags).ExternalWritable);
+    }
+
+    [Fact]
+    public void UnreadableTagTableGroupOnOnePlcDoesNotAbortTheOthers()
+    {
+        var project = new SiemensProject();
+        var broken = AddPlc(project.Devices, "BrokenDevice", "BrokenPlc");
+        broken.TagTableGroupFailure = new EngineeringException("group boom");
+        AddTable(AddPlc(project.Devices, "GoodDevice", "GoodPlc"), "GoodTable");
+
+        var inventory = TagTableReader.ReadInventory(project, null);
+
+        Assert.False(inventory.IsComplete);
+        Assert.Contains(inventory.Messages, m => m.Contains("BrokenPlc") && m.Contains("group boom"));
+        Assert.Equal(new[] { "BrokenPlc", "GoodPlc" }, inventory.Plcs.Select(p => p.PlcName));
+        Assert.Empty(inventory.Plcs[0].Tables);
+        Assert.Equal("GoodTable", Assert.Single(inventory.Plcs[1].Tables).Name);
     }
 
     private static PlcSoftware AddPlc(Composition<Device> devices, string deviceName, string softwareName)

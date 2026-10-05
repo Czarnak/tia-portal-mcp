@@ -89,6 +89,45 @@ public class PlcPayloadContractTests
         Assert.DoesNotContain("secret", item.Failure.Message);
     }
 
+    private const string ValidTag =
+        """{"name":"A","dataType":"Bool","logicalAddress":"%I0.0","externalAccessible":null,"externalVisible":null,"externalWritable":null}""";
+
+    private static string Inventory(string messages = "[]", string tables = "[]")
+        => $$"""{"isComplete":true,"messages":{{messages}},"plcs":[{"plcName":"P","deviceName":null,"tables":{{tables}}}]}""";
+
+    private static string Table(string tags = "[" + ValidTag + "]", string constants = "[]")
+        => $$"""[{"name":"T","folderPath":"/","isDefault":false,"tags":{{tags}},"userConstants":{{constants}}}]""";
+
+    public static IEnumerable<object[]> NullElementInventories() => new[]
+    {
+        new object[] { """{"isComplete":true,"messages":[],"plcs":[null]}""" },
+        new object[] { """{"isComplete":true,"messages":[],"plcs":null}""" },
+        new object[] { Inventory(messages: "null") },
+        new object[] { Inventory(tables: "null") },
+        new object[] { Inventory(messages: "[null]") },
+        new object[] { Inventory(tables: "[null]") },
+        new object[] { Inventory(tables: Table(tags: "[null]")) },
+        new object[] { Inventory(tables: Table(tags: "null")) },
+        new object[] { Inventory(tables: Table(constants: "[null]")) },
+        new object[] { Inventory(tables: Table(constants: "null")) },
+    };
+
+    [Fact]
+    public void InventoryFixtureIsValid()
+        => Assert.Equal(OperationBatchStatus.Succeeded, PlcPayloadContract.Project(Tags(), WorkerCallResult.Ok(Inventory(tables: Table()))).Status);
+
+    [Theory]
+    [MemberData(nameof(NullElementInventories))]
+    public void NullInventoryElementsAreProtocolErrorWithoutEcho(string payload)
+    {
+        var item = PlcPayloadContract.Project(Tags(), WorkerCallResult.Ok(payload));
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Null(item.Result);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+        Assert.DoesNotContain("null", item.Failure.Message);
+    }
+
     [Fact]
     public void ProtocolErrorWritesServerDiagnosticWithoutPayload()
     {

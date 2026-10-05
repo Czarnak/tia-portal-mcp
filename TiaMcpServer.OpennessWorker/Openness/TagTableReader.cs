@@ -8,19 +8,6 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 public static class TagTableReader
 {
     /// <summary>
-    /// Reads every tag table of the PLC software selected by <paramref name="plcName"/> via
-    /// <see cref="PlcSoftwareLocator.Find(Project, string)"/>. Kept for the tag-table tools;
-    /// the I/O-map path resolves the PLC deterministically first and calls
-    /// <see cref="ReadAll(PlcSoftware)"/> directly so it never depends on the first-match lookup.
-    /// </summary>
-    public static List<TagTableInfo> ReadAll(Project project, string? plcName)
-    {
-        var plcSoftware = PlcSoftwareLocator.Find(project, plcName);
-
-        return ReadAll(plcSoftware);
-    }
-
-    /// <summary>
     /// Reads every tag table of one already-selected <see cref="PlcSoftware"/>. The caller owns
     /// deterministic PLC selection; this method only walks the tag-table tree.
     /// </summary>
@@ -61,7 +48,16 @@ public static class TagTableReader
                 PlcName = discovered.Software.Name,
                 DeviceName = discovered.DeviceName
             };
-            InventoryGroup(discovered.Software.TagTableGroup, "/", filter, plc.Tables, inventory.Messages);
+            try
+            {
+                InventoryGroup(discovered.Software.TagTableGroup, "/", filter, plc.Tables, inventory.Messages);
+            }
+            catch (EngineeringException ex)
+            {
+                // One unreadable PLC is reported; the other PLCs are still read.
+                inventory.Messages.Add($"The tag tables of PLC '{plc.PlcName}' could not be read: {ex.Message}");
+            }
+
             inventory.Plcs.Add(plc);
         }
 
@@ -187,12 +183,17 @@ public static class TagTableReader
         return constants;
     }
 
-    // NotSupportedException means the attribute does not exist for this tag: null without a message.
+    // "Not supported" means the attribute does not exist for this tag: null without a message.
+    // Openness throws EngineeringNotSupportedException; System.NotSupportedException is kept as harmless.
     private static bool? ReadFlag(Func<bool> read, string flag, string context, List<string> messages)
     {
         try
         {
             return read();
+        }
+        catch (EngineeringNotSupportedException)
+        {
+            return null;
         }
         catch (NotSupportedException)
         {

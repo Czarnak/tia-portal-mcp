@@ -324,7 +324,7 @@ public class CrossReferenceReaderTests
     }
 
     [Fact]
-    public void UnreadableReferencedAsIsNullAndIncomplete()
+    public void UnreadableReferencedAsNameKeepsTypeAndIsIncomplete()
     {
         var (project, plc) = Fixture();
         var service = Service("source");
@@ -341,8 +341,10 @@ public class CrossReferenceReaderTests
 
         var location = Assert.Single(Assert.Single(Assert.Single(report.Sources).References).Locations);
         Assert.Equal("kept", location.Name);
-        Assert.Null(location.ReferencedAs);
+        Assert.Equal("PlcTag", location.ReferencedAs!.TypeName);
+        Assert.Equal(string.Empty, location.ReferencedAs.Name);
         Assert.False(report.IsComplete);
+        Assert.NotEmpty(report.Messages);
         Assert.DoesNotContain("private", string.Join("", report.Messages));
     }
 

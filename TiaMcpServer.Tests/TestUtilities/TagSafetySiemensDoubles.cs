@@ -75,6 +75,12 @@ namespace Siemens.Engineering
         public NonRecoverableException(string message) : base(message) { }
     }
 
+    // Openness throws this (not System.NotSupportedException) for an attribute the object does not have.
+    public sealed class EngineeringNotSupportedException : EngineeringException
+    {
+        public EngineeringNotSupportedException(string message) : base(message) { }
+    }
+
     public interface IEngineeringServiceProvider
     {
         T? GetService<T>() where T : class;
@@ -232,7 +238,9 @@ namespace Siemens.Engineering.SW
     public sealed class PlcSoftware : NamedObject, IEngineeringServiceProvider
     {
         private readonly Blocks.PlcBlockSystemGroup blockGroup = new();
-        public Tags.PlcTagTableGroup TagTableGroup { get; } = new();
+        private readonly Tags.PlcTagTableGroup tagTableGroup = new();
+        public Exception? TagTableGroupFailure { get; set; }
+        public Tags.PlcTagTableGroup TagTableGroup => TagTableGroupFailure is null ? tagTableGroup : throw TagTableGroupFailure;
         public Exception? BlockGroupFailure { get; set; }
         public Blocks.PlcBlockSystemGroup BlockGroup => BlockGroupFailure is null ? blockGroup : throw BlockGroupFailure;
         public Types.PlcTypeGroup TypeGroup { get; } = new();
