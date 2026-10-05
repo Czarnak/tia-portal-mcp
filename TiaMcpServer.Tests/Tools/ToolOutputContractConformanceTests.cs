@@ -92,6 +92,30 @@ public sealed class ToolOutputContractConformanceTests
                 },
             }),
         new ToolProbe(
+            "plc_read",
+            "rejected",
+            ExpectIsError: true,
+            StartupProjectPath: null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe(
+            "plc_read",
+            "succeeded",
+            ExpectIsError: false,
+            StartupProjectPath: null,
+            new Dictionary<string, object?>
+            {
+                ["operations"] = new[]
+                {
+                    new
+                    {
+                        operationId = "block",
+                        operation = "get_block_content",
+                        projectPath = "plc-read-roundtrip",
+                        blockPath = "PLC_1/Main",
+                    },
+                },
+            }),
+        new ToolProbe(
             "network_write",
             "rejected",
             ExpectIsError: true,
@@ -233,6 +257,7 @@ public sealed class ToolOutputContractConformanceTests
             "get_project_status/malformed" => "status-malformed",
             "get_project_status/omitted" => "status-oversized",
             "network_read/succeeded" => "network-roundtrip",
+            "plc_read/succeeded" => "plc-read-roundtrip",
             "browse_project_tree/succeeded" => "project-tree-v3-small",
             _ => probe.StartupProjectPath == "guarded-lifecycle"
                 ? fixture.SourcePath : probe.StartupProjectPath
@@ -245,7 +270,7 @@ public sealed class ToolOutputContractConformanceTests
             _ => null
         };
         using var uiOpen = probe.Name is "get_project_status/malformed" or
-            "get_project_status/omitted" or "network_read/succeeded" or
+            "get_project_status/omitted" or "network_read/succeeded" or "plc_read/succeeded" or
             "browse_project_tree/succeeded"
             ? FakeWorkerUiOpenProject.ForWorkerRelativePath(sourcePath!)
             : new FakeWorkerUiOpenProject(sourcePath);
@@ -287,6 +312,15 @@ public sealed class ToolOutputContractConformanceTests
             {
                 Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
             }
+        }
+        if (probe.Tool == "plc_read")
+        {
+            var document = result.StructuredContent!.Value;
+            Assert.Equal("1.0", document.GetProperty("contractVersion").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
+            Assert.Equal(
+                probe.ExpectIsError ? System.Text.Json.JsonValueKind.Null : System.Text.Json.JsonValueKind.Object,
+                document.GetProperty("batch").ValueKind);
         }
         if (probe.Name == "network_read/succeeded")
         {

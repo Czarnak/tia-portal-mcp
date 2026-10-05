@@ -195,18 +195,7 @@ public static class BatchWorkerInvoker
     }
 
     internal static string NormalizeFormat(BatchOperationRequest op)
-    {
-        var fallback = op.Operation is "get_type_content" or "update_type_content"
-            ? SourceFormatNames.Source
-            : SourceFormatNames.Xml;
-
-        if (!SourceFormatNames.TryNormalize(op.Format, fallback, out var normalized, out var error))
-        {
-            throw new ArgumentException(error, nameof(op));
-        }
-
-        return normalized;
-    }
+        => Plc.PlcFormatNames.Normalize(op.Operation, op.Format);
 
     private static Task<WorkerCallResult> InvokeGetBlockContent(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(

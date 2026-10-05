@@ -806,6 +806,20 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "plc-read-roundtrip":
+            Respond(ReadMethod(line) switch
+            {
+                "get_block_content" when ReadField(line, "blockPath") == "PLC_1/Missing"
+                    => """{"success":false,"error":"block not found"}""",
+                "get_block_content" => Success($"<Block path=\"{ReadField(line, "blockPath")}\" format=\"{ReadField(line, "format")}\"/>"),
+                "get_type_content" => Success($"TYPE \"{ReadField(line, "typePath")}\" format={ReadField(line, "format")}"),
+                "list_tag_tables" => Success(ToCamelCaseJson(new PlcTagInventoryInfo
+                {
+                    Plcs = { new PlcTagInventoryPlcInfo { PlcName = "PLC_1", DeviceName = "PLC_1_Device" } },
+                })),
+                _ => $$"""{"success":false,"error":"unexpected plc read method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "network-mixed-results":
             // One explicitly open project can return distinct outcomes for a batch without
             // pretending that each item switched the Portal to a different project.

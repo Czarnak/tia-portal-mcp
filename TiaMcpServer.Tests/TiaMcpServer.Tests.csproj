@@ -158,6 +158,7 @@
       Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"
       Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\*.cs" Link="Host\Plc\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Batch\BatchContentHashes.cs"
       Link="Host\Batch\BatchContentHashes.cs" />
     <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
