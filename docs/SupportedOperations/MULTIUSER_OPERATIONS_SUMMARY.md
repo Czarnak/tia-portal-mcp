@@ -18,7 +18,7 @@ multiple matches returns `target_ambiguous`, without first-target fallback.
 | `list_server_connections` | Optional `portalProcessId` | Configured alias, host and port; configuration does not prove connectivity/authentication. |
 | `list_server_groups` | Optional PID; required `serverAlias` | Exact endpoint's groups and connection observation. |
 | `list_server_projects` | Optional PID; required alias and `group` | Projects within the exact root or named group. |
-| `list_local_sessions` | Optional PID; required alias, group and `serverProjectName` | Session IDs and canonical paths on this machine for the current user. |
+| `list_local_sessions` | Optional PID; required alias, group and `serverProjectName` | Integer `sessionId` (no positivity restriction) and canonical paths on this machine for the current user. |
 | `get_lock_state` | Optional PID; required alias, group and project | Observed flag, nullable owner and timestamp. |
 
 An explicitly supplied PID must be a positive integer, not null, text or a fraction. Root group
