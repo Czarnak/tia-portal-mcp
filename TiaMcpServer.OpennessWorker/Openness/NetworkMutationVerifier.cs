@@ -22,10 +22,9 @@ internal static class NetworkMutationVerifier
         Observe(evidence, "deviceItemName", request.DeviceItemName ?? request.DeviceName, () =>
         {
             if (device is null) throw new InvalidOperationException("Device identity was not verified.");
-            var matches = EnumerateItems(device.DeviceItems).Where(candidate => Required(candidate.Name) == result.RootItemName).ToList();
-            if (matches.Count != 1) throw new InvalidOperationException("Created item did not resolve uniquely.");
-            item = matches[0];
-            return item.Name;
+            item = NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>(), candidate => candidate.Name, result.RootItemName)
+                ?? throw new InvalidOperationException("Created item did not resolve uniquely.");
+            return Required(item.Name);
         });
         Observe(evidence, "typeIdentifier", request.TypeIdentifier, () =>
         {
@@ -170,15 +169,6 @@ internal static class NetworkMutationVerifier
             identity.DeviceName, identity.NodeId, identity.InterfacePath, identity.InterfaceName));
         if (!resolved.Success) throw new InvalidOperationException(resolved.Error);
         return (resolved.Resolved!.OwningInterface!, (Node)resolved.Resolved.Value);
-    }
-
-    private static IEnumerable<DeviceItem> EnumerateItems(DeviceItemComposition items)
-    {
-        foreach (DeviceItem item in items)
-        {
-            yield return item;
-            foreach (var child in EnumerateItems(item.DeviceItems)) yield return child;
-        }
     }
 
     private static string Required(string? value) => !string.IsNullOrWhiteSpace(value) ? value! : throw new InvalidOperationException("Required value was unreadable.");

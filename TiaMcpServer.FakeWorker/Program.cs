@@ -3900,11 +3900,13 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         var itemName = ReadField(request, "deviceItemName") ?? name;
         var type = ReadField(request, "typeIdentifier")!;
         state.RootDeviceCount++;
-        var rack = GuardedItem(name, 0, "Rack", "Rack:TEST");
-        rack.Items.Add(GuardedItem(name, 0, itemName, type, rack.Selector!.ItemPath!.ToArray()));
+        // ET200SP shape: the head module is top-level, and its sub-item repeats its name without a type.
+        var head = GuardedItem(name, 1, itemName, type);
+        head.Items.Add(new() { Name = itemName, PositionNumber = 0, Selectable = false,
+            SelectorDiagnostics = new() { "Could not read device item type identifier." } });
         state.Devices.Add(new() { Name = name, TypeIdentifier = "Device:Station", Items = new()
         {
-            rack, GuardedItem(name, 1, "PowerSupply", "Supply:TEST")
+            GuardedItem(name, 0, "Rack", "Rack:TEST"), head, GuardedItem(name, 2, "PowerSupply", "Supply:TEST")
         } });
         return Success(ToCamelCaseJson(new AddDeviceResultInfo
         {

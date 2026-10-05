@@ -248,13 +248,16 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Contains(verification.FinalChecks, c => c.Name.Contains("node-2"));
     }
     [Fact]
-    public async Task AddedDevice_VerifiesExactNestedItemRatherThanDeviceType()
+    public async Task AddedDevice_VerifiesTopLevelItemDespiteSameNamedChild()
     {
+        // The fake device has the ET200SP shape: the top-level head module has a child with the same name.
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
         var response = await fixture.RunAsync(false, new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device", DeviceName = "new", DeviceItemName = "CPU", TypeIdentifier = "OrderNumber:TEST" });
         Assert.True(response.Success);
-        Assert.Contains(response.Verification!.FinalChecks, c => c.Name.EndsWith("/typeIdentifier") && c.Status == "passed");
+        Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
+        Assert.Contains(response.Verification!.FinalChecks, c => c.Name.EndsWith("/deviceItemName") && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Name.EndsWith("/typeIdentifier") && c.Status == "passed" && c.Observed == "OrderNumber:TEST");
     }
     [Fact]
     public async Task UnknownAttempt_RetainsUnverifiedRecordAndSkipsFollowingItems()

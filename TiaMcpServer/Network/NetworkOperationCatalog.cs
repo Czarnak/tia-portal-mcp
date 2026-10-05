@@ -256,6 +256,14 @@ public static class NetworkOperationCatalog
                 errors.Add($"Operation '{operation.Operation}' (operationId '{operation.OperationId}'): 'maxResults' must be 1 or greater.");
             }
 
+            // A blank item name would be replaced by deviceName on create but not in the
+            // host/worker '?? deviceName' expectations, so the verified identity would diverge.
+            if (spec.Name == "add_network_device"
+                && operation.DeviceItemName is not null && string.IsNullOrWhiteSpace(operation.DeviceItemName))
+            {
+                errors.Add($"Operation '{operation.Operation}' (operationId '{operation.OperationId}'): 'deviceItemName' must not be blank when supplied.");
+            }
+
             if (spec.Name == "list_network_objects")
             {
                 ValidateListNetworkObjects(operation, errors);

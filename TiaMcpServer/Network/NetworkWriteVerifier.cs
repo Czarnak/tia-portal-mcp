@@ -162,8 +162,9 @@ public sealed class NetworkWriteVerifier
         {
             if (devices.Length != 1) return (null, false);
             var device = devices[0];
-            if (key.Field != "deviceName" && DeviceItems(device.Items).Any(i => string.IsNullOrWhiteSpace(i.Name))) return (null, false);
-            var matchingItems = DeviceItems(device.Items).Where(i => i.Name == key.NodeId).ToArray();
+            // Same rule as the worker's creator: unique exact name among top-level items only.
+            // An ET200SP head module's sub-item repeats the head's name, so children are never searched.
+            var matchingItems = device.Items.Where(i => string.Equals(i.Name, key.NodeId, StringComparison.Ordinal)).ToArray();
             var item = matchingItems.Length == 1 ? matchingItems[0] : null;
             var value = key.Field switch
             {
@@ -214,7 +215,6 @@ public sealed class NetworkWriteVerifier
             _ => null
         };
     }
-    private static IEnumerable<DeviceItemInfo> DeviceItems(IEnumerable<DeviceItemInfo> items) => items.SelectMany(i => new[] { i }.Concat(DeviceItems(i.Items)));
     private static string? IoSubnet(string? value)
     {
         if (value is null) return null;
