@@ -805,7 +805,7 @@ No production code, Project Server connection, local session, server project, TI
 PLC, or remote resource was changed while preparing this design. No live acceptance is claimed.
 PR 1 and PR 2 were merged in the inspected `main`. The revised
 [PR 3 binding/discovery implementation plan](../plans/2026-10-05-multiuser-pr3-read-only-inventory.md)
-was subsequently accepted and implemented/offline-qualified. The remaining gates are final review
-and current-PR operation-specific live acceptance, pending exact fixture/scope authorization.
+was subsequently accepted and implemented/offline-qualified. Final review and scoped fix re-review
+are Approved. Current-PR operation-specific live acceptance remains pending exact fixture/scope authorization.
 Remote writes and live operations remain unauthorized. Successor mutation surfaces remain separately
 planned; this PR 3 routing decision adds no mutation action to `bind_project`.

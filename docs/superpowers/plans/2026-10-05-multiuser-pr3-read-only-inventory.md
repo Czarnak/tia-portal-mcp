@@ -10,7 +10,7 @@
 
 **Spec:** [Multiuser Engineering design](../specs/2026-09-28-multiuser-engineering-design.md), amended on 2026-10-05 for the user-selected binding-only read surface.
 
-**Status:** Accepted for local implementation, granular local commits and offline qualification. Tasks 1–3 implemented and independently reviewed; Task 4 offline qualification/documentation passed, final whole-branch review remains a controller gate. Task 5 live acceptance is pending exact fixture/scope authorization. No remote publication or installed-tool/configuration change is authorized.
+**Status:** Accepted for local implementation, granular local commits and offline qualification. Tasks 1–3 implemented and independently reviewed; Task 4 refreshed offline qualification/documentation passed; whole-candidate review and scoped final-fix re-review are Approved. Task 5 live acceptance is pending exact fixture/scope authorization. No remote publication or installed-tool/configuration change is authorized.
 
 **Baseline:** `main` / `origin/main` / GitHub main at `ea269c222e7415af347f2929cbc82a366aa2ee0f` (merged PR #109). Worktree `C:\Users\LCZ\.codex\worktrees\multiuser-pr3\tia-portal-mcp`, branch `feature/multiuser-pr3`. PR 1/PR 2 are present. Discovery remains **6/16/16**. The earlier separate read tool, request batching, new registration, and higher tool counts are superseded.
 
@@ -145,7 +145,7 @@ Combined annotation remains ReadOnly=false, Destructive=false, Idempotent=true; 
 
 - [x] **Step 1: Run serial same-configuration solution build before subprocess tests**, full suite, materially changed branch coverage with existing 0.80 line threshold, stub drift, installed build/probe, and package-leak checks. Retain logs/exit codes and environmental limitations.
 - [x] **Step 2: Document explicit discovery vs default auto-bind**, attached-PID restriction, real invalidation, selectors, current-user scope, lock/omission limits, unchanged count, and undelivered ALS21/Issue65 boundary.
-- [ ] **Step 3: Independently review whole candidate** for default compatibility, schema, identity, secrets, runtime references, and scope; validate links/anchors/examples/indexes/whitespace. Documentation-only fixes reuse valid build evidence.
+- [x] **Step 3: Independently review whole candidate** for default compatibility, schema, identity, secrets, runtime references, and scope; validate links/anchors/examples/indexes/whitespace. Documentation-only fixes reuse valid build evidence.
 
 Execution-phase commands:
 
@@ -179,4 +179,4 @@ Earlier October 5 planning used reflection-only installed V21 metadata without i
 
 Primary V21 sources: [projects](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-server-projects), [groups](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-project-server-group), [current-user sessions](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-available-local-sessions), [lock provider](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-lockstate-provider), [lock state](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/checking-project-locked), [owner](https://docs.tia.siemens.cloud/r/en-us/v21/tia-portal-openness-api-for-automation-of-engineering-workflows/tia-portal-openness-api/functions-support-for-multiuser/getting-lock-owner).
 
-Initial planning history (October 5): only planning documents changed; no implementation, build/test/package suite, commit, remote mutation, or live TIA operation ran during that planning step. The plan was subsequently accepted and implemented/offline-qualified as recorded above. The remaining gates are final review and Task 5 operation-specific live acceptance on an explicitly authorized fixture.
+Initial planning history (October 5): only planning documents changed; no implementation, build/test/package suite, commit, remote mutation, or live TIA operation ran during that planning step. The plan was subsequently accepted and implemented/offline-qualified as recorded above. Final review and scoped fix re-review are Approved. The remaining gate is Task 5 operation-specific live acceptance on an explicitly authorized fixture.
