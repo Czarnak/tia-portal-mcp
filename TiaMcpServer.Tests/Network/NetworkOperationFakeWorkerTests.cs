@@ -160,6 +160,33 @@ public class NetworkOperationFakeWorkerTests
         }
     }
 
+    [Fact]
+    public async Task QualifiedConfigure_FinalChecksCarryTypedSubjectWithoutNestedJson()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+        var response = await fixture.RunAsync(false, QualifiedConfigure("typed"));
+        Assert.True(response.Success);
+        using var document = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
+        var root = document.RootElement;
+        var finalChecks = root.GetProperty("verification").GetProperty("finalChecks").EnumerateArray().ToArray();
+        var address = Assert.Single(finalChecks, c => c.GetProperty("field").GetString() == "Address");
+        Assert.Equal("node", address.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, address.GetProperty("operationId").ValueKind);
+        var subject = address.GetProperty("subject");
+        Assert.Equal("S7-1500/ET200MP station_1", subject.GetProperty("deviceName").GetString());
+        Assert.Equal("E1", subject.GetProperty("nodeId").GetString());
+        Assert.Equal("PROFINET interface_1", subject.GetProperty("interfacePath")[1].GetProperty("name").GetString());
+        var exists = Assert.Single(finalChecks, c => c.GetProperty("field").GetString() == "exists");
+        Assert.Equal("node", exists.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, exists.GetProperty("subject").GetProperty("subnetId").ValueKind);
+        foreach (var check in finalChecks)
+        {
+            Assert.False(check.TryGetProperty("name", out _));
+            AssertNoNestedJson(check.GetProperty("subject"));
+        }
+    }
+
     private static void AssertNoNestedJson(JsonElement element)
     {
         switch (element.ValueKind)

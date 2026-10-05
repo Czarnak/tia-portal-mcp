@@ -41,7 +41,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
                 Array.Empty<string>())).ToArray()),
             new NetworkWriteVerification(true, operations.Select(operation => new NetworkOperationVerification(
                 operation.OperationId, operation.Operation, "passed", null, null)).ToArray(),
-                Array.Empty<NetworkVerificationCheckInfo>(), null));
+                Array.Empty<NetworkFinalCheck>(), null));
         var canonical = CanonicalJson.Serialize(response);
 
         Assert.True(canonical.Length > 180000);
@@ -326,7 +326,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.Equal(originalPath, CanonicalJson.Serialize(bounded.Effects[0].Effect!.Target.InterfacePath));
         Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Expected);
         Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Observed);
-        Assert.Contains(bounded.Verification.FinalChecks, c => c.Name.Contains(NetworkInterfacePathEncoding.Encode(bounded.Verification.Operations[0].Evidence!.Identity.InterfacePath!), StringComparison.Ordinal));
+        Assert.Contains(bounded.Verification.FinalChecks, c => c.Kind == "node" && CanonicalJson.Serialize(c.Subject!.InterfacePath) == CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence!.Identity.InterfacePath));
         Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, 180000);
         Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence).Length, 0, 60000);
     }
@@ -343,7 +343,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.All(nodes, n => Assert.Equal("E1", n.NodeId));
         Assert.NotEqual(NetworkInterfacePathEncoding.Encode(nodes[0].InterfacePath!), NetworkInterfacePathEncoding.Encode(nodes[1].InterfacePath!));
         Assert.All(nodes, n => Assert.Contains(response.Verification!.FinalChecks,
-            c => c.Name.Contains(NetworkInterfacePathEncoding.Encode(n.InterfacePath!), StringComparison.Ordinal) && c.Name.EndsWith("/removedSubnet:subnet-1")));
+            c => c.Field == "removedSubnet" && c.Subject!.SubnetId == "subnet-1" && CanonicalJson.Serialize(c.Subject.InterfacePath) == CanonicalJson.Serialize(n.InterfacePath)));
     }
 
     [Fact]
@@ -463,8 +463,8 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             Verification = response.Verification! with
             {
                 Operations = response.Verification.Operations.Append(new("generated", "create_subnet", "passed", generatedEvidence, null)).ToArray(),
-                FinalChecks = response.Verification.FinalChecks.Append(new() { Name = $"subnet/{generatedId}///exists",
-                    Expected = "true", Observed = "true", Status = "passed" }).ToArray()
+                FinalChecks = response.Verification.FinalChecks.Append(NetworkFinalCheck.Subnet(generatedId, "exists") with
+                    { Expected = "true", Observed = "true", Status = "passed" }).ToArray()
             }
         };
         var bounded = NetworkWritePayloadBudget.Apply(response);
@@ -521,7 +521,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.InRange(resultChars, 0, 60000);
         Assert.InRange(evidenceChars, 0, 60000);
         Assert.True(finalChars > 60000);
-        Assert.All(verification.FinalChecks.Where(c => c.Name.EndsWith("/Address") || c.Name.EndsWith("/SubnetMask") || c.Name.EndsWith("/PnDeviceName")),
+        Assert.All(verification.FinalChecks.Where(c => c.Field is "Address" or "SubnetMask" or "PnDeviceName"),
             c => Assert.Equal(7000, c.Observed!.Length));
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
             new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
@@ -587,6 +587,6 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             StructuredOperationBatch.FromItems(new[] { new StructuredOperationItem("one", "configure_network_device", "succeeded",
                 CanonicalJson.ToElement(new { value }), null, null, null, Array.Empty<string>()) }),
             new NetworkWriteVerification(true, new[] { new NetworkOperationVerification("one", "configure_network_device", "passed", evidence, null) },
-                evidence.Checks, null));
+                evidence.Checks.Select(c => NetworkFinalCheck.Write(c.Name) with { Status = c.Status, Expected = c.Expected, Observed = c.Observed }).ToArray(), null));
     }
 }

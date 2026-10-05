@@ -532,6 +532,7 @@ function Resolve-NetworkNodeSelectorEvidence {
     $normalized.interfacePath = $semanticPath
     return $normalized
 }
+# Exact harness-internal key for a node check; the server reports a typed subject and field, never this text.
 function Get-NetworkNodeCheckName {
     param($Identity, [string] $Field)
     $null = Get-NetworkNodeKey $Identity

@@ -73,10 +73,10 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal("PLC_Grouped", response.Verification.Operations[0].Evidence!.Identity.DeviceName);
         Assert.Equal("plc_grouped", response.Verification.Operations[1].Evidence!.Identity.DeviceName);
         Assert.True(response.Success);
-        var address = Assert.Single(response.Verification.FinalChecks, check => check.Name.EndsWith("/Address"));
+        var address = Assert.Single(response.Verification.FinalChecks, check => check.Field == "Address");
         Assert.Equal("10.0.0.2", address.Expected);
         Assert.Equal("passed", address.Status);
-        Assert.Single(response.Verification.FinalChecks, check => check.Name.EndsWith("/node-2/exists"));
+        Assert.Single(response.Verification.FinalChecks, check => check.Subject?.NodeId == "node-2" && check.Field == "exists");
     }
 
     [Theory]
@@ -98,9 +98,9 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal("plc_grouped", response.Verification.Operations[0].Evidence!.Identity.DeviceName);
         Assert.Contains(response.Effects[1].Effect!.AffectedNodes, node => node.DeviceName == "PLC_Grouped");
         Assert.True(response.Success);
-        Assert.DoesNotContain(response.Verification.FinalChecks, check => check.Name.EndsWith("/Subnet") || check.Name.EndsWith("/IoSystem"));
-        Assert.Single(response.Verification.FinalChecks, check => check.Name.EndsWith("/node-2/exists"));
-        Assert.Contains(response.Verification.FinalChecks, check => check.Name.EndsWith("/node-3/exists") && check.Status == "passed");
+        Assert.DoesNotContain(response.Verification.FinalChecks, check => check.Field is "Subnet" or "IoSystem");
+        Assert.Single(response.Verification.FinalChecks, check => check.Subject?.NodeId == "node-2" && check.Field == "exists");
+        Assert.Contains(response.Verification.FinalChecks, check => check.Subject?.NodeId == "node-3" && check.Field == "exists" && check.Status == "passed");
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.True(response.Success);
         Assert.Single(response.Guards, g => g.Id == "network_delete_connected_subnet");
         Assert.Single(response.Effects[1].Effect!.AffectedNodes);
-        Assert.Contains(response.Verification!.FinalChecks, c => c.Name.Contains("node-2") && c.Status == "passed");
+        Assert.Contains(response.Verification!.FinalChecks, c => c.Subject?.NodeId == "node-2" && c.Status == "passed");
     }
     [Fact]
     public async Task EarlierAdd_RefreshesRootCount()
@@ -198,7 +198,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
         Assert.True(response.Verification!.Success);
         Assert.Single(response.Verification.Operations);
-        Assert.DoesNotContain(response.Verification.FinalChecks, c => c.Name.EndsWith("/IoSystem"));
+        Assert.DoesNotContain(response.Verification.FinalChecks, c => c.Field == "IoSystem");
     }
     [Fact]
     public async Task DeletedSubnet_AggregatePassCannotHideLostUngroupedNode()
@@ -208,7 +208,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.False(response.Success);
         Assert.Equal("passed", response.Verification!.Operations[0].Status);
-        Assert.Contains(response.Verification.FinalChecks, c => c.Name.Contains("PLC_Ungrouped") && c.Status == "failed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Subject?.DeviceName == "PLC_Ungrouped" && c.Status == "failed");
     }
     [Fact]
     public async Task PostReadFailure_IsUnverifiedAndNeverReplayed()
@@ -244,8 +244,8 @@ public sealed class NetworkGuardedWriteOrderingTests
         var projected = domain.Project(operation, await domain.MutateAsync("network-guarded", operation));
         var verification = await domain.VerifyAsync("network-guarded", StructuredOperationBatch.FromItems(new[] { projected }));
         Assert.True(verification!.Success);
-        Assert.DoesNotContain(verification.FinalChecks, c => c.Name.Contains("caller-corruption"));
-        Assert.Contains(verification.FinalChecks, c => c.Name.Contains("node-2"));
+        Assert.DoesNotContain(verification.FinalChecks, c => c.Subject?.NodeId == "caller-corruption");
+        Assert.Contains(verification.FinalChecks, c => c.Subject?.NodeId == "node-2");
     }
     [Fact]
     public async Task AddedDevice_VerifiesTopLevelItemDespiteSameNamedChild()
@@ -256,8 +256,8 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device", DeviceName = "new", DeviceItemName = "CPU", TypeIdentifier = "OrderNumber:TEST" });
         Assert.True(response.Success);
         Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
-        Assert.Contains(response.Verification!.FinalChecks, c => c.Name.EndsWith("/deviceItemName") && c.Status == "passed");
-        Assert.Contains(response.Verification.FinalChecks, c => c.Name.EndsWith("/typeIdentifier") && c.Status == "passed" && c.Observed == "OrderNumber:TEST");
+        Assert.Contains(response.Verification!.FinalChecks, c => c.Kind == "device" && c.Field == "deviceItemName" && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Kind == "device" && c.Field == "typeIdentifier" && c.Status == "passed" && c.Observed == "OrderNumber:TEST");
     }
     [Fact]
     public async Task UnknownAttempt_RetainsUnverifiedRecordAndSkipsFollowingItems()
@@ -282,8 +282,8 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, rename, NetworkGuardedWriteFixture.Delete());
         Assert.True(response.Success);
         Assert.Equal(2, response.Verification!.Operations.Count);
-        Assert.DoesNotContain(response.Verification.FinalChecks, c => c.Name.EndsWith("/Name") || c.Name == "subnet/subnet-1//exists");
-        Assert.Contains(response.Verification.FinalChecks, c => c.Name.EndsWith("/absent") && c.Status == "passed");
+        Assert.DoesNotContain(response.Verification.FinalChecks, c => c.Field == "Name" || c.Kind == "subnet" && c.Subject!.SubnetId == "subnet-1" && c.Field == "exists");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Kind == "subnet" && c.Field == "absent" && c.Status == "passed");
     }
     [Fact]
     public async Task ProfibusAttributes_UseTypedInspectionAndEnumSymbol()
@@ -312,7 +312,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, attach, move);
         Assert.False(response.Success);
         Assert.All(response.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
-        var io = Assert.Single(response.Verification.FinalChecks, c => c.Name.EndsWith("/IoSystem"));
+        var io = Assert.Single(response.Verification.FinalChecks, c => c.Field == "IoSystem");
         Assert.Equal("failed", io.Status);
         Assert.Equal("[\"subnet-1\",1]", io.Expected);
         Assert.Null(io.Observed);
@@ -327,7 +327,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, rename, NetworkGuardedWriteFixture.Delete());
         Assert.False(response.Success);
         Assert.Equal(1, response.Effects[1].Effect!.RootDeviceCount);
-        Assert.Contains(response.Verification!.FinalChecks, c => c.Name == "networkDeviceCountUnchanged" && c.Expected == "2" && c.Observed == "1" && c.Status == "failed");
+        Assert.Contains(response.Verification!.FinalChecks, c => c.Kind == "write" && c.Field == "networkDeviceCountUnchanged" && c.Expected == "2" && c.Observed == "1" && c.Status == "failed");
     }
     [Fact]
     public async Task UnknownDelete_StillInspectsExactPlannedNodes()
@@ -337,7 +337,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.False(response.Success);
         Assert.Equal("unverified", Assert.Single(response.Verification!.Operations).Status);
-        Assert.Contains(response.Verification.FinalChecks, c => c.Name.StartsWith("node/PLC_Grouped/", StringComparison.Ordinal) && c.Name.EndsWith("/node-2/exists", StringComparison.Ordinal) && c.Status == "passed");
-        Assert.Contains(response.Verification.FinalChecks, c => c.Name.StartsWith("node/PLC_Ungrouped/", StringComparison.Ordinal) && c.Name.EndsWith("/node-3/exists", StringComparison.Ordinal) && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Subject?.DeviceName == "PLC_Grouped" && c.Subject.NodeId == "node-2" && c.Field == "exists" && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Subject?.DeviceName == "PLC_Ungrouped" && c.Subject.NodeId == "node-3" && c.Field == "exists" && c.Status == "passed");
     }
 }

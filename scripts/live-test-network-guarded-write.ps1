@@ -170,8 +170,8 @@ function Assert-Inspections {
     }
 }
 function Assert-VerificationCheck {
-    param($Check, [string] $Name, [string] $Expected)
-    if ($null -eq $Check -or $Check.name -isnot [string] -or $Check.name -cne $Name -or
+    param($Check, [string] $Name, [string] $Expected, [string] $Member = 'name')
+    if ($null -eq $Check -or $Check.$Member -isnot [string] -or $Check.$Member -cne $Name -or
         $Check.expected -isnot [string] -or $Check.expected -cne $Expected -or
         $Check.observed -isnot [string] -or $Check.status -notin @('passed', 'failed') -or
         ($null -ne $Check.message -and $Check.message -isnot [string]) -or
@@ -280,10 +280,14 @@ function Assert-Outcome {
     if ($finalChecks.Count -ne $requiredFinal.Count) { throw 'Final effective-prefix evidence is incomplete.' }
     $seenFinal = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     foreach ($check in $finalChecks) {
-        if ($null -eq $check -or -not $seenFinal.Add($check.name)) { throw 'Duplicate or missing final evidence.' }
-        $expected = @($requiredFinal | Where-Object { $check.name -ceq (Get-NetworkNodeCheckName $_.identity $_.field) })
+        # Configuration-only writes produce node checks with a typed subject and no operation or removed subnet.
+        if ($null -eq $check -or $check.kind -cne 'node' -or $null -ne $check.operationId -or $null -eq $check.subject -or
+            $null -ne $check.subject.subnetId -or $check.field -isnot [string]) { throw 'Unexpected final identity/setting evidence.' }
+        $checkKey = Get-NetworkNodeCheckName $check.subject $check.field
+        if (-not $seenFinal.Add($checkKey)) { throw 'Duplicate or missing final evidence.' }
+        $expected = @($requiredFinal | Where-Object { $checkKey -ceq (Get-NetworkNodeCheckName $_.identity $_.field) })
         if ($expected.Count -ne 1) { throw 'Unexpected final identity/setting evidence.' }
-        Assert-VerificationCheck $check $check.name $expected[0].expected
+        Assert-VerificationCheck $check $check.field $expected[0].expected 'field'
         if ($check.status -eq 'failed') { $verificationPassed = $false }
     }
     if ($Response.verification.success -ne $verificationPassed) { throw 'Verification summary contradicts immediate/final evidence.' }

@@ -18,7 +18,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal(2, new HashSet<NetworkNodeIdentityInfo>(new[] { a, b }, NetworkNodeIdentityComparer.Instance).Count);
         var map = new Dictionary<NetworkNodeIdentityInfo, string>(NetworkNodeIdentityComparer.Instance) { [a] = "x1", [b] = "x2" };
         Assert.Equal(2, map.Count);
-        Assert.Equal("x1", map[new() { DeviceName = "plc", NodeId = "E1", InterfacePath = NetworkInterfacePathEncoding.Decode(NetworkInterfacePathEncoding.Encode(a.InterfacePath!)).ToList() }]);
+        Assert.Equal("x1", map[new() { DeviceName = "plc", NodeId = "E1", InterfacePath = NetworkWritePlanner.ClonePath(a.InterfacePath!) }]);
     }
     [Fact]
     public void DeviceCaseAndPathCase_FollowDeclaredRules()
@@ -126,7 +126,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         var a = Configure(32768, "192.168.12.7", "x1"); var b = Configure(33024, "192.168.13.8", "x2");
         var result = await f.RunAsync(false, reverse ? b : a, reverse ? a : b);
         Assert.True(result.Success);
-        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Name.EndsWith("/Address") && c.Status == "passed"));
+        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Kind == "node" && c.Field == "Address" && c.Status == "passed"));
         Assert.All(result.Effects, e => Assert.NotNull(Assert.Single(e.Effect!.AffectedNodes).InterfacePath));
     }
     [Fact]
@@ -140,7 +140,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal(2, new HashSet<NetworkNodeIdentityInfo>(result.Effects[0].Effect!.AffectedNodes, NetworkNodeIdentityComparer.Instance).Count);
         Assert.Equal("network_delete_connected_subnet", Assert.Single(result.Guards).Id);
         Assert.All(result.Effects[0].Effect!.AffectedNodes, n => Assert.NotNull(n.InterfacePath));
-        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Name.EndsWith("/removedSubnet:subnet-1") && c.Status == "passed"));
+        Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Kind == "node" && c.Field == "removedSubnet" && c.Subject!.SubnetId == "subnet-1" && c.Status == "passed"));
         var final = await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, "network-qualified-delete");
         Assert.Equal(baseline.State!.RootDeviceCount, final.State!.RootDeviceCount);
         Assert.All(final.State.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes), n =>
@@ -178,7 +178,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
         var result = await f.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.Equal("applied", result.Phase); Assert.False(result.Success);
-        Assert.Contains(result.Verification!.FinalChecks, c => c.Name.EndsWith("/absent") && c.Status == "unverified");
+        Assert.Contains(result.Verification!.FinalChecks, c => c.Kind == "subnet" && c.Field == "absent" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "delete_subnet");
     }
     [Fact]
@@ -191,8 +191,8 @@ public sealed class NetworkQualifiedNodeIdentityTests
             Subnet = new() { Name = "PB", NetworkType = "Profibus", HighestAddress = 31, TransmissionSpeed = "Baud187500" } });
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
         Assert.Equal("passed", result.Verification!.Operations[0].Status);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/HighestAddress") && c.Status == "unverified");
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/TransmissionSpeed") && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "HighestAddress" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "TransmissionSpeed" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "create_subnet");
     }
     [Theory][InlineData("number")][InlineData("subnet")]
@@ -207,8 +207,8 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("applied", result.Phase); Assert.False(result.Success);
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
         Assert.Equal("passed", result.Verification!.Operations[0].Status);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/IoSystem") && c.Status == "unverified");
-        if (kind == "subnet") Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/Subnet") && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Field == "IoSystem" && c.Status == "unverified");
+        if (kind == "subnet") Assert.Contains(result.Verification.FinalChecks, c => c.Field == "Subnet" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
     }
     [Fact]
@@ -221,7 +221,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status); Assert.False(result.Success);
         Assert.Equal("skipped", result.Batch.Operations[2].Status);
         Assert.Equal("passed", Assert.Single(result.Verification!.Operations).Status);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name == "finalHardwareState" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Kind == "write" && c.Field == "finalHardwareState" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
         var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
         var nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
@@ -274,7 +274,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.All(result.Batch!.Operations, operation => Assert.Equal("succeeded", operation.Status));
         Assert.All(result.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
         Assert.False(result.Success);
-        Assert.Contains(result.Verification.FinalChecks, c => c.Name.EndsWith("/Address") && c.Expected == "192.168.12.8" && c.Status == "unverified");
+        Assert.Contains(result.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "Address" && c.Expected == "192.168.12.8" && c.Status == "unverified");
         Assert.Equal(2, log.Methods().Count(m => m == "configure_network_device"));
     }
     [Fact]

@@ -45,7 +45,7 @@ public static class NetworkWritePayloadBudget
         void OmitFinal(string reason, int limit)
         {
             finalOmission = Omission(reason, limit, Size(finalChecks));
-            finalChecks = Array.Empty<NetworkVerificationCheckInfo>();
+            finalChecks = Array.Empty<NetworkFinalCheck>();
         }
 
         // Compact diagnostics in every repeated copy before dropping any whole root.
@@ -144,21 +144,24 @@ public static class NetworkWritePayloadBudget
             new(new string('x', 64), DiagnosticSummary), Array.Empty<string>(), guards,
             items.Select(item => new NetworkWriteEffectPresentation(item.OperationId, null, omission)).ToArray(), batch,
             new(false, items.Select(item => new NetworkOperationVerification(item.OperationId, item.Operation,
-                "not_required", null, omission)).ToArray(), Array.Empty<NetworkVerificationCheckInfo>(), omission), omission));
+                "not_required", null, omission)).ToArray(), Array.Empty<NetworkFinalCheck>(), omission), omission));
     }
 
     /// <summary>
-    /// Reserves known prepared recovery values, including encoded path strings embedded in
-    /// immediate identities and final check names. Public copies are measured independently.
+    /// Reserves known prepared recovery values, including owner paths in immediate identities
+    /// and final check subjects. Public copies are measured independently.
     /// Unpredictable worker-generated identities are not assigned a fabricated length bound.
     /// </summary>
     public static int MeasurePreparedCore(IReadOnlyList<NetworkOperationRequest> items,
         IReadOnlyList<ItemPlan<NetworkWriteEffect>> plans)
     {
         long chars = MeasureProtectedCore(items);
-        var finalChecks = new List<NetworkVerificationCheckInfo>();
+        var finalChecks = new List<NetworkFinalCheck>();
         NetworkVerificationCheckInfo Check(string name, string? value) => new()
         { Name = name, Expected = value, Observed = value, Status = "unverified", Message = DiagnosticSummary };
+        NetworkFinalCheck Observed(NetworkFinalCheck check, string? value, string? observed)
+            => check with { Expected = value, Observed = observed, Message = DiagnosticSummary };
+        NetworkFinalCheck Final(NetworkFinalCheck check, string? value) => Observed(check, value, value);
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];
@@ -166,11 +169,10 @@ public static class NetworkWritePayloadBudget
             var target = effect.Target;
             var identity = new NetworkMutationIdentityInfo();
             var checks = new List<NetworkVerificationCheckInfo>();
-            NetworkVerificationCheckInfo SettingCheck(string name, string field, string? value)
+            string? KnownObserved(string field, string? value)
             {
-                var check = Check(name, value);
                 if (!effect.CurrentSettings.TryGetValue(field, out var prior)
-                    || prior.Availability != "available" || prior.Value is null) return check;
+                    || prior.Availability != "available" || prior.Value is null) return value;
                 // Both native planner values and detached payload values are possible here.
                 // Choose by canonical encoded size, not raw string length: every separately
                 // bounded result/immediate/final copy can observe the known prior value.
@@ -186,10 +188,14 @@ public static class NetworkWritePayloadBudget
                     JsonElement element => element.GetRawText(),
                     var scalar => Convert.ToString(scalar, System.Globalization.CultureInfo.InvariantCulture)
                 };
-                if (Size(observed) > Size(value)) check.Observed = observed;
-                return check;
+                return Size(observed) > Size(value) ? observed : value;
             }
-            void Add(string name, string? value) => checks.Add(SettingCheck(name, name, value));
+            void Add(string name, string? value)
+            {
+                var check = Check(name, value);
+                check.Observed = KnownObserved(name, value);
+                checks.Add(check);
+            }
             if (item.Operation == "configure_network_device")
             {
                 identity.DeviceName = target.DeviceName!;
@@ -204,7 +210,7 @@ public static class NetworkWritePayloadBudget
                 identity.DeviceItemName = item.DeviceItemName ?? item.DeviceName!;
                 foreach (var setting in effect.RequestedSettings) Add(setting.Key, setting.Value);
                 foreach (var setting in effect.RequestedSettings)
-                    finalChecks.Add(Check($"device/{item.DeviceName}//{identity.DeviceItemName}/{setting.Key}", setting.Value));
+                    finalChecks.Add(Final(NetworkFinalCheck.Device(item.DeviceName!, identity.DeviceItemName, setting.Key), setting.Value));
             }
             else
             {
@@ -216,31 +222,30 @@ public static class NetworkWritePayloadBudget
                 if (item.Operation == "delete_subnet")
                 {
                     Add("subnetAbsent", "true"); Add("affectedNodesPreserved", "true"); Add("affectedConnectionsRemoved", "true");
-                    finalChecks.Add(Check($"subnet/{subnetId}///absent", "true"));
+                    finalChecks.Add(Final(NetworkFinalCheck.Subnet(subnetId, "absent"), "true"));
                 }
                 else
                 {
                     Add("subnetIdentity", subnetId);
-                    finalChecks.Add(Check($"subnet/{subnetId}///exists", "true"));
+                    finalChecks.Add(Final(NetworkFinalCheck.Subnet(subnetId, "exists"), "true"));
                     foreach (var setting in effect.RequestedSettings)
                     {
                         Add(setting.Key, setting.Value);
-                        finalChecks.Add(SettingCheck($"subnet/{subnetId}///{setting.Key}", setting.Key, setting.Value));
+                        finalChecks.Add(Observed(NetworkFinalCheck.Subnet(subnetId, setting.Key), setting.Value, KnownObserved(setting.Key, setting.Value)));
                     }
                 }
             }
             foreach (var node in effect.AffectedNodes)
             {
-                var owner = node.InterfacePath is null ? "" : NetworkInterfacePathEncoding.Encode(node.InterfacePath);
-                var name = $"node/{node.DeviceName}/{owner}/{node.NodeId}/";
-                finalChecks.Add(Check(name + "exists", "true"));
+                finalChecks.Add(Final(NetworkFinalCheck.Node(node, "exists"), "true"));
                 if (item.Operation == "delete_subnet")
-                    finalChecks.Add(Check(name + "removedSubnet:" + target.SubnetId, "true"));
+                    finalChecks.Add(Final(NetworkFinalCheck.Node(node, "removedSubnet", target.SubnetId), "true"));
                 if (item.Operation == "configure_network_device")
-                    foreach (var setting in effect.RequestedSettings) finalChecks.Add(SettingCheck(name + setting.Key, setting.Key, setting.Value));
+                    foreach (var setting in effect.RequestedSettings)
+                        finalChecks.Add(Observed(NetworkFinalCheck.Node(node, setting.Key), setting.Value, KnownObserved(setting.Key, setting.Value)));
             }
             // Unknown outcomes also retain their operation identity in an immediateEvidence check.
-            finalChecks.Add(Check(item.OperationId + "/immediateEvidence", "available"));
+            finalChecks.Add(Final(NetworkFinalCheck.Operation(item.OperationId, "immediateEvidence"), "available"));
             var evidence = new NetworkMutationVerificationInfo
             { Status = "unverified", Identity = identity, Checks = checks, Message = DiagnosticSummary };
             var skipped = effect.RequestedSettings.ToDictionary(p => p.Key, _ => DiagnosticSummary);
@@ -263,8 +268,8 @@ public static class NetworkWritePayloadBudget
             // aggregate-only padding cannot establish the per-item guarantee.
 
         }
-        finalChecks.Add(Check("networkDeviceCountUnchanged", int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        finalChecks.Add(Check("finalHardwareState", "readable complete inventory"));
+        finalChecks.Add(Final(NetworkFinalCheck.Write("networkDeviceCountUnchanged"), int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        finalChecks.Add(Final(NetworkFinalCheck.Write("finalHardwareState"), "readable complete inventory"));
         var finalChars = Size(finalChecks);
         if (finalChars > 60000) return int.MaxValue;
         chars += finalChars;
@@ -294,7 +299,7 @@ public static class NetworkWritePayloadBudget
         var verification = response.Verification is null ? null : response.Verification with
         {
             Operations = response.Verification.Operations.Select(o => o with { Evidence = Evidence(o.Evidence) }).ToArray(),
-            FinalChecks = response.Verification.FinalChecks.Select(Check).ToArray()
+            FinalChecks = response.Verification.FinalChecks.Select(c => c with { Message = c.Message is null ? null : Message(c.Message) }).ToArray()
         };
         var error = response.Error is null ? null : response.Error with { Message = Message(response.Error.Message) };
         var warnings = Warnings(response.Warnings);

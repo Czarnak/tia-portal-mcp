@@ -97,19 +97,20 @@ public class NetworkMutationVerificationTests
     [InlineData("[{}]")]
     [InlineData("[{\"name\":\"X1\"}]")]
     [InlineData("[{\"name\":\"X1\",\"positionNumber\":32768,\"extra\":true}]")]
-    [InlineData("[{\"name\":\"X1\",\"name\":\"X2\",\"positionNumber\":32768}]")]
     [InlineData("[{\"name\":\"X1\",\"positionNumber\":\"32768\"}]")]
+    [InlineData("[null]")]
     [InlineData("[]")]
-    public void InterfacePathEncoding_RejectsIncompleteOrUntypedEvidence(string encoded)
-        => Assert.Throws<System.Text.Json.JsonException>(() => NetworkInterfacePathEncoding.Decode(encoded));
-
-    [Fact]
-    public void InterfacePathEncoding_RoundTripsEscapedOrdinalIdentity()
+    [InlineData("\"[{\\\"name\\\":\\\"X1\\\",\\\"positionNumber\\\":32768}]\"")]
+    public void QualifiedImmediateIdentity_IncompleteUntypedOrEncodedPathIsProtocolError(string path)
     {
-        var path = new[] { new NetworkInterfacePathSegmentInfo { Name = "X1\"/雪", PositionNumber = 32768, TypeIdentifier = "Optional" } };
-        var encoded = NetworkInterfacePathEncoding.Encode(path);
-        Assert.Equal(encoded, NetworkInterfacePathEncoding.Encode(NetworkInterfacePathEncoding.Decode(encoded)));
-        Assert.Equal(path[0].Name, NetworkInterfacePathEncoding.Decode(encoded)[0].Name);
+        var op = Configure();
+        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 32768 } };
+        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
+        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768 } };
+        Assert.Equal("succeeded", Project(op, result).Status);
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(WorkerJson.SerializePayload(result))!;
+        payload["verification"]!["identity"]!["interfacePath"] = System.Text.Json.Nodes.JsonNode.Parse(path);
+        AssertProtocolError(NetworkPayloadContract.Project(op, WorkerCallResult.Ok(payload.ToJsonString()), true));
     }
 
     [Fact]
@@ -122,18 +123,6 @@ public class NetworkMutationVerificationTests
         Assert.Equal("succeeded", Project(op, result).Status);
         result.Verification.Identity.InterfacePath = new() { new() { Name = "X2", PositionNumber = 33024 } };
         AssertProtocolError(Project(op, result));
-    }
-
-    [Fact]
-    public void QualifiedImmediateIdentity_EncodedStringPathIsProtocolError()
-    {
-        var op = Configure();
-        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 32768 } };
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
-        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768 } };
-        var payload = System.Text.Json.Nodes.JsonNode.Parse(WorkerJson.SerializePayload(result))!;
-        payload["verification"]!["identity"]!["interfacePath"] = "[{\"name\":\"X1\",\"positionNumber\":32768}]";
-        AssertProtocolError(NetworkPayloadContract.Project(op, WorkerCallResult.Ok(payload.ToJsonString()), true));
     }
 
     [Fact]
