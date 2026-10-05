@@ -195,6 +195,21 @@ while ((line = Console.In.ReadLine()) is not null)
 
     if (currentMethod == "list_tia_portal_processes")
     {
+        // Script external loss observed while stamping a successful discovery response.
+        var observation = fakePortals.Select(portal => Path.GetFileNameWithoutExtension(portal.ProjectPath))
+            .FirstOrDefault(key => key is "discovery-project-closed" or "discovery-portal-lost" or "discovery-missing-identity");
+        if (observation is "discovery-project-closed" or "discovery-portal-lost")
+        {
+            var portal = AttachedPortal();
+            if (portal is not null) portal.ProjectPath = null;
+            fakeProjectPath = null;
+            fakeSessionGeneration++;
+            if (observation == "discovery-portal-lost")
+            {
+                if (portal is not null) fakePortals.Remove(portal);
+                fakePortalProcessId = null;
+            }
+        }
         Respond(Success(WorkerJson.SerializePayload(new TiaPortalProcessListInfo
         {
             AttachedProcessId = fakePortalProcessId,
@@ -204,7 +219,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 HasUserInterface = portal.HasUserInterface,
                 AttachedByThisWorker = portal.ProcessId == fakePortalProcessId
             }).ToList()
-        })));
+        })), includeSessionIdentity: observation != "discovery-missing-identity");
         continue;
     }
 

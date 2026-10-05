@@ -121,6 +121,11 @@ public class OpennessWorkerClient : IDisposable
                 var listing = discovery ? result : await InvokeWorkerAsync(new WorkerRequest { Method = "list_tia_portal_processes" }).ConfigureAwait(false);
                 if (listing.Success)
                 {
+                    if (before.IsVerified)
+                    {
+                        var validated = ValidateOrPromoteSessionIdentity(listing, before);
+                        if (!validated.Success) result = validated;
+                    }
                     try { portals = ProjectBindingPayloadContract.DecodeProcessList(listing.Payload).Processes; }
                     catch (JsonException)
                     {

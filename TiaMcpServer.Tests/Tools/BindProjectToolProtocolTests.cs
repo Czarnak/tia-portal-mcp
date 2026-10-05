@@ -90,6 +90,42 @@ public sealed class BindProjectToolProtocolTests
         => Assert.Null(typeof(OpennessWorkerClient).GetField("_transport", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(harness.WorkerClient));
 
     [Theory]
+    [InlineData(null, null)]
+    [InlineData("discovery-project-closed", null)]
+    [InlineData("discovery-portal-lost", null)]
+    [InlineData("discovery-missing-identity", null)]
+    [InlineData("discovery-project-closed", "target_not_found")]
+    [InlineData("discovery-portal-lost", "target_ambiguous")]
+    public async Task Discovery_ReconcilesLiveIdentityInCanonicalBindingAndPortals(string? observation, string? selectorFailure)
+    {
+        using var fixture = new Fixture(new FakeWorkerPortals.Entry(42, A),
+            new FakeWorkerPortals.Entry(43, observation is null ? null : $"C:/Projects/{observation}.ap21"));
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        Value(await Bind(harness, A), "bound");
+        var before = fixture.Methods().Length;
+        var arguments = new Dictionary<string, object?> { ["action"] = selectorFailure is null ? "list_portals" : "list_server_groups" };
+        if (selectorFailure is not null) arguments["serverAlias"] = selectorFailure;
+        var response = await harness.Client.CallToolAsync("bind_project", arguments);
+        var document = Document(response);
+        Assert.Equal(document.GetRawText(), Assert.IsType<TextContentBlock>(Assert.Single(response.Content)).Text);
+        var value = observation is null ? document.GetProperty("result").GetProperty("value")
+            : Failed(response, observation == "discovery-missing-identity" ? "postcondition_failed" : "binding_conflict", "invalidated");
+        Assert.Equal("verified", value.GetProperty("previousBinding").GetProperty("state").GetString());
+        Assert.Equal(observation is null, document.GetProperty("success").GetBoolean());
+        Assert.Equal("none", value.GetProperty("transition").GetString());
+        Assert.Equal(JsonValueKind.Null, value.GetProperty("project").ValueKind);
+        Assert.NotEmpty(value.GetProperty("portals").EnumerateArray());
+        Assert.All(value.GetProperty("portals").EnumerateArray(), portal =>
+            Assert.Equal(observation is null && portal.GetProperty("processId").GetInt32() == 42, portal.GetProperty("isBound").GetBoolean()));
+        if (observation == "discovery-project-closed")
+            Assert.Equal(JsonValueKind.Null, value.GetProperty("portals")[0].GetProperty("projectPath").ValueKind);
+        Assert.Equal(6, value.GetProperty("inspection").EnumerateObject().Count(p => p.Value.ValueKind == JsonValueKind.Null));
+        Assert.Equal(selectorFailure is null ? new[] { "list_tia_portal_processes" }
+            : new[] { "list_server_groups", "list_tia_portal_processes" }, fixture.Methods().Skip(before));
+        Assert.Empty(Directory.GetFiles(fixture.AuditPath, "*.jsonl", SearchOption.AllDirectories));
+    }
+
+    [Theory]
     [InlineData(McpAccessMode.ReadOnly)]
     [InlineData(McpAccessMode.ReadWrite)]
     [InlineData(McpAccessMode.Full)]

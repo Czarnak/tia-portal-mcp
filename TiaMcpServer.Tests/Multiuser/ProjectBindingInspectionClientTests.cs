@@ -18,10 +18,10 @@ public sealed class ProjectBindingInspectionClientTests
         private readonly TempAuditDirectory directory = new();
         private readonly FakeWorkerPortals portals;
         private readonly FakeWorkerUiOpenProject ui;
-        public Fixture(string? configured = null, bool open = true, TimeSpan? timeout = null)
+        public Fixture(string? configured = null, bool open = true, TimeSpan? timeout = null, string? observation = null)
         {
             Directory.CreateDirectory(directory.Path);
-            portals = new FakeWorkerPortals(new(42, open ? Project : null), new(43, null));
+            portals = new FakeWorkerPortals(new(42, open ? Project : null), new(43, observation is null ? null : $"C:/Projects/{observation}.ap21"));
             ui = new(open ? Project : null);
             Log = new(directory.Path);
             Binding = new(configured);
@@ -38,6 +38,65 @@ public sealed class ProjectBindingInspectionClientTests
 
     private static WorkerRequest Request(string alias = "Fixture", int? pid = null) => new()
     { Method = "list_server_groups", MultiuserServerAlias = alias, PortalProcessId = pid };
+
+    [Theory]
+    [InlineData("discovery-project-closed", null, "binding_conflict")]
+    [InlineData("discovery-portal-lost", null, "binding_conflict")]
+    [InlineData("discovery-missing-identity", null, "postcondition_failed")]
+    [InlineData("discovery-project-closed", "target_not_found", "binding_conflict")]
+    [InlineData("discovery-portal-lost", "target_ambiguous", "binding_conflict")]
+    [InlineData("discovery-missing-identity", "target_not_found", "postcondition_failed")]
+    public async Task DiscoveryIdentityLoss_InvalidatesWithoutSelectionOrReplay(string observation, string? selectorFailure, string category)
+    {
+        using var f = new Fixture(observation: observation); await f.Verify();
+        var before = f.Client.BindingSnapshot;
+        var methods = f.Methods().Length;
+        var outcome = await f.Client.InspectPortalAsync(selectorFailure is null
+            ? new WorkerRequest { Method = "list_tia_portal_processes" } : Request(selectorFailure));
+        if (observation == "discovery-project-closed")
+            Assert.Null(Assert.Single(outcome.Portals, portal => portal.ProcessId == 42).ProjectPath);
+        if (observation == "discovery-portal-lost")
+            Assert.DoesNotContain(outcome.Portals, portal => portal.ProcessId == 42);
+        if (selectorFailure is null && observation != "discovery-missing-identity")
+        {
+            Assert.NotNull(outcome.Result.SessionIdentity);
+            Assert.Null(outcome.Result.SessionIdentity.ProjectPath);
+        }
+        Assert.Equal(category, outcome.Result.FailureCategory);
+        Assert.True(before.SameBinding(outcome.Before));
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, outcome.After.State);
+        Assert.False(before.SameBinding(outcome.After));
+        Assert.Equal(selectorFailure is null ? new[] { "list_tia_portal_processes" }
+            : new[] { "list_server_groups", "list_tia_portal_processes" }, f.Methods().Skip(methods));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("target_not_found")]
+    [InlineData("target_ambiguous")]
+    public async Task HealthyDiscovery_PreservesVerifiedBindingAndOriginalFailure(string? selectorFailure)
+    {
+        using var f = new Fixture(); await f.Verify(); var before = f.Client.BindingSnapshot;
+        var outcome = await f.Client.InspectPortalAsync(selectorFailure is null
+            ? new WorkerRequest { Method = "list_tia_portal_processes" } : Request(selectorFailure));
+        Assert.Equal(selectorFailure, outcome.Result.FailureCategory);
+        Assert.Equal(selectorFailure is null, outcome.Result.Success);
+        Assert.True(before.SameBinding(outcome.After));
+        Assert.Equal(2, outcome.Portals.Count);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(Project)]
+    public async Task Discovery_DoesNotPromoteUnverifiedBindingFromStampedIdentity(string? configured)
+    {
+        using var f = new Fixture(configured); var before = f.Client.BindingSnapshot;
+        var outcome = await f.Client.InspectPortalAsync(new WorkerRequest { Method = "list_tia_portal_processes" });
+        Assert.True(outcome.Result.Success, outcome.Result.Error);
+        Assert.NotNull(outcome.Result.SessionIdentity);
+        Assert.True(before.SameBinding(outcome.After));
+        Assert.Equal(new[] { "list_tia_portal_processes" }, f.Methods());
+    }
 
     [Fact]
     public async Task Verified_ForeignPidIsLocalNotSent_LeavesRevisionIntact()
@@ -136,13 +195,17 @@ public sealed class ProjectBindingInspectionClientTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ExistingProjectTreeCursor_SurvivesInspectionOrLocalRefusal(bool foreignPid)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, true)]
+    public async Task ExistingProjectTreeCursor_TracksInspectionBinding(bool foreignPid, bool discovery, bool loss)
     {
         const string scenario = "project-tree-v3-small";
         var path = Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, scenario);
-        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, path));
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, path),
+            new FakeWorkerPortals.Entry(43, loss ? "C:/Projects/discovery-project-closed.ap21" : null));
         using var ui = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
         var binding = new ProjectSessionBinding(path);
         using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.ReadOnly));
@@ -153,11 +216,13 @@ public sealed class ProjectBindingInspectionClientTests
         Assert.True(first.IsSuccess, first.CanonicalText);
         var cursor = first.Response.Result!.Pagination.NextCursor;
         Assert.NotNull(cursor);
-        var inspection = await client.InspectPortalAsync(Request("expect-bound", foreignPid ? 43 : 42));
-        Assert.Equal(!foreignPid, inspection.Result.Success);
+        var inspection = await client.InspectPortalAsync(discovery ? new WorkerRequest { Method = "list_tia_portal_processes" }
+            : Request(loss ? "target_not_found" : "expect-bound", foreignPid ? 43 : 42));
+        Assert.Equal(!foreignPid && !loss, inspection.Result.Success);
         var next = await coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor));
-        Assert.True(next.IsSuccess, next.CanonicalText);
-        Assert.Equal(new[] { 1, 2, 3 }, next.Response.Result!.Nodes.Select(node => node.Sequence));
+        Assert.Equal(!loss, next.IsSuccess);
+        if (loss) Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, next.Response.Failure!.Category);
+        else Assert.Equal(new[] { 1, 2, 3 }, next.Response.Result!.Nodes.Select(node => node.Sequence));
     }
 
     [Fact]
