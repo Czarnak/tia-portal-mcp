@@ -221,7 +221,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             }, $true))
             foreach ($function in $definition) { Invoke-Expression $function.Extent.Text }
             $operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; target = @{ deviceName = 'PC'; nodeId = 'node' }; changes = @{ ipAddress = '192.0.2.1'; pnDeviceName = 'requested' } }, @{ operationId = 'later' })
-            $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node'; interfacePath = '[{"name":"X1","positionNumber":1}]' }; message = $null; checks = @(@{ name = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }) }
+            $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; message = $null; checks = @(@{ name = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }) }
             $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $false; omission = $null
                 batch = @{ operations = @(
                     @{ operationId = 'first'; operation = 'configure_network_device'; status = 'failed'; omission = $null; result = @{ deviceName = 'PC'; verification = $evidence; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } } },
@@ -292,7 +292,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $items = @(); $verificationItems = @(); $expected = @()
             foreach ($operation in $operations) {
                 $settings = @{ Address = $operation.changes.ipAddress }
-                $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node'; interfacePath = '[{"name":"X1","positionNumber":1}]' }; message = $null
+                $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; message = $null
                     checks = @(@{ name = 'Address'; status = 'passed'; expected = $settings.Address; observed = $settings.Address; message = $null }) }
                 $items += @{ operationId = $operation.operationId; operation = $operation.operation; status = 'succeeded'; omission = $null
                     result = @{ deviceName = 'PC'; appliedSettings = $settings; skippedSettings = @{}; verification = $evidence } }
@@ -317,7 +317,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 }
                 foreach($operation in $operations){$operation.target.itemPath=@(@{index=0;name='X1';positionNumber=1;typeIdentifier='Type'});$operation.target.nodeIndex=0}
                 $owner=if($scenario -eq 'wrong-legacy-owner'){'[{"name":"X2","positionNumber":2,"typeIdentifier":"Type"}]'}else{'[{"name":"X1","positionNumber":1,"typeIdentifier":"Type"}]'}
-                foreach($item in $response.verification.operations){$item.evidence.identity.interfacePath=$owner}
+                foreach($item in $response.verification.operations){$item.evidence.identity.interfacePath=(ConvertFrom-Json -InputObject $owner -NoEnumerate)}
                 for($i=0;$i -lt 2;$i++){$response.batch.operations[$i].result.verification=$response.verification.operations[$i].evidence}
                 $response.verification.finalChecks[0].name="node/PC/$owner/node/exists"
                 $response.verification.finalChecks[1].name="node/PC/$owner/node/Address"

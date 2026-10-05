@@ -315,18 +315,18 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
         var operation = await QualifiedConfigure(fixture, scenario, "one");
         var response = await fixture.RunAsync(false, operation);
-        var identity = response.Verification!.Operations[0].Evidence!.Identity["interfacePath"];
+        var identity = CanonicalJson.Serialize(response.Verification!.Operations[0].Evidence!.Identity);
         var originalPath = CanonicalJson.Serialize(response.Effects[0].Effect!.Target.InterfacePath);
         // Huge worker diagnostic text is removable; the entire exact identity/check core is not.
         response.Verification.Operations[0].Evidence!.Message = new string('x', 70000);
         response.Verification.Operations[0].Evidence!.Checks[0].Message = new string('x', 70000);
         var bounded = NetworkWritePayloadBudget.Apply(response);
         Assert.NotNull(bounded.Verification!.Operations[0].Evidence);
-        Assert.Equal(identity, bounded.Verification.Operations[0].Evidence!.Identity["interfacePath"]);
+        Assert.Equal(identity, CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence!.Identity));
         Assert.Equal(originalPath, CanonicalJson.Serialize(bounded.Effects[0].Effect!.Target.InterfacePath));
         Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Expected);
         Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Observed);
-        Assert.Contains(bounded.Verification.FinalChecks, c => c.Name.Contains(identity, StringComparison.Ordinal));
+        Assert.Contains(bounded.Verification.FinalChecks, c => c.Name.Contains(NetworkInterfacePathEncoding.Encode(bounded.Verification.Operations[0].Evidence!.Identity.InterfacePath!), StringComparison.Ordinal));
         Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, 180000);
         Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence).Length, 0, 60000);
     }
@@ -360,10 +360,8 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.True(response.Success);
         var path = response.Effects[0].Effect!.Target.InterfacePath!;
         Assert.Equal(operation.Target.InterfacePath![0].Name, path[0].Name);
-        var encoded = NetworkInterfacePathEncoding.Encode(path);
-        Assert.Equal(encoded, response.Verification!.Operations[0].Evidence!.Identity["interfacePath"]);
-        Assert.Equal("PROFINET interface_1", response.Verification.Operations[0].Evidence!.Identity["interfaceName"]);
-        Assert.True(CanonicalJson.Serialize(encoded).Length > path.Sum(s => s.Name.Length));
+        Assert.Equal(CanonicalJson.Serialize(path), CanonicalJson.Serialize(response.Verification!.Operations[0].Evidence!.Identity.InterfacePath));
+        Assert.Equal("PROFINET interface_1", response.Verification.Operations[0].Evidence!.Identity.InterfaceName);
         AssertQualifiedAudit(reply, audit);
     }
 
@@ -386,8 +384,8 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.Equal("validation_error", response.Batch.Operations[1].Failure!.Category);
         Assert.Equal("skipped", response.Batch.Operations[2].Status);
         Assert.Equal("192.168.12.7", response.Batch.Operations[0].Result!.Value.GetProperty("appliedSettings").GetProperty("Address").GetString());
-        Assert.Equal(NetworkInterfacePathEncoding.Encode(response.Effects[0].Effect!.Target.InterfacePath!),
-            response.Verification!.Operations[0].Evidence!.Identity["interfacePath"]);
+        Assert.Equal(CanonicalJson.Serialize(response.Effects[0].Effect!.Target.InterfacePath),
+            CanonicalJson.Serialize(response.Verification!.Operations[0].Evidence!.Identity.InterfacePath));
         AssertQualifiedAudit(reply, audit);
     }
 
@@ -419,7 +417,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
         var response = await fixture.RunAsync(false, await QualifiedConfigure(fixture, scenario, "one"));
         var evidence = response.Verification!.Operations[0].Evidence!;
-        var identity = evidence.Identity["interfacePath"];
+        var identity = CanonicalJson.Serialize(evidence.Identity);
         var itemLimit = new[] { CanonicalJson.Serialize(response.Effects[0].Effect).Length,
             CanonicalJson.Serialize(response.Batch!.Operations[0].Result).Length,
             CanonicalJson.Serialize(response.Verification.FinalChecks).Length,
@@ -429,7 +427,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.True(CanonicalJson.Serialize(evidence).Length > itemLimit);
         var bounded = NetworkWritePayloadBudget.Apply(response, maxItemChars: itemLimit);
         Assert.NotNull(bounded.Verification!.Operations[0].Evidence);
-        Assert.Equal(identity, bounded.Verification.Operations[0].Evidence!.Identity["interfacePath"]);
+        Assert.Equal(identity, CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence!.Identity));
         Assert.Equal("192.168.12.7", bounded.Verification.Operations[0].Evidence!.Checks[0].Expected);
         Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations[0].Evidence).Length, 0, itemLimit);
         Assert.NotNull(bounded.Omission);
@@ -448,7 +446,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             Subnet = new() { Name = "created", NetworkType = "Ethernet" } };
         var generatedId = new string('s', 70000);
         var generatedEvidence = new NetworkMutationVerificationInfo { Status = "passed",
-            Identity = new() { ["subnetId"] = generatedId }, Checks = new()
+            Identity = new() { SubnetId = generatedId }, Checks = new()
             {
                 new() { Name = "subnetIdentity", Expected = generatedId, Observed = generatedId, Status = "passed" },
                 new() { Name = "Name", Expected = "created", Observed = "created", Status = "passed" },
@@ -498,8 +496,8 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         // Feed a valid failed immediate observation through the production final verifier;
         // preparation's exact old scalar values remain in the ordinary FakeWorker state.
         var immediate = new NetworkMutationVerificationInfo { Status = "failed",
-            Identity = new() { ["deviceName"] = effect.Target.DeviceName!, ["nodeId"] = effect.Target.NodeId!,
-                ["interfacePath"] = encodedOwner }, Checks = effect.RequestedSettings.Select(pair => new NetworkVerificationCheckInfo
+            Identity = new() { DeviceName = effect.Target.DeviceName!, NodeId = effect.Target.NodeId!,
+                InterfacePath = effect.Target.InterfacePath!.ToList() }, Checks = effect.RequestedSettings.Select(pair => new NetworkVerificationCheckInfo
             { Name = pair.Key, Expected = pair.Value,
                 Observed = effect.CurrentSettings[pair.Key].Value!.Value!.ToString(),
                 Status = "failed", Message = "The attempted setting retained its known old value." }).ToList() };
@@ -578,7 +576,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
     private static WriteReport<NetworkWriteEffect, NetworkWriteVerification> Report(string value)
     {
         var evidence = new NetworkMutationVerificationInfo { Status = "passed",
-            Identity = new() { ["deviceName"] = value }, Checks = new() { new() { Name = "setting", Expected = value, Observed = value, Status = "passed" } } };
+            Identity = new() { DeviceName = value }, Checks = new() { new() { Name = "setting", Expected = value, Observed = value, Status = "passed" } } };
         var target = new NetworkWriteTargetEvidence("one", "configure_network_device", value, null,
             Array.Empty<string>(), null, null, "node", null, null, null, null);
         var effect = new NetworkWriteEffect("configure_network_device", target,

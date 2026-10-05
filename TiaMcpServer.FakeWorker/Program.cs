@@ -1346,7 +1346,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 qualifiedHardware.Subnets.Clear();
                 foreach (var n in qualifiedNodes) n.ConnectionEvidence = new() { Complete = true };
                 Respond(Success(ToCamelCaseJson(new SubnetLifecycleResultInfo { SubnetId = "subnet-1", Name = "PN/IE", NetworkDeviceCount = 1, NetworkDeviceCountUnchanged = true,
-                    Verification = FakePassedVerification(new() { ["subnetId"] = "subnet-1" }, new() { ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true", ["networkDeviceCountUnchanged"] = "1" }) })));
+                    Verification = FakePassedVerification(new() { SubnetId = "subnet-1" }, new() { ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true", ["networkDeviceCountUnchanged"] = "1" }) })));
             }
             else Respond("""{"success":false,"error":"unsupported qualified-read fixture operation"}""");
             break;
@@ -3911,7 +3911,7 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         return Success(ToCamelCaseJson(new AddDeviceResultInfo
         {
             DeviceName = name, RootItemName = itemName, TypeIdentifier = type,
-            Verification = FakePassedVerification(new() { ["deviceName"] = name, ["deviceItemName"] = itemName }, new()
+            Verification = FakePassedVerification(new() { DeviceName = name, DeviceItemName = itemName }, new()
             { ["deviceName"] = name, ["deviceItemName"] = itemName, ["typeIdentifier"] = type })
         }));
     }
@@ -3927,7 +3927,7 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
         {
             SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount!.Value, NetworkDeviceCountUnchanged = true,
-            Verification = FakePassedVerification(new() { ["subnetId"] = id }, new()
+            Verification = FakePassedVerification(new() { SubnetId = id }, new()
             {
                 ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true",
                 ["networkDeviceCountUnchanged"] = state.RootDeviceCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
@@ -3937,7 +3937,7 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
     return "{\"success\":false,\"error\":\"unsupported guarded fixture operation\"}";
 }
 
-NetworkMutationVerificationInfo FakePassedVerification(Dictionary<string, string> identity, Dictionary<string, string> values) => new()
+NetworkMutationVerificationInfo FakePassedVerification(NetworkMutationIdentityInfo identity, Dictionary<string, string> values) => new()
 {
     Identity = identity,
     Status = values.Count == 0 ? "not_required" : "passed",
@@ -3952,12 +3952,13 @@ NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine
     var values = new Dictionary<string, string>(applied);
     if (values.ContainsKey("IoSystem")) values["IoSystem"] = JsonSerializer.Serialize(new object?[]
         { ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId"), ReadIntField(requestLine, "ioSystemNumber") });
-    var identity = new Dictionary<string, string> { ["deviceName"] = deviceName, ["nodeId"] = ReadField(requestLine, "nodeId")! };
     var target = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!.NetworkObjectTarget;
-    if (target?.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.InterfacePath);
-    else if (target?.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.ItemPath.Select(x =>
-        new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
-    if (target?.InterfaceName is not null) identity["interfaceName"] = target.InterfaceName;
+    var identity = new NetworkMutationIdentityInfo
+    {
+        DeviceName = deviceName, NodeId = ReadField(requestLine, "nodeId")!, InterfaceName = target?.InterfaceName,
+        InterfacePath = target?.InterfacePath?.ToList() ?? target?.ItemPath?.Select(x =>
+            new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList(),
+    };
     return FakePassedVerification(identity, values);
 }
 
@@ -3982,7 +3983,7 @@ NetworkMutationVerificationInfo FakeSubnetVerification(string requestLine, strin
         if (ReadIntField(requestLine, "subnetHighestAddress") is { } address) values.Add("HighestAddress", address.ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (ReadField(requestLine, "subnetTransmissionSpeed") is { } speed) values.Add("TransmissionSpeed", speed);
     }
-    return FakePassedVerification(new() { ["subnetId"] = subnetId }, values);
+    return FakePassedVerification(new() { SubnetId = subnetId }, values);
 }
 
 string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)

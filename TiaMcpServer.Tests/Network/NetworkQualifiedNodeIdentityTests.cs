@@ -256,7 +256,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("succeeded", result.Batch!.Operations[0].Status);
         var immediate = Assert.Single(result.Verification!.Operations);
         Assert.Equal("passed", immediate.Status);
-        Assert.Equal("PROFINET interface_1", immediate.Evidence!.Identity["interfaceName"]);
+        Assert.Equal("PROFINET interface_1", immediate.Evidence!.Identity.InterfaceName);
         Assert.Contains(immediate.Evidence.Checks, check => check.Name == "Address" && check.Expected == "192.168.12.7" && check.Status == "passed");
         Assert.Contains(result.Verification.FinalChecks, check => check.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");

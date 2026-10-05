@@ -70,8 +70,8 @@ public sealed class NetworkGuardedWriteOrderingTests
         second.Target!.DeviceName = "plc_grouped";
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), second);
         Assert.All(response.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
-        Assert.Equal("PLC_Grouped", response.Verification.Operations[0].Evidence!.Identity["deviceName"]);
-        Assert.Equal("plc_grouped", response.Verification.Operations[1].Evidence!.Identity["deviceName"]);
+        Assert.Equal("PLC_Grouped", response.Verification.Operations[0].Evidence!.Identity.DeviceName);
+        Assert.Equal("plc_grouped", response.Verification.Operations[1].Evidence!.Identity.DeviceName);
         Assert.True(response.Success);
         var address = Assert.Single(response.Verification.FinalChecks, check => check.Name.EndsWith("/Address"));
         Assert.Equal("10.0.0.2", address.Expected);
@@ -95,7 +95,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         };
         var response = await fixture.RunAsync(false, connect, NetworkGuardedWriteFixture.Delete());
         Assert.All(response.Verification!.Operations, operation => Assert.Equal("passed", operation.Status));
-        Assert.Equal("plc_grouped", response.Verification.Operations[0].Evidence!.Identity["deviceName"]);
+        Assert.Equal("plc_grouped", response.Verification.Operations[0].Evidence!.Identity.DeviceName);
         Assert.Contains(response.Effects[1].Effect!.AffectedNodes, node => node.DeviceName == "PLC_Grouped");
         Assert.True(response.Success);
         Assert.DoesNotContain(response.Verification.FinalChecks, check => check.Name.EndsWith("/Subnet") || check.Name.EndsWith("/IoSystem"));

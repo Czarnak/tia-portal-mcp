@@ -67,17 +67,14 @@ public sealed class NetworkWriteVerifier
                     if (rootCount.HasValue) rootCount++;
                 }
                 else rootUncertain = true;
-                var name = evidence.Identity["deviceName"];
-                foreach (var check in evidence.Checks) expected[new("device", name, evidence.Identity["deviceItemName"], check.Name)] = check.Expected;
+                var name = evidence.Identity.DeviceName!;
+                foreach (var check in evidence.Checks) expected[new("device", name, evidence.Identity.DeviceItemName, check.Name)] = check.Expected;
             }
             else if (item.Operation == "configure_network_device")
             {
-                var name = evidence.Identity["deviceName"];
-                var node = evidence.Identity["nodeId"];
-                var identity = new NetworkNodeIdentityInfo { DeviceName = name, NodeId = node,
-                    InterfacePath = evidence.Identity.TryGetValue("interfacePath", out var encoded)
-                        ? NetworkWritePlanner.ClonePath(NetworkInterfacePathEncoding.Decode(encoded)) : null,
-                    InterfaceName = evidence.Identity.GetValueOrDefault("interfaceName") };
+                var identity = new NetworkNodeIdentityInfo { DeviceName = evidence.Identity.DeviceName!, NodeId = evidence.Identity.NodeId!,
+                    InterfacePath = evidence.Identity.InterfacePath is { } path ? NetworkWritePlanner.ClonePath(path) : null,
+                    InterfaceName = evidence.Identity.InterfaceName };
                 ExpectNode(identity, "exists", "true");
                 // Strict projection required exactly the applied keys. Skips are execution failures,
                 // but make no final setting claim and cannot erase an earlier applied expectation.
@@ -85,7 +82,7 @@ public sealed class NetworkWriteVerifier
             }
             else
             {
-                var subnet = evidence.Identity["subnetId"];
+                var subnet = evidence.Identity.SubnetId!;
                 if (effect?.RootDeviceCount is null) rootUncertain = true;
                 if (item.Operation == "delete_subnet")
                 {

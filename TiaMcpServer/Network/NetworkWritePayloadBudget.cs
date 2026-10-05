@@ -164,7 +164,7 @@ public static class NetworkWritePayloadBudget
             var item = items[index];
             var effect = plans[index].Effect!;
             var target = effect.Target;
-            var identity = new Dictionary<string, string>();
+            var identity = new NetworkMutationIdentityInfo();
             var checks = new List<NetworkVerificationCheckInfo>();
             NetworkVerificationCheckInfo SettingCheck(string name, string field, string? value)
             {
@@ -192,26 +192,26 @@ public static class NetworkWritePayloadBudget
             void Add(string name, string? value) => checks.Add(SettingCheck(name, name, value));
             if (item.Operation == "configure_network_device")
             {
-                identity["deviceName"] = target.DeviceName!;
-                identity["nodeId"] = target.NodeId!;
-                identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(target.InterfacePath!);
-                if (item.Target?.InterfaceName is { } interfaceName) identity["interfaceName"] = interfaceName;
+                identity.DeviceName = target.DeviceName!;
+                identity.NodeId = target.NodeId!;
+                identity.InterfacePath = NetworkWritePlanner.ClonePath(target.InterfacePath!);
+                identity.InterfaceName = item.Target?.InterfaceName;
                 foreach (var setting in effect.RequestedSettings) Add(setting.Key, setting.Value);
             }
             else if (item.Operation == "add_network_device")
             {
-                identity["deviceName"] = item.DeviceName!;
-                identity["deviceItemName"] = item.DeviceItemName ?? item.DeviceName!;
+                identity.DeviceName = item.DeviceName!;
+                identity.DeviceItemName = item.DeviceItemName ?? item.DeviceName!;
                 foreach (var setting in effect.RequestedSettings) Add(setting.Key, setting.Value);
                 foreach (var setting in effect.RequestedSettings)
-                    finalChecks.Add(Check($"device/{item.DeviceName}//{identity["deviceItemName"]}/{setting.Key}", setting.Value));
+                    finalChecks.Add(Check($"device/{item.DeviceName}//{identity.DeviceItemName}/{setting.Key}", setting.Value));
             }
             else
             {
                 // Creation has no observed persistent ID yet. Reserve every known requested
                 // value; the generated identity still passes strict projection and delivery.
                 var subnetId = target.SubnetId ?? "";
-                identity["subnetId"] = subnetId;
+                identity.SubnetId = subnetId;
                 Add("networkDeviceCountUnchanged", int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 if (item.Operation == "delete_subnet")
                 {
@@ -289,7 +289,7 @@ public static class NetworkWritePayloadBudget
         { Name = check.Name, Expected = check.Expected, Observed = check.Observed, Status = check.Status,
             Message = check.Message is null ? null : Message(check.Message) };
         NetworkMutationVerificationInfo? Evidence(NetworkMutationVerificationInfo? evidence) => evidence is null ? null : new()
-        { Status = evidence.Status, Identity = new(evidence.Identity), Checks = evidence.Checks.Select(Check).ToList(),
+        { Status = evidence.Status, Identity = evidence.Identity, Checks = evidence.Checks.Select(Check).ToList(),
             Message = evidence.Message is null ? null : Message(evidence.Message) };
         var verification = response.Verification is null ? null : response.Verification with
         {

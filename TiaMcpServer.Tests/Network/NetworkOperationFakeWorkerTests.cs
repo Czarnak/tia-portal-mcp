@@ -129,10 +129,48 @@ public class NetworkOperationFakeWorkerTests
         var result = response.Batch!.Operations[0].Result!.Value;
         Assert.Equal("Address", Assert.Single(result.GetProperty("appliedSettings").EnumerateObject()).Name);
         Assert.Equal("SubnetMask", Assert.Single(result.GetProperty("skippedSettings").EnumerateObject()).Name);
-        Assert.Contains("32768", result.GetProperty("verification").GetProperty("identity").GetProperty("interfacePath").GetString());
+        var path = result.GetProperty("verification").GetProperty("identity").GetProperty("interfacePath");
+        Assert.Equal(JsonValueKind.Array, path.ValueKind);
+        Assert.Equal(32768, path[1].GetProperty("positionNumber").GetInt32());
         Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
         Assert.Equal("192.168.13.20", snapshot.State!.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
+    }
+
+    [Fact]
+    public async Task QualifiedConfigure_IdentityIsTypedWithoutNestedJson()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+        var response = await fixture.RunAsync(false, QualifiedConfigure("typed"));
+        Assert.True(response.Success);
+        using var document = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
+        var root = document.RootElement;
+        var identities = new[]
+        {
+            root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("verification").GetProperty("identity"),
+            root.GetProperty("verification").GetProperty("operations")[0].GetProperty("evidence").GetProperty("identity"),
+        };
+        foreach (var identity in identities)
+        {
+            Assert.Equal("S7-1500/ET200MP station_1", identity.GetProperty("deviceName").GetString());
+            Assert.Equal(JsonValueKind.Array, identity.GetProperty("interfacePath").ValueKind);
+            Assert.Equal(JsonValueKind.Null, identity.GetProperty("subnetId").ValueKind);
+            AssertNoNestedJson(identity);
+        }
+    }
+
+    private static void AssertNoNestedJson(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object: foreach (var member in element.EnumerateObject()) AssertNoNestedJson(member.Value); break;
+            case JsonValueKind.Array: foreach (var value in element.EnumerateArray()) AssertNoNestedJson(value); break;
+            case JsonValueKind.String:
+                var text = element.GetString()!;
+                Assert.False(text.Contains('{') || text.Contains('['), $"Nested JSON string: {text}");
+                break;
+        }
     }
 
     [Fact]

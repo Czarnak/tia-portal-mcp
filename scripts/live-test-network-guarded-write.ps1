@@ -231,7 +231,7 @@ function Assert-Outcome {
             $evidence.status -cne $verification.status -or $evidence.status -notin @('passed', 'failed', 'not_required') -or
             $evidence.identity.deviceName -isnot [string] -or $evidence.identity.nodeId -isnot [string] -or
             -not (Test-NetworkNodeIdentity $targetIdentity $evidence.identity) -or
-            @($evidence.identity.PSObject.Properties | Where-Object { $_.Name -cnotin @('deviceName','nodeId','interfacePath','interfaceName') }).Count -ne 0 -or $evidence.checks -isnot [array]) {
+            @($evidence.identity.PSObject.Properties | Where-Object { $_.Name -cnotin @('deviceName','nodeId','interfacePath','interfaceName') -and ($_.Name -cnotin @('deviceItemName','subnetId') -or $null -ne $_.Value) }).Count -ne 0 -or $evidence.checks -isnot [array]) {
             throw 'Exact attempted identity/order and typed immediate evidence are required.'
         }
         $identityKey = Get-NetworkNodeKey $evidence.identity

@@ -14,7 +14,7 @@ internal static class NetworkMutationVerifier
     {
         var evidence = new NetworkMutationVerificationInfo
         {
-            Identity = new Dictionary<string, string> { ["deviceName"] = result.DeviceName, ["deviceItemName"] = result.RootItemName },
+            Identity = new NetworkMutationIdentityInfo { DeviceName = result.DeviceName, DeviceItemName = result.RootItemName },
         };
         Device? device = null;
         DeviceItem? item = null;
@@ -37,12 +37,13 @@ internal static class NetworkMutationVerifier
     public static NetworkMutationVerificationInfo VerifyConfiguration(Project project, WorkerRequest request, ConfigureNetworkDeviceResultInfo result)
     {
         var selector = NetworkConfigurationTargetBinding.Resolve(request);
-        var identity = new Dictionary<string, string> { ["deviceName"] = result.DeviceName, ["nodeId"] = selector.NodeId! };
-        if (selector.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.InterfacePath);
-        else if (selector.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.ItemPath.Select(x =>
-            new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
-        if (selector.InterfaceName is not null) identity["interfaceName"] = selector.InterfaceName;
-        var evidence = new NetworkMutationVerificationInfo { Identity = identity };
+        var path = selector.InterfacePath?.Select(x =>
+                new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList()
+            ?? selector.ItemPath?.Select(x =>
+                new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList();
+        if (path is not null) _ = NetworkInterfacePathEncoding.Encode(path); // Validates the owner path.
+        var evidence = new NetworkMutationVerificationInfo { Identity = new NetworkMutationIdentityInfo
+            { DeviceName = result.DeviceName, NodeId = selector.NodeId!, InterfacePath = path, InterfaceName = selector.InterfaceName } };
         // Resolve only when a setting was applied. A fully skipped request has no successful
         // setting to verify; the host still classifies the skipped request as a failure.
         (NetworkInterface Interface, Node Node)? target = null;
@@ -82,7 +83,7 @@ internal static class NetworkMutationVerifier
     public static NetworkMutationVerificationInfo VerifySubnet(Project project, WorkerRequest request,
         SubnetLifecycleResultInfo result, int rootCountBefore, IReadOnlyList<NetworkNodeIdentityInfo> affectedNodes)
     {
-        var evidence = new NetworkMutationVerificationInfo { Identity = new Dictionary<string, string> { ["subnetId"] = result.SubnetId } };
+        var evidence = new NetworkMutationVerificationInfo { Identity = new NetworkMutationIdentityInfo { SubnetId = result.SubnetId } };
         Subnet? subnet = null;
         var deleting = request.Method == "delete_subnet";
         Observe(evidence, deleting ? "subnetAbsent" : "subnetIdentity", deleting ? "true" : result.SubnetId, () =>

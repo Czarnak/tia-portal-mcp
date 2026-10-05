@@ -52,7 +52,7 @@ public class NetworkMutationVerificationTests
 
     private static NetworkMutationVerificationInfo Evidence(params NetworkVerificationCheckInfo[] checks) => new()
     {
-        Identity = new() { ["deviceName"] = "PLC_1", ["nodeId"] = "node-1" },
+        Identity = new() { DeviceName = "PLC_1", NodeId = "node-1" },
         Checks = checks.ToList(),
         Status = checks.Any(x => x.Status == "failed") ? "failed"
             : checks.Any(x => x.Status == "unverified") ? "unverified"
@@ -118,9 +118,31 @@ public class NetworkMutationVerificationTests
         var op = Configure();
         op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 32768 } };
         var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
-        result.Verification!.Identity["interfacePath"] = "[{\"name\":\"X1\",\"positionNumber\":32768}]";
+        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768 } };
         Assert.Equal("succeeded", Project(op, result).Status);
-        result.Verification.Identity["interfacePath"] = "[{\"name\":\"X2\",\"positionNumber\":33024}]";
+        result.Verification.Identity.InterfacePath = new() { new() { Name = "X2", PositionNumber = 33024 } };
+        AssertProtocolError(Project(op, result));
+    }
+
+    [Fact]
+    public void QualifiedImmediateIdentity_EncodedStringPathIsProtocolError()
+    {
+        var op = Configure();
+        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 32768 } };
+        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
+        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768 } };
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(WorkerJson.SerializePayload(result))!;
+        payload["verification"]!["identity"]!["interfacePath"] = "[{\"name\":\"X1\",\"positionNumber\":32768}]";
+        AssertProtocolError(NetworkPayloadContract.Project(op, WorkerCallResult.Ok(payload.ToJsonString()), true));
+    }
+
+    [Fact]
+    public void QualifiedImmediateIdentity_MissingRequestPositionIsProtocolError()
+    {
+        var op = Configure();
+        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = null } };
+        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
+        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = -1 } };
         AssertProtocolError(Project(op, result));
     }
 
@@ -167,7 +189,7 @@ public class NetworkMutationVerificationTests
         evidence.Status = "passed";
         AssertProtocolError(Project(Configure(), ConfigResult(evidence)));
         evidence.Status = "failed";
-        evidence.Identity["nodeId"] = "wrong-node";
+        evidence.Identity.NodeId = "wrong-node";
         AssertProtocolError(Project(Configure(), ConfigResult(evidence)));
     }
 
@@ -234,7 +256,7 @@ public class NetworkMutationVerificationTests
     {
         var evidence = new NetworkMutationVerificationInfo
         {
-            Status = "passed", Identity = new() { ["subnetId"] = "subnet-1" },
+            Status = "passed", Identity = new() { SubnetId = "subnet-1" },
             Checks = new()
             {
                 NetworkPostconditionChecks.Compare("subnetAbsent", "true", "true", true),
@@ -293,7 +315,7 @@ public class NetworkMutationVerificationTests
             case "missing": evidence.Checks.Clear(); break;
             case "unexpected": check.Name = "secret-canary"; break;
             case "status": check.Status = "secret-canary"; break;
-            case "identity": evidence.Identity["extra"] = "secret-canary"; break;
+            case "identity": evidence.Identity.SubnetId = "secret-canary"; break;
             case "expected": check.Expected = "secret-canary"; break;
             case "failed-equal": check.Status = "failed"; check.Message = "mismatch"; break;
             case "unverified-observed": check.Status = "unverified"; check.Message = "unreadable"; break;
@@ -311,7 +333,7 @@ public class NetworkMutationVerificationTests
             DeviceName = "PLC", RootItemName = "CPU", TypeIdentifier = "OrderNumber:CPU",
             Verification = new()
             {
-                Identity = new() { ["deviceName"] = "PLC", ["deviceItemName"] = "CPU" }, Status = "passed",
+                Identity = new() { DeviceName = "PLC", DeviceItemName = "CPU" }, Status = "passed",
                 Checks = new()
                 {
                     NetworkPostconditionChecks.Compare("deviceName", "PLC", "PLC", true),
@@ -344,7 +366,7 @@ public class NetworkMutationVerificationTests
             SubnetId = "subnet-1", Name = "Bus", NetworkDeviceCount = 2, NetworkDeviceCountUnchanged = true,
             Verification = new()
             {
-                Identity = new() { ["subnetId"] = "subnet-1" }, Status = "passed",
+                Identity = new() { SubnetId = "subnet-1" }, Status = "passed",
                 Checks = new()
                 {
                     NetworkPostconditionChecks.Compare("subnetIdentity", "subnet-1", "subnet-1", true),
