@@ -123,6 +123,22 @@ None of them blocks the merge.
   no accepted control. `NetworkPayloadContractTests.Rules.cs` asserts that the validator appears
   anywhere in the diagnostic chain; asserting `chain[0]` would be tighter.
 
+## Open: network_write live-defect follow-ups (2026-10-05)
+
+Deferred by user decision while fixing the live `network_write`/`network_read` defects; none
+blocks that branch.
+
+- **A5 null `DeviceItem` TypeIdentifier in selectors.** TIA reports a null type identifier for some
+  device items. The hardware read no longer reports it as a message; whether a null
+  `typeIdentifier` is optional selector evidence is still undecided.
+- **Device-scoped subnet scoping for `read_hardware_config`.** A `deviceName`-filtered read still
+  returns every project subnet. The message fixes shrank the unfiltered test-project read from
+  108,229 to 87,512 characters, still above the 60,000-character per-item limit. Measure before
+  scoping subnets to the selected device.
+- **Live harness final-check count.** `scripts/live-test-network-guarded-write.ps1` requires an
+  exact final-check count that does not account for skipped-setting preservation checks. The user
+  asked to leave the scripts unchanged for now.
+
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 
 | # | Change | Where | Why |
@@ -951,3 +967,45 @@ comments substituted for PLC edits; external changes used an independent Opennes
 form acceptance was scripted. Independent review found no Important/Critical behavior issue.
 No production change or expensive suite replay followed these documentation-only results.
 Public Multiuser operations and Issue #65 remain open.
+
+## network_write live defects — fixed and live accepted (2026-10-05)
+
+Branch `fix/network-write-live-defects` (`d23b2d6..3642062`) fixed the defects a live
+`network_write`/`network_read` run exposed. No contract version bump.
+
+- Live Openness objects are compared with `object.Equals`, not `ReferenceEquals`: Openness may
+  return distinct wrappers for one object. `list_network_objects` nodes are selectable again,
+  `read_hardware_config` subnet connection evidence is complete with qualified node identities, and
+  connected `delete_subnet` is no longer always blocked by `network_state_unverifiable`.
+- `add_network_device` verifies the created item among top-level device items only, so a head
+  module with a same-named child passes; a blank/whitespace `deviceItemName` is `validation_error`.
+- Host preflight selector misses are `target_not_found`/`target_ambiguous` (were
+  `postcondition_failed`); a blank or unsupported subnet `NetworkType` is `target_kind_unsupported`;
+  an unreadable snapshot is `worker_operation_failed`. `postcondition_failed` now means late
+  worker-side drift or failed postchecks only.
+- Verification `identity` is a typed object with an `interfacePath` segment array and explicit
+  nulls; `finalChecks[]` carry `kind`, typed `subject`, `field` and `operationId` instead of
+  interpolated names.
+- IoSystem effects and checks use scalar `IoSystemSubnet`/`IoSystemNumber`; applied/skipped
+  settings keep `IoSystem`. No nested JSON string remains.
+- Skipped configure settings get a final preservation check against the pre-write value.
+  `verification.success` covers evidence only, so `verification.success:true` with root
+  `success:false` is by design.
+- `read_hardware_config` no longer reads a nonexistent `DeviceItem` `Address` (`items[].address`
+  is always null; use `ioDetails.addresses`), no longer reports null type identifiers, and
+  deduplicates `messages[]`. `deviceName` is documented as the station/root device name.
+- Preview `currentSettings` report real Openness access through node/subnet inspection (fallback
+  `modeled`/`unknown`). New `changes.pnDeviceNameAutoGeneration` is written before `PnDeviceName`;
+  a `pnDeviceName` request on an auto-generating node fails planning with `validation_error`
+  unless it is set to `false`.
+
+Live acceptance on TIA Portal V21 (`SimpleProject_copy`, build from `3642062`) confirmed all of
+the above: 15/15 nodes selectable; a connected delete applied with `subnetAbsent`,
+`affectedNodesPreserved` and `affectedConnectionsRemoved` passed; `add_network_device` of an
+ET200SP IM 155-6 PN ST passed; `NOPE-99` returned `target_not_found`; typed identity and
+`finalChecks[]`; an IoSystem attach to `PN/IE_1` IO system 100 passed its
+`IoSystemSubnet`/`IoSystemNumber` checks; an invalid IP produced a passed `Address` preservation
+final check; a single-device read returned an empty `messages[]`. V21 reports
+`PnDeviceNameAutoGeneration` as a `readWrite` Boolean (`true` on the PLC) and `PnDeviceName` as
+`readOnly` while it is true; opting out with `false` and then writing the name applied and
+verified. Deferred items are under "Open: network_write live-defect follow-ups" above.
