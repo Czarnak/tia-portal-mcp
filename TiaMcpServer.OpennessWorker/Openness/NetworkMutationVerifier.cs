@@ -73,6 +73,9 @@ internal static class NetworkMutationVerifier
                 {
                     case "Address": case "SubnetMask": case "PnDeviceName":
                         return Required(((IEngineeringObject)target.Value.Node).GetAttribute(setting.Key) as string);
+                    case "PnDeviceNameAutoGeneration":
+                        return ((IEngineeringObject)target.Value.Node).GetAttribute(setting.Key) is bool generated
+                            ? Boolean(generated) : throw new InvalidOperationException("Missing attribute.");
                     case "Subnet":
                         return target.Value.Node.ConnectedSubnet is { } subnet ? HardwareConfigReader.RequireSubnetIdentity(subnet) : null;
                     default: throw new InvalidOperationException("Unknown applied setting.");

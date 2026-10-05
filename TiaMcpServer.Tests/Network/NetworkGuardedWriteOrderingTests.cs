@@ -304,6 +304,69 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Contains(updated.Verification!.FinalChecks, c => c.Expected == "63" && c.Status == "passed");
     }
     [Fact]
+    public async Task ConfigurePreview_ReportsInspectedNodeAccess()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
+        var response = await fixture.RunAsync(true, NetworkGuardedWriteFixture.Configure("address", "10.0.0.9"));
+        var address = response.Effects[0].Effect!.CurrentSettings["Address"];
+        Assert.Equal(("dynamic", "readWrite", "available"), (address.Source, address.Access, address.Availability));
+        Assert.Equal(new[] { "System.String" }, address.SupportedTypes);
+    }
+    [Fact]
+    public async Task ConfigurePreview_ReportsUnknownAccessWhenNodeInspectIsUnavailable()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-node-inspect-unavailable");
+        var response = await fixture.RunAsync(true, NetworkGuardedWriteFixture.Configure("address", "10.0.0.9"));
+        var address = response.Effects[0].Effect!.CurrentSettings["Address"];
+        Assert.Equal(("modeled", "unknown"), (address.Source, address.Access));
+    }
+    [Fact]
+    public async Task SubnetRenamePreview_ReportsInspectedAccess()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
+        var rename = new NetworkOperationRequest { OperationId = "rename", Operation = "update_subnet", Target = new() { Kind = "subnet", SubnetId = "subnet-1" }, SubnetChanges = new() { Name = "Renamed" } };
+        var name = (await fixture.RunAsync(true, rename)).Effects[0].Effect!.CurrentSettings["Name"];
+        Assert.Equal(("dynamic", "readWrite"), (name.Source, name.Access));
+    }
+    [Theory]
+    [InlineData("network-guarded-pn-autogeneration", true)]
+    [InlineData("network-guarded-pn-autogeneration", false)]
+    [InlineData("network-guarded-pn-readonly", false)]
+    public async Task PnDeviceNameWithoutWritableName_FailsAtPlanTimeWithoutMutation(string scenario, bool dryRun)
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = NetworkGuardedWriteFixture.Configure("rename");
+        operation.Changes = new() { IpAddress = "10.0.0.9", PnDeviceName = "plc-renamed" };
+        var response = await fixture.RunAsync(dryRun, operation);
+        Assert.False(response.Success);
+        Assert.Equal("validation_error", response.Error!.Category);
+        Assert.Contains("pnDeviceNameAutoGeneration:false", response.Error.Message);
+        Assert.DoesNotContain("configure_network_device", requests.Methods());
+    }
+    [Fact]
+    public async Task PnDeviceNameAutoGenerationOptIn_IsAVisibleRequestedSetting()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-pn-autogeneration");
+        var operation = NetworkGuardedWriteFixture.Configure("rename");
+        operation.Changes = new() { PnDeviceName = "plc-renamed", PnDeviceNameAutoGeneration = false };
+        var response = await fixture.RunAsync(false, operation);
+        Assert.True(response.Success);
+        var effect = response.Effects[0].Effect!;
+        Assert.Equal("false", effect.RequestedSettings["PnDeviceNameAutoGeneration"]);
+        Assert.Equal("boolean", effect.CurrentSettings["PnDeviceNameAutoGeneration"].Value!.Kind);
+        var applied = response.Batch!.Operations[0].Result!.Value.GetProperty("appliedSettings");
+        Assert.Equal("false", applied.GetProperty("PnDeviceNameAutoGeneration").GetString());
+        Assert.Contains(response.Verification!.Operations[0].Evidence!.Checks, c => c.Name == "PnDeviceNameAutoGeneration" && c.Observed == "false");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Field == "PnDeviceNameAutoGeneration" && c.Expected == "false" && c.Status == "passed");
+        Assert.Contains(response.Verification.FinalChecks, c => c.Field == "PnDeviceName" && c.Expected == "plc-renamed" && c.Status == "passed");
+    }
+    [Fact]
     public async Task SubnetOnlyMove_DoesNotInferSupersessionOfEarlierExplicitIoTuple()
     {
         using var audit = new TempAuditDirectory();

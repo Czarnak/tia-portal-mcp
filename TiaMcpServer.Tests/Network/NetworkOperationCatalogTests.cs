@@ -348,6 +348,17 @@ public class NetworkOperationCatalogTests
     }
 
     [Fact]
+    public void ValidateWrite_AcceptsPnDeviceNameAutoGenerationAsAChange()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges { PnDeviceNameAutoGeneration = false }),
+        });
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
+    [Fact]
     public void ValidateWrite_RejectsBlankScalarChanges()
     {
         var result = NetworkOperationCatalog.ValidateWrite(new[]

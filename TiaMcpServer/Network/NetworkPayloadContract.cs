@@ -194,6 +194,7 @@ public static class NetworkPayloadContract
         var changes = op.Changes;
         if (changes?.IpAddress is { } address) requested.Add("Address", address);
         if (changes?.SubnetMask is { } mask) requested.Add("SubnetMask", mask);
+        if (changes?.PnDeviceNameAutoGeneration is { } generated) requested.Add("PnDeviceNameAutoGeneration", generated ? "true" : "false");
         if (changes?.PnDeviceName is { } pn) requested.Add("PnDeviceName", pn);
         if (changes?.Subnet is { } subnet) requested.Add("Subnet", subnet.SubnetId!);
         if (changes?.IoSystem is { Number: { } number }) requested.Add("IoSystem", Number(number));

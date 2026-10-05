@@ -19,6 +19,17 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     }
 
     [Fact]
+    public void PnDeviceNameAutoGeneration_IsSetBeforePnDeviceName()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");
+        var autoGeneration = source.IndexOf("\"PnDeviceNameAutoGeneration\", generated", StringComparison.Ordinal);
+        var name = source.IndexOf("ApplyNodeAttribute(node, \"PnDeviceName\", pnDeviceName", StringComparison.Ordinal);
+        Assert.True(autoGeneration >= 0 && name > autoGeneration);
+        var verifier = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs");
+        Assert.Contains("case \"PnDeviceNameAutoGeneration\":", verifier);
+    }
+
+    [Fact]
     public void SelectionCertainty_DeviceAndInterfaceDiscoveryCannotDropUnreadableCandidates()
     {
         var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");

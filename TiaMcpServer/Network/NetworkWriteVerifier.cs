@@ -154,9 +154,20 @@ public sealed class NetworkWriteVerifier
                 && state.Subnets.All(s => !string.IsNullOrWhiteSpace(s.SubnetId))
                 && state.Subnets.Count(s => s.SubnetId == key.Identity) == 1)
             {
-                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath, key.Identity, new[] { key.Field }).ConfigureAwait(false);
-                var value = attributes.TryGetValue(key.Field, out var attribute) && attribute.Availability == "available"
-                    ? AttributeText(attribute) : null;
+                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath,
+                    new() { Kind = NetworkObjectKinds.Subnet, SubnetId = key.Identity }, new[] { key.Field }).ConfigureAwait(false);
+                var value = attributes.TryGetValue(key.Field, out var attribute) ? AttributeText(attribute) : null;
+                observation = (value, value is not null);
+            }
+            // The hardware snapshot does not carry this flag; inspect the exact final node instead.
+            if (key.Kind == "node" && key.Field == "PnDeviceNameAutoGeneration" && state is not null
+                && state.Devices.All(d => !string.IsNullOrWhiteSpace(d.Name))
+                && NetworkWritePlanner.TryResolveAffected(state, key.NodeIdentity!, out var qualified, out _)
+                && constraints.GetValueOrDefault(key.NodeIdentity!)?.All(identity => NetworkWritePlanner.TryResolveAffected(state, identity, out _, out _)) != false)
+            {
+                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath,
+                    NetworkWritePlanner.NodeTarget(qualified!.DeviceName, qualified.NodeId, qualified.InterfacePath!), new[] { key.Field }).ConfigureAwait(false);
+                var value = attributes.TryGetValue(key.Field, out var attribute) ? AttributeText(attribute) : null;
                 observation = (value, value is not null);
             }
             checks.Add(Evaluate(subject, entry.Value, observation.Value, observation.Readable && !unknownPrior.Contains(key)));
@@ -235,6 +246,8 @@ public sealed class NetworkWriteVerifier
         {
             JsonValueKind.String => element.GetString(),
             JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
             _ => null
         };
     }

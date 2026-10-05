@@ -52,6 +52,7 @@ HardwareConfigInfo? guardedNetworkState = null;
 HardwareConfigInfo? roundtripNetworkState = null;
 var guardedNetworkWrites = 0;
 var guardedSubnetAttributes = new Dictionary<(string SubnetId, string Name), string>();
+var guardedPnAutoGeneration = new Dictionary<string, bool>(StringComparer.Ordinal);
 
 // Process-local, mutable subnet state shared by every "network-subnet-lifecycle*" scenario key
 // (Task 6, Phase 4): two devices that never change, and two subnets - one Ethernet, one PROFIBUS -
@@ -1402,6 +1403,9 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-guarded-unknown-result":
         case "network-guarded-io-move":
         case "network-guarded-root-drift":
+        case "network-guarded-node-inspect-unavailable":
+        case "network-guarded-pn-autogeneration":
+        case "network-guarded-pn-readonly":
             guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario.StartsWith("network-guarded-incomplete", StringComparison.Ordinal));
             if (scenario == "network-guarded-identity-device" && guardedNetworkState.Devices.Count == 2)
                 guardedNetworkState.Devices.Add(new() { Name = null });
@@ -3804,6 +3808,24 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
     if (method == "inspect_network_object")
     {
         var decoded = JsonSerializer.Deserialize<WorkerRequest>(request, requestJsonOptions)!;
+        if (decoded.NetworkObjectTarget!.Kind == "node")
+        {
+            // Node attributes are dynamic Openness attributes; the auto-generation flag is scripted per scenario.
+            if (scenario == "network-guarded-node-inspect-unavailable") return "{\"success\":false,\"error\":\"inspection unavailable\"}";
+            var inspectedNode = GuardedNodes(state).Single(n => n.NodeId == decoded.NetworkObjectTarget.NodeId);
+            return Success(ToCamelCaseJson(new NetworkObjectInspectionInfo
+            {
+                Target = decoded.NetworkObjectTarget,
+                Attributes = decoded.NetworkAttributeNames!.Select(name => name == "PnDeviceNameAutoGeneration"
+                    ? new NetworkAttributeInfo { Name = name, Source = "dynamic", Access = "readWrite", SupportedTypes = new() { "System.Boolean" },
+                        Availability = "available", Value = new() { Kind = "boolean", Value = guardedPnAutoGeneration.GetValueOrDefault(inspectedNode.NodeId,
+                            scenario == "network-guarded-pn-autogeneration") } }
+                    : new NetworkAttributeInfo { Name = name, Source = "dynamic", SupportedTypes = new() { "System.String" }, Availability = "available",
+                        Access = name == "PnDeviceName" && scenario == "network-guarded-pn-readonly" ? "readOnly" : "readWrite",
+                        Value = (name switch { "Address" => inspectedNode.IpAddress, "SubnetMask" => inspectedNode.SubnetMask, _ => inspectedNode.PnDeviceName }) is { } text
+                            ? new() { Kind = "string", Value = text } : new() { Kind = "null" } }).ToList()
+            }));
+        }
         var id = decoded.NetworkObjectTarget!.SubnetId!;
         return Success(ToCamelCaseJson(new NetworkObjectInspectionInfo
         {
@@ -3811,7 +3833,8 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
             Attributes = decoded.NetworkAttributeNames!.Select(name => new NetworkAttributeInfo
             {
                 Name = name, Source = "dynamic", Access = "readWrite", Availability = "available",
-                Value = name == "TransmissionSpeed"
+                Value = name == "Name" ? new() { Kind = "string", Value = state.Subnets.Single(s => s.SubnetId == id).Name }
+                    : name == "TransmissionSpeed"
                     ? new() { Kind = "enum", Value = new NetworkEnumValueInfo { TypeName = "Fixture.Speed", Symbol = guardedSubnetAttributes[(id, name)], NumericValue = 1 } }
                     : new() { Kind = "integer", Value = int.Parse(guardedSubnetAttributes[(id, name)], System.Globalization.CultureInfo.InvariantCulture) }
             }).ToList()
@@ -3868,6 +3891,8 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         var skipped = new Dictionary<string, string>();
         if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied["Address"] = address; }
         if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied["SubnetMask"] = mask; }
+        if (ReadBoolField(request, "pnDeviceNameAutoGeneration") is { } generated)
+        { guardedPnAutoGeneration[node.NodeId] = generated; applied["PnDeviceNameAutoGeneration"] = generated ? "true" : "false"; }
         if (ReadField(request, "pnDeviceName") is { } pn) { node.PnDeviceName = pn; applied["PnDeviceName"] = pn; }
         if (ReadField(request, "subnetId") is { } id)
         {

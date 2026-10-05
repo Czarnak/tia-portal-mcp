@@ -767,6 +767,11 @@ public static class NetworkOperationCatalog
             }
         }
 
+        if (changes.PnDeviceNameAutoGeneration is not null)
+        {
+            requested++;
+        }
+
         var subnet = changes.Subnet;
         if (subnet is not null)
         {

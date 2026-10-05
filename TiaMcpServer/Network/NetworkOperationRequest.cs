@@ -203,6 +203,9 @@ public sealed class NetworkDeviceChanges
     [Description("New PROFINET device name for the targeted node. Omit to leave it unchanged.")]
     public string? PnDeviceName { get; init; }
 
+    [Description("Optional boolean for the node's 'Generate PROFINET device name automatically' setting, written before pnDeviceName. Pass false together with pnDeviceName when the node generates its name automatically; otherwise that request fails before any change. Omit to leave it unchanged.")]
+    public bool? PnDeviceNameAutoGeneration { get; init; }
+
     [Description("Subnet to connect the targeted node to. Omit to leave the connection unchanged.")]
     public NetworkSubnetTarget? Subnet { get; init; }
 

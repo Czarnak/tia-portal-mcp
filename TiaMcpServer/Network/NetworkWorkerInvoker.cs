@@ -98,6 +98,7 @@ public static class NetworkWorkerInvoker
                 operation.Changes!.IpAddress,
                 operation.Changes!.SubnetMask,
                 operation.Changes!.PnDeviceName,
+                operation.Changes!.PnDeviceNameAutoGeneration,
                 operation.Changes!.Subnet?.SubnetId,
                 operation.Changes!.IoSystem?.SubnetId,
                 operation.Changes!.IoSystem?.Number,
