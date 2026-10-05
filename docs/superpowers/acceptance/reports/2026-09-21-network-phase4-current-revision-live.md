@@ -82,7 +82,7 @@ confirmed that the copy was closed without saving and reopened before the succes
 | Host | `TiaMcpServer/bin/Debug/net10.0/TiaMcpServer.dll`; FileVersion `1.0.0.0`, ProductVersion `1.0.0+6ce302ea6d096aefd92dfcacceff7711a09d8e71` |
 | Worker | `TiaMcpServer/bin/Debug/net10.0/openness-worker/TiaMcpServer.OpennessWorker.exe` (`net48`); FileVersion `1.0.0.0`, ProductVersion `1.0.0+6ce302ea6d096aefd92dfcacceff7711a09d8e71` |
 | TIA installation | Portal process PID 29400 and installed `Siemens.Engineering.Base.dll`; executable and DLL file/product versions `2100.0.121.1` |
-| Fixture | The one user-authorized disposable V21 copy, **Fixture A**, basename `296324S_SGRE_V13_V21_1.ap21`; length `151382` bytes; LastWriteTimeUtc `2026-08-07T18:58:09.7858364Z` |
+| Fixture | The one user-authorized disposable V21 copy, **Fixture A** (basename withheld); length `151382` bytes; LastWriteTimeUtc `2026-08-07T18:58:09.7858364Z` |
 | Fixture path SHA-256 | `d2c294bd48e4f9a5b7c267700f05e80692171f2a4d5d2e00865f9eef3004ef3a` — SHA-256 of the UTF-8 bytes of the canonical absolute path, **not a project-content hash** |
 | Connected delete selectors | Exact Ethernet `subnetId` `590-2` and PROFIBUS `subnetId` `590-3`, verified in Inventory and explicitly authorized before Apply |
 
