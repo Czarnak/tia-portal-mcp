@@ -16,9 +16,10 @@ Stable SDK 10.0.401 follows the repository's 10.0.400/latestFeature policy. PR 1
 as [PR #106](https://github.com/Czarnak/tia-portal-mcp/pull/106); its recorded qualification and
 independent review were inspected through GitHub.
 
-Qualification logs are retained under `artifacts/multiuser-pr2/qualification/` in the execution
-worktree. Stub and installed-reference compilation, executable in-memory boundary tests,
-FakeWorker protocol tests, package checks, and live evidence are distinct.
+Qualification logs originated under `artifacts/multiuser-pr2/qualification/` in the execution
+worktree. Before its authorized cleanup, logs, retained payload/package, and both failed/final
+coverage directories were copied with matching hashes into `offline/` under the local live-evidence
+root below. Stub, installed-reference, in-memory/FakeWorker, package and live evidence are distinct.
 
 | Gate | Current result |
 | --- | --- |
@@ -87,6 +88,9 @@ Raw live evidence is retained locally, outside the execution worktree, under
 `provenance.json` records exact authorized project paths, PIDs, scratch root, version and hashes.
 `client.py`, each group's `call-NNN.json`, `stdout.jsonl`, `stderr.log`, `initialize-tools.json`, and
 `qualification-summary.json` retain requests, responses, elicitation, audit deltas and checks.
+`offline/qualification`, `offline/real-reference`, and `offline/TestResults/` retain qualification
+evidence after worktree cleanup; `offline-preservation.json` and `failed-run-preservation.json`
+record hash-verified copying. All local artifacts remain ignored and are not included in the PR.
 Run `python artifacts/multiuser-pr2-live/verify_evidence.py` from that original checkout to
 recompute canonical equality, audit hashes, identity/guard checks and file postconditions.
 Private local paths and project content remain in ignored captures rather than this report.
