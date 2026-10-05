@@ -10,6 +10,55 @@ namespace TiaMcpServer.Tests.Multiuser;
 [Collection("Portal session boundary")]
 public sealed class MultiuserInventoryWorkerTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void SessionIds_AreProjectedAsReturnedIntegersWithoutInventedRangeRestriction(int sessionId)
+    {
+        using var f = new InventoryFixture();
+        f.Server.Sessions.Add(new() { SessionId = sessionId, ProjectFileInfo = new FileInfo(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "A.als21")) });
+        Assert.Equal(sessionId, Assert.Single(f.Service.ListLocalSessions(SessionsRequest()).Sessions).SessionId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void MissingProjectName_IsValidationFailureBeforeRemoteRead(string? name)
+    {
+        using var f = new InventoryFixture();
+        var request = SessionsRequest(); request.ServerProjectName = name!;
+        Category("validation_error", () => f.Service.ListLocalSessions(request));
+        Assert.Equal(0, f.Server.RemoteCalls);
+    }
+
+    [Theory]
+    [InlineData("list")]
+    [InlineData("groups")]
+    public void IncompleteConfigurationEnumeration_NeverReturnsPartialInventory(string method)
+    {
+        using var f = new InventoryFixture();
+        f.Portal.Process.Portal.ProjectServers.EnumerationFailure = new EngineeringException("private endpoint diagnostic");
+        Category("worker_operation_failed", () =>
+        {
+            if (method == "list") f.Service.ListServerConnections(new());
+            else f.Service.ListServerGroups(new() { ServerAlias = "Fixture" });
+        });
+    }
+
+    [Fact]
+    public void UnrelatedEndpointObservation_IsNotOverwrittenByAnotherAlias()
+    {
+        using var f = new InventoryFixture();
+        var other = new ProjectServer { ServerName = "Other" };
+        f.Portal.Process.Portal.ProjectServers.Items.Add(other);
+        f.Service.ListServerGroups(new() { ServerAlias = "Fixture" });
+        other.RemoteFailure = new EngineeringException("failure");
+        Category("worker_operation_failed", () => f.Service.ListServerGroups(new() { ServerAlias = "Other" }));
+        var observation = f.Service.ListServerGroups(new() { ServerAlias = "Fixture" }).ConnectionObservation;
+        Assert.Equal("connected", observation.PreviousState);
+        Assert.False(observation.Transition);
+    }
+
     private static ProjectServerGroupIdentity Root() => new() { IsRoot = true };
     private static MultiuserLocalSessionsRequest SessionsRequest(ProjectServerGroupIdentity? group = null) => new()
         { ServerAlias = "Fixture", Group = group ?? Root(), ServerProjectName = "Demo" };

@@ -5,16 +5,41 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// <summary>The Portal-only admission and identity seam; no project discovery or selection.</summary>
 internal static class MultiuserPortalReadDispatch
 {
+    public static WorkerResponse Invoke(MultiuserInventoryService service, WorkerRequest request)
+    {
+        var group = request.MultiuserGroupIsRoot.HasValue
+            ? new ProjectServerGroupIdentity { IsRoot = request.MultiuserGroupIsRoot.Value, Name = request.MultiuserGroupName }
+            : null;
+        return request.Method switch
+        {
+            "list_server_connections" => Success(service.ListServerConnections(new() { PortalProcessId = request.PortalProcessId })),
+            "list_server_groups" => Success(service.ListServerGroups(new() { PortalProcessId = request.PortalProcessId, ServerAlias = request.MultiuserServerAlias! })),
+            "list_server_projects" => Success(service.ListServerProjects(new() { PortalProcessId = request.PortalProcessId, ServerAlias = request.MultiuserServerAlias!, Group = group })),
+            "list_local_sessions" => Success(service.ListLocalSessions(new() { PortalProcessId = request.PortalProcessId, ServerAlias = request.MultiuserServerAlias!, Group = group, ServerProjectName = request.MultiuserServerProjectName! })),
+            "get_lock_state" => Success(service.GetLockState(new() { PortalProcessId = request.PortalProcessId, ServerAlias = request.MultiuserServerAlias!, Group = group, ServerProjectName = request.MultiuserServerProjectName! })),
+            _ => throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Unknown Portal inventory method.")
+        };
+    }
+
+    private static WorkerResponse Success<T>(T payload) => new() { Success = true, Payload = WorkerJson.SerializePayload(payload) };
+
     public static WorkerResponse Run(TiaPortalSession session, WorkerRequest request, Func<TiaPortalSession, WorkerResponse> body)
     {
         Validate(request);
         session.ValidateExpectedSessionIdentity(request.ExpectedSessionIdentity, true, useCachedIdentity: true);
         session.EnsurePortalConnected(request.PortalProcessId);
         session.ValidateExpectedSessionIdentity(request.ExpectedSessionIdentity, true);
-        var response = body(session);
-        // Read-side races must not certify a context that disappeared during remote inventory.
-        session.EnsurePortalConnected(request.PortalProcessId);
-        session.ValidateExpectedSessionIdentity(request.ExpectedSessionIdentity, true);
+        var attachmentRevision = session.PortalAttachmentRevision;
+        WorkerResponse response;
+        try { response = body(session); }
+        finally
+        {
+            // Validate failures too, but never auto-attach after loss during the read.
+            if (!session.IsConnected || session.PortalAttachmentRevision != attachmentRevision)
+                throw new WorkerOperationException(WorkerFailureCategories.BindingConflict, "The Portal attachment was lost during inventory. No inventory operation was replayed.");
+            session.EnsurePortalConnected(request.PortalProcessId);
+            session.ValidateExpectedSessionIdentity(request.ExpectedSessionIdentity, true);
+        }
         response.PortalProcessId = session.CurrentProcessId;
         return response;
     }

@@ -11,6 +11,107 @@ namespace TiaMcpServer.Tests.Multiuser;
 [Collection("Portal session boundary")]
 public sealed class MultiuserPortalReadDispatchTests
 {
+    [Theory]
+    [InlineData("list_server_connections")]
+    [InlineData("list_server_groups")]
+    [InlineData("list_server_projects")]
+    [InlineData("list_local_sessions")]
+    [InlineData("get_lock_state")]
+    public void InventoryDispatch_ReturnsTypedPayloadAndActualPidInEveryAccessMode(string method)
+    {
+        foreach (var mode in new[] { McpAccessMode.ReadOnly, McpAccessMode.ReadWrite, McpAccessMode.Full })
+        {
+            using var f = new PortalInventoryFixture();
+            Assert.Null(WorkerOperationAuthorization.Authorize(mode, method));
+            var server = new Siemens.Engineering.Multiuser.ProjectServer();
+            server.Projects.Add(new Siemens.Engineering.Multiuser.ServerProjectInfo());
+            f.Process.Portal.ProjectServers.Items.Add(server);
+            var service = new MultiuserInventoryService(f.Session);
+            var request = new WorkerRequest { Method = method };
+            if (method != "list_server_connections") request.MultiuserServerAlias = "Fixture";
+            if (method is "list_server_projects" or "list_local_sessions" or "get_lock_state") request.MultiuserGroupIsRoot = true;
+            if (method is "list_local_sessions" or "get_lock_state") request.MultiuserServerProjectName = "Demo";
+            var result = MultiuserPortalReadDispatch.Run(f.Session, request, _ => MultiuserPortalReadDispatch.Invoke(service, request));
+            Assert.True(result.Success);
+            Assert.Equal(101, result.PortalProcessId);
+            using var document = System.Text.Json.JsonDocument.Parse(result.Payload!);
+            var slot = method switch { "list_server_connections" => "connections", "list_server_groups" => "groups",
+                "list_server_projects" => "projects", "list_local_sessions" => "sessions", _ => "isLocked" };
+            Assert.True(document.RootElement.TryGetProperty(slot, out _));
+            if (method != "list_server_connections") Assert.Equal(System.Text.Json.JsonValueKind.Null,
+                document.RootElement.GetProperty("remoteIdentity").GetProperty("protocol").ValueKind);
+            Assert.Null(f.Session.ActiveContext);
+            f.AssertNoMutation();
+        }
+    }
+
+    [Fact]
+    public void BodyFailure_WithActualPortalLossStillInvalidatesIdentity()
+    {
+        using var f = new PortalInventoryFixture();
+        f.Session.Connect(f.Path);
+        var request = new WorkerRequest { Method = "list_server_connections", ExpectedSessionIdentity = f.Session.GetSessionIdentity() };
+        Category("binding_conflict", () => MultiuserPortalReadDispatch.Run(f.Session, request, _ =>
+        {
+            f.Process.Portal.CurrentProcessFailure = new NonRecoverableException("closed");
+            throw new WorkerOperationException("worker_operation_failed", "server read failed");
+        }));
+        Assert.Null(f.Session.CurrentProcessId);
+        Assert.Null(f.Session.ActiveContext);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisposedDuringRemoteRead_DoesNotReattachOrReplay(bool bodyFails)
+    {
+        using var f = new PortalInventoryFixture();
+        f.Session.Connect(f.Path);
+        var request = new WorkerRequest { Method = "list_server_connections", ExpectedSessionIdentity = f.Session.GetSessionIdentity() };
+        var bodyCalls = 0;
+        Category("binding_conflict", () => MultiuserPortalReadDispatch.Run(f.Session, request, _ =>
+        {
+            bodyCalls++;
+            f.Process.Portal.RaiseDisposed();
+            if (bodyFails) throw new WorkerOperationException("worker_operation_failed", "lost");
+            return new WorkerResponse { Success = true, Payload = "{}" };
+        }));
+        Assert.Equal(1, bodyCalls);
+        Assert.Equal(1, f.Process.AttachCalls);
+        Assert.Null(f.Session.CurrentProcessId);
+    }
+
+    [Fact]
+    public void HealthyBodyFailure_PreservesBindingOwnershipAndOriginalCategory()
+    {
+        using var f = new PortalInventoryFixture();
+        f.Session.Connect(f.Path);
+        f.Session.TrackWorkerOpenedProject(f.Project);
+        var before = f.Session.GetSessionIdentity();
+        var context = f.Session.ActiveContext;
+        var request = new WorkerRequest { Method = "list_server_connections", ExpectedSessionIdentity = before };
+        Category("target_not_found", () => MultiuserPortalReadDispatch.Run(f.Session, request, _ =>
+            throw new WorkerOperationException("target_not_found", "no server")));
+        Assert.Same(context, f.Session.ActiveContext);
+        Assert.True(context!.Owner.OpenedByWorker);
+        Assert.Equal(before.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);
+        f.AssertNoMutation();
+    }
+
+    [Fact]
+    public void SuccessfulBody_CannotCertifyIdentityLostDuringRemoteRead()
+    {
+        using var f = new PortalInventoryFixture();
+        f.Session.Connect(f.Path);
+        var request = new WorkerRequest { Method = "list_server_connections", ExpectedSessionIdentity = f.Session.GetSessionIdentity() };
+        Category("binding_conflict", () => MultiuserPortalReadDispatch.Run(f.Session, request, _ =>
+        {
+            f.Project.PathFailure = new EngineeringException("closed");
+            return new WorkerResponse { Success = true, Payload = "{}" };
+        }));
+        Assert.Null(f.Session.ActiveContext);
+    }
+
     [Fact]
     public void FirstAttachment_DoesNotAdoptSoleOpenProject()
     {

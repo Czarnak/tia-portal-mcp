@@ -48,7 +48,8 @@ internal sealed class MultiuserInventoryService
 
     public MultiuserLocalSessionsInfo ListLocalSessions(MultiuserLocalSessionsRequest request)
     {
-        Validate(request.ServerAlias, request.Group, request.ServerProjectName);
+        Validate(request.ServerAlias, request.Group);
+        RequireName(request.ServerProjectName);
         Connect(request.PortalProcessId);
         var target = Server(request.ServerAlias);
         target.Identity.Group = Copy(request.Group!);
@@ -61,7 +62,7 @@ internal sealed class MultiuserInventoryService
             var ids = new HashSet<int>();
             foreach (var row in rows)
             {
-                if (row is null || row.ProjectFileInfo is null || row.SessionId <= 0 || !ids.Add(row.SessionId)) throw Incomplete();
+                if (row is null || row.ProjectFileInfo is null || !ids.Add(row.SessionId)) throw Incomplete();
                 var path = row.ProjectFileInfo.FullName;
                 if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path)) throw Incomplete();
                 result.Sessions.Add(new MultiuserLocalSessionInfo { SessionId = row.SessionId, ProjectPath = Path.GetFullPath(path) });
@@ -72,7 +73,8 @@ internal sealed class MultiuserInventoryService
 
     public MultiuserLockStateInfo GetLockState(MultiuserLockStateRequest request)
     {
-        Validate(request.ServerAlias, request.Group, request.ServerProjectName);
+        Validate(request.ServerAlias, request.Group);
+        RequireName(request.ServerProjectName);
         Connect(request.PortalProcessId);
         var target = Server(request.ServerAlias);
         target.Identity.Group = Copy(request.Group!);
@@ -188,12 +190,11 @@ internal sealed class MultiuserInventoryService
             ObservationSource = ProjectServerConnectionObservationSources.ExplicitRead };
     }
 
-    private static void Validate(string alias, ProjectServerGroupIdentity? group, string? project = null)
+    private static void Validate(string alias, ProjectServerGroupIdentity? group)
     {
         RequireName(alias);
         if (group is null || (group.IsRoot ? group.Name is not null : string.IsNullOrWhiteSpace(group.Name)))
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "An explicit coherent root or named group is required.");
-        if (project is not null) RequireName(project);
     }
     private static void RequireName(string? name)
     {
