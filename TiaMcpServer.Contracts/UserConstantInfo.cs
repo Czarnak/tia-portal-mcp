@@ -6,5 +6,6 @@ public class UserConstantInfo
 
     public string DataType { get; set; } = string.Empty;
 
-    public string Value { get; set; } = string.Empty;
+    /// <summary>The constant's value; null when unreadable.</summary>
+    public string? Value { get; set; } = string.Empty;
 }

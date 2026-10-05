@@ -33,6 +33,147 @@ public static class TagTableReader
         return result;
     }
 
+    /// <summary>
+    /// Reads the complete tag inventory of every PLC selected by <paramref name="plcName"/> (all
+    /// PLCs when null), including PLCs in device groups. Unlike <see cref="ReadAll(PlcSoftware)"/>
+    /// it reads the external-access flags and never skips silently: every table, group, tag or
+    /// constant that cannot be read yields one message and <c>IsComplete = false</c>.
+    /// </summary>
+    public static PlcTagInventoryInfo ReadInventory(Project project, string? plcName)
+    {
+        var inventory = new PlcTagInventoryInfo();
+        foreach (var discovered in PlcSoftwareLocator.FindEveryPlc(project, plcName))
+        {
+            var plc = new PlcTagInventoryPlcInfo
+            {
+                PlcName = discovered.Software.Name,
+                DeviceName = discovered.DeviceName
+            };
+            InventoryGroup(discovered.Software.TagTableGroup, "/", plc.Tables, inventory.Messages);
+            inventory.Plcs.Add(plc);
+        }
+
+        if (inventory.Plcs.Count == 0)
+        {
+            var detail = plcName is not null ? $" named '{plcName}'" : string.Empty;
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed,
+                $"No PLC software{detail} was found in the project.");
+        }
+
+        inventory.IsComplete = inventory.Messages.Count == 0;
+        return inventory;
+    }
+
+    private static void InventoryGroup(
+        PlcTagTableGroup group,
+        string folderPath,
+        List<TagTableInfo> tables,
+        List<string> messages)
+    {
+        var where = $"tag table group '{folderPath}'";
+        ReadEach(group.TagTables, $"a tag table in {where}", messages, table =>
+        {
+            tables.Add(new TagTableInfo
+            {
+                Name = table.Name,
+                FolderPath = folderPath,
+                IsDefault = table.IsDefault,
+                Tags = InventoryTags(table, messages),
+                UserConstants = InventoryConstants(table, messages)
+            });
+        });
+
+        ReadEach(group.Groups, $"a nested group in {where}", messages, child =>
+        {
+            var childPath = folderPath == "/" ? $"/{child.Name}" : $"{folderPath}/{child.Name}";
+            InventoryGroup(child, childPath, tables, messages);
+        });
+    }
+
+    private static List<TagInfo> InventoryTags(PlcTagTable table, List<string> messages)
+    {
+        var tags = new List<TagInfo>();
+        ReadEach(table.Tags, $"a tag in tag table '{table.Name}'", messages, tag =>
+        {
+            var name = tag.Name;
+            var flagContext = $"tag '{name}' in tag table '{table.Name}'";
+            tags.Add(new TagInfo
+            {
+                Name = name,
+                DataType = tag.DataTypeName,
+                LogicalAddress = tag.LogicalAddress,
+                ExternalAccessible = ReadFlag(() => tag.ExternalAccessible, "ExternalAccessible", flagContext, messages),
+                ExternalVisible = ReadFlag(() => tag.ExternalVisible, "ExternalVisible", flagContext, messages),
+                ExternalWritable = ReadFlag(() => tag.ExternalWritable, "ExternalWritable", flagContext, messages)
+            });
+        });
+
+        return tags;
+    }
+
+    private static List<UserConstantInfo> InventoryConstants(PlcTagTable table, List<string> messages)
+    {
+        var constants = new List<UserConstantInfo>();
+        ReadEach(table.UserConstants, $"a user constant in tag table '{table.Name}'", messages, constant =>
+        {
+            var info = new UserConstantInfo { Name = constant.Name, DataType = constant.DataTypeName, Value = null };
+            try
+            {
+                info.Value = constant.Value?.ToString();
+            }
+            catch (EngineeringException ex)
+            {
+                messages.Add($"The value of user constant '{info.Name}' in tag table '{table.Name}' could not be read: {ex.Message}");
+            }
+
+            constants.Add(info);
+        });
+
+        return constants;
+    }
+
+    // NotSupportedException means the attribute does not exist for this tag: null without a message.
+    private static bool? ReadFlag(Func<bool> read, string flag, string context, List<string> messages)
+    {
+        try
+        {
+            return read();
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (EngineeringException ex)
+        {
+            messages.Add($"{flag} of {context} could not be read: {ex.Message}");
+            return null;
+        }
+    }
+
+    // Reads every item; an item (or the enumeration itself) that throws is reported, never dropped silently.
+    private static void ReadEach<T>(IEnumerable<T> items, string what, List<string> messages, Action<T> read)
+    {
+        try
+        {
+            foreach (var item in items)
+            {
+                try
+                {
+                    read(item);
+                }
+                catch (EngineeringException ex)
+                {
+                    messages.Add($"{what} could not be read: {ex.Message}");
+                }
+            }
+        }
+        catch (EngineeringException ex)
+        {
+            messages.Add($"{what} could not be enumerated: {ex.Message}");
+        }
+    }
+
     private static void CollectTablesFromGroup(
         PlcTagTableGroup group,
         string folderPath,

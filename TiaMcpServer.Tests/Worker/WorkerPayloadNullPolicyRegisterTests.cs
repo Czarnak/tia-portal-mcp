@@ -30,7 +30,6 @@ public sealed class WorkerPayloadNullPolicyRegisterTests
             ["UpdateUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["DeleteUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["CrossReferenceReport"] = LegacyNullOmissionReason.BatchRedesign,
-            ["TagTableInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["TagMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["BlockMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["PlcOnlineResultInfo"] = LegacyNullOmissionReason.BatchRedesign,

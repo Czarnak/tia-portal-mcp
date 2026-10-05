@@ -231,6 +231,7 @@ namespace Siemens.Engineering.SW.Tags
         public Composition<PlcTag> Tags { get; } = new();
         public Composition<PlcUserConstant> UserConstants { get; } = new();
         public Composition<PlcSystemConstant> SystemConstants { get; } = new();
+        public bool IsDefault { get; set; }
         public void Export(FileInfo path, ExportOptions options, DocumentInfoOptions documentInfo)
             => throw new NotSupportedException("Export is outside this offline collision fixture.");
     }
@@ -238,15 +239,37 @@ namespace Siemens.Engineering.SW.Tags
     {
         public string DataTypeName { get; set; } = "Bool";
         public string LogicalAddress { get; set; } = "%I0.0";
-        public bool ExternalAccessible { get; set; }
-        public bool ExternalVisible { get; set; }
-        public bool ExternalWritable { get; set; }
+        private bool externalAccessible, externalVisible, externalWritable;
+        public Exception? ExternalAccessibleFailure { get; set; }
+        public Exception? ExternalVisibleFailure { get; set; }
+        public Exception? ExternalWritableFailure { get; set; }
+        public bool ExternalAccessible
+        {
+            get => ExternalAccessibleFailure is null ? externalAccessible : throw ExternalAccessibleFailure;
+            set => externalAccessible = value;
+        }
+        public bool ExternalVisible
+        {
+            get => ExternalVisibleFailure is null ? externalVisible : throw ExternalVisibleFailure;
+            set => externalVisible = value;
+        }
+        public bool ExternalWritable
+        {
+            get => ExternalWritableFailure is null ? externalWritable : throw ExternalWritableFailure;
+            set => externalWritable = value;
+        }
     }
     public sealed class PlcSystemConstant : NamedObject { }
     public sealed class PlcUserConstant : NamedObject
     {
         public string DataTypeName { get; set; } = "Int";
-        public object Value { get; set; } = "25";
+        private object value = "25";
+        public Exception? ValueFailure { get; set; }
+        public object Value
+        {
+            get => ValueFailure is null ? value : throw ValueFailure;
+            set => this.value = value;
+        }
     }
 }
 

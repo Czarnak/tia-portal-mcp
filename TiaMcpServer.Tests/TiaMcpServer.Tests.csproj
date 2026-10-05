@@ -49,6 +49,8 @@
       Link="Linked\Openness\ProjectTreeSnapshotWalker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcSoftwareLocator.cs"
       Link="Linked\Openness\PlcSoftwareLocator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTableReader.cs"
+      Link="Linked\Openness\TagTableReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileChecker.cs"
       Link="Linked\Openness\CompileChecker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferenceReader.cs"
