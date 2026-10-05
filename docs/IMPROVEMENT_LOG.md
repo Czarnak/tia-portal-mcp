@@ -955,3 +955,19 @@ comments substituted for PLC edits; external changes used an independent Opennes
 form acceptance was scripted. Independent review found no Important/Critical behavior issue.
 No production change or expensive suite replay followed these documentation-only results.
 Public Multiuser operations and Issue #65 remain open.
+
+## Multiuser PR 3 discovery and inventory — offline qualified (2026-10-06)
+
+`bind_project` retains default/null binding and adds six explicit inspection actions without
+changing 6/16/16 discovery. Exact raw-key selectors, persistent Portal-only attachment, local
+foreign-PID refusal, genuine identity-loss invalidation, canonical typed payloads and whole-value
+budgets are covered offline. Current-machine/current-user sessions and non-atomic lock observations
+remain bounded; ALS21/session/content/marking/mutation delivery and Issue #65 completion stay open.
+
+Frozen code `29468ba` passed 5,536/5,536 serial tests with coverage; unchanged 80% line gate passed
+at 93.83%. Installed V21 compile-only probe/solution and source-reference drift passed; existing
+Step7 `Tags.cs:112` CS0108 remains deferred. Local package `3.0.1-local.316.gfba3cc7` passed layout/leak
+checks and includes the maintained README. The [offline report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md)
+records exact commands, scoped/changed coverage, hashes and limits. Documentation review and
+scoped session-ID clarification re-review passed; final whole-branch review is separate.
+Task 5 live operation-specific acceptance remains pending exact fixture/scope authorization.

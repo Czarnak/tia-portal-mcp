@@ -10,7 +10,7 @@
 
 **Spec:** [Multiuser Engineering design](../specs/2026-09-28-multiuser-engineering-design.md), amended on 2026-10-05 for the user-selected binding-only read surface.
 
-**Status:** Accepted for local implementation, granular local commits and offline qualification. Tasks 1–3 implemented and independently reviewed; Task 4 qualification/documentation in progress. Task 5 live acceptance is pending exact fixture/scope authorization. No remote publication or installed-tool/configuration change is authorized.
+**Status:** Accepted for local implementation, granular local commits and offline qualification. Tasks 1–3 implemented and independently reviewed; Task 4 offline qualification/documentation passed, final whole-branch review remains a controller gate. Task 5 live acceptance is pending exact fixture/scope authorization. No remote publication or installed-tool/configuration change is authorized.
 
 **Baseline:** `main` / `origin/main` / GitHub main at `ea269c222e7415af347f2929cbc82a366aa2ee0f` (merged PR #109). Worktree `C:\Users\LCZ\.codex\worktrees\multiuser-pr3\tia-portal-mcp`, branch `feature/multiuser-pr3`. PR 1/PR 2 are present. Discovery remains **6/16/16**. The earlier separate read tool, request batching, new registration, and higher tool counts are superseded.
 
@@ -108,12 +108,12 @@ Combined annotation remains ReadOnly=false, Destructive=false, Idempotent=true; 
 
 **Files:** Modify `reference-stubs/Siemens.Engineering.Base/Multiuser.cs`, `reference-stubs/TiaMcpServer.OpennessReferenceProbe/MultiuserReferenceSurface.cs`, `TiaMcpServer.Contracts/WorkerRequest.cs`, generated ref artifacts via verifier, and existing foundation tests. Create `TiaMcpServer.Contracts/MultiuserInventoryRequests.cs`, `MultiuserInventoryInfo.cs`, and `TiaMcpServer.Tests/Multiuser/MultiuserInventoryContractTests.cs`.
 
-**Interfaces:** Five logical request/result pairs above. Flat IPC gains PortalProcessId:int?, MultiuserServerAlias, MultiuserGroupIsRoot:bool?, MultiuserGroupName, MultiuserServerProjectName. No protocol version/envelope change; ExpectedSessionIdentity is optional verified preservation evidence.
+**Interfaces:** Five logical request/result pairs above. Flat IPC gains PortalProcessId:int?, MultiuserServerAlias, MultiuserGroupIsRoot:bool?, MultiuserGroupName, MultiuserServerProjectName. Protocol version is unchanged; nullable WorkerResponse.PortalProcessId is additive actual-attachment evidence for unbound inventory. ExpectedSessionIdentity is optional verified preservation evidence.
 
-- [ ] **Step 1: Add failing uncalled probe method groups** for enumeration, five paths/getters, and installed IList<T> signatures. Add contract assertions for distinct DTOs, required explicit nulls, exact identity/group coherence, scope, and Siemens-free contracts.
-- [ ] **Step 2: Run verifier/focused tests**, retaining relevant missing-surface failures.
-- [ ] **Step 3: Add only the verified surface/DTOs** and run `pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Update`. Shared source hash refreshes both Base/Step7 artifacts. No invocation/construction in compile probe, new dependency, or unrelated API expansion.
-- [ ] **Step 4: Run drift verifier, contract tests, and installed compile probe** below. Check null-policy registers; add no legacy omission marker.
+- [x] **Step 1: Add failing uncalled probe method groups** for enumeration, five paths/getters, and installed IList<T> signatures. Add contract assertions for distinct DTOs, required explicit nulls, exact identity/group coherence, scope, and Siemens-free contracts.
+- [x] **Step 2: Run verifier/focused tests**, retaining relevant missing-surface failures.
+- [x] **Step 3: Add only the verified surface/DTOs** and run `pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Update`. Shared source hash refreshes both Base/Step7 artifacts. No invocation/construction in compile probe, new dependency, or unrelated API expansion.
+- [x] **Step 4: Run drift verifier, contract tests, and installed compile probe** below. Check null-policy registers; add no legacy omission marker.
 
 ## Task 2: Worker inspection without selection/detach
 
@@ -121,11 +121,11 @@ Combined annotation remains ReadOnly=false, Destructive=false, Idempotent=true; 
 
 **Interfaces:** `EnsurePortalConnected(int? requestedProcessId=null): void`; service constructor `(TiaPortalSession session)` and five synchronous typed request/result methods; `WithPortalRead(WorkerRequest, Func<TiaPortalSession, WorkerResponse>)`. Reuse list_tia_portal_processes; five new method names equal inventory actions and are Observe.
 
-- [ ] **Step 1: Write failing source-linked tests** for same-PID reuse, foreign-PID refusal before attach/detach, unattached zero/ambiguous/exact selection, and first attachment without adoption. Assert healthy context/generation/ownership unchanged and zero mutation counters. Test expected identity before/after checks and no configured-path promotion.
-- [ ] **Step 2: Run focused worker/dispatch tests** and retain failures.
-- [ ] **Step 3: Extract existing exact attachment/PID/event logic**, preserving Connect/EnsureConnected defaults. Inspection never invokes SelectOpenProject, AdoptContext, WithProject, or unconditional cleanup. Direct worker requests reject projectPath/write flags/inappropriate selectors; validate supplied expected identity.
-- [ ] **Step 4: Implement exact resolution/projection**, retaining actual ServerProjectInfo. Validate complete rows, identity, paths, lock evidence, endpoint observations, and sanitized existing categories. Test same-endpoint observation transitions across calls and absence of comparisons across attachment/endpoint changes.
-- [ ] **Step 5: Run focused/existing session-context tests**, default selection regressions, server-error preservation, and actual Portal-loss invalidation. Source-link service; stubs are not runtime doubles. Build against stub/installed references.
+- [x] **Step 1: Write failing source-linked tests** for same-PID reuse, foreign-PID refusal before attach/detach, unattached zero/ambiguous/exact selection, and first attachment without adoption. Assert healthy context/generation/ownership unchanged and zero mutation counters. Test expected identity before/after checks and no configured-path promotion.
+- [x] **Step 2: Run focused worker/dispatch tests** and retain failures.
+- [x] **Step 3: Extract existing exact attachment/PID/event logic**, preserving Connect/EnsureConnected defaults. Inspection never invokes SelectOpenProject, AdoptContext, WithProject, or unconditional cleanup. Direct worker requests reject projectPath/write flags/inappropriate selectors; validate supplied expected identity.
+- [x] **Step 4: Implement exact resolution/projection**, retaining actual ServerProjectInfo. Validate complete rows, identity, paths, lock evidence, endpoint observations, and sanitized existing categories. Test same-endpoint observation transitions across calls and absence of comparisons across attachment/endpoint changes.
+- [x] **Step 5: Run focused/existing session-context tests**, default selection regressions, server-error preservation, and actual Portal-loss invalidation. Source-link service; stubs are not runtime doubles. Build against stub/installed references.
 
 ## Task 3: Extend existing bind_project inputs/output
 
@@ -133,18 +133,18 @@ Combined annotation remains ReadOnly=false, Destructive=false, Idempotent=true; 
 
 **Interfaces:** Retain BindProject's first four CLR parameters; append string? action=null, int? portalProcessId=null, string? serverAlias=null, MultiuserGroupSelector? group=null, string? serverProjectName=null. Catalog validates raw action-specific keys and maps typed requests. Add client `InspectPortalAsync(WorkerRequest request, CancellationToken cancellationToken=default): Task<ProjectInspectionOutcome>` carrying before/after snapshots, WorkerCallResult, and candidates listed during this call; reuse existing outcome types where suitable. Payload contract normalizes the five DTOs. Add no interface/factory.
 
-- [ ] **Step 1: Write failing registered-tool tests** for old/default/null/explicit bind compatibility, list_portals never selecting a sole project, false/null forbidden binding keys on inspection, all selector/type/member failures before dispatch, and missing group members. Test the real wrapper/schema, not only CLR inputs.
-- [ ] **Step 2: Write failing FakeWorker tests** for unchanged healthy revisions/cursors, foreign-PID local NotSent refusal with zero dispatch, same-PID expected identity forwarding, no status/projectPath/promotion, unbound/configured behavior, server failure, and genuine stale/timeout/crash invalidation without replay.
-- [ ] **Step 3: Extend existing schema/raw validator**, routing bind to BindOpenProjectAsync and explicit inspection under existing client serialization. Preserve global identity-loss handling; avoid it only for local caller refusals. No second tool, operations array, transient worker, or batch engine.
-- [ ] **Step 4: Extend typed standalone result**, conditional Inspection=null, action/slot coherence, observed PID evidence, sanitized null/error semantics, and omission guidance override. Extend conditional-member checks to this host property; current register scans Contracts only. Default JSON shape must remain unchanged.
-- [ ] **Step 5: Run schema/payload/budget/conformance tests** for six inspection actions plus binding. Probe missing/null/wrong worker members, null rows, incoherent action/PID/remote identity, unknown observation states, and rejected secret sentinels: require sanitized `protocol_error` with no payload echo. Assert canonical equality, whole-value omissions, action-valid guidance, 6/16/16 counts, one registration, ReadOnly=false/OpenWorld=true, all modes, no lifecycle prompt/write audit, and SessionSelection/Observe authorization.
+- [x] **Step 1: Write failing registered-tool tests** for old/default/null/explicit bind compatibility, list_portals never selecting a sole project, false/null forbidden binding keys on inspection, all selector/type/member failures before dispatch, and missing group members. Test the real wrapper/schema, not only CLR inputs.
+- [x] **Step 2: Write failing FakeWorker tests** for unchanged healthy revisions/cursors, foreign-PID local NotSent refusal with zero dispatch, same-PID expected identity forwarding, no status/projectPath/promotion, unbound/configured behavior, server failure, and genuine stale/timeout/crash invalidation without replay.
+- [x] **Step 3: Extend existing schema/raw validator**, routing bind to BindOpenProjectAsync and explicit inspection under existing client serialization. Preserve global identity-loss handling; avoid it only for local caller refusals. No second tool, operations array, transient worker, or batch engine.
+- [x] **Step 4: Extend typed standalone result**, conditional Inspection=null, action/slot coherence, observed PID evidence, sanitized null/error semantics, and omission guidance override. Extend conditional-member checks to this host property; current register scans Contracts only. Default JSON shape must remain unchanged.
+- [x] **Step 5: Run schema/payload/budget/conformance tests** for six inspection actions plus binding. Probe missing/null/wrong worker members, null rows, incoherent action/PID/remote identity, unknown observation states, and rejected secret sentinels: require sanitized `protocol_error` with no payload echo. Assert canonical equality, whole-value omissions, action-valid guidance, 6/16/16 counts, one registration, ReadOnly=false/OpenWorld=true, all modes, no lifecycle prompt/write audit, and SessionSelection/Observe authorization.
 
 ## Task 4: Qualification and maintained documentation
 
 **Files:** Update delivered behavior in PROJECT_OPERATIONS_SUMMARY, MULTIUSER_OPERATIONS_SUMMARY, SupportedOperations index, architecture, necessary guides, README/AGENTS, improvement log, and both indexes. Qualification goes into the indexed [PR 3 offline report](../acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md); create a separate Task 5 live report only for actual evidence.
 
-- [ ] **Step 1: Run serial same-configuration solution build before subprocess tests**, full suite, materially changed branch coverage with existing 0.80 line threshold, stub drift, installed build/probe, and package-leak checks. Retain logs/exit codes and environmental limitations.
-- [ ] **Step 2: Document explicit discovery vs default auto-bind**, attached-PID restriction, real invalidation, selectors, current-user scope, lock/omission limits, unchanged count, and undelivered ALS21/Issue65 boundary.
+- [x] **Step 1: Run serial same-configuration solution build before subprocess tests**, full suite, materially changed branch coverage with existing 0.80 line threshold, stub drift, installed build/probe, and package-leak checks. Retain logs/exit codes and environmental limitations.
+- [x] **Step 2: Document explicit discovery vs default auto-bind**, attached-PID restriction, real invalidation, selectors, current-user scope, lock/omission limits, unchanged count, and undelivered ALS21/Issue65 boundary.
 - [ ] **Step 3: Independently review whole candidate** for default compatibility, schema, identity, secrets, runtime references, and scope; validate links/anchors/examples/indexes/whitespace. Documentation-only fixes reuse valid build evidence.
 
 Execution-phase commands:
