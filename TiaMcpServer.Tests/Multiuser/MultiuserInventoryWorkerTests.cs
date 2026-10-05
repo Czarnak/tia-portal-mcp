@@ -259,6 +259,24 @@ public sealed class MultiuserInventoryWorkerTests
         Assert.Null(f.Service.ListServerGroups(new() { ServerAlias = "Fixture" }).ConnectionObservation.PreviousState);
     }
 
+    [Fact]
+    public void ActualPidDrift_DoesNotCompareObservationFromPreviousPortalIdentity()
+    {
+        using var f = new InventoryFixture();
+        f.Service.ListServerGroups(new() { ServerAlias = "Fixture" });
+        var remoteCalls = f.Server.RemoteCalls;
+        f.Portal.Process.Portal.Process = new TiaPortalProcess { Id = 202 };
+        Category("binding_conflict", () => f.Service.ListServerGroups(new() { ServerAlias = "Fixture" }));
+        Assert.Equal(remoteCalls, f.Server.RemoteCalls);
+        var observation = f.Service.ListServerGroups(new() { ServerAlias = "Fixture", PortalProcessId = 202 }).ConnectionObservation;
+        Assert.Null(observation.PreviousState);
+        Assert.False(observation.Transition);
+        Assert.Equal("connected", observation.State);
+        Assert.Equal(202, f.Portal.Session.CurrentProcessId);
+        Assert.Equal(1, f.Portal.Process.AttachCalls);
+        f.Portal.AssertNoMutation();
+    }
+
     private sealed class InventoryFixture : IDisposable
     {
         public PortalInventoryFixture Portal { get; } = new();

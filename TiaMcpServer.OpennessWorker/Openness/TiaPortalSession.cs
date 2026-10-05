@@ -193,8 +193,7 @@ public class TiaPortalSession : IDisposable
         if (_attachedProcessId != actualProcessId)
         {
             var expectedProcessId = _attachedProcessId;
-            _attachedProcessId = actualProcessId;
-            IncrementGeneration();
+            SetPortalHandle(_tiaPortal, actualProcessId);
             throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
                 $"The attached TIA Portal PID changed from {FormatProcessId(expectedProcessId)} to {actualProcessId}. No operation was performed.");
         }
