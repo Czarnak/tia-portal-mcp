@@ -532,7 +532,7 @@ public static class HardwareConfigReader
                 if (!name.IsUsable) throw new InvalidOperationException(name.Diagnostic);
                 var unreadableOwner = false;
                 var matches = ProjectDeviceNameMatcher.FindMatches(project, name.Value, _ => unreadableOwner = true);
-                if (unreadableOwner || matches.Count != 1 || !ancestors.Any(value => ReferenceEquals(value, matches[0].Device)))
+                if (unreadableOwner || matches.Count != 1 || !NetworkConnectionEvidenceCapture.ContainsSameObject(ancestors, (IEngineeringObject)matches[0].Device))
                     throw new InvalidOperationException("Connected node owner could not be resolved uniquely across all device scopes.");
                 var resolved = NetworkObjectSelectorResolver.ResolveNode(project, NetworkSelectorFactory.QualifiedNode(identity.DeviceName, identity.NodeId, identity.InterfacePath!));
                 if (!resolved.Success) throw new InvalidOperationException(resolved.Error);
