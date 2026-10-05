@@ -29,6 +29,16 @@ public sealed record CompileCheckResponse(
     public string Tool => "compile_check";
 }
 
+public sealed record ReadCrossReferencesResponse(
+    string ContractVersion,
+    bool Success,
+    StructuredOperationFailure? Error,
+    IReadOnlyList<string> Warnings,
+    StandaloneToolOutcome<CrossReferenceReport>? Result)
+{
+    public string Tool => "read_cross_references";
+}
+
 public sealed record BindProjectResponse(
     string ContractVersion,
     bool Success,

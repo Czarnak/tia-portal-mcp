@@ -32,6 +32,15 @@ public sealed class ToolOutputContractConformanceTests
             ["apply_write_batch"] = BatchRedesign,
         };
 
+    private static readonly object XrefTarget = new
+    {
+        path = new[]
+        {
+            new { nodeType = "Device", name = "PLC_1_Device" },
+            new { nodeType = "PlcSoftware", name = "PLC_1" },
+        },
+    };
+
     private static readonly IReadOnlyDictionary<string, ToolProbe> StructuredToolProbes = new[]
     {
         new ToolProbe("bind_project", "succeeded", false, null, new()),
@@ -114,6 +123,32 @@ public sealed class ToolOutputContractConformanceTests
                         blockPath = "PLC_1/Main",
                     },
                 },
+            }),
+        new ToolProbe(
+            "read_cross_references",
+            "rejected",
+            ExpectIsError: true,
+            StartupProjectPath: null,
+            new Dictionary<string, object?> { ["target"] = new { path = Array.Empty<object>() } }),
+        new ToolProbe(
+            "read_cross_references",
+            "succeeded",
+            ExpectIsError: false,
+            StartupProjectPath: null,
+            new Dictionary<string, object?>
+            {
+                ["projectPath"] = "xref-roundtrip",
+                ["target"] = XrefTarget,
+            }),
+        new ToolProbe(
+            "read_cross_references",
+            "omittedSources",
+            ExpectIsError: false,
+            StartupProjectPath: null,
+            new Dictionary<string, object?>
+            {
+                ["projectPath"] = "xref-oversized",
+                ["target"] = XrefTarget,
             }),
         new ToolProbe(
             "network_write",
@@ -258,6 +293,8 @@ public sealed class ToolOutputContractConformanceTests
             "get_project_status/omitted" => "status-oversized",
             "network_read/succeeded" => "network-roundtrip",
             "plc_read/succeeded" => "plc-read-roundtrip",
+            "read_cross_references/succeeded" => "xref-roundtrip",
+            "read_cross_references/omittedSources" => "xref-oversized",
             "browse_project_tree/succeeded" => "project-tree-v3-small",
             _ => probe.StartupProjectPath == "guarded-lifecycle"
                 ? fixture.SourcePath : probe.StartupProjectPath
@@ -271,6 +308,7 @@ public sealed class ToolOutputContractConformanceTests
         };
         using var uiOpen = probe.Name is "get_project_status/malformed" or
             "get_project_status/omitted" or "network_read/succeeded" or "plc_read/succeeded" or
+            "read_cross_references/succeeded" or "read_cross_references/omittedSources" or
             "browse_project_tree/succeeded"
             ? FakeWorkerUiOpenProject.ForWorkerRelativePath(sourcePath!)
             : new FakeWorkerUiOpenProject(sourcePath);
@@ -321,6 +359,33 @@ public sealed class ToolOutputContractConformanceTests
             Assert.Equal(
                 probe.ExpectIsError ? System.Text.Json.JsonValueKind.Null : System.Text.Json.JsonValueKind.Object,
                 document.GetProperty("batch").ValueKind);
+        }
+        if (probe.Tool == "read_cross_references")
+        {
+            var document = result.StructuredContent!.Value;
+            Assert.Equal("1.0", document.GetProperty("contractVersion").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
+            if (probe.ExpectIsError)
+            {
+                Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("result").ValueKind);
+            }
+            else
+            {
+                var value = document.GetProperty("result").GetProperty("value");
+                var omitted = value.GetProperty("omittedSourceCount").GetInt32();
+                if (probe.Case == "omittedSources")
+                {
+                    Assert.True(omitted > 0);
+                    Assert.False(value.GetProperty("isComplete").GetBoolean());
+                    Assert.Equal(40, value.GetProperty("totalSourceCount").GetInt32());
+                    Assert.Equal(40, omitted + value.GetProperty("sources").GetArrayLength());
+                    Assert.True(value.GetRawText().Length <= 60_000);
+                }
+                else
+                {
+                    Assert.Equal(0, omitted);
+                }
+            }
         }
         if (probe.Name == "network_read/succeeded")
         {

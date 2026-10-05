@@ -66,7 +66,7 @@ public sealed class StandaloneToolsProtocolTests
     {
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);
         var tools = await harness.Client.ListToolsAsync();
-        Assert.Equal(mode == McpAccessMode.ReadOnly ? 6 : 16, tools.Count);
+        Assert.Equal(mode == McpAccessMode.ReadOnly ? 7 : 17, tools.Count);
         var statusTool = Assert.Single(tools, tool => tool.Name == "get_project_status");
         var statusSchema = statusTool.ProtocolTool.OutputSchema!.Value;
         Assert.Equal(new[] { "contractVersion", "error", "result", "success", "tool", "warnings" },

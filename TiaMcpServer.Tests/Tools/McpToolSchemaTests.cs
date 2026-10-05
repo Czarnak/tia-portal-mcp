@@ -158,7 +158,7 @@ public class McpToolSchemaTests
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlySixteenApprovedTools()
+    public void McpToolSurface_ExposesExactlySeventeenApprovedTools()
     {
         var toolTypes = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -189,7 +189,8 @@ public class McpToolSchemaTests
             "apply_write_batch",
             "network_read",
             "network_write",
-            "plc_read"
+            "plc_read",
+            "read_cross_references"
         };
 
         Assert.Equal(expected.OrderBy(name => name), toolNames);
@@ -197,7 +198,7 @@ public class McpToolSchemaTests
     }
 
     [Fact]
-    public void McpReadOnlySurface_RemainsExactlySixApprovedTools()
+    public void McpReadOnlySurface_RemainsExactlySevenApprovedTools()
     {
         var toolNames = new[]
         {
@@ -206,6 +207,7 @@ public class McpToolSchemaTests
             typeof(ReadBatchTools),
             RequiredNetworkToolType("NetworkReadTools"),
             typeof(TiaMcpServer.Plc.PlcReadTools),
+            typeof(TiaMcpServer.CrossReferences.CrossReferenceReadTools),
         }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
@@ -215,7 +217,7 @@ public class McpToolSchemaTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "bind_project", "browse_project_tree", "execute_read_batch", "get_project_status", "network_read", "plc_read" },
+            new[] { "bind_project", "browse_project_tree", "execute_read_batch", "get_project_status", "network_read", "plc_read", "read_cross_references" },
             toolNames);
         Assert.DoesNotContain("probe_network_object_attributes", toolNames);
     }

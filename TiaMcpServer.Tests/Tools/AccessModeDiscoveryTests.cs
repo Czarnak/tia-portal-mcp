@@ -9,14 +9,14 @@ namespace TiaMcpServer.Tests.Tools;
 [Collection("Mcp protocol serial")]
 public class AccessModeDiscoveryTests
 {
-    private static readonly string[] Reads = { "bind_project", "browse_project_tree", "execute_read_batch", "get_project_status", "network_read", "plc_read" };
+    private static readonly string[] Reads = { "bind_project", "browse_project_tree", "execute_read_batch", "get_project_status", "network_read", "plc_read", "read_cross_references" };
     private static readonly string[] Edits = { "apply_write_batch", "compile_check", "network_write", "preview_write_batch" };
     private static readonly string[] Lifecycle = { "archive_project", "close_project", "create_project", "open_project", "save_project", "save_project_as" };
 
     [Theory]
-    [InlineData(McpAccessMode.ReadOnly, 6)]
-    [InlineData(McpAccessMode.ReadWrite, 16)]
-    [InlineData(McpAccessMode.Full, 16)]
+    [InlineData(McpAccessMode.ReadOnly, 7)]
+    [InlineData(McpAccessMode.ReadWrite, 17)]
+    [InlineData(McpAccessMode.Full, 17)]
     public async Task ToolsList_AdvertisesOnlyTheModeSurface(McpAccessMode mode, int count)
     {
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);
