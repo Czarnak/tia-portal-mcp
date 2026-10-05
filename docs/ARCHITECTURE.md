@@ -566,11 +566,20 @@ node/subnet/IO relationship evidence. Unknown inventory is not empty. Connected 
 `network_delete_connected_subnet` (`info`); incomplete consequences fire `network_state_unverifiable`
 (`block`). Both satisfaction fields are null. Blocks cannot be overridden in any mode.
 
+Planner `currentSettings` come from an exact node/subnet `inspect_network_object`, so they carry real
+Openness source/access; the snapshot fallback is `modeled`/`unknown`. A requested `pnDeviceName` on a
+node that auto-generates its name fails planning with `validation_error` unless
+`pnDeviceNameAutoGeneration:false` is supplied.
+
 `NetworkWriteVerifier` retains immediate applied-setting evidence before later deliberate changes,
 then reads the effective attempted prefix. Sparse skipped settings fail the item/call while keeping
-the typed result; no check claims an unapplied setting. Subnet-only moves do not imply IO detach/attach:
-an earlier explicit IO tuple remains expected unless explicitly superseded or removed by designed
+the typed result; each skipped setting gets a final preservation check against its pre-write value.
+Verification `identity` is the typed `NetworkMutationIdentityInfo`, and `finalChecks[]` are
+`NetworkFinalCheck` records with a typed `subject`, never interpolated names. The IO relationship is
+checked as scalar `IoSystemSubnet`/`IoSystemNumber`. Subnet-only moves do not imply IO detach/attach:
+an earlier explicit IO expectation remains unless explicitly superseded or removed by designed
 deletion consequences, so unexpected side effects can conservatively fail final verification.
+`verification.success` covers evidence only; execution failure stays in batch/root `success`.
 Root `project.Devices.Count` is separate from exact preservation of grouped/ungrouped devices/nodes.
 
 `NetworkWritePayloadBudget` bounds the complete canonical document at 180,000 characters and each
@@ -603,9 +612,14 @@ whose own identity could not be read all fail closed rather than
 resolving to a first match, a first node, or a name-only guess. The host never forwards a
 pre-resolved object reference to the worker — only the caller's own `deviceName`/`nodeId` (and,
 where applicable, `subnetId`/IO-system `number`) cross the process boundary, so the worker's
-independent resolution is a real second check, not a formality. Newly preflighted requested subnet/IO
-failures and unreadable discovery use `worker_operation_failed`; established complete device/node/
-subnet-lifecycle selector categories remain. Actual failed/unverified postchecks use `postcondition_failed`.
+independent resolution is a real second check, not a formality. Host preflight misses are
+`target_not_found`/`target_ambiguous`, an unsupported or blank subnet `NetworkType` is
+`target_kind_unsupported`, and an unreadable snapshot is `worker_operation_failed`.
+`postcondition_failed` is only late worker-side drift and failed/unverified postchecks.
+
+Live Openness wrappers are not reference-stable: the same engineering object can surface as two
+distinct CLR instances. Worker identity comparisons (node owner resolve-back, subnet connection evidence,
+discovery selectors) therefore use `object.Equals`, never `ReferenceEquals`.
 
 ### Phase 3 read identity and introspection seam
 
