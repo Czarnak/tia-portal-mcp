@@ -825,7 +825,7 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-unresolvable-target":
             // A contract-valid, empty HardwareConfigInfo: no device can ever match a
             // configure_network_device target here, so a preview against this scenario proves
-            // NetworkIdentityResolver's fail-closed path issues no safety token.
+            // NetworkIdentityResolver's fail-closed path issues no guarded write.
             Respond(Success(ToCamelCaseJson(new HardwareConfigInfo
                 { DiscoveryEvidence = new() { Scope = "project", Complete = true } })));
             break;
@@ -990,7 +990,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // Simulates the real worker's postcondition_failed when save_project_as saved a copy
             // but could not confirm the active project is that copy: a failure carrying the
             // uncertain-state warning. The unbound status bootstrap and the protected lifecycle
-            // probe succeed so a registered save-as preview can issue its safety token; only the
+            // probe succeed so a registered save-as dry run can proceed; only the
             // protected save-as apply returns the failure and retains its verified source binding.
             Respond(ReadMethod(line) is "probe_project_status_for_lifecycle" ||
                     (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)

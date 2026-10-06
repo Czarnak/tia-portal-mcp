@@ -58,7 +58,6 @@ public class WorkerRequest
     /// </summary>
     public string? BlockPath { get; set; }
 
-
     /// <summary>Forwarded by: create_block. Valid values: FB, FC, OB, GlobalDB.</summary>
     public string? BlockType { get; set; }
 
@@ -95,8 +94,8 @@ public class WorkerRequest
 
     /// <summary>
     /// Forwarded by: get_block_content, get_type_content. Selects GenerateOptions.WithDependencies
-    /// over GenerateOptions.None on the export. Never forwarded by a write: the safety token binds
-    /// to the single-object form of the object being written.
+    /// over GenerateOptions.None on the export. Never forwarded by a write: a write acts on
+    /// the single-object form of the object being written.
     /// </summary>
     public bool? WithDependencies { get; set; }
 

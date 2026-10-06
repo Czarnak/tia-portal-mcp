@@ -75,7 +75,7 @@ public class OpennessWorkerClient : IDisposable
     /// operations before worker invocation.</summary>
     public Safety.OperationAccessPolicy AccessPolicy => _accessPolicy;
 
-    /// <summary>Current immutable host binding snapshot, used by safety-token issuance.</summary>
+    /// <summary>Current immutable host binding snapshot, used by the guarded write pipeline.</summary>
     public ProjectBindingSnapshot BindingSnapshot => _projectSessionBinding.CaptureSnapshot();
 
     /// <summary>Selects an already-open project under the serialized session binding gate.</summary>

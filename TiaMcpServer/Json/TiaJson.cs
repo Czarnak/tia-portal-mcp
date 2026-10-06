@@ -17,8 +17,8 @@ public static class TiaJson
 {
     /// <summary>
     /// Options for host-produced JSON. Compact on purpose: responses are token-budgeted and
-    /// indentation is pure overhead. Keep this stable — audit records and the safety-token
-    /// input hash are both derived through it, so a formatting change invalidates tokens.
+    /// indentation is pure overhead. Keep this stable — audit records and their hashes
+    /// are derived through it, so a formatting change alters every hash.
     /// </summary>
     public static readonly JsonSerializerOptions Presentation = new()
     {
@@ -28,8 +28,8 @@ public static class TiaJson
 
     static TiaJson()
     {
-        // Frozen on purpose: audit records and the safety-token input hash are both derived
-        // through these options, so a formatting change would invalidate outstanding tokens.
+        // Frozen on purpose: audit records and their hashes are derived
+        // through these options, so a formatting change would alter every hash.
         Presentation.MakeReadOnly(populateMissingResolver: true);
     }
 }
