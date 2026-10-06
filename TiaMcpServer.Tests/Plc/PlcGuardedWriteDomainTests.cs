@@ -206,8 +206,13 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Equal(WorkerFailureCategories.StateChanged, response.Batch.Operations[2].Failure!.Category);
         var partial = Assert.Single(response.Guards, g => g.Id == WriteGuardCatalog.PartialWriteGuardId);
         Assert.Equal("content", partial.OperationId);
-        Assert.Equal(new[] { "a", "b" }, response.Verification!.Operations.Select(o => o.OperationId));
+        // Verification covers the attempted items: a, b and the failed content item, never the skipped ones.
+        Assert.Equal(new[] { "a", "b", "content" }, response.Verification!.Operations.Select(o => o.OperationId));
         Assert.True(response.Verification.Success);
+        var observed = response.Verification.Operations[2];
+        Assert.Equal("contentHash", observed.Check);
+        Assert.Equal(ContentHashRules.Compute("xml", "<Block edited-in-tia-ui=\"true\"/>"), observed.ContentHash);
+        Assert.DoesNotContain(WriteExecution.VerificationFailureMessage, response.Warnings);
         var inventory = await fixture.InventoryAsync();
         Assert.Contains("TagB", inventory);
         Assert.DoesNotContain("TagD", inventory);

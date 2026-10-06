@@ -62,6 +62,70 @@ public sealed class PlcWriteVerifierTests
         Assert.Contains("Ghost", check.Message);
     }
 
+    private static PlcOperationRequest Tag(string id, string operation, string name, Action<PlcOperationRequest>? set = null)
+    {
+        var item = new PlcOperationRequest { OperationId = id, Operation = operation, PlcName = "PLC_2", TableName = "Default tag table", Name = name };
+        if (operation == "create_tag") item.DataType = "Bool";
+        set?.Invoke(item);
+        return item;
+    }
+
+    public static TheoryData<string> Sequences => new() { "create-delete", "create-update", "delete-recreate", "rename-use" };
+
+    private static PlcOperationRequest[] Sequence(string name) => name switch
+    {
+        "create-delete" => new[] { Tag("first", "create_tag", "Temp"), Tag("second", "delete_tag", "Temp") },
+        "create-update" => new[] { Tag("first", "create_tag", "Temp"), Tag("second", "update_tag", "Temp", i => i.DataType = "Int") },
+        "delete-recreate" => new[] { Tag("first", "delete_tag", "Start"), Tag("second", "create_tag", "Start") },
+        _ => new[] { Tag("first", "update_tag", "Start", i => i.NewName = "Go"), Tag("second", "update_tag", "Go", i => i.LogicalAddress = "%I0.7") },
+    };
+
+    [Theory]
+    [MemberData(nameof(Sequences))]
+    public async Task SameObjectSequenceVerifiesEffectiveFinalState(string sequence)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Scenario);
+
+        var response = await fixture.RunAsync(false, Sequence(sequence));
+
+        Assert.True(response.Success, System.Text.Json.JsonSerializer.Serialize(response));
+        Assert.True(response.Verification!.Success);
+        Assert.DoesNotContain(WriteExecution.VerificationFailureMessage, response.Warnings);
+        var superseded = response.Verification.Operations[0];
+        Assert.True(superseded.Success);
+        Assert.Equal("superseded", superseded.Check);
+        Assert.Contains("'second'", superseded.Message);
+        Assert.NotEqual("superseded", response.Verification.Operations[1].Check);
+    }
+
+    [Fact]
+    public async Task FailedItemThatNeverRanIsObservedWithoutFailingOrSuperseding()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Scenario);
+        var create = Tag("create", "create_tag", "Temp");
+        var update = Tag("update", "update_tag", "Temp", i => i.DataType = "Int");
+        var plan = await new PlcWritePlanner(fixture.Client).PlanAsync(Scenario, new[] { create, update });
+        Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, create)).Success);
+        var batch = StructuredOperationBatch.FromItems(new[]
+        {
+            new StructuredOperationItem("create", "create_tag", OperationBatchStatus.Succeeded, null, null, null, null, Array.Empty<string>()),
+            new StructuredOperationItem("update", "update_tag", OperationBatchStatus.Failed, null,
+                new StructuredOperationFailure(WorkerFailureCategories.StateChanged, "The tag changed."), null, null, Array.Empty<string>()),
+        });
+
+        var verification = await new PlcWriteVerifier(fixture.Client, new[] { create, update }, new Dictionary<string, PlcWriteEffect>
+        {
+            ["create"] = plan.Plan.Items[0].Effect!, ["update"] = plan.Plan.Items[1].Effect!,
+        }).VerifyAsync(Scenario, batch);
+
+        Assert.True(verification.Success, string.Join("; ", verification.Operations.Select(o => o.Message)));
+        Assert.Equal(new[] { "values", "observed" }, verification.Operations.Select(o => o.Check));
+        Assert.Contains("dataType=Bool", verification.Operations[1].Actual);
+        Assert.Contains("never ran", verification.Operations[1].Message);
+    }
+
     [Fact]
     public async Task CreatedTableAndDeletedTagVerify()
     {

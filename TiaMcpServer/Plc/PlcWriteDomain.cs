@@ -16,6 +16,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     private readonly PlcWritePlanner _planner = new(client);
     private readonly Dictionary<string, IReadOnlyList<FiredGuard>> _guards = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PlcWriteEffect> _effects = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
     private IReadOnlyList<PlcOperationRequest> _items = Array.Empty<PlcOperationRequest>();
 
     public string ToolName => "plc_write";
@@ -65,13 +66,17 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     }
 
     public Task<WorkerCallResult> MutateAsync(string? projectPath, PlcOperationRequest item)
-        => PlcWorkerInvoker.InvokeWriteAsync(client, item);
+    {
+        _attempted.Add(item.OperationId);
+        return PlcWorkerInvoker.InvokeWriteAsync(client, item);
+    }
 
     public StructuredOperationItem Project(PlcOperationRequest item, WorkerCallResult result)
         => PlcPayloadContract.ProjectWrite(item, result);
 
     public async Task<PlcWriteVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
-        => await new PlcWriteVerifier(client, _items, _effects).VerifyAsync(projectPath, batch).ConfigureAwait(false);
+        => await new PlcWriteVerifier(client, _items, _effects).VerifyAsync(projectPath,
+            StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
 
     public bool VerificationSucceeded(PlcWriteVerification? verification) => verification?.Success == true;
 

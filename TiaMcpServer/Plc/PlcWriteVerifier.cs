@@ -15,28 +15,49 @@ public sealed record PlcWriteVerification(bool Success, IReadOnlyList<PlcOperati
     StructuredOperationOmission? Omission);
 
 /// <summary>
-/// Verifies succeeded plc_write items with ordinary reads: one tag inventory, one project-tree read
-/// per touched PLC and one re-export per content item. Presence, absence and values are checked by
-/// resolving probe requests against a fresh <see cref="PlcWorkingState"/>; content is not compared
-/// with the submitted text, which TIA normalizes.
+/// Verifies the attempted plc_write items (succeeded, plus the failed one) with ordinary reads: one
+/// tag inventory, one project-tree read per touched PLC and one re-export per content item.
+/// Presence, absence and values are checked by resolving probe requests against a fresh
+/// <see cref="PlcWorkingState"/>; content is not compared with the submitted text, which TIA
+/// normalizes. Only the last effective item on an object asserts the final state; earlier items on
+/// it pass as superseded. A failed item is observed, never asserted.
 /// </summary>
 public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<PlcOperationRequest> items,
     IReadOnlyDictionary<string, PlcWriteEffect> effects)
 {
+    /// <summary>Failure categories of a precondition refusal: the item never changed TIA state.</summary>
+    private static readonly IReadOnlySet<string> NeverRan = new HashSet<string>(StringComparer.Ordinal)
+    {
+        WorkerFailureCategories.ValidationError, WorkerFailureCategories.TargetNotFound, WorkerFailureCategories.TargetAmbiguous,
+        WorkerFailureCategories.StateChanged, WorkerFailureCategories.GuardBlocked, WorkerFailureCategories.BindingConflict,
+        WorkerFailureCategories.AccessDenied,
+    };
+
     private readonly PlcWritePlanner _reader = new(client);
 
     public async Task<PlcWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
     {
-        var succeeded = batch.Operations.Where(o => o.Status == OperationBatchStatus.Succeeded)
-            .Select(o => o.OperationId).ToHashSet(StringComparer.Ordinal);
+        var outcomes = batch.Operations.Where(o => o.Status is OperationBatchStatus.Succeeded or OperationBatchStatus.Failed)
+            .ToDictionary(o => o.OperationId, StringComparer.Ordinal);
+        var attempted = items.Where(i => outcomes.ContainsKey(i.OperationId)).ToArray();
         PlcWritePlanner.Evidence? inventory = null;
         var states = new Dictionary<string, (PlcWorkingState? State, string? Error)>(StringComparer.Ordinal);
         var results = new List<PlcOperationVerification>();
-        foreach (var item in items.Where(i => succeeded.Contains(i.OperationId)))
+        for (var index = 0; index < attempted.Length; index++)
         {
+            var item = attempted[index];
+            var failure = outcomes[item.OperationId].Failure;
+            if (failure is null && SupersededBy(attempted, outcomes, index) is { } later)
+            {
+                results.Add(new(item.OperationId, true, "superseded", null, null, null,
+                    $"Operation '{item.OperationId}': superseded by later operation '{later}' on the same object; the final state is verified there."));
+                continue;
+            }
+
             if (item.Operation is "update_block_logic" or "update_type_content")
             {
-                results.Add(await VerifyContentAsync(projectPath, item).ConfigureAwait(false));
+                // A failed import may still have committed: its observed hash is reported either way.
+                results.Add(await VerifyContentAsync(projectPath, item, failure).ConfigureAwait(false));
                 continue;
             }
 
@@ -45,12 +66,38 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             var key = $"{target.DeviceName}\n{target.PlcName}";
             if (!states.TryGetValue(key, out var entry))
                 states[key] = entry = await ReadStateAsync(projectPath, inventory, target).ConfigureAwait(false);
-            results.Add(entry.State is null
-                ? Fail(item, Expectation(item), entry.Error!)
-                : VerifyStructural(item, entry.State));
+            results.Add(entry.State is null ? Fail(item, failure is null ? Expectation(item) : "observed", entry.Error!)
+                : failure is null ? VerifyStructural(item, entry.State) : Observe(item, failure, entry.State));
         }
 
         return new PlcWriteVerification(results.All(r => r.Success), results, null);
+    }
+
+    /// <summary>The latest later item that may have changed one of this item's objects, or null.</summary>
+    private string? SupersededBy(IReadOnlyList<PlcOperationRequest> attempted,
+        IReadOnlyDictionary<string, StructuredOperationItem> outcomes, int index)
+    {
+        var own = Keys(attempted[index]);
+        return attempted.Skip(index + 1)
+            .Where(later => outcomes[later.OperationId].Failure is not { } failure || !NeverRan.Contains(failure.Category))
+            .LastOrDefault(later => Keys(later).Any(k => own.Any(o => o == k || o.StartsWith(k + "\n", StringComparison.Ordinal))))
+            ?.OperationId;
+    }
+
+    /// <summary>Hierarchical object keys: a container's key prefixes its members' keys.</summary>
+    private IReadOnlyList<string> Keys(PlcOperationRequest item)
+    {
+        var target = effects[item.OperationId].Target;
+        var scope = $"{target.DeviceName}\n{target.PlcName}\n";
+        var table = $"{scope}table\n{target.FolderPath}\n{target.TableName}";
+        var keys = target.Kind switch
+        {
+            PlcNameRules.Tag or PlcNameRules.UserConstant => new[] { $"{table}\n{target.Name}", $"{table}\n{item.NewName ?? target.Name}" },
+            PlcNameRules.TagTable => new[] { table },
+            "Type" => new[] { $"{scope}type\n{target.TypePath}" },
+            _ => new[] { $"{scope}block\n" + (target.BlockPath ?? item.BlockPath ?? "").Replace('/', '\n') },
+        };
+        return keys.Select(k => k.ToUpperInvariant()).Distinct().ToArray();
     }
 
     private async Task<(PlcWorkingState? State, string? Error)> ReadStateAsync(string? projectPath,
@@ -84,7 +131,24 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             : new(item.OperationId, false, "values", expected, actual, null, $"Operation '{item.OperationId}': the observed values differ from the requested values.");
     }
 
-    private async Task<PlcOperationVerification> VerifyContentAsync(string? projectPath, PlcOperationRequest item)
+    /// <summary>Reports what a failed item's target looks like now; only unreadable evidence fails.</summary>
+    private static PlcOperationVerification Observe(PlcOperationRequest item, StructuredOperationFailure failure, PlcWorkingState state)
+    {
+        var resolution = state.Resolve(Probe(item));
+        if (resolution.Guards.FirstOrDefault(g => g.Id == PlcGuardDefinitions.StateUnverifiable) is { } unverifiable)
+            return Fail(item, "observed", unverifiable.Message);
+        var actual = resolution.Error?.Category == WorkerFailureCategories.TargetNotFound ? "absent"
+            : resolution.Error is not null ? null
+            : Expectation(item) == "values" ? Describe(resolution.Effect!.Changes.Select(c => (c.Field, c.Current))) : "exists";
+        if (actual is null) return Fail(item, "observed", resolution.Error!.Message);
+        var ran = NeverRan.Contains(failure.Category)
+            ? "the worker reported it never ran"
+            : "it may already have changed TIA state";
+        return new(item.OperationId, true, "observed", null, actual, null,
+            $"Operation '{item.OperationId}' failed with {failure.Category}; {ran}. The observed state is reported.");
+    }
+
+    private async Task<PlcOperationVerification> VerifyContentAsync(string? projectPath, PlcOperationRequest item, StructuredOperationFailure? failure)
     {
         // The caller's own path: the canonical path can be ambiguous across PLCs.
         var format = PlcFormatNames.Normalize(item.Operation, item.Format);
@@ -94,7 +158,8 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         if (!export.Success || string.IsNullOrEmpty(export.Payload))
             return Fail(item, "contentHash", $"Operation '{item.OperationId}': the written content could not be re-exported ({(export.Success ? "the export was empty" : export.Error)}).");
         var hash = PlcContentHashes.Compute(format, export.Payload);
-        return new(item.OperationId, true, "contentHash", null, hash, hash, null);
+        return new(item.OperationId, true, "contentHash", null, hash, hash, failure is null ? null
+            : $"Operation '{item.OperationId}' failed with {failure.Category}; the current content hash is reported.");
     }
 
     /// <summary>A request that resolves the item's final target: a delete probe for presence, an update probe for values.</summary>
