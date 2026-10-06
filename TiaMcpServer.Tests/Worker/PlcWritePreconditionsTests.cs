@@ -69,13 +69,16 @@ public sealed class PlcWritePreconditionsTests
     }
 
     [Fact]
-    public void FindUnique_UnreadableDeviceItemPropagates()
+    public void FindUnique_UnreadableDeviceItemFailsClosedAsWorkerOperationFailed()
     {
         var project = new SiemensProject();
         var device = new Device { Name = "A" };
         device.DeviceItems.Items.Add(new DeviceItem { ServiceFailure = new EngineeringException("hidden") });
         project.Devices.Items.Add(device);
-        Assert.Throws<EngineeringException>(() => PlcSoftwareLocator.FindUnique(project, null));
+        var ex = Assert.Throws<WorkerOperationException>(() => PlcSoftwareLocator.FindUnique(project, null));
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Contains("A device item could not be read while locating PLC software", ex.Message);
+        Assert.Contains("hidden", ex.Message);
     }
 
     // ---- Collisions

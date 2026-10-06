@@ -19,7 +19,7 @@ public static class PlcSoftwareLocator
         DiscoveredPlcSoftware? match = null;
         foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
         {
-            foreach (var software in FindInDeviceItemsStrict(device.DeviceItems))
+            foreach (var software in EnumerateStrict(device.DeviceItems))
             {
                 if (plcName is not null &&
                     !string.Equals(software.Name, plcName, StringComparison.OrdinalIgnoreCase) &&
@@ -45,6 +45,26 @@ public static class PlcSoftwareLocator
     }
 
     private static string Describe(string? plcName) => plcName is null ? string.Empty : $" named '{plcName}'";
+
+    /// <summary>Fails closed with a categorized error when a device item cannot be read.</summary>
+    private static IEnumerable<PlcSoftware> EnumerateStrict(DeviceItemComposition items)
+    {
+        using var enumerator = FindInDeviceItemsStrict(items).GetEnumerator();
+        while (true)
+        {
+            try
+            {
+                if (!enumerator.MoveNext()) yield break;
+            }
+            catch (EngineeringException ex)
+            {
+                throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
+                    $"A device item could not be read while locating PLC software: {ex.Message}");
+            }
+
+            yield return enumerator.Current;
+        }
+    }
 
     private static IEnumerable<PlcSoftware> FindInDeviceItemsStrict(DeviceItemComposition items)
     {
