@@ -44,13 +44,13 @@ public class CanonicalJsonWorkerPayloadTests
         public string TypeIdentifier { get; set; } = string.Empty;
     }
 
-    [LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
+    [LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
     private sealed class RefusedDto
     {
         public string Value { get; set; } = string.Empty;
     }
 
-    [LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
+    [LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
     private sealed class RefusedArrayElementDto
     {
         public string Value { get; set; } = string.Empty;

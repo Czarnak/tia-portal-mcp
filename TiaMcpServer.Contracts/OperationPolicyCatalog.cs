@@ -103,7 +103,6 @@ public static class OperationPolicyCatalog
             // SessionSelection (all presets, selects an already-open project)
             ["select_portal_project"] = OperationCapability.SessionSelection,
 
-
             // TemporaryExport (read-only safe, temporary files with cleanup)
             ["get_block_content"] = OperationCapability.TemporaryExport,
             ["get_type_content"] = OperationCapability.TemporaryExport,

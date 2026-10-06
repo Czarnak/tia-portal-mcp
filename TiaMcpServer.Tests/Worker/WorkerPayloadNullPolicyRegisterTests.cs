@@ -8,7 +8,7 @@ namespace TiaMcpServer.Tests.Worker;
 /// Register of the Contracts payload types that still omit null members on the wire, with the
 /// reason each has not switched (docs/roadmap/json-contract.md). The register only shrinks:
 /// Phase 1b is done — the RequiredMemberEnforcement entries are gone — and Phases 2-3 (the
-/// ToolMigration entries) and the batch redesign (the rest) remain. Adding or removing a marker
+/// ToolMigration entries) remain. Adding or removing a marker
 /// without updating it fails here, so a wire-policy change is always a reviewed change.
 /// PlcTypeImportResultInfo, TagMutationResultInfo and BlockMutationResultInfo write nulls and are
 /// deliberately unmarked.

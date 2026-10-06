@@ -558,7 +558,7 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "echo":
             // Returns the received request verbatim so tests can assert which fields survived
-            // the BatchOperationRequest -> WorkerRequest hop.
+            // the host request-to-WorkerRequest mapping.
             Respond(ReadMethod(line) == "update_block_logic"
                 ? BlockOutcomeResponse(
                     true,

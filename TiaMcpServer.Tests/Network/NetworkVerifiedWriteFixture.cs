@@ -14,17 +14,13 @@ internal sealed class NetworkVerifiedWriteFixture : IDisposable
 {
     private NetworkVerifiedWriteFixture(
         OpennessWorkerClient client,
-        WriteSafetyService safety,
         ProjectSessionBinding binding)
     {
         Client = client;
-        Safety = safety;
         Binding = binding;
     }
 
     public OpennessWorkerClient Client { get; }
-
-    public WriteSafetyService Safety { get; }
 
     public ProjectSessionBinding Binding { get; }
 
@@ -43,8 +39,7 @@ internal sealed class NetworkVerifiedWriteFixture : IDisposable
         try
         {
             await VerifyAsync(client, binding, projectPath).ConfigureAwait(false);
-            var safety = audit.CreateSafety(projectSessionBinding: binding);
-            return new NetworkVerifiedWriteFixture(client, safety, binding);
+            return new NetworkVerifiedWriteFixture(client, binding);
         }
         catch
         {

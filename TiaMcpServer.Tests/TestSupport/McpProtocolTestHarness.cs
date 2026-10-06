@@ -176,11 +176,6 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             sp.GetRequiredService<ProjectTreeSnapshotStore>(),
             sp.GetRequiredService<ProjectTreePageProjector>(),
             TimeProvider.System));
-        collection.AddSingleton(new WriteSafetyService(
-            binding,
-            () => DateTimeOffset.UtcNow,
-            WriteSafetyService.DefaultTokenLifetime,
-            auditDirectory));
         registerTools(collection.AddMcpServer());
         var services = collection.BuildServiceProvider();
 

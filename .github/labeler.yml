@@ -19,7 +19,6 @@
           - "**/PlcCrossReference*"
           - "**/Compile*"
           - "**/PlcCompile*"
-          - "**/PlcOnline*"
           - "TiaMcpServer.Tests/Fixtures/**"
 
 "area: plc-tags":

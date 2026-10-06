@@ -69,8 +69,6 @@ namespace TiaMcpServer
                 HostArgumentFilter.RemoveAccessModeArguments(args));
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(startupProjectPath));
-            builder.Services.AddSingleton(sp => new WriteSafetyService(
-                sp.GetRequiredService<ProjectSessionBinding>()));
             builder.Services.AddSingleton(accessPolicy);
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),

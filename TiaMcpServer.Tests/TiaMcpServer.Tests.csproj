@@ -116,10 +116,6 @@
       Link="Host\ProjectLifecycle\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
       Link="Host\StructuredToolResult.cs" />
-    <Compile Include="..\TiaMcpServer\Safety\WriteSafetyService.cs"
-      Link="Host\WriteSafetyService.cs" />
-    <Compile Include="..\TiaMcpServer\Safety\WriteSafetyTooling.cs"
-      Link="Host\WriteSafetyTooling.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
       Link="Host\ProjectReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectBindingTools.cs"

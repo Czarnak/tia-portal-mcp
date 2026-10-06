@@ -3,9 +3,6 @@ namespace TiaMcpServer.Contracts;
 /// <summary>Why a worker payload contract still omits null members on the wire.</summary>
 public enum LegacyNullOmissionReason
 {
-    /// <summary>Consumed only by the batch tools, which keep their output until the batch redesign.</summary>
-    BatchRedesign,
-
     /// <summary>Returned by a tool still on the legacy text contract; switches when that tool migrates (roadmap Phases 2-3).</summary>
     ToolMigration,
 }

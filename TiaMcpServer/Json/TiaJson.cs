@@ -8,8 +8,7 @@ namespace TiaMcpServer.Json;
 /// <para>
 /// This covers host-side serialization for the legacy text contract: text rendered back to
 /// the MCP client by tools not yet on the structured contract, the presentation audit JSONL
-/// records written by WriteSafetyService, and the stable hashing that backs presentation-bound
-/// safety tokens.
+/// records, and stable hashing.
 /// Structured tools render through CanonicalJson instead. The host↔worker wire format lives in
 /// TiaMcpServer.Contracts.WorkerJson.
 /// </para>
