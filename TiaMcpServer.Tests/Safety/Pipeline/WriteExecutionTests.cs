@@ -300,6 +300,21 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
+    public async Task DependentItemGuard_FiredAtPlanAndReplan_IsReportedOnce()
+    {
+        _domain.PlansDependentEffects = true;
+        var (result, doc) = await RunAsync(new[]
+        {
+            Item("a"),
+            Item("b", dependsOn: "a", guards: new[] { FakeWriteDomain.InfoGuard }, lateGuards: new[] { FakeWriteDomain.InfoGuard })
+        });
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        Assert.Equal(new[] { "b" }, Strings(doc.GetProperty("guards"), "operationId"));
+        Assert.Single(Assert.Single(_audit.Records).Guards);
+    }
+
+    [Fact]
     public async Task PolicyGuard_CoversItsLateFiring_AndTheDependentItemIsApplied()
     {
         var (result, doc) = await RunAsync(

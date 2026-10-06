@@ -410,7 +410,9 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         _plans[index] = plan;
         var decision = GuardDecisions.DecideLate(
             _domain.EvaluateGuards(new[] { item }, new[] { plan }), ConfirmationMode, _catalog);
-        _guards.AddRange(decision.Guards);
+        // A guard the planning pass already reported for this item is the same consequence, not a new one.
+        _guards.AddRange(decision.Guards.Where(late => !_guards.Any(guard =>
+            guard.Id == late.Id && guard.OperationId == late.OperationId && guard.Message == late.Message)).ToList());
         return decision.Kind == GuardDecisionKind.Blocked
             ? new WriteToolError(WorkerFailureCategories.GuardBlocked, decision.Message!)
             : null;

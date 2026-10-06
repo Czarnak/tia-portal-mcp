@@ -86,6 +86,9 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public IReadOnlyList<string>? PlannedGuards { get; set; }
 
+    /// <summary>A dependent item's plan also carries its simulated effect, as PLC planning does.</summary>
+    public bool PlansDependentEffects { get; set; }
+
     public bool VerificationPasses { get; set; } = true;
 
     public Action? OnMutate { get; set; }
@@ -121,7 +124,9 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         var plans = items
             .Select(item => item.DependsOn is null
                 ? ItemPlan<FakeEffect>.Resolved(EffectFor(item), PreconditionsFor(item))
-                : ItemPlan<FakeEffect>.DependsOnItem(item.DependsOn, PreconditionsFor(item)))
+                : PlansDependentEffects
+                    ? new ItemPlan<FakeEffect>(EffectFor(item), item.DependsOn, PreconditionsFor(item))
+                    : ItemPlan<FakeEffect>.DependsOnItem(item.DependsOn, PreconditionsFor(item)))
             .ToList();
         if (ReturnNullPlan)
         {
