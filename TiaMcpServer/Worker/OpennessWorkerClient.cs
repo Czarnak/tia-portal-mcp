@@ -267,7 +267,7 @@ public class OpennessWorkerClient : IDisposable
         {
             return PinnedBindingExecutionResult<T>.Fail(WorkerCallResult.Fail(
                 WorkerFailureCategories.BindingConflict,
-                "The safety token did not retain a project session binding."));
+                "The write did not retain a project session binding."));
         }
 
         var ambient = _bindingOperationContext.Value;

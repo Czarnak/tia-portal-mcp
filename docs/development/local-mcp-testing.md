@@ -31,7 +31,7 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net10.0\T
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify 16 tools in read-write/full or 6 in read-only. Full is required for OnlineControl (PLC run/stop); lifecycle works in both writable modes.
+- Click `List Tools` and verify 15 tools in read-write/full or 6 in read-only. Full adds no tools; lifecycle works in both writable modes.
 - Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open.
 - Start with the standalone `get_project_status` and `browse_project_tree` tools.
 - In read-write or full mode, call standalone `compile_check` for PLC or block compilation.
@@ -39,7 +39,7 @@ In the Inspector UI:
 - Use `network_read` with `search_equipment_catalog` before hardware insertion so you can copy an exact `typeIdentifier`.
 - Use a `get_block_content` read item on a block path returned by `browse_project_tree`.
 - Use `get_project_status` before lifecycle changes.
-- Use separately authorized disposable fixtures for writes. Generic writes go through `preview_write_batch`, then `apply_write_batch`; Network writes use `network_write` with explicit `dryRun:true` for preview, then `dryRun:false` for execution; omitted dryRun also executes, with no server elicitation. Lifecycle uses a single guarded call; start with `dryRun:true` to inspect effects and guards.
+- Use separately authorized disposable fixtures for writes. PLC writes use `plc_write` and Network writes use `network_write` with explicit `dryRun:true` for preview, then `dryRun:false` for execution; omitted dryRun also executes, with no server elicitation. Lifecycle uses a single guarded call; start with `dryRun:true` to inspect effects and guards.
 
 For a bounded project-tree read, migrate the v2 request:
 
@@ -178,7 +178,7 @@ For separately authorized execution, call `network_write` with explicit `dryRun:
 
 A `changes` member left out (for example, omitting `ioSystem`) means "leave that setting unchanged" — there is no flat legacy alias and no compatibility converter. The guarded response includes typed immediate/final applied-subset verification. Inspect current state with `network_read` after partial, failed, uncertain or omitted evidence; never automatically replay.
 
-A tag write retains the generic token flow with a one-item batch, e.g. `preview_write_batch` then `apply_write_batch` over:
+A tag write is a one-item `plc_write` call; preview it with `dryRun:true`, then execute with `dryRun:false`:
 
 ```json
 {
@@ -192,7 +192,8 @@ A tag write retains the generic token flow with a one-item batch, e.g. `preview_
       "dataType": "Bool",
       "logicalAddress": "%I0.0"
     }
-  ]
+  ],
+  "dryRun": true
 }
 ```
 
@@ -222,7 +223,7 @@ guards, requiring `accept` plus boolean `confirm:true`. Unsupported clients, dec
 timeout, or transport failure deny mutation. Full applies under policy without server elicitation.
 Block guards stop mutation in every mode, and dry runs never prompt. Confirm that all six tools
 expose `dryRun` and structured outputs with no agent confirmation array or public `confirm`/
-`safetyToken`; token inputs remain only on generic batches. Audit v2 records `user`, `policy`, or `none`.
+`safetyToken`; no tool accepts token inputs. Audit v2 records `user`, `policy`, or `none`.
 
 Read the lifecycle `result` and `verification` as typed outcomes. A mutation or verification
 attempt that fails has `success:false`, `error:null`, and `isError:false`, with failure evidence

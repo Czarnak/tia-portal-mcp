@@ -366,7 +366,7 @@ a typed canonical top-level `error`, MCP `isError:true`, and exactly one audit v
 
 Both writable modes use zero server Network elicitation, including connected deletion and dry
 runs. Client permission prompts remain independent. Lifecycle still confirms every actual
-read-write call; generic batch writes still use tokens.
+read-write call; no tool uses safety tokens.
 
 Writes require one exact already-open verified project binding. One pinned lease covers planning,
 ordered re-planning, mutation, immediate/final verification, response composition and audit.

@@ -24,7 +24,7 @@ network operations and the current guarded canonical contract. Historical Phase4
 ## Supported operations
 
 Phase 4 adds exactly three write operations to the existing `network_write` tool. No new MCP tool
-was added. The current surface is 6 tools in read-only and 16 in each writable mode. `network_write` is available in read-write and full.
+was added. The current surface is 6 tools in read-only and 15 in each writable mode. `network_write` is available in read-write and full.
 
 | Operation | Purpose | Required request fields |
 |---|---|---|
@@ -32,8 +32,8 @@ was added. The current surface is 6 tools in read-only and 16 in each writable m
 | `update_subnet` | Rename or change PROFIBUS attributes on an existing subnet. | `target: { kind: "subnet", subnetId }`, `subnetChanges` (at least one member) |
 | `delete_subnet` | Delete an existing subnet, connected or not. | `target: { kind: "subnet", subnetId }` |
 
-These three operations do not exist in the generic `preview_write_batch` / `apply_write_batch`
-catalog, do not have an alias, and are not exposed through `network_read`.
+These three operations never existed in the retired generic `preview_write_batch` /
+`apply_write_batch` catalog, do not have an alias, and are not exposed through `network_read`.
 
 ### Request shapes
 

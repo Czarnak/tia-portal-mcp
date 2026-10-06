@@ -3,9 +3,11 @@
 **Date:** 2026-09-29
 **Status:** Design accepted 2026-09-29. Every open question in §9 was settled with the maintainer
 the same day; points marked **Decided 2026-09-29** record the answer next to the design they
-change. Phase 0 (documentation) and Phase 1 (foundation: guarded pipeline, `contentHash`, approval
-spike) are complete. Phase 1b is implemented with offline acceptance completed 2026-09-30.
-Next step after its merge: Phase 2 (lifecycle and elicitation enforcement).
+change. Phases 0, 1, 1b, 2 (lifecycle, amended by the
+[lifecycle tiers design](2026-10-01-lifecycle-tiers-and-project-binding-design.md)), 3 (Network) and
+4 (PLC domain tools, see the delivery note before §7) are delivered. Phase 4 also carried the
+Phase 5 deletions; only the Phase 5 release work (major version, release notes, agent migration
+note, one tag) remains.
 **Supersedes:** the token-flow parts of
 [write-safety hardening (2026-09-01)](2026-09-01-write-safety-hardening-design.md); Phase 3 and
 part of Phase 4 of [the JSON contract roadmap](../../roadmap/json-contract.md).
@@ -469,6 +471,28 @@ Legacy token tools and `UserConfirmation.For` retain their behavior until that m
 The serial Release stub build and all 4,414 offline tests passed, with 93.76% scoped line
 coverage against the 80% CI gate. This is not live Siemens or client acceptance; see the
 [Phase 1b implementation record](../plans/2026-09-30-write-safety-phase1b-access-modes.md).
+
+**Phase 4 delivery, 2026-10-07 (`plc_write`):** the domain write tools landed as one tool,
+`plc_write`, built on the pipeline per the
+[PLC read/write design](2026-10-05-plc-read-write-and-cross-references-design.md) and its
+[PR B plan](../plans/2026-10-06-plc-write.md), live-accepted in read-write and full
+([validation report](../acceptance/reports/2026-10-07-plc-write-validation.md)). It amends this
+design as follows:
+
+- **Names.** The domain tools are `plc_read` and `plc_write`, not `block_write`/`tag_write`; the
+  guards use a `plc_` prefix (`plc_deletes_block`, `plc_deletes_group_contents`,
+  `plc_deletes_table_contents`, plus `plc_name_collision`, `plc_block_exists`,
+  `plc_default_tag_table`, `plc_state_unverifiable`, `plc_attribute_unreadable`,
+  `plc_address_overlap`).
+- **Delete guards are `info`.** The three delete guards that §4.3 makes `acknowledge` are `info`;
+  `plc_write` registers only `block` and `info` guards, so it never elicits in any mode.
+- **No `changes_plc_operating_mode`.** It was dropped together with PLC run/stop: `start_plc`,
+  `stop_plc` and the `OnlineControl` permission in full were removed.
+- **Stale content.** A §4.5 hash mismatch is a call-level `state_changed` at plan time; the worker
+  re-checks immediately before import and fails that item with `state_changed`.
+- **Phase 5 deletions moved here.** The token core (`WriteSafetyService`), `WriteSafetyTooling`,
+  `SafetyRead` and the legacy audit stream were deleted in this PR rather than in Phase 5.
+- **#78 and #79.** This delivery meets the Phase 4 exit criterion; the PR closes #78 and #79.
 
 ## 7. Interactions
 

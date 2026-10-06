@@ -2,7 +2,7 @@
 
 `bind_project` exposes explicit Portal discovery and five Project Server inventory actions in
 all modes. Omitted/null `action` or `action:"bind"` retains standalone `.ap21` binding behavior
-and its response shape. Discovery remains **6/16/16** tools in read-only/read-write/full.
+and its response shape. Discovery is **6/15/15** tools in read-only/read-write/full.
 PR 1 contracts and PR 2 passive context remain the foundation; Issue #65 is incomplete.
 PR 3 has [installed-tool live acceptance](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
 for all six inspection actions against authorized session copies and a standalone `.ap21`,

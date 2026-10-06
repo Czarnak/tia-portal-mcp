@@ -54,11 +54,11 @@ Live TIA Portal check (tick one; the first is required when the Openness worker 
 
 - [ ] No change to any MCP tool's input schema, output schema, or response shape
 - [ ] Tool contract changed: migration notes are in the Summary and the matching `docs/SupportedOperations/` page is updated
-- [ ] Write path touched: preview-then-apply is preserved, and the safety token still binds the tool name, requested input, current project state, and host binding revision
-- [ ] Write path touched: a successful apply still appends an audit record
+- [ ] Write path touched: it runs through the guarded write pipeline (validate, verified binding, plan, guards, `dryRun`, mutate, verify, audit) under one pinned binding lease, with no token
+- [ ] Write path touched: every entered call still appends exactly one audit v2 record
 - [ ] Read-only mode still exposes only the observation tools; no new write capability leaks into it
 - [ ] New worker method: added to the dispatch in `TiaMcpServer.OpennessWorker/Program.cs` and registered in its domain catalog and invoker
-- [ ] Structured JSON tool: built on `StructuredToolResult` / `CanonicalWriteSafety`; `content` and `structuredContent` come from one `CanonicalJson.Serialize` call; worker payloads are typed; no nested JSON strings
+- [ ] Structured JSON tool: built on `StructuredToolResult` / `StructuredOperationBatch`; `content` and `structuredContent` come from one `CanonicalJson.Serialize` call; worker payloads are typed; no nested JSON strings
 - [ ] No `Siemens.Engineering*.dll` added to the repository or the package
 
 ## Documentation

@@ -33,14 +33,14 @@ batch limit can also omit a complete page, so place large hardware reads in thei
 
 The Phase 5 acceptance record documents the verified recovery guidance for these previously
 problematic paths. Multi-document `update_block_logic` round trips are verified: submit the
-exported SIMATIC ML document bundle through a guarded batch, expect one import followed by compile
+exported SIMATIC ML document bundle through `plc_write` with its `expectedContentHash`, expect one import followed by compile
 and re-export verification, and treat a structural/unsafe-document rejection as a no-change result.
 An edited bundle is likewise compiled and re-exported. Do not automatically retry a write with an
 uncertain worker outcome; inspect the current block instead.
 
 SCL `create_block` calls are verified: the generated SCL source contains a non-empty compile unit,
 the requested block resolves at its requested path, and `compile_check` confirms it compiles. The
-same guarded preview/token/apply flow applies to SCL and GlobalDB block creation.
+same guarded `plc_write` flow applies to SCL and GlobalDB block creation.
 
 S7-300/S7-400 block reads are verified against a CPU 314C-2 PN/DP (`6ES7 314-6EH04-0AB0/V3.3`).
 `PlcBlock.ExportAsDocuments` is rejected outright by those CPU families, but `PlcBlock.Export`
@@ -74,7 +74,7 @@ worker-reported copied project path; verify it with a subsequent status or read 
   automatically.
 
 The former lifecycle agent confirmation array and public `confirm`/`safetyToken` inputs are removed.
-Network now uses `dryRun:true` for preview and executes by default, without server elicitation; only legacy batches retain tokens. Removed Network root inputs fail before entry as a normal MCP error with no write audit. Entered denials are canonical and audited once; inspect typed partial/verification/omission outcomes before retry. The removed startup switch fails with:
+Network now uses `dryRun:true` for preview and executes by default, without server elicitation, as does `plc_write`; no tool uses safety tokens. Removed Network root inputs fail before entry as a normal MCP error with no write audit. Entered denials are canonical and audited once; inspect typed partial/verification/omission outcomes before retry. The removed startup switch fails with:
 
 ```text
 --confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.

@@ -11,8 +11,8 @@ public static class PlcSoftwareLocator
     /// <summary>
     /// The write-path resolver: exactly one PLC (root, grouped or ungrouped device) whose software or
     /// device name equals <paramref name="plcName"/> case-insensitively (any PLC when null). Zero matches
-    /// throw <c>target_not_found</c>, several <c>target_ambiguous</c>; discovery errors propagate, so an
-    /// unreadable device item can never hide a second match.
+    /// throw <c>target_not_found</c>, several <c>target_ambiguous</c>; a device item that cannot be read fails
+    /// the call as <c>worker_operation_failed</c>, so it can never hide a second match.
     /// </summary>
     public static DiscoveredPlcSoftware FindUnique(Project project, string? plcName)
     {

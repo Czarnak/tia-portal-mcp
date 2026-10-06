@@ -46,7 +46,10 @@ lifecycle confirmation, and audit v2. Capability descriptions remain descriptive
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
-6/16/16 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`), `bind_project` for already-open projects, no implicit opens, per-call
+6/15/15 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`;
+`plc_write` replaces `preview_write_batch`/`apply_write_batch`, with `content` plus
+`expectedContentHash` instead of `yamlContent`/`sourceContent` and no safety token; full adds no
+tools and PLC run/stop is gone), `bind_project` for already-open projects, no implicit opens, per-call
 read-write lifecycle confirmation, full policy confirmation, removed startup switch/agent
 confirmation arguments, audit v2, and binding-scoped tree cursors. Preserve the distinction between
 functional live evidence and human dialog observations. This repository task changes no installed
@@ -57,7 +60,7 @@ plugin cache or user configuration.
 Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-references.md); none blocks it.
 
 - Network: `PlcSoftwareLocator.FindAll` (used by Network) never sees PLCs in device groups; `FindEveryPlc` does.
-- `totally-integrated-claude` skill: update for `plc_read` / `read_cross_references`, the retired `execute_read_batch`, and counts 6/16/16.
+- `totally-integrated-claude` skill: tracked in the skill-migration entry above (now 6/15/15 and `plc_write`).
 - `list_tag_tables`: when `tableName`/`folderPath` match nothing but part of the tree was unreadable, the incomplete inventory is returned without an explicit "not found among readable tables" message.
 - `read_cross_references` budget: the trim never recurses inside a kept child; a bare source over budget (pathological names or messages) is still withheld by the renderer; the standalone fallback guidance omits `filter`.
 - `read_cross_references`: a `maxResults` cut does not count into `omittedSourceCount`; the shared incomplete message mentions "unused-object audit" for every filter.
@@ -65,6 +68,69 @@ Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-ref
 - The Plc protocol diagnostic duplicates Network's private `TryWriteProtocolDiagnostic` (missing `validators` field, 512 cap); share one helper.
 - `CrossReferenceTargetResolver.MatchOne` duplicates `ProjectTreeFilter.ResolveOne`'s predicate (drift is pinned by a round-trip test).
 - Unverified cross-reference owner kinds (spec Appendix B): technology objects and Unified `HmiTag` are verified but not shipped; TO instance DBs and Classic HMI tags were not present in the spike project.
+
+## Open: plc_write follow-ups (PR B, 2026-10-07)
+
+Found while building and live-accepting [PR B](superpowers/plans/2026-10-06-plc-write.md)
+([validation report](superpowers/acceptance/reports/2026-10-07-plc-write-validation.md)); none
+blocks it. Known limits are also listed in the
+[PLC operations summary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#known-limits).
+
+- **Software-unit blocks counted in the CPU namespace (M2, confirmed false live).** `create_tag`
+  named `SU_DB` is blocked as `plc_name_collision` against `PLC_LAD/Units/Test_SU/Blocks/SU_DB`.
+  The maintainer confirmed that unpublished unit blocks cannot be referenced outside the unit. It
+  fails closed. Exclude unpublished unit blocks from the CPU namespace, and check the related
+  worker minor where a unit-scoped create checks the top-level PLC namespace instead of the unit's.
+- **`isSafety` is not verified after write (M4).** The verifier checks the other tag values only.
+- **`compile_check` cannot reach PLCs in device groups (M5).** It still uses
+  `PlcSoftwareLocator.FindAll`, which walks root devices only; `plc_write` resolution moved to `FindUnique`.
+- **Fold `NetworkWriteArgumentValidatingTool` onto `StrictArgumentsTool`.** `plc_write` uses the
+  shared strict-arguments wrapper; Network keeps its own copy.
+- **Per-target inventory completeness (D7).** Completeness exists only at the inventory root, so
+  one unreadable table or device item makes `plc_state_unverifiable` fire for every item in the
+  call. Track completeness per PLC/table so unrelated targets can plan.
+- **User-constant null-value conflation.** An unreadable constant value is reported only as
+  `Value == null`, which cannot be told apart from a genuinely empty value; update and delete of
+  such a constant block conservatively. Add an explicit readability marker to the worker payload.
+- **`plc_read` content reads became unique-PLC (D5).** The shared block/type target resolvers now
+  use `FindUnique`, so a content read on a project with several PLCs and no `plcName` fails
+  `target_ambiguous` instead of reading the first match. Intended (the read hash and the write check
+  hit the same object); record it in release notes.
+- **Network write messages still use the unconditional 512-character compaction** that `plc_write`
+  dropped. Align Network with the PLC budget, which omits only whole values.
+- **Guard reservation ceiling.** `MeasureProtectedCore` reserves two guards per item, but a PLC item
+  can fire about four, so `Compose` could throw after mutation. Network has the same ceiling.
+- **Diagnostic strings are not counted by `AnyOverItemLimit`.** One diagnostic over 60,000
+  characters inside a document under 180,000 is delivered intact instead of omitted.
+- **Result echo differs from the effect.** `create_block` reports `blockType:"GLOBALDB"` and a group
+  path without `Blocks/` in its result, unlike the effect. `removes.blocks` order is
+  enumeration-dependent between a dry run and the apply.
+- **Pipeline note: late acknowledge guards.** A late acknowledge guard identical to one the user
+  already accepted still blocks the dependent item in read-write (`GuardDecisions.DecideLate`). No
+  PLC guard is acknowledge-level today, so `plc_write` is unaffected.
+- **plc_write review minors (Tasks 1–8),** one line each:
+  - `PlcNameRulesTests` lacks the "same name, different kind/container, self passed" collision case.
+  - `PlcSoftwareLocator` keeps two near-identical device walkers and a duplicated name filter.
+  - `RequireReadableValue`'s `EngineeringException` branch and nested system-block group recursion are untested.
+  - No behavioural test drives `BlockImporter`/`PlcTypeImporter` into a hash mismatch; the `IndexOf` source-order contracts are brittle.
+  - `RequireNameUnoccupied` uses Siemens `Blocks.Find` (case sensitivity unverified) but `OrdinalIgnoreCase` for groups.
+  - Duplicated "No block exists at…" message; the XML path resolves the target twice.
+  - `PlcTypeTargetResolver` throw sites are covered only by a source contract.
+  - The created-earlier check keys on folder path (the planner catches the missed case).
+  - `blockImportOutcome` on failures sits outside the document-budget drop order.
+  - `ConditionalMemberRegisterTests` scans one host type by hand.
+  - `Apply` re-runs `Resolve` (double resolution per item); `RequireTable` is called twice in one case.
+  - The `"Type"` kind is a string literal instead of a `PlcNameRules` constant.
+  - The `StaleContentHash` test's "before any write" assertion can never fail.
+  - `HiddenAt` is over-conservative: a skipped sibling makes a miss in a fully read group unverifiable (block, never a wrong not-found).
+  - Effect-presentation omission reason is ambiguous (diff versus whole effect); `Compact` takes `MaxDocumentChars` as a constant.
+  - `VerifyStructural` reports `actual:"absent"` for `target_ambiguous`.
+  - `MutateAsync` uses the item path while planning and verification use the call path.
+  - The `uiOpen` list was not edited for the `plc_write` probes (default branch used).
+  - A never-ran failed item can still make `verification.success` false.
+  - Rename `Start`→`Go` then create `Start` supersedes the rename on the shared key, so `Go` is never verified; verifier and planner supersession keys differ.
+  - `WorkerTransportFailureGuidanceTests` rows for retired names only test the unknown-operation path.
+  - FakeWorker scenario comments still describe the retired Network token flow.
 
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
@@ -1032,3 +1098,15 @@ final check; a single-device read returned an empty `messages[]`. V21 reports
 `PnDeviceNameAutoGeneration` as a `readWrite` Boolean (`true` on the PLC) and `PnDeviceName` as
 `readOnly` while it is true; opting out with `false` and then writing the name applied and
 verified. Deferred items are under "Open: network_write live-defect follow-ups" above.
+
+## plc_write and token-core retirement — live-accepted 2026-10-07 (PR B)
+
+`plc_write` replaced `preview_write_batch`/`apply_write_batch` on the guarded single-call pipeline:
+14 operations, `content` plus `expectedContentHash`, block/info guards only, no prompt in any mode,
+one audit v2 record per call. PLC run/stop, the safety-token core, `WriteSafetyTooling`,
+`SafetyRead` and the legacy write audit were removed; tool counts are 6/15/15. Offline qualification
+and live acceptance in read-write and full are in the
+[validation report](superpowers/acceptance/reports/2026-10-07-plc-write-validation.md).
+
+- **Pipeline fix `9886a23`:** a re-planned dependent item's repeated guard is reported once. The
+  defect had been on `main` since `028108b` (the guarded pipeline); `plc_write` found it live.

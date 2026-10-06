@@ -12,33 +12,30 @@
 
 MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents inspect a running TIA Portal project through the Siemens Openness API.
 
-The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads and guarded tag mutations, hardware/network discovery, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
+The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
 ## Tools
 
-The server exposes 6 tools in `read-only`, 16 in `read-write` (the startup default), and 16 in `full`.
-`read-write` permits in-project edits, compilation and project lifecycle calls with user confirmation.
-`full` adds PLC runtime control and runs lifecycle calls directly. Lifecycle uses guarded single-call
-writes; Network uses the same guarded pipeline without server elicitation, while legacy batch writes retain tokens.
+The server exposes 6 tools in `read-only`, 15 in `read-write` (the startup default), and the same 15 in `full`.
+`read-write` permits in-project edits, compilation and project lifecycle calls, asking once per actual lifecycle call.
+`full` adds no tools or operations; it only runs lifecycle calls without the prompt. Every write tool
+(`plc_write`, `network_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
+safety tokens and no PLC run/stop.
 
 ### PLC reads and cross-references
 
 - `plc_read` - run up to 50 PLC read operations in one call: `get_block_content`, `get_type_content` and `list_tag_tables`. Each item carries a unique `operationId`, an `operation` name, and that operation's parameters. Items run independently, so a failing item does not stop the others. Results are structured JSON with `contractVersion` `1.0`; a value over 60,000 characters is omitted whole with narrowing guidance, never cut.
 - `read_cross_references` - read the cross-references of one project-tree target (a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it). Arguments: `target`, `filter`, `maxResults`, `projectPath`. Both reads are available in every access mode and never open or switch a project.
 
-### Batch operations
+### PLC writes
 
-The generic batch write tools remain on their legacy token flow until the planned `plc_write` replaces them; `execute_read_batch` was retired in favor of `plc_read` and `read_cross_references`.
+- `plc_write(operations, dryRun=false)` - run up to 50 PLC software writes in caller order against one verified, already-open project. Operations: `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`. Set `dryRun:true` to preview effects and guards without mutation. No confirmation prompt is sent in any mode. Phases are `preview`, `applied`, `blocked` and `error`. Execution stops at the first failure and never rolls back, so re-read with `plc_read` before retrying. Later items may use objects created earlier in the same call.
 
-- `preview_write_batch` / `apply_write_batch` - preview up to 50 retained generic data writes and receive one batch-level `safetyToken` bound to the exact ordered operation list and the combined current state, then apply them. Apply runs sequentially, stops on the first failure, and marks later items `skipped` (no transaction or rollback). Requires `confirm=true` and the `safetyToken`. Project-lifecycle and network writes stay dedicated.
-
-The generic batch write tools are the path for retained block, PLC type, tag-table, tag, and user-constant writes. Each `operation` name carries that operation's parameters as one item; a single operation is just a one-item batch.
+Content writes (`update_block_logic`, `update_type_content`) take the document as `content` together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read is rejected with `state_changed`. A document over 60,000 characters is omitted from the read, has no hash, and cannot be updated through `plc_write`. `preview_write_batch`, `apply_write_batch` and `execute_read_batch` were retired; their operations moved to `plc_write` and `plc_read`.
 
 Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker. A populated `warnings` array means the payload may be partial.
 
 Available `plc_read` operations: `get_block_content`, `get_type_content`, and `list_tag_tables`.
-
-Available write operations (for `preview_write_batch` / `apply_write_batch`): `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`.
 
 `get_block_content` / `update_block_logic` and `get_type_content` / `update_type_content` accept a `format` field. `format=source` is available for global data blocks, PLC data types, and SCL-language FB/FC/OB. Every other block language stays on `format=xml`.
 
@@ -75,9 +72,10 @@ Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and ba
 
 ## Write safety
 
-Lifecycle tools validate input, prepare the exact binding, resolve targets, evaluate guards, mutate,
-verify, and audit in one call. `dryRun:true` returns `phase:preview` without mutation or a confirmation
-prompt and creates no token. In read-write every actual lifecycle call requires one form elicitation
+Every write tool validates input, prepares the exact binding, resolves targets, evaluates guards,
+mutates, verifies, and audits in one call. `plc_write` and `network_write` register only block and
+info guards, so they never prompt. On every write tool `dryRun:true` returns `phase:preview`
+without mutation or a confirmation prompt. In read-write every actual lifecycle call requires one form elicitation
 with explicit acceptance and boolean `confirm:true`, including calls with only info guards or no
 guards. Unsupported clients, decline, cancel, timeout, or transport failure deny with `access_denied`.
 Full mode satisfies acknowledge guards by policy without server elicitation. Block guards stop the
@@ -87,17 +85,15 @@ for guards, requests, responses, and recovery.
 
 **Consent depends on the MCP client.** Elicitation proves that the client returned an accepted
 answer, not that a person saw it. Project mutation and lifecycle tools retain conservative destructive hints; keep them
-out of client auto-approve lists if you want permission prompts on every call. Generic
-batch writes retain tokens as consistency checks, not user consent. Generic writes use
-`preview_write_batch` then `apply_write_batch`. Network uses `dryRun:true` for preview and executes
-by default; no Network token or server elicitation remains. Client permission prompts remain independent.
+out of client auto-approve lists if you want permission prompts on every call. `plc_write` and
+`network_write` use `dryRun:true` for preview and execute by default, with no token and no server
+elicitation. Client permission prompts remain independent.
 
-Those tokens are single-use, expire after ten minutes, and bind input, state, tool, and the verified
-project identity/revision. Lifecycle uses pinned binding and transition checks without tokens;
+Lifecycle uses pinned binding and transition checks;
 open/create can start unbound, save-as binds the resulting copy, and close clears the binding.
 Lifecycle audits every call, including dry runs and refusals, in `writes-yyyy-MM-dd.jsonl` under
 `%LOCALAPPDATA%\TiaMcpServer\audit`; audit v2 records confirmation by `user`, `policy`, or `none`.
-Network also records one audit v2 per entered call, including previews and denials; SDK argument rejection before entry has no write audit. Generic batches retain their audit files.
+`plc_write` and `network_write` also record one audit v2 per entered call, including previews and denials, with confirmation `none` in read-write and `policy` in full; SDK argument rejection before entry has no write audit. The legacy write audit stream was retired.
 
 The worker never attaches to the first enumerated TIA Portal or selects the first open project. It
 requires an exact path match or a genuinely sole candidate; multiple possible targets fail with
@@ -111,21 +107,17 @@ project is treated as UI-owned. Read-only never opens, creates, saves or closes 
 explicit binding may switch the selected session. Project-tree cursors reject binding changes,
 including a switch away and back to the same path.
 
-`preview_write_batch` issues one token for the whole batch, bound to the exact ordered operation list and the combined current state. Reordering items, changing any item's input, retargeting the project path, or a change in project state all invalidate the token. `apply_write_batch` re-reads the combined current state once before consuming the token, then applies items sequentially and stops on the first failure.
-
-Apply-time state validation, token consumption, mutation, post-verification, and audit capture run under one pinned project-binding lease. A concurrent rebind cannot redirect a token-validated operation, and two tokens previewed from the same state cannot both write: after the first mutation, the second apply fails with `state_changed`.
-
-`network_write` plans and re-plans exact current targets under one pinned verified project binding, then verifies applied settings and the effective attempted prefix. It has no token or server elicitation; every entered call records one audit v2 document.
+`plc_write` and `network_write` plan and re-plan exact current targets under one pinned verified project binding, then mutate, verify the attempted prefix, and audit under that same lease, so a concurrent rebind cannot redirect a planned write. `plc_write` blocks name collisions, `create_block` on an existing block, deleting the default tag table, and unreadable evidence before anything runs; deletes and address overlaps are reported as info.
 
 Lifecycle rejection has top-level `{category,message}` `error` and MCP `isError:true`. An attempted
 write or verification failure instead has `success:false`, `error:null`, and `isError:false`, with
 typed failure evidence in `result` or `verification`. A mutation may have succeeded despite failed
-verification; inspect state before retrying. Legacy writes retain their categorized failure fields.
+verification; inspect state before retrying.
 `save_project_as` still requires `rebind:true`, and warnings stay separate from success/failure.
 
 Lifecycle's removed inputs and structured outputs are breaking changes staged for the redesign's
-final major release. Network migration is implemented; generic-batch migration and final token retirement remain future phases. This
-step does not publish a package or complete the whole redesign.
+final major release. The Network and PLC migrations are implemented, and the safety-token core and the
+generic batch tools are retired. This step does not publish a package.
 
 ## Architecture
 
@@ -172,8 +164,8 @@ v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
 **read-only** mode by default (six tools); add `--access-mode read-write` for edits, compilation,
-and lifecycle with one prompt per actual call (sixteen tools). Select `--access-mode full` for
-lifecycle without server elicitation and PLC runtime control (sixteen tools).
+and lifecycle with one prompt per actual call (fifteen tools). Select `--access-mode full` for
+lifecycle without server elicitation (the same fifteen tools).
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing

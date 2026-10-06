@@ -9,8 +9,8 @@ For the project overview, tool list, and quick start, see the [README](../README
 
 | Document | What you will find |
 | --- | --- |
-| [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 6/16/16 modes, and mode-derived lifecycle confirmation |
-| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, guarded Network migration, and block paths |
+| [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 6/15/15 modes, and mode-derived lifecycle confirmation |
+| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, guarded Network and `plc_write` migration, and block paths |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
 
@@ -44,7 +44,7 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 | [Roadmap](../ROADMAP.md) | Directional priorities for the project as a whole |
 | [Network operations roadmap](roadmap/network-operations.md) | Phased delivery of the network tool surface and its JSON contract |
 | [Export/import format roadmap](roadmap/export-import-format.md) | Source-format exchange for UDTs, data blocks, and SCL |
-| [JSON contract roadmap](roadmap/json-contract.md) | One structured JSON output contract across the tool surface: target envelope, migration phases, the conformance guard, and the batch-tool exclusion |
+| [JSON contract roadmap](roadmap/json-contract.md) | One structured JSON output contract across the tool surface: target envelope, migration phases, the conformance guard, and the retired batch tools |
 | [Improvement log](IMPROVEMENT_LOG.md) | Open follow-ups above, completed engineering work below |
 
 ## Project history
@@ -53,7 +53,14 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest process entries: the [approved Network discovery and interface-qualified node identity repair design](superpowers/specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md)
+Latest process entries: the [PLC read/write and cross-references design](superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md),
+its [PR A `plc_read` and `read_cross_references` plan](superpowers/plans/2026-10-05-plc-read-and-cross-references.md)
+with its [validation report (offline and live-accepted)](superpowers/acceptance/reports/2026-10-05-plc-read-and-cross-references-validation.md),
+and its [PR B `plc_write` plan](superpowers/plans/2026-10-06-plc-write.md), which retires the batch
+tools, PLC run/stop and the token core, with its
+[validation report (offline and live-accepted in read-write and full)](superpowers/acceptance/reports/2026-10-07-plc-write-validation.md).
+
+Previous process entries: the [approved Network discovery and interface-qualified node identity repair design](superpowers/specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md)
 and its [implemented/offline-qualified plan](superpowers/plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md)
 address the failed live Network write run. The [fresh validation and handoff report](superpowers/acceptance/reports/2026-10-04-network-discovery-and-interface-node-identity-repair-validation.md) records passing offline qualification and partial live verification; full acceptance remains pending owner-evidence and unverified-operation follow-ups.
 
@@ -118,12 +125,7 @@ the [PR 2 hardware pagination plan](superpowers/plans/2026-08-29-hardware-pagina
 [PR #29 binding findings repair design](superpowers/specs/2026-08-28-pr29-binding-findings-repair-design.md),
 and its [implementation plan](superpowers/plans/2026-08-28-pr29-binding-findings-repair.md).
 
-PR 5's [current tag-safety acceptance boundary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary)
-now links its completed guarded live V21 result while keeping public table-list completeness,
-broader snapshots, Software Unit namespace collisions, multilingual comments, PLC control, and
-plant acceptance explicitly outside the accepted scope.
-
-PR 6's [current project-tree safety acceptance boundary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#project-tree-safety-acceptance-boundary)
-links the completed PLC-global and Software Unit guarded live V21 results while keeping broader
-snapshot narrowing, PLC start/stop, save or persistence behavior, and plant acceptance outside the
-accepted scope.
+The [tag-safety acceptance boundary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary)
+and the [project-tree safety acceptance boundary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#project-tree-safety-acceptance-boundary)
+now describe the guarded `plc_write` pipeline that replaced the PR 5 and PR 6 token-bound snapshots;
+those two live reports remain historical evidence for the retired token flow only.

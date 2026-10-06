@@ -58,9 +58,9 @@ body:
     attributes:
       label: Does it read or write the project?
       description: >-
-        Every write has to fit the preview-then-apply model: the preview returns a single-use
-        safety token, the apply re-validates project state before changing anything, and each
-        successful apply is audited. Write proposals should say what the preview would show.
+        Every write has to fit the guarded single-call model: a dryRun preview shows effects and
+        guards, an actual call re-plans against current project state before changing anything,
+        and every call is audited. Write proposals should say what the preview and guards would show.
       options:
         - Read only
         - Write (changes the TIA Portal project)

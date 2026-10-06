@@ -2,7 +2,7 @@
 
 ## Operation surface
 
-The MCP provides a focused PLC round-trip interface through four operations (reads through `plc_read`, writes through the legacy batch tools):
+The MCP provides a focused PLC round-trip interface through four operations (reads through `plc_read`, writes through `plc_write`):
 
 | Operation | Direction | Default format | Purpose |
 |---|---|---|---|
@@ -11,7 +11,7 @@ The MCP provides a focused PLC round-trip interface through four operations (rea
 | `get_type_content` | Read | `source` | Reads one existing PLC data type. |
 | `update_type_content` | Write | `source` | Updates one existing PLC data type from supplied document content. |
 
-The `format` field accepts `xml` and `source`, case-insensitively. Block and type reads use `plc_read`; writes use the normal `preview_write_batch` → `apply_write_batch` workflow.
+The `format` field accepts `xml` and `source`, case-insensitively. Block and type reads use `plc_read`; writes use `plc_write`, passing the document as `content` together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read fails with `state_changed`. A document over 60,000 characters is omitted from the read, has no hash, and cannot be written.
 
 ## Supported formats
 
@@ -48,10 +48,10 @@ affect dependent blocks.
 
 ### Block-update outcome evidence
 
-`apply_write_batch` reports the non-atomic result of each `update_block_logic` item in the
-optional `operations[].blockImportOutcome` object. This is an additive field on the existing batch
-item; there is no new standalone direct-update envelope. The member is omitted from unrelated
-operations, whose serialized result and payload-budget behavior remain unchanged. The host requires
+`plc_write` reports the non-atomic result of each `update_block_logic` item as an import outcome
+object. A succeeded item's `result` is `{ format, importOutcome }`; a failed content import carries
+the same object as `failure.blockImportOutcome`. `blockImportOutcome` is a conditional member on
+every structured tool's failure schema and is omitted from unrelated items. The host requires
 worker capability `typed-block-import-outcome-v1` before it sends engineering requests, so an older
 worker is rejected during the capability handshake.
 
@@ -84,31 +84,29 @@ order otherwise. The outcome retains at most 8 PLC entries, 20 message rows, 8 d
 paths, and notes. The complete serialized `blockImportOutcome` is limited to 12,000 UTF-16
 characters, including JSON escape expansion and metadata.
 
-The sequential batch remains non-atomic. Processing stops at the first failed item and later items
-are marked `skipped`; the server does not retry, roll back, compensate, save, or download. Existing
-`result`, `warnings`, and `failureCategory` field shapes and category meanings remain compatible.
-Unsafe exception-derived message text is deliberately replaced by bounded summaries, while the
-existing preview input, safety-token checks, pinned project binding, access policy, and audit flow
-remain unchanged.
+The sequential call remains non-atomic. Processing stops at the first failed item and later items
+are marked `skipped`; the server does not retry, roll back, compensate, save, or download.
+Unsafe exception-derived message text is deliberately replaced by bounded summaries. The pinned
+project binding, access policy, guards, and audit of the guarded pipeline apply unchanged.
 
 ### Preview evidence
 
-`preview_write_batch` may include a response-only structured `diff` object for
-`update_block_logic` and `update_type_content`. It compares already-bound exact-format current
-text with the submitted replacement text; it does not predict Siemens post-write state and is
-outside safety-token issuance and validation.
+Each `update_block_logic` and `update_type_content` item's `plc_write` effect carries a structured
+`contentDiff` object, in previews and actual calls alike. It compares the current exact-format text
+read at planning with the submitted `content`; it does not predict Siemens post-write state and is
+evidence only, not part of the hash check.
 
 - Each eligible operation has at most 40 excerpt lines and 8,192 excerpt characters per side.
 - When a changed span exceeds 40 lines, each excerpt contains the first 20 plus last 20 lines.
 - Each displayed line is limited to 512 characters.
-- The complete batch is limited to 320 excerpt lines and 32,768 excerpt characters in request
+- The complete call is limited to 320 excerpt lines and 32,768 excerpt characters in request
   order. After that excerpt budget is exhausted, every eligible entry still retains its raw hashes,
   counts, and equality flags.
 - Raw SHA-256, raw character count, and raw line count use the original text. For line-window
   comparison only, line-ending normalization maps CRLF and CR to LF; it performs no other
   normalization. The response also reports `rawTextEqual`, `normalizedLinesEqual`, and
   `lineEndingOnly`; a line-ending-only difference has unequal raw text but equal normalized lines.
-- Every other operation has `diff: null`.
+- Every other operation has `contentDiff: null`.
 
 ## Format matrix
 

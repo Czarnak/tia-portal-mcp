@@ -21,7 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-05 | [PLC read/write tools and standalone cross-references (approved; PR A implemented and live-accepted; PR B pending)](specs/2026-10-05-plc-read-write-and-cross-references-design.md) |
+| 2026-10-05 | [PLC read/write tools and standalone cross-references (approved; PR A and PR B implemented and live-accepted)](specs/2026-10-05-plc-read-write-and-cross-references-design.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (implemented; full live acceptance pending)](specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md) |
 | 2026-10-03 | [Network JSON contract and guarded writes (offline-qualified; live acceptance pending)](specs/2026-10-03-network-json-guarded-write-design.md) |
 | 2026-10-01 | [Lifecycle in read-write, mode-derived confirmation, and runtime project binding](specs/2026-10-01-lifecycle-tiers-and-project-binding-design.md) |
@@ -54,6 +54,7 @@ Task-level implementation plans derived from the specs above.
 | --- | --- |
 | 2026-10-05 | [Multiuser PR 3 — inventory through bind_project (offline-qualified; live acceptance passed)](plans/2026-10-05-multiuser-pr3-read-only-inventory.md) |
 | 2026-10-05 | [Multiuser PR 2 — active project context](plans/2026-10-05-multiuser-pr2-active-project-context.md) |
+| 2026-10-06 | [PLC write, PR B — `plc_write`, batch-tool and token-core retirement (implemented; live-accepted)](plans/2026-10-06-plc-write.md) |
 | 2026-10-05 | [PLC read and standalone cross-references, PR A (implemented; live-accepted)](plans/2026-10-05-plc-read-and-cross-references.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (offline-qualified; partial live verification)](plans/2026-10-04-network-discovery-and-interface-node-identity-repair.md) |
 | 2026-10-03 | [Network JSON contract and guarded writes (implementation/offline qualification complete; live acceptance pending)](plans/2026-10-03-network-json-guarded-write.md) |
@@ -94,6 +95,9 @@ Task-level implementation plans derived from the specs above.
 
 ## Acceptance reports
 
+PR 5 and PR 6 qualified token-bound safety snapshots that `plc_write` has since replaced; their
+reports are evidence for the retired token flow only.
+
 PR 5 tag-operation safety scopes completed its offline/FakeWorker, static harness-contract, and
 guarded live TIA Portal V21 acceptance. The report records all three successful modes, exact
 saved-baseline verification, source restoration, and the bounded deferred scope. See the
@@ -110,6 +114,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-07 | [PLC write (PR B) — offline qualification and live acceptance in read-write and full](acceptance/reports/2026-10-07-plc-write-validation.md) |
 | 2026-10-06 | [Multiuser PR 3 — offline qualification; live acceptance passed by maintainer decision](acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md) |
 | 2026-10-06 | [Multiuser PR 3 — installed-tool live acceptance finished and passed; observations and non-blocking evidence limitations](acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) |
 | 2026-10-05 | [Multiuser PR 2 — offline qualification and bounded standalone live acceptance](acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md) |

@@ -1,12 +1,12 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 6 tools in read-only, 16 in read-write (startup default), and 16 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual call. Full runs lifecycle without server elicitation and adds OnlineControl (PLC run/stop). The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 6 tools in read-only, 15 in read-write (startup default), and the same 15 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
 
 ## Two-process architecture (critical to understand)
 
 `bind_project` retains default/null/explicit `bind` behavior and adds six explicit inspections:
 `list_portals`, `list_server_connections`, `list_server_groups`, `list_server_projects`,
-`list_local_sessions`, `get_lock_state`. Counts stay 6/16/16. Discovery never adopts; inventory
+`list_local_sessions`, `get_lock_state`. Counts are 6/15/15. Discovery never adopts; inventory
 uses persistent Portal-only attachment, never switches/adopts/opens a project. Selectors are exact
 raw-key validated; root group requires `{isRoot:true,name:null}`. Verified foreign-PID refusal is
 local/NotSent and preserves binding/cursors; genuine context/transport loss still invalidates.
@@ -34,7 +34,7 @@ The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`
 
 | Project | TFM | Role |
 | --------- | ----- | ------ |
-| `TiaMcpServer` | net10.0 | MCP stdio server, tool registration, batch engine, safety tokens, CLI (doctor) |
+| `TiaMcpServer` | net10.0 | MCP stdio server, tool registration, guarded write pipeline, structured batch engine, CLI (doctor) |
 | `TiaMcpServer.Contracts` | netstandard2.0 | Shared DTOs (`WorkerRequest`, `WorkerResponse`, all info/result types) |
 | `TiaMcpServer.OpennessWorker` | net48 | Worker that loads `Siemens.Engineering.*`, handles all TIA Portal operations |
 | `TiaMcpServer.Tests` | net10.0 | xunit tests; links host source files directly via `<Compile Include>` (not a project reference) |
@@ -68,27 +68,26 @@ are denied in every mode. `SessionSelection` is permitted in every mode: `bind_p
 switches to an already-open project without opening, creating, saving or closing. Ordinary reads
 never bind or switch. Only `open_project` and `create_project` open a project; there are no implicit
 opens. Worker ownership does not survive detach. Read-only never opens, creates, saves or closes.
-Lifecycle confirmation follows access mode. Network uses guarded writes with no server elicitation; legacy batch tools retain tokens.
+Lifecycle confirmation follows access mode. `plc_write` and `network_write` use guarded writes with no server elicitation; no tool uses safety tokens.
 
-Lifecycle and Network use the guarded single-call pipeline. Lifecycle confirms every actual
-read-write call; Network has `ConfirmsEveryCall=false`, no acknowledge guards, and zero server
-elicitation in read-write, full, or dry runs. Legacy generic batches retain preview/apply tokens,
-which are server-side consistency checks and never proof of user consent.
+Lifecycle, Network and PLC writes use the guarded single-call pipeline. Lifecycle confirms every
+actual read-write call; Network and PLC have `ConfirmsEveryCall=false`, no acknowledge guards, and
+zero server elicitation in read-write, full, or dry runs. The generic batch tools
+(`preview_write_batch`/`apply_write_batch`), safety tokens, the token core and the legacy write audit
+stream were removed.
 
-- **Generic batch data writes**: call `preview_write_batch` (returns `safetyToken`), then `apply_write_batch` with `confirm=true` + the unchanged operation list and token
+- **PLC writes**: `plc_write(operations, dryRun=false)` executes by default; set `dryRun:true` for preview. Same binding, ordering, 50-item, stop-at-first-failure and no-rollback rules as Network; the 14 operations are listed in the tool description. Content writes pass `content` plus `expectedContentHash` from a `plc_read` in the same format; stale content is `state_changed`, and content over the 60,000-character value has no hash and cannot be written. Guards are block (`plc_name_collision`, `plc_block_exists`, `plc_default_tag_table`, `plc_state_unverifiable`, `plc_attribute_unreadable`) or info (`plc_deletes_block`, `plc_deletes_group_contents`, `plc_deletes_table_contents`, `plc_address_overlap`). Later items may depend on objects created earlier in the call (`dependsOn`); verification marks overwritten items `superseded`. Audit confirmation is `none` in read-write and `policy` in full.
 - **Network writes**: `network_write(operations, dryRun=false)` executes by default; explicitly set `dryRun:true` for preview. Require exact already-open verified binding and one project; process up to 50 unique-ID items in caller order, stop at first failure, never roll back or replay. Connected deletion is informational; incomplete consequence inventory blocks every mode. Reject legacy `confirm`, `safetyToken`, `acknowledge`, unknown roots and nonboolean `dryRun` at SDK/wrapper entry: normal MCP error, no write audit. Entered validation/binding/guard denials use a canonical root error and one audit v2 record. Read-write actual confirmation is `none`, full actual is `policy`; previews/denials use `none`, and info/block satisfaction is null.
 - **Project lifecycle writes** (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`): available in read-write and full. `dryRun=true` resolves targets, effects, and guards without mutation or elicitation. Every actual read-write call requires one form elicitation `accept` plus boolean `confirm:true`, even with only info guards or none. Missing capability, decline, cancel, timeout, or transport failure denies with `access_denied`. Full runs without server elicitation and satisfies acknowledge guards by policy. Block guards stop the call in every mode. Public confirmation arguments and safety tokens are absent.
-- Safety tokens are single-use, expire in 10 minutes, and are bound to the exact tool name + host binding revision + requested input + current project state; project-scoped writes additionally require the complete verified project identity
-- Reordering, changing input, or project state changes invalidate the token
-- Token apply-time state read, token consumption, mutation, verification, and audit run under one pinned project-binding lease. Lifecycle uses explicit preparation and the same lease, re-resolving state after elicitation so an accepted consequence cannot silently change.
+- Planning, mutation, verification, and audit run under one pinned project-binding lease. Lifecycle uses explicit preparation and the same lease, re-resolving state after elicitation so an accepted consequence cannot silently change.
 - Lifecycle returns one canonical document with typed `result` and `verification`; rejection has top-level `error` and `isError:true`, while attempted mutation/verification failure has `success:false`, `error:null`, and `isError:false`. Inspect possible mutation before retrying.
-- Lifecycle calls append one audit v2 record, including dry runs and blocked calls, under `%LOCALAPPDATA%\TiaMcpServer\audit`; confirmation records `user`, `policy`, or `none`, and guard satisfaction is `user`, `policy`, or null. Legacy writes retain their audit stream. Client-returned acceptance does not prove a human saw a prompt.
+- Lifecycle calls append one audit v2 record, including dry runs and blocked calls, under `%LOCALAPPDATA%\TiaMcpServer\audit`; confirmation records `user`, `policy`, or `none`, and guard satisfaction is `user`, `policy`, or null. Client-returned acceptance does not prove a human saw a prompt.
 - The removed startup switch is rejected with: `--confirm-with-user was removed. Confirmation follows the access mode: read-write asks for every lifecycle call; use --access-mode full to run lifecycle tools without prompts.`
 - Doctor reports Warning for an unbound writable session with remediation naming `bind_project`. Project-tree cursors reject binding ID/revision changes as `cursor_binding_mismatch`.
-- **No new token-bound write surfaces.** The redesign retires tokens in favor of one guarded
-  single-call pipeline (validate, verified binding, resolve targets, guards, `dryRun`, mutate,
-  verify, audit). Do not add a new snapshot reader, `SafetyRead` catalog entry, or token-bound
-  write tool; a new write domain builds on that pipeline once redesign Phase 1 has landed.
+- **No token-bound write surfaces.** Tokens are retired in favor of one guarded single-call
+  pipeline (validate, verified binding, resolve targets, guards, `dryRun`, mutate, verify, audit).
+  A new write domain builds on that pipeline (`Safety/Pipeline`), as `plc_write` and
+  `network_write` do; do not reintroduce a snapshot reader, `SafetyRead` catalog, or token.
 
 Network read/write roots declare `contractVersion:"1.0"`, warnings arrays and explicit nulls.
 Write phases are `preview`, `applied`, `blocked`, `error`; attempted failures have `error:null`
@@ -116,7 +115,7 @@ rules are durable for any future tool that migrates onto it — not just Network
 
 - **Reuse the shared gate.** A new structured tool builds on `StructuredToolResult` /
   `StructuredOperationBatch`; do not hand-roll a parallel canonical-JSON mechanism for a new
-  domain. Network-only `CanonicalWriteSafety` is retired; retain generic-batch safety infrastructure.
+  domain. `CanonicalWriteSafety` and the generic-batch token infrastructure are retired.
 - **Text and structured documents are the same document.** A migrated tool's `content` text block
   and its `structuredContent` come from exactly one `CanonicalJson.Serialize` call. They must
   never be built from two independent renderings that could drift apart.
@@ -138,8 +137,8 @@ rules are durable for any future tool that migrates onto it — not just Network
   `TiaMcpServer.Tests/Tools/ToolOutputContractConformanceTests.cs` fails when a tool is neither
   on this contract nor listed in its legacy register with a reason. When a tool migrates, remove it
   from that register and add a success probe and a rejection probe. The target envelope and
-  migration order are in `docs/roadmap/json-contract.md`; the three batch tools are excluded from
-  it pending their split into domain read/write tools (write-safety redesign §4.9 and Phase 4).
+  migration order are in `docs/roadmap/json-contract.md`. Every registered tool is structured today,
+  so the register is empty; the three batch tools were split into `plc_read`/`plc_write`.
 
 See `docs/ARCHITECTURE.md` §7a for the full seam description and the exact host-to-worker
 selector boundary, and `docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md` for the concrete
@@ -149,7 +148,7 @@ Network contract these rules describe in the abstract.
 
 - **`global.json`** pins stable .NET SDK 10.0.400 with `rollForward: latestFeature` and disallows prerelease SDKs — use `dotnet` commands, not version-specific aliases
 - **Tests link host source files** via `<Compile Include>` instead of a host project reference. Network/Tools files are explicitly enumerated; add new files to `TiaMcpServer.Tests.csproj` when needed. `Safety/Pipeline` uses a glob. Check actual project wiring before assuming a new source file is tested.
-- **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a generic batch operation; network operations use their own request, catalog, and invoker.
+- **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a public operation; Network and PLC each use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
 - **Worker payload JSON** goes through `WorkerJson.SerializePayload`. A new payload contract writes null members and is decoded through the worker-payload reader; `[LegacyNullOmission]` is only for the reasons in `LegacyNullOmissionReason` (a payload that omits nulls cannot go through the reader), and adding or removing one updates `WorkerPayloadNullPolicyRegisterTests`
 - Siemens DLLs are **never committed** to the repo or the NuGet package
