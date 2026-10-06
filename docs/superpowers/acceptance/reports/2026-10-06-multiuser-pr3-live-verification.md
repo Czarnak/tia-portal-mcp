@@ -1,6 +1,7 @@
 # Multiuser PR 3 installed-tool live verification
 
 **Status:** Partial Task 5 live verification completed on the installed reviewed candidate.
+Steps 1 and 5 are complete; Steps 2, 3, 4 and 6 remain partial.
 All six inspection actions succeeded; the five remote inventories also succeeded with a standalone
 `.ap21` open and with zero open projects. Healthy binding/cursor continuity and genuine worker-loss
 invalidation were observed. Remaining matrix cases below prevent a full acceptance or merge-ready claim.
@@ -208,11 +209,11 @@ whole run: the three authorized lifecycle records are intentional.
 ## Remaining Task 5 gates
 
 The [accepted plan](../../plans/2026-10-05-multiuser-pr3-read-only-inventory.md#task-5-frozen-candidate-live-acceptance)
-checks Step 5 for this exact prerequisite comparison. Other composite steps remain partial:
+checks Steps 1 and 5 for frozen provenance and the exact prerequisite comparison. Other composite steps remain partial:
 
 | Task 5 step | Current evidence and remaining scope |
 | --- | --- |
-| 1: frozen candidate/provenance | Reviewed head, installed hashes, runtime/service file versions, exact authorized fixtures/endpoints and current-machine/user scope recorded. Full binding-regression matrix remains incomplete because of the outstanding cases in Steps 2 and 4. |
+| 1: frozen candidate/provenance | Complete: reviewed head, installed hashes, runtime/service file versions, exact authorized fixtures/endpoints and current-machine/user scope recorded; live capture serialized. Outstanding binding regressions are tracked in Steps 2 and 4. |
 | 2: discovery and binding | Multiple and sole Portal discovery, default/null/explicit binding, healthy cursor continuation and stale-cursor rejection observed. Zero Portal processes and guarded switching to a second standalone target remain untested. |
 | 3: remote inventories | All five succeeded with opened sessions, with a standalone `.ap21` and with zero open projects; exact root, session ID/directory mapping and separate locked/unlocked results observed. Actual named/duplicate groups or duplicate project names, empty current-user session lists, duplicate IDs within one project, zero/negative IDs and dedicated/multiple-client tier cases remain untested. |
 | 4: continuity and adverse state | Verified same-PID inspection, foreign refusal, endpoint-failure preservation, worker-loss invalidation and explicit recovery observed. Read-only/read-write live hosts, configured-unverified startup assertions, public ownership proof and external project-close races remain untested. |

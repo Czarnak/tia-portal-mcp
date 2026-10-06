@@ -170,13 +170,13 @@ Coverage/package procedures: [building](../../development/building.md), [packagi
 phases exercised all six inspections. The initial session phase remained unbound; the standalone
 phase demonstrated all five inventories with `.ap21` open and with zero open projects, healthy
 verified binding/cursors and genuine worker-loss invalidation followed by explicit recovery.
-Step 5 is complete for this exact fixture. Other composite steps remain unchecked for outstanding
+Steps 1 and 5 are complete for their recorded scopes. Other composite steps remain unchecked for outstanding
 named/duplicate group/project cases, empty current-user session lists, zero Portal processes,
 read-only/read-write live hosts, guarded switching, public ownership proof, external project-close
 races and lock/connectivity injection. Authorized save/close/reopen changed the project file size;
 final state was open and unmodified. The report maps evidence and limits to each step.
 
-- [ ] **Step 1: Freeze reviewed offline-qualified candidate** and record SHA, hashes, TIA/server versions, exact PID/endpoint/group/project names, machine/user scope, and authorized reads/binding regression. Serialize shared live state. Installed version `3.0.1-local.320.gafb2741`, source/test head `3f45b94`, exact scope and observed runtime/file versions are recorded; the full binding-regression matrix remains partial as detailed in Steps 2 and 4. The user's October 6 authorizations supersede this plan's original no-execution boundary for the session copies and sole disposable `.ap21`.
+- [x] **Step 1: Freeze reviewed offline-qualified candidate** and record SHA, hashes, TIA/server versions, exact PID/endpoint/group/project names, machine/user scope, and authorized reads/binding regression. Serialize shared live state. Installed version `3.0.1-local.320.gafb2741`, source/test head `3f45b94`, exact scope and observed runtime/file versions are recorded. The frozen provenance gate is complete; outstanding binding regressions are tracked in Steps 2 and 4. The user's October 6 authorizations supersede this plan's original no-execution boundary for the session copies and sole disposable `.ap21`.
 - [ ] **Step 2: Verify list_portals** with zero/sole/multiple projects/instances and no binding. Regress default/null bind, exact selection, ambiguity, re-verification, guarded switching, ownership, and stale cursors. Switching needs exact fixture authorization; inspection never cleans up by switching.
 - [ ] **Step 3: Verify five inventories without opened ALS21**, including root/named/duplicate project names, current-user sessions/empty list/ID-path equality, and prearranged unlocked/locked owner evidence. Dedicated/multiple-client tiers apply where needed. Inventory calls perform no connection/session/server-project/lock mutation; the separately authorized standalone save/close/reopen used for Step 5 is recorded distinctly.
 - [ ] **Step 4: Verify same-PID healthy binding/ownership/cursors**, foreign-PID local refusal, unbound/configured non-promotion, all modes, and honest adverse/genuine identity-loss behavior. No claim that binding survives worker termination.
