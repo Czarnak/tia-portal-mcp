@@ -306,6 +306,34 @@ public sealed class PlcWritePreconditionsTests
         Assert.True(area.Deleted);
     }
 
+    [Theory]
+    [InlineData("PLC_1/Blocks/Ghost")]
+    [InlineData("PLC_1/Ghost")]
+    public void DeleteBlock_MissingTargetIsTargetNotFound(string path)
+    {
+        var (project, _, _) = Single();
+        Fails(() => BlockMutationService.DeleteBlock(project, path), WorkerFailureCategories.TargetNotFound);
+    }
+
+    [Fact]
+    public void DeleteBlock_AmbiguousLegacyNameIsTargetAmbiguous()
+    {
+        var (project, plc, _) = Single();
+        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Dup" });
+        var area = new PlcBlockUserGroup { Name = "Area" };
+        area.Blocks.Items.Add(new FB { Name = "Dup" });
+        plc.BlockGroup.Groups.Items.Add(area);
+        Fails(() => BlockMutationService.DeleteBlock(project, "PLC_1/Dup"), WorkerFailureCategories.TargetAmbiguous);
+    }
+
+    [Fact]
+    public void DeleteBlockGroup_MissingGroupIsTargetNotFound()
+    {
+        var (project, _, _) = Single();
+        Fails(() => BlockMutationService.DeleteBlockGroup(project, "PLC_1/Ghost"), WorkerFailureCategories.TargetNotFound);
+        Fails(() => BlockMutationService.DeleteBlockGroup(project, "PLC_1/Blocks/NoFolder/Ghost"), WorkerFailureCategories.TargetNotFound);
+    }
+
     // ---- Content hash
 
     [Fact]

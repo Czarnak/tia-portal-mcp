@@ -96,7 +96,8 @@ public static class BlockMutationService
 
         if (target.Block is null)
         {
-            throw new InvalidOperationException(
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
                 $"Block '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
         }
 
@@ -138,7 +139,8 @@ public static class BlockMutationService
         var allSegments = new List<string>(address.FolderPath) { address.BlockName };
         var rootGroup = ResolveRootGroup(plcSoftware, address);
         var group = FindUserGroupByPath(rootGroup, allSegments)
-            ?? throw new InvalidOperationException(
+            ?? throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
                 $"Block group '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
 
         PlcWritePreconditions.RequireReadableDescendants(group);

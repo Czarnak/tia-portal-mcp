@@ -29,6 +29,15 @@ public sealed class PlcWriteServicesSourceContractTests
         Assert.Contains("PlcSoftwareLocator.FindUnique(", source, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("BlockTargetResolver.cs")]
+    [InlineData("PlcTypeTargetResolver.cs")]
+    [InlineData("BlockMutationService.cs")]
+    public void TargetResolutionNeverThrowsUncategorizedMisses(string file)
+    {
+        Assert.DoesNotContain("InvalidOperationException", ReadOpenness(file), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void UpdateBlockLogic_ChecksHashBeforeImport()
     {

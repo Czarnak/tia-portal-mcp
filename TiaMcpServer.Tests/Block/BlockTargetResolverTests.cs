@@ -64,6 +64,38 @@ public sealed class BlockTargetResolverTests
         Assert.Null(target.Block);
     }
 
+    [Theory]
+    [InlineData("PLC_1/Blocks/Ghost")]
+    [InlineData("PLC_1/Ghost")]
+    [InlineData("PLC_1/Blocks/NoFolder/Main")]
+    [InlineData("PLC_1/Units/NoUnit/Blocks/Main")]
+    public void ResolveForExport_MissingTargetIsTargetNotFound(string path)
+    {
+        var project = new SiemensProject();
+        AddPlc(project, "Device", "PLC_1");
+
+        var ex = Assert.Throws<WorkerOperationException>(
+            () => BlockTargetResolver.ResolveForExport(project, BlockAddress.Parse(path)));
+
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, ex.FailureCategory);
+    }
+
+    [Fact]
+    public void ResolveForExport_AmbiguousLegacyNameIsTargetAmbiguous()
+    {
+        var project = new SiemensProject();
+        var plc = AddPlc(project, "Device", "PLC_1");
+        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Dup" });
+        var area = new PlcBlockUserGroup { Name = "Area" };
+        area.Blocks.Items.Add(new FB { Name = "Dup" });
+        plc.BlockGroup.Groups.Items.Add(area);
+
+        var ex = Assert.Throws<WorkerOperationException>(
+            () => BlockTargetResolver.ResolveForExport(project, BlockAddress.Parse("PLC_1/Dup")));
+
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, ex.FailureCategory);
+    }
+
     [Fact]
     public void ResolveForExport_AmbiguousPlcIsTargetAmbiguous()
     {
