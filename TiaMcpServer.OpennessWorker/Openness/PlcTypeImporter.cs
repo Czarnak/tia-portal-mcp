@@ -22,7 +22,8 @@ internal static class PlcTypeImporter
         Project project,
         string typePath,
         string sourceContent,
-        string format)
+        string format,
+        string? expectedContentHash = null)
     {
         if (project is null) throw new ArgumentNullException(nameof(project));
         if (sourceContent is null) throw new ArgumentNullException(nameof(sourceContent));
@@ -35,7 +36,7 @@ internal static class PlcTypeImporter
         if (target.Type is null)
         {
             throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
+                WorkerFailureCategories.TargetNotFound,
                 $"No PLC data type exists at '{address.ToDisplayPath()}'. update_type_content only "
                 + "updates a type that is already in the project; it never creates one.");
         }
@@ -60,6 +61,13 @@ internal static class PlcTypeImporter
                 + $"and never creates: submit a document declaring '{targetName}', or address the "
                 + "type the document actually declares.");
         }
+
+        // 3b. The document the write was planned against must still be the current one. Checked
+        // before anything is imported, in the write's own format.
+        PlcWritePreconditions.RequireContentHash(
+            expectedContentHash,
+            format,
+            PlcTypeExporter.Export(project, typePath, format));
 
         // 4/5. Apply the document.
         var outcome = string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal)

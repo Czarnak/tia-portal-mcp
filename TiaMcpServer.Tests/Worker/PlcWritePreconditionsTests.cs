@@ -194,6 +194,152 @@ public sealed class PlcWritePreconditionsTests
         Fails(() => TagMutationService.CreateTag(project, "Ghost", "Default", null, "X", "Bool", null), WorkerFailureCategories.TargetNotFound);
     }
 
+    // ---- Blocks and groups
+
+    [Fact]
+    public void CreateBlock_ExistingTargetRefused()
+    {
+        var (project, plc, _) = Single();
+        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Main" });
+
+        Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/main", "FB", "SCL", null),
+            WorkerFailureCategories.StateChanged);
+
+        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
+    }
+
+    [Fact]
+    public void CreateBlock_NameTakenByGroupInSameParentRefused()
+    {
+        var (project, plc, _) = Single();
+        plc.BlockGroup.Groups.Items.Add(new PlcBlockUserGroup { Name = "Main" });
+
+        Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/MAIN", "FB", "SCL", null),
+            WorkerFailureCategories.StateChanged);
+
+        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
+    }
+
+    [Theory]
+    [InlineData("MOTOR")]
+    [InlineData("const")]
+    public void CreateBlock_CollidesWithTagOrConstantCaseInsensitive(string name)
+    {
+        var (project, plc, table) = Single();
+        table.Tags.Create("Motor", "Bool", "%I0.0");
+        table.UserConstants.Create("Const");
+
+        Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/" + name, "FB", "SCL", null),
+            WorkerFailureCategories.StateChanged);
+
+        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
+    }
+
+    [Fact]
+    public void CreateBlock_TwoSegmentPathTargetsRootGroup()
+    {
+        var (_, plc, _) = Single();
+        var area = new PlcBlockUserGroup { Name = "Area" };
+        plc.BlockGroup.Groups.Items.Add(area);
+
+        Assert.Same(plc.BlockGroup,
+            BlockMutationService.ResolveGroupFromAddress(plc, BlockAddress.Parse("PLC_1/Main")));
+        Assert.Same(area,
+            BlockMutationService.ResolveGroupFromAddress(plc, BlockAddress.Parse("PLC_1/Blocks/Area/Main")));
+        Fails(() => BlockMutationService.ResolveGroupFromAddress(plc, BlockAddress.Parse("Main")),
+            WorkerFailureCategories.ValidationError);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CreateBlockGroup_NameTakenInParentRefused(bool takenByBlock)
+    {
+        var (project, plc, _) = Single();
+        if (takenByBlock)
+            plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Area" });
+        else
+            plc.BlockGroup.Groups.Items.Add(new PlcBlockUserGroup { Name = "Area" });
+        var before = plc.BlockGroup.Groups.Items.Count;
+
+        Fails(() => BlockMutationService.CreateBlockGroup(project, "PLC_1/AREA"),
+            WorkerFailureCategories.StateChanged);
+
+        Assert.Equal(before, plc.BlockGroup.Groups.Items.Count);
+    }
+
+    [Fact]
+    public void CreateBlockGroup_FreeNameIsCreated()
+    {
+        var (project, plc, _) = Single();
+        BlockMutationService.CreateBlockGroup(project, "PLC_1/Fresh");
+        Assert.Equal("Fresh", Assert.Single(plc.BlockGroup.Groups.Items).Name);
+    }
+
+    [Fact]
+    public void DeleteBlockGroup_UnreadableDescendantRefused()
+    {
+        var (project, plc, _) = Single();
+        var area = new PlcBlockUserGroup { Name = "Area" };
+        var nested = new PlcBlockUserGroup { Name = "Nested" };
+        nested.Blocks.Items.Add(new FB { Name = "Hidden", NameFailure = new EngineeringException("unreadable") });
+        area.Groups.Items.Add(nested);
+        plc.BlockGroup.Groups.Items.Add(area);
+
+        var ex = Fails(() => BlockMutationService.DeleteBlockGroup(project, "PLC_1/Area"),
+            WorkerFailureCategories.WorkerOperationFailed);
+
+        Assert.False(area.Deleted);
+        Assert.Contains("unreadable", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DeleteBlockGroup_ReadableGroupIsDeleted()
+    {
+        var (project, plc, _) = Single();
+        var area = new PlcBlockUserGroup { Name = "Area" };
+        area.Blocks.Items.Add(new FB { Name = "Fine" });
+        plc.BlockGroup.Groups.Items.Add(area);
+
+        BlockMutationService.DeleteBlockGroup(project, "PLC_1/Area");
+
+        Assert.True(area.Deleted);
+    }
+
+    // ---- Content hash
+
+    [Fact]
+    public void RequireContentHash_MatchPasses()
+    {
+        var hash = ContentHashRules.Compute(SourceFormatNames.Xml, "<doc/>");
+        PlcWritePreconditions.RequireContentHash(hash, SourceFormatNames.Xml, "<doc/>");
+    }
+
+    [Fact]
+    public void RequireContentHash_DifferentContentIsStateChanged()
+    {
+        var hash = ContentHashRules.Compute(SourceFormatNames.Xml, "<doc/>");
+        Fails(() => PlcWritePreconditions.RequireContentHash(hash, SourceFormatNames.Xml, "<doc changed/>"),
+            WorkerFailureCategories.StateChanged);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not-a-hash")]
+    public void RequireContentHash_MissingOrMalformedIsValidationError(string? hash)
+    {
+        Fails(() => PlcWritePreconditions.RequireContentHash(hash, SourceFormatNames.Xml, "<doc/>"),
+            WorkerFailureCategories.ValidationError);
+    }
+
+    [Fact]
+    public void RequireContentHash_FormatTagMismatchIsValidationError()
+    {
+        var hash = ContentHashRules.Compute(SourceFormatNames.Source, "text");
+        Fails(() => PlcWritePreconditions.RequireContentHash(hash, SourceFormatNames.Xml, "text"),
+            WorkerFailureCategories.ValidationError);
+    }
+
     // ---- Result
 
     [Fact]

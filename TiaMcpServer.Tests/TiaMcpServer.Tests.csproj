@@ -61,6 +61,8 @@
       Link="Linked\Openness\TagMutationService.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTargetResolver.cs"
       Link="Linked\Openness\TagTargetResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockMutationService.cs"
+      Link="Linked\Openness\BlockMutationService.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTableReader.cs"
       Link="Linked\Openness\TagTableReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileChecker.cs"

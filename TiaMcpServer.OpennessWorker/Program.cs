@@ -279,7 +279,8 @@ internal static class Program
                 {
                     StartSelector = selected.CanonicalStartSelector?.ToList(),
                     Depth = request.Depth,
-                    Roots = selected.Roots.ToList()
+                    Roots = selected.Roots.ToList(),
+                    Skipped = selected.Skipped.ToList()
                 });
             });
         }
@@ -905,7 +906,7 @@ internal static class Program
             var response = WithProject(request, project =>
             {
                 importerEntered = true;
-                var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat);
+                var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat, request.ExpectedContentHash);
                 return RawPayload(result.Payload, result.Warnings, result.Outcome);
             });
             return response.Success
@@ -954,7 +955,7 @@ internal static class Program
         var format = NormalizeTypeFormat(request.Format);
 
         return WithProject(request, project => Success(
-            PlcTypeImporter.Import(project, request.TypePath!, request.Content!, format)));
+            PlcTypeImporter.Import(project, request.TypePath!, request.Content!, format, request.ExpectedContentHash)));
     }
 
     /// <summary>

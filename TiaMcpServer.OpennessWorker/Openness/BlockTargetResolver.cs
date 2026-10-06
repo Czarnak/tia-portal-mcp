@@ -23,7 +23,7 @@ internal static class BlockTargetResolver
 {
     public static ResolvedBlockTarget ResolveForExport(Project project, BlockAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
         return ResolveForExport(plcSoftware, address);
     }
 
@@ -56,7 +56,7 @@ internal static class BlockTargetResolver
 
     public static ResolvedBlockTarget ResolveForImport(Project project, BlockAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
         if (address.IsDeterministic)
         {
@@ -66,20 +66,20 @@ internal static class BlockTargetResolver
             return new ResolvedBlockTarget(owner.ExternalSourceGroup, group, existing, address.BlockName);
         }
 
+        // No root-group fallback: a name that matches nothing is not a place to import into.
         var matches = FindLegacyMatches(plcSoftware, address.BlockName);
         if (matches.Count > 1)
         {
-            throw new InvalidOperationException(
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetAmbiguous,
                 $"Block '{address.BlockName}' is ambiguous. Use the deterministic Path from browse_project_tree, for example 'PLC/Blocks/.../Block' or 'PLC/Units/Unit/Blocks/.../Block'.");
         }
 
         return matches.Count == 1
             ? matches[0]
-            : new ResolvedBlockTarget(
-                plcSoftware.ExternalSourceGroup,
-                plcSoftware.BlockGroup,
-                block: null,
-                address.BlockName);
+            : throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
+                $"Block '{address.BlockName}' was not found.");
     }
 
     internal static ResolvedBlockOwner ResolveOwnerForDeterministicPath(

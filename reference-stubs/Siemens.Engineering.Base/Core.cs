@@ -96,6 +96,7 @@ namespace Siemens.Engineering
     }
     public enum ImportOptions : int
     {
+        None = 0,
         Override = 1,
     }
     public interface ITransactionSupport

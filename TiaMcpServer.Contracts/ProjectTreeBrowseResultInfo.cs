@@ -7,4 +7,6 @@ public sealed class ProjectTreeBrowseResultInfo
     public int? Depth { get; set; }
 
     public List<ProjectTreeNode> Roots { get; set; } = new();
+
+    public List<ProjectTreeSkippedNodeInfo> Skipped { get; set; } = new();
 }

@@ -2728,7 +2728,8 @@ ProjectTreeBrowseResultInfo ProjectTreeV3Snapshot() => new()
     Roots = new List<ProjectTreeNode>
     {
         new() { Name = "PLC_1", NodeType = ProjectTreeNodeTypes.Device, Details = null, Children = new List<ProjectTreeNode>() }
-    }
+    },
+    Skipped = new List<ProjectTreeSkippedNodeInfo>()
 };
 
 string ProjectTreeV3ScenarioResponse(string requestLine, string scenario)
@@ -2754,6 +2755,7 @@ ProjectTreeBrowseResultInfo ProjectTreeV3Fixture(int? observation = null) => new
 {
     StartSelector = null,
     Depth = null,
+    Skipped = new List<ProjectTreeSkippedNodeInfo>(),
     Roots = new List<ProjectTreeNode>
     {
         new()

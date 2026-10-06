@@ -225,6 +225,47 @@ public class ProjectTreeWorkerProducerContractTests
         Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("nextCursor").ValueKind);
     }
 
+    [Fact]
+    public void Walker_ReportsSkippedBlocksGroupsAndTables()
+    {
+        var project = ProjectWithLeaves(includeLeaves: false);
+        var plc = PlcOf(project);
+        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Bad", NameFailure = new Siemens.Engineering.EngineeringException("block hidden") });
+        plc.BlockGroup.Groups.Items.Add(new PlcBlockUserGroup { Name = "BadGroup", NameFailure = new Siemens.Engineering.EngineeringException("group hidden") });
+        plc.TagTableGroup.TagTables.Items.Add(new PlcTagTable { Name = "BadTable", NameFailure = new Siemens.Engineering.EngineeringException("table hidden") });
+        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Good", Number = 1 });
+
+        var snapshot = new ProjectTreeSnapshotWalker().WalkSnapshot(project, startSelector: null, depth: null);
+
+        Assert.Equal(3, snapshot.Skipped.Count);
+        var block = Assert.Single(snapshot.Skipped, s => s.NodeType == ProjectTreeNodeTypes.Block);
+        Assert.Equal("block hidden", block.Reason);
+        Assert.Equal(
+            new[] { "Device:PLC_1", "PlcSoftware:PLC", "BlockFolder:Program blocks" },
+            block.ParentPath.Select(p => p.NodeType + ":" + p.Name).ToArray());
+        var group = Assert.Single(snapshot.Skipped, s => s.NodeType == ProjectTreeNodeTypes.BlockFolder);
+        Assert.Equal("BlockFolder:Program blocks", group.ParentPath[^1].NodeType + ":" + group.ParentPath[^1].Name);
+        var table = Assert.Single(snapshot.Skipped, s => s.NodeType == ProjectTreeNodeTypes.TagTable);
+        Assert.Equal("TagTableFolder:PLC tags", table.ParentPath[^1].NodeType + ":" + table.ParentPath[^1].Name);
+        Assert.Contains(Descendants(snapshot.Roots), n => n.Name == "Good");
+        Assert.DoesNotContain(Descendants(snapshot.Roots), n => n.Name == "Bad" || n.Name == "BadTable");
+
+        // The strict host decoder carries the same evidence.
+        var observation = Decode(snapshot, selector: null, depth: null);
+        Assert.Equal(3, observation.Skipped.Count);
+    }
+
+    [Fact]
+    public void Walker_ReportsNothingSkippedForAReadableProject()
+    {
+        var snapshot = new ProjectTreeSnapshotWalker().WalkSnapshot(ProjectWithLeaves(), startSelector: null, depth: null);
+        Assert.Empty(snapshot.Skipped);
+        Assert.Empty(Decode(snapshot, selector: null, depth: null).Skipped);
+    }
+
+    private static PlcSoftware PlcOf(Siemens.Engineering.Project project)
+        => (PlcSoftware)((SoftwareContainer)(object)project.Devices.Items[0].DeviceItems.Items[0].Container!).Software!;
+
     private static ProjectTreeObservation Decode(ProjectTreeSelectionResult snapshot,
         IReadOnlyList<ProjectTreeSelectorSegment>? selector, int? depth)
     {
@@ -232,7 +273,8 @@ public class ProjectTreeWorkerProducerContractTests
         {
             StartSelector = snapshot.CanonicalStartSelector?.ToList(),
             Depth = depth,
-            Roots = snapshot.Roots.ToList()
+            Roots = snapshot.Roots.ToList(),
+            Skipped = snapshot.Skipped.ToList()
         });
         Assert.True(response.Success);
         var worker = WorkerCallResult.Ok(response.Payload!) with

@@ -31,7 +31,7 @@ public class ProjectTraversalSourceContractTests
         Assert.Contains("ProjectDeviceEnumerator.Enumerate(project).Cast<Device>().ToList()", tree, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (Device device in project.Devices)", hardware, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (Device device in project.Devices)", tree, StringComparison.Ordinal);
-        Assert.Contains("devices.Select(WalkDevice).ToList()", tree, StringComparison.Ordinal);
+        Assert.Contains("devices.Select(device => WalkDevice(device, skipped)).ToList()", tree, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class ProjectTraversalSourceContractTests
             "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
         var enumerate = source.IndexOf("ProjectDeviceEnumerator.Enumerate(project)", StringComparison.Ordinal);
         var select = source.IndexOf("ProjectTreeDeviceSelector.Select", StringComparison.Ordinal);
-        var walk = source.IndexOf("WalkDevice(selectedDevice)", StringComparison.Ordinal);
+        var walk = source.IndexOf("WalkDevice(selectedDevice, skipped)", StringComparison.Ordinal);
 
         Assert.True(enumerate >= 0 && select > enumerate && walk > select);
         Assert.DoesNotContain("[\"Path\"]", source, StringComparison.Ordinal);

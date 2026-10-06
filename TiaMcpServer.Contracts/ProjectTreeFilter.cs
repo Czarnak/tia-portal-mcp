@@ -11,7 +11,8 @@ public static class ProjectTreeFilter
     public static ProjectTreeSelectionResult Apply(
         List<ProjectTreeNode> roots,
         IReadOnlyList<ProjectTreeSelectorSegment>? startSelector,
-        int? depth)
+        int? depth,
+        List<ProjectTreeSkippedNodeInfo>? skipped = null)
     {
         ProjectTreeNodeTypes.Validate(startSelector);
 
@@ -36,7 +37,8 @@ public static class ProjectTreeFilter
         var resultRoots = depth is null
             ? selected.Select(Clone).ToList()
             : ApplyDepth(selected, depth.Value);
-        return new ProjectTreeSelectionResult(resultRoots, canonicalSelector);
+        // Skipped is walk-wide evidence; the selector and depth do not narrow it.
+        return new ProjectTreeSelectionResult(resultRoots, canonicalSelector, skipped ?? new List<ProjectTreeSkippedNodeInfo>());
     }
 
     private static ProjectTreeNode ResolveOne(

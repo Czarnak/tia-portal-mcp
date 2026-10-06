@@ -25,7 +25,7 @@ internal static class PlcTypeTargetResolver
 {
     public static ResolvedTypeTarget ResolveForExport(Project project, PlcTypeAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
         if (address.IsDeterministic)
         {
@@ -53,7 +53,7 @@ internal static class PlcTypeTargetResolver
 
     public static ResolvedTypeTarget ResolveForImport(Project project, PlcTypeAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
         if (address.IsDeterministic)
         {
@@ -64,19 +64,20 @@ internal static class PlcTypeTargetResolver
             return new ResolvedTypeTarget(owner.ExternalSourceGroup, group, existing, address.TypeName);
         }
 
+        // No root-group fallback: a name that matches nothing is not a place to import into.
         var matches = FindLegacyMatches(plcSoftware, address.TypeName);
         if (matches.Count > 1)
         {
-            throw new InvalidOperationException(AmbiguousPathMessage(address.TypeName));
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetAmbiguous,
+                AmbiguousPathMessage(address.TypeName));
         }
 
         return matches.Count == 1
             ? matches[0]
-            : new ResolvedTypeTarget(
-                plcSoftware.ExternalSourceGroup,
-                plcSoftware.TypeGroup,
-                type: null,
-                address.TypeName);
+            : throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
+                $"PLC data type '{address.TypeName}' was not found.");
     }
 
     private static string AmbiguousPathMessage(string typeName)
