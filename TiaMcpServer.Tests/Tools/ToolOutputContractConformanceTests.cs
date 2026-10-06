@@ -46,6 +46,16 @@ public sealed class ToolOutputContractConformanceTests
         new ToolProbe("bind_project", "rejected", true, null,
             new Dictionary<string, object?> { ["projectPath"] = "relative.ap21" }),
         new ToolProbe("bind_project", "ambiguous", false, null, new()),
+        new ToolProbe("bind_project", "list_portals", false, null, new() { ["action"] = "list_portals" }),
+        new ToolProbe("bind_project", "list_server_connections", false, null, new() { ["action"] = "list_server_connections" }),
+        new ToolProbe("bind_project", "list_server_groups", false, null, new() { ["action"] = "list_server_groups", ["serverAlias"] = "Fixture" }),
+        new ToolProbe("bind_project", "list_server_projects", false, null, new() { ["action"] = "list_server_projects", ["serverAlias"] = "Fixture",
+            ["group"] = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>("""{"isRoot":true,"name":null}""") }),
+        new ToolProbe("bind_project", "list_local_sessions", false, null, new() { ["action"] = "list_local_sessions", ["serverAlias"] = "Fixture",
+            ["group"] = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>("""{"isRoot":true,"name":null}"""), ["serverProjectName"] = "Project A" }),
+        new ToolProbe("bind_project", "get_lock_state", false, null, new() { ["action"] = "get_lock_state", ["serverAlias"] = "Fixture",
+            ["group"] = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>("""{"isRoot":true,"name":null}"""), ["serverProjectName"] = "Project A" }),
+        new ToolProbe("bind_project", "inspection_rejected", true, null, new() { ["action"] = "list_portals", ["forceRebind"] = false }),
         new ToolProbe("open_project", "applied", false, null, new()),
         new ToolProbe("open_project", "rejected", true, null, new()),
         new ToolProbe("create_project", "applied", false, null, new()),
@@ -334,8 +344,8 @@ public sealed class ToolOutputContractConformanceTests
             }
             else
             {
-                Assert.Equal(probe.Case == "succeeded", document.GetProperty("success").GetBoolean());
-                Assert.Equal(probe.Case == "succeeded" ? "succeeded" : "failed", document.GetProperty("result").GetProperty("status").GetString());
+                Assert.Equal(probe.Case != "ambiguous", document.GetProperty("success").GetBoolean());
+                Assert.Equal(probe.Case != "ambiguous" ? "succeeded" : "failed", document.GetProperty("result").GetProperty("status").GetString());
                 if (probe.Case == "ambiguous")
                     Assert.Equal(2, document.GetProperty("result").GetProperty("value").GetProperty("portals").GetArrayLength());
             }

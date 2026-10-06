@@ -10,7 +10,9 @@
 
 ### Explicit binding (`bind_project`)
 
-`bind_project(projectPath?:string, forceRebind:bool=false)` is available in all three modes.
+`bind_project(projectPath?:string, forceRebind:bool=false, action?:string, portalProcessId?:int,
+serverAlias?:string, group?:object, serverProjectName?:string)` is available in all three modes.
+Omitted/null action or `action:"bind"` retains the existing behavior and JSON shape described below.
 It changes server session selection without opening, creating, saving or closing a project.
 Only `open_project` and `create_project` open projects; no request implicitly opens one.
 Read-only never opens, creates, saves or closes, but explicit binding can switch its session.
@@ -39,6 +41,15 @@ the host maps to rejected `binding_conflict`. Failed completed calls retain a va
 postcondition failures invalidate it. Candidates appear only from a listing in that call; a failed
 path selection with not-found/ambiguous adds one listing. Doctor reports Warning for an unbound
 writable session and names `bind_project` as remediation.
+
+For explicit inspection, use `action:"list_portals"` to discover without attachment/adoption,
+or `list_server_connections`, `list_server_groups`, `list_server_projects`, `list_local_sessions`,
+`get_lock_state` for exact Project Server inventory. Inspection preserves healthy binding and
+cursors, cannot switch an existing attachment, and rejects binding selectors even when null/false.
+Results add conditional `result.value.inspection`, with observed PID and typed nullable slots;
+`transition:"none"` and `project:null`. Whole-value omission includes the inventory. See the
+[Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md) for selectors, examples, current-user scope,
+lock/error/omission limits and pending live qualification. Tool discovery remains 6/16/16.
 
 ### `browse_project_tree` v3
 

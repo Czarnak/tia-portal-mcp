@@ -31,6 +31,8 @@
 
   <ItemGroup>
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalSession.cs" Link="Linked\Openness\TiaPortalSession.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\MultiuserPortalReadDispatch.cs" Link="Linked\Openness\MultiuserPortalReadDispatch.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\MultiuserInventoryService.cs" Link="Linked\Openness\MultiuserInventoryService.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalProcessInventory.cs" Link="Linked\Openness\TiaPortalProcessInventory.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectLifecycleOwner.cs" Link="Linked\Openness\ProjectLifecycleOwner.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\StandaloneProjectOwner.cs" Link="Linked\Openness\StandaloneProjectOwner.cs" />
@@ -121,6 +123,8 @@
       Link="Host\ProjectReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectBindingTools.cs"
       Link="Host\ProjectBindingTools.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectBindingInspectionCatalog.cs" Link="Host\ProjectBindingInspectionCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\ProjectBindingInspectionPayloadContract.cs" Link="Host\ProjectBindingInspectionPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectEngineeringTools.cs"
       Link="Host\ProjectEngineeringTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\McpToolRegistration.cs"

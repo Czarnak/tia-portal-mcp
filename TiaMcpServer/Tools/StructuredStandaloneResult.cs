@@ -14,20 +14,21 @@ internal static class StructuredStandaloneResult
         string tool,
         StandaloneToolOutcome<TPayload>? outcome,
         IReadOnlyList<string> warnings,
-        StructuredOperationFailure? rejection = null) where TPayload : class
+        StructuredOperationFailure? rejection = null,
+        string? omissionGuidance = null) where TPayload : class
     {
         if ((rejection is null) == (outcome is null))
             throw new ArgumentException("Provide either an outcome or a rejection.");
 
         var retainedWarnings = warnings.ToList();
         var valueChars = outcome?.Value is null ? 0 : CanonicalJson.Serialize(outcome.Value).Length;
-        var guidance = tool switch
+        var guidance = omissionGuidance ?? (tool switch
         {
             "compile_check" => "Narrow the compile with plcName or blockPath. The complete report was omitted.",
             "read_cross_references" => "Narrow with maxResults, a narrower target path, or a member. The complete report was omitted.",
             "bind_project" => "Retry bind_project with the absolute projectPath of one open project to narrow the candidates.",
             _ => "Extended metadata was too large to return. This tool has no metadata selector; retry after reducing project metadata or inspect it in TIA Portal."
-        };
+        });
 
         void Omit(string reason, int limit)
         {

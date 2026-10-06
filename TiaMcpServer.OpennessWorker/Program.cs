@@ -11,6 +11,7 @@ internal static class Program
     // TIA Portal 권한 요청 다이얼로그는 Attach() 호출마다 뜬다.
     // 세션을 프로세스 수명 동안 재사용해 Attach()를 최초 1회만 호출한다.
     private static readonly WorkerTiaPortalSession _sharedSession = new(allowTiaConfirmations: true);
+    private static readonly MultiuserInventoryService _sharedInventory = new(_sharedSession);
 
     private static readonly McpAccessMode _accessMode = WorkerOperationAuthorization.ParseAccessMode(
         Environment.GetCommandLineArgs());
@@ -142,6 +143,8 @@ internal static class Program
             return request.Method switch
             {
                 "list_tia_portal_processes" => ListPortalProcesses(request),
+                "list_server_connections" or "list_server_groups" or "list_server_projects" or "list_local_sessions" or "get_lock_state"
+                    => WithPortalRead(request, _ => MultiuserPortalReadDispatch.Invoke(_sharedInventory, request)),
                 "select_portal_project" => SelectPortalProject(request),
                 "browse_project_tree_v3_snapshot" => BrowseProjectTreeV3Snapshot(request),
                 "read_create_block_safety_snapshot" => ReadCreateBlockSafetySnapshot(request),
@@ -1527,6 +1530,9 @@ internal static class Program
         }
     }
 
+    private static WorkerResponse WithPortalRead(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
+        => Execute(() => MultiuserPortalReadDispatch.Run(_sharedSession, request, body));
+
     /// <summary>Runs <paramref name="body"/> with the shared long-lived session.</summary>
     private static WorkerResponse WithSession(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
     {
@@ -1595,6 +1601,7 @@ internal static class Program
 
         try
         {
+            response.PortalProcessId = _sharedSession.CurrentProcessId;
             response.ResolvedProjectPath = _sharedSession.CurrentProjectPath;
             response.SessionIdentity = _sharedSession.GetSessionIdentity();
         }

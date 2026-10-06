@@ -90,6 +90,42 @@ public sealed class BindProjectToolProtocolTests
         => Assert.Null(typeof(OpennessWorkerClient).GetField("_transport", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(harness.WorkerClient));
 
     [Theory]
+    [InlineData(null, null)]
+    [InlineData("discovery-project-closed", null)]
+    [InlineData("discovery-portal-lost", null)]
+    [InlineData("discovery-missing-identity", null)]
+    [InlineData("discovery-project-closed", "target_not_found")]
+    [InlineData("discovery-portal-lost", "target_ambiguous")]
+    public async Task Discovery_ReconcilesLiveIdentityInCanonicalBindingAndPortals(string? observation, string? selectorFailure)
+    {
+        using var fixture = new Fixture(new FakeWorkerPortals.Entry(42, A),
+            new FakeWorkerPortals.Entry(43, observation is null ? null : $"C:/Projects/{observation}.ap21"));
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        Value(await Bind(harness, A), "bound");
+        var before = fixture.Methods().Length;
+        var arguments = new Dictionary<string, object?> { ["action"] = selectorFailure is null ? "list_portals" : "list_server_groups" };
+        if (selectorFailure is not null) arguments["serverAlias"] = selectorFailure;
+        var response = await harness.Client.CallToolAsync("bind_project", arguments);
+        var document = Document(response);
+        Assert.Equal(document.GetRawText(), Assert.IsType<TextContentBlock>(Assert.Single(response.Content)).Text);
+        var value = observation is null ? document.GetProperty("result").GetProperty("value")
+            : Failed(response, observation == "discovery-missing-identity" ? "postcondition_failed" : "binding_conflict", "invalidated");
+        Assert.Equal("verified", value.GetProperty("previousBinding").GetProperty("state").GetString());
+        Assert.Equal(observation is null, document.GetProperty("success").GetBoolean());
+        Assert.Equal("none", value.GetProperty("transition").GetString());
+        Assert.Equal(JsonValueKind.Null, value.GetProperty("project").ValueKind);
+        Assert.NotEmpty(value.GetProperty("portals").EnumerateArray());
+        Assert.All(value.GetProperty("portals").EnumerateArray(), portal =>
+            Assert.Equal(observation is null && portal.GetProperty("processId").GetInt32() == 42, portal.GetProperty("isBound").GetBoolean()));
+        if (observation == "discovery-project-closed")
+            Assert.Equal(JsonValueKind.Null, value.GetProperty("portals")[0].GetProperty("projectPath").ValueKind);
+        Assert.Equal(6, value.GetProperty("inspection").EnumerateObject().Count(p => p.Value.ValueKind == JsonValueKind.Null));
+        Assert.Equal(selectorFailure is null ? new[] { "list_tia_portal_processes" }
+            : new[] { "list_server_groups", "list_tia_portal_processes" }, fixture.Methods().Skip(before));
+        Assert.Empty(Directory.GetFiles(fixture.AuditPath, "*.jsonl", SearchOption.AllDirectories));
+    }
+
+    [Theory]
     [InlineData(McpAccessMode.ReadOnly)]
     [InlineData(McpAccessMode.ReadWrite)]
     [InlineData(McpAccessMode.Full)]
@@ -100,10 +136,10 @@ public sealed class BindProjectToolProtocolTests
         Assert.False(tool.ProtocolTool.Annotations!.ReadOnlyHint);
         Assert.False(tool.ProtocolTool.Annotations.DestructiveHint);
         Assert.True(tool.ProtocolTool.Annotations.IdempotentHint);
-        Assert.False(tool.ProtocolTool.Annotations.OpenWorldHint);
+        Assert.True(tool.ProtocolTool.Annotations.OpenWorldHint);
         var schema = tool.ProtocolTool.InputSchema;
         Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
-        Assert.Equal(new[] { "forceRebind", "projectPath" }, schema.GetProperty("properties").EnumerateObject().Select(property => property.Name).Order());
+        Assert.Equal(new[] { "action", "forceRebind", "group", "portalProcessId", "projectPath", "serverAlias", "serverProjectName" }, schema.GetProperty("properties").EnumerateObject().Select(property => property.Name).Order());
         Assert.Equal(new[] { "boolean", "null" }, schema.GetProperty("properties").GetProperty("forceRebind")
             .GetProperty("type").EnumerateArray().Select(type => type.GetString()));
         Assert.NotNull(tool.ProtocolTool.OutputSchema);
@@ -150,6 +186,113 @@ public sealed class BindProjectToolProtocolTests
         Assert.Equal("unbound", value.GetProperty("previousBinding").GetProperty("state").GetString());
         Assert.Single(value.GetProperty("portals").EnumerateArray());
         Assert.Equal(new[] { "list_tia_portal_processes", "select_portal_project", "get_project_status" }, fixture.Methods());
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"action\":null}")]
+    [InlineData("{\"action\":\"bind\"}")]
+    public async Task BindAction_PreservesDefaultShape(string json)
+    {
+        using var fixture = new Fixture(new FakeWorkerPortals.Entry(42, A));
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        var value = Value(await harness.Client.CallToolAsync("bind_project", JsonSerializer.Deserialize<Dictionary<string, object?>>(json)!), "bound");
+        Assert.False(value.TryGetProperty("inspection", out _));
+    }
+
+    [Fact]
+    public async Task ListPortals_DoesNotSelectSoleProject()
+    {
+        using var fixture = new Fixture(new FakeWorkerPortals.Entry(42, A));
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        var response = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["action"] = "list_portals" });
+        var document = Document(response);
+        Assert.True(document.GetProperty("success").GetBoolean());
+        var value = document.GetProperty("result").GetProperty("value");
+        Assert.Equal("none", value.GetProperty("transition").GetString());
+        Assert.Equal("unbound", value.GetProperty("binding").GetProperty("state").GetString());
+        Assert.Equal(JsonValueKind.Null, value.GetProperty("project").ValueKind);
+        Assert.Equal("list_portals", value.GetProperty("inspection").GetProperty("action").GetString());
+        Assert.Single(value.GetProperty("portals").EnumerateArray());
+        Assert.Equal(new[] { "list_tia_portal_processes" }, fixture.Methods());
+    }
+
+    [Theory]
+    [InlineData("list_server_connections", "serverConnections")]
+    [InlineData("list_server_groups", "serverGroups")]
+    [InlineData("list_server_projects", "serverProjects")]
+    [InlineData("list_local_sessions", "localSessions")]
+    [InlineData("get_lock_state", "lockState")]
+    public async Task Inspection_ProjectsTypedSlotThroughRegisteredSchema(string action, string slot)
+    {
+        using var fixture = new Fixture(new FakeWorkerPortals.Entry(42, A));
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        var arguments = new Dictionary<string, object?> { ["action"] = action, ["portalProcessId"] = 42 };
+        if (action != "list_server_connections") arguments["serverAlias"] = "Fixture";
+        if (action is "list_server_projects" or "list_local_sessions" or "get_lock_state") arguments["group"] = JsonSerializer.Deserialize<JsonElement>("""{"isRoot":true,"name":null}""");
+        if (action is "list_local_sessions" or "get_lock_state") arguments["serverProjectName"] = "Project A";
+        var response = await harness.Client.CallToolAsync("bind_project", arguments);
+        var document = Document(response);
+        Assert.True(document.GetProperty("success").GetBoolean(), document.GetRawText());
+        var value = document.GetProperty("result").GetProperty("value");
+        Assert.Equal("none", value.GetProperty("transition").GetString());
+        Assert.Equal(value.GetProperty("previousBinding").GetRawText(), value.GetProperty("binding").GetRawText());
+        Assert.Equal(JsonValueKind.Null, value.GetProperty("project").ValueKind);
+        var inspection = value.GetProperty("inspection");
+        Assert.Equal(action, inspection.GetProperty("action").GetString());
+        Assert.Equal(42, inspection.GetProperty("portalProcessId").GetInt32());
+        Assert.Equal(JsonValueKind.Object, inspection.GetProperty(slot).ValueKind);
+        Assert.Equal(new[] { action }, fixture.Methods());
+        Assert.Empty(Directory.GetFiles(fixture.AuditPath, "*.jsonl", SearchOption.AllDirectories));
+    }
+
+    [Theory]
+    [InlineData("server-failure", "worker_operation_failed")]
+    [InlineData("malformed", "protocol_error")]
+    [InlineData("missing-pid", "protocol_error")]
+    [InlineData("wrong-pid", "protocol_error")]
+    public async Task Inspection_ExecutedFailuresKeepCanonicalOutcome(string alias, string category)
+    {
+        using var fixture = new Fixture(new FakeWorkerPortals.Entry(42, A));
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        var response = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+            { ["action"] = "list_server_groups", ["portalProcessId"] = 42, ["serverAlias"] = alias });
+        var value = Failed(response, category, "unbound");
+        var inspection = value.GetProperty("inspection");
+        Assert.Equal("list_server_groups", inspection.GetProperty("action").GetString());
+        Assert.Equal(6, inspection.EnumerateObject().Count(p => p.Value.ValueKind == JsonValueKind.Null));
+        Assert.DoesNotContain("secret-sentinel", Document(response).GetRawText());
+    }
+
+    [Theory]
+    [InlineData("{\"action\":\"list_portals\",\"projectPath\":null}")]
+    [InlineData("{\"action\":\"list_portals\",\"forceRebind\":false}")]
+    [InlineData("{\"action\":\"list_portals\",\"portalProcessId\":42}")]
+    [InlineData("{\"action\":\"list_server_connections\",\"portalProcessId\":null}")]
+    [InlineData("{\"action\":\"list_server_connections\",\"portalProcessId\":0}")]
+    [InlineData("{\"action\":\"list_server_connections\",\"portalProcessId\":1.5}")]
+    [InlineData("{\"action\":\"list_server_connections\",\"portalProcessId\":\"42\"}")]
+    [InlineData("{\"action\":\"list_server_connections\",\"portalProcessId\":true}")]
+    [InlineData("{\"action\":\"list_server_connections\",\"serverAlias\":null}")]
+    [InlineData("{\"action\":\"list_server_groups\"}")]
+    [InlineData("{\"action\":\"list_server_groups\",\"serverAlias\":\" \"}")]
+    [InlineData("{\"action\":\"list_server_projects\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true}}")]
+    [InlineData("{\"action\":\"list_server_projects\",\"serverAlias\":\"Fixture\",\"group\":{\"name\":null}}")]
+    [InlineData("{\"action\":\"list_server_projects\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true,\"name\":\"Root\"}}")]
+    [InlineData("{\"action\":\"list_server_projects\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":false,\"name\":null}}")]
+    [InlineData("{\"action\":\"list_server_projects\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true,\"name\":null,\"extra\":false}}")]
+    [InlineData("{\"action\":\"list_local_sessions\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true,\"name\":null}}")]
+    [InlineData("{\"action\":\"get_lock_state\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true,\"name\":null},\"serverProjectName\":\"\"}")]
+    [InlineData("{\"action\":\"bind\",\"portalProcessId\":42}")]
+    [InlineData("{\"action\":\"BIND\"}")]
+    [InlineData("{\"action\":true}")]
+    [InlineData("{\"action\":\"get_session_state\"}")]
+    [InlineData("{\"action\":\"list_portals\",\"operations\":[]}")]
+    public async Task Inspection_InvalidArgumentsRejectedBeforeDispatch(string json)
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        Rejected(await harness.Client.CallToolAsync("bind_project", JsonSerializer.Deserialize<Dictionary<string, object?>>(json)!), "validation_error");
+        NoTransport(harness);
     }
 
     [Fact]

@@ -91,6 +91,11 @@ public static class OperationPolicyCatalog
             // Observe (read-only safe)
             ["get_project_status"] = OperationCapability.Observe,
             ["list_tia_portal_processes"] = OperationCapability.Observe,
+            ["list_server_connections"] = OperationCapability.Observe,
+            ["list_server_groups"] = OperationCapability.Observe,
+            ["list_server_projects"] = OperationCapability.Observe,
+            ["list_local_sessions"] = OperationCapability.Observe,
+            ["get_lock_state"] = OperationCapability.Observe,
             ["browse_project_tree_v3_snapshot"] = OperationCapability.Observe,
             ["read_hardware_config"] = OperationCapability.Observe,
             ["read_hardware_page_candidates"] = OperationCapability.Observe,

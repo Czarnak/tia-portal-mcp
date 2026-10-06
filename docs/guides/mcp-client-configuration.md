@@ -60,8 +60,12 @@ permission prompt on every call; the server cannot establish whether a human saw
 elicitation dialog. The [lifecycle reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
 documents requests, guards, typed failures, and recovery.
 
-Use `bind_project` to adopt or switch to an already-open project in any mode; switching to a
-different configured or previously bound path requires `forceRebind:true`. Omit the path to select
+Use default/null `action` or `action:"bind"` on `bind_project` to adopt or switch to an already-open project in any mode; switching to a
+different configured or previously bound path requires `forceRebind:true`. Explicit
+`action:"list_portals"` only discovers; Project Server inspection actions reuse a persistent
+attachment and cannot switch it or adopt a project. See [Multiuser inventory](../SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md)
+for exact selectors, PID continuity, current-user session scope and pending live qualification.
+Omit the path with the default binding action to select
 the sole open project or list candidates. Reattachment may require a human response to TIA's
 Openness access dialog. Worker ownership is lost on detach. Only `open_project` and `create_project`
 open projects; ordinary reads never open, bind or switch. Read-only never opens, creates, saves or
