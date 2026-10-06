@@ -31,10 +31,11 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         {
             var outcome = await ResolveAsync(projectPath, item, evidence.Inventory!, states, budget).ConfigureAwait(false);
             if (outcome.Error is { } error) return Failed(error);
-            var dependsOn = outcome.State?.LastTouchedBy(outcome.Effect!.Target);
+            var effect = outcome.Effect ?? throw new InvalidOperationException($"Operation '{item.OperationId}' resolved without an effect or an error.");
+            var dependsOn = outcome.State?.LastTouchedBy(effect.Target);
             outcome.State?.Apply(item);
             // The effect stays known: the pipeline drops plans with a null effect.
-            plans.Add(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect with { DependsOn = dependsOn }, outcome.Preconditions) with { DependsOn = dependsOn });
+            plans.Add(ItemPlan<PlcWriteEffect>.Resolved(effect with { DependsOn = dependsOn }, outcome.Preconditions) with { DependsOn = dependsOn });
             guards[item.OperationId] = outcome.Guards;
         }
 
