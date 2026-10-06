@@ -2,9 +2,9 @@
 
 **Date:** 2026-09-28
 
-**Revised:** 2026-10-03 against `main` at `baf811789893f706b2c7d398afc13e9e6c0e2a72`
+**Revised:** 2026-10-03 for lifecycle alignment; 2026-10-05 for the user-selected `bind_project` read surface, against `main` at `ea269c222e7415af347f2929cbc82a366aa2ee0f`
 
-**Status:** Approved; PR 1 detailed planning authorized
+**Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. PR 3 is implemented and offline-qualified; the maintainer accepted its live testing as finished and passed on October 6. The [installed-tool live report](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) preserves executed observations and non-blocking unexecuted cases. Successor PR gates remain unchanged.
 
 **Source:** Issue [#65](https://github.com/Czarnak/tia-portal-mcp/issues/65), repository
 commit `269f9b94c3e9df19e5a2e51d0ca7da515aca84ca`, the installed TIA Portal V21
@@ -16,7 +16,7 @@ its designated pull request before that pull request is merge-ready.
 
 **Safety baseline:** The guarded single-call pipeline and lifecycle migration are implemented.
 Multiuser lifecycle builds on `WriteExecution`, `LifecycleBindingStrategy`, mode-derived confirmation,
-and audit v2. Network and legacy batch writes still use tokens pending their own migration. New
+and audit v2. Network also uses guarded single-call writes; legacy generic batch writes retain tokens. New
 Multiuser writes must not add a token-bound surface or a parallel safety mechanism.
 
 ## Goal
@@ -35,7 +35,7 @@ Success means:
 - project-content operations use one typed worker implementation wherever Siemens exposes a common
   `ProjectBase` surface;
 - Project Server connections, groups, projects, local sessions, locks, markings, freshness, and
-  connection observations are available through typed Multiuser operations;
+  connection observations are available through typed inspection actions on `bind_project`;
 - supported Project Server and local-session lifecycle mutations are explicit, exactly targeted,
   capability-gated, and integrated with the final repository safety mechanism;
 - online and offline local-session behavior is truthful, including unknown collaboration state
@@ -291,21 +291,50 @@ The public surface is hybrid.
 Opening a server project is intentionally separate because it is connected, lock-sensitive,
 exclusive work with terminal discard-or-commit semantics.
 
-### `multiuser_read`
+### Discovery and inspection through `bind_project`
 
-`multiuser_read` is a structured operation-catalog tool. Its initial operation catalogue is:
+The user's October 5 decision is to retain `bind_project` as the only public discovery/inspection
+tool for this work. No separate Multiuser read tool is added. One optional `action` selects a
+single operation; omitted or null means `bind`, preserving the existing no-path auto-selection,
+`projectPath`, and `forceRebind` behavior. The explicit inspection actions are:
 
-- `list_server_connections`
-- `list_server_groups`
-- `list_server_projects`
-- `list_local_sessions`
-- `get_session_state`
-- `get_lock_state`
-- `get_markings`
+- `list_portals`: fresh running-Portal discovery, without attaching or selecting a project;
+- `list_server_connections`;
+- `list_server_groups`;
+- `list_server_projects`;
+- `list_local_sessions`;
+- `get_lock_state`;
+- `get_session_state` and `get_markings`, delivered only in their successor PRs.
 
-Every operation has one request type and one result type. Project Server reads may operate without
-an active project when the Siemens navigator allows it. Session-scoped reads pin and validate the
-active binding.
+Inspection never opens, adopts, switches, saves, closes, discards, commits, or changes a binding.
+Reject supplied `projectPath`/`forceRebind` on inspection actions, even null/false values; listing
+must never fall through to the existing sole-project auto-bind behavior. Inventory accepts an
+optional positive `portalProcessId` and action-specific exact server/group/project selectors.
+Root groups use `{isRoot:true,name:null}`; named groups require an exact name and `isRoot:false`.
+
+Keep one persistent Portal attachment. Inspection reuses its PID; with a verified host binding,
+that PID and session identity are preservation assertions, not permission to select another
+context. A deliberate different-PID request is refused locally before dispatch, preserving the
+binding. When no Portal is attached, resolve the explicit PID exactly or require one candidate,
+then attach without adopting a project. Inspection does not detach or create temporary workers.
+To change the attached instance, use explicit binding with its existing conflict/detach guards.
+Genuine worker/Portal/context loss still follows normal invalidation; inspection does not promise
+that a dead context stays bound.
+
+Every action has one logical request contract and one concrete worker result type. Project Server
+reads may operate without an active project when the installed Siemens API permits it;
+session-scoped successor reads pin and validate the active binding. Remote inventory failures
+never become a prerequisite for ordinary binding, including offline session adoption.
+
+Preserve `BindProjectResponse` and `StandaloneToolOutcome<ProjectBindingResult>`. The default
+binding result keeps its existing shape. Inspection adds one conditional `inspection` member
+to `ProjectBindingResult`, inside the outcome's budgeted value, containing the action, resolved
+Portal PID, and typed result slots; whole-value omission removes the inventory too. Successful server inventory
+fills exactly its action's slot, with other slots explicitly null. `list_portals` uses the existing
+`portals` array. Inspection reports `transition:none`, `project:null`, and identical healthy
+before/after binding snapshots. Whole-value omissions and strict payload decoding reuse the
+existing standalone structured seam. Discovery counts remain 6/16/16; the combined tool retains
+`ReadOnly=false` because its default action changes selection.
 
 ### `multiuser_write`
 
@@ -345,7 +374,8 @@ The resulting context has `containerKind=serverProject`. It must end through an 
 
 ## Structured contract
 
-Both new tools use the shared structured JSON seam:
+The extended `bind_project` inspection actions and planned `multiuser_write` use the shared
+structured JSON seam:
 
 - one CLR result type per operation;
 - strict worker-payload decoding;
@@ -354,7 +384,8 @@ Both new tools use the shared structured JSON seam:
 - one `CanonicalJson.Serialize` result supplies both the text content block and
   `structuredContent`;
 - success and rejection probes are added to tool-output conformance tests; and
-- each new tool is removed from any legacy register only when its structured probes pass.
+- existing tool probes cover every new action; any new mutation tool is removed from a legacy
+  register only when its structured probes pass.
 
 Lifecycle extensions preserve `LifecycleWriteResponse`: `phase`, `guards`, `effects`, typed
 `result`, and typed `verification`. Rejections have `result:null`, a top-level `error`, and
@@ -403,10 +434,14 @@ serialized binding gate. It never invokes either opener and never acquires disca
 
 ### Multiuser reads
 
-1. Pin the active binding when the operation is project or session scoped.
-2. Resolve every supplied selector exactly.
-3. Perform the typed Siemens read.
-4. Return the typed result plus any connection transition observed during the call.
+1. Validate the `bind_project` action and its allowed selectors before worker activity. Default
+   binding and inspection dispatch are separate paths.
+2. Capture the binding under the existing host serialization gate; pin/verify it when the action
+   is project/session scoped, and use a verified identity only to assert inventory continuity.
+3. Resolve the Portal and every supplied selector exactly without changing selection or detaching.
+4. Perform the typed Siemens read and return the canonical binding response with its inspection
+   payload and any observed connection transition. Transport loss may invalidate genuinely stale
+   binding; ordinary remote inventory failure preserves a healthy context.
 
 ### Multiuser writes
 
@@ -596,10 +631,18 @@ mechanically rebased.
 
 ### PR 3 — Read-only Multiuser inventory
 
-- Add `multiuser_read` with server-connection, group, server-project, local-session inventory, and
-  server-project lock-state operations that do not require an opened `.als21` context.
-- Use exact typed selectors and canonical structured output.
-- Gate: each added read operation receives live verification against the fixture tier it requires.
+- Extend `bind_project` with explicit `list_portals` and server-connection, group, server-project,
+  local-session, and server-project lock-state inspection actions; add no public tool. These
+  actions do not require an opened `.als21` context and never perform binding as a side effect.
+- Preserve default binding inputs/output and counts 6/16/16; use exact typed selectors, a
+  conditional typed inspection result, and the existing canonical standalone response/budget.
+- Gate: every added action receives operation-specific live verification against its required
+  fixture tier; default `.ap21` binding, ambiguity, switching, ownership, and cursor continuity
+  receive regression verification on the same frozen candidate.
+
+PR 3 acceptance update (2026-10-06): the maintainer accepted all PR 3 live testing as finished
+and passed. Its report retains unexecuted matrix cases as non-blocking evidence limitations;
+this decision closes PR 3's gate without changing PR 4–9 scope or acceptance requirements.
 
 ### Lifecycle integration checkpoint
 
@@ -755,7 +798,8 @@ The Multiuser program is complete when:
 
 ## Current verification boundary
 
-This document records the approved conversational design and its October 3 lifecycle alignment.
+Initial planning history: this document records the approved conversational design, its October 3 lifecycle alignment,
+and the user's October 5 decision to put reads/discovery in `bind_project` without a separate tool.
 The revision used current repository source, tests, and maintained documentation; it adds no
 implementation or fresh runtime acceptance. Original repository and external-source review,
 installed-assembly reflection, serial build, and current-main GitHub CI verification were read-only
@@ -763,6 +807,15 @@ or offline activities. They do not prove live Multiuser behavior.
 
 No production code, Project Server connection, local session, server project, TIA Portal project,
 PLC, or remote resource was changed while preparing this design. No live acceptance is claimed.
-The written specification is approved. The next gate is review of the detailed PR 1 implementation
-plan and selection of its execution method. Implementation remains unauthorized until that gate is
-complete.
+PR 1 and PR 2 were merged in the inspected `main`. The revised
+[PR 3 binding/discovery implementation plan](../plans/2026-10-05-multiuser-pr3-read-only-inventory.md)
+was subsequently accepted and implemented/offline-qualified. Final review and scoped fix re-review
+are Approved. The user subsequently authorized live verification and any actions against three
+disposable local sessions under `C:\Users\LCZ\Documents\Automation\Sessions`. The
+[October 6 installed-tool report](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+records Task 5 evidence plus a separately authorized disposable standalone `.ap21` phase:
+the exact zero-project/standalone prerequisite comparison is complete. The maintainer accepted
+all PR 3 live testing as finished and passed on October 6, with unexecuted cases preserved as
+non-blocking evidence limitations. Authorized save/close/reopen and one worker-loss injection
+were performed; no installed configuration change or remote write was performed. Successor mutation surfaces remain separately
+planned; this PR 3 routing decision adds no mutation action to `bind_project`.

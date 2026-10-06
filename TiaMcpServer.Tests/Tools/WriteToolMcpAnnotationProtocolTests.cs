@@ -37,7 +37,7 @@ public class WriteToolMcpAnnotationProtocolTests
 
     private static readonly (string Name, bool ReadOnly, bool Destructive, bool? Idempotent, bool OpenWorld)[] ExpectedWriteToolAnnotations =
     {
-        ("bind_project", false, false, true, false),
+        ("bind_project", false, false, true, true),
         ("open_project", false, true, null, false),
         ("create_project", false, true, null, false),
         ("save_project", false, true, null, false),

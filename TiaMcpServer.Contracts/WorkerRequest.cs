@@ -49,6 +49,25 @@ public class WorkerRequest
 
     #endregion
 
+    #region Multiuser inventory — Portal inspection without project selection
+
+    /// <summary>Optional exact Portal assertion for all five Multiuser inventory operations.</summary>
+    public int? PortalProcessId { get; set; }
+
+    /// <summary>Forwarded by: list_server_groups, list_server_projects, list_local_sessions, get_lock_state.</summary>
+    public string? MultiuserServerAlias { get; set; }
+
+    /// <summary>Forwarded by: list_server_projects, list_local_sessions, get_lock_state. Null means no group supplied.</summary>
+    public bool? MultiuserGroupIsRoot { get; set; }
+
+    /// <summary>Forwarded by: list_server_projects, list_local_sessions, get_lock_state. Root requires null.</summary>
+    public string? MultiuserGroupName { get; set; }
+
+    /// <summary>Forwarded by: list_local_sessions, get_lock_state.</summary>
+    public string? MultiuserServerProjectName { get; set; }
+
+    #endregion
+
     #region Block operations
 
     /// <summary>

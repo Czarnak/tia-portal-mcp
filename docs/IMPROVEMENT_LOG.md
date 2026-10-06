@@ -26,13 +26,19 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: public Multiuser operations
+## Open: Multiuser successor operations
 
 PR 2 implements the internal active project context and typed lifecycle owners on the merged
 PR 1 foundation. Its frozen standalone candidate is offline qualified and live accepted within
 the bounds in the [acceptance report](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md).
+PR 3 implements six explicit discovery/inventory actions through `bind_project` without a new
+tool or binding mutation. Its combined offline qualification is recorded in the
+[PR 3 report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md).
+PR 3 live acceptance was subsequently finished and passed by maintainer decision on 2026-10-06;
+the [live report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+preserves executed observations and non-blocking unexecuted cases. Successor Multiuser operations remain open.
 The [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) distinguishes
-this preparation from Issue #65 completion. Public `.als21` selection/open and local-session
+this partial delivery from Issue #65 completion. Public `.als21` selection/open and local-session
 lifecycle operations remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
@@ -968,6 +974,23 @@ form acceptance was scripted. Independent review found no Important/Critical beh
 No production change or expensive suite replay followed these documentation-only results.
 Public Multiuser operations and Issue #65 remain open.
 
+## Multiuser PR 3 discovery and inventory — offline qualified and live accepted (2026-10-06)
+
+`bind_project` retains default/null binding and adds six explicit inspection actions without
+changing 6/16/16 discovery. Exact raw-key selectors, persistent Portal-only attachment, local
+foreign-PID refusal, genuine identity-loss invalidation, canonical typed payloads and whole-value
+budgets are covered offline. Current-machine/current-user sessions and non-atomic lock observations
+remain bounded; ALS21/session/content/marking/mutation delivery and Issue #65 completion stay open.
+
+Frozen code `29468ba` passed 5,536/5,536 serial tests with coverage; unchanged 80% line gate passed
+at 93.83%. Installed V21 compile-only probe/solution and source-reference drift passed; existing
+Step7 `Tags.cs:112` CS0108 remains deferred. Local package `3.0.1-local.316.gfba3cc7` passed layout/leak
+checks and includes the maintained README. The [offline report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md)
+records exact commands, scoped/changed coverage, hashes and limits. Documentation review and
+scoped session-ID clarification re-review passed; final whole-branch review is separate.
+Task 5 live acceptance was subsequently finished and passed by maintainer decision on 2026-10-06.
+The [live report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+records 73 installed calls and retains unexecuted cases as non-blocking evidence limitations.
 ## network_write live defects — fixed and live accepted (2026-10-05)
 
 Branch `fix/network-write-live-defects` (`d23b2d6..3642062`) fixed the defects a live

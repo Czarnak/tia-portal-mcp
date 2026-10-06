@@ -35,6 +35,9 @@ public sealed record WorkerCallResult(
     /// <summary>Complete worker/Portal/project identity observed for this response.</summary>
     public WorkerSessionIdentity? SessionIdentity { get; init; }
 
+    /// <summary>Actual Portal attachment reported by the worker, including without a selected project.</summary>
+    public int? PortalProcessId { get; init; }
+
     /// <summary>Typed update_block_logic evidence; absent for unrelated calls.</summary>
     public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
 

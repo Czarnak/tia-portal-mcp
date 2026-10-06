@@ -46,4 +46,7 @@ public class WorkerResponse
     /// <see cref="ResolvedProjectPath"/> or caller input for guarded writes.
     /// </summary>
     public WorkerSessionIdentity? SessionIdentity { get; set; }
+
+    /// <summary>Observed Portal attachment for inventory, independent of project adoption or binding.</summary>
+    public int? PortalProcessId { get; set; }
 }

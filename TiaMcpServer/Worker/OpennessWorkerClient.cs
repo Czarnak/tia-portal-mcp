@@ -78,6 +78,66 @@ public class OpennessWorkerClient : IDisposable
     /// <summary>Current immutable host binding snapshot, used by the guarded write pipeline.</summary>
     public ProjectBindingSnapshot BindingSnapshot => _projectSessionBinding.CaptureSnapshot();
 
+    /// <summary>Inspects the persistent Portal attachment without selecting or promoting a project.</summary>
+    public Task<ProjectInspectionOutcome> InspectPortalAsync(WorkerRequest request, CancellationToken cancellationToken = default)
+        => ExecuteSerializedBindingOperationAsync(async () =>
+        {
+            var before = BindingSnapshot;
+            IReadOnlyList<TiaPortalProcessInfo> portals = Array.Empty<TiaPortalProcessInfo>();
+            ProjectInspectionOutcome Complete(WorkerCallResult result) => new(before, BindingSnapshot, result, portals);
+            if (request.Method != "list_tia_portal_processes" && !Tools.ProjectBindingInspectionCatalog.IsInventory(request.Method))
+                return Complete(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "The requested operation is not a Portal inspection.")
+                    with { DispatchState = WorkerDispatchState.NotSent });
+            if (before.IsVerified && request.PortalProcessId is { } pid && pid != before.PortalProcessId)
+                return Complete(WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                    "Inventory is limited to the currently bound Portal. Use bind_project to select another open project.")
+                    with { DispatchState = WorkerDispatchState.NotSent });
+
+            var discovery = request.Method == "list_tia_portal_processes";
+            // Copy only inspection selectors; configured/last-bound paths are not attachment authority.
+            var sent = new WorkerRequest
+            {
+                Method = request.Method,
+                PortalProcessId = discovery ? null : before.IsVerified ? before.PortalProcessId : request.PortalProcessId,
+                ExpectedSessionIdentity = !discovery && before.IsVerified ? before.ToWorkerIdentity() : null,
+                MultiuserServerAlias = request.MultiuserServerAlias,
+                MultiuserGroupIsRoot = request.MultiuserGroupIsRoot,
+                MultiuserGroupName = request.MultiuserGroupName,
+                MultiuserServerProjectName = request.MultiuserServerProjectName
+            };
+            var result = await InvokeWorkerAsync(sent).ConfigureAwait(false);
+            if (!discovery && before.IsVerified && result.Success)
+                result = ValidateOrPromoteSessionIdentity(result, before);
+            if (!discovery && result.Success && (result.PortalProcessId is null or <= 0
+                || (sent.PortalProcessId is not null && result.PortalProcessId != sent.PortalProcessId)))
+                result = WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                    "The worker did not report the asserted Portal attachment.", result.Warnings)
+                    with { DispatchState = result.DispatchState, IsPostOperationFailure = true };
+
+            if (discovery && result.Success || !result.Success && result.FailureCategory is
+                WorkerFailureCategories.TargetNotFound or WorkerFailureCategories.TargetAmbiguous)
+            {
+                var listing = discovery ? result : await InvokeWorkerAsync(new WorkerRequest { Method = "list_tia_portal_processes" }).ConfigureAwait(false);
+                if (listing.Success)
+                {
+                    if (before.IsVerified)
+                    {
+                        var validated = ValidateOrPromoteSessionIdentity(listing, before);
+                        if (!validated.Success) result = validated;
+                    }
+                    try { portals = ProjectBindingPayloadContract.DecodeProcessList(listing.Payload).Processes; }
+                    catch (JsonException)
+                    {
+                        result = WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                            "The worker Portal listing did not match its declared contract.", result.Warnings)
+                            with { DispatchState = listing.DispatchState, IsPostOperationFailure = true };
+                    }
+                }
+                else result = listing;
+            }
+            return Complete(result);
+        }, cancellationToken);
+
     /// <summary>Selects an already-open project under the serialized session binding gate.</summary>
     public Task<ProjectBindingOutcome> BindOpenProjectAsync(
         string? projectPath, bool forceRebind, CancellationToken cancellationToken = default)
@@ -2102,6 +2162,7 @@ public class OpennessWorkerClient : IDisposable
                 {
                     ResolvedProjectPath = response.ResolvedProjectPath,
                     SessionIdentity = response.SessionIdentity,
+                    PortalProcessId = response.PortalProcessId,
                     BlockImportOutcome = response.BlockImportOutcome,
                     DispatchState = WorkerDispatchState.Sent
                 };
@@ -2117,6 +2178,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 ResolvedProjectPath = response.ResolvedProjectPath,
                 SessionIdentity = response.SessionIdentity,
+                PortalProcessId = response.PortalProcessId,
                 BlockImportOutcome = response.BlockImportOutcome,
                 DispatchState = WorkerDispatchState.Sent
             };
@@ -2274,3 +2336,6 @@ public class OpennessWorkerClient : IDisposable
         => OpennessWorkerLocator.LocateOrThrow(AppContext.BaseDirectory, FileSystemService.Instance);
 
 }
+
+public sealed record ProjectInspectionOutcome(ProjectBindingSnapshot Before, ProjectBindingSnapshot After,
+    WorkerCallResult Result, IReadOnlyList<TiaPortalProcessInfo> Portals);

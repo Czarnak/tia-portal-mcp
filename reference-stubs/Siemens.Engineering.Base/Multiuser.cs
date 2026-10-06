@@ -1,4 +1,4 @@
-// Locked PR1 compile-only Multiuser foundation; no later operation surface.
+// Compile-only Multiuser foundation and verified PR3 inventory surface.
 #nullable disable // V21 net48 signatures have no nullable annotations.
 namespace Siemens.Engineering
 {
@@ -35,6 +35,38 @@ namespace Siemens.Engineering.Multiuser
 
     public abstract class MultiuserProject : ProjectBase { }
     public abstract class MarkingService { }
-    public abstract class ProjectServer { }
-    public abstract class ProjectServerComposition { }
+    public abstract class ProjectServer
+    {
+        public string ServerName => throw new global::System.NotSupportedException();
+        public string Host => throw new global::System.NotSupportedException();
+        public int Port => throw new global::System.NotSupportedException();
+        public global::System.Collections.Generic.IList<ProjectServerGroup> GetProjectServerGroups() => throw new global::System.NotSupportedException();
+        public global::System.Collections.Generic.IList<ServerProjectInfo> GetServerProjects() => throw new global::System.NotSupportedException();
+        public global::System.Collections.Generic.IList<LocalSessionInfo> GetLocalSessions(ServerProjectInfo project) => throw new global::System.NotSupportedException();
+        public LockStateProvider GetLockStateProvider(ServerProjectInfo project) => throw new global::System.NotSupportedException();
+    }
+
+    public abstract class ProjectServerComposition : global::System.Collections.Generic.IEnumerable<ProjectServer>
+    {
+        public global::System.Collections.Generic.IEnumerator<ProjectServer> GetEnumerator() => throw new global::System.NotSupportedException();
+        global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    public abstract class ProjectServerGroup
+    {
+        public string Name => throw new global::System.NotSupportedException();
+        public global::System.Collections.Generic.IList<ServerProjectInfo> GetServerProjects() => throw new global::System.NotSupportedException();
+    }
+
+    public abstract class ServerProjectInfo
+    {
+        public string ProjectName => throw new global::System.NotSupportedException();
+        public string ServerAlias => throw new global::System.NotSupportedException();
+    }
+
+    public abstract class LockStateProvider
+    {
+        public bool IsProjectLocked() => throw new global::System.NotSupportedException();
+        public string GetLockOwner() => throw new global::System.NotSupportedException();
+    }
 }
