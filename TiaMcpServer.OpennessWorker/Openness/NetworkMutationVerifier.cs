@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -14,7 +13,7 @@ internal static class NetworkMutationVerifier
     {
         var evidence = new NetworkMutationVerificationInfo
         {
-            Identity = new Dictionary<string, string> { ["deviceName"] = result.DeviceName, ["deviceItemName"] = result.RootItemName },
+            Identity = new NetworkMutationIdentityInfo { DeviceName = result.DeviceName, DeviceItemName = result.RootItemName },
         };
         Device? device = null;
         DeviceItem? item = null;
@@ -22,10 +21,9 @@ internal static class NetworkMutationVerifier
         Observe(evidence, "deviceItemName", request.DeviceItemName ?? request.DeviceName, () =>
         {
             if (device is null) throw new InvalidOperationException("Device identity was not verified.");
-            var matches = EnumerateItems(device.DeviceItems).Where(candidate => Required(candidate.Name) == result.RootItemName).ToList();
-            if (matches.Count != 1) throw new InvalidOperationException("Created item did not resolve uniquely.");
-            item = matches[0];
-            return item.Name;
+            item = NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>(), candidate => candidate.Name, result.RootItemName)
+                ?? throw new InvalidOperationException("Created item did not resolve uniquely.");
+            return Required(item.Name);
         });
         Observe(evidence, "typeIdentifier", request.TypeIdentifier, () =>
         {
@@ -38,12 +36,13 @@ internal static class NetworkMutationVerifier
     public static NetworkMutationVerificationInfo VerifyConfiguration(Project project, WorkerRequest request, ConfigureNetworkDeviceResultInfo result)
     {
         var selector = NetworkConfigurationTargetBinding.Resolve(request);
-        var identity = new Dictionary<string, string> { ["deviceName"] = result.DeviceName, ["nodeId"] = selector.NodeId! };
-        if (selector.InterfacePath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.InterfacePath);
-        else if (selector.ItemPath is not null) identity["interfacePath"] = NetworkInterfacePathEncoding.Encode(selector.ItemPath.Select(x =>
-            new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToArray());
-        if (selector.InterfaceName is not null) identity["interfaceName"] = selector.InterfaceName;
-        var evidence = new NetworkMutationVerificationInfo { Identity = identity };
+        var path = selector.InterfacePath?.Select(x =>
+                new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList()
+            ?? selector.ItemPath?.Select(x =>
+                new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList();
+        if (path is not null) _ = NetworkInterfacePathEncoding.Encode(path); // Validates the owner path.
+        var evidence = new NetworkMutationVerificationInfo { Identity = new NetworkMutationIdentityInfo
+            { DeviceName = result.DeviceName, NodeId = selector.NodeId!, InterfacePath = path, InterfaceName = selector.InterfaceName } };
         // Resolve only when a setting was applied. A fully skipped request has no successful
         // setting to verify; the host still classifies the skipped request as a failure.
         (NetworkInterface Interface, Node Node)? target = null;
@@ -59,20 +58,26 @@ internal static class NetworkMutationVerifier
         }
         foreach (var setting in result.AppliedSettings)
         {
-            var expected = setting.Key == "IoSystem"
-                ? IoTuple(request.IoSystemSubnetId ?? request.SubnetId, request.IoSystemNumber) : setting.Value;
-            Observe(evidence, setting.Key, expected, () =>
+            if (setting.Key == "IoSystem")
+            {
+                // One applied IO relationship is verified as two scalar checks: its subnet and number.
+                Observe(evidence, "IoSystemSubnet", request.IoSystemSubnetId ?? request.SubnetId, () => ReadIoSystem(target).SubnetId);
+                Observe(evidence, "IoSystemNumber", request.IoSystemNumber is { } number ? Number(number) : null,
+                    () => ReadIoSystem(target).Number is { } observed ? Number(observed) : null);
+                continue;
+            }
+            Observe(evidence, setting.Key, setting.Value, () =>
             {
                 if (target is null) throw new InvalidOperationException("Target could not be resolved uniquely.");
                 switch (setting.Key)
                 {
                     case "Address": case "SubnetMask": case "PnDeviceName":
                         return Required(((IEngineeringObject)target.Value.Node).GetAttribute(setting.Key) as string);
+                    case "PnDeviceNameAutoGeneration":
+                        return ((IEngineeringObject)target.Value.Node).GetAttribute(setting.Key) is bool generated
+                            ? Boolean(generated) : throw new InvalidOperationException("Missing attribute.");
                     case "Subnet":
                         return target.Value.Node.ConnectedSubnet is { } subnet ? HardwareConfigReader.RequireSubnetIdentity(subnet) : null;
-                    case "IoSystem":
-                        var tuple = HardwareConfigReader.ReadIoSystemIdentity(target.Value.Interface);
-                        return IoTuple(tuple.SubnetId, tuple.Number);
                     default: throw new InvalidOperationException("Unknown applied setting.");
                 }
             });
@@ -83,7 +88,7 @@ internal static class NetworkMutationVerifier
     public static NetworkMutationVerificationInfo VerifySubnet(Project project, WorkerRequest request,
         SubnetLifecycleResultInfo result, int rootCountBefore, IReadOnlyList<NetworkNodeIdentityInfo> affectedNodes)
     {
-        var evidence = new NetworkMutationVerificationInfo { Identity = new Dictionary<string, string> { ["subnetId"] = result.SubnetId } };
+        var evidence = new NetworkMutationVerificationInfo { Identity = new NetworkMutationIdentityInfo { SubnetId = result.SubnetId } };
         Subnet? subnet = null;
         var deleting = request.Method == "delete_subnet";
         Observe(evidence, deleting ? "subnetAbsent" : "subnetIdentity", deleting ? "true" : result.SubnetId, () =>
@@ -172,18 +177,14 @@ internal static class NetworkMutationVerifier
         return (resolved.Resolved!.OwningInterface!, (Node)resolved.Resolved.Value);
     }
 
-    private static IEnumerable<DeviceItem> EnumerateItems(DeviceItemComposition items)
-    {
-        foreach (DeviceItem item in items)
-        {
-            yield return item;
-            foreach (var child in EnumerateItems(item.DeviceItems)) yield return child;
-        }
-    }
-
     private static string Required(string? value) => !string.IsNullOrWhiteSpace(value) ? value! : throw new InvalidOperationException("Required value was unreadable.");
     private static Subnet RequireSubnet(Subnet? subnet) => subnet ?? throw new InvalidOperationException("Subnet identity was not verified.");
     private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
     private static string Boolean(bool value) => value ? "true" : "false";
-    private static string IoTuple(string? subnetId, int? number) => JsonSerializer.Serialize(new object?[] { subnetId, number });
+    private static (string? SubnetId, int? Number) ReadIoSystem((NetworkInterface Interface, Node Node)? target)
+    {
+        if (target is null) throw new InvalidOperationException("Target could not be resolved uniquely.");
+        var identity = HardwareConfigReader.ReadIoSystemIdentity(target.Value.Interface);
+        return (identity.SubnetId, identity.Number);
+    }
 }

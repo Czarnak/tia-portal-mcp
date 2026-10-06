@@ -221,12 +221,12 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             }, $true))
             foreach ($function in $definition) { Invoke-Expression $function.Extent.Text }
             $operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; target = @{ deviceName = 'PC'; nodeId = 'node' }; changes = @{ ipAddress = '192.0.2.1'; pnDeviceName = 'requested' } }, @{ operationId = 'later' })
-            $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node'; interfacePath = '[{"name":"X1","positionNumber":1}]' }; message = $null; checks = @(@{ name = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }) }
+            $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; message = $null; checks = @(@{ name = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }) }
             $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $false; omission = $null
                 batch = @{ operations = @(
                     @{ operationId = 'first'; operation = 'configure_network_device'; status = 'failed'; omission = $null; result = @{ deviceName = 'PC'; verification = $evidence; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } } },
                     @{ operationId = 'later'; status = 'skipped'; skipReason = 'earlierOperationFailed'; omission = $null }) }
-                verification = @{ success = $true; omission = $null; finalChecks = @(@{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null }, @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }); operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; status = 'passed'; evidence = $evidence; omission = $null }) }
+                verification = @{ success = $true; omission = $null; finalChecks = @(@{ kind = 'node'; operationId = $null; subject = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; field = 'exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null }, @{ kind = 'node'; operationId = $null; subject = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; field = 'Address'; status = 'passed'; expected = '192.0.2.1'; observed = '192.0.2.1'; message = $null }); operations = @(@{ operationId = 'first'; operation = 'configure_network_device'; status = 'passed'; evidence = $evidence; omission = $null }) }
             } | ConvertTo-Json -Depth 20 | ConvertFrom-Json -Depth 20
             $expected = @(@{ operationId = 'first'; appliedSettings = @{ Address = '192.0.2.1' }; skippedSettings = @{ PnDeviceName = 'unavailable' } })
             Assert-Outcome $response @('failed', 'skipped') $false $true $expected
@@ -270,6 +270,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
     [InlineData("wrong-check-type")]
     [InlineData("valid-io-tuple")]
     [InlineData("wrong-io-subnet")]
+    [InlineData("wrong-io-legacy-tuple")]
     [InlineData("wrong-identity-type")]
     [InlineData("wrong-field-casing")]
     [InlineData("valid-device-casing")]
@@ -292,7 +293,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $items = @(); $verificationItems = @(); $expected = @()
             foreach ($operation in $operations) {
                 $settings = @{ Address = $operation.changes.ipAddress }
-                $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; nodeId = 'node'; interfacePath = '[{"name":"X1","positionNumber":1}]' }; message = $null
+                $evidence = @{ status = 'passed'; identity = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; message = $null
                     checks = @(@{ name = 'Address'; status = 'passed'; expected = $settings.Address; observed = $settings.Address; message = $null }) }
                 $items += @{ operationId = $operation.operationId; operation = $operation.operation; status = 'succeeded'; omission = $null
                     result = @{ deviceName = 'PC'; appliedSettings = $settings; skippedSettings = @{}; verification = $evidence } }
@@ -302,8 +303,8 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
             $response = @{ contractVersion = '1.0'; phase = 'applied'; error = $null; success = $true; omission = $null
                 batch = @{ operations = $items }
                 verification = @{ success = $true; omission = $null; operations = $verificationItems; finalChecks = @(
-                    @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
-                    @{ name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
+                    @{ kind = 'node'; operationId = $null; subject = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; field = 'exists'; status = 'passed'; expected = 'true'; observed = 'true'; message = $null },
+                    @{ kind = 'node'; operationId = $null; subject = @{ deviceName = 'PC'; deviceItemName = $null; nodeId = 'node'; interfacePath = @(@{ name = 'X1'; positionNumber = 1 }); interfaceName = $null; subnetId = $null }; field = 'Address'; status = 'passed'; expected = '192.0.2.2'; observed = '192.0.2.2'; message = $null }) } }
             $response = $response | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
             $scenario = '__SCENARIO__'
             $hardware=$null
@@ -317,27 +318,34 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 }
                 foreach($operation in $operations){$operation.target.itemPath=@(@{index=0;name='X1';positionNumber=1;typeIdentifier='Type'});$operation.target.nodeIndex=0}
                 $owner=if($scenario -eq 'wrong-legacy-owner'){'[{"name":"X2","positionNumber":2,"typeIdentifier":"Type"}]'}else{'[{"name":"X1","positionNumber":1,"typeIdentifier":"Type"}]'}
-                foreach($item in $response.verification.operations){$item.evidence.identity.interfacePath=$owner}
+                foreach($item in $response.verification.operations){$item.evidence.identity.interfacePath=(ConvertFrom-Json -InputObject $owner -NoEnumerate)}
                 for($i=0;$i -lt 2;$i++){$response.batch.operations[$i].result.verification=$response.verification.operations[$i].evidence}
-                $response.verification.finalChecks[0].name="node/PC/$owner/node/exists"
-                $response.verification.finalChecks[1].name="node/PC/$owner/node/Address"
+                foreach($check in $response.verification.finalChecks){$check.subject.interfacePath=(ConvertFrom-Json -InputObject $owner -NoEnumerate)}
                 $hardware=$hardware | ConvertTo-Json -Depth 40 | ConvertFrom-Json
             }            switch ($scenario) {
-                { $_ -in @('valid-io-tuple','wrong-io-subnet') } {
+                { $_ -in @('valid-io-tuple','wrong-io-subnet','wrong-io-legacy-tuple') } {
                     $operations = @($operations[0]); $operations[0].changes = @{ ioSystem = @{ subnetId = 'exact-subnet'; number = 1 } }
                     $response.batch.operations = @($response.batch.operations[0]); $response.verification.operations = @($response.verification.operations[0])
                     $response.batch.operations[0].result.appliedSettings = [pscustomobject]@{ IoSystem = '1' }
-                    $response.verification.operations[0].evidence.checks = @([pscustomobject]@{ name = 'IoSystem'; status = 'passed'; expected = '["exact-subnet",1]'; observed = '["exact-subnet",1]'; message = $null })
-                    $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
-                    $response.verification.finalChecks[1].name = 'node/PC/[{"name":"X1","positionNumber":1}]/node/IoSystem'; $response.verification.finalChecks[1].expected = '["exact-subnet",1]'; $response.verification.finalChecks[1].observed = '["exact-subnet",1]'
+                    $response.verification.operations[0].evidence.checks = @(
+                        [pscustomobject]@{ name = 'IoSystemSubnet'; status = 'passed'; expected = 'exact-subnet'; observed = 'exact-subnet'; message = $null },
+                        [pscustomobject]@{ name = 'IoSystemNumber'; status = 'passed'; expected = '1'; observed = '1'; message = $null })
+                    $number = $response.verification.finalChecks[1] | ConvertTo-Json -Depth 30 | ConvertFrom-Json -Depth 30
+                    $response.verification.finalChecks[1].field = 'IoSystemSubnet'; $response.verification.finalChecks[1].expected = 'exact-subnet'; $response.verification.finalChecks[1].observed = 'exact-subnet'
+                    $number.field = 'IoSystemNumber'; $number.expected = '1'; $number.observed = '1'
+                    $response.verification.finalChecks = @($response.verification.finalChecks) + @($number)
                     $expected = @(@{ operationId = 'first'; appliedSettings = @{ IoSystem = '1' }; skippedSettings = @{} })
-                    if ($scenario -eq 'wrong-io-subnet') { $response.verification.operations[0].evidence.checks[0].expected = '["other",1]'; $response.verification.operations[0].evidence.checks[0].observed = '["other",1]' }
+                    if ($scenario -eq 'wrong-io-subnet') { $response.verification.operations[0].evidence.checks[0].expected = 'other'; $response.verification.operations[0].evidence.checks[0].observed = 'other' }
+                    if ($scenario -eq 'wrong-io-legacy-tuple') {
+                        $response.verification.operations[0].evidence.checks = @([pscustomobject]@{ name = 'IoSystem'; status = 'passed'; expected = '["exact-subnet",1]'; observed = '["exact-subnet",1]'; message = $null })
+                    }
+                    $response.batch.operations[0].result.verification = $response.verification.operations[0].evidence
                 }
                 'valid-qualified-two-E1' {
                     for ($i=0;$i -lt 2;$i++) {
                         $path=@(@{name='CPU';positionNumber=1},@{name="X$($i+1)";positionNumber=(32768+256*$i)})
                         $operations[$i].target.nodeId='E1'; $operations[$i].target.interfacePath=$path; $operations[$i].target.interfaceName="X$($i+1)"
-                        $response.verification.operations[$i].evidence.identity=[pscustomobject]@{deviceName='PC';nodeId='E1';interfacePath=($path | ConvertTo-Json -Depth 10 -Compress);interfaceName="X$($i+1)"}
+                        $response.verification.operations[$i].evidence.identity=[pscustomobject]@{deviceName='PC';deviceItemName=$null;nodeId='E1';interfacePath=$path;interfaceName="X$($i+1)";subnetId=$null}
                         $response.batch.operations[$i].result.verification=$response.verification.operations[$i].evidence
                     }
                     $response.verification.finalChecks=@()
@@ -345,7 +353,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                         $identity=$response.verification.operations[$i].evidence.identity
                         foreach($field in @('exists','Address')) {
                             $value=if($field -eq 'exists'){'true'}else{$operations[$i].changes.ipAddress}
-                            $response.verification.finalChecks+=[pscustomobject]@{name=(Get-NetworkNodeCheckName $identity $field);status='passed';expected=$value;observed=$value;message=$null}
+                            $response.verification.finalChecks+=[pscustomobject]@{kind='node';operationId=$null;subject=$identity;field=$field;status='passed';expected=$value;observed=$value;message=$null}
                         }
                     }
                 }
@@ -371,7 +379,7 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
                 'empty-final' { $response.verification.finalChecks = @() }
                 'missing-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0]) }
                 'duplicate-final' { $response.verification.finalChecks = @($response.verification.finalChecks[0], $response.verification.finalChecks[0]) }
-                'wrong-final-name' { $response.verification.finalChecks[1].name = 'node/PC/[{"name":"X1","positionNumber":1}]/other/Address' }
+                'wrong-final-name' { $response.verification.finalChecks[1].subject.nodeId = 'other' }
                 'wrong-final-expected' { $response.verification.finalChecks[1].expected = '192.0.2.1' }
                 'unreadable-final' { $response.verification.finalChecks[1].observed = $null }
                 'contradictory-final-status' { $response.verification.finalChecks[1].observed = 'wrong' }

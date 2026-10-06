@@ -10,6 +10,10 @@ public class DeviceItemInfo
 
     public int? PositionNumber { get; set; }
 
+    /// <summary>
+    /// Legacy member, always null: a TIA device item exposes no 'Address' attribute. I/O
+    /// addresses are reported under <see cref="IoDetails"/> (<c>ioDetails.addresses</c>).
+    /// </summary>
     public string? Address { get; set; }
 
     /// <summary>
@@ -17,7 +21,7 @@ public class DeviceItemInfo
     /// device item. Only present when the read requested <c>includeIoDetails</c>; a default read
     /// leaves it null and the <see cref="JsonIgnoreCondition.WhenWritingNull"/> decoration keeps
     /// the default response byte-identical to earlier versions. <see cref="Address"/> is a
-    /// separate, untouched legacy string.
+    /// separate legacy member that is always null.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DeviceItemIoDetailsInfo? IoDetails { get; set; }

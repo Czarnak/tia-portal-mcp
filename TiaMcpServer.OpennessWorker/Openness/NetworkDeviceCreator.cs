@@ -52,9 +52,7 @@ public static class NetworkDeviceCreator
     {
         try
         {
-            var matches = device.DeviceItems.Cast<DeviceItem>()
-                .Where(item => string.Equals(item.Name, itemName, StringComparison.Ordinal)).ToList();
-            return matches.Count == 1 ? matches[0] : null;
+            return NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>(), item => item.Name, itemName);
         }
         catch (EngineeringException ex)
         {

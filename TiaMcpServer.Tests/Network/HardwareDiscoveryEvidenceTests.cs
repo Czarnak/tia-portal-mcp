@@ -180,7 +180,7 @@ public sealed class HardwareDiscoveryEvidenceTests
         Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
         Assert.Equal("failed", response.Batch.Operations[1].Status);
         Assert.Equal("earlierOperationFailed", response.Batch.Operations[2].SkipReason);
-        Assert.Contains(response.Verification!.FinalChecks, check => check.Name == "finalHardwareState" && check.Status == "unverified");
+        Assert.Contains(response.Verification!.FinalChecks, check => check.Kind == "write" && check.OperationId is null && check.Subject is null && check.Field == "finalHardwareState" && check.Status == "unverified");
         Assert.Single(requests.Methods(), method => method == "configure_network_device");
         Assert.DoesNotContain("delete_subnet", requests.Methods());
     }

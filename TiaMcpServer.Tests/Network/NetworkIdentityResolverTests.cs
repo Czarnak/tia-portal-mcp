@@ -354,7 +354,7 @@ public class NetworkIdentityResolverTests
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_MissingDeviceName_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_MissingDeviceName_FailsTargetNotFound()
     {
         var state = MultiHomedPcFixture();
         var operation = ConfigureRequest("op1", "PC_404", "N-PLC");
@@ -362,12 +362,12 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, resolution.FailureCategory);
         Assert.Contains("no device named", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_DuplicateDeviceName_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_DuplicateDeviceName_FailsTargetAmbiguous()
     {
         var state = new HardwareConfigInfo
         {
@@ -382,12 +382,12 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, resolution.FailureCategory);
         Assert.Contains("multiple devices", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_MissingNodeId_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_MissingNodeId_FailsTargetNotFound()
     {
         var state = MultiHomedPcFixture();
         var operation = ConfigureRequest("op1", "PC_1", "N-404");
@@ -395,12 +395,12 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, resolution.FailureCategory);
         Assert.Contains("no node with nodeid", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_DuplicateNodeId_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_DuplicateNodeId_FailsTargetAmbiguous()
     {
         var state = new HardwareConfigInfo
         {
@@ -419,7 +419,7 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, resolution.FailureCategory);
         Assert.Contains("multiple nodes", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -443,18 +443,18 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, resolution.FailureCategory);
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_NoStateAvailable_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_NoStateAvailable_FailsWorkerOperationFailed()
     {
         var operation = ConfigureRequest("op1", "PC_1", "N-PLC");
 
         var resolution = NetworkIdentityResolver.Resolve(operation, state: null);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, resolution.FailureCategory);
     }
 
     // ---- Subnet resolution ---------------------------------------------------------------------
@@ -478,7 +478,7 @@ public class NetworkIdentityResolverTests
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_MissingSubnetId_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_MissingSubnetId_FailsTargetNotFound()
     {
         var state = MultiHomedPcFixture(new List<SubnetInfo> { Subnet("Subnet_A", "S-1") });
         var operation = ConfigureRequest(
@@ -487,12 +487,12 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, resolution.FailureCategory);
         Assert.Contains("no subnet with subnetid", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_DuplicateSubnetId_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_DuplicateSubnetId_FailsTargetAmbiguous()
     {
         var state = MultiHomedPcFixture(new List<SubnetInfo>
         {
@@ -505,7 +505,7 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, resolution.FailureCategory);
         Assert.Contains("multiple subnets", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -533,7 +533,7 @@ public class NetworkIdentityResolverTests
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_MissingIoSystemNumber_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_MissingIoSystemNumber_FailsTargetNotFound()
     {
         var state = MultiHomedPcFixture(new List<SubnetInfo>
         {
@@ -546,12 +546,12 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, resolution.FailureCategory);
         Assert.Contains("no io system with number", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_ConfigureNetworkDevice_DuplicateIoSystemNumber_FailsPostconditionFailed()
+    public void Resolve_ConfigureNetworkDevice_DuplicateIoSystemNumber_FailsTargetAmbiguous()
     {
         var state = MultiHomedPcFixture(new List<SubnetInfo>
         {
@@ -564,7 +564,7 @@ public class NetworkIdentityResolverTests
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
 
         Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, resolution.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, resolution.FailureCategory);
         Assert.Contains("multiple io systems", resolution.Error, StringComparison.OrdinalIgnoreCase);
     }
 

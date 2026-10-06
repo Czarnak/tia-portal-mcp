@@ -245,7 +245,7 @@ public static class NetworkObjectIndexReader
                 Array.Empty<string>(),
                 deviceName.Diagnostic,
                 nodeId.Diagnostic,
-                owner.Success && ReferenceEquals(owner.Item, item) ? string.Empty : owner.Error ?? "Interface owner is not unique.",
+                NetworkNodeReadSelectorBuilder.LiveOwnerDiagnostic(owner, item),
                 nodeMatch.Success ? string.Empty : nodeMatch.Error!,
                 nodeEnumerationComplete ? string.Empty : "Node discovery is incomplete; uniqueness is unknown.");
             var selector = diagnostics.Count == 0

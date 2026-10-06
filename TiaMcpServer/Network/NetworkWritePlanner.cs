@@ -50,11 +50,21 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         if (item.Operation == "configure_network_device")
         {
             var node = NetworkIdentityResolver.PreparedNode(state, target);
-            foreach (var key in requested.Keys) current[key] = Attribute(key, NodeValue(node, key),
-                key is "Subnet" or "IoSystem" ? node.ConnectionEvidence?.Complete == true : NodeValue(node, key) is not null);
+            // Connection keys are actions with no attribute behind them; the snapshot is their only evidence.
+            var inspectNames = requested.Keys.Where(key => !IsConnectionKey(key)).ToList();
+            if (requested.ContainsKey("PnDeviceName") && !requested.ContainsKey("PnDeviceNameAutoGeneration")) inspectNames.Add("PnDeviceNameAutoGeneration");
+            var inspected = inspectNames.Count == 0 ? new()
+                : await ReadAttributesAsync(client, projectPath, NodeTarget(target.DeviceName!, target.NodeId!, target.InterfacePath!), inspectNames).ConfigureAwait(false);
+            foreach (var key in requested.Keys) current[key] = inspected.GetValueOrDefault(key) ?? Attribute(key, NodeValue(node, key),
+                IsConnectionKey(key) ? node.ConnectionEvidence?.Complete == true : NodeValue(node, key) is not null);
+            if (PnDeviceNameNotSettable(requested, inspected))
+                return ItemReplan<NetworkWriteEffect>.Fail(WorkerFailureCategories.ValidationError,
+                    $"Operation '{item.OperationId}': node '{target.NodeId}' of device '{target.DeviceName}' generates its PROFINET device name "
+                    + "automatically or reports it as not writable, so changes.pnDeviceName cannot be set. Pass "
+                    + "changes.pnDeviceNameAutoGeneration:false together with changes.pnDeviceName to set the name explicitly. No change was made.");
             affected.Add(new() { DeviceName = target.DeviceName!, NodeId = target.NodeId!, InterfacePath = ClonePath(target.InterfacePath!),
                 InterfaceName = item.Target?.InterfaceName });
-            if (requested.ContainsKey("Subnet") || requested.ContainsKey("IoSystem")) complete = node.ConnectionEvidence?.Complete == true;
+            if (requested.Keys.Any(IsConnectionKey)) complete = node.ConnectionEvidence?.Complete == true;
         }
         else if (item.Operation is "update_subnet" or "delete_subnet")
         {
@@ -70,14 +80,10 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
                 }
                 complete &= affected.Distinct(NetworkNodeIdentityComparer.Instance).Count() == affected.Count;
             }
+            var attributes = requested.Count == 0 ? new()
+                : await ReadAttributesAsync(client, projectPath, new() { Kind = NetworkObjectKinds.Subnet, SubnetId = target.SubnetId }, requested.Keys.ToArray()).ConfigureAwait(false);
             foreach (var key in requested.Keys)
-                current[key] = Attribute(key, key == "Name" ? subnet.Name : null, key == "Name");
-            var inspectNames = requested.Keys.Where(key => key != "Name").ToArray();
-            if (inspectNames.Length > 0)
-            {
-                var attributes = await ReadAttributesAsync(client, projectPath, target.SubnetId!, inspectNames).ConfigureAwait(false);
-                foreach (var key in inspectNames) current[key] = attributes.GetValueOrDefault(key) ?? Attribute(key, null, false);
-            }
+                current[key] = attributes.GetValueOrDefault(key) ?? Attribute(key, key == "Name" ? subnet.Name : null, key == "Name");
         }
         if (item.Operation is "create_subnet" or "update_subnet" or "delete_subnet")
             complete &= state.RootDeviceCount.HasValue;
@@ -124,13 +130,16 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
     {
         "Address" => node.IpAddress, "SubnetMask" => node.SubnetMask, "PnDeviceName" => node.PnDeviceName,
         "Subnet" => node.ConnectionEvidence?.SubnetId,
-        "IoSystem" => node.ConnectionEvidence?.IoSystemSubnetId is { } subnet
-            ? CanonicalJson.Serialize(new object?[] { subnet, node.ConnectionEvidence.IoSystemNumber }) : null,
+        "IoSystemSubnet" => node.ConnectionEvidence?.IoSystemSubnetId,
+        "IoSystemNumber" => node.ConnectionEvidence?.IoSystemNumber?.ToString(CultureInfo.InvariantCulture),
         _ => null
     };
+    // The requested IoSystem relationship is reported as two scalar keys: its subnet and number.
+    internal static bool IsConnectionKey(string key) => key is "Subnet" or "IoSystemSubnet" or "IoSystemNumber";
+    // Snapshot fallback when inspection is unavailable: the value is known, its access is not.
     internal static NetworkAttributeInfo Attribute(string name, string? value, bool readable) => new()
     {
-        Name = name, Source = "modeled", Access = "readOnly", Availability = readable ? "available" : "unreadable",
+        Name = name, Source = "modeled", Access = "unknown", Availability = readable ? "available" : "unreadable",
         Value = readable ? new() { Kind = value is null ? "null" : "string", Value = value } : null
     };
     internal static Dictionary<string, string> RequestedSettings(NetworkOperationRequest item)
@@ -141,9 +150,12 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         { Add("deviceName", item.DeviceName); Add("deviceItemName", item.DeviceItemName ?? item.DeviceName); Add("typeIdentifier", item.TypeIdentifier); }
         if (item.Changes is { } changes)
         {
-            Add("Address", changes.IpAddress); Add("SubnetMask", changes.SubnetMask); Add("PnDeviceName", changes.PnDeviceName);
+            Add("Address", changes.IpAddress); Add("SubnetMask", changes.SubnetMask);
+            Add("PnDeviceNameAutoGeneration", changes.PnDeviceNameAutoGeneration is { } generated ? generated ? "true" : "false" : null);
+            Add("PnDeviceName", changes.PnDeviceName);
             Add("Subnet", changes.Subnet?.SubnetId);
-            if (changes.IoSystem is { } io) Add("IoSystem", CanonicalJson.Serialize(new object?[] { io.SubnetId, io.Number }));
+            Add("IoSystemSubnet", changes.IoSystem?.SubnetId);
+            Add("IoSystemNumber", changes.IoSystem?.Number?.ToString(CultureInfo.InvariantCulture));
         }
         if (item.Subnet is { } subnet)
         { Add("Name", subnet.Name); Add("TypeIdentifier", "System:Subnet." + subnet.NetworkType); Add("HighestAddress", subnet.HighestAddress?.ToString(CultureInfo.InvariantCulture)); Add("TransmissionSpeed", subnet.TransmissionSpeed); }
@@ -152,15 +164,33 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         return result;
     }
 
-    internal static async Task<Dictionary<string, NetworkAttributeInfo>> ReadAttributesAsync(OpennessWorkerClient client, string? projectPath, string subnetId, IReadOnlyList<string> names)
+    // Fails before any mutation when PnDeviceName is requested without opting out of automatic
+    // generation and inspection shows the name is generated or not writable. When the flag cannot
+    // be read the request proceeds as before: live acceptance must confirm how V21 reports it.
+    private static bool PnDeviceNameNotSettable(IReadOnlyDictionary<string, string> requested, IReadOnlyDictionary<string, NetworkAttributeInfo> inspected)
+        => requested.ContainsKey("PnDeviceName") && requested.GetValueOrDefault("PnDeviceNameAutoGeneration") != "false"
+            && (inspected.GetValueOrDefault("PnDeviceNameAutoGeneration")?.Value?.Value is JsonElement { ValueKind: JsonValueKind.True }
+                || inspected.GetValueOrDefault("PnDeviceName")?.Access is "readOnly" or "none");
+
+    internal static NetworkObjectTarget NodeTarget(string deviceName, string nodeId, IEnumerable<NetworkInterfacePathSegmentInfo> path) => new()
+    {
+        Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId,
+        InterfacePath = path.Select(s => new NetworkInterfacePathSegment { Name = s.Name, PositionNumber = s.PositionNumber, TypeIdentifier = s.TypeIdentifier }).ToArray()
+    };
+
+    /// <summary>Inspects one exact node or subnet. Returns only uniquely named, available attributes;
+    /// a diagnostic about another attribute no longer discards the readable ones.</summary>
+    internal static async Task<Dictionary<string, NetworkAttributeInfo>> ReadAttributesAsync(OpennessWorkerClient client, string? projectPath, NetworkObjectTarget target, IReadOnlyList<string> names)
     {
         var request = new NetworkOperationRequest { OperationId = "verify", Operation = "inspect_network_object", ProjectPath = projectPath,
-            Target = new() { Kind = "subnet", SubnetId = subnetId }, AttributeNames = names };
+            Target = target, AttributeNames = names };
         var projected = NetworkPayloadContract.Project(request, await NetworkWorkerInvoker.InvokeReadAsync(client, request).ConfigureAwait(false));
         if (projected.Result is not { } result) return new();
         var inspection = CanonicalJson.Deserialize<NetworkObjectInspectionInfo>(result.GetRawText());
-        if (inspection.Target.SubnetId != subnetId || inspection.Messages.Count != 0) return new();
-        return inspection.Attributes.GroupBy(a => a.Name, StringComparer.Ordinal).Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single(), StringComparer.Ordinal);
+        if (inspection.Target.Kind != target.Kind || inspection.Target.SubnetId != target.SubnetId || inspection.Target.NodeId != target.NodeId
+            || !NamesEqual(inspection.Target.DeviceName, target.DeviceName)) return new();
+        return inspection.Attributes.GroupBy(a => a.Name, StringComparer.Ordinal).Where(g => g.Count() == 1 && g.Single().Availability == "available")
+            .ToDictionary(g => g.Key, g => g.Single(), StringComparer.Ordinal);
     }
 
     public static async Task<NetworkStateSnapshot> ReadCurrentStateAsync(OpennessWorkerClient client, string? projectPath)

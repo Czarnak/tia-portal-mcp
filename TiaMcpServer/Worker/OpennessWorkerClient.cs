@@ -861,10 +861,10 @@ public class OpennessWorkerClient : IDisposable
         int? ioSystemNumber,
         string? projectPath)
         => ConfigureNetworkDeviceAsync(new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
-            ipAddress, subnetMask, pnDeviceName, subnetId, ioSystemSubnetId, ioSystemNumber, projectPath);
+            ipAddress, subnetMask, pnDeviceName, null, subnetId, ioSystemSubnetId, ioSystemNumber, projectPath);
 
     public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(NetworkObjectSelectorInfo target,
-        string? ipAddress, string? subnetMask, string? pnDeviceName, string? subnetId,
+        string? ipAddress, string? subnetMask, string? pnDeviceName, bool? pnDeviceNameAutoGeneration, string? subnetId,
         string? ioSystemSubnetId, int? ioSystemNumber, string? projectPath)
     {
         // Freeze before asynchronous binding/IPC work can yield to the caller.
@@ -880,6 +880,7 @@ public class OpennessWorkerClient : IDisposable
                 request.IpAddress = ipAddress;
                 request.SubnetMask = subnetMask;
                 request.PnDeviceName = pnDeviceName;
+                request.PnDeviceNameAutoGeneration = pnDeviceNameAutoGeneration;
                 request.SubnetId = subnetId;
                 request.IoSystemSubnetId = ioSystemSubnetId;
                 request.IoSystemNumber = ioSystemNumber;

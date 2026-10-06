@@ -280,6 +280,25 @@ public class NetworkOperationCatalogTests
         Assert.True(result.IsValid, result.Error);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ValidateWrite_RejectsBlankDeviceItemNameOnAddNetworkDevice(string deviceItemName)
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Op("add", "add_network_device", operation =>
+            {
+                operation.TypeIdentifier = "OrderNumber:6ES7";
+                operation.DeviceName = "PLC_1";
+                operation.DeviceItemName = deviceItemName;
+            }),
+        });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'deviceItemName' must not be blank when supplied.", result.Error);
+    }
+
     [Fact]
     public void ValidateWrite_RejectsTargetAndChangesOnAddNetworkDevice()
     {
@@ -326,6 +345,17 @@ public class NetworkOperationCatalogTests
 
         Assert.False(result.IsValid);
         Assert.Contains("at least one change", result.Error);
+    }
+
+    [Fact]
+    public void ValidateWrite_AcceptsPnDeviceNameAutoGenerationAsAChange()
+    {
+        var result = NetworkOperationCatalog.ValidateWrite(new[]
+        {
+            Configure(adjust: operation => operation.Changes = new NetworkDeviceChanges { PnDeviceNameAutoGeneration = false }),
+        });
+
+        Assert.True(result.IsValid, result.Error);
     }
 
     [Fact]

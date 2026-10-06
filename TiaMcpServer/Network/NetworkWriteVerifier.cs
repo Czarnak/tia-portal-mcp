@@ -22,14 +22,18 @@ public sealed class NetworkWriteVerifier
         IReadOnlyDictionary<string, NetworkMutationVerificationInfo> immediate)
     {
         var operations = new List<NetworkOperationVerification>();
-        var checks = new List<NetworkVerificationCheckInfo>();
+        var checks = new List<NetworkFinalCheck>();
         var expected = new Dictionary<ExpectationKey, string?>(new ExpectationKeyComparer());
         // Equality identifies the node; optional constraints from any attempted observation
         // remain obligations even when a later write supersedes its scalar value.
         var constraints = new Dictionary<NetworkNodeIdentityInfo, List<NetworkNodeIdentityInfo>>(NetworkNodeIdentityComparer.Instance);
-        void ExpectNode(NetworkNodeIdentityInfo identity, string field, string? value)
+        // Preservation expectations whose pre-write value was unreadable can never pass.
+        var unknownPrior = new HashSet<ExpectationKey>(new ExpectationKeyComparer());
+        void ExpectNode(NetworkNodeIdentityInfo identity, string field, string? value, string? removedSubnet = null)
         {
-            expected[NodeKey(identity, field)] = value;
+            var nodeKey = NodeKey(identity, field) with { SubnetId = removedSubnet };
+            expected[nodeKey] = value;
+            unknownPrior.Remove(nodeKey);
             if (identity.InterfacePath is null || identity.InterfaceName is null && identity.InterfacePath.All(s => s.TypeIdentifier is null)) return;
             if (!constraints.TryGetValue(identity, out var observations))
                 constraints.Add(NetworkWritePlanner.CloneIdentity(identity), observations = new());
@@ -56,7 +60,7 @@ public sealed class NetworkWriteVerifier
             {
                 if (item.Operation == "add_network_device") rootUncertain = true;
                 operations.Add(new(item.OperationId, item.Operation, "unverified", null, null));
-                checks.Add(Check(item.OperationId + "/immediateEvidence", "available", null, false));
+                checks.Add(Evaluate(NetworkFinalCheck.Operation(item.OperationId, "immediateEvidence"), "available", null, false));
                 continue;
             }
             operations.Add(new(item.OperationId, item.Operation, evidence.Status, evidence, null));
@@ -67,42 +71,57 @@ public sealed class NetworkWriteVerifier
                     if (rootCount.HasValue) rootCount++;
                 }
                 else rootUncertain = true;
-                var name = evidence.Identity["deviceName"];
-                foreach (var check in evidence.Checks) expected[new("device", name, evidence.Identity["deviceItemName"], check.Name)] = check.Expected;
+                var name = evidence.Identity.DeviceName!;
+                foreach (var check in evidence.Checks) expected[new("device", name, evidence.Identity.DeviceItemName, check.Name)] = check.Expected;
             }
             else if (item.Operation == "configure_network_device")
             {
-                var name = evidence.Identity["deviceName"];
-                var node = evidence.Identity["nodeId"];
-                var identity = new NetworkNodeIdentityInfo { DeviceName = name, NodeId = node,
-                    InterfacePath = evidence.Identity.TryGetValue("interfacePath", out var encoded)
-                        ? NetworkWritePlanner.ClonePath(NetworkInterfacePathEncoding.Decode(encoded)) : null,
-                    InterfaceName = evidence.Identity.GetValueOrDefault("interfaceName") };
+                var identity = new NetworkNodeIdentityInfo { DeviceName = evidence.Identity.DeviceName!, NodeId = evidence.Identity.NodeId!,
+                    InterfacePath = evidence.Identity.InterfacePath is { } path ? NetworkWritePlanner.ClonePath(path) : null,
+                    InterfaceName = evidence.Identity.InterfaceName };
                 ExpectNode(identity, "exists", "true");
-                // Strict projection required exactly the applied keys. Skips are execution failures,
-                // but make no final setting claim and cannot erase an earlier applied expectation.
+                // Strict projection required exactly the applied keys. A skipped key must keep its
+                // pre-write value, unless an earlier applied expectation for it already exists.
                 foreach (var check in evidence.Checks) ExpectNode(identity, check.Name, check.Expected);
+                var skipped = item.Result is { ValueKind: JsonValueKind.Object } result
+                    && result.TryGetProperty("skippedSettings", out var map) && map.ValueKind == JsonValueKind.Object
+                    ? map.EnumerateObject().Select(p => p.Name) : Enumerable.Empty<string>();
+                foreach (var field in skipped.SelectMany(name => name == "IoSystem" ? new[] { "IoSystemSubnet", "IoSystemNumber" } : new[] { name }))
+                {
+                    if (expected.ContainsKey(NodeKey(identity, field))) continue;
+                    var prior = initial?.CurrentSettings.GetValueOrDefault(field);
+                    var known = prior is { Availability: "available", Value: not null };
+                    ExpectNode(identity, field, known ? prior!.Value!.Value switch
+                    {
+                        string text => text, JsonElement => AttributeText(prior), _ => null
+                    } : null);
+                    if (!known) unknownPrior.Add(NodeKey(identity, field));
+                }
             }
             else
             {
-                var subnet = evidence.Identity["subnetId"];
+                var subnet = evidence.Identity.SubnetId!;
                 if (effect?.RootDeviceCount is null) rootUncertain = true;
                 if (item.Operation == "delete_subnet")
                 {
                     foreach (var key in expected.Keys.Where(k => k.Kind == "subnet" && k.Identity == subnet).ToArray()) expected.Remove(key);
                     expected[new("subnet", subnet, null, "absent")] = "true";
                     if (effect?.ConnectionsComplete != true || initial is null)
-                        checks.Add(Check(item.OperationId + "/affectedInventory", "complete", null, false));
+                        checks.Add(Evaluate(NetworkFinalCheck.Operation(item.OperationId, "affectedInventory"), "complete", null, false));
                     else
                     {
                         foreach (var node in initial.AffectedNodes.Concat(effect.AffectedNodes).Distinct(NetworkNodeIdentityComparer.Instance))
                         {
-                            ExpectNode(node, "removedSubnet:" + subnet, "true");
+                            ExpectNode(node, "removedSubnet", "true", subnet);
                             // Replace only expectations referring to the removed relationship.
                             var subnetKey = NodeKey(node, "Subnet");
                             if (expected.GetValueOrDefault(subnetKey) == subnet) expected.Remove(subnetKey);
-                            var ioKey = subnetKey with { Field = "IoSystem" };
-                            if (expected.TryGetValue(ioKey, out var io) && IoSubnet(io) == subnet) expected.Remove(ioKey);
+                            var ioKey = subnetKey with { Field = "IoSystemSubnet" };
+                            if (expected.GetValueOrDefault(ioKey) == subnet)
+                            {
+                                expected.Remove(ioKey);
+                                expected.Remove(subnetKey with { Field = "IoSystemNumber" });
+                            }
                         }
                     }
                 }
@@ -119,24 +138,39 @@ public sealed class NetworkWriteVerifier
         // Reuse preparation's ordinary-project structural gate after mutation as well.
         var readable = snapshot.Success && NetworkWritePlanner.DiscoveryComplete(snapshot.State!);
         var state = readable ? snapshot.State : null;
-        if (!readable) checks.Add(Check("finalHardwareState", "readable complete inventory", null, false));
-        if (verifyRootCount) checks.Add(Check("networkDeviceCountUnchanged", Format(rootCount), Format(state?.RootDeviceCount), !rootUncertain && state?.RootDeviceCount.HasValue == true));
+        if (!readable) checks.Add(Evaluate(NetworkFinalCheck.Write("finalHardwareState"), "readable complete inventory", null, false));
+        if (verifyRootCount) checks.Add(Evaluate(NetworkFinalCheck.Write("networkDeviceCountUnchanged"), Format(rootCount), Format(state?.RootDeviceCount), !rootUncertain && state?.RootDeviceCount.HasValue == true));
         foreach (var entry in expected)
         {
             var key = entry.Key;
-            var owner = key.NodeIdentity?.InterfacePath is { } path ? NetworkInterfacePathEncoding.Encode(path) : "";
-            var name = $"{key.Kind}/{key.Identity}/{owner}/{key.NodeId}/{key.Field}";
+            var subject = key.Kind switch
+            {
+                "device" => NetworkFinalCheck.Device(key.Identity, key.NodeId, key.Field),
+                "subnet" => NetworkFinalCheck.Subnet(key.Identity, key.Field),
+                _ => NetworkFinalCheck.Node(key.NodeIdentity!, key.Field, key.SubnetId),
+            };
             var observation = Observe(state, key, key.NodeIdentity is null ? null : constraints.GetValueOrDefault(key.NodeIdentity));
             if (key.Kind == "subnet" && key.Field is "HighestAddress" or "TransmissionSpeed" && state is not null
                 && state.Subnets.All(s => !string.IsNullOrWhiteSpace(s.SubnetId))
                 && state.Subnets.Count(s => s.SubnetId == key.Identity) == 1)
             {
-                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath, key.Identity, new[] { key.Field }).ConfigureAwait(false);
-                var value = attributes.TryGetValue(key.Field, out var attribute) && attribute.Availability == "available"
-                    ? AttributeText(attribute) : null;
+                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath,
+                    new() { Kind = NetworkObjectKinds.Subnet, SubnetId = key.Identity }, new[] { key.Field }).ConfigureAwait(false);
+                var value = attributes.TryGetValue(key.Field, out var attribute) ? AttributeText(attribute) : null;
                 observation = (value, value is not null);
             }
-            checks.Add(Check(name, entry.Value, observation.Value, observation.Readable));
+            // The hardware snapshot does not carry this flag; inspect the exact final node instead.
+            if (key.Kind == "node" && key.Field == "PnDeviceNameAutoGeneration" && state is not null
+                && state.Devices.All(d => !string.IsNullOrWhiteSpace(d.Name))
+                && NetworkWritePlanner.TryResolveAffected(state, key.NodeIdentity!, out var qualified, out _)
+                && constraints.GetValueOrDefault(key.NodeIdentity!)?.All(identity => NetworkWritePlanner.TryResolveAffected(state, identity, out _, out _)) != false)
+            {
+                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath,
+                    NetworkWritePlanner.NodeTarget(qualified!.DeviceName, qualified.NodeId, qualified.InterfacePath!), new[] { key.Field }).ConfigureAwait(false);
+                var value = attributes.TryGetValue(key.Field, out var attribute) ? AttributeText(attribute) : null;
+                observation = (value, value is not null);
+            }
+            checks.Add(Evaluate(subject, entry.Value, observation.Value, observation.Readable && !unknownPrior.Contains(key)));
         }
         return new(operations.All(o => o.Status is "passed" or "not_required") && checks.All(c => c.Status == "passed"), operations, checks, null);
     }
@@ -162,8 +196,9 @@ public sealed class NetworkWriteVerifier
         {
             if (devices.Length != 1) return (null, false);
             var device = devices[0];
-            if (key.Field != "deviceName" && DeviceItems(device.Items).Any(i => string.IsNullOrWhiteSpace(i.Name))) return (null, false);
-            var matchingItems = DeviceItems(device.Items).Where(i => i.Name == key.NodeId).ToArray();
+            // Same rule as the worker's creator: unique exact name among top-level items only.
+            // An ET200SP head module's sub-item repeats the head's name, so children are never searched.
+            var matchingItems = device.Items.Where(i => string.Equals(i.Name, key.NodeId, StringComparison.Ordinal)).ToArray();
             var item = matchingItems.Length == 1 ? matchingItems[0] : null;
             var value = key.Field switch
             {
@@ -177,9 +212,9 @@ public sealed class NetworkWriteVerifier
         if (constraints?.Any(identity => !NetworkWritePlanner.TryResolveAffected(state, identity, out _, out _)) == true) return (null, false);
         if (key.Field == "exists") return ("true", true);
         var node = selectedNode!;
-        if (key.Field.StartsWith("removedSubnet:", StringComparison.Ordinal))
+        if (key.Field == "removedSubnet")
         {
-            var removed = key.Field["removedSubnet:".Length..];
+            var removed = key.SubnetId;
             return node.ConnectionEvidence?.Complete == true
                 ? ((node.ConnectionEvidence.SubnetId != removed && node.ConnectionEvidence.IoSystemSubnetId != removed).ToString().ToLowerInvariant(), true)
                 : (null, false);
@@ -187,7 +222,7 @@ public sealed class NetworkWriteVerifier
         if (key.Field == "Subnet" && node.ConnectionEvidence?.SubnetId is { } connectedSubnet
             && (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))
                 || state.Subnets.Count(s => s.SubnetId == connectedSubnet) != 1)) return (null, false);
-        if (key.Field == "IoSystem" && node.ConnectionEvidence?.IoSystemSubnetId is { } ioSubnet)
+        if (key.Field is "IoSystemSubnet" or "IoSystemNumber" && node.ConnectionEvidence?.IoSystemSubnetId is { } ioSubnet)
         {
             if (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))) return (null, false);
             var subnets = state.Subnets.Where(s => s.SubnetId == ioSubnet).ToArray();
@@ -195,7 +230,7 @@ public sealed class NetworkWriteVerifier
                 || subnets[0].IoSystems.Count(i => i.Number == node.ConnectionEvidence.IoSystemNumber) != 1) return (null, false);
         }
         var nodeValue = NetworkWritePlanner.NodeValue(node, key.Field);
-        return (nodeValue, key.Field is "Subnet" or "IoSystem" ? node.ConnectionEvidence?.Complete == true : nodeValue is not null);
+        return (nodeValue, NetworkWritePlanner.IsConnectionKey(key.Field) ? node.ConnectionEvidence?.Complete == true : nodeValue is not null);
     }
     private static string? AttributeText(NetworkAttributeInfo attribute)
     {
@@ -211,29 +246,26 @@ public sealed class NetworkWriteVerifier
         {
             JsonValueKind.String => element.GetString(),
             JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
             _ => null
         };
     }
-    private static IEnumerable<DeviceItemInfo> DeviceItems(IEnumerable<DeviceItemInfo> items) => items.SelectMany(i => new[] { i }.Concat(DeviceItems(i.Items)));
-    private static string? IoSubnet(string? value)
-    {
-        if (value is null) return null;
-        using var document = JsonDocument.Parse(value);
-        return document.RootElement[0].GetString();
-    }
     private static string? Format(int? value) => value?.ToString(CultureInfo.InvariantCulture);
-    private static NetworkVerificationCheckInfo Check(string name, string? expected, string? observed, bool readable) => new()
+    private static NetworkFinalCheck Evaluate(NetworkFinalCheck check, string? expected, string? observed, bool readable) => check with
     {
-        Name = name, Expected = expected, Observed = observed,
+        Expected = expected, Observed = observed,
         Status = !readable ? "unverified" : expected == observed ? "passed" : "failed",
         Message = !readable ? "Evidence is unavailable. Inspect current state with network_read before retrying; do not replay automatically."
-            : expected == observed ? null : name.EndsWith("/IoSystem", StringComparison.Ordinal)
+            : expected == observed ? null : check.Kind == "node" && check.Field is "IoSystemSubnet" or "IoSystemNumber"
                 ? "The explicit IO relationship differs. Inspect current state and possible side effects of later subnet changes with network_read."
                 : "The final state differs from the effective attempted changes. Inspect with network_read."
     };
     private static ExpectationKey NodeKey(NetworkNodeIdentityInfo identity, string field) => new("node", identity.DeviceName, identity.NodeId, field,
         NetworkWritePlanner.CloneIdentity(identity));
-    private sealed record ExpectationKey(string Kind, string Identity, string? NodeId, string Field, NetworkNodeIdentityInfo? NodeIdentity = null);
+    // SubnetId names the removed subnet of a node's removedSubnet expectation.
+    private sealed record ExpectationKey(string Kind, string Identity, string? NodeId, string Field, NetworkNodeIdentityInfo? NodeIdentity = null,
+        string? SubnetId = null);
     private sealed class ExpectationKeyComparer : IEqualityComparer<ExpectationKey>
     {
         // Only device names share the selector's case-insensitive identity semantics.
@@ -244,11 +276,11 @@ public sealed class NetworkWriteVerifier
         public bool Equals(ExpectationKey? left, ExpectationKey? right)
             => ReferenceEquals(left, right) || left is not null && right is not null
                 && left.Kind == right.Kind && IdentityComparer(left).Equals(left.Identity, right.Identity)
-                && left.NodeId == right.NodeId && left.Field == right.Field
+                && left.NodeId == right.NodeId && left.Field == right.Field && left.SubnetId == right.SubnetId
                 && (left.Kind != "node" || NetworkNodeIdentityComparer.Instance.Equals(left.NodeIdentity, right.NodeIdentity));
 
         public int GetHashCode(ExpectationKey key)
-            => HashCode.Combine(key.Kind, IdentityComparer(key).GetHashCode(key.Identity), key.NodeId, key.Field,
+            => HashCode.Combine(key.Kind, IdentityComparer(key).GetHashCode(key.Identity), key.NodeId, key.Field, key.SubnetId,
                 key.NodeIdentity is null ? 0 : NetworkNodeIdentityComparer.Instance.GetHashCode(key.NodeIdentity));
     }
 }

@@ -684,6 +684,7 @@ internal static class Program
                 request.IpAddress,
                 request.SubnetMask,
                 request.PnDeviceName,
+                request.PnDeviceNameAutoGeneration,
                 request.SubnetId,
                 request.IoSystemSubnetId,
                 request.IoSystemNumber);

@@ -129,10 +129,126 @@ public class NetworkOperationFakeWorkerTests
         var result = response.Batch!.Operations[0].Result!.Value;
         Assert.Equal("Address", Assert.Single(result.GetProperty("appliedSettings").EnumerateObject()).Name);
         Assert.Equal("SubnetMask", Assert.Single(result.GetProperty("skippedSettings").EnumerateObject()).Name);
-        Assert.Contains("32768", result.GetProperty("verification").GetProperty("identity").GetProperty("interfacePath").GetString());
+        var path = result.GetProperty("verification").GetProperty("identity").GetProperty("interfacePath");
+        Assert.Equal(JsonValueKind.Array, path.ValueKind);
+        Assert.Equal(32768, path[1].GetProperty("positionNumber").GetInt32());
         Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
         Assert.Equal("192.168.13.20", snapshot.State!.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
+    }
+
+    [Fact]
+    public async Task QualifiedPartialSkip_ExecutionFailsWhileVerificationProvesAppliedAndPreservedSettings()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
+        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        var priorMask = before.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].SubnetMask;
+        Assert.NotNull(priorMask);
+        var operation = QualifiedConfigure("partial"); operation.Changes = new() { IpAddress = "192.168.12.99", SubnetMask = "255.255.0.0" };
+        var response = await fixture.RunAsync(false, operation);
+        // verification.success covers evidence only; execution failure lives in batch and root success.
+        Assert.False(response.Success);
+        Assert.Equal(TiaMcpServer.OperationBatches.OperationBatchStatus.Failed, response.Batch!.Operations[0].Status);
+        Assert.True(response.Verification!.Success);
+        var preserved = Assert.Single(response.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
+        Assert.Equal(priorMask, preserved.Expected);
+        Assert.Equal("passed", preserved.Status);
+    }
+
+    [Fact]
+    public async Task QualifiedAllSkipped_FinalCheckProvesSkippedSettingWasPreserved()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
+        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        var priorMask = before.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].SubnetMask;
+        Assert.NotNull(priorMask);
+        var operation = QualifiedConfigure("skipped"); operation.Changes = new() { SubnetMask = "255.255.0.0" };
+        var response = await fixture.RunAsync(false, operation);
+        Assert.False(response.Success);
+        Assert.Equal("not_required", response.Verification!.Operations[0].Status);
+        var preserved = Assert.Single(response.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
+        Assert.Equal(priorMask, preserved.Expected);
+        Assert.Equal(priorMask, preserved.Observed);
+        Assert.Equal("passed", preserved.Status);
+        Assert.True(response.Verification.Success);
+    }
+
+    [Fact]
+    public async Task QualifiedAllSkipped_UnreadablePriorValueLeavesPreservationUnverified()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
+        // The second owner's node has no readable subnet mask before the write.
+        var operation = QualifiedConfigure("unreadable", 33024); operation.Changes = new() { SubnetMask = "255.255.0.0" };
+        var response = await fixture.RunAsync(false, operation);
+        var preserved = Assert.Single(response.Verification!.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
+        Assert.Equal("unverified", preserved.Status);
+        Assert.False(response.Verification.Success);
+    }
+
+    [Fact]
+    public async Task QualifiedConfigure_IdentityIsTypedWithoutNestedJson()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+        var response = await fixture.RunAsync(false, QualifiedConfigure("typed"));
+        Assert.True(response.Success);
+        using var document = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
+        var root = document.RootElement;
+        var identities = new[]
+        {
+            root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("verification").GetProperty("identity"),
+            root.GetProperty("verification").GetProperty("operations")[0].GetProperty("evidence").GetProperty("identity"),
+        };
+        foreach (var identity in identities)
+        {
+            Assert.Equal("S7-1500/ET200MP station_1", identity.GetProperty("deviceName").GetString());
+            Assert.Equal(JsonValueKind.Array, identity.GetProperty("interfacePath").ValueKind);
+            Assert.Equal(JsonValueKind.Null, identity.GetProperty("subnetId").ValueKind);
+            AssertNoNestedJson(identity);
+        }
+    }
+
+    [Fact]
+    public async Task QualifiedConfigure_FinalChecksCarryTypedSubjectWithoutNestedJson()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
+        var response = await fixture.RunAsync(false, QualifiedConfigure("typed"));
+        Assert.True(response.Success);
+        using var document = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
+        var root = document.RootElement;
+        var finalChecks = root.GetProperty("verification").GetProperty("finalChecks").EnumerateArray().ToArray();
+        var address = Assert.Single(finalChecks, c => c.GetProperty("field").GetString() == "Address");
+        Assert.Equal("node", address.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, address.GetProperty("operationId").ValueKind);
+        var subject = address.GetProperty("subject");
+        Assert.Equal("S7-1500/ET200MP station_1", subject.GetProperty("deviceName").GetString());
+        Assert.Equal("E1", subject.GetProperty("nodeId").GetString());
+        Assert.Equal("PROFINET interface_1", subject.GetProperty("interfacePath")[1].GetProperty("name").GetString());
+        var exists = Assert.Single(finalChecks, c => c.GetProperty("field").GetString() == "exists");
+        Assert.Equal("node", exists.GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, exists.GetProperty("subject").GetProperty("subnetId").ValueKind);
+        foreach (var check in finalChecks)
+        {
+            Assert.False(check.TryGetProperty("name", out _));
+            AssertNoNestedJson(check.GetProperty("subject"));
+        }
+    }
+
+    private static void AssertNoNestedJson(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object: foreach (var member in element.EnumerateObject()) AssertNoNestedJson(member.Value); break;
+            case JsonValueKind.Array: foreach (var value in element.EnumerateArray()) AssertNoNestedJson(value); break;
+            case JsonValueKind.String:
+                var text = element.GetString()!;
+                Assert.False(text.Contains('{') || text.Contains('['), $"Nested JSON string: {text}");
+                break;
+        }
     }
 
     [Fact]
@@ -324,7 +440,7 @@ public class NetworkOperationFakeWorkerTests
         Assert.True(result.IsError);
         Assert.Equal("error", root.GetProperty("phase").GetString());
         Assert.Equal(
-            WorkerFailureCategories.PostconditionFailed,
+            WorkerFailureCategories.TargetAmbiguous,
             root.GetProperty("error").GetProperty("category").GetString());
     }
 

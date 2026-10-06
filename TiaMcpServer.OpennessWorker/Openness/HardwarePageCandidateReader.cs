@@ -194,7 +194,8 @@ internal sealed class HardwarePageCandidateMaterialization
     {
         Device = device;
         Subnet = subnet;
-        Messages = messages?.ToArray() ?? throw new ArgumentNullException(nameof(messages));
+        Messages = messages?.Distinct(StringComparer.Ordinal).ToArray()
+            ?? throw new ArgumentNullException(nameof(messages));
     }
 
     public DeviceInfo? Device { get; }
