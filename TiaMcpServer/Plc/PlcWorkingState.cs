@@ -330,7 +330,7 @@ internal sealed class PlcWorkingState
                 var blocks = DescendantBlocks(group).Select(b => $"{b.Group.Path}/{b.Block.Name}").ToArray();
                 var groups = Descendants(group).Select(g => g.Path).ToArray();
                 if (blocks.Length + groups.Length > 0)
-                    guards.Add(Fire(DeletesGroupContents, item, $"Deleting block group '{group.Path}' removes {blocks.Length} blocks and {groups.Length} groups: {string.Join(", ", blocks.Concat(groups))}."));
+                    guards.Add(Fire(DeletesGroupContents, item, $"Deleting block group '{group.Path}' removes {blocks.Length} blocks and {groups.Length} groups; the full list is in the effect's removes."));
                 if (_skipped.Any(s => StartsWith(s.ParentPath, group.Selector))) guards.Add(SkippedGuard(item));
                 return Effect(item, new(PlcNameRules.BlockGroup, _plc, _device, null, null, group.Name, group.Path, null), Array.Empty<PlcFieldChange>(), null,
                     new(0, 0, blocks, groups, null, null));

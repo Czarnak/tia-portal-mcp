@@ -74,6 +74,46 @@ public sealed class PlcWriteBudgetTests
         Assert.True(CanonicalJson.Serialize(bounded).Length <= 3_000);
     }
 
+    private static PlcGuardedWriteResponse WithDiagnostics(string phase, bool success, WriteToolError? error, params WriteGuardReport[] guards)
+        => new("plc_write", "1.0", phase, success, error, Array.Empty<string>(), guards,
+            Array.Empty<PlcWriteEffectPresentation>(), null, null, null);
+
+    [Fact]
+    public void MultiErrorValidationMessageDeliveredIntactWhenWithinBudget()
+    {
+        var message = string.Join("\n", Enumerable.Range(0, 4).Select(i => $"Operation 'op{i}': " + new string('e', 300)));
+        Assert.True(message.Length > 512);
+
+        var bounded = PlcWritePayloadBudget.Apply(WithDiagnostics("error", false, new(WorkerFailureCategories.ValidationError, message)));
+
+        Assert.Equal(message, bounded.Error!.Message);
+        Assert.Null(bounded.Omission);
+    }
+
+    [Fact]
+    public void AppliedResponseWithLongGuardMessageKeepsSuccess()
+    {
+        var guard = new WriteGuardReport("plc_deletes_group_contents", "info", "op0", new string('g', 2_000), null);
+
+        var bounded = PlcWritePayloadBudget.Apply(WithDiagnostics("applied", true, null, guard));
+
+        Assert.True(bounded.Success);
+        Assert.Null(bounded.Omission);
+        Assert.Equal(guard.Message, Assert.Single(bounded.Guards).Message);
+    }
+
+    [Fact]
+    public void OverBudgetDocumentStillCompactsDiagnostics()
+    {
+        var guard = new WriteGuardReport("plc_deletes_group_contents", "info", "op0", new string('g', 2_000), null);
+
+        var bounded = PlcWritePayloadBudget.Apply(WithDiagnostics("applied", true, null, guard), maxDocumentChars: 1_000);
+
+        Assert.DoesNotContain("ggggg", Assert.Single(bounded.Guards).Message);
+        Assert.Equal("diagnosticDetailsOmitted", bounded.Omission!.Reason);
+        Assert.False(bounded.Success);
+    }
+
     [Fact]
     public async Task ProtectedCoreOverDocumentLimitRejectedBeforeWorker()
     {

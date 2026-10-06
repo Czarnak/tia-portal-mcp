@@ -257,6 +257,10 @@ public class PlcWorkingStateTests
         Assert.Equal(new[] { "PLC_1/Blocks/Motors/FB_Motor", "PLC_1/Blocks/Motors/Legacy/FC_Old" }, removes.Blocks);
         Assert.Equal(new[] { "PLC_1/Blocks/Motors/Legacy" }, removes.Groups);
         Assert.Contains(PlcGuardDefinitions.DeletesGroupContents, GuardIds(resolution));
+        // The full list is in effect.removes; the guard message carries counts only.
+        var message = resolution.Guards.Single(g => g.Id == PlcGuardDefinitions.DeletesGroupContents).Message;
+        Assert.Contains("removes 2 blocks and 1 groups", message);
+        Assert.DoesNotContain("FB_Motor", message);
     }
 
     [Fact]

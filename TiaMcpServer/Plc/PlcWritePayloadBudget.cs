@@ -6,7 +6,7 @@ namespace TiaMcpServer.Plc;
 
 /// <summary>
 /// Bounds the delivered plc_write document only; plans, worker results and audit item truth stay
-/// intact. Diagnostics are compacted first; then whole values are omitted, never cut: content
+/// intact. When the document or an item is over budget, diagnostics are compacted first; then whole values are omitted, never cut: content
 /// diffs, failure-side block import outcomes, verification checks and effects, and finally batch
 /// results through the shared batch budget.
 /// </summary>
@@ -16,17 +16,16 @@ public static class PlcWritePayloadBudget
     private const string Guidance = "Inspect current state with plc_read (list_tag_tables, get_block_content or get_type_content); use smaller plc_write calls to see every effect. Do not replay the write.";
     private const string DiagnosticSummary = "Diagnostic details omitted. Inspect current state with plc_read.";
     private const string DiagnosticOmissionReason = "diagnosticDetailsOmitted";
-    private const int DiagnosticChars = 512;
 
     public static PlcGuardedWriteResponse Apply(PlcGuardedWriteResponse response,
         int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
         int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
     {
         var originalChars = Size(response);
-        var current = Compact(response, all: false, originalChars);
-        // Every repeated diagnostic yields before any whole value is dropped.
-        if (Size(current) > maxDocumentChars || AnyOverItemLimit(current, maxItemChars))
-            current = Compact(current, all: true, originalChars);
+        var current = response;
+        // Diagnostics are delivered intact while the document fits; they yield before any whole value is dropped.
+        if (originalChars > maxDocumentChars || AnyOverItemLimit(current, maxItemChars))
+            current = Compact(current, originalChars);
         var effects = current.Effects.ToArray();
         var items = current.Batch?.Operations.ToArray();
         var verification = current.Verification;
@@ -135,13 +134,13 @@ public static class PlcWritePayloadBudget
                 || i.Failure?.BlockImportOutcome is not null && Size(i.Failure.BlockImportOutcome) > maxItemChars) == true
             || response.Verification is { Operations.Count: > 0 } v && Size(v.Operations) > maxItemChars;
 
-    /// <summary>Replaces diagnostics longer than 512 characters (or all of them) with a fixed summary.</summary>
-    private static PlcGuardedWriteResponse Compact(PlcGuardedWriteResponse response, bool all, int originalChars)
+    /// <summary>Replaces every diagnostic message with a fixed summary.</summary>
+    private static PlcGuardedWriteResponse Compact(PlcGuardedWriteResponse response, int originalChars)
     {
         var omitted = false;
         string Message(string message)
         {
-            if (message == DiagnosticSummary || !all && message.Length <= DiagnosticChars) return message;
+            if (message == DiagnosticSummary) return message;
             omitted = true;
             return DiagnosticSummary;
         }
@@ -165,7 +164,7 @@ public static class PlcWritePayloadBudget
             Verification = verification,
         };
         return omitted
-            ? compacted with { Omission = new(DiagnosticOmissionReason, all ? StructuredOperationBatchPayloadBudget.MaxDocumentChars : DiagnosticChars, originalChars, RetryTool, Guidance) }
+            ? compacted with { Omission = new(DiagnosticOmissionReason, StructuredOperationBatchPayloadBudget.MaxDocumentChars, originalChars, RetryTool, Guidance) }
             : compacted;
     }
 
