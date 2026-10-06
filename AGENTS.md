@@ -14,7 +14,11 @@ Sessions cover `currentMachineCurrentUser`; locks are non-atomic observations. T
 is conditional inside the budgeted binding value (60,000/180,000 characters), not a new envelope.
 No lifecycle elicitation/write audit, ALS21 adoption, session content/markings or mutation is added.
 See [Multiuser reference](docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
-PR3 live operation-specific acceptance remains pending exact fixture/scope authorization.
+PR3 received exact live authorization on 2026-10-06. All six inspection actions succeeded against
+three disposable session copies and a standalone AP21; all five remote inventories also succeeded
+with zero open projects. Healthy verified binding/cursors and worker-loss invalidation/recovery
+were observed. Full Task 5 acceptance remains pending matrix cases in the
+[partial live report](docs/superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md).
 
 The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`, net48) are separate processes. Siemens Openness DLLs use .NET Framework remoting and **cannot run in a .NET 10 process** — this is why the split exists.
 

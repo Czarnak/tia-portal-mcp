@@ -4,7 +4,7 @@
 
 **Revised:** 2026-10-03 for lifecycle alignment; 2026-10-05 for the user-selected `bind_project` read surface, against `main` at `ea269c222e7415af347f2929cbc82a366aa2ee0f`
 
-**Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. Revised PR 3 implementation plan accepted for local implementation and offline qualification. Task 5 live acceptance remains pending exact fixture/scope authorization.
+**Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. Revised PR 3 implementation plan accepted and offline-qualified. October 6 exact fixture authorizations enabled [partial installed-tool live verification](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) of all six inspection actions, including the zero-project/standalone prerequisite comparison; outstanding Task 5 matrix cases still prevent full acceptance.
 
 **Source:** Issue [#65](https://github.com/Czarnak/tia-portal-mcp/issues/65), repository
 commit `269f9b94c3e9df19e5a2e51d0ca7da515aca84ca`, the installed TIA Portal V21
@@ -806,6 +806,11 @@ PLC, or remote resource was changed while preparing this design. No live accepta
 PR 1 and PR 2 were merged in the inspected `main`. The revised
 [PR 3 binding/discovery implementation plan](../plans/2026-10-05-multiuser-pr3-read-only-inventory.md)
 was subsequently accepted and implemented/offline-qualified. Final review and scoped fix re-review
-are Approved. Current-PR operation-specific live acceptance remains pending exact fixture/scope authorization.
-Remote writes and live operations remain unauthorized. Successor mutation surfaces remain separately
+are Approved. The user subsequently authorized live verification and any actions against three
+disposable local sessions under `C:\Users\LCZ\Documents\Automation\Sessions`. The
+[October 6 installed-tool report](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+records partial Task 5 evidence plus a separately authorized disposable standalone `.ap21` phase:
+the exact zero-project/standalone prerequisite comparison is complete, while remaining matrix
+cases still prevent full acceptance. Authorized save/close/reopen and one worker-loss injection
+were performed; no installed configuration change or remote write was performed. Successor mutation surfaces remain separately
 planned; this PR 3 routing decision adds no mutation action to `bind_project`.

@@ -4,7 +4,9 @@
 all modes. Omitted/null `action` or `action:"bind"` retains standalone `.ap21` binding behavior
 and its response shape. Discovery remains **6/16/16** tools in read-only/read-write/full.
 PR 1 contracts and PR 2 passive context remain the foundation; Issue #65 is incomplete.
-PR 3 live operation-specific acceptance remains pending.
+PR 3 has [partial installed-tool live verification](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+for all six inspection actions against authorized session copies and a standalone `.ap21`,
+including remote reads with zero open projects. Full Task 5 acceptance remains pending matrix cases.
 
 ## Inspection actions and selectors
 
@@ -110,6 +112,11 @@ of future connectivity. Generic Multiuser failures do not establish authenticati
 unavailability. History compares only the same actual attachment and endpoint, and resets after
 attachment/configuration changes.
 
+Each session's `projectPath` is the normalized `LocalSessionInfo.ProjectFileInfo.FullName`
+returned by Siemens. The authorized live fixture returned session directories, rather than
+`.als21` file paths. Treat this field as inventory evidence; it is not a guaranteed opening or
+binding selector, and PR 3 does not enable `.als21` opening or adoption.
+
 Standalone budgets are 60,000 characters per whole value and 180,000 per complete document.
 Oversized inventory is omitted whole, including `inspection`, with omission metadata and guidance
 to inspect a narrower applicable exact group/project or use TIA Portal. Arrays are never silently
@@ -151,9 +158,17 @@ checks cannot prove installed Openness runtime behavior. Generated references ar
 installed-reference compilation and package exclusion are separate qualification checks.
 
 The [PR 3 offline report](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md)
-records the combined candidate and qualification. Task 5 live acceptance requires exact fixture
-and scope authorization and remains pending; historical standalone acceptance is not inventory
-acceptance.
+records the combined candidate and qualification. The October 6
+[installed-tool live report](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+records the authorized three-session fixture: all six inspection actions succeeded while the host
+remained unbound, including current-user session directories and locked/unlocked observations.
+Inventory was exercised with opened `.als21` sessions. The separate zero-project/standalone `.ap21`
+phase demonstrated all five inventories without opened `.als21`, both with a standalone project
+open and with zero open projects. Healthy verified binding/cursors, worker-loss invalidation and
+explicit recovery were observed. Actual named/duplicate group/project cases, empty session lists,
+read-only/read-write live hosts, guarded switching to a second standalone target and other report
+limits remain untested; merge readiness remains pending. Historical standalone acceptance is not
+inventory acceptance.
 
 Frozen PR 2 candidate `a47bf0dbc3efba4ff654464b6393d01163dc7900` passed bounded standalone
 live selection/switching and lifecycle acceptance, including headless last-client and adverse-state

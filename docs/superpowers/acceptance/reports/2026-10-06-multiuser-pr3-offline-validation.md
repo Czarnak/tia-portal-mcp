@@ -1,8 +1,9 @@
 # Multiuser PR 3 offline qualification
 
 **Status:** Refreshed offline qualification passed. Whole-candidate review and the scoped
-final-fix re-review are Approved with no remaining findings. Task 5 live acceptance is pending
-exact fixture/scope authorization. This report makes no merge-ready claim.
+final-fix re-review are Approved with no remaining findings. Exact live authorization was received
+on October 6; the [separate installed-tool report](2026-10-06-multiuser-pr3-live-verification.md)
+records partial Task 5 verification. This report makes no merge-ready claim.
 
 **Compiled source/test candidate:** `3f45b940ebc66752f14590b900218fcca336d665` on
 `feature/multiuser-pr3`, with base `ea269c222e7415af347f2929cbc82a366aa2ee0f`. The final fix
@@ -135,15 +136,22 @@ Non-escalated Git reads warned about the inaccessible user ignore file; authoriz
 and qualification succeeded. No credential/dependency change or environment failure was treated
 as passing evidence. The original checkout and its unrelated work were not edited.
 
-## Live acceptance pending
+## Separate partial live verification
 
 The delivered surface is default-compatible `bind_project` plus `list_portals` and five exact
 Project Server inventories. Discovery remains 6/16/16. The [maintained reference](../../../SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md)
 describes selectors, persistent attachment, binding/cursor continuity, typed results and limits.
 Source-linked Siemens doubles and FakeWorker evidence are offline only. No TIA Portal,
 ProjectServer or PLC invocation/attachment, fixture setup/cleanup, installed-tool replacement,
-credential/configuration change or remote write is authorized or performed for qualification.
+credential/configuration change or remote write was performed during this offline qualification.
 
-Task 5 must verify each action and prerequisite on the exact authorized frozen live fixture.
+The user subsequently authorized installed-tool verification against three disposable sessions
+under `C:\Users\LCZ\Documents\Automation\Sessions`. The
+[October 6 live report](2026-10-06-multiuser-pr3-live-verification.md) records successful reads for
+all six inspection actions with opened sessions, then a separately authorized standalone `.ap21`
+phase. All five inventories succeeded with `.ap21` open and with zero open projects; healthy
+verified binding/cursors and genuine worker-loss invalidation/recovery were observed. The exact
+prerequisite comparison is complete; remaining Task 5 matrix cases still prevent a merge-ready claim. No source changes
+or expensive offline rerun accompanied that documentation update.
 Historical PR 2 standalone acceptance does not qualify PR 3 inventories. `.als21` adoption,
 session content/state/markings and mutations, and Issue #65 completion remain undelivered.
