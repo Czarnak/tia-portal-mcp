@@ -380,7 +380,7 @@ operations, including the Phase 4 subnet lifecycle operations (`create_subnet`,
 catalog before a worker invocation; a new worker method belongs to its owning domain catalog.
 `BatchOperationCatalog` and `BatchWorkerInvoker` were removed with the generic batch tools.
 
-`OperationBatches` provides request-agnostic shared execution, result formatting, and
+`OperationBatches` provides request-agnostic shared execution and
 payload-budget infrastructure to both domains. Its network call sites use network-specific
 payload-budget hints, such as narrowing `query`/`maxResults` or splitting a network batch.
 

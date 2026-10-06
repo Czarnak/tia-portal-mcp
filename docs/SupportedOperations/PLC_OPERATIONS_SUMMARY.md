@@ -58,7 +58,8 @@ roughly 400 tags already exceeds the value: narrow `list_tag_tables` with `plcNa
 ## Compiler diagnostics (`compile_check`)
 
 Compilation can change TIA Portal's in-memory project state. A returned report is not evidence of
-saving, downloading, or PLC/plant acceptance.
+saving, downloading, or PLC/plant acceptance. `compile_check` cannot yet reach a PLC inside a device
+group (see the improvement log).
 
 Each PLC result uses `plcName` for the actual PLC software name and `deviceName` for the containing
 hardware device. The input `plcName` selector continues accepting either name. The same identities
@@ -180,8 +181,8 @@ Block updates import into the existing block, compile the affected PLC scope, an
 by re-export; type updates require a declaration whose name matches the target. Import/update never
 creates, renames, deletes, or upserts the addressed object. A preview can carry a bounded
 `contentDiff` of current versus requested text (see the
-[import/export options](IMPORT_EXPORT_OPTIONS_SUMMARY.md)). A failed content import reports
-`blockImportOutcome` on the item's failure; that member is conditional on every structured tool's
+[import/export options](IMPORT_EXPORT_OPTIONS_SUMMARY.md)). A failed `update_block_logic` import
+reports `blockImportOutcome` on the item's failure; that member is conditional on every structured tool's
 failure schema.
 
 ### Guards

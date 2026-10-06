@@ -16,8 +16,8 @@ documentation/spec updates are complete. The report bounds the maintainer's work
 conclusion because the worker PID changed between read-write and read-only. Offline qualification at `3bb504b`
 passed 4,946 tests and 93.24% linked host/contracts line coverage; this is not Siemens coverage.
 Phase 4 Network alignment and guarded writes are implemented with focused offline qualification;
-final combined gates and fresh live acceptance remain pending. Project-tree alignment/batch
-retirement remain future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
+final combined gates and fresh live acceptance remain pending. The batch tools are retired
+(`plc_write`, 2026-10-07); project-tree alignment remains future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
 On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
@@ -57,7 +57,7 @@ audit record were removed, and the guard's legacy register is empty.
 
 ## Current State
 
-Two active output families remain after Phase 3. The original findings were taken at `0862ac9`.
+One active output family remains after the batch tools were retired; two remained after Phase 3. The original findings were taken at `0862ac9`.
 
 | Family | How the response is built | Main departures from the target |
 | --- | --- | --- |

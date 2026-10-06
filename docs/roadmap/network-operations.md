@@ -232,7 +232,7 @@ and [bounded live report](../superpowers/acceptance/reports/2026-09-24-network-p
 
 The temporary `probe_io_system_qualification` produced that
 evidence, but add no public operation. `update_io_system` is still unshipped. Later modeled
-and dynamic slices require their own plans from merged `main`, strict TDD, public preview/apply
+and dynamic slices require their own plans from merged `main`, strict TDD, guarded-pipeline dry-run
 and audit gates, and scope-specific live acceptance. A known committed post-read or hardware
 compile failure must be reported truthfully; no live failed compile was induced in PR 2.
 
