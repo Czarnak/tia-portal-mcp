@@ -402,21 +402,7 @@ public sealed partial class WriteSafetyService
     }
 
     public static string NormalizeProjectPath(string? projectPath)
-    {
-        if (string.IsNullOrWhiteSpace(projectPath))
-        {
-            return "(active)";
-        }
-
-        try
-        {
-            return Path.GetFullPath(projectPath.Trim());
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return projectPath.Trim();
-        }
-    }
+        => Pipeline.WriteProjectPaths.Normalize(projectPath);
 
     private static string ResolveTokenProjectPath(
         string? requestedProjectPath,

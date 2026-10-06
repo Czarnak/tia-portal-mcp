@@ -117,10 +117,9 @@ public class PlcOperationCatalogTests
     }
 
     [Theory]
-    [InlineData("update_block_logic")]
-    [InlineData("create_tag")]
     [InlineData("read_cross_references")]
-    public void RejectsWriteOperationName(string name)
+    [InlineData("nope")]
+    public void RejectsUnknownOperationName(string name)
     {
         var op = new PlcOperationRequest { OperationId = "a", Operation = name };
 
@@ -144,5 +143,197 @@ public class PlcOperationCatalogTests
         };
 
         Assert.Empty(PlcOperationCatalog.ValidateAccessMode(ops, mode));
+    }
+
+    // ---- plc_write validation ----
+
+    private const string XmlHash = "xml:sha256:0000000000000000000000000000000000000000000000000000000000000000";
+    private const string SourceHash = "source:sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
+    private static PlcOperationRequest UpdateBlock(string id = "u", string? hash = XmlHash, string? format = null) => new()
+    {
+        OperationId = id,
+        Operation = "update_block_logic",
+        BlockPath = "PLC_1/Blocks/Main",
+        Content = "<Document/>",
+        ExpectedContentHash = hash,
+        Format = format,
+    };
+
+    private static PlcOperationRequest CreateBlock(string id, string path) => new()
+    {
+        OperationId = id,
+        Operation = "create_block",
+        BlockPath = path,
+        BlockType = "FB",
+    };
+
+    private static PlcOperationRequest Group(string operation, string path) => new()
+    {
+        OperationId = "g",
+        Operation = operation,
+        BlockPath = path,
+    };
+
+    [Fact]
+    public void RejectsReadOperationInWrite()
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { Block() });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'get_block_content' is a read operation; use plc_read.", result.Error);
+    }
+
+    [Fact]
+    public void ReadValidationRejectsWriteOperation()
+    {
+        var result = PlcOperationCatalog.ValidateRead(new[] { UpdateBlock() });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'update_block_logic' is a write operation; use plc_write.", result.Error);
+    }
+
+    [Fact]
+    public void AcceptsAValidUpdateBlock()
+        => Assert.True(PlcOperationCatalog.ValidateWrite(new[] { UpdateBlock() }).IsValid);
+
+    [Fact]
+    public void RequiresContentAndExpectedContentHash()
+    {
+        var op = new PlcOperationRequest { OperationId = "u", Operation = "update_type_content", TypePath = "PLC_1/Types/T" };
+
+        var result = PlcOperationCatalog.ValidateWrite(new[] { op });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("missing required field(s): content, expectedContentHash", result.Error);
+    }
+
+    [Fact]
+    public void RejectsHashFormatMismatch()
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { UpdateBlock(hash: SourceHash, format: "xml") });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'source'", result.Error);
+        Assert.Contains("'xml'", result.Error);
+    }
+
+    [Fact]
+    public void RejectsHashFormatMismatchAgainstTheDefaultFormat()
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { UpdateBlock(hash: SourceHash) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("expectedContentHash", result.Error);
+    }
+
+    [Theory]
+    [InlineData("deadbeef")]
+    [InlineData("xml:sha256:ABC")]
+    [InlineData("xml:md5:0000000000000000000000000000000000000000000000000000000000000000")]
+    public void RejectsMalformedHash(string hash)
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { UpdateBlock(hash: hash) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("malformed", result.Error);
+    }
+
+    [Fact]
+    public void RejectsContentOpOnBlockCreatedEarlierInCall()
+    {
+        var ops = new[] { CreateBlock("c", "PLC_1/Blocks/Main"), UpdateBlock("u") };
+
+        var result = PlcOperationCatalog.ValidateWrite(ops);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("created earlier in this call", result.Error);
+    }
+
+    [Fact]
+    public void AcceptsContentOpOnABlockCreatedLater()
+    {
+        var ops = new[] { UpdateBlock("u"), CreateBlock("c", "PLC_1/Blocks/Main") };
+
+        Assert.True(PlcOperationCatalog.ValidateWrite(ops).IsValid);
+    }
+
+    [Fact]
+    public void RejectsDifferingProjectPaths()
+    {
+        var a = UpdateBlock("a");
+        a.ProjectPath = Path.Combine(Path.GetTempPath(), "one.ap21");
+        var b = UpdateBlock("b");
+        b.ProjectPath = Path.Combine(Path.GetTempPath(), "two.ap21");
+
+        var result = PlcOperationCatalog.ValidateWrite(new[] { a, b });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("same project path", result.Error);
+    }
+
+    [Theory]
+    [InlineData("create_block_group")]
+    [InlineData("delete_block_group")]
+    public void RejectsOneSegmentGroupPath(string operation)
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { Group(operation, "Main") });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("PLC/Name", result.Error);
+    }
+
+    [Fact]
+    public void RejectsOneSegmentCreatePath()
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { CreateBlock("c", "Main") });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("PLC/Name", result.Error);
+    }
+
+    [Theory]
+    [InlineData("create_block_group", "PLC_1/Group")]
+    [InlineData("delete_block_group", "PLC_1/Blocks/Group")]
+    public void AcceptsTwoSegmentRootGroupPath(string operation, string path)
+        => Assert.True(PlcOperationCatalog.ValidateWrite(new[] { Group(operation, path) }).IsValid);
+
+    [Theory]
+    [InlineData("PLC_1/Main")]
+    [InlineData("PLC_1/Blocks/Group/Main")]
+    public void AcceptsTwoSegmentRootCreatePath(string path)
+        => Assert.True(PlcOperationCatalog.ValidateWrite(new[] { CreateBlock("c", path) }).IsValid);
+
+    [Fact]
+    public void RejectsInapplicableFieldsOnWrites()
+    {
+        var op = new PlcOperationRequest { OperationId = "d", Operation = "delete_block", BlockPath = "PLC_1/Blocks/B", Content = "x" };
+
+        var result = PlcOperationCatalog.ValidateWrite(new[] { op });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("'content' is not valid for delete_block", result.Error);
+    }
+
+    [Fact]
+    public void WriteSpecsKeepTheBatchFieldSets()
+    {
+        // Field sets are kept from the batch catalog; yamlContent/sourceContent become content and
+        // the two update operations also require expectedContentHash.
+        static string Map(string f) => f is "yamlContent" or "sourceContent" ? "content" : f;
+        foreach (var batch in TiaMcpServer.Batch.BatchOperationCatalog.All)
+        {
+            Assert.True(PlcOperationCatalog.TryGetWriteFields(batch.Name, out var required, out var optional), batch.Name);
+            var expectedRequired = batch.RequiredFields.Select(Map).ToList();
+            if (batch.Name is "update_block_logic" or "update_type_content")
+            {
+                expectedRequired.Add("expectedContentHash");
+            }
+
+            Assert.Equal(expectedRequired.OrderBy(x => x), required.OrderBy(x => x));
+            Assert.Equal(batch.OptionalFields.OrderBy(x => x), optional.OrderBy(x => x));
+        }
+
+        Assert.Equal(TiaMcpServer.Batch.BatchOperationCatalog.WriteOperationNames.Count, PlcOperationCatalog.WriteOperationNames.Count);
     }
 }
