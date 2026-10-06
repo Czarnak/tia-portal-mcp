@@ -22,9 +22,11 @@ internal sealed class PlcWorkingState
         public List<Block> Blocks { get; } = new();
     }
 
-    private sealed class ResolutionException(string category, string message) : Exception(message)
+    /// <summary><paramref name="hidden"/>: the miss may be caused by unreadable evidence, so it is not proof of absence.</summary>
+    private sealed class ResolutionException(string category, string message, bool hidden = false) : Exception(message)
     {
         public string Category { get; } = category;
+        public bool Hidden { get; } = hidden;
     }
 
     private static readonly StringComparer Names = PlcNameRules.Comparer;
@@ -36,6 +38,7 @@ internal sealed class PlcWorkingState
     private readonly Group _root;
     private readonly Dictionary<string, Group> _unitRoots = new(Names);
     private readonly IReadOnlyList<ProjectTreeSkippedNodeInfo> _skipped;
+    private readonly IReadOnlyList<ProjectTreeSelectorSegment> _basePath;
     private readonly Dictionary<string, (int Sequence, string OperationId)> _touches = new(StringComparer.Ordinal);
     private int _sequence;
 
@@ -50,6 +53,7 @@ internal sealed class PlcWorkingState
         foreach (var table in _tables) _tableFolders.Add(table.Folder);
 
         var basePath = new[] { Segment(ProjectTreeNodeTypes.Device, _device ?? string.Empty), Segment(ProjectTreeNodeTypes.PlcSoftware, _plc) };
+        _basePath = basePath;
         _skipped = tree.Skipped.Where(s => s.ParentPath.Count >= 2 && SameSelector(s.ParentPath.Take(2).ToArray(), basePath)).ToArray();
         var software = tree.Roots.FirstOrDefault(r => r.NodeType == ProjectTreeNodeTypes.PlcSoftware && Names.Equals(r.Name, _plc));
         var children = software?.Children ?? new List<ProjectTreeNode>();
@@ -73,6 +77,13 @@ internal sealed class PlcWorkingState
         {
             return new PlcResolution(ResolveEffect(item, guards), guards, null);
         }
+        catch (ResolutionException ex) when (ex.Hidden && ex.Category == WorkerFailureCategories.TargetNotFound)
+        {
+            // Unreadable evidence never becomes absence: the call is blocked instead of failed.
+            if (!guards.Any(g => g.Id == StateUnverifiable))
+                guards.Add(Fire(StateUnverifiable, item, $"{ex.Message} Part of the evidence is unreadable, so the target may exist but cannot be verified."));
+            return new PlcResolution(Unresolved(item, _plc, _device), guards, null);
+        }
         catch (ResolutionException ex)
         {
             return new PlcResolution(null, Array.Empty<FiredGuard>(), new WriteToolError(ex.Category, ex.Message));
@@ -88,6 +99,33 @@ internal sealed class PlcWorkingState
     {
         if (Resolve(item).Error is not null) return;
         _sequence++;
+        try
+        {
+            ApplyResolved(item);
+        }
+        catch (ResolutionException)
+        {
+            // An unverifiable target cannot be applied; its block guard stops the call anyway.
+        }
+    }
+
+    /// <summary>The requested identity of an item whose target could not be verified.</summary>
+    public static PlcWriteEffect Unresolved(PlcOperationRequest item, string plcName, string? deviceName)
+    {
+        var tableOperation = item.Operation.Contains("tag_table", StringComparison.Ordinal);
+        var target = item switch
+        {
+            { BlockPath: { } path } => new PlcTargetIdentity(item.Operation.Contains("group", StringComparison.Ordinal) ? PlcNameRules.BlockGroup : PlcNameRules.Block,
+                plcName, deviceName, null, null, path.Split('/')[^1], path, null),
+            { TypePath: { } type } => new PlcTargetIdentity("Type", plcName, deviceName, null, null, type.Split('/')[^1], null, type),
+            _ => new PlcTargetIdentity(tableOperation ? PlcNameRules.TagTable : item.Operation.Contains("user_constant", StringComparison.Ordinal) ? PlcNameRules.UserConstant : PlcNameRules.Tag,
+                plcName, deviceName, NormalizeFolder(item.FolderPath), item.TableName, tableOperation ? null : item.Name, null, null),
+        };
+        return new PlcWriteEffect(item.Operation, target, Array.Empty<PlcFieldChange>(), null, null, null, null);
+    }
+
+    private void ApplyResolved(PlcOperationRequest item)
+    {
         switch (item.Operation)
         {
             case "create_tag_table":
@@ -187,7 +225,8 @@ internal sealed class PlcWorkingState
             case "create_tag_table":
             {
                 var folder = NormalizeFolder(item.FolderPath);
-                if (!_tableFolders.Contains(folder)) throw NotFound(item, $"tag table folder '{folder}' was not found in PLC '{_plc}'.");
+                if (!_tableFolders.Contains(folder)) throw NotFound(item, $"tag table folder '{folder}' was not found in PLC '{_plc}'.",
+                    !_inventoryComplete || _skipped.Any(s => s.NodeType is ProjectTreeNodeTypes.TagTable or ProjectTreeNodeTypes.TagTableFolder));
                 if (_tables.FirstOrDefault(t => Names.Equals(t.Name, item.TableName)) is { } taken)
                     guards.Add(Fire(NameCollision, item, $"Tag table name '{item.TableName}' is already used by the table in '{taken.Folder}'; table names are unique across all folders."));
                 if (_skipped.Any(s => s.NodeType is ProjectTreeNodeTypes.TagTable or ProjectTreeNodeTypes.TagTableFolder)) guards.Add(SkippedGuard(item));
@@ -310,16 +349,16 @@ internal sealed class PlcWorkingState
     {
         var folder = NormalizeFolder(item.FolderPath);
         return _tables.FirstOrDefault(t => Names.Equals(t.Folder, folder) && Names.Equals(t.Name, item.TableName))
-            ?? throw NotFound(item, $"tag table '{item.TableName}' was not found in '{folder}' of PLC '{_plc}'.");
+            ?? throw NotFound(item, $"tag table '{item.TableName}' was not found in '{folder}' of PLC '{_plc}'.", !_inventoryComplete);
     }
 
-    private static TagInfo RequireTag(PlcOperationRequest item, Table table)
+    private TagInfo RequireTag(PlcOperationRequest item, Table table)
         => table.Tags.FirstOrDefault(t => Names.Equals(t.Name, item.Name))
-            ?? throw NotFound(item, $"tag '{item.Name}' was not found in tag table '{table.Name}'.");
+            ?? throw NotFound(item, $"tag '{item.Name}' was not found in tag table '{table.Name}'.", !_inventoryComplete);
 
-    private static UserConstantInfo RequireConstant(PlcOperationRequest item, Table table)
+    private UserConstantInfo RequireConstant(PlcOperationRequest item, Table table)
         => table.Constants.FirstOrDefault(c => Names.Equals(c.Name, item.Name))
-            ?? throw NotFound(item, $"user constant '{item.Name}' was not found in tag table '{table.Name}'.");
+            ?? throw NotFound(item, $"user constant '{item.Name}' was not found in tag table '{table.Name}'.", !_inventoryComplete);
 
     private void RequireCpuNameFree(PlcOperationRequest item, string name, PlcNamedObject? self, List<FiredGuard> guards)
     {
@@ -351,7 +390,7 @@ internal sealed class PlcWorkingState
         {
             var group = ResolveGroup(item, Owner(item, address), address.FolderPath);
             var block = group.Blocks.FirstOrDefault(b => Names.Equals(b.Name, address.BlockName))
-                ?? throw NotFound(item, $"block '{address.BlockName}' was not found at '{group.Path}'.");
+                ?? throw NotFound(item, $"block '{address.BlockName}' was not found at '{group.Path}'.", HiddenAt(group.Selector));
             return (group, block);
         }
 
@@ -360,7 +399,7 @@ internal sealed class PlcWorkingState
         var matches = _unitRoots.Values.Prepend(_root).SelectMany(UserBlocks).Where(b => Names.Equals(b.Block.Name, address.BlockName)).ToArray();
         return matches.Length switch
         {
-            0 => throw NotFound(item, $"block '{address.BlockName}' was not found in PLC '{_plc}'."),
+            0 => throw NotFound(item, $"block '{address.BlockName}' was not found in PLC '{_plc}'.", _skipped.Any(IsBlockTreeNode)),
             1 => matches[0],
             _ => throw new ResolutionException(WorkerFailureCategories.TargetAmbiguous,
                 $"Operation '{item.OperationId}': block '{address.BlockName}' is ambiguous in PLC '{_plc}'. Use the deterministic path, for example '{matches[0].Group.Path}/{address.BlockName}'."),
@@ -377,14 +416,14 @@ internal sealed class PlcWorkingState
 
     private Group Owner(PlcOperationRequest? item, BlockAddress address)
         => address.UnitName is null ? _root
-            : _unitRoots.GetValueOrDefault(address.UnitName) ?? throw NotFound(item, $"software unit '{address.UnitName}' was not found in PLC '{_plc}'.");
+            : _unitRoots.GetValueOrDefault(address.UnitName) ?? throw NotFound(item, $"software unit '{address.UnitName}' was not found in PLC '{_plc}'.", HiddenAt(_basePath));
 
-    private static Group ResolveGroup(PlcOperationRequest? item, Group owner, IReadOnlyList<string> folders)
+    private Group ResolveGroup(PlcOperationRequest? item, Group owner, IReadOnlyList<string> folders)
     {
         var current = owner;
         foreach (var folder in folders)
             current = current.Groups.FirstOrDefault(g => !g.IsSystem && Names.Equals(g.Name, folder))
-                ?? throw NotFound(item, $"block group '{current.Path}/{folder}' was not found.");
+                ?? throw NotFound(item, $"block group '{current.Path}/{folder}' was not found.", HiddenAt(current.Selector));
         return current;
     }
 
@@ -448,8 +487,11 @@ internal sealed class PlcWorkingState
 
     private static FiredGuard Fire(string id, PlcOperationRequest item, string message) => new(id, item.OperationId, $"Operation '{item.OperationId}': {message}");
 
-    private static ResolutionException NotFound(PlcOperationRequest? item, string message)
-        => new(WorkerFailureCategories.TargetNotFound, item is null ? char.ToUpperInvariant(message[0]) + message[1..] : $"Operation '{item.OperationId}': {message}");
+    private static ResolutionException NotFound(PlcOperationRequest? item, string message, bool hidden = false)
+        => new(WorkerFailureCategories.TargetNotFound, item is null ? char.ToUpperInvariant(message[0]) + message[1..] : $"Operation '{item.OperationId}': {message}", hidden);
+
+    /// <summary>A skipped node at or above <paramref name="container"/> may be, or hide, the missing object.</summary>
+    private bool HiddenAt(IReadOnlyList<ProjectTreeSelectorSegment> container) => _skipped.Any(s => StartsWith(container, s.ParentPath));
 
     private void Touch(string key, PlcOperationRequest item) => _touches[key] = (_sequence, item.OperationId);
 
@@ -472,7 +514,7 @@ internal sealed class PlcWorkingState
 
     private static string GroupKey(string path) => "group:" + path.ToUpperInvariant();
 
-    private static string ParentPath(string path) => path[..path.LastIndexOf('/')];
+    private static string ParentPath(string path) => path.Contains('/') ? path[..path.LastIndexOf('/')] : string.Empty;
 
     /// <summary>Keys of the group at <paramref name="path"/> and its ancestors below the owner's root group.</summary>
     private static IEnumerable<string> GroupKeys(string path)

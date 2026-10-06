@@ -31,8 +31,8 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         {
             var outcome = await ResolveAsync(projectPath, item, evidence.Inventory!, states, budget).ConfigureAwait(false);
             if (outcome.Error is { } error) return Failed(error);
-            var dependsOn = outcome.State!.LastTouchedBy(outcome.Effect!.Target);
-            outcome.State.Apply(item);
+            var dependsOn = outcome.State?.LastTouchedBy(outcome.Effect!.Target);
+            outcome.State?.Apply(item);
             // The effect stays known: the pipeline drops plans with a null effect.
             plans.Add(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect with { DependsOn = dependsOn }, outcome.Preconditions) with { DependsOn = dependsOn });
             guards[item.OperationId] = outcome.Guards;
@@ -58,6 +58,15 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState> states, PlcContentDiffBudget budget)
     {
         var (plc, matchError) = MatchPlc(item, inventory);
+        if (matchError is { Category: WorkerFailureCategories.TargetNotFound } && !inventory.IsComplete)
+        {
+            // The PLC may be one whose discovery failed: unverifiable, never absent.
+            var hidden = new FiredGuard(PlcGuardDefinitions.StateUnverifiable, item.OperationId,
+                $"{matchError.Message} The tag inventory is incomplete, so the PLC may exist but cannot be verified.");
+            return new ItemOutcome(null, PlcWorkingState.Unresolved(item, PlcSelector(item) ?? string.Empty, null), new[] { hidden },
+                Array.Empty<CheckedPrecondition>(), null);
+        }
+
         if (matchError is not null) return Fail(matchError);
         if (!states.TryGetValue(plc!, out var state))
         {
@@ -104,9 +113,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         string? selector;
         try
         {
-            selector = item.BlockPath is not null ? BlockAddress.Parse(item.BlockPath).PlcName
-                : item.TypePath is not null ? PlcTypeAddress.Parse(item.TypePath).PlcName
-                : item.PlcName;
+            selector = PlcSelector(item);
         }
         catch (ArgumentException ex)
         {
@@ -124,6 +131,12 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
                 $"Operation '{item.OperationId}': {described} matches {matches.Length} PLCs ({string.Join(", ", matches.Select(m => $"'{m.PlcName}' on device '{m.DeviceName}'"))}). Name the PLC software uniquely.")),
         };
     }
+
+    /// <exception cref="ArgumentException">The block or type path is malformed.</exception>
+    private static string? PlcSelector(PlcOperationRequest item)
+        => item.BlockPath is not null ? BlockAddress.Parse(item.BlockPath).PlcName
+            : item.TypePath is not null ? PlcTypeAddress.Parse(item.TypePath).PlcName
+            : item.PlcName;
 
     private async Task<Evidence> ReadInventoryAsync(string? projectPath)
     {

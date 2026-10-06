@@ -101,6 +101,23 @@ public class PlcWritePlannerTests
     }
 
     [Fact]
+    public async Task IncompleteInventoryUnmatchedPlcIsGuardNotError()
+    {
+        const string incomplete = "plc-write-incomplete";
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(incomplete);
+        using var client = CreateClient();
+        var items = new[] { CreateTag("hidden", "PLC_9"), CreateTag("known", "PLC_2") };
+        foreach (var item in items) item.ProjectPath = incomplete;
+
+        var result = await new PlcWritePlanner(client).PlanAsync(incomplete, items);
+
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Contains(result.Guards["hidden"], guard => guard.Id == PlcGuardDefinitions.StateUnverifiable);
+        Assert.Equal("PLC_9", result.Plan.Items[0].Effect!.Target.PlcName);
+        Assert.Contains(result.Guards["known"], guard => guard.Id == PlcGuardDefinitions.StateUnverifiable);
+    }
+
+    [Fact]
     public async Task MissingTargetIsTargetNotFound()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);

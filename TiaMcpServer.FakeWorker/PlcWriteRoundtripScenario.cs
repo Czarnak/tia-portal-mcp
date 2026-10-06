@@ -7,8 +7,9 @@ using TiaMcpServer.Contracts;
 /// and a grouped PLC (software PLC_2 on device PLC_1, so "PLC_1" names both). Reads observe
 /// earlier writes in the same FakeWorker process. Block exports of Empty_DB return empty text and
 /// of Locked fail, to model unreadable content.
+/// With <c>inventoryIncomplete</c> the inventory reports a PLC whose tag tables could not be read.
 /// </summary>
-sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome)
+sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false)
 {
     private static readonly StringComparer Names = StringComparer.OrdinalIgnoreCase;
 
@@ -41,6 +42,8 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
             {
                 "list_tag_tables" => Ok(new PlcTagInventoryInfo
                 {
+                    IsComplete = !inventoryIncomplete,
+                    Messages = inventoryIncomplete ? new() { "The tag tables of PLC 'Hidden_PLC' could not be read: access denied." } : new(),
                     Plcs = _plcs.Where(p => request.PlcName is null || Matches(p, request.PlcName)).Select(p => new PlcTagInventoryPlcInfo
                     {
                         PlcName = p.Software, DeviceName = p.Device, Tables = p.Tables,

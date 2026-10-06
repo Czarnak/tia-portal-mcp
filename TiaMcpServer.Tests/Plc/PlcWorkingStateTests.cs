@@ -302,6 +302,61 @@ public class PlcWorkingStateTests
     }
 
     [Fact]
+    public void IncompleteInventoryMissingTableIsGuardNotError()
+    {
+        var state = State(complete: false);
+        var item = Tag("c", "create_tag", "Fresh", "Hidden", "/Line");
+
+        var resolution = state.Resolve(item);
+
+        Assert.Null(resolution.Error);
+        Assert.Contains(PlcGuardDefinitions.StateUnverifiable, GuardIds(resolution));
+        Assert.Equal(("Tag", "/Line", "Hidden", "Fresh"),
+            (resolution.Effect!.Target.Kind, resolution.Effect.Target.FolderPath, resolution.Effect.Target.TableName, resolution.Effect.Target.Name));
+        state.Apply(item);
+        Assert.Null(state.Resolve(new PlcOperationRequest { OperationId = "t", Operation = "delete_tag_table", TableName = "Gone" }).Error);
+    }
+
+    [Fact]
+    public void SkippedGroupAboveMissingBlockIsGuardNotError()
+    {
+        var skipped = new ProjectTreeSkippedNodeInfo
+        {
+            ParentPath = new() { Seg(ProjectTreeNodeTypes.Device, Device), Seg(ProjectTreeNodeTypes.PlcSoftware, Plc), Seg(ProjectTreeNodeTypes.BlockFolder, "Program blocks") },
+            NodeType = ProjectTreeNodeTypes.BlockFolder,
+            Reason = "access denied",
+        };
+        var state = State(true, skipped);
+
+        foreach (var item in new[]
+                 {
+                     Blocks("hidden-group", "delete_block", "PLC_1/Blocks/Hidden/X"),
+                     Blocks("hidden-block", "delete_block", "PLC_1/Blocks/Motors/Nope"),
+                     Blocks("unique", "update_block_logic", "PLC_1/Nope"),
+                     Blocks("group", "delete_block_group", "PLC_1/Blocks/Hidden"),
+                     Blocks("parent", "create_block", "PLC_1/Blocks/Hidden/New", "FC"),
+                 })
+        {
+            var resolution = state.Resolve(item);
+            Assert.Null(resolution.Error);
+            Assert.Contains(PlcGuardDefinitions.StateUnverifiable, GuardIds(resolution));
+            Assert.Equal(item.BlockPath, resolution.Effect!.Target.BlockPath);
+            state.Apply(item);
+        }
+    }
+
+    [Fact]
+    public void CompleteEvidenceMissingTargetIsTargetNotFound()
+    {
+        var state = State();
+
+        Assert.Equal("target_not_found", state.Resolve(Tag("t", "delete_tag", "Nope")).Error?.Category);
+        Assert.Equal("target_not_found", state.Resolve(Tag("c", "create_tag", "Fresh", "Hidden")).Error?.Category);
+        Assert.Equal("target_not_found", state.Resolve(Blocks("b", "delete_block", "PLC_1/Blocks/Hidden/X")).Error?.Category);
+        Assert.Equal("target_not_found", state.Resolve(Blocks("u", "update_block_logic", "PLC_1/Nope")).Error?.Category);
+    }
+
+    [Fact]
     public void NullConstantValueFiresUnverifiable()
     {
         var update = Tag("u", "update_user_constant", "Unreadable", "Motors", "/Line");
