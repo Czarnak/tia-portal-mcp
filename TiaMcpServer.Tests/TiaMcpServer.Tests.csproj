@@ -184,6 +184,10 @@
     <Compile Include="..\TiaMcpServer\Plc\PlcReadTools.cs" Link="Host\Plc\PlcReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcToolResponses.cs" Link="Host\Plc\PlcToolResponses.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcWorkerInvoker.cs" Link="Host\Plc\PlcWorkerInvoker.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcGuardDefinitions.cs" Link="Host\Plc\PlcGuardDefinitions.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWriteModels.cs" Link="Host\Plc\PlcWriteModels.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWorkingState.cs" Link="Host\Plc\PlcWorkingState.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWritePlanner.cs" Link="Host\Plc\PlcWritePlanner.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceBudget.cs" Link="Host\CrossReferences\CrossReferenceBudget.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferencePayloadContract.cs" Link="Host\CrossReferences\CrossReferencePayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceReadTools.cs" Link="Host\CrossReferences\CrossReferenceReadTools.cs" />

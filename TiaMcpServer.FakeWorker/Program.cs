@@ -114,6 +114,8 @@ var projectTreeV3ScenarioCalls = new Dictionary<string, int>(StringComparer.Ordi
 var projectTreeSafetyScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var projectTreeDedupCounters = new Dictionary<string, int>(StringComparer.Ordinal);
 var projectTreeDedupPhase = "preview";
+// Stateful PLC write fixture: reads in the same process observe earlier writes.
+var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -831,6 +833,9 @@ while ((line = Console.In.ReadLine()) is not null)
                 })),
                 _ => $$"""{"success":false,"error":"unexpected plc read method '{{ReadMethod(line)}}'"}"""
             });
+            break;
+        case "plc-write-roundtrip":
+            Respond(plcWriteRoundtrip.Handle(line, scenario));
             break;
         case "xref-roundtrip":
             Respond(ReadMethod(line) != "read_cross_references"
