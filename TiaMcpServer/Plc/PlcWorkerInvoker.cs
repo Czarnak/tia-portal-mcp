@@ -62,8 +62,6 @@ public static class PlcWorkerInvoker
             "delete_block" => client.DeleteBlockAsync(op.BlockPath!, op.ProjectPath),
             "create_block_group" => client.CreateBlockGroupAsync(op.BlockPath!, op.ProjectPath),
             "delete_block_group" => client.DeleteBlockGroupAsync(op.BlockPath!, op.ProjectPath),
-            "start_plc" => client.StartPlcAsync(op.PlcName, op.ProjectPath),
-            "stop_plc" => client.StopPlcAsync(op.PlcName, op.ProjectPath),
             _ => Task.FromResult(WorkerCallResult.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"Unsupported PLC write operation '{op.Operation}'.")),

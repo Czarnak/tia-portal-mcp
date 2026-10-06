@@ -45,8 +45,6 @@ public static class PlcOperationCatalog
         ["delete_block"] = Write(new[] { "blockPath" }, Array.Empty<string>()),
         ["create_block_group"] = Write(new[] { "blockPath" }, Array.Empty<string>()),
         ["delete_block_group"] = Write(new[] { "blockPath" }, Array.Empty<string>()),
-        ["start_plc"] = Write(Array.Empty<string>(), new[] { "plcName" }),
-        ["stop_plc"] = Write(Array.Empty<string>(), new[] { "plcName" }),
     };
 
     /// <summary>Wire name, getter and "is a nonblank value required when listed as required" for every string field.</summary>

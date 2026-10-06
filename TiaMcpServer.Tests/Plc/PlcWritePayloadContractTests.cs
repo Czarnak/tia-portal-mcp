@@ -87,17 +87,6 @@ public class PlcWritePayloadContractTests
         Assert.Equal(1, item.Result!.Value.GetProperty("generatedObjectCount").GetInt32());
     }
 
-    [Fact]
-    public void PlcOnlineDecodesTyped()
-    {
-        const string payload = """{"success":true,"operation":"start_plc","projectPath":"C:\\p.ap21","plcName":"PLC_1"}""";
-
-        var item = PlcPayloadContract.ProjectWrite(Op("start_plc"), WorkerCallResult.Ok(payload));
-
-        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
-        Assert.Equal("PLC_1", item.Result!.Value.GetProperty("plcName").GetString());
-    }
-
     [Theory]
     [InlineData("create_tag", """{"success":true,"operation":"create_tag","secret":"leak-me"}""")]
     [InlineData("create_tag", """{"success":true,"operation":"create_tag"}""")]

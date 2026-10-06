@@ -129,11 +129,6 @@ public static class PlcPayloadContract
                 var outcome = workerResult.BlockImportOutcome ?? throw new JsonException();
                 return CanonicalJson.ToElement(new PlcBlockImportResult(
                     PlcFormatNames.Normalize(name, operation.Format), outcome));
-            case "start_plc":
-            case "stop_plc":
-                // ponytail: the contract still omits nulls on the wire, so the required-member reader refuses
-                // it; strict decode until PlcOnlineResultInfo migrates (ProjectPath is always set by the worker).
-                return CanonicalJson.ToElement(CanonicalJson.Deserialize<PlcOnlineResultInfo>(payload));
             default:
                 throw new JsonException($"No declared result contract for PLC write operation '{name}'.");
         }

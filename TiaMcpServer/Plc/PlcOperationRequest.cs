@@ -11,7 +11,7 @@ public sealed class PlcOperationRequest : IOperationBatchItem
     [Description("Client-supplied unique identifier for this PLC operation; returned results are keyed by it.")]
     public string OperationId { get; set; } = string.Empty;
 
-    [Description("PLC operation to run. Reads (plc_read): get_block_content, get_type_content, list_tag_tables. Writes (plc_write): update_block_logic, update_type_content, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, create_block, delete_block, create_block_group, delete_block_group, start_plc, stop_plc.")]
+    [Description("PLC operation to run. Reads (plc_read): get_block_content, get_type_content, list_tag_tables. Writes (plc_write): update_block_logic, update_type_content, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, create_block, delete_block, create_block_group, delete_block_group.")]
     public string Operation { get; set; } = string.Empty;
 
     [Description("Optional absolute project path (.ap21). Reads never open or switch a project; a path that differs from the bound project fails only this item with binding_conflict.")]
@@ -29,7 +29,7 @@ public sealed class PlcOperationRequest : IOperationBatchItem
     [Description("Include the object's dependency closure in the exported source. Optional for get_block_content and get_type_content; only meaningful when format is source. The result is context only and carries no contentHash.")]
     public bool? WithDependencies { get; set; }
 
-    [Description("Optional PLC software name. For list_tag_tables, when omitted every PLC is read. For plc_write tag, tag-table, user-constant and start/stop operations it scopes the target; an omitted name that matches several PLCs fails with target_ambiguous.")]
+    [Description("Optional PLC software name. For list_tag_tables, when omitted every PLC is read. For plc_write tag, tag-table and user-constant operations it scopes the target; an omitted name that matches several PLCs fails with target_ambiguous.")]
     public string? PlcName { get; set; }
 
     [Description("Tag table name (case-insensitive). Optional for list_tag_tables (returns only that table; no match fails the item with target_not_found); required by the tag, tag-table and user-constant write operations.")]

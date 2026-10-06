@@ -321,7 +321,11 @@ public class PlcOperationCatalogTests
         // Field sets are kept from the batch catalog; yamlContent/sourceContent become content and
         // the two update operations also require expectedContentHash.
         static string Map(string f) => f is "yamlContent" or "sourceContent" ? "content" : f;
-        foreach (var batch in TiaMcpServer.Batch.BatchOperationCatalog.All)
+        var batchWrites = TiaMcpServer.Batch.BatchOperationCatalog.All
+            .Where(spec => spec.Name is not ("start_plc" or "stop_plc"))
+            .ToList();
+        Assert.Equal(14, batchWrites.Count);
+        foreach (var batch in batchWrites)
         {
             Assert.True(PlcOperationCatalog.TryGetWriteFields(batch.Name, out var required, out var optional), batch.Name);
             var expectedRequired = batch.RequiredFields.Select(Map).ToList();
@@ -334,6 +338,20 @@ public class PlcOperationCatalogTests
             Assert.Equal(batch.OptionalFields.OrderBy(x => x), optional.OrderBy(x => x));
         }
 
-        Assert.Equal(TiaMcpServer.Batch.BatchOperationCatalog.WriteOperationNames.Count, PlcOperationCatalog.WriteOperationNames.Count);
+        Assert.Equal(14, PlcOperationCatalog.WriteOperationNames.Count);
+    }
+
+    [Theory]
+    [InlineData("start_plc")]
+    [InlineData("stop_plc")]
+    public void WriteValidationRejectsPlcRunStopAsUnknown(string name)
+    {
+        var op = new PlcOperationRequest { OperationId = "a", Operation = name };
+
+        var result = PlcOperationCatalog.ValidateWrite(new[] { op });
+
+        Assert.False(result.IsValid);
+        Assert.Contains($"Unknown operation '{name}'", result.Error);
+        Assert.False(PlcOperationCatalog.TryGetWriteFields(name, out _, out _));
     }
 }
