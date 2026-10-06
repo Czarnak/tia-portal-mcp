@@ -138,4 +138,23 @@ public sealed class PlcWriteVerifierTests
         Assert.True(verification.Success, string.Join("; ", verification.Operations.Select(o => o.Message)));
         Assert.Equal(new[] { "absent", "exists" }, verification.Operations.Select(o => o.Check));
     }
+
+    [Fact]
+    public async Task DeleteProbeUsesResolvedTargetNotCallerPath()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Scenario);
+        // "PLC_2/Main" resolves to PLC_2/Blocks/Main; the later create makes a different Main in a group.
+        var items = new[]
+        {
+            new PlcOperationRequest { OperationId = "del", Operation = "delete_block", BlockPath = "PLC_2/Main" },
+            new PlcOperationRequest { OperationId = "grp", Operation = "create_block_group", BlockPath = "PLC_2/Blocks/F" },
+            PlcGuardedWriteFixture.CreateBlock("add", "PLC_2/Blocks/F/Main"),
+        };
+
+        var verification = await VerifyAsync(fixture, mutate: true, items);
+
+        Assert.True(verification.Success, string.Join("; ", verification.Operations.Select(o => o.Message)));
+        Assert.Equal("absent", verification.Operations[0].Check);
+    }
 }

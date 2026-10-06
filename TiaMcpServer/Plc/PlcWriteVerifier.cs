@@ -67,7 +67,7 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             if (!states.TryGetValue(key, out var entry))
                 states[key] = entry = await ReadStateAsync(projectPath, inventory, target).ConfigureAwait(false);
             results.Add(entry.State is null ? Fail(item, failure is null ? Expectation(item) : "observed", entry.Error!)
-                : failure is null ? VerifyStructural(item, entry.State) : Observe(item, failure, entry.State));
+                : failure is null ? VerifyStructural(item, target, entry.State) : Observe(item, target, failure, entry.State));
         }
 
         return new PlcWriteVerification(results.All(r => r.Success), results, null);
@@ -111,10 +111,10 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         return tree is null ? (null, treeError!.Message) : (PlcWorkingState.Create(plc, inventory.Inventory.IsComplete, tree), null);
     }
 
-    private static PlcOperationVerification VerifyStructural(PlcOperationRequest item, PlcWorkingState state)
+    private static PlcOperationVerification VerifyStructural(PlcOperationRequest item, PlcTargetIdentity target, PlcWorkingState state)
     {
         var expectation = Expectation(item);
-        var resolution = state.Resolve(Probe(item));
+        var resolution = state.Resolve(Probe(item, target));
         if (resolution.Guards.FirstOrDefault(g => g.Id == PlcGuardDefinitions.StateUnverifiable) is { } unverifiable)
             return Fail(item, expectation, unverifiable.Message);
         if (expectation == "absent")
@@ -132,9 +132,9 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
     }
 
     /// <summary>Reports what a failed item's target looks like now; only unreadable evidence fails.</summary>
-    private static PlcOperationVerification Observe(PlcOperationRequest item, StructuredOperationFailure failure, PlcWorkingState state)
+    private static PlcOperationVerification Observe(PlcOperationRequest item, PlcTargetIdentity target, StructuredOperationFailure failure, PlcWorkingState state)
     {
-        var resolution = state.Resolve(Probe(item));
+        var resolution = state.Resolve(Probe(item, target));
         if (resolution.Guards.FirstOrDefault(g => g.Id == PlcGuardDefinitions.StateUnverifiable) is { } unverifiable)
             return Fail(item, "observed", unverifiable.Message);
         var actual = resolution.Error?.Category == WorkerFailureCategories.TargetNotFound ? "absent"
@@ -162,8 +162,8 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             : $"Operation '{item.OperationId}' failed with {failure.Category}; the current content hash is reported.");
     }
 
-    /// <summary>A request that resolves the item's final target: a delete probe for presence, an update probe for values.</summary>
-    private static PlcOperationRequest Probe(PlcOperationRequest item)
+    /// <summary>A request that resolves the item's final target (structural probes use the canonical resolved block path, not the caller's): a delete probe for presence, an update probe for values.</summary>
+    private static PlcOperationRequest Probe(PlcOperationRequest item, PlcTargetIdentity target)
     {
         var finalName = item.NewName ?? item.Name;
         return item.Operation switch
@@ -174,7 +174,7 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             "create_user_constant" or "update_user_constant" => new() { OperationId = item.OperationId, Operation = "update_user_constant",
                 PlcName = item.PlcName, TableName = item.TableName, FolderPath = item.FolderPath, Name = item.Name, DataType = item.DataType, Value = item.Value },
             _ => new() { OperationId = item.OperationId, Operation = item.Operation.Replace("create_", "delete_", StringComparison.Ordinal),
-                PlcName = item.PlcName, TableName = item.TableName, FolderPath = item.FolderPath, Name = item.Name, BlockPath = item.BlockPath },
+                PlcName = item.PlcName, TableName = item.TableName, FolderPath = item.FolderPath, Name = item.Name, BlockPath = target.BlockPath ?? item.BlockPath },
         };
     }
 
