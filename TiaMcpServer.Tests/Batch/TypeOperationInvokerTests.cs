@@ -21,7 +21,7 @@ public class TypeOperationInvokerTests
 
         Assert.Equal("update_type_content", request.Method);
         Assert.Equal("PLC_1/Types/AnalogInputSettings", request.TypePath);
-        Assert.Equal("TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n", request.SourceContent);
+        Assert.Equal("TYPE \"AnalogInputSettings\"\r\nEND_TYPE\r\n", request.Content);
         Assert.Equal("source", request.Format);
     }
 

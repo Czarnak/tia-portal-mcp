@@ -18,7 +18,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// </summary>
 internal static class PlcTypeImporter
 {
-    public static PlcTypeImportResult Import(
+    public static PlcTypeImportResultInfo Import(
         Project project,
         string typePath,
         string sourceContent,
@@ -70,7 +70,7 @@ internal static class PlcTypeImporter
         var evidence = PlcTypePostconditionVerifier.BuildEvidence(project, address, format, outcome.ProjectNodeRemoved);
         PlcTypePostconditionVerifier.Verify(evidence);
 
-        return new PlcTypeImportResult
+        return new PlcTypeImportResultInfo
         {
             Operation = "update_type_content",
             TypePath = address.ToDisplayPath(),
@@ -172,33 +172,4 @@ internal static class PlcTypeImporter
 
         public int GeneratedObjectCount { get; }
     }
-}
-
-/// <summary>Payload of a completed <c>update_type_content</c>.</summary>
-[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
-internal sealed class PlcTypeImportResult
-{
-    public bool Success { get; set; } = true;
-
-    public string Operation { get; set; } = string.Empty;
-
-    public string TypePath { get; set; } = string.Empty;
-
-    public string TypeName { get; set; } = string.Empty;
-
-    public string Format { get; set; } = string.Empty;
-
-    /// <summary>
-    /// False means a temporary external source node is still in the user's project. Reported
-    /// rather than hidden: it is a visible change they did not ask for.
-    /// </summary>
-    public bool ProjectNodeRemoved { get; set; }
-
-    /// <summary>
-    /// How many objects TIA Portal reported creating or replacing — generated from the source for
-    /// <c>format=source</c>, imported for <c>format=xml</c>. Reported because these code paths have
-    /// no automated coverage: a count other than 1 is the cheapest signal that a write did
-    /// something other than update the single type it was addressed to.
-    /// </summary>
-    public int GeneratedObjectCount { get; set; }
 }

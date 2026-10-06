@@ -163,13 +163,13 @@ public static class BatchWorkerInvoker
         {
             case "update_block_logic":
                 request.BlockPath = op.BlockPath;
-                request.YamlContent = op.YamlContent;
+                request.Content = op.YamlContent;
                 request.Format = NormalizeFormat(op);
                 request.AllowTiaConfirmations = true;
                 break;
             case "update_type_content":
                 request.TypePath = op.TypePath;
-                request.SourceContent = op.SourceContent;
+                request.Content = op.SourceContent;
                 request.Format = NormalizeFormat(op);
                 request.AllowTiaConfirmations = true;
                 break;
@@ -186,13 +186,13 @@ public static class BatchWorkerInvoker
     private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
             () => BuildRequest(op),
-            request => client.UpdateBlockLogicAsync(request.BlockPath!, request.YamlContent!, op.ProjectPath, request.Format),
+            request => client.UpdateBlockLogicAsync(request.BlockPath!, request.Content!, op.ProjectPath, request.Format),
             decorateBlockUpdateRejection: true);
 
     private static Task<WorkerCallResult> InvokeUpdateTypeContent(OpennessWorkerClient client, BatchOperationRequest op)
         => WithValidatedFormat(
             () => BuildRequest(op),
-            request => client.UpdateTypeContentAsync(request.TypePath!, request.SourceContent!, request.Format, op.ProjectPath));
+            request => client.UpdateTypeContentAsync(request.TypePath!, request.Content!, request.Format, op.ProjectPath));
 
     /// <summary>
     /// Runs a format-validating builder (<see cref="BuildRequest"/> or <see cref="NormalizeFormat"/>,

@@ -529,7 +529,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             CanonicalJson.ToElement(Items),
             report.Phase,
             text,
-            "sha256:" + ContentHashes.Sha256Hex(text),
+            "sha256:" + ContentHashRules.Sha256Hex(text),
             report.Guards.Select(AuditGuard).ToArray(),
             Items.Select(AuditItem).ToArray(),
             ElapsedMs(_startTimestamp));

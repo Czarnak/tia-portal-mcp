@@ -895,9 +895,9 @@ internal static class Program
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
             }
 
-            if (string.IsNullOrEmpty(request.YamlContent))
+            if (string.IsNullOrEmpty(request.Content))
             {
-                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "YamlContent is required.");
+                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Content is required.");
             }
 
             normalizedFormat = NormalizeBlockFormat(request.Format);
@@ -905,7 +905,7 @@ internal static class Program
             var response = WithProject(request, project =>
             {
                 importerEntered = true;
-                var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!, normalizedFormat);
+                var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat);
                 return RawPayload(result.Payload, result.Warnings, result.Outcome);
             });
             return response.Success
@@ -946,15 +946,15 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "TypePath is required.");
         }
 
-        if (string.IsNullOrEmpty(request.SourceContent))
+        if (string.IsNullOrEmpty(request.Content))
         {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SourceContent is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Content is required.");
         }
 
         var format = NormalizeTypeFormat(request.Format);
 
         return WithProject(request, project => Success(
-            PlcTypeImporter.Import(project, request.TypePath!, request.SourceContent!, format)));
+            PlcTypeImporter.Import(project, request.TypePath!, request.Content!, format)));
     }
 
     /// <summary>

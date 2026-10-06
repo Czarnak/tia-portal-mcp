@@ -58,8 +58,6 @@ public class WorkerRequest
     /// </summary>
     public string? BlockPath { get; set; }
 
-    /// <summary>Forwarded by: update_block_logic.</summary>
-    public string? YamlContent { get; set; }
 
     /// <summary>Forwarded by: create_block. Valid values: FB, FC, OB, GlobalDB.</summary>
     public string? BlockType { get; set; }
@@ -79,8 +77,14 @@ public class WorkerRequest
     /// <summary>Forwarded by: get_type_content, update_type_content.</summary>
     public string? TypePath { get; set; }
 
-    /// <summary>Forwarded by: update_type_content.</summary>
-    public string? SourceContent { get; set; }
+    /// <summary>Forwarded by: update_block_logic, update_type_content. The document text to import.</summary>
+    public string? Content { get; set; }
+
+    /// <summary>
+    /// Forwarded by: update_block_logic, update_type_content (optional). Format-tagged hash the
+    /// worker compares against the freshly exported text before writing.
+    /// </summary>
+    public string? ExpectedContentHash { get; set; }
 
     /// <summary>
     /// Forwarded by: get_type_content, update_type_content, get_block_content,

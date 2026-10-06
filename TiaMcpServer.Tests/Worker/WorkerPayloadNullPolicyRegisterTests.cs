@@ -9,9 +9,9 @@ namespace TiaMcpServer.Tests.Worker;
 /// reason each has not switched (docs/roadmap/json-contract.md). The register only shrinks:
 /// Phase 1b is done — the RequiredMemberEnforcement entries are gone — and Phases 2-3 (the
 /// ToolMigration entries) and the batch redesign (the rest) remain. Adding or removing a marker
-/// without updating it fails here, so a wire-policy change is always a reviewed change. The
-/// worker-assembly contract (PlcTypeImportResult) is not visible to this assembly and is listed
-/// in the plan instead.
+/// without updating it fails here, so a wire-policy change is always a reviewed change.
+/// PlcTypeImportResultInfo, TagMutationResultInfo and BlockMutationResultInfo write nulls and are
+/// deliberately unmarked.
 /// </summary>
 public sealed class WorkerPayloadNullPolicyRegisterTests
 {
@@ -29,8 +29,6 @@ public sealed class WorkerPayloadNullPolicyRegisterTests
             ["CreateUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["UpdateUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["DeleteUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["TagMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["BlockMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
             ["PlcOnlineResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
         };
 

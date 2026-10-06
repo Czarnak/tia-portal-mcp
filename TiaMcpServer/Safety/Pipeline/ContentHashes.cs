@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.Safety.Pipeline;
@@ -27,21 +25,8 @@ public static class ContentHashes
     /// <summary>Name of the precondition recorded for a hash comparison.</summary>
     public const string PreconditionName = "contentHash";
 
-    private const string Algorithm = "sha256";
-    private const int HexLength = 64;
-
-    /// <summary>Returns <c>&lt;format&gt;:sha256:&lt;lower-case hex&gt;</c> over the UTF-8 bytes of <paramref name="content"/>.</summary>
-    public static string Compute(string format, string content)
-    {
-        if (!SourceFormatNames.Allowed.Contains(format))
-        {
-            throw new ArgumentException(
-                $"Unknown format '{format}'. Allowed values: {string.Join(", ", SourceFormatNames.Allowed)}.",
-                nameof(format));
-        }
-
-        return $"{format}:{Algorithm}:{Sha256Hex(content)}";
-    }
+    /// <summary>Returns <c>&lt;format&gt;:sha256:&lt;lower-case hex&gt;</c>; see <see cref="ContentHashRules.Compute"/>.</summary>
+    public static string Compute(string format, string content) => ContentHashRules.Compute(format, content);
 
     /// <summary>
     /// Compares <paramref name="expected"/> with the hash of <paramref name="freshContent"/> in
@@ -55,7 +40,7 @@ public static class ContentHashes
             return Reject("expectedContentHash is required (format-tagged, for example 'xml:sha256:<hex>').");
         }
 
-        if (!TryParse(expected, out var expectedFormat))
+        if (!ContentHashRules.TryParse(expected, out var expectedFormat, out _))
         {
             return Reject(
                 $"expectedContentHash '{expected}' is malformed. Expected '<format>:sha256:<64 lower-case hex>' " +
@@ -83,26 +68,8 @@ public static class ContentHashes
     }
 
     /// <summary>Lower-case hexadecimal SHA-256 of the UTF-8 encoding of <paramref name="text"/>.</summary>
-    internal static string Sha256Hex(string text)
-        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
+    internal static string Sha256Hex(string text) => ContentHashRules.Sha256Hex(text);
 
     private static ContentHashCheck Reject(string message)
         => new(false, WorkerFailureCategories.ValidationError, message, null);
-
-    private static bool TryParse(string value, out string format)
-    {
-        format = string.Empty;
-        var parts = value.Split(':');
-        if (parts.Length != 3
-            || !SourceFormatNames.Allowed.Contains(parts[0])
-            || !string.Equals(parts[1], Algorithm, StringComparison.Ordinal)
-            || parts[2].Length != HexLength
-            || !parts[2].All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
-        {
-            return false;
-        }
-
-        format = parts[0];
-        return true;
-    }
 }

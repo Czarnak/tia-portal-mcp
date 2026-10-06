@@ -135,7 +135,7 @@ public sealed class WorkerProtocolHandshakeTests
                     Method = "update_block_logic",
                     ProjectPath = "C:\\Projects\\MustNeverBeSent.ap21",
                     BlockPath = "PLC_1/Blocks/MustNeverBeSent",
-                    YamlContent = "MustNeverBeSentContent",
+                    Content = "MustNeverBeSentContent",
                     Format = SourceFormatNames.Source
                 }));
 

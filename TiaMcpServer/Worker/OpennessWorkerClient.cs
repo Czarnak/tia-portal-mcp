@@ -948,7 +948,8 @@ public class OpennessWorkerClient : IDisposable
         string blockPath,
         string yamlContent,
         string? projectPath,
-        string? format = null)
+        string? format = null,
+        string? expectedContentHash = null)
     {
         var hasNormalizedFormat = SourceFormatNames.TryNormalize(
             format,
@@ -964,7 +965,8 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.BlockPath = blockPath;
-                request.YamlContent = yamlContent;
+                request.Content = yamlContent;
+                request.ExpectedContentHash = expectedContentHash;
                 request.Format = requestFormat;
                 request.AllowTiaConfirmations = true;
             },
@@ -1026,7 +1028,12 @@ public class OpennessWorkerClient : IDisposable
     /// <see cref="SendBoundProjectRequestAsync"/> construction, hardcoded AllowTiaConfirmations like
     /// its sibling, no bespoke logic.
     /// </summary>
-    public Task<WorkerCallResult> UpdateTypeContentAsync(string typePath, string sourceContent, string? format, string? projectPath)
+    public Task<WorkerCallResult> UpdateTypeContentAsync(
+        string typePath,
+        string sourceContent,
+        string? format,
+        string? projectPath,
+        string? expectedContentHash = null)
     {
         return SendBoundProjectRequestAsync(
             "update_type_content",
@@ -1034,7 +1041,8 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.TypePath = typePath;
-                request.SourceContent = sourceContent;
+                request.Content = sourceContent;
+                request.ExpectedContentHash = expectedContentHash;
                 request.Format = format;
                 request.AllowTiaConfirmations = true;
             },

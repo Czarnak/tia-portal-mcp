@@ -13,7 +13,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// non-empty, and postcondition verification passes. A count other than 1 is the only cheap
 /// signal that this route did something besides update the single block it was pointed at, and
 /// this route has no automated coverage. Same rationale as
-/// <c>PlcTypeImportResult.GeneratedObjectCount</c>.
+/// <c>PlcTypeImportResultInfo.GeneratedObjectCount</c>.
 /// </para>
 /// <para>
 /// Siemens-free by construction so the test project can link and cover it: this is the safety
