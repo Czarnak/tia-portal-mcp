@@ -30,6 +30,7 @@ public class WriteToolMcpAnnotationProtocolTests
         "network_write",
         "open_project",
         "plc_read",
+        "plc_write",
         "preview_write_batch",
         "read_cross_references",
         "save_project",
@@ -47,6 +48,7 @@ public class WriteToolMcpAnnotationProtocolTests
         ("save_project_as", false, true, null, false),
         ("archive_project", false, true, null, false),
         ("close_project", false, true, null, false),
+        ("plc_write", false, true, null, false),
     };
 
     [Fact]
@@ -57,7 +59,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
         Assert.Equal(FullToolNames, tools.Select(tool => tool.Name));
-        Assert.Equal(16, tools.Length);
+        Assert.Equal(17, tools.Length);
         Assert.All(
             tools,
             tool => Assert.Equal(

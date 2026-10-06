@@ -632,7 +632,7 @@ public class ReadOnlyModeTests
             {
                 "apply_write_batch", "archive_project", "bind_project", "browse_project_tree", "close_project",
                 "compile_check", "create_project", "get_project_status",
-                "network_read", "network_write", "open_project", "plc_read", "preview_write_batch", "read_cross_references",
+                "network_read", "network_write", "open_project", "plc_read", "plc_write", "preview_write_batch", "read_cross_references",
                 "save_project", "save_project_as"
             },
             toolNames);

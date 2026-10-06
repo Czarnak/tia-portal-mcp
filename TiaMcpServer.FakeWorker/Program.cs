@@ -117,6 +117,9 @@ var projectTreeDedupPhase = "preview";
 // Stateful PLC write fixture: reads in the same process observe earlier writes.
 var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
 var plcWriteIncomplete = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), inventoryIncomplete: true);
+var plcWriteLateBlock = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), incompleteAfterWrite: true);
+var plcWriteContentDrift = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), driftAtImport: true);
+var plcWriteUnverifiable = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), skippedBlock: true);
 
 // Two devices that never change across any subnet lifecycle operation, modelling the stable
 // "root device count" the production SubnetLifecycleService verifies after every commit.
@@ -840,6 +843,15 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "plc-write-incomplete":
             Respond(plcWriteIncomplete.Handle(line, scenario));
+            break;
+        case "plc-write-late-block":
+            Respond(plcWriteLateBlock.Handle(line, scenario));
+            break;
+        case "plc-write-content-drift":
+            Respond(plcWriteContentDrift.Handle(line, scenario));
+            break;
+        case "plc-write-unverifiable":
+            Respond(plcWriteUnverifiable.Handle(line, scenario));
             break;
         case "xref-roundtrip":
             Respond(ReadMethod(line) != "read_cross_references"

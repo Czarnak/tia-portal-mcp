@@ -135,6 +135,8 @@
       Link="Host\McpToolRegistration.cs" />
     <Compile Include="..\TiaMcpServer\Tools\NetworkWriteArgumentValidatingTool.cs"
       Link="Host\NetworkWriteArgumentValidatingTool.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\StrictArgumentsTool.cs"
+      Link="Host\StrictArgumentsTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResultFormatter.cs"
       Link="Host\StandaloneToolResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResponses.cs" Link="Host\StandaloneToolResponses.cs" />
@@ -188,6 +190,10 @@
     <Compile Include="..\TiaMcpServer\Plc\PlcWriteModels.cs" Link="Host\Plc\PlcWriteModels.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcWorkingState.cs" Link="Host\Plc\PlcWorkingState.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcWritePlanner.cs" Link="Host\Plc\PlcWritePlanner.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWriteDomain.cs" Link="Host\Plc\PlcWriteDomain.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWriteVerifier.cs" Link="Host\Plc\PlcWriteVerifier.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWritePayloadBudget.cs" Link="Host\Plc\PlcWritePayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcWriteTools.cs" Link="Host\Plc\PlcWriteTools.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceBudget.cs" Link="Host\CrossReferences\CrossReferenceBudget.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferencePayloadContract.cs" Link="Host\CrossReferences\CrossReferencePayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceReadTools.cs" Link="Host\CrossReferences\CrossReferenceReadTools.cs" />

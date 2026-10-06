@@ -40,6 +40,12 @@ public sealed record PlcRemoval(
 
 public sealed record PlcWriteEffectPresentation(string OperationId, PlcWriteEffect? Effect, StructuredOperationOmission? Omission);
 
+/// <summary>The plc_write response document; <see cref="Omission"/> is set when diagnostics were compacted.</summary>
+public sealed record PlcGuardedWriteResponse(string Tool, string ContractVersion, string Phase, bool Success,
+    WriteToolError? Error, IReadOnlyList<string> Warnings, IReadOnlyList<WriteGuardReport> Guards,
+    IReadOnlyList<PlcWriteEffectPresentation> Effects, StructuredOperationBatch? Batch, PlcWriteVerification? Verification,
+    StructuredOperationOmission? Omission);
+
 /// <summary>One item resolved against the working state: an effect with its guards, or a call-stopping error.</summary>
 public sealed record PlcResolution(PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards, WriteToolError? Error);
 

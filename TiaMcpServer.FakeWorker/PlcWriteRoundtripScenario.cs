@@ -7,9 +7,13 @@ using TiaMcpServer.Contracts;
 /// and a grouped PLC (software PLC_2 on device PLC_1, so "PLC_1" names both). Reads observe
 /// earlier writes in the same FakeWorker process. Block exports of Empty_DB return empty text and
 /// of Locked fail, to model unreadable content.
-/// With <c>inventoryIncomplete</c> the inventory reports a PLC whose tag tables could not be read.
+/// With <c>inventoryIncomplete</c> the inventory reports a PLC whose tag tables could not be read;
+/// <c>incompleteAfterWrite</c> does the same once any write succeeded (late block, failed verification);
+/// <c>driftAtImport</c> edits block content just before an import checks its hash (a TIA UI edit);
+/// <c>skippedBlock</c> makes the tree walker report an unreadable block under PLC_1's program blocks.
 /// </summary>
-sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false)
+sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
+    bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false)
 {
     private static readonly StringComparer Names = StringComparer.OrdinalIgnoreCase;
 
@@ -32,18 +36,41 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
 
     private readonly List<Plc> _plcs = Fixture();
     private readonly Dictionary<string, string> _content = new(Names);
+    private bool _wrote;
+
+    private bool InventoryIncomplete => inventoryIncomplete || incompleteAfterWrite && _wrote;
 
     public string Handle(string line, string? fallbackProjectPath)
     {
         var request = JsonSerializer.Deserialize<WorkerRequest>(line, WorkerJson.Envelope)!;
         try
         {
-            return request.Method switch
+            var response = Dispatch(request, fallbackProjectPath);
+            _wrote |= request.Method is not ("list_tag_tables" or "browse_project_tree_v3_snapshot" or "get_block_content" or "get_type_content" or "read_hardware_config");
+            return response;
+        }
+        catch (WorkerOperationException ex)
+        {
+            // A refused import never started; the client requires that evidence on every block-import failure.
+            var notStarted = request.Method != "update_block_logic" ? null : new BlockImportOutcomeInfo
             {
+                ImportStage = "not_started", ImportResultState = "unavailable", TargetMutationCommitted = false, CompileStage = "not_started",
+                FinalReadStage = "not_started", ContentRelation = "unknown",
+                TemporarySourceState = request.Format == SourceFormatNames.Source ? "not_created" : "not_applicable",
+            };
+            return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message, BlockImportOutcome = notStarted }, WorkerJson.Envelope);
+        }
+    }
+
+    private string Dispatch(WorkerRequest request, string? fallbackProjectPath)
+        => request.Method switch
+            {
+                // Lets the write fixtures bind to the scenario like any other project.
+                "read_hardware_config" => Ok(new HardwareConfigInfo()),
                 "list_tag_tables" => Ok(new PlcTagInventoryInfo
                 {
-                    IsComplete = !inventoryIncomplete,
-                    Messages = inventoryIncomplete ? new() { "The tag tables of PLC 'Hidden_PLC' could not be read: access denied." } : new(),
+                    IsComplete = !InventoryIncomplete,
+                    Messages = InventoryIncomplete ? new() { "The tag tables of PLC 'Hidden_PLC' could not be read: access denied." } : new(),
                     Plcs = _plcs.Where(p => request.PlcName is null || Matches(p, request.PlcName)).Select(p => new PlcTagInventoryPlcInfo
                     {
                         PlcName = p.Software, DeviceName = p.Device, Tables = p.Tables,
@@ -57,12 +84,6 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 "create_block" or "delete_block" or "create_block_group" or "delete_block_group" => BlockWrite(request),
                 _ => TagWrite(request),
             };
-        }
-        catch (WorkerOperationException ex)
-        {
-            return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message }, WorkerJson.Envelope);
-        }
-    }
 
     private static List<Plc> Fixture()
     {
@@ -143,7 +164,11 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 },
                 Depth = request.Depth,
                 Roots = new() { software },
-                Skipped = new(),
+                Skipped = skippedBlock && plc.Software == "PLC_1"
+                    ? new() { new() { ParentPath = new() { new() { NodeType = ProjectTreeNodeTypes.Device, Name = plc.Device },
+                        new() { NodeType = ProjectTreeNodeTypes.PlcSoftware, Name = plc.Software }, new() { NodeType = ProjectTreeNodeTypes.BlockFolder, Name = plc.Root.Name } },
+                        NodeType = ProjectTreeNodeTypes.Fc, Reason = "The block could not be read: access denied." } }
+                    : new(),
             }),
         }, WorkerJson.Envelope);
     }
@@ -180,6 +205,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
     {
         var (plc, _, _, path) = ResolveBlock(request.BlockPath!);
         var format = request.Format ?? SourceFormatNames.Xml;
+        if (driftAtImport) _content[Key(path, format)] = "<Block edited-in-tia-ui=\"true\"/>";
         RequireHash(request, format, Content(plc, path, format));
         _content[Key(path, format)] = request.Content!;
         return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded.", BlockImportOutcome = completedOutcome(format) }, WorkerJson.Envelope);

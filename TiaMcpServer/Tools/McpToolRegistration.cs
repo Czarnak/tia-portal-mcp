@@ -3,6 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
+using TiaMcpServer.Plc;
+using TiaMcpServer.ProjectLifecycle;
+using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Tools;
 
@@ -16,9 +19,16 @@ public static class McpToolRegistration
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.Compile))
             builder.WithTools<ProjectEngineeringTools>();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectMutation))
-            builder.WithTools<WriteBatchTools>().WithNetworkWriteTools();
+            builder.WithTools<WriteBatchTools>().WithNetworkWriteTools().WithPlcWriteTools();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectLifecycle))
             builder.WithTools<ProjectWriteTools>();
         return builder;
     }
+}
+
+/// <summary>The one production guard catalog: lifecycle, Network and PLC guard definitions.</summary>
+public static class WriteGuardRegistration
+{
+    public static WriteGuardCatalog ProductionCatalog()
+        => new(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions).Concat(PlcGuardDefinitions.Definitions));
 }

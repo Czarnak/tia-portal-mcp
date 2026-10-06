@@ -79,7 +79,7 @@ namespace TiaMcpServer
                 accessPolicy: sp.GetRequiredService<OperationAccessPolicy>()));
             builder.Services.AddSingleton(sp => new WriteExecution(
                 new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
-                new JsonlWriteAuditSink(), new WriteGuardCatalog(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions)), TimeProvider.System));
+                new JsonlWriteAuditSink(), WriteGuardRegistration.ProductionCatalog(), TimeProvider.System));
             builder.Services.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
             builder.Services.AddSingleton(sp => new HardwarePageCursorCodec(
                 sp.GetRequiredService<AuthenticatedCursorProtector>()));

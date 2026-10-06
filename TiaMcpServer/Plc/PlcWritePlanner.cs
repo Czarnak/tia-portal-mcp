@@ -13,7 +13,7 @@ namespace TiaMcpServer.Plc;
 /// </summary>
 public sealed class PlcWritePlanner(OpennessWorkerClient client)
 {
-    private sealed record Evidence(PlcTagInventoryInfo? Inventory, WriteToolError? Error);
+    internal sealed record Evidence(PlcTagInventoryInfo? Inventory, WriteToolError? Error);
 
     private sealed record ItemOutcome(PlcWorkingState? State, PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards,
         IReadOnlyList<CheckedPrecondition> Preconditions, WriteToolError? Error);
@@ -138,7 +138,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             : item.TypePath is not null ? PlcTypeAddress.Parse(item.TypePath).PlcName
             : item.PlcName;
 
-    private async Task<Evidence> ReadInventoryAsync(string? projectPath)
+    internal async Task<Evidence> ReadInventoryAsync(string? projectPath)
     {
         var request = new PlcOperationRequest { OperationId = "plan", Operation = "list_tag_tables", ProjectPath = projectPath };
         var projected = PlcPayloadContract.Project(request, await client.ListTagTablesAsync(null, projectPath).ConfigureAwait(false));
@@ -148,7 +148,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
                 $"The PLC tag inventory could not be read: {projected.Failure?.Message}"));
     }
 
-    private async Task<(ProjectTreeObservation? Tree, WriteToolError? Error)> ReadTreeAsync(string? projectPath, PlcTagInventoryPlcInfo plc)
+    internal async Task<(ProjectTreeObservation? Tree, WriteToolError? Error)> ReadTreeAsync(string? projectPath, PlcTagInventoryPlcInfo plc)
     {
         if (string.IsNullOrWhiteSpace(plc.DeviceName))
             return (null, new(WorkerFailureCategories.WorkerOperationFailed, $"The device of PLC '{plc.PlcName}' could not be identified, so its project tree cannot be read."));

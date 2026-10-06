@@ -184,6 +184,42 @@ public sealed class ToolOutputContractConformanceTests
                 },
             }),
         new ToolProbe(
+            "plc_write",
+            "rejected",
+            ExpectIsError: true,
+            StartupProjectPath: null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe(
+            "plc_write",
+            "previewed",
+            ExpectIsError: false,
+            StartupProjectPath: "plc-write-roundtrip",
+            new Dictionary<string, object?>
+            {
+                ["dryRun"] = true,
+                ["operations"] = new object[]
+                {
+                    new
+                    {
+                        operationId = "table",
+                        operation = "create_tag_table",
+                        projectPath = "plc-write-roundtrip",
+                        plcName = "PLC_2",
+                        tableName = "Valves",
+                    },
+                    new
+                    {
+                        operationId = "tag",
+                        operation = "create_tag",
+                        projectPath = "plc-write-roundtrip",
+                        plcName = "PLC_2",
+                        tableName = "Valves",
+                        name = "Valve1",
+                        dataType = "Bool",
+                    },
+                },
+            }),
+        new ToolProbe(
             "browse_project_tree",
             "rejected",
             ExpectIsError: true,
@@ -292,6 +328,7 @@ public sealed class ToolOutputContractConformanceTests
             "get_project_status/omitted" => "status-oversized",
             "network_read/succeeded" => "network-roundtrip",
             "plc_read/succeeded" => "plc-read-roundtrip",
+            "plc_write/previewed" => "plc-write-roundtrip",
             "read_cross_references/succeeded" => "xref-roundtrip",
             "read_cross_references/omittedSources" => "xref-oversized",
             "browse_project_tree/succeeded" => "project-tree-v3-small",
@@ -358,6 +395,20 @@ public sealed class ToolOutputContractConformanceTests
             Assert.Equal(
                 probe.ExpectIsError ? System.Text.Json.JsonValueKind.Null : System.Text.Json.JsonValueKind.Object,
                 document.GetProperty("batch").ValueKind);
+        }
+        if (probe.Tool == "plc_write")
+        {
+            var document = result.StructuredContent!.Value;
+            Assert.Equal("plc_write", document.GetProperty("tool").GetString());
+            Assert.Equal("1.0", document.GetProperty("contractVersion").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
+            Assert.Equal(probe.ExpectIsError ? "error" : "preview", document.GetProperty("phase").GetString());
+            if (!probe.ExpectIsError)
+            {
+                Assert.True(document.GetProperty("success").GetBoolean());
+                Assert.Equal("table", document.GetProperty("effects")[1].GetProperty("effect").GetProperty("dependsOn").GetString());
+            }
         }
         if (probe.Tool == "read_cross_references")
         {
