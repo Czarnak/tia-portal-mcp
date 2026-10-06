@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.Safety;
@@ -33,43 +32,13 @@ public class ReadWriteModeCeilingTests
 
     [Theory]
     [MemberData(nameof(RestrictedOperations))]
-    public async Task ReadWrite_DeniesOnlineControlBeforeTransport(string operation)
+    public async Task ReadWrite_DeniesRetiredOnlineControlBeforeTransport(string operation)
     {
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
         var result = await InvokeRaw(client, operation);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
         Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
-        AssertNoTransport(client);
-    }
-
-    [Theory]
-    [InlineData("start_plc")]
-    [InlineData("stop_plc")]
-    public async Task MixedBatch_ReadWriteRejectsBeforeBindingSnapshotsOrMutations(string operation)
-    {
-        using var audit = new TempAuditDirectory();
-        var binding = new ProjectSessionBinding(@"C:\Fixture\Line.ap21");
-        var before = binding.CaptureSnapshot();
-        using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
-        var safety = new WriteSafetyService(binding, () => DateTimeOffset.UtcNow, WriteSafetyService.DefaultTokenLifetime, audit.Path);
-        var operations = new[]
-        {
-            new BatchOperationRequest { OperationId = "edit", Operation = "update_tag", TableName = "Tags", Name = "Tag" },
-            new BatchOperationRequest { OperationId = "control", Operation = operation }
-        };
-        foreach (var result in new[]
-        {
-            await WriteBatchTools.PreviewWriteBatch(client, safety, operations),
-            await WriteBatchTools.ApplyWriteBatch(client, safety, operations, confirm: true, safetyToken: "unknown")
-        })
-        {
-            using var json = JsonDocument.Parse(result);
-            Assert.Equal(WorkerFailureCategories.AccessDenied, json.RootElement.GetProperty("failureCategory").GetString());
-            Assert.Contains("read-write", json.RootElement.GetProperty("error").GetString());
-            Assert.False(json.RootElement.TryGetProperty("safetyToken", out _));
-        }
-        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
         AssertNoTransport(client);
     }
 
@@ -115,11 +84,11 @@ public class ReadWriteModeCeilingTests
 
     [Theory]
     [MemberData(nameof(RestrictedOperations))]
-    public void WorkerAuthorization_ReadWriteCeilingMatchesHost(string operation)
+    public void WorkerAuthorization_DeniesRetiredOnlineControlInEveryWritableMode(string operation)
     {
-        Assert.Equal(WorkerFailureCategories.AccessDenied,
-            WorkerOperationAuthorization.Authorize(McpAccessMode.ReadWrite, operation)!.FailureCategory);
-        Assert.Null(WorkerOperationAuthorization.Authorize(McpAccessMode.Full, operation));
+        foreach (var mode in new[] { McpAccessMode.ReadWrite, McpAccessMode.Full })
+            Assert.Equal(WorkerFailureCategories.AccessDenied,
+                WorkerOperationAuthorization.Authorize(mode, operation)!.FailureCategory);
     }
 
     [Fact]

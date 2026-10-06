@@ -95,7 +95,7 @@ public class ProjectStandaloneToolTests
         var response = await ProjectEngineeringTools.CompileCheck(
             client,
             projectPath,
-            blockPath: new string('x', OperationBatchPayloadBudget.MaxItemChars + 100));
+            blockPath: new string('x', StructuredOperationBatchPayloadBudget.MaxItemChars + 100));
         var root = StandaloneStatusToolTests.Document(response);
         var outcome = root.GetProperty("result");
         Assert.Equal("omitted", outcome.GetProperty("status").GetString());

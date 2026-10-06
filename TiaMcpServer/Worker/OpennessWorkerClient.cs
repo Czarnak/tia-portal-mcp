@@ -32,8 +32,7 @@ internal static class WorkerTransportFailureGuidance
 
         return OperationPolicyCatalog.GetCapability(method) is
             OperationCapability.Observe or
-            OperationCapability.TemporaryExport or
-            OperationCapability.SafetyRead;
+            OperationCapability.TemporaryExport;
     }
 
     internal static string TimeoutGuidance(string? method)
@@ -406,28 +405,6 @@ public class OpennessWorkerClient : IDisposable
         /// <summary>Clear the session binding. Close uses this.</summary>
         Clear
     }
-
-    public Task<WorkerCallResult> ReadCreateBlockSafetySnapshotAsync(
-        string blockPath, string blockType, string? language, string? obEventClass, string? projectPath)
-    {
-        return SendBoundProjectRequestAsync(
-            "read_create_block_safety_snapshot", projectPath,
-            request =>
-            {
-                request.BlockPath = blockPath;
-                request.BlockType = blockType;
-                request.Language = language;
-                request.OBEventClass = obEventClass;
-            }, "{}");
-    }
-
-    public Task<WorkerCallResult> ReadCreateBlockGroupSafetySnapshotAsync(string blockPath, string? projectPath)
-        => SendBoundProjectRequestAsync("read_create_block_group_safety_snapshot", projectPath,
-            request => request.BlockPath = blockPath, "{}");
-
-    public Task<WorkerCallResult> ReadDeleteBlockGroupSafetySnapshotAsync(string blockPath, string? projectPath)
-        => SendBoundProjectRequestAsync("read_delete_block_group_safety_snapshot", projectPath,
-            request => request.BlockPath = blockPath, "{}");
 
     public Task<ProjectTreeSnapshotCallResult> BrowseProjectTreeV3SnapshotAsync(
         string? projectPath = null,
@@ -1067,174 +1044,6 @@ public class OpennessWorkerClient : IDisposable
             "[]");
     }
 
-    public Task<WorkerCallResult> ReadUpdateTagSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string name,
-        string? projectPath)
-    {
-        return SendBoundProjectRequestAsync(
-            "read_update_tag_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-                request.Name = name;
-            },
-            "{}");
-    }
-
-    public Task<WorkerCallResult> ReadCreateTagTableSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_create_tag_table_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-            },
-            "{}");
-
-    public Task<WorkerCallResult> ReadDeleteTagTableSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_delete_tag_table_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-            },
-            "{}");
-
-    public Task<WorkerCallResult> ReadCreateTagSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string name,
-        string dataType,
-        string? logicalAddress,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_create_tag_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-                request.Name = name;
-                request.DataType = dataType;
-                request.LogicalAddress = logicalAddress;
-            },
-            "{}");
-
-    public Task<WorkerCallResult> ReadUpdateTagSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string name,
-        string? newName,
-        string? logicalAddress,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_update_tag_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-                request.Name = name;
-                request.NewName = newName;
-                request.LogicalAddress = logicalAddress;
-            },
-            "{}");
-
-    public Task<WorkerCallResult> ReadDeleteTagSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string name,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_delete_tag_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-                request.Name = name;
-            },
-            "{}");
-
-    public Task<WorkerCallResult> ReadCreateUserConstantSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string name,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_create_user_constant_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-                request.Name = name;
-            },
-            "{}");
-
-    public Task<WorkerCallResult> ReadUpdateUserConstantSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string name,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_update_user_constant_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-                request.Name = name;
-            },
-            "{}");
-
-    public Task<WorkerCallResult> ReadDeleteUserConstantSafetySnapshotAsync(
-        string? plcName,
-        string tableName,
-        string? folderPath,
-        string name,
-        string? projectPath)
-        => SendBoundProjectRequestAsync(
-            "read_delete_user_constant_safety_snapshot",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.TableName = tableName;
-                request.FolderPath = folderPath;
-                request.Name = name;
-            },
-            "{}");
-
     public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
@@ -1504,34 +1313,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.BlockPath = blockPath;
-                request.Confirm = true;
-                request.AllowTiaConfirmations = true;
-            },
-            "{}");
-    }
-
-    public Task<WorkerCallResult> StartPlcAsync(string? plcName, string? projectPath)
-    {
-        return SendBoundProjectRequestAsync(
-            "start_plc",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
-                request.Confirm = true;
-                request.AllowTiaConfirmations = true;
-            },
-            "{}");
-    }
-
-    public Task<WorkerCallResult> StopPlcAsync(string? plcName, string? projectPath)
-    {
-        return SendBoundProjectRequestAsync(
-            "stop_plc",
-            projectPath,
-            request =>
-            {
-                request.PlcName = plcName;
                 request.Confirm = true;
                 request.AllowTiaConfirmations = true;
             },

@@ -14,10 +14,6 @@ public enum OperationCapability
     /// output. Allowed in read-only mode when cleanup is guaranteed.</summary>
     TemporaryExport,
 
-    /// <summary>Side-effect-free internal safety-state read. Allowed in read-only mode but
-    /// bound to the verified worker/Portal/project identity.</summary>
-    SafetyRead,
-
     /// <summary>Invokes the Siemens compilation API. Not allowed in read-only mode because
     /// compilation may modify internal project state.</summary>
     Compile,
@@ -28,7 +24,7 @@ public enum OperationCapability
     /// <summary>Modifies project data: blocks, tags, tag tables, user constants, network devices.</summary>
     ProjectMutation,
 
-    /// <summary>Controls PLC runtime state: start, stop.</summary>
+    /// <summary>Reserved for PLC runtime control. No operation is classified here.</summary>
     OnlineControl,
 
     /// <summary>Selects an already-open Portal project without opening, saving, or closing it.</summary>

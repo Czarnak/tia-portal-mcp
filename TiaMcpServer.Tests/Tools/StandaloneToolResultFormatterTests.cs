@@ -13,7 +13,7 @@ public class StandaloneToolResultFormatterTests
     public void OversizedSuccess_IsCappedWithHintAndKeepsWarnings()
     {
         var result = WorkerCallResult.Ok(
-            new string('x', OperationBatchPayloadBudget.MaxItemChars + 100),
+            new string('x', StructuredOperationBatchPayloadBudget.MaxItemChars + 100),
             new[] { "keep this warning" });
 
         var text = StandaloneToolResultFormatter.Format(
@@ -25,7 +25,7 @@ public class StandaloneToolResultFormatterTests
         var payload = root.GetProperty("payload").GetString()!;
 
         Assert.True(root.GetProperty("success").GetBoolean());
-        Assert.Equal(OperationBatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Equal(StructuredOperationBatchPayloadBudget.MaxItemChars, payload.Length);
         Assert.Contains("[TRUNCATED", payload);
         Assert.Contains("depth or startPath", payload);
         Assert.Equal(
@@ -60,16 +60,16 @@ public class StandaloneToolResultFormatterTests
     public void OversizedSuccess_WithOversizedHint_RemainsCapped()
     {
         var result = WorkerCallResult.Ok(
-            new string('x', OperationBatchPayloadBudget.MaxItemChars + 100));
+            new string('x', StructuredOperationBatchPayloadBudget.MaxItemChars + 100));
 
         var text = StandaloneToolResultFormatter.Format(
             result,
-            new string('h', OperationBatchPayloadBudget.MaxItemChars * 2));
+            new string('h', StructuredOperationBatchPayloadBudget.MaxItemChars * 2));
 
         using var document = JsonDocument.Parse(text);
         var payload = document.RootElement.GetProperty("payload").GetString()!;
 
-        Assert.Equal(OperationBatchPayloadBudget.MaxItemChars, payload.Length);
+        Assert.Equal(StructuredOperationBatchPayloadBudget.MaxItemChars, payload.Length);
         Assert.Contains("[TRUNCATED", payload);
     }
 }

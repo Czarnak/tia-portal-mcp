@@ -16,21 +16,7 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class WorkerPayloadNullPolicyRegisterTests
 {
     private static readonly IReadOnlyDictionary<string, LegacyNullOmissionReason> Expected =
-        new Dictionary<string, LegacyNullOmissionReason>(StringComparer.Ordinal)
-        {
-            ["CreateBlockSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateBlockGroupSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteBlockGroupSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateTagTableSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteTagTableSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateTagSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["UpdateTagSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteTagSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["UpdateUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["PlcOnlineResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
-        };
+        new Dictionary<string, LegacyNullOmissionReason>(StringComparer.Ordinal);
 
     [Fact]
     public void ContractsMarkedToOmitNullMembers_AreExactlyTheRegisteredSet()

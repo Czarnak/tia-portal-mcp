@@ -1,6 +1,5 @@
 using ModelContextProtocol.Server;
 using Microsoft.Extensions.DependencyInjection;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
 using TiaMcpServer.Plc;
@@ -19,7 +18,7 @@ public static class McpToolRegistration
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.Compile))
             builder.WithTools<ProjectEngineeringTools>();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectMutation))
-            builder.WithTools<WriteBatchTools>().WithNetworkWriteTools().WithPlcWriteTools();
+            builder.WithNetworkWriteTools().WithPlcWriteTools();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectLifecycle))
             builder.WithTools<ProjectWriteTools>();
         return builder;

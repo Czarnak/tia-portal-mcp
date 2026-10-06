@@ -18,7 +18,6 @@ public class WriteToolMcpAnnotationProtocolTests
 
     private static readonly string[] FullToolNames =
     {
-        "apply_write_batch",
         "archive_project",
         "bind_project",
         "browse_project_tree",
@@ -31,7 +30,6 @@ public class WriteToolMcpAnnotationProtocolTests
         "open_project",
         "plc_read",
         "plc_write",
-        "preview_write_batch",
         "read_cross_references",
         "save_project",
         "save_project_as",
@@ -40,8 +38,6 @@ public class WriteToolMcpAnnotationProtocolTests
     private static readonly (string Name, bool ReadOnly, bool Destructive, bool? Idempotent, bool OpenWorld)[] ExpectedWriteToolAnnotations =
     {
         ("bind_project", false, false, true, false),
-        ("preview_write_batch", true, false, null, false),
-        ("apply_write_batch", false, true, null, false),
         ("open_project", false, true, null, false),
         ("create_project", false, true, null, false),
         ("save_project", false, true, null, false),
@@ -59,7 +55,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
         Assert.Equal(FullToolNames, tools.Select(tool => tool.Name));
-        Assert.Equal(17, tools.Length);
+        Assert.Equal(15, tools.Length);
         Assert.All(
             tools,
             tool => Assert.Equal(
@@ -76,7 +72,7 @@ public class WriteToolMcpAnnotationProtocolTests
             Assert.Equal(expected.OpenWorld, annotations.OpenWorldHint);
         }
 
-        Assert.Contains("\"operations\"", byName["preview_write_batch"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
+        Assert.Contains("\"operations\"", byName["plc_write"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
         Assert.Contains("\"projectPath\"", byName["open_project"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
         foreach (var name in new[] { "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project" })
         {

@@ -315,30 +315,39 @@ public class PlcOperationCatalogTests
         Assert.Contains("'content' is not valid for delete_block", result.Error);
     }
 
-    [Fact]
-    public void WriteSpecsKeepTheBatchFieldSets()
+    private static readonly (string Name, string[] Required, string[] Optional)[] ExpectedWriteFields =
     {
-        // Field sets are kept from the batch catalog; yamlContent/sourceContent become content and
-        // the two update operations also require expectedContentHash.
-        static string Map(string f) => f is "yamlContent" or "sourceContent" ? "content" : f;
-        var batchWrites = TiaMcpServer.Batch.BatchOperationCatalog.All
-            .Where(spec => spec.Name is not ("start_plc" or "stop_plc"))
-            .ToList();
-        Assert.Equal(14, batchWrites.Count);
-        foreach (var batch in batchWrites)
-        {
-            Assert.True(PlcOperationCatalog.TryGetWriteFields(batch.Name, out var required, out var optional), batch.Name);
-            var expectedRequired = batch.RequiredFields.Select(Map).ToList();
-            if (batch.Name is "update_block_logic" or "update_type_content")
-            {
-                expectedRequired.Add("expectedContentHash");
-            }
+        // Field sets of the retired batch catalog; yamlContent/sourceContent became content and the
+        // two update operations also require expectedContentHash.
+        ("update_block_logic", new[] { "blockPath", "content", "expectedContentHash" }, new[] { "format" }),
+        ("create_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+        ("delete_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
+        ("create_tag", new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
+        ("update_tag", new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
+        ("delete_tag", new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+        ("create_user_constant", new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
+        ("update_user_constant", new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
+        ("delete_user_constant", new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
+        ("create_block", new[] { "blockPath", "blockType" }, new[] { "language", "obEventClass" }),
+        ("delete_block", new[] { "blockPath" }, Array.Empty<string>()),
+        ("create_block_group", new[] { "blockPath" }, Array.Empty<string>()),
+        ("delete_block_group", new[] { "blockPath" }, Array.Empty<string>()),
+        ("update_type_content", new[] { "typePath", "content", "expectedContentHash" }, new[] { "format" }),
+    };
 
+    [Fact]
+    public void WriteSpecsKeepTheRetiredBatchFieldSets()
+    {
+        Assert.Equal(14, ExpectedWriteFields.Length);
+        foreach (var (name, expectedRequired, expectedOptional) in ExpectedWriteFields)
+        {
+            Assert.True(PlcOperationCatalog.TryGetWriteFields(name, out var required, out var optional), name);
             Assert.Equal(expectedRequired.OrderBy(x => x), required.OrderBy(x => x));
-            Assert.Equal(batch.OptionalFields.OrderBy(x => x), optional.OrderBy(x => x));
+            Assert.Equal(expectedOptional.OrderBy(x => x), optional.OrderBy(x => x));
         }
 
         Assert.Equal(14, PlcOperationCatalog.WriteOperationNames.Count);
+        Assert.Equal(ExpectedWriteFields.Select(e => e.Name).OrderBy(x => x), PlcOperationCatalog.WriteOperationNames.OrderBy(x => x));
     }
 
     [Theory]

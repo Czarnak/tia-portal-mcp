@@ -20,16 +20,9 @@ namespace TiaMcpServer.Tests.Tools;
 [Collection("Mcp protocol serial")]
 public sealed class ToolOutputContractConformanceTests
 {
-    private const string BatchRedesign =
-        "Excluded from the JSON contract roadmap: the batch tools are redesigned separately.";
-
     /// <summary>Tools still on a legacy text contract, each with the reason it has not migrated.</summary>
     private static readonly IReadOnlyDictionary<string, string> LegacyTextContractTools =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["preview_write_batch"] = BatchRedesign,
-            ["apply_write_batch"] = BatchRedesign,
-        };
+        new Dictionary<string, string>(StringComparer.Ordinal);
 
     private static readonly object XrefTarget = new
     {

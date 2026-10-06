@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;

@@ -105,8 +105,8 @@ public class WorkerRequest
     #region PLC scoping, tag tables, tags, and user constants
 
     /// <summary>
-    /// Forwarded by: compile_check, list_tag_tables, start_plc,
-    /// stop_plc, read_hardware_config (optional — selects the PLC used for tag matching),
+    /// Forwarded by: compile_check, list_tag_tables,
+    /// read_hardware_config (optional — selects the PLC used for tag matching),
     /// and every tag-table, tag, and user-constant operation.
     /// </summary>
     public string? PlcName { get; set; }

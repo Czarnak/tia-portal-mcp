@@ -20,7 +20,7 @@ public static class OperationPolicyCatalog
 
     /// <summary>
     /// True when <paramref name="operation"/> is allowed under the given access mode.
-    /// Read-only mode allows Observe, TemporaryExport, side-effect-free SafetyRead,
+    /// Read-only mode allows Observe, TemporaryExport,
     /// and SessionSelection of already-open projects.
     /// </summary>
     public static bool IsAllowed(McpAccessMode mode, string? operation)
@@ -34,18 +34,18 @@ public static class OperationPolicyCatalog
         => mode switch
         {
             McpAccessMode.ReadOnly => capability is OperationCapability.Observe
-                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.TemporaryExport
                 or OperationCapability.SessionSelection,
             McpAccessMode.ReadWrite => capability is OperationCapability.Observe
-                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.TemporaryExport
                 or OperationCapability.SessionSelection
                 or OperationCapability.Compile or OperationCapability.ProjectMutation
                 or OperationCapability.ProjectLifecycle,
             McpAccessMode.Full => capability is OperationCapability.Observe
-                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.TemporaryExport
                 or OperationCapability.SessionSelection
                 or OperationCapability.Compile or OperationCapability.ProjectMutation
-                or OperationCapability.ProjectLifecycle or OperationCapability.OnlineControl,
+                or OperationCapability.ProjectLifecycle,
             _ => false
         };
 
@@ -74,7 +74,6 @@ public static class OperationPolicyCatalog
             OperationCapability.Observe => false,
             OperationCapability.TemporaryExport => false,
             OperationCapability.SessionSelection => false,
-            OperationCapability.SafetyRead => true,
             _ => true
         };
     }
@@ -104,18 +103,6 @@ public static class OperationPolicyCatalog
             // SessionSelection (all presets, selects an already-open project)
             ["select_portal_project"] = OperationCapability.SessionSelection,
 
-            // SafetyRead (read-only safe, but requires a verified expected identity)
-            ["read_create_block_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_create_block_group_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_delete_block_group_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_update_tag_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_create_tag_table_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_delete_tag_table_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_create_tag_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_delete_tag_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_create_user_constant_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_update_user_constant_safety_snapshot"] = OperationCapability.SafetyRead,
-            ["read_delete_user_constant_safety_snapshot"] = OperationCapability.SafetyRead,
 
             // TemporaryExport (read-only safe, temporary files with cleanup)
             ["get_block_content"] = OperationCapability.TemporaryExport,
@@ -154,10 +141,6 @@ public static class OperationPolicyCatalog
             ["delete_subnet"] = OperationCapability.ProjectMutation,
             ["probe_subnet_lifecycle_mutations"] = OperationCapability.ProjectMutation,
             ["probe_io_system_qualification"] = OperationCapability.ProjectMutation,
-
-            // OnlineControl (NOT read-only safe)
-            ["start_plc"] = OperationCapability.OnlineControl,
-            ["stop_plc"] = OperationCapability.OnlineControl,
 
             // Internal non-opening lifecycle probes and verification reads require a writable mode.
             ["probe_project_status_for_lifecycle"] = OperationCapability.ProjectLifecycle,

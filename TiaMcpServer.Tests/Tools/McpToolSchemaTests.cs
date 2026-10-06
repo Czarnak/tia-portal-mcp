@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
@@ -28,7 +27,7 @@ namespace TiaMcpServer.Tests.Tools;
 /// Program.cs via WithToolsFromAssembly). If the SDK ever stopped recognizing that - a version
 /// bump, a change in how Services is threaded through - every write tool's schema would gain a
 /// required object argument no model can ever supply, taking down the entire write surface,
-/// while BatchToolMetadataTests and WriteToolSafetyTokenTests (which only reflect over
+/// while WriteToolSafetyTokenTests (which only reflect over
 /// [McpServerTool]/[Description] attributes) would stay green.
 ///
 /// This is why it has to inspect McpServerTool.Create(...).ProtocolTool.InputSchema - the actual
@@ -153,12 +152,12 @@ public class McpToolSchemaTests
     /// ProjectWriteTools lives in - which, for TiaMcpServer.Tests, is the test assembly
     /// itself, since the host's tool source files are compiled directly into it (see
     /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
-    /// carrying [McpServerTool] and asserts the exact approved surface: 17 tools total, and the
+    /// carrying [McpServerTool] and asserts the exact approved surface: 15 tools total, and the
     /// internal lifecycle probe (probe_project_status_for_lifecycle, never [McpServerTool]-decorated)
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlySeventeenApprovedTools()
+    public void McpToolSurface_ExposesExactlyFifteenApprovedTools()
     {
         var toolTypes = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -184,8 +183,6 @@ public class McpToolSchemaTests
             "save_project_as",
             "archive_project",
             "close_project",
-            "preview_write_batch",
-            "apply_write_batch",
             "network_read",
             "network_write",
             "plc_read",
@@ -248,34 +245,10 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("safetyToken", properties);
     }
 
-    [Theory]
-    [InlineData(nameof(BatchTools.PreviewWriteBatch))]
-    [InlineData(nameof(BatchTools.ApplyWriteBatch))]
-    public void BatchTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
-    {
-        var properties = SchemaPropertyNames(typeof(BatchTools), methodName);
-
-        Assert.DoesNotContain("workerClient", properties);
-        Assert.DoesNotContain("safety", properties);
-        Assert.Contains("operations", properties);
-    }
-
-    [Theory]
-    [InlineData(nameof(WriteBatchTools.PreviewWriteBatch))]
-    [InlineData(nameof(WriteBatchTools.ApplyWriteBatch))]
-    public void WriteBatchTools_SchemaNeverExposesInjectedServiceParameters(string methodName)
-    {
-        var properties = SchemaPropertyNames(typeof(WriteBatchTools), methodName);
-
-        Assert.DoesNotContain("workerClient", properties);
-        Assert.DoesNotContain("safety", properties);
-        Assert.Contains("operations", properties);
-    }
-
     [Fact]
-    public void RegisteredWriteToolSurface_ExposesExactlyEightApprovedTools()
+    public void RegisteredWriteToolSurface_ExposesExactlySixLifecycleTools()
     {
-        var toolNames = new[] { typeof(ProjectWriteTools), typeof(WriteBatchTools) }
+        var toolNames = new[] { typeof(ProjectWriteTools) }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
             .Where(attribute => attribute is not null)
@@ -286,12 +259,10 @@ public class McpToolSchemaTests
         Assert.Equal(
             new[]
             {
-                "apply_write_batch",
                 "archive_project",
                 "close_project",
                 "create_project",
                 "open_project",
-                "preview_write_batch",
                 "save_project",
                 "save_project_as"
             },

@@ -32,21 +32,19 @@ public class AccessModeTierTests
     }
 
     [Fact]
-    public void Presets_ReadWriteAllowsLifecycle_FullAddsOnlyOnlineControl()
+    public void Presets_ReadWriteAllowsLifecycle()
     {
         foreach (var operation in OperationPolicyCatalog.AllOperationNames)
         {
             var capability = OperationPolicyCatalog.GetCapability(operation);
             var readOnly = capability is OperationCapability.Observe
-                or OperationCapability.TemporaryExport or OperationCapability.SafetyRead
+                or OperationCapability.TemporaryExport
                 or OperationCapability.SessionSelection;
             var readWrite = readOnly || capability is OperationCapability.Compile
                 or OperationCapability.ProjectMutation or OperationCapability.ProjectLifecycle;
             Assert.Equal(readOnly, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
             Assert.Equal(readWrite, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, operation));
             Assert.True(OperationPolicyCatalog.IsAllowed(Full, operation), operation);
-            Assert.Equal(capability == OperationCapability.OnlineControl,
-                OperationPolicyCatalog.IsAllowed(Full, operation) && !readWrite);
         }
     }
 
@@ -60,12 +58,10 @@ public class AccessModeTierTests
     [InlineData("save_project_as", true)]
     [InlineData("archive_project", true)]
     [InlineData("close_project", true)]
-    [InlineData("start_plc", false)]
-    [InlineData("stop_plc", false)]
     [InlineData("probe_project_status_for_lifecycle", true)]
     [InlineData("probe_open_project_rebind", true)]
     [InlineData("get_basic_project_status", true)]
-    public void ReadWrite_CeilingProtectsOnlineControl(string operation, bool allowed)
+    public void ReadWrite_AndFull_AllowTheSameOperations(string operation, bool allowed)
     {
         Assert.Equal(allowed, OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, operation));
         Assert.True(OperationPolicyCatalog.IsAllowed(Full, operation));
@@ -108,9 +104,26 @@ public class AccessModeTierTests
     }
 
     [Fact]
-    public void EveryRegisteredBatchOperation_HasACapability()
+    public void OnlineControlHasNoOperations()
     {
-        foreach (var operation in TiaMcpServer.Batch.BatchOperationCatalog.All)
-            Assert.NotNull(OperationPolicyCatalog.GetCapability(operation.Name));
+        Assert.DoesNotContain(OperationPolicyCatalog.AllOperationNames,
+            name => OperationPolicyCatalog.GetCapability(name) == OperationCapability.OnlineControl);
+        Assert.False(OperationPolicyCatalog.IsAllowed(Full, "start_plc"));
+        Assert.False(OperationPolicyCatalog.IsAllowed(Full, "stop_plc"));
+    }
+
+    [Fact]
+    public void ReadWriteAndFullAllowTheSameOperations()
+    {
+        foreach (var operation in OperationPolicyCatalog.AllOperationNames)
+            Assert.Equal(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadWrite, operation),
+                OperationPolicyCatalog.IsAllowed(Full, operation));
+    }
+
+    [Fact]
+    public void EveryPlcWriteOperation_HasACapability()
+    {
+        foreach (var operation in TiaMcpServer.Plc.PlcOperationCatalog.WriteOperationNames)
+            Assert.NotNull(OperationPolicyCatalog.GetCapability(operation));
     }
 }

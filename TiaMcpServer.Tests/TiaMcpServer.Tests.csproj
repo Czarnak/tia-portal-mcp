@@ -42,11 +42,6 @@
       Link="Linked\Openness\NetworkConnectionEvidenceCapture.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkPostconditionChecks.cs"
       Link="Linked\Openness\NetworkPostconditionChecks.cs" />
-    <Compile Update="Batch\TagOperationPrerequisiteBaselineTests.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotBuilder.cs"
-      Link="Linked\Openness\TagOperationSafetySnapshotBuilder.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagOperationSafetySnapshotReader.cs"
-      Link="Linked\Openness\TagOperationSafetySnapshotReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectDeviceEnumerator.cs"
       Link="Linked\Openness\ProjectDeviceEnumerator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectDeviceNameMatcher.cs"
@@ -144,32 +139,10 @@
     <Compile Include="..\TiaMcpServer\Tools\StructuredStandaloneResult.cs" Link="Host\StructuredStandaloneResult.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectWriteTools.cs"
       Link="Host\ProjectWriteTools.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchOperationRequest.cs"
-      Link="Host\Batch\BatchOperationRequest.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchOperationCatalog.cs"
-      Link="Host\Batch\BatchOperationCatalog.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchSafetySnapshot.cs"
-      Link="Host\Batch\BatchSafetySnapshot.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchPreviewDiff.cs"
-      Link="Host\Batch\BatchPreviewDiff.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySnapshotContract.cs"
-      Link="Host\Batch\TagOperationSafetySnapshotContract.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\ProjectTreeSafetyPayloadContract.cs"
-      Link="Host\Batch\ProjectTreeSafetyPayloadContract.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\TagOperationSafetySelector.cs"
-      Link="Host\Batch\TagOperationSafetySelector.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs"
       Link="Host\OperationBatches\IOperationBatchItem.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResult.cs"
-      Link="Host\OperationBatches\OperationBatchResult.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchExecutionEngine.cs"
-      Link="Host\OperationBatches\OperationBatchExecutionEngine.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchStateComposer.cs"
-      Link="Host\OperationBatches\OperationBatchStateComposer.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchResultFormatter.cs"
-      Link="Host\OperationBatches\OperationBatchResultFormatter.cs" />
-    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchPayloadBudget.cs"
-      Link="Host\OperationBatches\OperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchStatus.cs"
+      Link="Host\OperationBatches\OperationBatchStatus.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs"
       Link="Host\OperationBatches\StructuredOperationBatch.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs"
@@ -198,12 +171,6 @@
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferencePayloadContract.cs" Link="Host\CrossReferences\CrossReferencePayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceReadTools.cs" Link="Host\CrossReferences\CrossReferenceReadTools.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceTarget.cs" Link="Host\CrossReferences\CrossReferenceTarget.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchWorkerInvoker.cs"
-      Link="Host\Batch\BatchWorkerInvoker.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\TagUpdateSafetyCurrentState.cs"
-      Link="Host\Batch\TagUpdateSafetyCurrentState.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\BatchTools.cs" Link="Host\Batch\BatchTools.cs" />
-    <Compile Include="..\TiaMcpServer\Batch\WriteBatchTools.cs" Link="Host\Batch\WriteBatchTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationRequest.cs"
       Link="Host\Network\NetworkOperationRequest.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkGuardedWriteModels.cs" Link="Host\Network\NetworkGuardedWriteModels.cs" />

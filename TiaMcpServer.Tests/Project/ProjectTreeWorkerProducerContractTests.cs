@@ -189,14 +189,6 @@ public class ProjectTreeWorkerProducerContractTests
     }
 
     [Fact]
-    public void MarkedPayloadContracts_KeepOmittingNullMembers()
-    {
-        Assert.Equal(
-            """{"success":true,"operation":"start_plc","plcName":"PLC_1"}""",
-            WorkerSerializationHarness.Serialize(new PlcOnlineResultInfo { Operation = "start_plc", PlcName = "PLC_1" }).Payload);
-    }
-
-    [Fact]
     public void UnmarkedPayloadContracts_WriteNullMembers()
     {
         Assert.Equal(

@@ -8,21 +8,6 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 
 public static class PlcSoftwareLocator
 {
-    /// <summary>Returns the first PLC software in the project (optionally filtered by device name), or throws if none.</summary>
-    public static PlcSoftware Find(Project project, string? plcName)
-    {
-        foreach (var discovered in FindAll(project, plcName))
-        {
-            return discovered.Software;
-        }
-
-        var detail = plcName is not null
-            ? $" named '{plcName}'"
-            : string.Empty;
-
-        throw new InvalidOperationException($"No PLC software{detail} was found in the project.");
-    }
-
     /// <summary>
     /// The write-path resolver: exactly one PLC (root, grouped or ungrouped device) whose software or
     /// device name equals <paramref name="plcName"/> case-insensitively (any PLC when null). Zero matches
