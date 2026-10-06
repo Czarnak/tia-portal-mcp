@@ -41,7 +41,7 @@ public static class TagTableReader
     {
         var inventory = new PlcTagInventoryInfo();
         var filter = new TableFilter(tableName, folderPath);
-        foreach (var discovered in PlcSoftwareLocator.FindEveryPlc(project, plcName))
+        foreach (var discovered in PlcSoftwareLocator.FindEveryPlc(project, plcName, inventory.Messages))
         {
             var plc = new PlcTagInventoryPlcInfo
             {
@@ -61,11 +61,12 @@ public static class TagTableReader
             inventory.Plcs.Add(plc);
         }
 
-        if (inventory.Plcs.Count == 0)
+        // An unreadable device item may hide the PLC, so that case returns the incomplete inventory.
+        if (inventory.Plcs.Count == 0 && inventory.Messages.Count == 0)
         {
             var detail = plcName is not null ? $" named '{plcName}'" : string.Empty;
             throw new WorkerOperationException(
-                WorkerFailureCategories.WorkerOperationFailed,
+                WorkerFailureCategories.TargetNotFound,
                 $"No PLC software{detail} was found in the project.");
         }
 

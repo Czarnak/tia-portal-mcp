@@ -255,13 +255,42 @@ namespace Siemens.Engineering.SW.Tags
 {
     public sealed class PlcTagTableGroup : NamedObject
     {
-        public Composition<PlcTagTable> TagTables { get; } = new();
+        public PlcTagTableComposition TagTables { get; } = new();
         public Composition<PlcTagTableGroup> Groups { get; } = new();
+    }
+    public sealed class PlcTagTableComposition : Composition<PlcTagTable>
+    {
+        public PlcTagTable Create(string name)
+        {
+            var table = new PlcTagTable { Name = name, Owner = this };
+            Items.Add(table);
+            return table;
+        }
+    }
+    public sealed class PlcTagComposition : Composition<PlcTag>
+    {
+        public PlcTag Create(string name, string dataTypeName, string logicalAddress)
+        {
+            var tag = new PlcTag { Name = name, DataTypeName = dataTypeName, LogicalAddress = logicalAddress, Owner = this };
+            Items.Add(tag);
+            return tag;
+        }
+    }
+    public sealed class PlcUserConstantComposition : Composition<PlcUserConstant>
+    {
+        public PlcUserConstant Create(string name)
+        {
+            var constant = new PlcUserConstant { Name = name, Owner = this };
+            Items.Add(constant);
+            return constant;
+        }
     }
     public sealed class PlcTagTable : NamedObject
     {
-        public Composition<PlcTag> Tags { get; } = new();
-        public Composition<PlcUserConstant> UserConstants { get; } = new();
+        public PlcTagComposition Tags { get; } = new();
+        public PlcUserConstantComposition UserConstants { get; } = new();
+        internal PlcTagTableComposition? Owner { get; set; }
+        public void Delete() => Owner?.Items.Remove(this);
         public Composition<PlcSystemConstant> SystemConstants { get; } = new();
         public bool IsDefault { get; set; }
         public void Export(FileInfo path, ExportOptions options, DocumentInfoOptions documentInfo)
@@ -269,6 +298,8 @@ namespace Siemens.Engineering.SW.Tags
     }
     public sealed class PlcTag : NamedObject
     {
+        internal PlcTagComposition? Owner { get; set; }
+        public void Delete() => Owner?.Items.Remove(this);
         public string DataTypeName { get; set; } = "Bool";
         public string LogicalAddress { get; set; } = "%I0.0";
         private bool externalAccessible, externalVisible, externalWritable;
@@ -294,6 +325,8 @@ namespace Siemens.Engineering.SW.Tags
     public sealed class PlcSystemConstant : NamedObject { }
     public sealed class PlcUserConstant : NamedObject
     {
+        internal PlcUserConstantComposition? Owner { get; set; }
+        public void Delete() => Owner?.Items.Remove(this);
         public string DataTypeName { get; set; } = "Int";
         private object value = "25";
         public Exception? ValueFailure { get; set; }

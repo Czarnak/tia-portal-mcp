@@ -55,6 +55,12 @@
       Link="Linked\Openness\ProjectTreeSnapshotWalker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcSoftwareLocator.cs"
       Link="Linked\Openness\PlcSoftwareLocator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcWritePreconditions.cs"
+      Link="Linked\Openness\PlcWritePreconditions.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagMutationService.cs"
+      Link="Linked\Openness\TagMutationService.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTargetResolver.cs"
+      Link="Linked\Openness\TagTargetResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTableReader.cs"
       Link="Linked\Openness\TagTableReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileChecker.cs"
